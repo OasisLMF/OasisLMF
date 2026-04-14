@@ -28,7 +28,7 @@ from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
-from oasislmf.pytools.common.id_index import build as id_index_build
+from oasislmf.pytools.common.hashmap import unpack as hm_unpack, _find_key as hm_find_key, NOT_FOUND as HM_NOT_FOUND
 from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
@@ -167,17 +167,19 @@ def get_peril_id(input_path):
     return item_peril
 
 
-def get_vuln_rngadj(run_dir, vuln_dict):
+def get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys):
     """
     Loads vulnerability adjustments from the analysis settings file.
 
     Args:
         run_dir (str): path to the run directory (used to load the analysis settings)
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys).
 
-    Returns: (Dict[nb_int32, nb_float64]) vulnerability adjustments dictionary
+    Returns: (np.ndarray[oasis_float]) vulnerability adjustments array, indexed by dense vuln index.
     """
     settings_path = os.path.join(run_dir, "analysis_settings.json")
-    vuln_adj = np.ones(len(vuln_dict), dtype=oasis_float)
+    vuln_adj = np.ones(len(vuln_map_keys), dtype=oasis_float)
     if not os.path.exists(settings_path):
         logger.debug(f"analysis_settings.json not found in {run_dir}.")
         return vuln_adj
@@ -189,9 +191,12 @@ def get_vuln_rngadj(run_dir, vuln_dict):
     if adjustments is None:
         logger.debug(f"vulnerability_adjustments not found in {settings_path}.")
         return vuln_adj
+    hm_info, hm_lookup, hm_index = hm_unpack(vuln_map)
     for key, value in adjustments.items():
-        if nb_int32(key) in vuln_dict.keys():
-            vuln_adj[vuln_dict[nb_int32(key)]] = nb_oasis_float(value)
+        slot = hm_find_key(hm_info, hm_lookup, hm_index, vuln_map_keys, np.int32(int(key)))
+        if slot != HM_NOT_FOUND:
+            idx = hm_index[slot]
+            vuln_adj[idx] = nb_oasis_float(value)
     return vuln_adj
 
 
@@ -298,7 +303,7 @@ def run(run_dir,
         logger.debug('import aggregate vulnerability definitions and vulnerability weights')
         aggregate_vulnerability = read_aggregate_vulnerability(model_storage, ignore_file_type)
         aggregate_weights = read_vulnerability_weights(model_storage, ignore_file_type)
-        agg_vuln_ids, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids = process_aggregate_vulnerability(aggregate_vulnerability)
+        agg_vuln_ids, agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids = process_aggregate_vulnerability(aggregate_vulnerability)
 
         if aggregate_vulnerability is not None and aggregate_weights is None:
             raise FileNotFoundError(
@@ -324,6 +329,8 @@ def run(run_dir,
                       'hazard_group_id': 0,
                       'hazard_correlation_value': 0.}
         )
+        if valid_areaperil_id is not None:
+            items = items[np.isin(items['areaperil_id'], valid_areaperil_id)]
         items = rfn.merge_arrays((items,
                                   np.empty(items.shape,
                                            dtype=nb.from_dtype(np.dtype([("vulnerability_idx", oasis_int),
@@ -366,21 +373,17 @@ def run(run_dir,
 
         items.sort(order=['areaperil_id', 'vulnerability_id'])
 
-        # build id_index for aggregate vulnerability lookup
-        agg_vuln_id_ja_id_ind = id_index_build(agg_vuln_ids)
-
         # build item map
-        (item_map, areaperil_ids_map, vuln_dict,
+        (item_map, areaperil_ids_map, vuln_map, vuln_map_keys,
          areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_vuln_idxs,
          areaperil_agg_vuln_idx_ja_weights, areaperil_agg_vuln_idx_ja_areaperil_ids) = generate_item_map(
             items,
             coverages,
-            valid_areaperil_id,
             agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids)
         if aggregate_weights is not None:
             logger.debug('reconstruct aggregate vulnerability definitions and weights')
             process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_vuln_idxs,
-                                          areaperil_agg_vuln_idx_ja_weights, vuln_dict, aggregate_weights)
+                                          areaperil_agg_vuln_idx_ja_weights, vuln_map, vuln_map_keys, aggregate_weights)
         del areaperil_agg_vuln_idx_ja_areaperil_ids  # only needed during setup
 
         # import array to store the coverages to be computed
@@ -402,8 +405,9 @@ def run(run_dir,
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('import vulnerabilities')
-        vuln_adj = get_vuln_rngadj(run_dir, vuln_dict)
-        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
+        vuln_adj = get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys)
+        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_map, vuln_map_keys,
+                                     num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
         # set up streams

@@ -12,6 +12,11 @@ from numba.types import int8 as nb_int8
 
 from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_int, oasis_float, oasis_int, items_dtype
 from oasislmf.pytools.common.id_index import get_idx, NOT_FOUND
+from oasislmf.pytools.common.hashmap import (
+    init_dict, unpack, rehash, _try_add_key,
+    index_dtype, i_add_key_fail, new_slot_bit,
+    NOT_FOUND as HM_NOT_FOUND,
+)
 from oasislmf.pytools.gul.utils import append_to_dict_value
 from oasislmf.pytools.gulmc.common import ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE
 
@@ -50,7 +55,7 @@ def read_items(input_path, ignore_file_type=set(), dynamic_footprint=False, lega
 
 
 @nb.njit(cache=True, fastmath=True)
-def generate_item_map(items, coverages, valid_areaperil_id,
+def generate_item_map(items, coverages,
                       agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids):
     """Generate item_map; requires items to be sorted.
 
@@ -59,7 +64,6 @@ def generate_item_map(items, coverages, valid_areaperil_id,
             items need to be sorted by increasing areaperil_id, vulnerability_id
             in order to output the items in correct order. Must have an 'areaperil_agg_vuln_idx' field.
         coverages (numpy.ndarray): coverage id to information on items
-        valid_areaperil_id (numpy.ndarray[int32]): list of non-filtered area_peril_id (None is no filter)
         agg_vuln_id_ja_id_ind (np.array[oasis_int]): id_index structure built from sorted aggregate vulnerability ids.
         agg_vuln_id_ja_offsets (np.array[oasis_int]): jagged array offsets for agg_vuln_id_ja_vuln_ids.
         agg_vuln_id_ja_vuln_ids (np.array[oasis_int]): flat jagged array of constituent vulnerability ids.
@@ -69,7 +73,8 @@ def generate_item_map(items, coverages, valid_areaperil_id,
             the mapping between areaperil_id, vulnerability_id to item.
         areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
             areaperil_id and all the vulnerability ids associated with it.
-        vuln_dict (Dict[int, int]): vuln id to vuln idx for each vulnerability.
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys, trimmed to n_unique).
         areaperil_agg_vuln_idx_ja_offsets (np.array[oasis_int]): jagged array offsets. Block i spans
             areaperil_agg_vuln_idx_ja_vuln_idxs[offsets[i]:offsets[i+1]].
         areaperil_agg_vuln_idx_ja_vuln_idxs (np.array[oasis_int]): flat jagged array of dense vulnerability
@@ -80,14 +85,19 @@ def generate_item_map(items, coverages, valid_areaperil_id,
             parallel to vuln_idxs. Used by process_vulnerability_weights to locate weight slots.
 
     """
+    # --- Hashmap for iterative vuln_id -> dense_index construction ---
+    # Upper bound on unique vuln_ids: all non-aggregate + all aggregate sub-vulns
+    max_unique_vulns = len(items) + len(agg_vuln_id_ja_vuln_ids)
+    vuln_key_table = np.empty(max(max_unique_vulns, 1), dtype=np.int32)
+    vuln_table = init_dict(max_unique_vulns)
+    hm_info, hm_lookup, hm_index = unpack(vuln_table)
+    n_unique = index_dtype(0)
+
+    # --- Main pass: build all structures, assign dense indices on the fly ---
     item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
     areaperil_ids_map = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int8))
-    vuln_dict = Dict()
-    vuln_idx = 0
 
     # Compute upper bound on jagged array size for aggregate vulnerabilities.
-    # Each unique (areaperil_id, agg_vuln_id) pair contributes len(sub_vulns) entries.
-    # Upper bound: number of items * max sub-vulns per aggregate.
     n_agg_vulns = len(agg_vuln_id_ja_offsets) - 1
     max_sub_vulns = nb_int32(0)
     for i in range(n_agg_vulns):
@@ -96,11 +106,10 @@ def generate_item_map(items, coverages, valid_areaperil_id,
             max_sub_vulns = n
     max_agg_vuln_size = max(len(items) * max_sub_vulns, 1)
 
-    # Jagged arrays for aggregate vulnerability indices and weights
+    # Jagged arrays for aggregate vulnerability dense indices and weights
     areaperil_agg_vuln_idx_ja_vuln_idxs = np.empty(max_agg_vuln_size, dtype=oasis_int)
     areaperil_agg_vuln_idx_ja_weights = np.zeros(max_agg_vuln_size, dtype=oasis_float)
     areaperil_agg_vuln_idx_ja_areaperil_ids = np.empty(max_agg_vuln_size, dtype=areaperil_int)
-    # Jagged array offsets: one entry per block + final sentinel. Max blocks = len(items).
     areaperil_agg_vuln_idx_ja_offsets = np.empty(len(items) + 1, dtype=oasis_int)
     ja_ptr = nb_int32(0)
     n_agg_vuln_groups = nb_int32(0)
@@ -116,9 +125,6 @@ def generate_item_map(items, coverages, valid_areaperil_id,
         areaperil_id = item['areaperil_id']
         vulnerability_id = item['vulnerability_id']
 
-        if valid_areaperil_id is not None and item['areaperil_id'] not in valid_areaperil_id:
-            continue
-
         append_to_dict_value(item_map, tuple((areaperil_id, vulnerability_id)), j, ITEM_MAP_VALUE_TYPE)
         coverages[item['coverage_id']]['max_items'] += 1
 
@@ -126,24 +132,9 @@ def generate_item_map(items, coverages, valid_areaperil_id,
         agg_idx = get_idx(agg_vuln_id_ja_id_ind, vulnerability_id)
         is_aggregate = agg_idx != NOT_FOUND
 
-        # Populate vuln_dict, to map all used vuln_id to vuln_i
-        if item['vulnerability_id'] not in vuln_dict:
-            if is_aggregate:
-                sub_start = agg_vuln_id_ja_offsets[agg_idx]
-                sub_end = agg_vuln_id_ja_offsets[agg_idx + 1]
-                for si in range(sub_start, sub_end):
-                    sub_vuln_id = agg_vuln_id_ja_vuln_ids[si]
-                    if sub_vuln_id not in vuln_dict:
-                        vuln_dict[sub_vuln_id] = nb_oasis_int(vuln_idx)
-                        vuln_idx += 1
-            else:
-                vuln_dict[item['vulnerability_id']] = nb_oasis_int(vuln_idx)
-                vuln_idx += 1
-
         if is_aggregate:
             is_new_pair = (areaperil_id != last_areaperil_id or vulnerability_id != last_vulnerability_id)
             if is_new_pair:
-                # First time seeing this (areaperil, agg_vuln) — allocate a jagged array block
                 sub_start = agg_vuln_id_ja_offsets[agg_idx]
                 sub_end = agg_vuln_id_ja_offsets[agg_idx + 1]
                 n_sub = sub_end - sub_start
@@ -152,7 +143,23 @@ def generate_item_map(items, coverages, valid_areaperil_id,
                 last_vulnerability_id = vulnerability_id
                 for si in range(sub_start, sub_end):
                     k = si - sub_start
-                    areaperil_agg_vuln_idx_ja_vuln_idxs[ja_ptr + k] = vuln_dict[agg_vuln_id_ja_vuln_ids[si]]
+                    sub_vuln_id = np.int32(agg_vuln_id_ja_vuln_ids[si])
+                    # Insert sub-vuln_id into hashmap, get dense index directly
+                    vuln_key_table[n_unique] = sub_vuln_id
+                    if hm_info[1] >= hm_info[2]:
+                        vuln_table = rehash(vuln_table, vuln_key_table)
+                        hm_info, hm_lookup, hm_index = unpack(vuln_table)
+                    result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
+                    while result == i_add_key_fail:
+                        vuln_table = rehash(vuln_table, vuln_key_table)
+                        hm_info, hm_lookup, hm_index = unpack(vuln_table)
+                        result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
+                    if result & new_slot_bit:
+                        dense_idx = nb_oasis_int(n_unique)
+                        n_unique += index_dtype(1)
+                    else:
+                        dense_idx = nb_oasis_int(hm_index[result])
+                    areaperil_agg_vuln_idx_ja_vuln_idxs[ja_ptr + k] = dense_idx
                     areaperil_agg_vuln_idx_ja_areaperil_ids[ja_ptr + k] = areaperil_id
                 ja_ptr += n_sub
                 n_agg_vuln_groups += 1
@@ -160,13 +167,27 @@ def generate_item_map(items, coverages, valid_areaperil_id,
 
             item['areaperil_agg_vuln_idx'] = last_block_idx
         else:
-            item['vulnerability_idx'] = vuln_dict[item['vulnerability_id']]
+            # Insert vuln_id into hashmap, get dense index directly
+            vuln_key_table[n_unique] = np.int32(vulnerability_id)
+            if hm_info[1] >= hm_info[2]:
+                vuln_table = rehash(vuln_table, vuln_key_table)
+                hm_info, hm_lookup, hm_index = unpack(vuln_table)
+            result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
+            while result == i_add_key_fail:
+                vuln_table = rehash(vuln_table, vuln_key_table)
+                hm_info, hm_lookup, hm_index = unpack(vuln_table)
+                result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
+            if result & new_slot_bit:
+                item['vulnerability_idx'] = nb_oasis_int(n_unique)
+                n_unique += index_dtype(1)
+            else:
+                item['vulnerability_idx'] = nb_oasis_int(hm_index[result])
 
         if areaperil_id not in areaperil_ids_map:
             areaperil_ids_map[areaperil_id] = Dict.empty(nb_int32, nb_int8)
         areaperil_ids_map[areaperil_id][vulnerability_id] = 0
 
-    return (item_map, areaperil_ids_map, vuln_dict,
+    return (item_map, areaperil_ids_map, vuln_table, vuln_key_table[:n_unique],
             areaperil_agg_vuln_idx_ja_offsets[:n_agg_vuln_groups + 1],
             areaperil_agg_vuln_idx_ja_vuln_idxs[:ja_ptr], areaperil_agg_vuln_idx_ja_weights[:ja_ptr],
             areaperil_agg_vuln_idx_ja_areaperil_ids[:ja_ptr])

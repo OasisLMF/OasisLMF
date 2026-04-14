@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_int, aggregatevulnerability_dtype, vulnerability_weight_dtype
+from oasislmf.pytools.common.id_index import build as id_index_build
+from oasislmf.pytools.common.hashmap import unpack as hm_unpack, _find_key as hm_find_key, NOT_FOUND as HM_NOT_FOUND
 
 logger = logging.getLogger(__name__)
 
@@ -107,17 +109,19 @@ def process_aggregate_vulnerability(aggregate_vulnerability):
             agg_vuln_id_ja_vuln_ids[ptr:ptr + n_sub] = sub_vulns
             ptr += n_sub
             agg_vuln_id_ja_offsets[i + 1] = ptr
+
     else:
         agg_vuln_ids = np.empty(0, dtype=oasis_int)
         agg_vuln_id_ja_vuln_ids = np.empty(0, dtype=oasis_int)
         agg_vuln_id_ja_offsets = np.zeros(1, dtype=oasis_int)
 
-    return agg_vuln_ids, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids
+    agg_vuln_id_ja_id_ind = id_index_build(agg_vuln_ids)
+    return agg_vuln_ids, agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids
 
 
 @nb.njit(cache=True)
 def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_vuln_idxs,
-                                  areaperil_agg_vuln_idx_ja_weights, vuln_dict, aggregate_weights):
+                                  areaperil_agg_vuln_idx_ja_weights, vuln_map, vuln_map_keys, aggregate_weights):
     """
     Populate the weights flat array by matching aggregate_weights records against jagged array entries.
 
@@ -125,14 +129,17 @@ def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areap
         areaperil_agg_vuln_idx_ja_areaperil_ids (np.array[areaperil_int]): areaperil_id for each entry.
         areaperil_agg_vuln_idx_ja_vuln_idxs (np.array[oasis_int]): dense vulnerability index for each entry.
         areaperil_agg_vuln_idx_ja_weights (np.array[oasis_float]): flat array of weights to populate.
-        vuln_dict (Dict[int, int]): vulnerability dictionary, vuln_id => dense_vuln_idx.
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys).
         aggregate_weights (np.array[VulnerabilityWeight]): vulnerability weights table.
     """
+    hm_info, hm_lookup, hm_index = hm_unpack(vuln_map)
     n_entries = len(areaperil_agg_vuln_idx_ja_vuln_idxs)
     for i in range(len(aggregate_weights)):
         rec = aggregate_weights[i]
-        if rec['vulnerability_id'] in vuln_dict:
-            dense_idx = vuln_dict[rec['vulnerability_id']]
+        slot = hm_find_key(hm_info, hm_lookup, hm_index, vuln_map_keys, rec['vulnerability_id'])
+        if slot != HM_NOT_FOUND:
+            dense_idx = hm_index[slot]
             ap_id = nb_areaperil_int(rec['areaperil_id'])
             for j in range(n_entries):
                 if areaperil_agg_vuln_idx_ja_areaperil_ids[j] == ap_id and areaperil_agg_vuln_idx_ja_vuln_idxs[j] == dense_idx:
