@@ -19,6 +19,7 @@ def get_cyber_tiv_fields(oed_version="latest version"):
     oed_coverages = OedSchema.from_oed_schema_info(oed_version).schema['CoverageValues']
     return [f'Cyber{k}TIV' for k, v in oed_coverages.items() if v['Type'] == 'Cyber']
 
+
 def get_additional_fields(oed_type):
     additional_fields = []
 
