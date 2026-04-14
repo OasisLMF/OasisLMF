@@ -37,7 +37,7 @@ def test_get_peril_info_from_schema__expected_output(mock_oed_schema):
                                      'peril_ids': ['PERIL1', 'PERIL2']}}
 
     assert perils == expected_perils
-    assert expected_group_perils == expected_group_perils
+    assert peril_groups == expected_group_perils
 
 
 def test_get_peril_info_from_schema__runs_with_latest():
