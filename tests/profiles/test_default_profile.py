@@ -15,8 +15,17 @@ def get_oed_fields(profile, oed_type, oed_version="latest version"):
     return schema_fields
 
 
+def get_cyber_tiv_fields(oed_version="latest version"):
+    oed_coverages = OedSchema.from_oed_schema_info(oed_version).schema['CoverageValues']
+    return [f'Cyber{k}TIV' for k, v in oed_coverages.items() if v['Type'] == 'Cyber']
+
 def get_additional_fields(oed_type):
-    return DEFAULT_ADDITIONAL_FIELDS[oed_type].keys()
+    additional_fields = []
+
+    # AnnualRevenue for Cyber in Loc
+    if oed_type == 'Loc':
+        additional_fields += ['AnnualRevenue']
+    return additional_fields + list(DEFAULT_ADDITIONAL_FIELDS[oed_type].keys())
 
 
 @pytest.fixture
@@ -34,7 +43,11 @@ def exposure_profile():
                           ("exposure_profile", "exposure_profile")])
 def test_PorfileElementName_same_as_key(profile, message_prefix, request):
     profile = request.getfixturevalue(profile)
-    keys = list(profile.keys())
+
+    # Ignore the CyberTIV fields
+    cyber_tiv_fields = get_cyber_tiv_fields()
+    keys = [k for k in profile.keys() if k not in cyber_tiv_fields]
+
     profile_element_values = [profile[k]['ProfileElementName'] for k in keys]
     assert keys == profile_element_values
 
@@ -44,12 +57,15 @@ def test_PorfileElementName_same_as_key(profile, message_prefix, request):
                           ("exposure_profile", 'Loc', 'exposure_profile')])
 def test_profile_fields_in_spec(profile, oed_type, profile_name, request):
     profile = request.getfixturevalue(profile)
+    profile_cols = [v['ProfileElementName'] for v in profile.values()]
     schema_fields = get_oed_fields(profile, oed_type)
 
-    mapped_schema_fields = OedSchema.column_to_field(list(profile.keys()), schema_fields)
+    mapped_schema_fields = OedSchema.column_to_field(profile_cols, schema_fields)
+
+    # LMF additional fields
     additional_fields = get_additional_fields(oed_type)
 
     valid_schema_fields = set(mapped_schema_fields.keys()).union(additional_fields)
-    fields_only_in_profile = set(profile.keys()).difference(valid_schema_fields)
+    fields_only_in_profile = set(profile_cols).difference(valid_schema_fields)
 
     assert len(fields_only_in_profile) == 0, f'Fields in profile are not valid OED Fields: {fields_only_in_profile}'
