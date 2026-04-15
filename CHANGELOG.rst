@@ -1,6 +1,36 @@
 OasisLMF Changelog
 ==================
 
+`2.5.2`_
+ ---------
+* [#1873](https://github.com/OasisLMF/OasisLMF/pull/1873) - Add docstrings and documentation to bash.py
+* [#1878](https://github.com/OasisLMF/OasisLMF/pull/1878) - Fix error handling and replaced row wise apply in loss computation
+* [#1891](https://github.com/OasisLMF/OasisLMF/pull/1891) - override exposure run files and testing on exposure run
+* [#1894](https://github.com/OasisLMF/OasisLMF/pull/1894) - feature/cython_write_csv
+* [#1897](https://github.com/OasisLMF/OasisLMF/pull/1897) - use bin file in exposure run
+* [#1898](https://github.com/OasisLMF/OasisLMF/pull/1898) - Add resource monitor for pytools processes
+* [#1899](https://github.com/OasisLMF/OasisLMF/pull/1899) - Add Numba JIT cache warmup to eliminate cold-start overhead
+* [#1901](https://github.com/OasisLMF/OasisLMF/pull/1901) - Fix/chardet 7 support
+* [#1902](https://github.com/OasisLMF/OasisLMF/pull/1902) - Add option to set analyses chunk size for API client
+* [#1905](https://github.com/OasisLMF/OasisLMF/pull/1905) - fix/check_call
+* [#1907](https://github.com/OasisLMF/OasisLMF/pull/1907) - Fix failing Piwnd checks (v2)
+* [#1908](https://github.com/OasisLMF/OasisLMF/pull/1908) - fix/rogue_pytest_files
+* [#1909](https://github.com/OasisLMF/OasisLMF/pull/1909) - return period check
+* [#1912](https://github.com/OasisLMF/OasisLMF/pull/1912) - fix additional_fields pa_dtype keyerror issue
+* [#1913](https://github.com/OasisLMF/OasisLMF/pull/1913) - feat: Native Apple Silicon (macOS arm64) installation support
+* [#1914](https://github.com/OasisLMF/OasisLMF/pull/1914) - enhancement/wheatsheaf_zero_count
+* [#1915](https://github.com/OasisLMF/OasisLMF/pull/1915) - Fix updated CI platform checks
+* [#1916](https://github.com/OasisLMF/OasisLMF/pull/1916) - fix/cyber account profile to match OED spec
+* [#1919](https://github.com/OasisLMF/OasisLMF/pull/1919) - Optimize FootprintParquetDynamic for partitioned parquet
+* [#1921](https://github.com/OasisLMF/OasisLMF/pull/1921) - CI adjustment for External PR's
+* [#1923](https://github.com/OasisLMF/OasisLMF/pull/1923) - Add H3 hexagonal grid lookup to builtin keys server
+* [#1924](https://github.com/OasisLMF/OasisLMF/pull/1924) - fix: in special condition remove necessity for dummy layer with multiple cond peril
+* [#1925](https://github.com/OasisLMF/OasisLMF/pull/1925) - Fix package build warnings
+* [#1927](https://github.com/OasisLMF/OasisLMF/pull/1927) - Ci/automate release branch
+* [#1930](https://github.com/OasisLMF/OasisLMF/pull/1930) - Set CRS to WGS84 on location coordinates
+* [#1932](https://github.com/OasisLMF/OasisLMF/pull/1932) - fix twine upload
+.. _`2.5.2`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.1...2.5.2
+
 `2.5.1`_
  ---------
 * [#1885](https://github.com/OasisLMF/OasisLMF/pull/1889) - race condition with join-summary-info in generated bash script

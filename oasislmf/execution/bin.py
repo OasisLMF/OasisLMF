@@ -25,7 +25,6 @@ import glob
 import logging
 import os
 import shutil
-import shutilwhich
 import subprocess
 import tarfile
 import pandas as pd
@@ -685,7 +684,7 @@ def check_conversion_tools(il=False):
 
     for input_file in input_files:
         tool = input_file['conversion_tool']
-        if shutilwhich.which(tool) is None:
+        if shutil.which(tool) is None:
             error_message = "Failed to find conversion tool: {}".format(tool)
             logging.error(error_message)
             raise OasisException(error_message)

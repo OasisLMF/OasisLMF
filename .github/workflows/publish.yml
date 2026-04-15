@@ -297,21 +297,21 @@ jobs:
 
 
     # --- Publish to Pypi --- #
-    - name: PYPI - Source package
-      run: twine upload ${{ needs.build.outputs.src_pkg_filename }}
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-
     - name: PYPI - Linux package
-      run: twine upload ${{ needs.build.outputs.linux_pkg_filename }}
+      run: twine upload --skip-existing ${{ needs.build.outputs.linux_pkg_filename }} --verbose
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
 
     - name: PYPI - OSX package
       if: needs.build.outputs.osx_pkg_filename != ''
-      run: twine upload ${{ needs.build.outputs.osx_pkg_filename }}
+      run: twine upload --skip-existing ${{ needs.build.outputs.osx_pkg_filename }} --verbose
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+
+    - name: PYPI - Source package
+      run: twine upload --skip-existing ${{ needs.build.outputs.src_pkg_filename }} --verbose
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
