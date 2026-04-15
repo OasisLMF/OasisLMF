@@ -7,9 +7,7 @@ from oasislmf.utils.data import DEFAULT_ADDITIONAL_FIELDS
 from oasislmf.utils.defaults import get_default_accounts_profile, get_default_exposure_profile
 
 
-def get_oed_fields(profile, oed_type, oed_version="latest version"):
-    """Get the relevant OED fields from the spec for a given profile.
-    """
+def get_oed_fields(oed_type, oed_version="latest version"):
     oed_schema = OedSchema.from_oed_schema_info(oed_version)
     schema_fields = oed_schema.schema['input_fields'][oed_type]
     return schema_fields
@@ -59,7 +57,7 @@ def test_PorfileElementName_same_as_key(profile, message_prefix, request):
 def test_profile_fields_in_spec(profile, oed_type, profile_name, request):
     profile = request.getfixturevalue(profile)
     profile_cols = [v['ProfileElementName'] for v in profile.values()]
-    schema_fields = get_oed_fields(profile, oed_type)
+    schema_fields = get_oed_fields(oed_type)
 
     mapped_schema_fields = OedSchema.column_to_field(profile_cols, schema_fields)
 
