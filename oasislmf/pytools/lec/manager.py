@@ -255,6 +255,7 @@ def run_lec(
             max_summary_id,
         )
 
+
 def run(
     run_dir,
     subfolder,
