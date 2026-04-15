@@ -22,7 +22,9 @@ class AggReports():
         self,
         outmap,
         outloss_mean,
+        row_used_mean,
         outloss_sample,
+        row_used_sample,
         period_weights,
         max_summary_id,
         sample_size,
@@ -47,8 +49,8 @@ class AggReports():
         self.lec_files_folder = lec_files_folder
         self.output_binary = output_binary
         self.output_parquet = output_parquet
-        self.row_used_indices_mean = np.where(outloss_mean["row_used"])[0]
-        self.row_used_indices_sample = np.where(outloss_sample["row_used"])[0]
+        self.row_used_indices_mean = np.where(row_used_mean)[0]
+        self.row_used_indices_sample = np.where(row_used_sample)[0]
 
     def output_data(self, data, out_type):
         if self.output_binary:
