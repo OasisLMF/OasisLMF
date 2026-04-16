@@ -37,14 +37,11 @@ class TestGetVulns(TestCase):
         n_unique = hm_index_dtype(0)
         for vid in self.vuln_ids_sorted:
             vuln_key_table[n_unique] = vid
-            if hm_info[1] >= hm_info[2]:
-                vuln_table = hm_rehash(vuln_table, vuln_key_table)
-                hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
-            result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
+            result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vid, n_unique)
             while result == hm_i_add_key_fail:
                 vuln_table = hm_rehash(vuln_table, vuln_key_table)
                 hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
-                result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
+                result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vid, n_unique)
             if result & hm_new_slot_bit:
                 n_unique += hm_index_dtype(1)
         self.vuln_map = vuln_table

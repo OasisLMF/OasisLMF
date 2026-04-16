@@ -23,7 +23,7 @@ from oasislmf.pytools.common.hashmap import (
     init_dict as hm_init_dict, unpack as hm_unpack, rehash as hm_rehash,
     _try_add_key as hm_try_add_key, _find_key as hm_find_key,
     index_dtype as hm_index_dtype, i_add_key_fail as hm_i_add_key_fail,
-    new_slot_bit as hm_new_slot_bit, NOT_FOUND as HM_NOT_FOUND,
+    new_slot_bit as hm_new_slot_bit, NOT_FOUND as HM_NOT_FOUND, HM_INFO_N_VALID,
 )
 
 from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
@@ -116,7 +116,6 @@ def load_items(items, valid_area_peril_id):
     vuln_key_table = np.empty(max_vulns, dtype=np.int32)
     vuln_table = hm_init_dict(max_vulns)
     hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
-    n_unique = hm_index_dtype(0)
 
     for i in range(items.shape[0]):
         item = items[i]
@@ -125,18 +124,11 @@ def load_items(items, valid_area_peril_id):
         if valid_area_peril_id is not None and item['areaperil_id'] not in valid_area_peril_id:
             continue
 
-        # Insert vuln_id into hashmap
-        vuln_key_table[n_unique] = item['vulnerability_id']
-        if hm_info[1] >= hm_info[2]:
-            vuln_table = hm_rehash(vuln_table, vuln_key_table)
-            hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
-        result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
+        # Insert vuln_id into hashmap (table pre-sized to fit all items)
+        result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, item['vulnerability_id'])
         while result == hm_i_add_key_fail:
-            vuln_table = hm_rehash(vuln_table, vuln_key_table)
-            hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
-            result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
-        if result & hm_new_slot_bit:
-            n_unique += hm_index_dtype(1)
+            hm_info, hm_lookup, hm_index = hm_unpack(hm_rehash(vuln_table, vuln_key_table))
+            result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, item['vulnerability_id'])
 
         # insert an area dictionary into areaperil_dict under the key of areaperil ID
         if item['areaperil_id'] not in areaperil_dict:
@@ -149,7 +141,7 @@ def load_items(items, valid_area_peril_id):
                 areaperil_to_vulns_size += 1
                 areaperil_dict[item['areaperil_id']][item['vulnerability_id']] = 0
 
-    vuln_map_keys = vuln_key_table[:n_unique]
+    vuln_map_keys = vuln_key_table[:vuln_table[HM_INFO_N_VALID]]
 
     areaperil_to_vulns_idx_dict = Dict()
     areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype=Index_type)

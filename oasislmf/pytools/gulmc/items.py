@@ -14,8 +14,9 @@ from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oas
 from oasislmf.pytools.common.id_index import get_idx, NOT_FOUND
 from oasislmf.pytools.common.hashmap import (
     init_dict, unpack, rehash, _try_add_key,
-    index_dtype, i_add_key_fail, new_slot_bit,
+    i_add_key_fail, slot_mask,
     NOT_FOUND as HM_NOT_FOUND,
+    HM_INFO_N_VALID,
 )
 from oasislmf.pytools.gul.utils import append_to_dict_value
 from oasislmf.pytools.gulmc.common import ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE
@@ -91,7 +92,6 @@ def generate_item_map(items, coverages,
     vuln_key_table = np.empty(max(max_unique_vulns, 1), dtype=np.int32)
     vuln_table = init_dict(max_unique_vulns)
     hm_info, hm_lookup, hm_index = unpack(vuln_table)
-    n_unique = index_dtype(0)
 
     # --- Main pass: build all structures, assign dense indices on the fly ---
     item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
@@ -144,21 +144,13 @@ def generate_item_map(items, coverages,
                 for si in range(sub_start, sub_end):
                     k = si - sub_start
                     sub_vuln_id = np.int32(agg_vuln_id_ja_vuln_ids[si])
-                    # Insert sub-vuln_id into hashmap, get dense index directly
-                    vuln_key_table[n_unique] = sub_vuln_id
-                    if hm_info[1] >= hm_info[2]:
-                        vuln_table = rehash(vuln_table, vuln_key_table)
-                        hm_info, hm_lookup, hm_index = unpack(vuln_table)
-                    result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
+                    # Insert sub-vuln_id into hashmap, get dense index directly (table pre-sized, by-value mode)
+                    result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, sub_vuln_id)
                     while result == i_add_key_fail:
                         vuln_table = rehash(vuln_table, vuln_key_table)
                         hm_info, hm_lookup, hm_index = unpack(vuln_table)
-                        result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
-                    if result & new_slot_bit:
-                        dense_idx = nb_oasis_int(n_unique)
-                        n_unique += index_dtype(1)
-                    else:
-                        dense_idx = nb_oasis_int(hm_index[result])
+                        result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, sub_vuln_id)
+                    dense_idx = nb_oasis_int(hm_index[result & slot_mask])
                     areaperil_agg_vuln_idx_ja_vuln_idxs[ja_ptr + k] = dense_idx
                     areaperil_agg_vuln_idx_ja_areaperil_ids[ja_ptr + k] = areaperil_id
                 ja_ptr += n_sub
@@ -167,27 +159,20 @@ def generate_item_map(items, coverages,
 
             item['areaperil_agg_vuln_idx'] = last_block_idx
         else:
-            # Insert vuln_id into hashmap, get dense index directly
-            vuln_key_table[n_unique] = np.int32(vulnerability_id)
-            if hm_info[1] >= hm_info[2]:
-                vuln_table = rehash(vuln_table, vuln_key_table)
-                hm_info, hm_lookup, hm_index = unpack(vuln_table)
-            result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
+            # Insert vuln_id into hashmap, get dense index directly (table pre-sized, by-value mode)
+            vuln_id_int32 = np.int32(vulnerability_id)
+            result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vuln_id_int32)
             while result == i_add_key_fail:
                 vuln_table = rehash(vuln_table, vuln_key_table)
                 hm_info, hm_lookup, hm_index = unpack(vuln_table)
-                result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, n_unique)
-            if result & new_slot_bit:
-                item['vulnerability_idx'] = nb_oasis_int(n_unique)
-                n_unique += index_dtype(1)
-            else:
-                item['vulnerability_idx'] = nb_oasis_int(hm_index[result])
+                result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vuln_id_int32)
+            item['vulnerability_idx'] = nb_oasis_int(hm_index[result & slot_mask])
 
         if areaperil_id not in areaperil_ids_map:
             areaperil_ids_map[areaperil_id] = Dict.empty(nb_int32, nb_int8)
         areaperil_ids_map[areaperil_id][vulnerability_id] = 0
 
-    return (item_map, areaperil_ids_map, vuln_table, vuln_key_table[:n_unique],
+    return (item_map, areaperil_ids_map, vuln_table, vuln_key_table[:hm_info[HM_INFO_N_VALID]],
             areaperil_agg_vuln_idx_ja_offsets[:n_agg_vuln_groups + 1],
             areaperil_agg_vuln_idx_ja_vuln_idxs[:ja_ptr], areaperil_agg_vuln_idx_ja_weights[:ja_ptr],
             areaperil_agg_vuln_idx_ja_areaperil_ids[:ja_ptr])
