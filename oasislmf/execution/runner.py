@@ -175,7 +175,9 @@ def run_analysis(**params):
         create_bash_analysis(**params)
 
     process_number = params.get('process_number')
-    monitor_dir = os.path.join('log', str(process_number)) if process_number else 'log'
+    run_dir = os.path.dirname(params['filename'])
+    log_root = os.path.join(run_dir, 'log')
+    monitor_dir = os.path.join(log_root, str(process_number)) if process_number else log_root
     monitor = ResourceMonitor(output_dir=monitor_dir, poll_interval=resource_monitor_interval, generate_report=False)
     proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
     monitor.start(proc.pid)
@@ -195,7 +197,9 @@ def run_outputs(**params):
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'], log_sub_dir='out'):
         create_bash_outputs(**params)
 
-    monitor = ResourceMonitor(output_dir=os.path.join('log', 'out'), poll_interval=resource_monitor_interval, log_root='log')
+    run_dir = os.path.dirname(params['filename'])
+    log_root = os.path.join(run_dir, 'log')
+    monitor = ResourceMonitor(output_dir=os.path.join(log_root, 'out'), poll_interval=resource_monitor_interval, log_root=log_root)
     proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
