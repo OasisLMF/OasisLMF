@@ -179,13 +179,24 @@ class ResourceMonitor:
     def _find_all_csvs(self):
         """Return all resource_monitor.csv paths found in immediate subdirs of log_root."""
         csv_paths = []
-        if not self.log_root or not os.path.isdir(self.log_root):
+        if not self.log_root:
+            logger.info("Resource monitor: log_root not set, skipping CSV discovery")
             return csv_paths
-        for entry in sorted(os.scandir(self.log_root), key=lambda e: e.name):
-            if entry.is_dir():
+        if not os.path.isdir(self.log_root):
+            logger.info("Resource monitor: log_root '%s' does not exist or is not a directory", self.log_root)
+            return csv_paths
+        logger.info("Resource monitor: scanning '%s' for resource_monitor.csv files", self.log_root)
+        with os.scandir(self.log_root) as it:
+            for entry in sorted(it, key=lambda e: e.name):
+                if not entry.is_dir():
+                    continue
                 csv_path = os.path.join(entry.path, 'resource_monitor.csv')
                 if os.path.isfile(csv_path):
+                    logger.info("Resource monitor: found %s", csv_path)
                     csv_paths.append(csv_path)
+                else:
+                    logger.debug("Resource monitor: no CSV in %s", entry.path)
+        logger.info("Resource monitor: %d CSV(s) found to combine", len(csv_paths))
         return csv_paths
 
     def _generate_report(self):
@@ -197,6 +208,7 @@ class ResourceMonitor:
         ``log_root/resource_report/``.
         """
         if self.log_root:
+            logger.info("Resource monitor: generating combined report from log_root='%s'", self.log_root)
             csv_paths = self._find_all_csvs()
             if not csv_paths:
                 logger.info("No resource monitor CSVs found under %s, skipping report", self.log_root)
