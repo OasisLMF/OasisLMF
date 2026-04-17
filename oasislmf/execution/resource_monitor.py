@@ -68,9 +68,10 @@ class ResourceMonitor:
         poll_interval (float): Seconds between polls (default 1.0).
     """
 
-    def __init__(self, output_dir, poll_interval=1.0):
+    def __init__(self, output_dir, poll_interval=1.0, generate_report=True):
         self.output_dir = output_dir
         self.poll_interval = max(0.1, float(poll_interval))
+        self.generate_report = generate_report
         self._stop_event = threading.Event()
         self._thread = None
         self._csv_path = os.path.join(output_dir, 'resource_monitor.csv')
@@ -99,7 +100,8 @@ class ResourceMonitor:
         self._thread = None
         logger.info("Resource monitor stopped, csv=%s", self._csv_path)
 
-        self._generate_report()
+        if self.generate_report:
+            self._generate_report()
 
     # -- internal --------------------------------------------------------
 
@@ -119,9 +121,11 @@ class ResourceMonitor:
                     if rows:
                         if csvfile is None:
                             os.makedirs(self.output_dir, exist_ok=True)
-                            csvfile = open(self._csv_path, 'w', newline='')
+                            write_header = not os.path.isfile(self._csv_path)
+                            csvfile = open(self._csv_path, 'a', newline='')
                             writer = csv.writer(csvfile)
-                            writer.writerow(CSV_HEADER)
+                            if write_header:
+                                writer.writerow(CSV_HEADER)
                         writer.writerows(rows)
                         csvfile.flush()
                 except Exception:
