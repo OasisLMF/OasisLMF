@@ -195,7 +195,7 @@ def run_outputs(**params):
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'], log_sub_dir='out'):
         create_bash_outputs(**params)
 
-    monitor = ResourceMonitor(output_dir=os.path.join('log', 'out'), poll_interval=resource_monitor_interval)
+    monitor = ResourceMonitor(output_dir=os.path.join('log', 'out'), poll_interval=resource_monitor_interval, log_root='log')
     proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()

@@ -68,10 +68,11 @@ class ResourceMonitor:
         poll_interval (float): Seconds between polls (default 1.0).
     """
 
-    def __init__(self, output_dir, poll_interval=1.0, generate_report=True):
+    def __init__(self, output_dir, poll_interval=1.0, generate_report=True, log_root=None):
         self.output_dir = output_dir
         self.poll_interval = max(0.1, float(poll_interval))
         self.generate_report = generate_report
+        self.log_root = log_root
         self._stop_event = threading.Event()
         self._thread = None
         self._csv_path = os.path.join(output_dir, 'resource_monitor.csv')
@@ -175,25 +176,55 @@ class ResourceMonitor:
 
     # -- report generation -----------------------------------------------
 
-    def _generate_report(self):
-        """Read the CSV and generate a markdown report with optional plots."""
-        if not os.path.isfile(self._csv_path):
-            logger.info("No resource monitor CSV found, skipping report")
-            return
+    def _find_all_csvs(self):
+        """Return all resource_monitor.csv paths found in immediate subdirs of log_root."""
+        csv_paths = []
+        if not self.log_root or not os.path.isdir(self.log_root):
+            return csv_paths
+        for entry in sorted(os.scandir(self.log_root), key=lambda e: e.name):
+            if entry.is_dir():
+                csv_path = os.path.join(entry.path, 'resource_monitor.csv')
+                if os.path.isfile(csv_path):
+                    csv_paths.append(csv_path)
+        return csv_paths
 
-        rows = _load_csv(self._csv_path)
+    def _generate_report(self):
+        """Read the CSV(s) and generate a markdown report with optional plots.
+
+        When ``log_root`` is set all ``resource_monitor.csv`` files found in
+        immediate sub-directories of ``log_root`` are combined before the
+        report is generated, and the report is written to
+        ``log_root/resource_report/``.
+        """
+        if self.log_root:
+            csv_paths = self._find_all_csvs()
+            if not csv_paths:
+                logger.info("No resource monitor CSVs found under %s, skipping report", self.log_root)
+                return
+            rows = []
+            for path in csv_paths:
+                rows.extend(_load_csv(path))
+            report_dir = os.path.join(self.log_root, 'resource_report')
+            source_csv = os.path.join(self.log_root, 'resource_monitor.csv')
+        else:
+            if not os.path.isfile(self._csv_path):
+                logger.info("No resource monitor CSV found, skipping report")
+                return
+            rows = _load_csv(self._csv_path)
+            report_dir = os.path.join(self.output_dir, 'resource_report')
+            source_csv = self._csv_path
+
         if not rows:
             logger.info("Resource monitor CSV is empty, skipping report")
             return
 
-        report_dir = os.path.join(self.output_dir, 'resource_report')
         os.makedirs(report_dir, exist_ok=True)
 
         stats = _compute_stats(rows)
         system_memory_mb = psutil.virtual_memory().total / (1024 * 1024)
         peak_total_uss_mb = _compute_peak_total_uss(rows)
         plots = _generate_plots(rows, report_dir, system_memory_mb)
-        md_path = _write_markdown(self._csv_path, report_dir, stats, plots,
+        md_path = _write_markdown(source_csv, report_dir, stats, plots,
                                   len(rows), system_memory_mb, peak_total_uss_mb)
         logger.info("Resource monitor report: %s (%d samples, %d plots)",
                     md_path, len(rows), len(plots))
