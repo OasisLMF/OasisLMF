@@ -76,6 +76,9 @@ fm_term_ids = [fm_term['id'] for fm_term in FM_TERMS.values()]
 
 BITYPE_columns = {"BIWaitingPeriodType", "BIPOIType"}
 BIPOI_default_exeption = "BIPOI"
+default_value_overrides = {
+    'BIPOI': 0.,
+}
 
 # Calcrule ID for passthrough (no financial terms applied)
 PASSTHROUGH_CALCRULE_ID = 100
@@ -344,8 +347,8 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
     for ProfileElementName, term_info in level_column_mapper[level_id].items():
         if term_info.get("FMTermType") == "tiv":
             continue
-        if ProfileElementName == BIPOI_default_exeption:
-            default_value = 0.
+        if ProfileElementName in default_value_overrides:
+            default_value = default_value_overrides.get(ProfileElementName)
         else:
             default_value = oed_schema.get_default(ProfileElementName)
 
@@ -772,9 +775,9 @@ def get_il_input_items(
                         if pd.isna(oed_schema.get_default(term)):
                             term_filter |= ~group_df[term].isna()
                             valid_term_default[terms[term]] = 0
-                        elif term == BIPOI_default_exeption:
-                            term_filter |= (group_df[term] != 0.)
-                            valid_term_default[terms[term]] = 0
+                        elif term in default_value_overrides:
+                            term_filter |= (group_df[term] != default_value_overrides.get(term))
+                            valid_term_default[terms[term]] = default_value_overrides.get(term)
                         else:
                             term_filter |= (group_df[term] != oed_schema.get_default(term))
                             valid_term_default[terms[term]] = oed_schema.get_default(term)
@@ -948,7 +951,10 @@ def get_il_input_items(
                     level_df['profile_id'] = get_profile_ids(level_df) + profile_id_offset
                     profile_id_offset = level_df['profile_id'].max() if not level_df.empty else profile_id_offset
 
-                write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin, step_policies_present, chunksize=chunksize)
+                write_fm_profile_level(level_df, fm_profile_csv,
+                                       fm_profile_bin, step_policies_present,
+                                       profile_default_dict=valid_term_default,
+                                       chunksize=chunksize)
 
                 # =====================================================================
                 # MERGE LEVEL TERMS INTO GUL_INPUTS_DF
@@ -1150,12 +1156,15 @@ def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_c
                                                                header=False, chunksize=chunksize)
 
 
-def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file, step_policies_present, chunksize=100000):
+def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file,
+                           step_policies_present, chunksize=100000,
+                           profile_default_dict={}):
     """
     Writes an FM profile file.
 
     Args:
         level_df (pandas.DataFrame): FM terms dataframe.
+        profile_default_dict (dict): Mapping for term to default value, by default assumes this is 0.
         fm_profile_csv (file): Open CSV file object to write to, or None to skip CSV.
         fm_profile_bin_file (file): Open binary file object to write to.
         step_policies_present (bool): Flag to determine which type of file to write.
@@ -1170,7 +1179,7 @@ def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file, step_p
         fm_profile_df = level_df[list(set(level_df.columns).intersection(set(fm_profile_step_headers + ['steptriggertype'])))].copy()
         for col in fm_profile_step_headers + ['steptriggertype']:
             if col not in fm_profile_df.columns:
-                fm_profile_df[col] = 0
+                fm_profile_df[col] = profile_default_dict.get(col, 0.)
         for non_step_name, step_name in profile_cols_map.items():
             if step_name not in fm_profile_df.columns:
                 fm_profile_df[step_name] = 0
@@ -1196,7 +1205,7 @@ def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file, step_p
         fm_profile_df = level_df[list(set(level_df.columns).intersection(set(policytc_cols)))].copy()
         for col in policytc_cols[2:]:
             if col not in fm_profile_df.columns:
-                fm_profile_df[col] = 0.
+                fm_profile_df[col] = profile_default_dict.get(col, 0.0)
 
         fm_profile_df = (
             fm_profile_df
