@@ -2,10 +2,11 @@
 
 from contextlib import ExitStack
 import logging
+import numpy as np
+import pyarrow.parquet as pq
 
-from oasislmf.pytools.common.data import resolve_file
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, resolve_file
 from oasislmf.pytools.converters.data import TOOL_INFO
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +16,11 @@ def default_tobin(stack, file_in, file_out, file_type):
 
     file_in = resolve_file(file_in, "rb", stack)
 
-    df = pd.read_parquet(file_in)
-    data = df.to_records(index=False).astype(dtype)
-    data.tofile(file_out)
+    for batch in pq.ParquetFile(file_in).iter_batches(batch_size=DEFAULT_BUFFER_SIZE):
+        data = np.empty(len(batch), dtype=dtype)
+        for col in dtype.names:
+            data[col] = batch.column(col).to_numpy(zero_copy_only=False)
+        data.tofile(file_out)
 
 
 def parquettobin(file_in, file_out, file_type, **kwargs):

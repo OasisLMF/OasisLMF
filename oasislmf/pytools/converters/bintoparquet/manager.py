@@ -4,11 +4,10 @@ from contextlib import ExitStack
 import logging
 import sys
 import numpy as np
-import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from oasislmf.pytools.common.data import resolve_file
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, resolve_file
 from oasislmf.pytools.converters.data import TOOL_INFO
 
 logger = logging.getLogger(__name__)
@@ -19,14 +18,27 @@ def default_toparquet(stack, file_in, file_out, file_type):
     dtype = TOOL_INFO[file_type]["dtype"]
 
     file_in = resolve_file(file_in, "rb", stack)
-    if file_in == sys.stdin.buffer:
-        data = np.frombuffer(file_in.read(), dtype=dtype)
-    else:
-        data = np.fromfile(file_in, dtype=dtype)
+    item_size = dtype.itemsize
+    chunk_bytes = DEFAULT_BUFFER_SIZE * item_size
 
-    df = pd.DataFrame(data, columns=headers)
-    table = pa.Table.from_pandas(df)
-    pq.write_table(table, file_out)
+    writer = None
+    try:
+        while True:
+            if file_in == sys.stdin.buffer:
+                raw = file_in.read(chunk_bytes)
+            else:
+                raw = file_in.read(chunk_bytes)
+            if not raw:
+                break
+            chunk = np.frombuffer(raw, dtype=dtype)
+            arrays = [pa.array(chunk[col]) for col in headers]
+            if writer is None:
+                schema = pa.schema([(col, arr.type) for col, arr in zip(headers, arrays)])
+                writer = pq.ParquetWriter(file_out, schema)
+            writer.write_table(pa.Table.from_arrays(arrays, schema=schema))
+    finally:
+        if writer is not None:
+            writer.close()
 
 
 def bintoparquet(file_in, file_out, file_type, **kwargs):
