@@ -35,13 +35,18 @@ on:
         required: true
         default: 'false'
 
+      pypi_test:
+        description: 'Upload package to pypi test server'
+        required: false
+        type: boolean
+
 
 env:
   WORKSPACE: ${{ github.workspace }}/OasisLMF
   RELEASE_TAG: ${{ inputs.release_tag }}
   PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
   PRE_RELEASE: ${{ inputs.pre_release }}
-
+  PYPI_TEST: ${{ inputs.pypi_test == '' && 'false' || inputs.pypi_test }}
 
 jobs:
   update:
@@ -77,13 +82,13 @@ jobs:
     steps:
     # --- Pre Publish checks --- #
     - name: check branchname is valid for release
-      if: ${{ !startsWith(github.ref_name , 'release/') && !startsWith(github.ref_name, 'stable/') }}
+      if: ${{ !startsWith(github.ref_name , 'release/') && !startsWith(github.ref_name, 'stable/') && env.PYPI_TEST == 'false' }} 
       run: |
         echo "Releases must be trigged on branchs 'release/x.x.x' or 'stable/x.x.x' "
         exit 1
 
     - name: Check tag is valid for release
-      if: env.PRE_RELEASE == 'false'
+      if: env.PRE_RELEASE == 'false' && env.PYPI_TEST == 'false'
       run: |
         VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)$")
         if [[ ! "$VALID" == 1 ]]; then
@@ -92,7 +97,7 @@ jobs:
         fi
 
     - name: Check tag is valid for pre-release
-      if: env.PRE_RELEASE == 'true'
+      if: env.PRE_RELEASE == 'true' && env.PYPI_TEST == 'false'
       run: |
         VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)$")
         if [[ ! "$VALID" == 1 ]]; then
@@ -273,14 +278,32 @@ jobs:
         done
 
 
+    # --- Publish to Pypi TEST server --- #
+    - name: PYPI TEST - Upload all wheels
+      if: ${{ env.PYPI_TEST == 'true' }}
+      run: twine upload --repository testpypi --skip-existing ${{ github.workspace }}/wheels/*.whl --verbose
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
+
+    - name: PYPI TEST - Source package
+      if: ${{ env.PYPI_TEST == 'true' }}
+      run: twine upload --repository testpypi --skip-existing ${{ needs.build.outputs.src_pkg_filename }} --verbose
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
+
+
     # --- Publish to Pypi --- #
-    - name: PYPI - Upload all wheels
+    - name: PYPI LIVE - Upload all wheels
+      if: ${{ env.PYPI_TEST == 'false' }}
       run: twine upload --skip-existing ${{ github.workspace }}/wheels/*.whl --verbose
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
 
-    - name: PYPI - Source package
+    - name: PYPI LIVE - Source package
+      if: ${{ env.PYPI_TEST == 'false' }}
       run: twine upload --skip-existing ${{ needs.build.outputs.src_pkg_filename }} --verbose
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
@@ -290,6 +313,7 @@ jobs:
     # --- Slack notify --- #
     - name: slack message vars
       id: slack_vars
+      if: ${{ env.PYPI_TEST == 'false' }}
       run: |
         HEAD=$(echo "*${{ github.event.repository.name}} Release* (${{ env.RELEASE_TAG }})")
         DATE=$(date)
