@@ -75,7 +75,6 @@ risk_disaggregation_term = {'deductible', 'deductible_min', 'deductible_max', 'a
 fm_term_ids = [fm_term['id'] for fm_term in FM_TERMS.values()]
 
 BITYPE_columns = {"BIWaitingPeriodType", "BIPOIType"}
-BIPOI_default_exeption = "BIPOI"
 default_value_overrides = {
     'BIPOI': 0.,
 }
@@ -1156,14 +1155,12 @@ def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_c
 
 
 def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file,
-                           step_policies_present, chunksize=100000,
-                           profile_default_dict={}):
+                           step_policies_present, chunksize=100000):
     """
     Writes an FM profile file.
 
     Args:
         level_df (pandas.DataFrame): FM terms dataframe.
-        profile_default_dict (dict): Mapping for term to default value, by default assumes this is 0.
         fm_profile_csv (file): Open CSV file object to write to, or None to skip CSV.
         fm_profile_bin_file (file): Open binary file object to write to.
         step_policies_present (bool): Flag to determine which type of file to write.
