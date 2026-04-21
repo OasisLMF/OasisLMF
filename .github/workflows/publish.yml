@@ -317,7 +317,6 @@ jobs:
     # --- Slack notify --- #
     - name: slack message vars
       id: slack_vars
-      if: ${{ env.PYPI_TEST == 'false' }}
       run: |
         HEAD=$(echo "*${{ github.event.repository.name}} Release* (${{ env.RELEASE_TAG }})")
         DATE=$(date)
@@ -334,6 +333,7 @@ jobs:
 
   # --- Notify Slack --- #
   slack:
+    if: ${{ env.PYPI_TEST == 'false' }}
     uses: ./.github/workflows/notify.yml
     secrets: inherit
     needs: release
