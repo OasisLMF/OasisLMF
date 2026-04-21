@@ -287,14 +287,14 @@ jobs:
       if: ${{ env.PYPI_TEST == 'true' }}
       run: twine upload --repository testpypi --skip-existing ${{ github.workspace }}/wheels/*.whl --verbose
       env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_USERNAME: ${{ secrets.PYPI_TEST_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
 
     - name: PYPI TEST - Source package
       if: ${{ env.PYPI_TEST == 'true' }}
       run: twine upload --repository testpypi --skip-existing ${{ needs.build.outputs.src_pkg_filename }} --verbose
       env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_USERNAME: ${{ secrets.PYPI_TEST_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
 
 
