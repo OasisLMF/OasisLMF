@@ -112,6 +112,9 @@ jobs:
         ref: ${{ github.ref_name }}
         path: ${{ env.WORKSPACE }}
 
+    - name: Pull latest (pick up version commit)
+      run: git pull  
+
     - name: Check tag matches version set
       working-directory: ${{ env.WORKSPACE }}
       run: |
