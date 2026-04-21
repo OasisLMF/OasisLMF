@@ -113,6 +113,7 @@ jobs:
         path: ${{ env.WORKSPACE }}
 
     - name: Pull latest (pick up version commit)
+      working-directory: ${{ env.WORKSPACE }}
       run: git pull  
 
     - name: Check tag matches version set
