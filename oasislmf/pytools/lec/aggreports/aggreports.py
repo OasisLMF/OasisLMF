@@ -49,8 +49,8 @@ class AggReports():
         self.lec_files_folder = lec_files_folder
         self.output_binary = output_binary
         self.output_parquet = output_parquet
-        self.row_used_indices_mean = np.where(row_used_mean)[0]
-        self.row_used_indices_sample = np.where(row_used_sample)[0]
+        self.row_used_indices_mean = np.flatnonzero(row_used_mean)
+        self.row_used_indices_sample = np.flatnonzero(row_used_sample)
 
     def output_data(self, data, out_type):
         if self.output_binary:
@@ -399,7 +399,7 @@ class AggReports():
         )
 
         # Get row indices that are used
-        row_used_indices = np.where(reordered_outlosses["row_used"])[0]
+        row_used_indices = np.flatnonzero(reordered_outlosses["row_used"])
 
         # Allocate storage for the flat data array
         items_fp = Path(self.lec_files_folder, f"lec_sample_mean-{outloss_type}-items.bdat")
