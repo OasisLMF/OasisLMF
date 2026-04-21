@@ -15,12 +15,6 @@ on:
         required: false
 
 jobs:
-  build:
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      platforms: 'ubuntu-22.04/x86_64'
-
   ods_tools:
     if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}
     uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@main
@@ -31,7 +25,7 @@ jobs:
   unittest:
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-22.04
-    needs: [build, ods_tools]
+    needs: [ods_tools]
     strategy:
       matrix:
         cfg:
@@ -61,25 +55,8 @@ jobs:
           fi
           pip install -r requirements.txt
 
-      - name: Download package
-        if: matrix.cfg.upload-cov != true
-        uses: actions/download-artifact@v4
-        with:
-          pattern: oasislmf-wheels-ubuntu-*-x86_64
-          merge-multiple: true
-          path: ${{ github.workspace }}/
-
-      - name: Install Package (From Package)
-        if: matrix.cfg.upload-cov != true
-        run: |
-          PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
-          WHL=$(find ${{ github.workspace }} -name "oasislmf-*-${PY_TAG}-*manylinux*.whl" | head -1)
-          pip install "$WHL"
-
-      - name: Install Oasislmf (Editable mode)
-        if: matrix.cfg.upload-cov == true
-        run: |
-          pip install -v -e .
+      - name: Install oasislmf
+        run: pip install -e .
 
       - name: download ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
