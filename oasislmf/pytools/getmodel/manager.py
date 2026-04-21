@@ -127,7 +127,8 @@ def load_items(items, valid_area_peril_id):
         # Insert vuln_id into hashmap (table pre-sized to fit all items)
         result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, item['vulnerability_id'])
         while result == hm_i_add_key_fail:
-            hm_info, hm_lookup, hm_index = hm_unpack(hm_rehash(vuln_table, vuln_key_table))
+            vuln_table = hm_rehash(vuln_table, vuln_key_table)
+            hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
             result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, item['vulnerability_id'])
 
         # insert an area dictionary into areaperil_dict under the key of areaperil ID
@@ -141,7 +142,7 @@ def load_items(items, valid_area_peril_id):
                 areaperil_to_vulns_size += 1
                 areaperil_dict[item['areaperil_id']][item['vulnerability_id']] = 0
 
-    vuln_map_keys = vuln_key_table[:vuln_table[HM_INFO_N_VALID]]
+    vuln_map_keys = vuln_key_table[:hm_info[HM_INFO_N_VALID]]
 
     areaperil_to_vulns_idx_dict = Dict()
     areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype=Index_type)

@@ -43,10 +43,10 @@ coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
 
 NP_BASE_ARRAY_SIZE = 8
 
+# Structured dtype for merged aggregate vulnerability sub-entries (vuln_idx + weight in one record).
+agg_vuln_idx_weight_dtype = np.dtype([('vuln_idx', oasis_int), ('weight', oasis_float)])
 
-ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
-# ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 1)
-ITEM_MAP_VALUE_TYPE = nb.types.int64
+
 AREAPERIL_TO_EFF_VULN_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int64))
 AREAPERIL_TO_EFF_VULN_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 2)
 

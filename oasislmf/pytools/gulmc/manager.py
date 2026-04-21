@@ -5,6 +5,10 @@ Jagged Array Naming Convention
     <key_name>_ja_id_ind    — optional sparse ID → dense index (id_index.py)
     <key_name>_ja_offsets   — row boundaries: row i spans [offsets[i], offsets[i+1])
     <key_name>_ja_<values>  — one or more parallel flat arrays holding payload data
+
+    Two-level (nested) jagged arrays repeat the pattern on the payload:
+    <key_name>_ja_<inner_key>_ja_offsets  — L2 row boundaries
+    <key_name>_ja_<inner_key>_ja_<values> — L2 payload data
 """
 import atexit
 import logging
@@ -54,6 +58,7 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            gulSampleslevelRec_size,
                                            haz_arr_type, items_MC_data_type,
                                            gulmc_compute_info_type)
+from oasislmf.pytools.common.id_index import build as id_index_build, get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.gulmc.items import read_items, generate_item_map
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.ping import oasis_ping
@@ -373,17 +378,22 @@ def run(run_dir,
 
         items.sort(order=['areaperil_id', 'vulnerability_id'])
 
-        # build item map
-        (item_map, areaperil_ids_map, vuln_map, vuln_map_keys,
-         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_vuln_idxs,
-         areaperil_agg_vuln_idx_ja_weights, areaperil_agg_vuln_idx_ja_areaperil_ids) = generate_item_map(
+        # build item map (two-level jagged array)
+        (item_map_ja_areaperil_ids, item_map_ja_offsets,
+         item_map_ja_vuln_ids, item_map_ja_vuln_ja_offsets,
+         item_map_ja_vuln_ja_item_idxs,
+         vuln_map, vuln_map_keys,
+         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
+         areaperil_agg_vuln_idx_ja_areaperil_ids) = generate_item_map(
             items,
             coverages,
             agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids)
+        # Build id_index for areaperil_id -> dense index lookup
+        item_map_ja_id_ind = id_index_build(item_map_ja_areaperil_ids)
         if aggregate_weights is not None:
             logger.debug('reconstruct aggregate vulnerability definitions and weights')
-            process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_vuln_idxs,
-                                          areaperil_agg_vuln_idx_ja_weights, vuln_map, vuln_map_keys, aggregate_weights)
+            process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_data,
+                                          vuln_map, vuln_map_keys, aggregate_weights)
         del areaperil_agg_vuln_idx_ja_areaperil_ids  # only needed during setup
 
         # import array to store the coverages to be computed
@@ -397,7 +407,7 @@ def run(run_dir,
 
         logger.debug('import footprint')
         footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
-                                            df_engine=model_df_engine, areaperil_ids=list(areaperil_ids_map.keys())))
+                                            df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids))
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")
@@ -555,7 +565,7 @@ def run(run_dir,
             if event_footprint is not None:
                 areaperil_ids, Nhaz_arr_this_event, areaperil_to_haz_arr_i, areaperil_to_event_rp, haz_pdf, haz_arr_ptr = process_areaperils_in_footprint(
                     event_footprint,
-                    areaperil_ids_map,
+                    item_map_ja_id_ind,
                     dynamic_footprint)
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
@@ -565,10 +575,13 @@ def run(run_dir,
                 items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
                     compute_info,
                     areaperil_ids,
-                    areaperil_ids_map,
                     areaperil_to_haz_arr_i,
                     areaperil_to_event_rp,
-                    item_map,
+                    item_map_ja_id_ind,
+                    item_map_ja_offsets,
+                    item_map_ja_vuln_ids,
+                    item_map_ja_vuln_ja_offsets,
+                    item_map_ja_vuln_ja_item_idxs,
                     items,
                     coverages,
                     compute,
@@ -616,8 +629,7 @@ def run(run_dir,
                             lookup_keys,
                             cached_vuln_cdfs,
                             areaperil_agg_vuln_idx_ja_offsets,
-                            areaperil_agg_vuln_idx_ja_vuln_idxs,
-                            areaperil_agg_vuln_idx_ja_weights,
+                            areaperil_agg_vuln_idx_ja_data,
                             losses,
                             haz_rndms_base,
                             vuln_rndms_base,
@@ -813,8 +825,7 @@ def compute_event_losses(compute_info,
                          cached_vuln_cdf_lookup_keys,
                          cached_vuln_cdfs,
                          areaperil_agg_vuln_idx_ja_offsets,
-                         areaperil_agg_vuln_idx_ja_vuln_idxs,
-                         areaperil_agg_vuln_idx_ja_weights,
+                         areaperil_agg_vuln_idx_ja_data,
                          losses,
                          haz_rndms_base,
                          vuln_rndms_base,
@@ -875,11 +886,9 @@ def compute_event_losses(compute_info,
           for circular eviction.
         cached_vuln_cdfs (np.array[oasis_float]): 2d cdf cache of shape (Nvulns_cached, Ndamage_bins_max).
         areaperil_agg_vuln_idx_ja_offsets (np.array[oasis_int]): jagged array offsets. Block i spans
-          vuln_idxs[offsets[i]:offsets[i+1]]. Items reference blocks via 'areaperil_agg_vuln_idx'.
-        areaperil_agg_vuln_idx_ja_vuln_idxs (np.array[oasis_int]): flat jagged array of dense vulnerability
-          indices for aggregate vulnerabilities.
-        areaperil_agg_vuln_idx_ja_weights (np.array[oasis_float]): flat jagged array of vulnerability weights,
-          aligned with vuln_idxs.
+          data[offsets[i]:offsets[i+1]]. Items reference blocks via 'areaperil_agg_vuln_idx'.
+        areaperil_agg_vuln_idx_ja_data (np.array[agg_vuln_idx_weight_dtype]): merged structured array
+          with fields 'vuln_idx' (dense vulnerability index) and 'weight' (vulnerability weight).
         losses (numpy.array[oasis_float]): reusable 2d buffer of shape
           (sample_size + NUM_IDX + 1, max_items_per_coverage) for loss values.
         haz_rndms_base (numpy.array[float64]): 2d array of shape (n_seeds, sample_size) with
@@ -988,8 +997,9 @@ def compute_event_losses(compute_info,
                     ptr = areaperil_agg_vuln_idx_ja_offsets[blk]
                     n_sub = areaperil_agg_vuln_idx_ja_offsets[blk + 1] - ptr
                     for j in range(n_sub):
-                        vuln_i = areaperil_agg_vuln_idx_ja_vuln_idxs[ptr + j]
-                        weight = np.float64(areaperil_agg_vuln_idx_ja_weights[ptr + j])
+                        entry = areaperil_agg_vuln_idx_ja_data[ptr + j]
+                        vuln_i = entry['vuln_idx']
+                        weight = np.float64(entry['weight'])
                         if weight > 0:
                             tot_weights += weight
                             for haz_i in range(Nhaz_bins):
@@ -1008,7 +1018,7 @@ def compute_event_losses(compute_info,
                         vuln_pdf /= tot_weights
                     else:
                         for j in range(n_sub):
-                            vuln_i = areaperil_agg_vuln_idx_ja_vuln_idxs[ptr + j]
+                            vuln_i = areaperil_agg_vuln_idx_ja_data[ptr + j]['vuln_idx']
                             for haz_i in range(Nhaz_bins):
                                 vuln_pdf[haz_i] += vuln_array[vuln_i, :, haz_bin_id[haz_i] - 1]
                         vuln_pdf /= n_sub
@@ -1157,14 +1167,14 @@ def compute_event_losses(compute_info,
 
 @nb.njit(cache=True, fastmath=True)
 def process_areaperils_in_footprint(event_footprint,
-                                    present_areaperils,
+                                    areaperil_id_ind,
                                     dynamic_footprint):
     """
-    Process all the areaperils in the footprint, filtering and retaining only those who have associated vulnerability functions
+    Process all the areaperils in the footprint, filtering and retaining only those who have associated vulnerability functions.
 
     Args:
         event_footprint (np.array[Event or footprint_event_dtype]): footprint, made of one or more event entries.
-        present_areaperils (dict[int, int]): areaperil to vulnerability index dictionary.
+        areaperil_id_ind (np.array): id_index structure for known areaperil_ids.
         dynamic_footprint (boolean): true if there is dynamic_footprint
 
     Returns:
@@ -1175,7 +1185,6 @@ def process_areaperils_in_footprint(event_footprint,
         haz_arr_ptr (np.array[int]): array with the indices where each hazard intensities record starts in haz arrays (ie, haz_pdf).
     """
     # init data structures
-    haz_prob_start_in_footprint = List.empty_list(nb_int64)
     areaperil_ids = List.empty_list(nb_areaperil_int)
 
     footprint_i = 0
@@ -1203,10 +1212,9 @@ def process_areaperils_in_footprint(event_footprint,
             # one areaperil_id is completed
 
             if last_areaperil_id > 0:
-                if last_areaperil_id in present_areaperils:
+                if id_index_get_idx(areaperil_id_ind, last_areaperil_id) != ID_INDEX_NOT_FOUND:
                     # if items with this areaperil_id exist, process and store this areaperil_id
                     areaperil_ids.append(last_areaperil_id)
-                    haz_prob_start_in_footprint.append(last_areaperil_id_start)
                     areaperil_to_haz_arr_i[last_areaperil_id] = nb_int32(haz_arr_i)
                     haz_arr_i += 1
 
@@ -1239,10 +1247,13 @@ def process_areaperils_in_footprint(event_footprint,
 @nb.njit(cache=True, fastmath=True)
 def reconstruct_coverages(compute_info,
                           areaperil_ids,
-                          areaperil_ids_map,
                           areaperil_to_haz_arr_i,
                           areaperil_to_event_rp,
-                          item_map,
+                          item_map_ja_id_ind,
+                          item_map_ja_offsets,
+                          item_map_ja_vuln_ids,
+                          item_map_ja_vuln_ja_offsets,
+                          item_map_ja_vuln_ja_item_idxs,
                           items,
                           coverages,
                           compute,
@@ -1277,12 +1288,14 @@ def reconstruct_coverages(compute_info,
           and event_id fields are read/written.
         areaperil_ids (List[int]): areaperil_ids present in the event footprint (from
           process_areaperils_in_footprint).
-        areaperil_ids_map (Dict[int, Dict[int, int]]): mapping from areaperil_id to the set
-          of vulnerability_ids associated with it.
         areaperil_to_haz_arr_i (Dict[int, int]): mapping from areaperil_id to its sequential
           index in haz_arr_ptr (assigned per event in process_areaperils_in_footprint).
-        item_map (Dict[Tuple(areaperil_int, int32), List[int64]]): mapping from
-          (areaperil_id, vulnerability_id) to the list of item indices in the items array.
+        areaperil_to_event_rp (Dict[int, int]): mapping from areaperil_id to return period.
+        item_map_ja_id_ind (np.array): id_index for areaperil_id → dense index.
+        item_map_ja_offsets (np.array[oasis_int]): L1 CSR offsets (N_areaperil + 1).
+        item_map_ja_vuln_ids (np.array[int32]): vuln_id at each pair position.
+        item_map_ja_vuln_ja_offsets (np.array[oasis_int]): L2 CSR offsets (N_pairs + 1).
+        item_map_ja_vuln_ja_item_idxs (np.array[oasis_int]): flat item indices into items array.
         items (np.ndarray): items table merged with correlation parameters, containing
           group_id, hazard_group_id, coverage_id, group_seq_id, hazard_group_seq_id, etc.
         coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
@@ -1326,10 +1339,12 @@ def reconstruct_coverages(compute_info,
     #  - compute the seeds for the hazard intensity sampling and for the damage sampling
     #  - store data for later processing (hazard cdf index, etc.)
     for areaperil_id in areaperil_ids:
+        ap_ind = id_index_get_idx(item_map_ja_id_ind, areaperil_id)
+        vuln_start = item_map_ja_offsets[ap_ind]
+        vuln_end = item_map_ja_offsets[ap_ind + 1]
 
-        for vuln_id in areaperil_ids_map[areaperil_id]:
-            # register the items to their coverage
-            item_key = tuple((areaperil_id, vuln_id))
+        for k in range(vuln_start, vuln_end):
+            vuln_id = item_map_ja_vuln_ids[k]
             # Each (areaperil_id, vuln_id) pair gets a unique eff_cdf_id
             # For dynamic footprints, items within the same pair may have different
             # intensity_adjustment, so we sub-divide using a local Dict.
@@ -1337,7 +1352,10 @@ def reconstruct_coverages(compute_info,
             if dynamic_footprint is not None:
                 adj_to_cdf_id = Dict.empty(nb_oasis_int, nb_oasis_int)
 
-            for item_idx in item_map[item_key]:
+            item_start = item_map_ja_vuln_ja_offsets[k]
+            item_end = item_map_ja_vuln_ja_offsets[k + 1]
+            for item_pos in range(item_start, item_end):
+                item_idx = item_map_ja_vuln_ja_item_idxs[item_pos]
                 # if this group_id was not seen yet, process it.
                 # it assumes that hash only depends on event_id and group_id
                 # and that only 1 event_id is processed at a time.

@@ -120,21 +120,20 @@ def process_aggregate_vulnerability(aggregate_vulnerability):
 
 
 @nb.njit(cache=True)
-def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_vuln_idxs,
-                                  areaperil_agg_vuln_idx_ja_weights, vuln_map, vuln_map_keys, aggregate_weights):
+def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_data,
+                                  vuln_map, vuln_map_keys, aggregate_weights):
     """
-    Populate the weights flat array by matching aggregate_weights records against jagged array entries.
+    Populate the weight field in the merged data array by matching aggregate_weights records.
 
     Args:
         areaperil_agg_vuln_idx_ja_areaperil_ids (np.array[areaperil_int]): areaperil_id for each entry.
-        areaperil_agg_vuln_idx_ja_vuln_idxs (np.array[oasis_int]): dense vulnerability index for each entry.
-        areaperil_agg_vuln_idx_ja_weights (np.array[oasis_float]): flat array of weights to populate.
+        areaperil_agg_vuln_idx_ja_data (np.array[agg_vuln_idx_weight_dtype]): merged (vuln_idx, weight) per entry.
         vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
         vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys).
         aggregate_weights (np.array[VulnerabilityWeight]): vulnerability weights table.
     """
     hm_info, hm_lookup, hm_index = hm_unpack(vuln_map)
-    n_entries = len(areaperil_agg_vuln_idx_ja_vuln_idxs)
+    n_entries = len(areaperil_agg_vuln_idx_ja_data)
     for i in range(len(aggregate_weights)):
         rec = aggregate_weights[i]
         slot = hm_find_key(hm_info, hm_lookup, hm_index, vuln_map_keys, rec['vulnerability_id'])
@@ -142,5 +141,5 @@ def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areap
             dense_idx = hm_index[slot]
             ap_id = nb_areaperil_int(rec['areaperil_id'])
             for j in range(n_entries):
-                if areaperil_agg_vuln_idx_ja_areaperil_ids[j] == ap_id and areaperil_agg_vuln_idx_ja_vuln_idxs[j] == dense_idx:
-                    areaperil_agg_vuln_idx_ja_weights[j] = nb_oasis_float(rec['weight'])
+                if areaperil_agg_vuln_idx_ja_areaperil_ids[j] == ap_id and areaperil_agg_vuln_idx_ja_data[j]['vuln_idx'] == dense_idx:
+                    areaperil_agg_vuln_idx_ja_data[j]['weight'] = nb_oasis_float(rec['weight'])

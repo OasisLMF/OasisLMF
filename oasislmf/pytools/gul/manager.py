@@ -11,7 +11,6 @@ from select import select
 import numpy as np
 import pandas as pd
 from numba import njit
-from numba.typed import Dict, List
 import time
 from oasislmf.utils.ping import oasis_ping
 
@@ -22,8 +21,13 @@ from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_h
 from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.getmodel.common import Keys, oasis_float
 from oasislmf.pytools.getmodel.manager import get_damage_bins
-from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
-                                         ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,
+from oasislmf.pytools.common.data import areaperil_int, oasis_int
+from oasislmf.pytools.common.hashmap import (
+    init_dict, unpack as hm_unpack, rehash as hm_rehash,
+    _try_add_key as hm_try_add_key, i_add_key_fail as hm_i_add_key_fail,
+)
+from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX,
+                                         MAX_LOSS_IDX,
                                          MEAN_IDX, NUM_IDX, STD_DEV_IDX,
                                          TIV_IDX, coverage_type,
                                          gulSampleslevelHeader_size,
@@ -36,7 +40,7 @@ from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
                                          compute_norm_inv_cdf_lookup,
                                          generate_correlated_hash_vector,
                                          get_corr_rval, get_random_generator)
-from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
+from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
@@ -93,32 +97,68 @@ def gul_get_items(input_path, ignore_file_type=set()):
     return items
 
 
+item_map_key_dtype = np.dtype([('areaperil_id', areaperil_int), ('vulnerability_id', np.int32)])
+
+
 @njit(cache=True, fastmath=True)
 def generate_item_map(items, coverages):
-    """Generate item_map; requires items to be sorted.
+    """Generate item_map as a hashmap + jagged array; requires items to be sorted.
+
+    Items must be sorted by (areaperil_id, vulnerability_id). Builds:
+        - hashmap: (areaperil_id, vulnerability_id) → pair_index
+        - jagged:  pair_index → item indices via ja_offsets / ja_item_idxs
 
     Args:
-        items (numpy.ndarray[int32, int32, int32]): 1-d structured array storing
-          `item_id`, `coverage_id`, `group_id` for all items.
-          items need to be sorted by increasing areaperil_id, vulnerability_id
-          in order to output the items in correct order.
+        items (numpy.ndarray): 1-d structured array sorted by
+            (areaperil_id, vulnerability_id).
+        coverages (numpy.ndarray): coverage id to information on items.
 
     Returns:
-        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-          the mapping between areaperil_id, vulnerability_id to item.
+        item_map_hm (np.array[uint8]): packed hashmap table.
+        item_map_hm_keys (np.array[item_map_key_dtype]): key storage for the hashmap.
+        item_map_ja_offsets (np.array[oasis_int]): CSR offsets (N_pairs + 1).
+        item_map_ja_item_idxs (np.array[oasis_int]): flat item indices into items array.
     """
-    item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
-    Nitems = items.shape[0]
+    N = items.shape[0]
 
-    for j in range(Nitems):
-        append_to_dict_value(
-            item_map,
-            tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['item_id'], items[j]['coverage_id'], items[j]['group_id'])),
-            ITEM_MAP_VALUE_TYPE
-        )
+    # Pass 1: extract unique (areaperil_id, vulnerability_id) pairs and record pair boundaries
+    item_map_hm_keys = np.empty(max(N, 1), dtype=item_map_key_dtype)
+    item_map_ja_offsets = np.empty(N + 1, dtype=oasis_int)
+    item_map_ja_offsets[0] = 0
+    pair_idx = np.int32(-1)
+    prev_ap = areaperil_int.type(0)
+    prev_vuln = np.int32(-1)
+    for j in range(N):
+        ap = items[j]['areaperil_id']
+        vuln = items[j]['vulnerability_id']
         coverages[items[j]['coverage_id']]['max_items'] += 1
-    return item_map
+        if ap != prev_ap or vuln != prev_vuln:
+            if pair_idx >= 0:
+                item_map_ja_offsets[pair_idx + 1] = j
+            pair_idx += 1
+            item_map_hm_keys[pair_idx]['areaperil_id'] = ap
+            item_map_hm_keys[pair_idx]['vulnerability_id'] = vuln
+            prev_ap = ap
+            prev_vuln = vuln
+    if pair_idx >= 0:
+        item_map_ja_offsets[pair_idx + 1] = N
+    n_pairs = pair_idx + 1
+    item_map_hm_keys = item_map_hm_keys[:n_pairs]
+    item_map_ja_offsets = item_map_ja_offsets[:n_pairs + 1]
+
+    # Pass 2: build hashmap from the extracted keys (by-position mode)
+    item_map_hm = init_dict(n_pairs)
+    hm_info, hm_lookup, hm_index = hm_unpack(item_map_hm)
+    for i in range(n_pairs):
+        result = hm_try_add_key(hm_info, hm_lookup, hm_index,
+                                item_map_hm_keys, item_map_hm_keys[i], i)
+        while result == hm_i_add_key_fail:
+            item_map_hm = hm_rehash(item_map_hm, item_map_hm_keys)
+            hm_info, hm_lookup, hm_index = hm_unpack(item_map_hm)
+            result = hm_try_add_key(hm_info, hm_lookup, hm_index,
+                                    item_map_hm_keys, item_map_hm_keys[i], i)
+
+    return (item_map_hm, item_map_hm_keys, item_map_ja_offsets)
 
 
 @redirect_logging(exec_name='gulpy')
@@ -180,7 +220,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     # currently numba only supports a simple call to np.sort() with no `order` keyword,
     # so we do the sort here.
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
-    item_map = generate_item_map(items, coverages)
+    if valid_area_peril_id is not None:
+        items = items[np.isin(items['areaperil_id'], valid_area_peril_id)]
+    (item_map_hm, item_map_hm_keys,
+     item_map_ja_offsets) = generate_item_map(items, coverages)
 
     # init array to store the coverages to be computed
     # coverages are numebered from 1, therefore skip element 0.
@@ -276,7 +319,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         counter = 0
         timer = time.time()
         ping = kwargs.get('socket_server', 'False') != 'False'
-        for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
+        for event_data in read_getmodel_stream(streams_in, items,
+                                                    item_map_hm, item_map_hm_keys,
+                                                    item_map_ja_offsets,
+                                                    coverages, compute, seeds):
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
             # generation of "base" random values is done as before

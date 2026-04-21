@@ -13,10 +13,12 @@ import numpy as np
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32, Tuple as nb_Tuple
 
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_int, oasis_float, oasis_int, damagebin_dtype
+from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_int, oasis_float, oasis_int, damagebin_dtype
+from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.getmodel.common import EventDynamic
 from oasislmf.pytools.gulmc.common import (
     items_MC_data_type, coverage_type, haz_arr_type, gulmc_compute_info_type, NormInversionParameters,
+    agg_vuln_idx_weight_dtype,
 )
 from oasislmf.pytools.gulmc.manager import process_areaperils_in_footprint, compute_event_losses, gen_empty_vuln_cdf_lookup
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
@@ -56,11 +58,9 @@ def _make_event_footprint(areaperil_id=AREAPERIL_ID, return_period=EVENT_RP_BELO
 
 
 def _make_present_areaperils(*areaperil_ids):
-    """Build the present_areaperils dict mapping areaperil_id → 0."""
-    d = Dict.empty(nb_areaperil_int, nb_oasis_int)
-    for ap in areaperil_ids:
-        d[np.uint32(ap)] = nb_oasis_int(0)
-    return d
+    """Build an id_index for the given areaperil_ids."""
+    keys = np.array(sorted(areaperil_ids), dtype=areaperil_int)
+    return id_index_build(keys)
 
 
 def _make_items_array(intensity_adjustment=0, return_period=0):
@@ -191,8 +191,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins), dtype=oasis_float)
 
     # --- aggregate vulnerability CRS arrays (empty – no aggregate vulns) ---
-    areaperil_agg_vuln_idx_ja_vuln_idxs = np.empty(0, dtype=oasis_int)
-    areaperil_agg_vuln_idx_ja_weights = np.empty(0, dtype=oasis_float)
+    areaperil_agg_vuln_idx_ja_data = np.empty(0, dtype=agg_vuln_idx_weight_dtype)
     areaperil_agg_vuln_idx_ja_offsets = np.zeros(1, dtype=oasis_int)  # single sentinel: [0]
 
     # --- losses buffer ---
@@ -225,7 +224,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
         cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cached_vuln_cdfs,
-        areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_vuln_idxs, areaperil_agg_vuln_idx_ja_weights,
+        areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
@@ -474,8 +473,7 @@ def test_rp_protection_only_affects_protected_items():
         Nvulns_cached, compute_info)
     cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins), dtype=oasis_float)
 
-    areaperil_agg_vuln_idx_ja_vuln_idxs = np.empty(0, dtype=oasis_int)
-    areaperil_agg_vuln_idx_ja_weights = np.empty(0, dtype=oasis_float)
+    areaperil_agg_vuln_idx_ja_data = np.empty(0, dtype=agg_vuln_idx_weight_dtype)
     areaperil_agg_vuln_idx_ja_offsets = np.zeros(1, dtype=oasis_int)
 
     losses = np.zeros((sample_size + 6, 2), dtype=oasis_float)
@@ -499,7 +497,7 @@ def test_rp_protection_only_affects_protected_items():
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
         cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cached_vuln_cdfs,
-        areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_vuln_idxs, areaperil_agg_vuln_idx_ja_weights,
+        areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
