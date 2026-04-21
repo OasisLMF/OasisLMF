@@ -3,6 +3,8 @@ OasisLMF Changelog
 
 .. _`2.5.3rc1`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.2...2.5.3rc1
 
+.. _`2.5.3rc1`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.2...2.5.3rc1
+
 `2.5.1`_
  ---------
 * [#1885](https://github.com/OasisLMF/OasisLMF/pull/1889) - race condition with join-summary-info in generated bash script
