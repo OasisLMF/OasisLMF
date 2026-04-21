@@ -33,7 +33,7 @@ on:
       pre_release:
         description: 'Mark GitHub release as pre-release [true, false]'
         required: true
-        default: 'false'
+        type: boolean
 
       pypi_test:
         description: 'Upload package to pypi test server'
@@ -45,7 +45,7 @@ env:
   WORKSPACE: ${{ github.workspace }}/OasisLMF
   RELEASE_TAG: ${{ inputs.release_tag }}
   PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
-  PRE_RELEASE: ${{ inputs.pre_release }}
+  PRE_RELEASE: ${{ inputs.pre_release t == '' && 'false' || inputs.pre_release }}
   PYPI_TEST: ${{ inputs.pypi_test == '' && 'false' || inputs.pypi_test }}
 
 jobs:
