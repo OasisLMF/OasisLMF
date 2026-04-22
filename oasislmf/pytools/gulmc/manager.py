@@ -531,7 +531,7 @@ def run(run_dir,
             event_footprint = event_footprint_obj.get_event(event_ids[0])
 
             if event_footprint is not None:
-                areaperil_ids, Nhaz_arr_this_event, areaperil_to_haz_arr_i, areaperil_to_event_rp, haz_pdf, haz_arr_ptr = process_areaperils_in_footprint(
+                areaperil_ids, Nhaz_arr_this_event, areaperil_to_haz_arr_i, haz_pdf, haz_arr_ptr, haz_rp = process_areaperils_in_footprint(
                     event_footprint,
                     areaperil_ids_map,
                     dynamic_footprint)
@@ -545,7 +545,6 @@ def run(run_dir,
                     areaperil_ids,
                     areaperil_ids_map,
                     areaperil_to_haz_arr_i,
-                    areaperil_to_event_rp,
                     item_map,
                     items,
                     coverages,
@@ -588,6 +587,7 @@ def run(run_dir,
                             sample_size,
                             haz_pdf,
                             haz_arr_ptr,
+                            haz_rp,
                             vuln_array,
                             damage_bins,
                             cached_vuln_cdf_lookup,
@@ -784,6 +784,7 @@ def compute_event_losses(compute_info,
                          sample_size,
                          haz_pdf,
                          haz_arr_ptr,
+                         haz_rp,
                          vuln_array,
                          damage_bins,
                          cached_vuln_cdf_lookup,
@@ -910,17 +911,19 @@ def compute_event_losses(compute_info,
             hazard_rng_index = item_event_data['hazard_rng_index']
 
             item = items[item_event_data['item_idx']]
+            haz_arr_i = item_event_data['haz_arr_i']
+            haz_pdf_record = haz_pdf[haz_arr_ptr[haz_arr_i]:haz_arr_ptr[haz_arr_i + 1]]
+
             if dynamic_footprint is not None:
                 intensity_adjustment = item['intensity_adjustment']
-                # RP protection: if the item's return period protection exceeds the event's RP, zero loss
-                if item_event_data['return_period'] > 0 and item_event_data['event_rp'] < item_event_data['return_period']:
+                # Single-bin RP protection: zero all losses up front (deterministic behaviour preserved).
+                # Multi-bin case is handled per-sample in the stochastic loop below.
+                if haz_pdf_record.shape[0] == 1 and item_event_data['return_period'] > 0 \
+                        and haz_rp[haz_arr_ptr[haz_arr_i]] < item_event_data['return_period']:
                     losses[:, item_j] = 0
                     continue
             else:
                 intensity_adjustment = nb_oasis_int(0)
-
-            haz_arr_i = item_event_data['haz_arr_i']
-            haz_pdf_record = haz_pdf[haz_arr_ptr[haz_arr_i]:haz_arr_ptr[haz_arr_i + 1]]
 
             # we calculate this adjusted hazard pdf
             # get the right hazard pdf from the array containing all hazard cdfs
@@ -1101,6 +1104,12 @@ def compute_event_losses(compute_info,
                             # bigger than haz_cdf_prob[-1] haz_rval would have index Nhaz_bins, outside haz_i_to_Ndamage_bins
                             haz_bin_idx = binary_search(haz_z_unif[sample_idx - 1], haz_cdf_prob, Nhaz_bins - 1)
 
+                            # per-sample RP protection: the drawn bin carries its own return period
+                            if dynamic_footprint is not None and item_event_data['return_period'] > 0 \
+                                    and haz_rp[haz_arr_ptr[haz_arr_i] + haz_bin_idx] < item_event_data['return_period']:
+                                losses[sample_idx, item_j] = 0
+                                continue
+
                             # get the individual vulnerability cdf
                             Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
                             vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
@@ -1154,10 +1163,13 @@ def process_areaperils_in_footprint(event_footprint,
     last_areaperil_id_start = nb_int64(0)
     haz_arr_i = 0
     areaperil_to_haz_arr_i = Dict.empty(nb_areaperil_int, nb_oasis_int)
-    areaperil_to_event_rp = Dict.empty(nb_areaperil_int, nb_int32)
 
     Nevent_footprint_entries = len(event_footprint)
     haz_pdf = np.empty(Nevent_footprint_entries, dtype=haz_arr_type)  # max size
+    if dynamic_footprint is not None:
+        haz_rp = np.empty(Nevent_footprint_entries, dtype=np.int32)
+    else:
+        haz_rp = np.empty(0, dtype=np.int32)
 
     arr_ptr_start = 0
     arr_ptr_end = 0
@@ -1187,7 +1199,7 @@ def process_areaperils_in_footprint(event_footprint,
                     haz_pdf['intensity_bin_id'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity_bin_id'][last_areaperil_id_start: footprint_i]
                     if dynamic_footprint is not None:
                         haz_pdf['intensity'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity'][last_areaperil_id_start: footprint_i]
-                        areaperil_to_event_rp[last_areaperil_id] = nb_int32(event_footprint[last_areaperil_id_start]['return_period'])
+                        haz_rp[arr_ptr_start: arr_ptr_end] = event_footprint['return_period'][last_areaperil_id_start: footprint_i]
 
                     haz_arr_ptr.append(arr_ptr_end)
                     arr_ptr_start = arr_ptr_end
@@ -1202,9 +1214,9 @@ def process_areaperils_in_footprint(event_footprint,
     return (areaperil_ids,
             Nhaz_arr_this_event,
             areaperil_to_haz_arr_i,
-            areaperil_to_event_rp,
             haz_pdf[:arr_ptr_end],
-            haz_arr_ptr)
+            haz_arr_ptr,
+            haz_rp[:arr_ptr_end])
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -1212,7 +1224,6 @@ def reconstruct_coverages(compute_info,
                           areaperil_ids,
                           areaperil_ids_map,
                           areaperil_to_haz_arr_i,
-                          areaperil_to_event_rp,
                           item_map,
                           items,
                           coverages,
@@ -1355,7 +1366,6 @@ def reconstruct_coverages(compute_info,
                 if dynamic_footprint is not None:
                     items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
                     items_event_data[item_i]['return_period'] = items[item_idx]['return_period']
-                    items_event_data[item_i]['event_rp'] = areaperil_to_event_rp[areaperil_id]
                     # For dynamic footprints, sub-divide by intensity_adjustment
                     adj = items[item_idx]['intensity_adjustment']
                     if adj not in adj_to_cdf_id:

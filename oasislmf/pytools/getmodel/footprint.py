@@ -632,33 +632,59 @@ class FootprintParquetDynamic(Footprint):
         """Build the interpolated footprint from hazard case and event definition DataFrames.
 
         Args:
-            df_hazard_case: (pd.DataFrame) hazard case data with section_id, areaperil_id, return_period, intensity
+            df_hazard_case: (pd.DataFrame) hazard case data with section_id, areaperil_id, return_period, intensity,
+                and optionally probability (float) for stochastic hazard. When probability is absent, all rows are
+                treated as deterministic (probability=1). Multiple rows per (section_id, areaperil_id, return_period)
+                are supported; realisation_id is assigned automatically by ranking intensities ascending within each
+                group to pair rp_from and rp_to brackets by rank and avoid a cartesian product.
             df_event_definition: (pd.DataFrame) event definition with section_id, rp_from, rp_to, interpolation
 
         Returns: (np.array[EventDynamic]) the interpolated footprint, or None if empty
         """
-        from_cols = ['section_id', 'areaperil_id', 'intensity']
-        to_cols = from_cols + ['interpolation', 'return_period']
+        if 'probability' not in df_hazard_case.columns:
+            df_hazard_case = df_hazard_case.assign(probability=1.0)
+
+        df_hazard_case = df_hazard_case.sort_values(
+            ['section_id', 'areaperil_id', 'return_period', 'intensity']
+        )
+        df_hazard_case['realisation_id'] = df_hazard_case.groupby(
+            ['section_id', 'areaperil_id', 'return_period']
+        ).cumcount()
+
+        from_cols = ['section_id', 'areaperil_id', 'realisation_id', 'intensity', 'probability']
+        to_cols = ['section_id', 'areaperil_id', 'realisation_id', 'intensity', 'interpolation', 'return_period', 'probability']
+        merge_keys = ['section_id', 'areaperil_id', 'realisation_id']
 
         df_hazard_case_from = df_hazard_case.merge(
-            df_event_definition, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_from'])[from_cols].rename(
-                columns={'intensity': 'from_intensity'})
+            df_event_definition, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_from']
+        )[from_cols].rename(columns={'intensity': 'from_intensity', 'probability': 'from_probability'})
 
         df_hazard_case_to = df_hazard_case.merge(
-            df_event_definition, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_to'])[to_cols].rename(
-                columns={'intensity': 'to_intensity'})
+            df_event_definition, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_to']
+        )[to_cols].rename(columns={'intensity': 'to_intensity', 'probability': 'to_probability'})
 
-        df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on=['section_id', 'areaperil_id'], how='outer')
+        df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on=merge_keys, how='outer')
         df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
+        df_footprint['probability'] = df_footprint['from_probability'].fillna(df_footprint['to_probability']).fillna(1.0)
+        df_footprint = df_footprint.drop(columns=['from_probability', 'to_probability'])
 
         if len(df_footprint) > 0:
             df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
                 (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
             df_footprint['intensity'] = df_footprint['intensity'].astype('int')
-            df_footprint = df_footprint.sort_values('intensity', ascending=False)
-            df_footprint = df_footprint.drop_duplicates(subset=['areaperil_id'], keep='first')
-            df_footprint['intensity_bin_id'] = 0  # Placeholder for intensity bin ID
-            df_footprint['probability'] = 1
+
+            # Collapse realisations that produce the same intensity after interpolation,
+            # summing their probabilities, then normalise per areaperil to absorb float drift.
+            df_footprint = df_footprint.groupby(
+                ['areaperil_id', 'intensity', 'return_period'], as_index=False
+            )['probability'].sum()
+            df_footprint['probability'] = df_footprint.groupby('areaperil_id')['probability'].transform(
+                lambda x: x / x.sum()
+            )
+            df_footprint = df_footprint.sort_values(['areaperil_id', 'intensity'], ascending=[True, False])
+
+            df_footprint['intensity_bin_id'] = 0
+
             return df_to_numpy(df_footprint, EventDynamic)
         else:
             return None
