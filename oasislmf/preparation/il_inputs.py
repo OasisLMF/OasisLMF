@@ -342,7 +342,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
     terms_maps = {}
     coverage_group_map = {}
     fm_group_tiv = {}
-    missing_non_zero_default = {}
+    non_zero_default = {}
     missing_share_default = []
     for ProfileElementName, term_info in level_column_mapper[level_id].items():
         if term_info.get("FMTermType") == "tiv":
@@ -352,12 +352,11 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
         else:
             default_value = oed_schema.get_default(ProfileElementName)
 
-        is_zero_default = default_value == 0 or default_value in BLANK_VALUES
         if ProfileElementName not in term_df_source.columns:
-            if is_zero_default:
+            if default_value == 0 or default_value in BLANK_VALUES:
                 continue
             else:
-                missing_non_zero_default[ProfileElementName] = [term_info['FMTermType'].lower(), default_value]
+                non_zero_default[ProfileElementName] = [term_info['FMTermType'].lower(), default_value]
                 continue
         elif ProfileElementName not in BITYPE_columns:
             fill_empty(term_df_source, ProfileElementName, default_value)
@@ -433,7 +432,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
             terms_maps[term_key][ProfileElementName] = term_info['FMTermType'].lower()
 
     if level_terms:
-        for ProfileElementName, (term, default_value) in missing_non_zero_default.items():
+        for ProfileElementName, (term, default_value) in non_zero_default.items():
             term_df_source[ProfileElementName] = default_value
             level_terms.add(term)
             for terms_map in terms_maps.values():
