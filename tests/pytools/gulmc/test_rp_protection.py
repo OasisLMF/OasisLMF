@@ -20,7 +20,7 @@ from oasislmf.pytools.gulmc.common import (
     items_MC_data_type, coverage_type, haz_arr_type, gulmc_compute_info_type, NormInversionParameters,
     agg_vuln_idx_weight_dtype,
 )
-from oasislmf.pytools.gulmc.manager import process_areaperils_in_footprint, compute_event_losses, gen_empty_vuln_cdf_lookup
+from oasislmf.pytools.gulmc.manager import process_areaperils_in_footprint, compute_event_losses, CDF_CACHE_EMPTY
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 
 
@@ -183,11 +183,11 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     damage_bins[1]['interpolation'] = 0.75
     damage_bins[1]['damage_type'] = 0
 
-    # --- CDF cache ---
-    Nvulns_cached = 10
-    cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys = gen_empty_vuln_cdf_lookup(
-        Nvulns_cached, compute_info
-    )
+    # --- CDF cache (power-of-two sized, array-based) ---
+    Nvulns_cached = 16  # power of two
+    cdf_cache_mask = np.int64(Nvulns_cached - 1)
+    cdf_cache_tag = np.full(1, CDF_CACHE_EMPTY, dtype=np.int64)  # 1 triplet
+    cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
     cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins), dtype=oasis_float)
 
     # --- aggregate vulnerability CRS arrays (empty – no aggregate vulns) ---
@@ -223,7 +223,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     args = (
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
-        cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cached_vuln_cdfs,
+        cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
@@ -468,9 +468,10 @@ def test_rp_protection_only_affects_protected_items():
     damage_bins[0] = (0, 0.0, 0.5, 0.25, 0)
     damage_bins[1] = (0, 0.5, 1.0, 0.75, 0)
 
-    Nvulns_cached = 10
-    cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys = gen_empty_vuln_cdf_lookup(
-        Nvulns_cached, compute_info)
+    Nvulns_cached = 16  # power of two
+    cdf_cache_mask = np.int64(Nvulns_cached - 1)
+    cdf_cache_tag = np.full(1, CDF_CACHE_EMPTY, dtype=np.int64)  # 1 triplet (both items share it)
+    cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
     cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins), dtype=oasis_float)
 
     areaperil_agg_vuln_idx_ja_data = np.empty(0, dtype=agg_vuln_idx_weight_dtype)
@@ -496,7 +497,7 @@ def test_rp_protection_only_affects_protected_items():
     compute_event_losses(
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
-        cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cached_vuln_cdfs,
+        cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,

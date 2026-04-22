@@ -105,7 +105,7 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     ('cursor', oasis_int),
     ('coverage_i', oasis_int),  # last_processed_coverage_ids_idx
     ('coverage_n', oasis_int),
-    ('next_cached_vuln_cdf_i', oasis_int),
+    ('cdf_cache_ctr', np.int64),
     ('max_bytes_per_item', oasis_int),
     ('Ndamage_bins_max', oasis_int),
     ('loss_threshold', oasis_float),
