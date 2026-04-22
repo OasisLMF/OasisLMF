@@ -342,7 +342,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
     terms_maps = {}
     coverage_group_map = {}
     fm_group_tiv = {}
-    non_zero_default = {}
+    missing_non_zero_default = {}
     for ProfileElementName, term_info in level_column_mapper[level_id].items():
         if term_info.get("FMTermType") == "tiv":
             continue
@@ -351,11 +351,12 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
         else:
             default_value = oed_schema.get_default(ProfileElementName)
 
+        is_zero_default = default_value == 0 or default_value in BLANK_VALUES
         if ProfileElementName not in term_df_source.columns:
-            if default_value == 0 or default_value in BLANK_VALUES:
+            if is_zero_default:
                 continue
             else:
-                non_zero_default[ProfileElementName] = [term_info['FMTermType'].lower(), default_value]
+                missing_non_zero_default[ProfileElementName] = [term_info['FMTermType'].lower(), default_value]
                 continue
         elif ProfileElementName not in BITYPE_columns:
             fill_empty(term_df_source, ProfileElementName, default_value)
@@ -393,7 +394,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                     if CALCRULE_ASSIGNMENT_METHODS[calcrule_assignment_method][FMTermGroupID]:
                         terms_map[ProfileElementName] = term_info['FMTermType'].lower()
         else:
-            if not (non_default_val).any():
+            if is_zero_default and not (non_default_val).any():
                 continue
             level_terms.add(term_info['FMTermType'].lower())
             coverage_type_ids = term_info.get("CoverageTypeID", supp_cov_type_ids)
@@ -421,11 +422,12 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
             terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'} if fm_peril_field else {})[
                 ProfileElementName] = term_info['FMTermType'].lower()
 
-    for ProfileElementName, (term, default_value) in non_zero_default.items():
-        term_df_source[ProfileElementName] = default_value
-        level_terms.add(term)
-        for terms_map in terms_maps.values():
-            terms_map[ProfileElementName] = term
+    if level_terms:
+        for ProfileElementName, (term, default_value) in missing_non_zero_default.items():
+            term_df_source[ProfileElementName] = default_value
+            level_terms.add(term)
+            for terms_map in terms_maps.values():
+                terms_map[ProfileElementName] = term
 
     return level_terms, terms_maps, coverage_group_map, fm_group_tiv
 
