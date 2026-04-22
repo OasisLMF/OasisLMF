@@ -964,7 +964,6 @@ def get_il_input_items(
 
                 write_fm_profile_level(level_df, fm_profile_csv,
                                        fm_profile_bin, step_policies_present,
-                                       profile_default_dict=valid_term_default,
                                        chunksize=chunksize)
 
                 # =====================================================================
@@ -1168,14 +1167,12 @@ def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_c
 
 
 def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file,
-                           step_policies_present, chunksize=100000,
-                           profile_default_dict={}):
+                           step_policies_present, chunksize=100000):
     """
     Writes an FM profile file.
 
     Args:
         level_df (pandas.DataFrame): FM terms dataframe.
-        profile_default_dict (dict): Mapping for term to default value, by default assumes this is 0.
         fm_profile_csv (file): Open CSV file object to write to, or None to skip CSV.
         fm_profile_bin_file (file): Open binary file object to write to.
         step_policies_present (bool): Flag to determine which type of file to write.
@@ -1190,7 +1187,7 @@ def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file,
         fm_profile_df = level_df[list(set(level_df.columns).intersection(set(fm_profile_step_headers + ['steptriggertype'])))].copy()
         for col in fm_profile_step_headers + ['steptriggertype']:
             if col not in fm_profile_df.columns:
-                fm_profile_df[col] = profile_default_dict.get(col, 0.)
+                fm_profile_df[col] = 0.
         for non_step_name, step_name in profile_cols_map.items():
             if step_name not in fm_profile_df.columns:
                 fm_profile_df[step_name] = 0
@@ -1216,7 +1213,7 @@ def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file,
         fm_profile_df = level_df[list(set(level_df.columns).intersection(set(policytc_cols)))].copy()
         for col in policytc_cols[2:]:
             if col not in fm_profile_df.columns:
-                fm_profile_df[col] = profile_default_dict.get(col, 0.0)
+                fm_profile_df[col] = 0.0
 
         fm_profile_df = (
             fm_profile_df
