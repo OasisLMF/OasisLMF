@@ -16,7 +16,7 @@ def amplifications_tocsv(stack, file_in, file_out, file_type, noheader):
         amps_fp = Path(file_in)
         items_amps = read_amplifications(run_dir=amps_fp.parent, filename=amps_fp.name)
     items_amps = items_amps[1:]
-    data = np.zeros(len(items_amps), dtype=dtype)
+    data = np.empty(len(items_amps), dtype=dtype)
     data["item_id"] = np.arange(1, len(items_amps) + 1)
     data["amplification_id"] = items_amps
 
