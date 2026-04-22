@@ -2,6 +2,7 @@
 Tests for FootprintParquetDynamic._build_footprint() and the supporting
 gulmc functions that handle stochastic/dynamic hazard.
 """
+import numba as nb
 import numpy as np
 import pandas as pd
 import pytest
@@ -209,8 +210,8 @@ def _make_event_footprint(areaperils_bins):
 
 def _make_present_areaperils(areaperil_ids):
     d = Dict.empty(
-        key_type=np.dtype(areaperil_int).type,
-        value_type=np.int32,
+        key_type=nb.from_dtype(areaperil_int),
+        value_type=nb.types.int32,
     )
     for ap in areaperil_ids:
         d[areaperil_int.type(ap)] = np.int32(1)
@@ -222,7 +223,7 @@ def test_process_areaperils_return_period_single_bin():
         (100, 5, 1.0, 200),
     ])
     present = _make_present_areaperils([100])
-    _, _, _, haz_pdf, haz_arr_ptr, haz_rp = process_areaperils_in_footprint(fp, present, True)
+    _, _, _, _, haz_arr_ptr, haz_rp = process_areaperils_in_footprint(fp, present, True)
 
     assert haz_arr_ptr[1] - haz_arr_ptr[0] == 1
     assert haz_rp[0] == 200
@@ -235,7 +236,7 @@ def test_process_areaperils_return_period_multi_bin():
         (200, 6, 1.0, 100),
     ])
     present = _make_present_areaperils([100, 200])
-    _, Nhaz, _, haz_pdf, haz_arr_ptr, haz_rp = process_areaperils_in_footprint(fp, present, True)
+    _, Nhaz, _, _, haz_arr_ptr, haz_rp = process_areaperils_in_footprint(fp, present, True)
 
     assert Nhaz == 2
 
