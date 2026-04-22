@@ -80,6 +80,6 @@ jobs:
       server_image: coreoasis/github-actions
       server_tag: api_server-${{ needs.check_images.outputs.platform_sha }}
       debug_mode: '0'
-      pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml -k all_outputs case_7 case_6"
+      pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml -k all_outputs"
       worker_api_ver: 'v2'
       storage_suffix: '_platform2'
