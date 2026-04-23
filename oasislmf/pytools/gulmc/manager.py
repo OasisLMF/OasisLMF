@@ -23,14 +23,14 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import pandas as pd
 import numba as nb
-from numba.typed import Dict, List
+from numba.typed import Dict
 from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
+from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.common.hashmap import (
     unpack as hm_unpack, _find_key as hm_find_key, NOT_FOUND as HM_NOT_FOUND,
@@ -584,6 +584,12 @@ def run(run_dir,
         haz_eps_ij = np.empty((1, sample_size), dtype='float64')
         damage_eps_ij = np.empty((1, sample_size), dtype='float64')
 
+        # Pre-allocate per-event footprint arrays (reused across events, no per-event allocation)
+        n_max_areaperils = len(item_map_ja_areaperil_ids)
+        fp_areaperil_ids = np.empty(n_max_areaperils, dtype=areaperil_int)
+        fp_event_rps = np.empty(n_max_areaperils, dtype=np.int32)
+        fp_haz_arr_ptr = np.empty(n_max_areaperils + 1, dtype=np.int64)
+
         # Pre-allocate CDF cache once (reused across events, no need to zero)
         cached_vuln_cdfs = np.empty((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
         cdf_cache_tag = np.full(n_cdf_groups, CDF_CACHE_EMPTY, dtype=np.int64)
@@ -603,10 +609,13 @@ def run(run_dir,
             event_footprint = event_footprint_obj.get_event(event_ids[0])
 
             if event_footprint is not None:
-                areaperil_ids, Nhaz_arr_this_event, areaperil_to_haz_arr_i, areaperil_to_event_rp, haz_pdf, haz_arr_ptr = process_areaperils_in_footprint(
+                Nhaz_arr_this_event, haz_pdf = process_areaperils_in_footprint(
                     event_footprint,
                     item_map_ja_id_ind,
-                    dynamic_footprint)
+                    dynamic_footprint,
+                    fp_areaperil_ids,
+                    fp_event_rps,
+                    fp_haz_arr_ptr)
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
                     counter += 1
@@ -614,9 +623,9 @@ def run(run_dir,
 
                 items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
                     compute_info,
-                    areaperil_ids,
-                    areaperil_to_haz_arr_i,
-                    areaperil_to_event_rp,
+                    fp_areaperil_ids,
+                    Nhaz_arr_this_event,
+                    fp_event_rps,
                     item_map_ja_id_ind,
                     item_map_ja_offsets,
                     item_map_ja_vuln_ids,
@@ -664,7 +673,7 @@ def run(run_dir,
                             items,
                             sample_size,
                             haz_pdf,
-                            haz_arr_ptr,
+                            fp_haz_arr_ptr,
                             vuln_array,
                             damage_bins,
                             cdf_cache_tag,
@@ -876,7 +885,7 @@ def compute_event_losses(compute_info,
         items (np.ndarray): items table merged with correlation parameters.
         sample_size (int): number of random samples to draw.
         haz_pdf (np.array[haz_arr_type]): hazard intensity pdf records for this event.
-        haz_arr_ptr (List[int]): indices where each areaperil's hazard records start in haz_pdf.
+        haz_arr_ptr (np.array[int64]): indices where each areaperil's hazard records start in haz_pdf.
         vuln_array (np.array[float]): 3d vulnerability array of shape
           (Nvulnerability, Ndamage_bins_max, Nintensity_bins).
         damage_bins (np.array): damage bin dictionary with bin_from, bin_to, interpolation, damage_type.
@@ -1159,38 +1168,38 @@ def compute_event_losses(compute_info,
 @nb.njit(cache=True, fastmath=True)
 def process_areaperils_in_footprint(event_footprint,
                                     areaperil_id_ind,
-                                    dynamic_footprint):
-    """
-    Process all the areaperils in the footprint, filtering and retaining only those who have associated vulnerability functions.
+                                    dynamic_footprint,
+                                    areaperil_ids,
+                                    event_rps,
+                                    haz_arr_ptr):
+    """Process areaperils in the footprint, filtering to those with vulnerability functions.
+
+    Writes into pre-allocated arrays (areaperil_ids, event_rps, haz_arr_ptr) that are
+    owned by the caller and reused across events.
 
     Args:
-        event_footprint (np.array[Event or footprint_event_dtype]): footprint, made of one or more event entries.
+        event_footprint (np.array[Event or footprint_event_dtype]): footprint entries.
         areaperil_id_ind (np.array): id_index structure for known areaperil_ids.
-        dynamic_footprint (boolean): true if there is dynamic_footprint
+        dynamic_footprint (boolean): true if there is dynamic_footprint.
+        areaperil_ids (np.array[areaperil_int]): pre-allocated output buffer for areaperil ids.
+        event_rps (np.array[int32]): pre-allocated output buffer for return periods (dynamic only).
+        haz_arr_ptr (np.array[int64]): pre-allocated output buffer for hazard pdf offsets.
 
     Returns:
-        areaperil_ids (List[int]): list of all areaperil_ids present in the footprint.
-        Nhaz_arr_this_event (int): number of hazard stored for this event. If zero, it means no items have losses in such event.
-        areaperil_to_haz_arr_i (dict[int, int]): map between the areaperil_id and the hazard index in haz_arr_ptr.
-        haz_pdf (np.array[oasis_float]): hazard intensity pdf.
-        haz_arr_ptr (np.array[int]): array with the indices where each hazard intensities record starts in haz arrays (ie, haz_pdf).
+        Nhaz_arr_this_event (int): number of areaperils stored. If zero, no items have losses.
+        haz_pdf (np.array[haz_arr_type]): hazard intensity pdf (freshly sliced).
     """
-    # init data structures
-    areaperil_ids = List.empty_list(nb_areaperil_int)
-
     footprint_i = 0
     last_areaperil_id = nb_areaperil_int(0)
     last_areaperil_id_start = nb_int64(0)
     haz_arr_i = 0
-    areaperil_to_haz_arr_i = Dict.empty(nb_areaperil_int, nb_oasis_int)
-    areaperil_to_event_rp = Dict.empty(nb_areaperil_int, nb_int32)
 
     Nevent_footprint_entries = len(event_footprint)
     haz_pdf = np.empty(Nevent_footprint_entries, dtype=haz_arr_type)  # max size
 
     arr_ptr_start = 0
     arr_ptr_end = 0
-    haz_arr_ptr = List([0])
+    haz_arr_ptr[0] = 0
 
     while footprint_i <= Nevent_footprint_entries:
 
@@ -1205,8 +1214,7 @@ def process_areaperils_in_footprint(event_footprint,
             if last_areaperil_id > 0:
                 if id_index_get_idx(areaperil_id_ind, last_areaperil_id) != ID_INDEX_NOT_FOUND:
                     # if items with this areaperil_id exist, process and store this areaperil_id
-                    areaperil_ids.append(last_areaperil_id)
-                    areaperil_to_haz_arr_i[last_areaperil_id] = nb_int32(haz_arr_i)
+                    areaperil_ids[haz_arr_i] = last_areaperil_id
                     haz_arr_i += 1
 
                     # store the hazard intensity pdf
@@ -1215,9 +1223,9 @@ def process_areaperils_in_footprint(event_footprint,
                     haz_pdf['intensity_bin_id'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity_bin_id'][last_areaperil_id_start: footprint_i]
                     if dynamic_footprint is not None:
                         haz_pdf['intensity'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity'][last_areaperil_id_start: footprint_i]
-                        areaperil_to_event_rp[last_areaperil_id] = nb_int32(event_footprint[last_areaperil_id_start]['return_period'])
+                        event_rps[haz_arr_i - 1] = nb_int32(event_footprint[last_areaperil_id_start]['return_period'])
 
-                    haz_arr_ptr.append(arr_ptr_end)
+                    haz_arr_ptr[haz_arr_i] = arr_ptr_end
                     arr_ptr_start = arr_ptr_end
 
             last_areaperil_id = areaperil_id
@@ -1227,19 +1235,15 @@ def process_areaperils_in_footprint(event_footprint,
 
     Nhaz_arr_this_event = haz_arr_i
 
-    return (areaperil_ids,
-            Nhaz_arr_this_event,
-            areaperil_to_haz_arr_i,
-            areaperil_to_event_rp,
-            haz_pdf[:arr_ptr_end],
-            haz_arr_ptr)
+    return (Nhaz_arr_this_event,
+            haz_pdf[:arr_ptr_end])
 
 
 @nb.njit(cache=True, fastmath=True)
 def reconstruct_coverages(compute_info,
                           areaperil_ids,
-                          areaperil_to_haz_arr_i,
-                          areaperil_to_event_rp,
+                          Nhaz_arr_this_event,
+                          event_rps,
                           item_map_ja_id_ind,
                           item_map_ja_offsets,
                           item_map_ja_vuln_ids,
@@ -1274,11 +1278,10 @@ def reconstruct_coverages(compute_info,
     Args:
         compute_info (gulmc_compute_info_type): computation state; coverage_i, coverage_n,
           and event_id fields are read/written.
-        areaperil_ids (List[int]): areaperil_ids present in the event footprint (from
-          process_areaperils_in_footprint).
-        areaperil_to_haz_arr_i (Dict[int, int]): mapping from areaperil_id to its sequential
-          index in haz_arr_ptr (assigned per event in process_areaperils_in_footprint).
-        areaperil_to_event_rp (Dict[int, int]): mapping from areaperil_id to return period.
+        areaperil_ids (np.array[areaperil_int]): areaperil_ids present in the event footprint
+          (from process_areaperils_in_footprint), length >= Nhaz_arr_this_event.
+        Nhaz_arr_this_event (int): number of valid entries in areaperil_ids.
+        event_rps (np.array[int32]): parallel array of return periods per areaperil (dynamic only).
         item_map_ja_id_ind (np.array): id_index for areaperil_id → dense index.
         item_map_ja_offsets (np.array[oasis_int]): L1 CSR offsets (N_areaperil + 1).
         item_map_ja_vuln_ids (np.array[int32]): vuln_id at each pair position.
@@ -1325,7 +1328,8 @@ def reconstruct_coverages(compute_info,
     # for each item:
     #  - compute the seeds for the hazard intensity sampling and for the damage sampling
     #  - store data for later processing (hazard cdf index, etc.)
-    for areaperil_id in areaperil_ids:
+    for ap_i in range(Nhaz_arr_this_event):
+        areaperil_id = areaperil_ids[ap_i]
         ap_ind = id_index_get_idx(item_map_ja_id_ind, areaperil_id)
         vuln_start = item_map_ja_offsets[ap_ind]
         vuln_end = item_map_ja_offsets[ap_ind + 1]
@@ -1375,14 +1379,14 @@ def reconstruct_coverages(compute_info,
                 item_i = coverage['start_items'] + coverage['cur_items']
                 items_event_data[item_i]['item_idx'] = item_idx
                 items_event_data[item_i]['item_id'] = items[item_idx]['item_id']
-                items_event_data[item_i]['haz_arr_i'] = areaperil_to_haz_arr_i[areaperil_id]
+                items_event_data[item_i]['haz_arr_i'] = ap_i
                 items_event_data[item_i]['rng_index'] = this_rng_index
                 items_event_data[item_i]['hazard_rng_index'] = this_hazard_rng_index
                 items_event_data[item_i]['eff_cdf_id'] = item_cdf_group_idx[item_idx]
                 if dynamic_footprint is not None:
                     items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
                     items_event_data[item_i]['return_period'] = items[item_idx]['return_period']
-                    items_event_data[item_i]['event_rp'] = areaperil_to_event_rp[areaperil_id]
+                    items_event_data[item_i]['event_rp'] = event_rps[ap_i]
 
                 coverage['cur_items'] += 1
     compute_info['coverage_i'] = 0

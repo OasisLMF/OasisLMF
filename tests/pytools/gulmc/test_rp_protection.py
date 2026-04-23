@@ -10,7 +10,7 @@ Three levels of coverage:
   3. compute_event_losses             – losses are zeroed when event_rp < item_rp
 """
 import numpy as np
-from numba.typed import Dict, List
+from numba.typed import Dict
 from numba.types import int32 as nb_int32, Tuple as nb_Tuple
 
 from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_int, oasis_float, oasis_int, damagebin_dtype
@@ -164,8 +164,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     haz_pdf[0]['intensity_bin_id'] = HAZ_BIN_ID
     haz_pdf[0]['intensity'] = HAZ_INTENSITY
 
-    # haz_arr_ptr as a numba List: [0, 1]
-    haz_arr_ptr = List([np.int32(0), np.int32(1)])
+    haz_arr_ptr = np.array([0, 1], dtype=np.int64)
 
     # --- vulnerability array: shape (1, Ndamage_bins, Nintensity_bins) ---
     # All probability in damage bin 1 (index 1) → always max damage
@@ -237,8 +236,17 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 # Tests: process_areaperils_in_footprint
 # ---------------------------------------------------------------------------
 
+def _make_fp_buffers(n):
+    """Pre-allocate reusable per-event footprint buffers for n areaperils."""
+    return (
+        np.empty(n, dtype=areaperil_int),
+        np.empty(n, dtype=np.int32),
+        np.empty(n + 1, dtype=np.int64),
+    )
+
+
 def test_process_areaperils_builds_event_rp_dict():
-    """areaperil_to_event_rp is populated from EventDynamic return_period values."""
+    """event_rps array is populated from EventDynamic return_period values."""
     ev = np.zeros(2, dtype=EventDynamic)
     ev[0]['areaperil_id'] = 1
     ev[0]['return_period'] = 20
@@ -252,15 +260,16 @@ def test_process_areaperils_builds_event_rp_dict():
     ev[1]['intensity'] = 200
 
     present = _make_present_areaperils(1, 2)
-    _, N, _, areaperil_to_event_rp, _, _ = process_areaperils_in_footprint(ev, present, True)
+    fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
+    N, _ = process_areaperils_in_footprint(ev, present, True, fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr)
 
     assert N == 2
-    assert int(areaperil_to_event_rp[np.uint32(1)]) == 20
-    assert int(areaperil_to_event_rp[np.uint32(2)]) == 50
+    assert int(fp_event_rps[0]) == 20
+    assert int(fp_event_rps[1]) == 50
 
 
 def test_process_areaperils_event_rp_empty_when_non_dynamic():
-    """areaperil_to_event_rp is always empty for non-dynamic footprints (dynamic_footprint=None)."""
+    """No areaperils with event_rp are populated for non-dynamic footprints (dynamic_footprint=None)."""
     ev = np.zeros(1, dtype=EventDynamic)
     ev[0]['areaperil_id'] = 1
     ev[0]['return_period'] = 30
@@ -269,13 +278,15 @@ def test_process_areaperils_event_rp_empty_when_non_dynamic():
     ev[0]['intensity'] = 0
 
     present = _make_present_areaperils(1)
-    _, _, _, areaperil_to_event_rp, _, _ = process_areaperils_in_footprint(ev, present, None)
+    fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(1)
+    N, _ = process_areaperils_in_footprint(ev, present, None, fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr)
 
-    assert len(areaperil_to_event_rp) == 0
+    # event_rps is not written for non-dynamic, N tells us how many areaperils were found
+    assert N == 1
 
 
 def test_process_areaperils_excludes_absent_areaperil():
-    """Areaperils not in present_areaperils are excluded from areaperil_to_event_rp."""
+    """Areaperils not in present_areaperils are excluded."""
     ev = np.zeros(2, dtype=EventDynamic)
     ev[0]['areaperil_id'] = 1
     ev[0]['return_period'] = 20
@@ -289,11 +300,11 @@ def test_process_areaperils_excludes_absent_areaperil():
     ev[1]['intensity'] = 200
 
     present = _make_present_areaperils(1)  # only areaperil 1
-    _, N, _, areaperil_to_event_rp, _, _ = process_areaperils_in_footprint(ev, present, True)
+    fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
+    N, _ = process_areaperils_in_footprint(ev, present, True, fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr)
 
     assert N == 1
-    assert np.uint32(1) in areaperil_to_event_rp
-    assert np.uint32(2) not in areaperil_to_event_rp
+    assert fp_areaperil_ids[0] == 1
 
 
 def test_process_areaperils_multi_bin_areaperil_uses_first_record_rp():
@@ -318,11 +329,12 @@ def test_process_areaperils_multi_bin_areaperil_uses_first_record_rp():
     ev[2]['intensity'] = 200
 
     present = _make_present_areaperils(1, 2)
-    _, N, _, areaperil_to_event_rp, haz_pdf, _ = process_areaperils_in_footprint(ev, present, True)
+    fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
+    N, haz_pdf = process_areaperils_in_footprint(ev, present, True, fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr)
 
     assert N == 2
-    assert int(areaperil_to_event_rp[np.uint32(1)]) == 25
-    assert int(areaperil_to_event_rp[np.uint32(2)]) == 100
+    assert int(fp_event_rps[0]) == 25
+    assert int(fp_event_rps[1]) == 100
     # Both probability records for areaperil 1 should be in haz_pdf
     assert len(haz_pdf) == 3
 
@@ -459,7 +471,7 @@ def test_rp_protection_only_affects_protected_items():
     haz_pdf[0]['probability'] = 1.0
     haz_pdf[0]['intensity_bin_id'] = HAZ_BIN_ID
     haz_pdf[0]['intensity'] = HAZ_INTENSITY
-    haz_arr_ptr = List([np.int32(0), np.int32(1)])
+    haz_arr_ptr = np.array([0, 1], dtype=np.int64)
 
     vuln_array = np.zeros((1, Ndamage_bins, Nintensity_bins), dtype=oasis_float)
     vuln_array[0, 1, 0] = 1.0
