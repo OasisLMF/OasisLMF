@@ -394,8 +394,6 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                     if CALCRULE_ASSIGNMENT_METHODS[calcrule_assignment_method][FMTermGroupID]:
                         terms_map[ProfileElementName] = term_info['FMTermType'].lower()
         else:
-            if ProfileElementName == "LayerParticipation":
-                breakpoint()
             FMTermGroupID = term_info.get('FMTermGroupID', 1)
             if step_level:
                 term_key = (FMTermGroupID, 0)
@@ -750,8 +748,6 @@ def get_il_input_items(
                 level_terms, terms_maps, coverage_group_map, fm_group_tiv = get_level_term_info(
                     term_df_source, level_column_mapper, level_id, step_level, fm_peril_field, oed_schema)
                 agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-                if is_policy_layer_level:
-                    breakpoint()
                 if not terms_maps:  # no terms we skip this level
                     if is_policy_layer_level:  # for policy layer we group all to make sure we can have a0 ALLOCATION_RULE
                         cur_level_id += 1
