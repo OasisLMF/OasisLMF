@@ -10,8 +10,6 @@ Three levels of coverage:
   3. compute_event_losses             – losses are zeroed when event_rp < item_rp
 """
 import numpy as np
-from numba.typed import Dict
-from numba.types import int32 as nb_int32, Tuple as nb_Tuple
 
 from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_int, oasis_float, oasis_int, damagebin_dtype
 from oasislmf.pytools.common.id_index import build as id_index_build
@@ -213,9 +211,10 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     # --- output byte buffer ---
     byte_mv = np.zeros(PIPE_CAPACITY * 2, dtype='b')
 
-    # --- intensity_bin_dict: (peril_id, intensity) → bin_id ---
-    intensity_bin_dict = Dict.empty(nb_Tuple((nb_int32, nb_int32)), nb_int32)
-    intensity_bin_dict[(PERIL_ID, HAZ_INTENSITY)] = HAZ_BIN_ID
+    # --- intensity bin lookup arrays: peril_ids and 2D bins ---
+    intensity_bin_peril_ids = np.array([PERIL_ID], dtype=np.int32)
+    intensity_bins = np.zeros((1, int(HAZ_INTENSITY) + 1), dtype=np.int32)
+    intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
 
     dynamic_footprint = True  # truthy, enables dynamic footprint path
 
@@ -227,7 +226,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
-        byte_mv, dynamic_footprint, intensity_bin_dict,
+        byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
     )
     return args, losses
 
@@ -503,8 +502,9 @@ def test_rp_protection_only_affects_protected_items():
     haz_z_unif = np.zeros(1, dtype=np.float64)
     byte_mv = np.zeros(PIPE_CAPACITY * 2, dtype='b')
 
-    intensity_bin_dict = Dict.empty(nb_Tuple((nb_int32, nb_int32)), nb_int32)
-    intensity_bin_dict[(PERIL_ID, HAZ_INTENSITY)] = HAZ_BIN_ID
+    intensity_bin_peril_ids = np.array([PERIL_ID], dtype=np.int32)
+    intensity_bins = np.zeros((1, int(HAZ_INTENSITY) + 1), dtype=np.int32)
+    intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
 
     compute_event_losses(
         compute_info, coverages, coverage_ids, items_event_data, items,
@@ -514,7 +514,7 @@ def test_rp_protection_only_affects_protected_items():
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
-        byte_mv, True, intensity_bin_dict,
+        byte_mv, True, intensity_bin_peril_ids, intensity_bins,
     )
 
     # Item 0 (RP-protected): all losses must be zero

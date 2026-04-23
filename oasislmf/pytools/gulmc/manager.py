@@ -23,8 +23,6 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import pandas as pd
 import numba as nb
-from numba.typed import Dict
-from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
@@ -562,9 +560,10 @@ def run(run_dir,
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
 
         if dynamic_footprint:
-            intensity_bin_dict = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
+            intensity_bin_peril_ids, intensity_bins = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
         else:
-            intensity_bin_dict = Dict.empty(nb_Tuple((nb_int32, nb_int32)), nb_int32)
+            intensity_bin_peril_ids = np.empty(0, dtype=np.int32)
+            intensity_bins = np.empty((0, 0), dtype=np.int32)
             dynamic_footprint = None
 
         compute_info = np.zeros(1, dtype=gulmc_compute_info_type)[0]
@@ -695,7 +694,8 @@ def run(run_dir,
                             haz_z_unif,
                             byte_mv,
                             dynamic_footprint,
-                            intensity_bin_dict
+                            intensity_bin_peril_ids,
+                            intensity_bins
                         )
                     except Exception:
                         data = {
@@ -721,28 +721,6 @@ def run(run_dir,
                 counter = 0
 
     return 0
-
-
-@nb.njit(cache=True, fastmath=True)
-def get_haz_cdf(item_event_data, haz_cdf, haz_cdf_ptr, dynamic_footprint, intensity_adjustment, intensity_bin_dict):
-    # get the right hazard cdf from the array containing all hazard cdfs
-    hazcdf_i = item_event_data['hazcdf_i']
-    haz_cdf_record = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
-    haz_cdf_prob = haz_cdf_record['probability']
-    if dynamic_footprint:
-        # adjust intensity in dynamic footprint
-        haz_cdf_intensity = haz_cdf_record['intensity']
-        haz_cdf_intensity = haz_cdf_intensity - intensity_adjustment
-        haz_cdf_intensity = np.where(haz_cdf_intensity < 0, nb_int32(0), haz_cdf_intensity)
-        haz_cdf_bin_id = np.zeros_like(haz_cdf_record['intensity_bin_id'])
-        for haz_bin_idx in range(haz_cdf_bin_id.shape[0]):
-            if haz_cdf_intensity[haz_bin_idx] <= 0:
-                haz_cdf_bin_id[haz_bin_idx] = intensity_bin_dict[0]
-            else:
-                haz_cdf_bin_id[haz_bin_idx] = intensity_bin_dict[haz_cdf_intensity[haz_bin_idx]]
-    else:
-        haz_cdf_bin_id = haz_cdf_record['intensity_bin_id']
-    return haz_cdf_prob, haz_cdf_bin_id
 
 
 @nb.njit(fastmath=True)
@@ -856,7 +834,8 @@ def compute_event_losses(compute_info,
                          haz_z_unif,
                          byte_mv,
                          dynamic_footprint,
-                         intensity_bin_dict
+                         intensity_bin_peril_ids,
+                         intensity_bins
                          ):
     """Compute ground-up losses for all coverages in a single event.
 
@@ -909,8 +888,9 @@ def compute_event_losses(compute_info,
         haz_z_unif (np.array[float]): reusable buffer for correlated hazard random values.
         byte_mv (numpy.array[byte]): output byte buffer for the binary stream.
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
-        intensity_bin_dict (Dict[Tuple(int32, int32), int32]): map from (peril_id, intensity)
-          to intensity_bin_id, used for dynamic footprint intensity adjustment.
+        intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids (length n_perils).
+        intensity_bins (np.array[int32, 2d]): shape (n_perils, max_intensity + 1) mapping
+          [peril_idx, intensity_value] -> intensity_bin_id.
 
     Returns:
         bool: True if all coverages have been processed, False if the buffer is full and
@@ -968,11 +948,18 @@ def compute_event_losses(compute_info,
                 haz_intensity = haz_intensity - intensity_adjustment
                 haz_bin_id = np.zeros_like(haz_pdf_record['intensity_bin_id'])
                 peril_id = item['peril_id']
+                # find peril index (linear scan of small array, typically 1-3 perils)
+                peril_idx = nb_int32(0)
+                for pi in range(intensity_bin_peril_ids.shape[0]):
+                    if intensity_bin_peril_ids[pi] == peril_id:
+                        peril_idx = nb_int32(pi)
+                        break
+                max_intensity = nb_int32(intensity_bins.shape[1] - 1)
                 for haz_bin_idx in range(haz_bin_id.shape[0]):
-                    try:
-                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, haz_intensity[haz_bin_idx]]
-                    except Exception:
-                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, 0]
+                    intensity_val = haz_intensity[haz_bin_idx]
+                    if intensity_val < 0 or intensity_val > max_intensity:
+                        intensity_val = nb_int32(0)
+                    haz_bin_id[haz_bin_idx] = intensity_bins[peril_idx, intensity_val]
             else:
                 haz_bin_id = haz_pdf_record['intensity_bin_id']
             haz_pdf_prob = haz_pdf_record['probability']
