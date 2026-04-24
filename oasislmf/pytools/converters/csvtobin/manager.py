@@ -18,7 +18,7 @@ from oasislmf.pytools.converters.csvtobin.utils import (
     summarycalc_tobin,
     vulnerability_tobin,
 )
-from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray, read_csv_as_ndarray
+from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
 
 logger = logging.getLogger(__name__)
