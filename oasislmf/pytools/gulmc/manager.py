@@ -20,13 +20,10 @@ from select import select
 import time
 
 import numpy as np
-import numpy.lib.recfunctions as rfn
-import pandas as pd
 import numba as nb
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
-from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
@@ -36,33 +33,26 @@ from oasislmf.pytools.common.hashmap import (
     i_add_key_fail as HM_ADD_FAIL, new_slot_bit as HM_NEW_SLOT_BIT, slot_mask as HM_SLOT_MASK,
     rehash as hm_rehash,
 )
-from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_intensity_bin_dict, encode_peril_id
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
-from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
-                                         generate_correlated_hash_vector, generate_hash,
+from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval_float, get_random_generator)
 from oasislmf.pytools.gul.utils import binary_search
-from oasislmf.pytools.gulmc.aggregate import (
-    process_aggregate_vulnerability, process_vulnerability_weights, read_aggregate_vulnerability,
-    read_vulnerability_weights, )
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
                                            DAMAGE_TYPE_RELATIVE,
-                                           NP_BASE_ARRAY_SIZE, Keys,
+                                           NP_BASE_ARRAY_SIZE,
                                            ItemAdjustment,
                                            NormInversionParameters,
-                                           coverage_type, gul_header,
+                                           gul_header,
                                            gulSampleslevelHeader_size,
                                            gulSampleslevelRec_size,
                                            haz_arr_type, items_MC_data_type,
                                            gulmc_compute_info_type)
-from oasislmf.pytools.common.id_index import build as id_index_build, get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
-from oasislmf.pytools.gulmc.items import read_items, generate_item_map
+from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.ping import oasis_ping
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
@@ -71,164 +61,6 @@ logger = logging.getLogger(__name__)
 
 
 CDF_CACHE_EMPTY = nb_int64(-1)
-
-# parameter for get_corr_rval in a normal cdf
-x_min = 1e-16
-x_max = 1 - 1e-16
-norm_inv_N = 1000000
-cdf_min = -20
-cdf_max = 20.
-inv_factor = (norm_inv_N - 1) / (x_max - x_min)
-norm_factor = (norm_inv_N - 1) / (cdf_max - cdf_min)
-
-
-@nb.njit(cache=True)
-def _build_cdf_group_indices(vuln_ja_offsets, vuln_ja_item_idxs, items, dynamic_footprint):
-    """Assign a sequential index to each unique CDF-producing group.
-
-    A CDF group is a set of items that share identical vulnerability CDFs. For non-dynamic
-    models, each (areaperil, vuln_id) pair — which corresponds to one position in the
-    item_map jagged array — gets a single index. For dynamic models, items within the same
-    pair may have different intensity_adjustment values that produce different CDFs, so each
-    unique adjustment gets its own sub-index.
-
-    Numba compiles two specializations based on whether dynamic_footprint is None or not.
-
-    Args:
-        vuln_ja_offsets (np.array[oasis_int]): L2 CSR offsets (N_pairs + 1).
-        vuln_ja_item_idxs (np.array[oasis_int]): flat item indices.
-        items (np.ndarray): items table (must have 'intensity_adjustment' for dynamic).
-        dynamic_footprint: None for static footprints, truthy for dynamic.
-
-    Returns:
-        item_cdf_group_idx (np.array[int64]): maps item_idx → CDF group index.
-        n_cdf_groups (int): total number of unique CDF groups.
-    """
-    item_cdf_group_idx = np.empty(len(items), dtype=np.int64)
-    n_pairs = len(vuln_ja_offsets) - 1
-    cdf_group_cache_id = 0
-
-    if dynamic_footprint is None:
-        for k in range(n_pairs):
-            start = vuln_ja_offsets[k]
-            end = vuln_ja_offsets[k + 1]
-            for pos in range(start, end):
-                item_cdf_group_idx[vuln_ja_item_idxs[pos]] = cdf_group_cache_id
-            cdf_group_cache_id += 1
-    else:
-        adj_key_storage = np.empty(max(len(items), 1), dtype=oasis_int)
-        adj_cache_ids = np.empty(max(len(items), 1), dtype=np.int64)
-
-        for k in range(n_pairs):
-            start = vuln_ja_offsets[k]
-            end = vuln_ja_offsets[k + 1]
-            n_pair_items = end - start
-            # fresh hashmap per pair (maps intensity_adjustment → dense index)
-            adj_table = hm_init_dict(max(n_pair_items, 1))
-            adj_info, adj_lookup, adj_index = hm_unpack(adj_table)
-
-            for pos in range(start, end):
-                item_idx = vuln_ja_item_idxs[pos]
-                adj = items[item_idx]['intensity_adjustment']
-
-                result = hm_try_add_key(adj_info, adj_lookup, adj_index, adj_key_storage, adj)
-                while result == HM_ADD_FAIL:
-                    adj_table = hm_rehash(adj_table, adj_key_storage)
-                    adj_info, adj_lookup, adj_index = hm_unpack(adj_table)
-                    result = hm_try_add_key(adj_info, adj_lookup, adj_index, adj_key_storage, adj)
-
-                dense_idx = adj_index[result & HM_SLOT_MASK]
-                if result & HM_NEW_SLOT_BIT:  # new unique adjustment
-                    adj_cache_ids[dense_idx] = cdf_group_cache_id
-                    cdf_group_cache_id += 1
-                item_cdf_group_idx[item_idx] = adj_cache_ids[dense_idx]
-
-    return item_cdf_group_idx, cdf_group_cache_id
-
-
-def get_dynamic_footprint_adjustments(input_path):
-    """Generate intensity adjustment array for dynamic footprint models.
-
-    Args:
-        input_path (str): location of the generated adjustments file.
-
-    Returns:
-        numpy array with itemid and adjustment factors
-    """
-    adjustments_fn = os.path.join(input_path, 'item_adjustments.csv')
-    if os.path.isfile(adjustments_fn):
-        adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
-    else:
-        items_fp = os.path.join(input_path, 'items.csv')
-        items_tb = np.loadtxt(items_fp, dtype=items_dtype, delimiter=",", skiprows=1, ndmin=1)
-        adjustments_tb = np.array([(i[0], 0, 0) for i in items_tb], dtype=ItemAdjustment)
-
-    return adjustments_tb
-
-
-def get_peril_id(input_path):
-    """
-    Get peril_id associated with item_id
-
-    Args:
-        input_path (str): The directory path where the 'gul_summary_map.csv' file is located.
-
-    Returns:
-        np.ndarray: A structured NumPy array with the following fields:
-            - 'item_id' (oasis_int): The item ID as an integer.
-            - 'peril_id' (oasis_int): The encoded peril ID as an integer.
-    """
-
-    dtype = np.dtype([
-        ('item_id', oasis_int),
-        ('peril_id', oasis_int)
-    ])
-
-    item_peril = pd.read_csv(
-        os.path.join(input_path, 'gul_summary_map.csv'),
-        usecols=['item_id', 'peril_id']
-    )[['item_id', 'peril_id']]
-
-    item_peril['peril_id'] = item_peril['peril_id'].apply(encode_peril_id)
-
-    item_peril = np.array(
-        list(item_peril.itertuples(index=False, name=None)),
-        dtype=dtype)
-
-    return item_peril
-
-
-def get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys):
-    """
-    Loads vulnerability adjustments from the analysis settings file.
-
-    Args:
-        run_dir (str): path to the run directory (used to load the analysis settings)
-        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
-        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys).
-
-    Returns: (np.ndarray[oasis_float]) vulnerability adjustments array, indexed by dense vuln index.
-    """
-    settings_path = os.path.join(run_dir, "analysis_settings.json")
-    vuln_adj = np.ones(len(vuln_map_keys), dtype=oasis_float)
-    if not os.path.exists(settings_path):
-        logger.debug(f"analysis_settings.json not found in {run_dir}.")
-        return vuln_adj
-    vulnerability_adjustments_field = analysis_settings_loader(settings_path).get('vulnerability_adjustments', None)
-    if vulnerability_adjustments_field is not None:
-        adjustments = vulnerability_adjustments_field.get('adjustments', None)
-    else:
-        adjustments = None
-    if adjustments is None:
-        logger.debug(f"vulnerability_adjustments not found in {settings_path}.")
-        return vuln_adj
-    hm_info, hm_lookup, hm_index = hm_unpack(vuln_map)
-    for key, value in adjustments.items():
-        slot = hm_find_key(hm_info, hm_lookup, hm_index, vuln_map_keys, np.int32(int(key)))
-        if slot != HM_NOT_FOUND:
-            idx = hm_index[slot]
-            vuln_adj[idx] = nb_oasis_float(value)
-    return vuln_adj
 
 
 @redirect_logging(exec_name='gulmc')
@@ -279,11 +111,6 @@ def run(run_dir,
     """
     logger.info("starting gulmc")
 
-    model_storage = get_storage_from_config_path(
-        os.path.join(run_dir, 'model_storage.json'),
-        os.path.join(run_dir, 'static'),
-    )
-    input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
     if alloc_rule not in [0, 1, 2, 3]:
@@ -309,150 +136,62 @@ def run(run_dir,
         event_id_mv = memoryview(bytearray(4))
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
-        # load keys.csv to determine included AreaPerilID from peril_filter
-        if os.path.exists(os.path.join(input_path, 'keys.csv')):
-            keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
-            if peril_filter:
-                valid_areaperil_id = np.unique(keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'])
-                logger.debug(
-                    f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_df)}')
-            else:
-                valid_areaperil_id = np.unique(keys_df['AreaPerilID'])
-        else:
-            valid_areaperil_id = None
-
-        logger.debug('import damage bins')
-        damage_bins = get_damage_bins(model_storage, ignore_file_type)
-
-        logger.debug('import coverages')
-        # coverages are numbered from 1, therefore we skip element 0 in `coverages`
-        coverages_tb = read_coverages(input_path, ignore_file_type)
-        coverages = np.zeros(coverages_tb.shape[0] + 1, coverage_type)
-        coverages[1:]['tiv'] = coverages_tb
-
-        # prepare for stochastic disaggregation
-        logger.debug('import aggregate vulnerability definitions and vulnerability weights')
-        aggregate_vulnerability = read_aggregate_vulnerability(model_storage, ignore_file_type)
-        aggregate_weights = read_vulnerability_weights(model_storage, ignore_file_type)
-        agg_vuln_ids, agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids = process_aggregate_vulnerability(aggregate_vulnerability)
-
-        if aggregate_vulnerability is not None and aggregate_weights is None:
-            raise FileNotFoundError(
-                f"Vulnerability weights file not found at {model_storage.get_storage_url('', print_safe=True)[1]}"
-            )
-
-        logger.debug('import items and correlations tables')
-        # since items and correlations have the same granularity (one row per item_id) we merge them on `item_id`.
-        correlations_tb = read_correlations(input_path, ignore_file_type)
-        items_tb = read_items(input_path, ignore_file_type)
-        if len(correlations_tb) != len(items_tb):
-            logger.info(
-                f"The items table has length {len(items_tb)} while the correlations table has length {len(correlations_tb)}.\n"
-                "It is possible that the correlations are not set up properly in the model settings file."
-            )
-
-        # merge the tables, using defaults for missing values, and sort the resulting table
-        items = rfn.join_by(
-            'item_id', items_tb, correlations_tb,
-            jointype='leftouter', usemask=False,
-            defaults={'peril_correlation_group': 0,
-                      'damage_correlation_value': 0.,
-                      'hazard_group_id': 0,
-                      'hazard_correlation_value': 0.}
+        # --- load or build read-only structures --------------------------------
+        from oasislmf.pytools.gulmc.structure import (
+            gulmc_structure_exists, load_gulmc_structure, build_structures,
         )
-        if valid_areaperil_id is not None:
-            items = items[np.isin(items['areaperil_id'], valid_areaperil_id)]
-        items = rfn.merge_arrays((items,
-                                  np.empty(items.shape,
-                                           dtype=nb.from_dtype(np.dtype([("vulnerability_idx", oasis_int),
-                                                                         ("areaperil_agg_vuln_idx", oasis_int)])))),
-                                 flatten=True)
-        items['areaperil_agg_vuln_idx'] = -1
+        if gulmc_structure_exists(run_dir):
+            logger.info("loading pre-computed gulmc structures (shared memory)")
+            structures = load_gulmc_structure(run_dir)
+        else:
+            logger.info("building gulmc structures from input files")
+            structures = build_structures(run_dir, ignore_file_type, peril_filter,
+                                          dynamic_footprint, model_df_engine)
 
-        # intensity adjustment
-        if dynamic_footprint:
-            logger.debug('get dynamic footprint adjustments')
-            adjustments_tb = get_dynamic_footprint_adjustments(input_path)
-            items = rfn.join_by(
-                'item_id', items, adjustments_tb,
-                jointype='leftouter', usemask=False,
-                defaults={'intensity_adjustment': 0, 'return_period': 0}
-            )
+        items = structures['items']
+        # coverages needs a writable copy: reconstruct_coverages writes cur_items / start_items per event
+        coverages = structures['coverages'].copy()
+        item_map_ja_areaperil_ids = structures['item_map_ja_areaperil_ids']
+        item_map_ja_offsets = structures['item_map_ja_offsets']
+        item_map_ja_vuln_ids = structures['item_map_ja_vuln_ids']
+        item_map_ja_vuln_ja_offsets = structures['item_map_ja_vuln_ja_offsets']
+        item_map_ja_vuln_ja_item_idxs = structures['item_map_ja_vuln_ja_item_idxs']
+        item_map_ja_id_ind = structures['item_map_ja_id_ind']
+        item_cdf_group_idx = structures['item_cdf_group_idx']
+        n_cdf_groups = structures['n_cdf_groups']
+        areaperil_agg_vuln_idx_ja_offsets = structures['areaperil_agg_vuln_idx_ja_offsets']
+        areaperil_agg_vuln_idx_ja_data = structures['areaperil_agg_vuln_idx_ja_data']
+        damage_bins = structures['damage_bins']
+        vuln_adj = structures['vuln_adj']
+        vuln_array = structures['vuln_array']
+        unique_peril_correlation_groups = structures['unique_peril_correlation_groups']
+        norm_inv_cdf = structures['norm_inv_cdf']
+        norm_cdf = structures['norm_cdf']
+        norm_inv_parameters = structures['norm_inv_parameters']
+        intensity_bin_peril_ids = structures['intensity_bin_peril_ids']
+        intensity_bins = structures['intensity_bins']
+        n_unique_groups = structures['n_unique_groups']
+        n_unique_haz_groups = structures['n_unique_haz_groups']
+        del structures
 
-        # include peril_id
-        if dynamic_footprint:
-            logger.debug('get peril_id')
-            item_peril = get_peril_id(input_path)
-            items = rfn.join_by(
-                'item_id', items, item_peril,
-                jointype='leftouter', usemask=False,
-                defaults={'peril_id': 0}
-            )
-        # Pre-compute sequential indices for group_id and hazard_group_id
-        # to enable array-based lookups instead of Numba Dict lookups in reconstruct_coverages
-        unique_group_ids_arr, group_seq_ids = np.unique(items['group_id'], return_inverse=True)
-        unique_haz_group_ids_arr, haz_group_seq_ids = np.unique(items['hazard_group_id'], return_inverse=True)
-        n_unique_groups = len(unique_group_ids_arr)
-        n_unique_haz_groups = len(unique_haz_group_ids_arr)
-        items = rfn.merge_arrays((items,
-                                  np.empty(items.shape,
-                                           dtype=nb.from_dtype(np.dtype([("group_seq_id", np.int32),
-                                                                         ("hazard_group_seq_id", np.int32)])))),
-                                 flatten=True)
-        items['group_seq_id'] = group_seq_ids
-        items['hazard_group_seq_id'] = haz_group_seq_ids
-
-        items.sort(order=['areaperil_id', 'vulnerability_id'])
-
-        # build item map (two-level jagged array)
-        (item_map_ja_areaperil_ids, item_map_ja_offsets,
-         item_map_ja_vuln_ids, item_map_ja_vuln_ja_offsets,
-         item_map_ja_vuln_ja_item_idxs,
-         vuln_map, vuln_map_keys,
-         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
-         areaperil_agg_vuln_idx_ja_areaperil_ids) = generate_item_map(
-            items,
-            coverages,
-            agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids)
-        # Build id_index for areaperil_id -> dense index lookup
-        item_map_ja_id_ind = id_index_build(item_map_ja_areaperil_ids)
-
-        # Pre-compute CDF group indices: each unique (areaperil, vuln_id) pair (non-dynamic)
-        # or (areaperil, vuln_id, intensity_adjustment) group (dynamic) gets a sequential index.
-        # Items sharing a CDF group share cached CDFs.
-        item_cdf_group_idx, n_cdf_groups = _build_cdf_group_indices(
-            item_map_ja_vuln_ja_offsets, item_map_ja_vuln_ja_item_idxs,
-            items, dynamic_footprint if dynamic_footprint else None)
-
-        if aggregate_weights is not None:
-            logger.debug('reconstruct aggregate vulnerability definitions and weights')
-            process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_data,
-                                          vuln_map, vuln_map_keys, aggregate_weights)
-        del areaperil_agg_vuln_idx_ja_areaperil_ids  # only needed during setup
-
-        # import array to store the coverages to be computed
-        # coverages are numebered from 1, therefore skip element 0.
-        compute = np.zeros(coverages.shape[0] + 1, items_dtype['coverage_id'])
-
-        logger.debug('import peril correlation groups')
-        unique_peril_correlation_groups = np.unique(items['peril_correlation_group'])
+        Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
+        # import array to store the coverages to be computed
+        # coverages are numbered from 1, therefore skip element 0.
+        compute = np.zeros(coverages.shape[0] + 1, items_dtype['coverage_id'])
+
+        model_storage = get_storage_from_config_path(
+            os.path.join(run_dir, 'model_storage.json'),
+            os.path.join(run_dir, 'static'),
+        )
         logger.debug('import footprint')
         footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
                                             df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids))
         if data_server:
-            num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
-            logger.info(f"got {num_intensity_bins} intensity bins from server")
-        else:
-            num_intensity_bins: int = footprint_obj.num_intensity_bins
-
-        logger.debug('import vulnerabilities')
-        vuln_adj = get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys)
-        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_map, vuln_map_keys,
-                                     num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
-        Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
+            num_intensity_bins_server: int = FootprintLayerClient.get_number_of_intensity_bins()
+            logger.info(f"got {num_intensity_bins_server} intensity bins from server")
 
         # set up streams
         if file_out is None or file_out == '-':
@@ -511,19 +250,10 @@ def run(run_dir,
         if do_correlation or do_haz_correlation:
             logger.info(f"correlated random number generation for hazard intensity sampling: switched {'ON' if do_haz_correlation else 'OFF'}.")
             logger.info(f"Correlated random number generation for damage sampling: switched  {'ON' if do_correlation else 'OFF'}.")
-
             logger.info(f"Correlation values for {Nperil_correlation_groups} peril correlation groups have been imported.")
-
-            # pre-compute lookup tables for the Gaussian cdf and inverse cdf
-            # Notes:
-            #  - the size `N` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
-            #  - the function `get_corr_rval` to compute the correlated numbers is not affected by N.
-            norm_inv_parameters = np.array((x_min, x_max, norm_inv_N, cdf_min, cdf_max, inv_factor, norm_factor), dtype=NormInversionParameters)
-
-            norm_inv_cdf = compute_norm_inv_cdf_lookup(norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'])
-            norm_cdf = compute_norm_cdf_lookup(norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'], norm_inv_parameters['N'])
+            # norm_inv_parameters, norm_inv_cdf, norm_cdf are pre-computed in structures
         else:
-            # create dummy data structures with proper dtypes to allow correct numba compilation
+            # override with dummy data structures for correct numba compilation when correlation is OFF
             norm_inv_parameters = np.array((0., 0., 0, 0., 0., 0., 0.), dtype=NormInversionParameters)
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
 
@@ -559,11 +289,8 @@ def run(run_dir,
         # maximum bytes to be written in the output stream for 1 item
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
 
-        if dynamic_footprint:
-            intensity_bin_peril_ids, intensity_bins = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
-        else:
-            intensity_bin_peril_ids = np.empty(0, dtype=np.int32)
-            intensity_bins = np.empty((0, 0), dtype=np.int32)
+        # intensity_bin_peril_ids and intensity_bins are pre-loaded from structures
+        if not dynamic_footprint:
             dynamic_footprint = None
 
         compute_info = np.zeros(1, dtype=gulmc_compute_info_type)[0]

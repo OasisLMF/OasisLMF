@@ -3,12 +3,14 @@ This file contains specific functionality needed for aggregate vulnerabilities.
 
 """
 import logging
+import os
 
 import numba as nb
 import numpy as np
 import pandas as pd
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_int, aggregatevulnerability_dtype, vulnerability_weight_dtype
+from oasislmf.utils.data import analysis_settings_loader
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, oasis_int, aggregatevulnerability_dtype, vulnerability_weight_dtype
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.hashmap import unpack as hm_unpack, _find_key as hm_find_key, NOT_FOUND as HM_NOT_FOUND
 
@@ -143,3 +145,36 @@ def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areap
             for j in range(n_entries):
                 if areaperil_agg_vuln_idx_ja_areaperil_ids[j] == ap_id and areaperil_agg_vuln_idx_ja_data[j]['vuln_idx'] == dense_idx:
                     areaperil_agg_vuln_idx_ja_data[j]['weight'] = nb_oasis_float(rec['weight'])
+
+
+def get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys):
+    """
+    Loads vulnerability adjustments from the analysis settings file.
+
+    Args:
+        run_dir (str): path to the run directory (used to load the analysis settings)
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys).
+
+    Returns: (np.ndarray[oasis_float]) vulnerability adjustments array, indexed by dense vuln index.
+    """
+    settings_path = os.path.join(run_dir, "analysis_settings.json")
+    vuln_adj = np.ones(len(vuln_map_keys), dtype=oasis_float)
+    if not os.path.exists(settings_path):
+        logger.debug(f"analysis_settings.json not found in {run_dir}.")
+        return vuln_adj
+    vulnerability_adjustments_field = analysis_settings_loader(settings_path).get('vulnerability_adjustments', None)
+    if vulnerability_adjustments_field is not None:
+        adjustments = vulnerability_adjustments_field.get('adjustments', None)
+    else:
+        adjustments = None
+    if adjustments is None:
+        logger.debug(f"vulnerability_adjustments not found in {settings_path}.")
+        return vuln_adj
+    hm_info, hm_lookup, hm_index = hm_unpack(vuln_map)
+    for key, value in adjustments.items():
+        slot = hm_find_key(hm_info, hm_lookup, hm_index, vuln_map_keys, np.int32(int(key)))
+        if slot != HM_NOT_FOUND:
+            idx = hm_index[slot]
+            vuln_adj[idx] = nb_oasis_float(value)
+    return vuln_adj

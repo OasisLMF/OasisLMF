@@ -346,6 +346,17 @@ class GenerateLossesDir(GenerateLossesBase):
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.kernel_alloc_rule_ri, ri_target_dir)
 
+        if self.gulmc and not self.model_custom_gulcalc:
+            from ...pytools.gulmc.structure import create_gulmc_structure
+            self.logger.info(f'Creating GULMC shared structures: {model_run_fp}')
+            create_gulmc_structure(
+                run_dir=model_run_fp,
+                ignore_file_type=set(),
+                peril_filter=self._get_peril_filter(self.settings),
+                dynamic_footprint=self.dynamic_footprint,
+                model_df_engine=self.model_df_engine or self.base_df_engine,
+            )
+
         for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
             if self.settings.get(f'{runtype}_output'):
                 summaries = self.settings.get('{}_summaries'.format(runtype), [])

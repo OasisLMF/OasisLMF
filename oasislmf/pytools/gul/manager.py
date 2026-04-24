@@ -320,9 +320,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         timer = time.time()
         ping = kwargs.get('socket_server', 'False') != 'False'
         for event_data in read_getmodel_stream(streams_in, items,
-                                                    item_map_hm, item_map_hm_keys,
-                                                    item_map_ja_offsets,
-                                                    coverages, compute, seeds):
+                                               item_map_hm, item_map_hm_keys,
+                                               item_map_ja_offsets,
+                                               coverages, compute, seeds):
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
             # generation of "base" random values is done as before

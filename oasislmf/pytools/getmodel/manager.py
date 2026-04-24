@@ -581,7 +581,8 @@ def get_vulns(
                 with storage.with_fileno("vulnerability.bin") as f:
                     vulns_bin = np.memmap(f, dtype=vulnerability_dtype, offset=4, mode='r')
                 if vuln_adj is not None and len(vuln_adj) > 0:
-                    vuln_array, valid_vuln_ids = load_vulns_bin_adjusted(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins, vuln_adj)
+                    vuln_array, valid_vuln_ids = load_vulns_bin_adjusted(
+                        vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins, vuln_adj)
                 else:
                     vuln_array, valid_vuln_ids = load_vulns_bin(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins)
 

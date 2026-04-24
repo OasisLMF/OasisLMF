@@ -12,11 +12,12 @@ from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oas
 from oasislmf.pytools.common.id_index import build as id_index_build, get_idx, NOT_FOUND
 from oasislmf.pytools.common.hashmap import (
     init_dict, unpack, rehash, _try_add_key,
-    i_add_key_fail, slot_mask,
+    i_add_key_fail, new_slot_bit, slot_mask,
     NOT_FOUND as HM_NOT_FOUND,
     HM_INFO_N_VALID,
 )
-from oasislmf.pytools.gulmc.common import agg_vuln_idx_weight_dtype
+from oasislmf.pytools.getmodel.manager import encode_peril_id
+from oasislmf.pytools.gulmc.common import ItemAdjustment, agg_vuln_idx_weight_dtype
 
 
 logger = logging.getLogger(__name__)
@@ -220,3 +221,112 @@ def generate_item_map(items, coverages,
             areaperil_agg_vuln_idx_ja_offsets[:n_agg_vuln_groups + 1],
             areaperil_agg_vuln_idx_ja_data[:ja_ptr],
             areaperil_agg_vuln_idx_ja_areaperil_ids[:ja_ptr])
+
+
+@nb.njit(cache=True)
+def build_cdf_group_indices(vuln_ja_offsets, vuln_ja_item_idxs, items, dynamic_footprint):
+    """Assign a sequential index to each unique CDF-producing group.
+
+    A CDF group is a set of items that share identical vulnerability CDFs. For non-dynamic
+    models, each (areaperil, vuln_id) pair — which corresponds to one position in the
+    item_map jagged array — gets a single index. For dynamic models, items within the same
+    pair may have different intensity_adjustment values that produce different CDFs, so each
+    unique adjustment gets its own sub-index.
+
+    Numba compiles two specializations based on whether dynamic_footprint is None or not.
+
+    Args:
+        vuln_ja_offsets (np.array[oasis_int]): L2 CSR offsets (N_pairs + 1).
+        vuln_ja_item_idxs (np.array[oasis_int]): flat item indices.
+        items (np.ndarray): items table (must have 'intensity_adjustment' for dynamic).
+        dynamic_footprint: None for static footprints, truthy for dynamic.
+
+    Returns:
+        item_cdf_group_idx (np.array[int64]): maps item_idx → CDF group index.
+        n_cdf_groups (int): total number of unique CDF groups.
+    """
+    item_cdf_group_idx = np.empty(len(items), dtype=np.int64)
+    n_pairs = len(vuln_ja_offsets) - 1
+    cdf_group_cache_id = 0
+
+    if dynamic_footprint is None:
+        for k in range(n_pairs):
+            start = vuln_ja_offsets[k]
+            end = vuln_ja_offsets[k + 1]
+            for pos in range(start, end):
+                item_cdf_group_idx[vuln_ja_item_idxs[pos]] = cdf_group_cache_id
+            cdf_group_cache_id += 1
+    else:
+        adj_key_storage = np.empty(max(len(items), 1), dtype=oasis_int)
+        adj_cache_ids = np.empty(max(len(items), 1), dtype=np.int64)
+
+        for k in range(n_pairs):
+            start = vuln_ja_offsets[k]
+            end = vuln_ja_offsets[k + 1]
+            n_pair_items = end - start
+            # fresh hashmap per pair (maps intensity_adjustment → dense index)
+            adj_table = init_dict(max(n_pair_items, 1))
+            adj_info, adj_lookup, adj_index = unpack(adj_table)
+
+            for pos in range(start, end):
+                item_idx = vuln_ja_item_idxs[pos]
+                adj = items[item_idx]['intensity_adjustment']
+
+                result = _try_add_key(adj_info, adj_lookup, adj_index, adj_key_storage, adj)
+                while result == i_add_key_fail:
+                    adj_table = rehash(adj_table, adj_key_storage)
+                    adj_info, adj_lookup, adj_index = unpack(adj_table)
+                    result = _try_add_key(adj_info, adj_lookup, adj_index, adj_key_storage, adj)
+
+                dense_idx = adj_index[result & slot_mask]
+                if result & new_slot_bit:  # new unique adjustment
+                    adj_cache_ids[dense_idx] = cdf_group_cache_id
+                    cdf_group_cache_id += 1
+                item_cdf_group_idx[item_idx] = adj_cache_ids[dense_idx]
+
+    return item_cdf_group_idx, cdf_group_cache_id
+
+
+def get_dynamic_footprint_adjustments(input_path):
+    """Generate intensity adjustment array for dynamic footprint models.
+
+    Args:
+        input_path (str): location of the generated adjustments file.
+
+    Returns:
+        numpy array with itemid and adjustment factors
+    """
+    adjustments_fn = os.path.join(input_path, 'item_adjustments.csv')
+    if os.path.isfile(adjustments_fn):
+        adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
+    else:
+        items_fp = os.path.join(input_path, 'items.csv')
+        items_tb = np.loadtxt(items_fp, dtype=items_dtype, delimiter=",", skiprows=1, ndmin=1)
+        adjustments_tb = np.array([(i[0], 0, 0) for i in items_tb], dtype=ItemAdjustment)
+
+    return adjustments_tb
+
+
+def get_peril_id(input_path):
+    """
+    Get peril_id associated with item_id
+
+    Args:
+        input_path (str): The directory path where the 'gul_summary_map.csv' file is located.
+
+    Returns:
+        np.ndarray: A structured NumPy array with the following fields:
+            - 'item_id' (oasis_int): The item ID as an integer.
+            - 'peril_id' (oasis_int): The encoded peril ID as an integer.
+    """
+    from oasislmf.pytools.common.data import load_as_ndarray
+
+    read_dtype = np.dtype([('item_id', oasis_int), ('peril_id', 'U3')])
+    raw = load_as_ndarray(input_path, 'gul_summary_map', read_dtype,
+                          col_map={'item_id': 'item_id', 'peril_id': 'peril_id'})
+
+    result = np.empty(len(raw), dtype=np.dtype([('item_id', oasis_int), ('peril_id', oasis_int)]))
+    result['item_id'] = raw['item_id']
+    result['peril_id'] = np.vectorize(encode_peril_id)(raw['peril_id'])
+
+    return result
