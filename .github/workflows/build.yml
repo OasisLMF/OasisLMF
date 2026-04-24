@@ -92,6 +92,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Pull latest
+      run: git pull
+
     - name: Build wheels
       uses: pypa/cibuildwheel@v2.21.3
       env:
