@@ -2,7 +2,6 @@
 
 from contextlib import ExitStack
 import logging
-import sys
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -18,27 +17,19 @@ def default_toparquet(stack, file_in, file_out, file_type):
     dtype = TOOL_INFO[file_type]["dtype"]
 
     file_in = resolve_file(file_in, "rb", stack)
-    item_size = dtype.itemsize
-    chunk_bytes = DEFAULT_BUFFER_SIZE * item_size
+    chunk_bytes = DEFAULT_BUFFER_SIZE * dtype.itemsize
 
-    writer = None
+    schema = pa.schema([(col, pa.array(np.empty(0, dtype=dtype.fields[col][0])).type) for col in headers])
+    writer = pq.ParquetWriter(file_out, schema)
     try:
         while True:
-            if file_in == sys.stdin.buffer:
-                raw = file_in.read(chunk_bytes)
-            else:
-                raw = file_in.read(chunk_bytes)
+            raw = file_in.read(chunk_bytes)
             if not raw:
                 break
             chunk = np.frombuffer(raw, dtype=dtype)
-            arrays = [pa.array(chunk[col]) for col in headers]
-            if writer is None:
-                schema = pa.schema([(col, arr.type) for col, arr in zip(headers, arrays)])
-                writer = pq.ParquetWriter(file_out, schema)
-            writer.write_table(pa.Table.from_arrays(arrays, schema=schema))
+            writer.write_table(pa.Table.from_arrays([pa.array(chunk[col]) for col in headers], schema=schema))
     finally:
-        if writer is not None:
-            writer.close()
+        writer.close()
 
 
 def bintoparquet(file_in, file_out, file_type, **kwargs):
