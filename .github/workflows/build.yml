@@ -1,115 +1,109 @@
-# Workflow for building the oasislmf python package
+# Builds the oasislmf source distribution and platform wheels.
 #
-#  Inputs:
-#    ktools_branch: If given a git reference for the ktools repo, add in an optional
-#                    'build ktools' Job. The output binaries from that job is used to
-#                    build oasislmf instead of pulling them from a ktools release
-#
-#    build_osx: either `true`, `false`, when set to true run the steps to build an
-#                OSX python package using the mac (intel) amd64 ktool binaries.
-#                If 'ktools_branch' is not set, or the file 'Darwin_x86_64.tar.gz'
-#                has not been attached to the pinned ktools release this will fail.
-#
-#  Outputs:
-#    src_pkg_filename:  source package filename, used for downloading the stored
-#                       artifact in other related Jobs
-#
-#    bin_pkg_filename: wheel package filename
+# Pass 'platforms' to build a subset; default 'all' builds the full matrix:
+#   ubuntu-22.04 / x86_64  |  ubuntu-22.04-arm / aarch64
+#   macos-14 / arm64        |  windows-2022 / AMD64
 
 name: Oasislmf Build
 
 on:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Wheel platforms to build (all if omitted)'
+        required: false
+        default: 'all'
+        type: string
   workflow_call:
-
+    inputs:
+      platforms:
+        required: false
+        default: 'all'
+        type: string
     outputs:
       src_pkg_filename:
-        description: "Source package filename"
-        value: ${{ jobs.oasislmf.outputs.src_pkg_filename }}
-      linux_pkg_filename:
-        description: "Bin package filename"
-        value: ${{ jobs.oasislmf.outputs.bin_pkg_filename }}
+        value: ${{ jobs.sdist.outputs.src_pkg_filename }}
 
 jobs:
-  build-wheels:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Build wheel
-      run: |
-        pip install --upgrade setuptools wheel build
-        python -m build --wheel
-
-    - name: Store - binary distribution
-      uses: actions/upload-artifact@v4
-      with:
-        name: oasislmf-bin-pkg_linux-${{ matrix.python-version }}
-        path: ./dist/oasislmf-*.whl
-        retention-days: 5
-
-  oasislmf:
-    runs-on: ubuntu-latest
+  sdist:
+    runs-on: ubuntu-22.04
     outputs:
       src_pkg_filename: ${{ steps.package_src.outputs.filename }}
-      bin_pkg_filename: ${{ steps.bin_whl.outputs.filename }}
     steps:
-    - name: Dump github context
-      run:   echo "$GITHUB_CONTEXT"
-      shell: bash
-      env:
-       GITHUB_CONTEXT: ${{ toJson(github) }}
+    - uses: actions/checkout@v4
 
-    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.12
+        python-version: '3.12'
 
-    # --- Source Distribution --- #
-    - name: Build
+    - name: Build sdist
       run: |
         pip install --upgrade setuptools wheel build
-        python -m build
+        python -m build --sdist
 
-    - name: find outputs
-      run: |
-        TAR_PKG=$(find ./dist/ -name "oasislmf-*.tar.gz")
-        WHL_LINUX=$(find ./dist/ -name "oasislmf-*.whl")
-
-        echo "PKG_SRC_PATH=${TAR_PKG}" >> $GITHUB_ENV
-        echo "PKG_BIN_PATH=${WHL_LINUX}" >> $GITHUB_ENV
-
-    - name: Store - source distribution
+    - name: Store source distribution
       uses: actions/upload-artifact@v4
       with:
         name: oasislmf-source-pkg
-        path: ${{ env.PKG_SRC_PATH }}
+        path: dist/oasislmf-*.tar.gz
         retention-days: 5
 
-    - name: Filename - source distribution
+    - name: Filename
       id: package_src
       run: |
         FILENAME=$(find ./dist/ -name "oasislmf-*.tar.gz" -exec basename {} \;)
         echo "filename=$FILENAME" >> $GITHUB_OUTPUT
 
+  prepare:
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.filter.outputs.matrix }}
+    steps:
+      - id: filter
+        shell: python
+        run: |
+          import json, os
 
-    - name: Store - binary distribution
+          buildplat = [
+              ["ubuntu-22.04",     "x86_64"],
+              ["ubuntu-22.04-arm", "aarch64"],
+              ["macos-14",         "arm64"],
+              ["windows-2022",     "AMD64"],
+          ]
+
+          platforms = "${{ inputs.platforms }}"
+          if platforms in ("all", ""):
+              subset = buildplat
+          else:
+              subset = [p for p in buildplat if p[0] in platforms and p[1] in platforms]
+
+          matrix = {"include": [{"os": p[0], "archs": p[1]} for p in subset]}
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"matrix={json.dumps(matrix)}\n")
+
+  build-wheels:
+    name: Build wheels (${{ matrix.os }} / ${{ matrix.archs }})
+    runs-on: ${{ matrix.os }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Pull latest
+      run: git pull
+
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v2.21.3
+      env:
+        CIBW_ARCHS: ${{ matrix.archs }}
+        CIBW_SKIP: "*musllinux*"
+
+    - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: oasislmf-bin-pkg_linux
-        path: ${{ env.PKG_BIN_PATH }}
+        name: oasislmf-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        path: ./wheelhouse/*.whl
         retention-days: 5
-
-    - name: Filename - binary distribution
-      id: bin_whl
-      run: |
-        FILENAME=$(find ./dist/ -name "oasislmf-*.whl" -exec basename {} \;)
-        echo "filename=$FILENAME" >> $GITHUB_OUTPUT
