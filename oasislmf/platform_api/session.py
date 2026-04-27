@@ -55,6 +55,11 @@ class APISession(Session):
         # Check connectivity & authentication
         self.health_check()
         self.retry_max = retries
+
+        if self._fetch_server_auth_type() == 'disabled':
+            self.auth_type = 'disabled'
+            return
+
         self.auth_type = auth_type
         if auth_type == "simple" and username and password:
             self.auth_credentials = {"username": username, "password": password}
@@ -140,11 +145,21 @@ class APISession(Session):
                 error = "HTTP {}".format(http_err_code)
                 return True
             elif http_err_code in [401, 403]:
-                if self.tkn_refresh is not None:
+                if self.auth_type != 'disabled' and self.tkn_refresh is not None:
                     self.logger.debug("requesting refresh token")
                     self._refresh_token()
                     return True
         return False
+
+    def _fetch_server_auth_type(self):
+        try:
+            url = urljoin(self.url_base, 'server_info/')
+            r = super(APISession, self).get(url, timeout=self.timeout)
+            if r.status_code == 200:
+                return r.json().get('config', {}).get('API_AUTH_TYPE')
+        except Exception:
+            pass
+        return None
 
     # @oasis_log
     def health_check(self):
