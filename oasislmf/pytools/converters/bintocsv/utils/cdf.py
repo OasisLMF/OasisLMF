@@ -56,17 +56,20 @@ def cdf_tocsv(stack, file_in, file_out, file_type, noheader, run_dir):
         file_out.write(",".join(headers) + "\n")
 
     items = gul_get_items(input_path)
+    items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
     coverages_tiv = read_coverages(input_path)
     coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
     coverages[1:]['tiv'] = coverages_tiv
-    item_map = generate_item_map(items, coverages)
+    item_map_hm, item_map_hm_keys, item_map_ja_offsets = generate_item_map(items, coverages)
     del coverages_tiv
 
     compute = np.zeros(coverages.shape[0] + 1, items.dtype['coverage_id'])
     seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
-    valid_area_peril_id = None
 
-    for event_data in read_getmodel_stream(file_in, item_map, coverages, compute, seeds, valid_area_peril_id):
+    for event_data in read_getmodel_stream(file_in, items,
+                                           item_map_hm, item_map_hm_keys,
+                                           item_map_ja_offsets,
+                                           coverages, compute, seeds):
         event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
         data = get_cdf_data(event_id, damagecdfrecs, recs, rec_idx_ptr, dtype)
         write_ndarray_to_fmt_csv(file_out, data, headers, fmt)

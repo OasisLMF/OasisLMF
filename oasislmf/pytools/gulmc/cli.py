@@ -76,7 +76,7 @@ def main():
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
 
-    if kwargs.pop('create_structure'):
+    if kwargs.pop('create_structures'):
         from oasislmf.pytools.gulmc.structure import create_gulmc_structure
         create_gulmc_structure(
             run_dir=kwargs.get('run_dir', '.'),

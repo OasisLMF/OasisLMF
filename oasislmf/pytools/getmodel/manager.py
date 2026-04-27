@@ -19,8 +19,8 @@ import pandas as pd
 from oasislmf.pytools.common.hashmap import (
     init_dict as hm_init_dict, unpack as hm_unpack, rehash as hm_rehash,
     _try_add_key as hm_try_add_key, _find_key as hm_find_key,
-    index_dtype as hm_index_dtype, i_add_key_fail as hm_i_add_key_fail,
-    new_slot_bit as hm_new_slot_bit, NOT_FOUND as HM_NOT_FOUND, HM_INFO_N_VALID,
+    i_add_key_fail as hm_i_add_key_fail,
+    NOT_FOUND as HM_NOT_FOUND, HM_INFO_N_VALID,
 )
 
 from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
@@ -41,7 +41,7 @@ from oasislmf.pytools.common.id_index import (
     NOT_FOUND as ID_INDEX_NOT_FOUND,
 )
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.common import Index_type, Keys
+from oasislmf.pytools.getmodel.common import Index_type
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.ping import oasis_ping
@@ -913,21 +913,26 @@ def run(
         event_id_mv = memoryview(bytearray(4))
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
-        # load keys.csv to determine included AreaPerilID from peril_filter
-        if os.path.exists(os.path.join(input_path, 'keys.csv')):
-            keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
-            if peril_filter:
-                valid_area_peril_id = np.unique(keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'])
-                logger.debug(
-                    f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
-            else:
-                valid_area_peril_id = keys_df['AreaPerilID']
+        # --- load or build read-only structures --------------------------------
+        from oasislmf.pytools.getmodel.structure import (
+            getmodel_structure_exists, load_getmodel_structure, build_structures,
+        )
+        if getmodel_structure_exists(run_dir):
+            logger.info("loading pre-computed getmodel structures (shared memory)")
+            structures = load_getmodel_structure(run_dir)
         else:
-            valid_area_peril_id = None
+            logger.info("building getmodel structures from input files")
+            structures = build_structures(run_dir, ignore_file_type, peril_filter, df_engine)
 
-        logger.debug('init items')
-        vuln_map, vuln_map_keys, areaperil_id_ind, areaperil_to_vulns_idx_array, areaperil_to_vulns, unique_areaperil_ids = get_items(
-            input_path, ignore_file_type, valid_area_peril_id if peril_filter else None)
+        vuln_array = structures['vuln_array']
+        vulns_id = structures['vulns_id']
+        areaperil_id_ind = structures['areaperil_id_ind']
+        areaperil_to_vulns_idx_array = structures['areaperil_to_vulns_idx_array']
+        areaperil_to_vulns = structures['areaperil_to_vulns']
+        unique_areaperil_ids = structures['unique_areaperil_ids']
+        mean_damage_bins = structures['mean_damage_bins']
+        num_damage_bins = structures['num_damage_bins']
+        num_intensity_bins = structures['num_intensity_bins']
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(
@@ -937,16 +942,6 @@ def run(
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")
-        else:
-            num_intensity_bins: int = footprint_obj.num_intensity_bins
-
-        logger.debug('init vulnerability')
-
-        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, run_dir, vuln_map, vuln_map_keys,
-                                                          num_intensity_bins, ignore_file_type, df_engine=df_engine)
-        convert_vuln_id_to_index(vuln_map, vuln_map_keys, areaperil_to_vulns)
-        logger.debug('init mean_damage_bins')
-        mean_damage_bins = get_mean_damage_bins(model_storage, ignore_file_type)
 
         # even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
         max_result_relative_size = 1 + + areaperil_int_relative_size + 1 + 1 + num_damage_bins * results_relative_size

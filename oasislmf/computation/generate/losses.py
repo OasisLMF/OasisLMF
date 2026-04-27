@@ -140,7 +140,7 @@ class GenerateLossesBase(ComputationStep):
         option
         """
         user_peril_filter = analysis_settings.get('peril_filter', None)
-        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else self.peril_filter))
+        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else getattr(self, 'peril_filter', [])))
         return peril_filter
 
     def _print_error_logs(self, run_log_fp, e):
@@ -346,15 +346,38 @@ class GenerateLossesDir(GenerateLossesBase):
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.kernel_alloc_rule_ri, ri_target_dir)
 
-        if self.gulmc and not self.model_custom_gulcalc:
+        gulmc = getattr(self, 'gulmc', False)
+        model_custom_gulcalc = getattr(self, 'model_custom_gulcalc', None)
+        model_df_engine = getattr(self, 'model_df_engine', None) or getattr(self, 'base_df_engine', None)
+
+        if gulmc and not model_custom_gulcalc:
             from ...pytools.gulmc.structure import create_gulmc_structure
             self.logger.info(f'Creating GULMC shared structures: {model_run_fp}')
             create_gulmc_structure(
                 run_dir=model_run_fp,
                 ignore_file_type=set(),
                 peril_filter=self._get_peril_filter(self.settings),
-                dynamic_footprint=self.dynamic_footprint,
-                model_df_engine=self.model_df_engine or self.base_df_engine,
+                dynamic_footprint=getattr(self, 'dynamic_footprint', False),
+                model_df_engine=model_df_engine,
+            )
+
+        if not gulmc and not model_custom_gulcalc and model_df_engine:
+            from ...pytools.getmodel.structure import create_getmodel_structure
+            from ...pytools.gul.structure import create_gulpy_structure
+
+            self.logger.info(f'Creating getmodel shared structures: {model_run_fp}')
+            create_getmodel_structure(
+                run_dir=model_run_fp,
+                ignore_file_type=set(),
+                peril_filter=self._get_peril_filter(self.settings),
+                model_df_engine=model_df_engine,
+            )
+
+            self.logger.info(f'Creating gulpy shared structures: {model_run_fp}')
+            create_gulpy_structure(
+                run_dir=model_run_fp,
+                ignore_file_type=set(),
+                peril_filter=self._get_peril_filter(self.settings),
             )
 
         for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
