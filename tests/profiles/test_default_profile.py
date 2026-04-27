@@ -40,7 +40,7 @@ def exposure_profile():
 @pytest.mark.parametrize("profile,message_prefix",
                          [("acc_profile", "accounts_profile"),
                           ("exposure_profile", "exposure_profile")])
-def test_PorfileElementName_same_as_key(profile, message_prefix, request):
+def test_ProfileElementName_same_as_key(profile, message_prefix, request):
     profile = request.getfixturevalue(profile)
 
     # Ignore the CyberTIV fields
