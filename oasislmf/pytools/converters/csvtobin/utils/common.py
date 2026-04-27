@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import pandas as pd
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, resolve_file
@@ -20,10 +21,16 @@ def df_to_ndarray(df, dtype):
 
 
 def iter_csv_as_ndarray(stack, file_in, dtype, chunksize=DEFAULT_BUFFER_SIZE):
-    file_in = resolve_file(file_in, "r", stack)
+    # Pass path strings directly to pd.read_csv so the C engine can stream
+    # lazily. Wrapping in a Python file object forces pandas to buffer the
+    # entire file before parsing, defeating chunked reading.
+    if str(file_in) == "-":
+        source = resolve_file(file_in, "r", stack)  # stdin must be opened
+    else:
+        source = file_in
     csv_dtype = {key: col_dtype for key, (col_dtype, _) in dtype.fields.items()}
     try:
-        for df_chunk in pd.read_csv(file_in, delimiter=',', dtype=csv_dtype,
+        for df_chunk in pd.read_csv(source, delimiter=',', dtype=csv_dtype,
                                     usecols=list(csv_dtype.keys()),
                                     chunksize=chunksize):
             yield df_to_ndarray(df_chunk, dtype)
