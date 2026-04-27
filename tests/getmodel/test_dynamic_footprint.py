@@ -223,10 +223,10 @@ def test_process_areaperils_return_period_single_bin():
         (100, 5, 1.0, 200),
     ])
     present = _make_present_areaperils([100])
-    _, _, _, _, haz_arr_ptr, haz_rp = process_areaperils_in_footprint(fp, present, True)
+    _, _, _, areaperil_to_event_rp, _, haz_arr_ptr = process_areaperils_in_footprint(fp, present, True)
 
     assert haz_arr_ptr[1] - haz_arr_ptr[0] == 1
-    assert haz_rp[0] == 200
+    assert int(areaperil_to_event_rp[areaperil_int.type(100)]) == 200
 
 
 def test_process_areaperils_return_period_multi_bin():
@@ -236,19 +236,19 @@ def test_process_areaperils_return_period_multi_bin():
         (200, 6, 1.0, 100),
     ])
     present = _make_present_areaperils([100, 200])
-    _, Nhaz, _, _, haz_arr_ptr, haz_rp = process_areaperils_in_footprint(fp, present, True)
+    _, Nhaz, _, areaperil_to_event_rp, _, haz_arr_ptr = process_areaperils_in_footprint(fp, present, True)
 
     assert Nhaz == 2
 
-    # areaperil 100: 2 bins, both with rp=50
+    # areaperil 100: 2 bins, rp=50
     s0, e0 = haz_arr_ptr[0], haz_arr_ptr[1]
     assert e0 - s0 == 2
-    assert all(haz_rp[s0:e0] == 50)
+    assert int(areaperil_to_event_rp[areaperil_int.type(100)]) == 50
 
     # areaperil 200: 1 bin with rp=100
     s1, e1 = haz_arr_ptr[1], haz_arr_ptr[2]
     assert e1 - s1 == 1
-    assert haz_rp[s1] == 100
+    assert int(areaperil_to_event_rp[areaperil_int.type(200)]) == 100
 
 
 def test_process_areaperils_return_period_not_populated_for_non_dynamic():
@@ -256,9 +256,9 @@ def test_process_areaperils_return_period_not_populated_for_non_dynamic():
         (100, 5, 1.0, 999),
     ])
     present = _make_present_areaperils([100])
-    _, _, _, haz_pdf, _, haz_rp = process_areaperils_in_footprint(fp, present, None)
-    # non-dynamic: haz_rp is empty and haz_pdf has no return_period field
-    assert len(haz_rp) == 0
+    _, _, _, areaperil_to_event_rp, haz_pdf, _ = process_areaperils_in_footprint(fp, present, None)
+    # non-dynamic: areaperil_to_event_rp is empty and haz_pdf has no return_period field
+    assert len(areaperil_to_event_rp) == 0
     assert haz_pdf.dtype == haz_arr_type.dtype
 
 
