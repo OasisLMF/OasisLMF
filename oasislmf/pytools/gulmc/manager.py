@@ -519,11 +519,16 @@ def run(run_dir,
 
         counter = 0
         timer = time.time()
-        ping = kwargs.get('socket_server', 'False') != 'False'
+        socket_server_val = kwargs.get('socket_server', 'False')
+        ping = socket_server_val != 'False'
+        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
         while True:
             if not streams_in.readinto(event_id_mv):
                 if ping:
-                    oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
+                    ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
+                    if ping_port is not None:
+                        ping_data['port_override'] = ping_port
+                    oasis_ping(ping_data)
                 break
 
             # get the next event_id from the input stream
@@ -630,7 +635,10 @@ def run(run_dir,
             counter += 1
             if ping and time.time() - timer > SERVER_UPDATE_TIME:
                 timer = time.time()
-                oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
+                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
+                if ping_port is not None:
+                    ping_data['port_override'] = ping_port
+                oasis_ping(ping_data)
                 counter = 0
 
     return 0
