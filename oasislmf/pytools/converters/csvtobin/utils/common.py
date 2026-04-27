@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 import pandas as pd
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, resolve_file
