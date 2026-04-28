@@ -58,6 +58,7 @@ class APISession(Session):
 
         if self._fetch_server_auth_type() == 'disabled':
             self.auth_type = 'disabled'
+            self.auth_credentials = {}
             return
 
         self.auth_type = auth_type
