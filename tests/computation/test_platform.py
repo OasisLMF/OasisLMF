@@ -256,6 +256,10 @@ class TestPlatformRunInputs(ComputationChecker):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
+        responses.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
         responses.post(
             url=f'{self.api_url}/access_token/',
             json={'error': 'unauthorized'},
@@ -273,18 +277,18 @@ class TestPlatformRunInputs(ComputationChecker):
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
 
-        unauthorized_req = responses.calls[1].request
-        unauthorized_rsp = responses.calls[1].response
+        unauthorized_req = responses.calls[2].request
+        unauthorized_rsp = responses.calls[2].response
         self.assertEqual(unauthorized_req.body, b'{"username": "admin", "password": "password"}')
         self.assertEqual(unauthorized_rsp.status_code, 401)
 
-        unauthorized_req = responses.calls[3].request
-        unauthorized_rsp = responses.calls[3].response
+        unauthorized_req = responses.calls[5].request
+        unauthorized_rsp = responses.calls[5].response
         self.assertEqual(unauthorized_req.body, b'{"client_id": "oasis-service", "client_secret": "serviceNotSoSecret"}')
         self.assertEqual(unauthorized_rsp.status_code, 401)
 
-        authorized_req = responses.calls[5].request
-        authorized_rsp = responses.calls[5].response
+        authorized_req = responses.calls[8].request
+        authorized_rsp = responses.calls[8].response
         self.assertEqual(authorized_req.body, b'{"username": "AzureDiamond", "password": "hunter2"}')
         self.assertEqual(authorized_rsp.status_code, 200)
 
@@ -292,6 +296,10 @@ class TestPlatformRunInputs(ComputationChecker):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
+        responses.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
         responses.post(
             url=f'{self.api_url}/access_token/',
             json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
@@ -305,8 +313,8 @@ class TestPlatformRunInputs(ComputationChecker):
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs(server_login_json=json_credentials_file.name)
 
-        authorized_req = responses.calls[1].request
-        authorized_rsp = responses.calls[1].response
+        authorized_req = responses.calls[2].request
+        authorized_rsp = responses.calls[2].response
         self.assertEqual(authorized_req.body, b'{"username": "AzureDiamond", "password": "hunter2"}')
         self.assertEqual(authorized_rsp.status_code, 200)
 
@@ -314,6 +322,10 @@ class TestPlatformRunInputs(ComputationChecker):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
+        responses.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
         responses.post(
             url=f'{self.api_url}/access_token/',
             json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
@@ -327,8 +339,8 @@ class TestPlatformRunInputs(ComputationChecker):
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs(server_login_json=json_credentials_file.name)
 
-        authorized_req = responses.calls[1].request
-        authorized_rsp = responses.calls[1].response
+        authorized_req = responses.calls[2].request
+        authorized_rsp = responses.calls[2].response
         self.assertEqual(authorized_req.body, b'{"client_id": "serviceId", "client_secret": "serviceSecret"}')
         self.assertEqual(authorized_rsp.status_code, 200)
 
