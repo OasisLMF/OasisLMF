@@ -34,7 +34,10 @@ class TestPlatformList(ComputationChecker):
         responce_queue.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
-
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
         responce_queue.post(
             url=f'{self.api_url}/access_token/',
             json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
@@ -163,7 +166,10 @@ class TestPlatformRunInputs(ComputationChecker):
         responce_queue.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
-
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
         responce_queue.post(
             url=f'{self.api_url}/access_token/',
             json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
@@ -719,7 +725,10 @@ class TestPlatformDelete(ComputationChecker):
         responce_queue.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
-
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
         responce_queue.post(
             url=f'{self.api_url}/access_token/',
             json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
@@ -791,7 +800,10 @@ class TestPlatformGet(ComputationChecker):
         responce_queue.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
-
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
         responce_queue.post(
             url=f'{self.api_url}/access_token/',
             json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
