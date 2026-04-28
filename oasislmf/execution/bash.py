@@ -615,12 +615,14 @@ def do_post_wait_processing(
 
                 if join_summary_info or analysis_settings.get("join_summary_info", False):
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
-                    process_counter['jpid_monitor_count'] += 1
-                    post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
-                    process_counter['jpid_monitor_count'] += 1
-                    post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                    if ept_output:
+                        process_counter['jpid_monitor_count'] += 1
+                        post_wait_cmds.append(
+                            f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                    if psept_output:
+                        process_counter['jpid_monitor_count'] += 1
+                        post_wait_cmds.append(
+                            f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
     return post_wait_cmds
 
