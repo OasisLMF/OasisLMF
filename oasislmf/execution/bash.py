@@ -2198,7 +2198,7 @@ def bash_wrapper(
     print_command(filename, 'shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."')
 
     print_command(filename, '')
-    if process_number:
+    if log_sub_dir:
         print_command(filename, f'LOG_DIR=log/{log_sub_dir}')
     else:
         print_command(filename, 'LOG_DIR=log')
