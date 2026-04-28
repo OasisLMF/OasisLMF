@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 import numba as nb
 from pathlib import Path
+from mock import patch
 from oasislmf.lookup.builtin import (
     Lookup, z_index, undo_z_index,
     z_index_to_normal, normal_to_z_index,
