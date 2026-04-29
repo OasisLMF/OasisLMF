@@ -87,7 +87,9 @@ jobs:
           ARG BASE_IMAGE
           FROM ${BASE_IMAGE}
           ARG OASISLMF_BRANCH
+          USER root
           RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
+          USER worker
           RUN pip uninstall oasislmf -y && \
               pip install --user --no-warn-script-location "git+https://github.com/OasisLMF/OasisLMF.git@${OASISLMF_BRANCH}#egg=oasislmf[extra]"
           ARG ODS_BRANCH
