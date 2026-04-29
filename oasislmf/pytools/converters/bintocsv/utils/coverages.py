@@ -22,7 +22,7 @@ def coverages_tocsv(stack, file_in, file_out, file_type, noheader):
             ignore_file_type=set(["csv"]),
             filename=cov_fp.name
         )
-    data = np.zeros(len(coverages), dtype=dtype)
+    data = np.empty(len(coverages), dtype=dtype)
     data["coverage_id"] = np.arange(1, len(coverages) + 1)
     data["tiv"] = coverages
 

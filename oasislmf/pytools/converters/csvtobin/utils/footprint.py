@@ -1,6 +1,6 @@
 import zlib
+import numba as nb
 import numpy as np
-import pandas as pd
 
 from oasislmf.pytools.common.data import resolve_file
 from oasislmf.pytools.converters.csvtobin.utils.common import read_csv_as_ndarray
@@ -9,32 +9,78 @@ from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype, E
 from oasislmf.utils.exceptions import OasisException
 
 
+@nb.njit(cache=True, error_model="numpy")
+def _check_sorted(event_ids, areaperil_ids):
+    """Returns first out-of-order row index, or -1 if sorted."""
+    for i in range(1, len(event_ids)):
+        if event_ids[i] < event_ids[i - 1]:
+            return i
+        if event_ids[i] == event_ids[i - 1] and areaperil_ids[i] < areaperil_ids[i - 1]:
+            return i
+    return -1
+
+
+@nb.njit(cache=True, error_model="numpy")
+def _check_prob_sums(event_ids, areaperil_ids, probs, atol=1e-6):
+    """Single-pass probability sum check assuming sorted data.
+    Returns the last-row index of the first bad group, or -1 if all valid."""
+    if len(event_ids) == 0:
+        return -1
+    group_sum = np.float64(probs[0])
+    for i in range(1, len(event_ids)):
+        if event_ids[i] != event_ids[i - 1] or areaperil_ids[i] != areaperil_ids[i - 1]:
+            if abs(group_sum - 1.0) > atol:
+                return i - 1
+            group_sum = np.float64(probs[i])
+        else:
+            group_sum += probs[i]
+    if abs(group_sum - 1.0) > atol:
+        return len(event_ids) - 1
+    return -1
+
+
+@nb.njit(cache=True, error_model="numpy")
+def _check_duplicates(event_ids, areaperil_ids, intensity_bin_ids):
+    """Single-pass duplicate intensity_bin_id check assuming sorted data.
+    Returns first duplicate row index, or -1 if no duplicates."""
+    for i in range(1, len(event_ids)):
+        if (event_ids[i] == event_ids[i - 1]
+                and areaperil_ids[i] == areaperil_ids[i - 1]
+                and intensity_bin_ids[i] == intensity_bin_ids[i - 1]):
+            return i
+    return -1
+
+
+@nb.njit(cache=True, error_model="numpy")
+def _exceeds_max_intensity(intensity_bin_ids, max_val):
+    """Early-exit check for any intensity_bin_id exceeding max_val."""
+    for v in intensity_bin_ids:
+        if v > max_val:
+            return True
+    return False
+
+
 def _validate(data):
-    df = pd.DataFrame(data)
+    idx = _check_sorted(data["event_id"], data["areaperil_id"])
+    if idx != -1:
+        raise OasisException(
+            f"IDs not in ascending order at row {idx}: {data[idx]}"
+        )
 
-    # Check probability sums to 1 for each (event_id, areaperil_id) group
-    prob_sums = df.groupby(["event_id", "areaperil_id"])["probability"].sum()
-    invalid_sums = prob_sums[~np.isclose(prob_sums, 1, atol=1e-6)]
-    if not invalid_sums.empty:
-        error_msg = "\n".join([
-            f"Group (event_id={idx[0]}, areaperil_id={idx[1]}) has prob sum = {val:.6f}"
-            for idx, val in invalid_sums.items()
-        ])
-        raise OasisException(f"Error: Probabilities do not sum to 1 for the following groups: \n{error_msg}")
+    idx = _check_prob_sums(data["event_id"], data["areaperil_id"], data["probability"])
+    if idx != -1:
+        raise OasisException(
+            f"Probabilities do not sum to 1 for group ending at row {idx}: "
+            f"event_id={data['event_id'][idx]}, areaperil_id={data['areaperil_id'][idx]}"
+        )
 
-    # Check sorted by event_id, areaperil_id
-    expected_order = df.sort_values(['event_id', 'areaperil_id']).reset_index(drop=True)
-    if not df[['event_id', 'areaperil_id']].equals(expected_order[['event_id', 'areaperil_id']]):
-        unordered_rows = df[['event_id', 'areaperil_id']].ne(expected_order[['event_id', 'areaperil_id']]).any(axis=1)
-        mismatch_indices = df.index[unordered_rows].tolist()
-        raise OasisException(f"IDs not in ascending order. First few mismatched indices: \n{df.iloc[mismatch_indices[:10]]}")
-
-    # Check intensity bin uniqueness for each (event_id, areaperil_id) group
-    duplicates = df.duplicated(subset=['event_id', 'areaperil_id', 'intensity_bin_id'], keep=False)
-    if duplicates.any():
-        dup_rows = df[duplicates]
-        error_msg = dup_rows[['event_id', 'areaperil_id', 'intensity_bin_id']].drop_duplicates(keep="last").to_string()
-        raise OasisException(f"Error: Duplicate intensity bins found: \n{error_msg}")
+    idx = _check_duplicates(data["event_id"], data["areaperil_id"], data["intensity_bin_id"])
+    if idx != -1:
+        raise OasisException(
+            f"Duplicate intensity_bin_id at row {idx}: "
+            f"event_id={data['event_id'][idx]}, areaperil_id={data['areaperil_id'][idx]}, "
+            f"intensity_bin_id={data['intensity_bin_id'][idx]}"
+        )
 
 
 def footprint_tobin(
@@ -53,6 +99,15 @@ def footprint_tobin(
 
     if not no_validation:
         _validate(data)
+        # _validate confirmed sort order; reuse that guarantee — skip re-sorting
+        sorted_data = data
+        unique_events, group_starts = np.unique(data["event_id"], return_index=True)
+    else:
+        sort_idx = np.argsort(data["event_id"], kind="stable")
+        sorted_data = data[sort_idx]
+        unique_events, group_starts = np.unique(sorted_data["event_id"], return_index=True)
+
+    group_ends = np.append(group_starts[1:], len(sorted_data))
 
     # Write bin file header
     np.array([max_intensity_bin_idx], dtype=np.int32).tofile(file_out)
@@ -61,28 +116,33 @@ def footprint_tobin(
 
     offset = np.dtype(np.int32).itemsize * 2
 
-    unique_events = np.unique(data["event_id"])
-    for event_id in unique_events:
-        event_mask = data["event_id"] == event_id
-        event_data = data[event_mask]
+    idx_dtype = EventIndexBinZ_dtype if decompressed_size else EventIndexBin_dtype
+    idx_entries = np.empty(len(unique_events), dtype=idx_dtype)
 
-        bin_data = np.empty(len(event_data), dtype=Event_dtype)
+    for i, (event_id, start, end) in enumerate(zip(unique_events, group_starts, group_ends)):
+        event_data = sorted_data[start:end]
+
+        bin_data = np.empty(end - start, dtype=Event_dtype)
         bin_data["areaperil_id"] = event_data["areaperil_id"]
         bin_data["intensity_bin_id"] = event_data["intensity_bin_id"]
         bin_data["probability"] = event_data["probability"]
 
-        if any(bin_data["intensity_bin_id"] > max_intensity_bin_idx):
-            raise OasisException(f"Error: Found intensity_bin_idx in data larger than max_intensity_bin_idx: {max_intensity_bin_idx}")
+        if _exceeds_max_intensity(bin_data["intensity_bin_id"], max_intensity_bin_idx):
+            raise OasisException(
+                f"Error: Found intensity_bin_idx in data larger than max_intensity_bin_idx: {max_intensity_bin_idx}"
+            )
 
-        bin_data = bin_data.tobytes()
-        dsize = len(bin_data)
+        bin_bytes = bin_data.tobytes()
+        dsize = len(bin_bytes)
         if zip_files:
-            bin_data = zlib.compress(bin_data)
+            bin_bytes = zlib.compress(bin_bytes)
 
-        file_out.write(bin_data)
-        size = len(bin_data)
+        file_out.write(bin_bytes)
+        size = len(bin_bytes)
         if decompressed_size:
-            np.array([(event_id, offset, size, dsize)], dtype=EventIndexBinZ_dtype).tofile(idx_file_out)
+            idx_entries[i] = (event_id, offset, size, dsize)
         else:
-            np.array([(event_id, offset, size)], dtype=EventIndexBin_dtype).tofile(idx_file_out)
+            idx_entries[i] = (event_id, offset, size)
         offset += size
+
+    idx_entries.tofile(idx_file_out)
