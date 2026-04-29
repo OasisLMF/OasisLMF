@@ -1,5 +1,6 @@
 from requests import Session
 from requests.adapters import HTTPAdapter
+from requests.auth import HTTPBasicAuth
 from requests_toolbelt import MultipartEncoder
 from requests.exceptions import (
     ConnectionError,
@@ -26,6 +27,8 @@ class APISession(Session):
         client_secret=None,
         access_token=None,
         refresh_token=None,
+        token_url=None,
+        scope=None,
         timeout=25,
         retries=5,
         retry_delay=1,
@@ -40,6 +43,8 @@ class APISession(Session):
         self.tkn_access = None
         self.tkn_refresh = None
         self.url_base = urljoin(api_url, '')
+        self.token_url = token_url
+        self.scope = scope
         self.timeout = timeout
         self.retry_max = 0
         self.retry_delay = retry_delay
@@ -79,6 +84,31 @@ class APISession(Session):
             self.tkn_refresh = self.auth_credentials["refresh_token"]
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
             return
+
+        if self.auth_type == "oidc" and self.token_url:
+            # Standard M2M client_credentials grant: Basic Auth + form-encoded body
+            try:
+                data = {'grant_type': 'client_credentials'}
+                if self.scope:
+                    data['scope'] = self.scope
+                r = super(APISession, self).post(
+                    self.token_url,
+                    data=data,
+                    auth=HTTPBasicAuth(
+                        self.auth_credentials['client_id'],
+                        self.auth_credentials['client_secret'],
+                    ),
+                    headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                    timeout=self.timeout,
+                )
+                r.raise_for_status()
+                self.tkn_access = r.json()['access_token']
+                self.tkn_refresh = self.tkn_access
+                self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
+                return
+            except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
+                raise OasisException('Authentication Error', e)
+
         try:
             url = urljoin(self.url_base, 'access_token/')
             r = self.post(url, json=self.auth_credentials)

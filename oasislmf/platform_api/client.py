@@ -426,6 +426,8 @@ class APIClient(object):
         client_secret="serviceNotSoSecret",
         access_token=None,
         refresh_token=None,
+        token_url=None,
+        scope=None,
         timeout=25,
         logger=None,
         **kwargs
@@ -441,6 +443,8 @@ class APIClient(object):
             client_secret=client_secret,
             access_token=access_token,
             refresh_token=refresh_token,
+            token_url=token_url,
+            scope=scope,
             timeout=timeout,
             **kwargs
         )
