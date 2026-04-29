@@ -33,6 +33,10 @@ class PlatformBase(ComputationStep):
             'pre_exist': False, 'help': 'Server login credentials json string'},
         {'name': 'server_url', 'default': 'http://localhost:8000', 'help': 'URL to Oasis Platform server, default is localhost'},
         {'name': 'server_version', 'default': 'v2', 'help': "Version prefix for OasisPlatform server, 'v1' = single server run, 'v2' = distributed on cluster"},
+        {'name': 'oidc_token_url', 'required': False, 'default': None,
+            'help': 'OIDC token endpoint URL for M2M client_credentials grant (e.g. https://idp.example.com/oauth2/token)'},
+        {'name': 'oidc_scope', 'required': False, 'default': None,
+            'help': 'OAuth2 scope to request when fetching an M2M token (e.g. oasis/m2m)'},
     ]
 
     def __init__(self, **kwargs):
@@ -52,22 +56,32 @@ class PlatformBase(ComputationStep):
                 return json.load(f)
 
         while True:
-            user_response = input("Use simple JWT [Y/n]: ").lower().strip()
-            if user_response in ["y", "yes"]:
-                use_simple = True
+            user_response = input("Auth type — simple JWT [1], OIDC client_credentials via platform [2], OIDC M2M direct [3]: ").strip()
+            if user_response == "1":
+                auth_mode = "simple"
                 break
-            elif user_response in ["n", "no"]:
-                use_simple = False
+            elif user_response == "2":
+                auth_mode = "oidc"
+                break
+            elif user_response == "3":
+                auth_mode = "oidc_m2m"
                 break
 
         self.logger.info('API Login:')
         api_login = {}
-        if use_simple:
+        if auth_mode == "simple":
             api_login['username'] = input('Username: ')
             api_login['password'] = getpass.getpass('Password: ')
+        elif auth_mode == "oidc":
+            api_login['client_id'] = input('Client ID: ')
+            api_login['client_secret'] = getpass.getpass('Client Secret: ')
         else:
             api_login['client_id'] = input('Client ID: ')
             api_login['client_secret'] = getpass.getpass('Client Secret: ')
+            api_login['token_url'] = input('Token URL: ')
+            scope = input('Scope (leave blank to omit): ').strip()
+            if scope:
+                api_login['scope'] = scope
 
         return api_login
 
@@ -93,13 +107,22 @@ class PlatformBase(ComputationStep):
                 )
                 return None
             else:
-                raise e  # Some other error – propagate
+                raise e  # propagate unexpected errors
+
+    def _oidc_m2m_kwargs(self):
+        """Return token_url/scope kwargs when the step params are set."""
+        kwargs = {}
+        if getattr(self, 'oidc_token_url', None):
+            kwargs['token_url'] = self.oidc_token_url
+        if getattr(self, 'oidc_scope', None):
+            kwargs['scope'] = self.oidc_scope
+        return kwargs
 
     def open_connection(self):
         """
         Attempts connection in this order:
         1. API_EXAMPLE_AUTH username/password
-        2. API_EXAMPLE_AUTH client_id/client_secret
+        2. API_EXAMPLE_AUTH client_id/client_secret (+ oidc_token_url/oidc_scope if set)
         3. Prompt or load credentials
         """
         if not isinstance(self.server_login_json, str):
@@ -118,7 +141,8 @@ class PlatformBase(ComputationStep):
                 conn = self.try_connection(
                     auth_type="oidc",
                     client_id=API_EXAMPLE_AUTH['client_id'],
-                    client_secret=API_EXAMPLE_AUTH['client_secret']
+                    client_secret=API_EXAMPLE_AUTH['client_secret'],
+                    **self._oidc_m2m_kwargs()
                 )
                 if conn:
                     return conn
@@ -127,6 +151,7 @@ class PlatformBase(ComputationStep):
         self.logger.info("-- Authentication Required --")
         credentials = self.load_credentials(self.server_login_json)
         self.logger.info(f'Connecting to - {self.server_url}')
+
         if 'username' in credentials and 'password' in credentials:
             return self.try_connection(
                 fail_safe=False,
@@ -134,15 +159,24 @@ class PlatformBase(ComputationStep):
                 username=credentials['username'],
                 password=credentials['password']
             )
+
         if 'client_id' in credentials and 'client_secret' in credentials:
+            # token_url in credentials → M2M direct; step params override/supplement
+            m2m_kwargs = {
+                k: credentials[k] for k in ('token_url', 'scope') if k in credentials
+            }
+            m2m_kwargs.update(self._oidc_m2m_kwargs())
             return self.try_connection(
                 fail_safe=False,
                 auth_type="oidc",
                 client_id=credentials['client_id'],
-                client_secret=credentials['client_secret']
+                client_secret=credentials['client_secret'],
+                **m2m_kwargs
             )
+
         raise OasisException(
-            f"Error: No valid credentials provided for platform, current credential keys [{credentials.keys()}], must be one of username/password or client_id/client_secret"
+            f"Error: No valid credentials provided for platform, current credential keys [{list(credentials.keys())}], "
+            "must be one of username/password or client_id/client_secret"
         )
 
     def tabulate_json(self, json_data, items):
