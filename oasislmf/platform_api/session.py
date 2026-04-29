@@ -85,7 +85,7 @@ class APISession(Session):
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
             return
 
-        if self.token_url:
+        if self.auth_type == "oidc" and self.token_url:
             # Standard M2M client_credentials grant: Basic Auth + form-encoded body
             try:
                 data = {'grant_type': 'client_credentials'}
@@ -125,7 +125,7 @@ class APISession(Session):
             raise OasisException(err_msg, e)
 
     def _refresh_token(self):
-        if self.token_url or self.auth_type == "oidc":
+        if self.auth_type == "oidc":
             self.__get_access_token()
             return
         try:
