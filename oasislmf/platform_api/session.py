@@ -56,6 +56,8 @@ class APISession(Session):
         }
         self.adapters.clear()
         self.mount(self.url_base, HTTPAdapter(max_retries=self.retry_max))
+        if token_url:
+            self.mount(token_url, HTTPAdapter(max_retries=self.retry_max))
 
         # Check connectivity & authentication
         self.health_check()
@@ -107,6 +109,8 @@ class APISession(Session):
                 self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
                 return
             except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
+                if isinstance(e, HTTPError) and e.response is not None:
+                    self.logger.error('OIDC token request failed (%s): %s', e.response.status_code, e.response.text)
                 raise OasisException('Authentication Error', e)
 
         try:
