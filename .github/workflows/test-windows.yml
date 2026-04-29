@@ -45,8 +45,8 @@ jobs:
         run: |
           PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
           WHL=$(find "${{ github.workspace }}" -name "oasislmf-*-${PY_TAG}-*.whl" | head -1)
-          pip install --upgrade pip
-          pip install "$WHL"
+          python -m pip install --upgrade pip
+          python -m pip install "$WHL"
 
       - name: Run validation script
         run: python scripts/validate_install.py
