@@ -1,9 +1,9 @@
-# Workflow to validate oasislmf installation and basic functionality on macOS.
+# Workflow to validate oasislmf installation and basic functionality on Linux.
 #
-# This runs on every PR and push to main to catch macOS-specific regressions.
+# This runs on every PR and push to main to catch Linux-specific regressions.
 # It is intentionally lightweight — install + smoke test only — to keep CI costs low.
 
-name: macOS Smoke Test
+name: Linux Smoke Test
 
 on:
   pull_request:
@@ -18,10 +18,10 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      platforms: 'macos-14/arm64'
+      platforms: 'ubuntu-22.04/x86_64'
 
-  macos-arm64-install:
-    runs-on: macos-14
+  linux-x86_64-install:
+    runs-on: ubuntu-22.04
     needs: [build]
     strategy:
       matrix:
@@ -34,20 +34,16 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Verify ARM64 architecture
-        run: |
-          python -c "import platform; arch = platform.machine(); print(f'Architecture: {arch}'); assert arch == 'arm64', f'Expected arm64, got {arch}'"
-
       - name: Download wheel
         uses: actions/download-artifact@v4
         with:
-          name: oasislmf-wheels-macos-14-arm64
+          name: oasislmf-wheels-ubuntu-22.04-x86_64
           path: ${{ github.workspace }}/
 
       - name: Install oasislmf from wheel
         run: |
           PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
-          WHL=$(find "${{ github.workspace }}" -name "oasislmf-*-${PY_TAG}-*.whl" | head -1)
+          WHL=$(find "${{ github.workspace }}" -name "oasislmf-*-${PY_TAG}-*manylinux*.whl" | head -1)
           pip install --upgrade pip
           pip install "$WHL"
 
@@ -72,7 +68,7 @@ jobs:
         run: |
           python -c "
           from oasis_writecsv import write_rows
-          print('oasis_writecsv Cython extension loaded successfully')
+          print('oasis_writecsv Cython extension loaded successfully on Linux x86_64')
           "
 
       - name: Smoke test - numba JIT compilation
@@ -87,7 +83,7 @@ jobs:
 
           result = test_jit(np.float64(21.0))
           assert result == 43.0, f'JIT test failed: expected 43.0, got {result}'
-          print('numba JIT compilation works on ARM64')
+          print('numba JIT compilation works on Linux x86_64')
           "
 
       - name: Smoke test - core numerical stack
@@ -104,5 +100,5 @@ jobs:
           assert len(df) == 1000
           print(f'numpy {np.__version__}, pandas {pd.__version__}, scipy {scipy.__version__}')
           print(f'pyarrow {pyarrow.__version__}, fastparquet {fastparquet.__version__}')
-          print('Core numerical stack works on ARM64')
+          print('Core numerical stack works on Linux x86_64')
           "

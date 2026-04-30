@@ -32,7 +32,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from ...execution import bash, runner
-from ...execution.bash import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
+from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set)
 from ...preparation.summaries import generate_summaryxref_files
@@ -412,6 +412,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'process_number', 'default': None, 'type': int, 'help': 'Partition number to run, if not set then run all in a single script'},
         {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `kernel_num_processes` if not set'},
         {'name': 'kernel_fifo_queue_dir', 'default': None, 'is_path': True, 'help': 'Override the path used for fifo processing'},
+        {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
+         'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
     ]
 
     def run(self):
@@ -469,6 +471,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         else:
             self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
         bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
+        bash_params['resource_monitor_interval'] = self.resource_monitor_interval
 
         with setcwd(model_run_fp):
             try:
@@ -508,6 +511,8 @@ class GenerateLossesOutput(GenerateLossesDir):
         {'name': 'script_fp', 'default': None},
         {'name': 'remove_working_file', 'default': False, 'help': 'Delete files in the "work/" dir onces outputs have completed'},
         {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `kernel_num_processes` if not set'},
+        {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
+         'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
     ]
 
     def run(self):
@@ -535,6 +540,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             remove_working_file=self.remove_working_file,
             max_process_id=self.max_process_id,
         )
+        bash_params['resource_monitor_interval'] = self.resource_monitor_interval
         with setcwd(model_run_fp):
             try:
                 self.logger.info('Generating Loss outputs in {}'.format(model_run_fp))
