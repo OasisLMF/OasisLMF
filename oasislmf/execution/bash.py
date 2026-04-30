@@ -73,17 +73,11 @@ from ..utils.exceptions import OasisException
 logger = logging.getLogger(__name__)
 
 
-RUNTYPE_GROUNDUP_LOSS = 'gul'
-RUNTYPE_LOAD_BALANCED_LOSS = 'lb'
-RUNTYPE_INSURED_LOSS = 'il'
-RUNTYPE_REINSURANCE_LOSS = 'ri'
-RUNTYPE_REINSURANCE_GROSS_LOSS = 'rl'
-RUNTYPE_FULL_CORRELATION = 'fc'
-
-REINSURANCE_RUNTYPES = [
-    RUNTYPE_REINSURANCE_LOSS,
-    RUNTYPE_REINSURANCE_GROSS_LOSS
-]
+from oasislmf.pytools.common.run_types import (
+    RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS,
+    RUNTYPE_REINSURANCE_GROSS_LOSS, RUNTYPE_FULL_CORRELATION, RUNTYPE_LOAD_BALANCED_LOSS,
+    REINSURANCE_RUNTYPES,
+)
 INTERMEDIATE_INURING_PRIORITY_PREFIX = 'IP'
 
 WAIT_PROCESSING_SWITCHES = {
@@ -615,12 +609,14 @@ def do_post_wait_processing(
 
                 if join_summary_info or analysis_settings.get("join_summary_info", False):
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
-                    process_counter['jpid_monitor_count'] += 1
-                    post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
-                    process_counter['jpid_monitor_count'] += 1
-                    post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                    if ept_output:
+                        process_counter['jpid_monitor_count'] += 1
+                        post_wait_cmds.append(
+                            f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                    if psept_output:
+                        process_counter['jpid_monitor_count'] += 1
+                        post_wait_cmds.append(
+                            f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
     return post_wait_cmds
 
@@ -2198,7 +2194,7 @@ def bash_wrapper(
     print_command(filename, 'shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."')
 
     print_command(filename, '')
-    if process_number:
+    if log_sub_dir:
         print_command(filename, f'LOG_DIR=log/{log_sub_dir}')
     else:
         print_command(filename, 'LOG_DIR=log')
