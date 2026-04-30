@@ -101,10 +101,10 @@ summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P3 < fifo/gul_P3 &
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P4 < fifo/gul_P4 &
 
-( evepy 1 4 | gulmc --socket-server='None' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
-( evepy 2 4 | gulmc --socket-server='None' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
-( evepy 3 4 | gulmc --socket-server='None' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P3 > fifo/gul_lb_P3  ) & 
-( evepy 4 4 | gulmc --socket-server='None' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P4 > fifo/gul_lb_P4  ) & 
+( evepy 1 4 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
+( evepy 2 4 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
+( evepy 3 4 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P3 > fifo/gul_lb_P3  ) & 
+( evepy 4 4 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P4 > fifo/gul_lb_P4  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
 load_balancer -i fifo/gul_lb_P3 fifo/gul_lb_P4 -o fifo/lb_il_P3 fifo/lb_il_P4 &
 ( fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 ) & pid17=$!

@@ -28,7 +28,7 @@ mkfifo fifo/gul_S1_summary_P2
 tee < fifo/gul_S1_summary_P2 > /dev/null & pid1=$!
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 
-( evepy 2 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P2  ) &  pid2=$!
+( evepy 2 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P2  ) &  pid2=$!
 
 wait $pid1 $pid2
 
