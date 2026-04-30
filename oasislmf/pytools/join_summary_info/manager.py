@@ -1,6 +1,7 @@
 # join-summary-info/manager.py
 
 import logging
+import shutil
 import numpy as np
 from pathlib import Path
 import pyarrow.parquet as pq
@@ -132,8 +133,7 @@ def run(
         # Replace the original file if needed
         if same_file and temp_output:
             temp_output.close()
-            temp_output_file.replace(output_file)
-            temp_output_file.unlink(missing_ok=True)
+            shutil.move(temp_output_file, output_file)
 
 
 @redirect_logging(exec_name='join-summary-info')

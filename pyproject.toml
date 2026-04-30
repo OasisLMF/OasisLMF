@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0,<77.0", "wheel", "Cython>=3.0", "numpy>=2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "oasislmf"
 dynamic = ["version", "dependencies", "optional-dependencies"]
 description = "Core loss modelling framework."
 readme = {file = "README.md", content-type = "text/markdown"}
-license = "BSD-3-Clause"
+license = {text = "BSD-3-Clause"}
 authors = [
     {name = "Oasis LMF", email = "support@oasislmf.org"}
 ]
@@ -65,6 +65,7 @@ exclude = ["tests", "tests.*", "tests.*.*"]
 [tool.setuptools.package-data]
 "*" = ["requirements-package.in", "LICENSE"]
 "oasislmf._data" = ["*"]
+"oasislmf.pytools.common" = ["oasis_writecsv.pyx"]
 rdls = ["rdls_schema.json"]
 
 [tool.setuptools.exclude-package-data]
@@ -76,3 +77,15 @@ dependencies = {file = ["requirements-package.in"]}
 
 [tool.setuptools.dynamic.optional-dependencies]
 extra = {file = ["optional-package.in"]}
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+
+[tool.cibuildwheel.linux]
+archs = "x86_64 aarch64"
+
+[tool.cibuildwheel.macos]
+archs = "arm64"
+
+[tool.cibuildwheel.windows]
+archs = "AMD64"
