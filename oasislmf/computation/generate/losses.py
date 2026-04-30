@@ -738,6 +738,17 @@ class GenerateLosses(GenerateLossesDir):
         self.logger.info('Losses generated in {}'.format(model_run_fp))
         return model_run_fp
 
+    def _find_available_port(self, host, preferred_port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, preferred_port))
+                return preferred_port
+            except OSError:
+                s.bind((host, 0))
+                name = s.getsockname()[1]
+                self.logger.warning(f"Port {preferred_port} unavailable: using port {name}")
+                return name
+
 
 class GenerateLossesDeterministic(ComputationStep):
     step_params = [
@@ -939,17 +950,6 @@ class GenerateLossesDeterministic(ComputationStep):
                             losses['ri'] = rils
 
         return losses
-
-    def _find_available_port(self, host, preferred_port):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind((host, preferred_port))
-                return preferred_port
-            except OSError:
-                s.bind((host, 0))
-                name = s.getsockname()[1]
-                self.logger.warning(f"Port {preferred_port} unavailable: using port {name}")
-                return name
 
 
 class GenerateLossesDummyModel(GenerateDummyOasisFiles):
