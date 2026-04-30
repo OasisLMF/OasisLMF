@@ -109,3 +109,16 @@ def test_server_terminate():
         time.sleep(0.1)
         assert server.counter == server.total
         mock_stop.assert_called_once()
+
+
+def test_main_with_explicit_port():
+    port = get_free_port()
+    with (patch('time.sleep', side_effect=[None, StopIteration]),
+          patch('oasislmf.utils.socket_server.GulProgressServer') as fake_server_class):
+        mock_server = MagicMock()
+        fake_server_class.return_value.__enter__.return_value = mock_server
+        mock_server.counter = 5
+        sys.argv = ['a', '5', str(port)]
+        server_main()
+
+    fake_server_class.assert_called_once_with(5, port=port)

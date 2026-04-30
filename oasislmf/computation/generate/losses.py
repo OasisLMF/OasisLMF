@@ -13,6 +13,7 @@ import json
 import multiprocessing
 import os
 import re
+import socket
 
 import subprocess
 import sys
@@ -20,7 +21,7 @@ import warnings
 from collections import OrderedDict
 from json import JSONDecodeError
 from pathlib import Path
-from subprocess import CalledProcessError, check_call
+from subprocess import CalledProcessError
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
@@ -32,16 +33,18 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from ...execution import bash, runner
-from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
+from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
+from ...pytools.fm.manager import run as fmpy_run
 from oasislmf.pytools.summary.manager import create_summary_object_file
 from ...utils.data import (get_dataframe, get_exposure_data, get_json,
                            get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes,
                            analysis_settings_loader, model_settings_loader)
 from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KERNEL_N_FM_PER_LB,
+                               SERVER_DEFAULT_IP, SERVER_DEFAULT_PORT,
                                KERNEL_N_GUL_PER_LB, KERNEL_ALLOC_FM_MAX, KERNEL_ALLOC_GUL_DEFAULT,
                                KERNEL_ALLOC_GUL_MAX, KERNEL_ALLOC_IL_DEFAULT,
                                KERNEL_ALLOC_RI_DEFAULT, KERNEL_DEBUG,
@@ -411,6 +414,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'process_number', 'default': None, 'type': int, 'help': 'Partition number to run, if not set then run all in a single script'},
         {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `kernel_num_processes` if not set'},
         {'name': 'kernel_fifo_queue_dir', 'default': None, 'is_path': True, 'help': 'Override the path used for fifo processing'},
+        {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
+         'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
     ]
 
     def run(self):
@@ -463,11 +468,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         # Workaround test -- needs adding into bash_params
         if self.kernel_fifo_queue_dir:
             bash_params['fifo_queue_dir'] = self.kernel_fifo_queue_dir
-        if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
-            bash_params['socket_server'] = True
-        else:
-            self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
         bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
+        bash_params['resource_monitor_interval'] = self.resource_monitor_interval
 
         with setcwd(model_run_fp):
             try:
@@ -507,6 +509,8 @@ class GenerateLossesOutput(GenerateLossesDir):
         {'name': 'script_fp', 'default': None},
         {'name': 'remove_working_file', 'default': False, 'help': 'Delete files in the "work/" dir onces outputs have completed'},
         {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `kernel_num_processes` if not set'},
+        {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
+         'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
     ]
 
     def run(self):
@@ -534,6 +538,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             remove_working_file=self.remove_working_file,
             max_process_id=self.max_process_id,
         )
+        bash_params['resource_monitor_interval'] = self.resource_monitor_interval
         with setcwd(model_run_fp):
             try:
                 self.logger.info('Generating Loss outputs in {}'.format(model_run_fp))
@@ -619,7 +624,9 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'dynamic_footprint', 'default': False,
             'help': 'Dynamic Footprint'},
         {'name': 'socket_server_ip', 'default': False, 'help': 'IP to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_IP."'},
-        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'}
+        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'},
+        {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
+         'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
     ]
 
     def run(self):
@@ -638,14 +645,17 @@ class GenerateLosses(GenerateLossesDir):
         # setup for progress updates
 
         with setcwd(model_run_fp):
+            socket_server_size = None
+            socket_server_port = None
             if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
                 self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
-                socket_server = False
             elif 'analysis_pk' in self.kwargs:
                 oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
-                socket_server = True
             else:
-                socket_server = os.path.getsize("input/events.bin") // oasis_int_size
+                socket_server_size = os.path.getsize("input/events.bin") // oasis_int_size
+                socket_host = os.environ.get('OASIS_SOCKET_SERVER_IP', SERVER_DEFAULT_IP)
+                socket_preferred_port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', SERVER_DEFAULT_PORT))
+                socket_server_port = self._find_available_port(socket_host, socket_preferred_port)
             try:
                 try:
                     run_args = dict(
@@ -676,7 +686,9 @@ class GenerateLosses(GenerateLossesDir):
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint,
                         analysis_pk=self.kwargs.get('analysis_pk', None),
-                        socket_server=socket_server
+                        socket_server_size=socket_server_size,
+                        socket_server_port=socket_server_port,
+                        resource_monitor_interval=self.resource_monitor_interval,
                     )
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:
@@ -726,6 +738,17 @@ class GenerateLosses(GenerateLossesDir):
                 )
         self.logger.info('Losses generated in {}'.format(model_run_fp))
         return model_run_fp
+
+    def _find_available_port(self, host, preferred_port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, preferred_port))
+                return preferred_port
+            except OSError:
+                s.bind((host, 0))
+                name = s.getsockname()[1]
+                self.logger.warning(f"Port {preferred_port} unavailable: using port {name}")
+                return name
 
 
 class GenerateLossesDeterministic(ComputationStep):
@@ -821,23 +844,23 @@ class GenerateLossesDeterministic(ComputationStep):
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
 
         # Create IL fmpy financial structures
-        with setcwd(self.oasis_files_dir):
-            check_call(f"{get_fmcmd()} -a {self.kernel_alloc_rule_il} --create-financial-structure-files -p {output_dir}", shell=True)
-
-        cmd = '{} -p {} -a {} < {} | tee {} > /dev/null'.format(
-            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
-            output_dir,
-            self.kernel_alloc_rule_il,
-            guls_bin_fp,
-            ils_bin_fp
-        )
+        create_financial_structure(self.kernel_alloc_rule_il, output_dir)
 
         try:
             csvtobin(guls_fp, guls_bin_fp, "gul", stream_type=self.il_stream_type, max_sample_index=len(self.loss_factor))
-            self.logger.debug("RUN: " + cmd)
-            check_call(cmd, shell=True)
+            fmpy_run(
+                create_financial_structure_files=False,
+                allocation_rule=self.kernel_alloc_rule_il,
+                static_path=output_dir,
+                files_in=[guls_bin_fp],
+                files_out=[ils_bin_fp],
+                low_memory=self.fmpy_low_memory,
+                sort_output=self.fmpy_sort_output,
+                net_loss=None,
+                storage_method='sparse',
+            )
             bintocsv(ils_bin_fp, ils_fp, "fm")
-        except CalledProcessError as e:
+        except Exception as e:
             raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
 
         guls.drop(guls[guls['sidx'] < 1].index, inplace=True)
@@ -876,37 +899,40 @@ class GenerateLossesDeterministic(ComputationStep):
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
                         # Create RI fmpy financial structures
-                        with setcwd(self.oasis_files_dir):
-                            check_call(
-                                f"{get_fmcmd()} -a {self.kernel_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}",
-                                shell=True)
+                        create_financial_structure(self.kernel_alloc_rule_ri, layer_inputs_fp)
 
-                        _input = '{} -p {} -a {} < {} | tee {} |'.format(
-                            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
-                            output_dir,
-                            self.kernel_alloc_rule_il,
-                            guls_bin_fp,
-                            ils_bin_fp,
-                        ) if layer == 1 else ''
-                        pipe_in_previous_layer = '< {}'.format(os.path.join(output_dir, 'ri{}.bin'.format(layer - 1))) if layer > 1 else ''
                         ri_layer_bin_fp = os.path.join(output_dir, f"ri{layer}.bin")
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
-                        net_flag = "-n" if self.net_ri else ""
-                        cmd = '{} {} -p {} {} -a {} {} | tee {} > /dev/null'.format(
-                            _input,
-                            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
-                            layer_inputs_fp,
-                            net_flag,
-                            self.kernel_alloc_rule_ri,
-                            pipe_in_previous_layer,
-                            ri_layer_bin_fp,
-                        )
                         try:
-                            self.logger.debug("RUN: " + cmd)
                             csvtobin(guls_fp, guls_bin_fp, "gul", stream_type=self.il_stream_type, max_sample_index=1)
-                            check_call(cmd, shell=True)
+                            if layer == 1:
+                                fmpy_run(
+                                    create_financial_structure_files=False,
+                                    allocation_rule=self.kernel_alloc_rule_il,
+                                    static_path=output_dir,
+                                    files_in=[guls_bin_fp],
+                                    files_out=[ils_bin_fp],
+                                    low_memory=self.fmpy_low_memory,
+                                    sort_output=self.fmpy_sort_output,
+                                    net_loss=None,
+                                    storage_method='sparse',
+                                )
+                                ri_input_fp = ils_bin_fp
+                            else:
+                                ri_input_fp = os.path.join(output_dir, f'ri{layer - 1}.bin')
+                            fmpy_run(
+                                create_financial_structure_files=False,
+                                allocation_rule=self.kernel_alloc_rule_ri,
+                                static_path=layer_inputs_fp,
+                                files_in=[ri_input_fp],
+                                files_out=[ri_layer_bin_fp],
+                                low_memory=self.fmpy_low_memory,
+                                sort_output=self.fmpy_sort_output,
+                                net_loss='' if self.net_ri else None,
+                                storage_method='sparse',
+                            )
                             bintocsv(ri_layer_bin_fp, ri_layer_fp, "fm")
-                        except CalledProcessError as e:
+                        except Exception as e:
                             raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
                         rils = get_dataframe(src_fp=ri_layer_fp, lowercase_cols=False)
                         rils.drop(rils[rils['sidx'] < 0].index, inplace=True)

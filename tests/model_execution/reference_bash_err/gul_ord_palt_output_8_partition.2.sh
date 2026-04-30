@@ -90,7 +90,7 @@ tee < /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P3 work/gul_S2_summary_palt/P3.bin > /
 tee < /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P3.idx work/gul_S2_summary_palt/P3.idx > /dev/null & pid4=$!
 ( summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3 -2 /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P3 < /tmp/%FIFO_DIR%/fifo/gul_P3 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( evepy 3 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P3  ) 2>> $LOG_DIR/stderror.err ) &  pid5=$!
+( ( evepy 3 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P3  ) 2>> $LOG_DIR/stderror.err ) &  pid5=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5
 

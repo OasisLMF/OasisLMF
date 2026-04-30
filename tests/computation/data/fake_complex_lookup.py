@@ -3,8 +3,7 @@ import logging
 import json
 
 from oasislmf.utils import (
-    coverages,
-    peril,
+    coverages
 )
 from oasislmf.utils.status import (
     OASIS_KEYS_SC,
@@ -13,6 +12,11 @@ from oasislmf.utils.status import (
     OASIS_KEYS_STATUS
 )
 from oasislmf.preparation.lookup import OasisBaseKeysLookup
+
+PERILS = {
+    'tropical cyclone': 'WTC',
+    'storm surge': 'WSS'
+}
 
 
 class FakeComplexModelKeysLookup(OasisBaseKeysLookup):
@@ -25,8 +29,8 @@ class FakeComplexModelKeysLookup(OasisBaseKeysLookup):
                  **kwargs):
 
         self._peril_ids = [
-            peril.PERILS['tropical cyclone']['id'],
-            peril.PERILS['storm surge']['id']
+            PERILS['tropical cyclone'],
+            PERILS['storm surge']
         ]
 
         self._coverage_types = [
@@ -40,7 +44,7 @@ class FakeComplexModelKeysLookup(OasisBaseKeysLookup):
         message = "OK"
 
         if (
-            peril_id == peril.PERILS['tropical cyclone']['id'] and
+            peril_id == PERILS['tropical cyclone'] and
             coverage_type == coverages.COVERAGE_TYPES['buildings']['id']
         ):
             data = {
@@ -49,7 +53,7 @@ class FakeComplexModelKeysLookup(OasisBaseKeysLookup):
             }
 
         elif (
-            peril_id == peril.PERILS['tropical cyclone']['id'] and
+            peril_id == PERILS['tropical cyclone'] and
             coverage_type == coverages.COVERAGE_TYPES['contents']['id']
         ):
             data = {
@@ -58,7 +62,7 @@ class FakeComplexModelKeysLookup(OasisBaseKeysLookup):
             }
 
         elif (
-            peril_id == peril.PERILS['storm surge']['id'] and
+            peril_id == PERILS['storm surge'] and
             coverage_type == coverages.COVERAGE_TYPES['buildings']['id']
         ):
             data = {
@@ -67,7 +71,7 @@ class FakeComplexModelKeysLookup(OasisBaseKeysLookup):
             }
 
         elif (
-            peril_id == peril.PERILS['storm surge']['id'] and
+            peril_id == PERILS['storm surge'] and
             coverage_type == coverages.COVERAGE_TYPES['contents']['id']
         ):
             data = {

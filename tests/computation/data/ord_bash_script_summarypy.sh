@@ -181,10 +181,10 @@ tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summary_palt/P2.idx work/gul_S1_sum
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 ) 2>> $LOG_DIR/stderror.err  &
 
-socket-server 2 > /dev/null & spid=$!
+socket-server 2 10006 > /dev/null & spid=$!
 trap 'kill -TERM -"$spid" 2>/dev/null' INT TERM
-( ( evepy 1 2 | gulmc --socket-server='2' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P1 | fmpy -a2 | tee fifo/il_P1 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err ) & pid31=$!
-( ( evepy 2 2 | gulmc --socket-server='2' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P2 | fmpy -a2 | tee fifo/il_P2 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P2 ) 2>> $LOG_DIR/stderror.err ) & pid32=$!
+( ( evepy 1 2 | gulmc --socket-server='10006' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P1 | fmpy -a2 | tee fifo/il_P1 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err ) & pid31=$!
+( ( evepy 2 2 | gulmc --socket-server='10006' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P2 | fmpy -a2 | tee fifo/il_P2 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P2 ) 2>> $LOG_DIR/stderror.err ) & pid32=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
 

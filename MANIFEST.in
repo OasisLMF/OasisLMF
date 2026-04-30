@@ -7,4 +7,4 @@ include optional-package.in
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-include oasislmf/_data *
-recursive-include oasislmf/schema *
+recursive-include oasislmf/pytools/common *.pyx

@@ -41,11 +41,6 @@ jobs:
       images_exist: ${{ steps.check.outputs.images_exist }}
       platform_sha: ${{ steps.check.outputs.platform_sha }}
     steps:
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Check if platform images already exist
         id: check
         run: |
@@ -68,12 +63,53 @@ jobs:
       cve_severity: 'SKIP'
       docker_push: 'true'
       checkout_ref: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.platform_branch }}
-      oasislmf_branch: ${{ github.ref }}
-      ods_branch: ${{ inputs.ods_branch }}
+
+  patch_worker_image:
+    if: ${{ !failure() && !cancelled() }}
+    needs: [check_images, build_platform]
+    runs-on: ubuntu-latest
+    outputs:
+      worker_tag: ${{ steps.patch.outputs.worker_tag }}
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build worker image with oasislmf branch
+        id: patch
+        env:
+          PLATFORM_SHA: ${{ needs.check_images.outputs.platform_sha }}
+        run: |
+          WORKER_TAG="model_worker-${PLATFORM_SHA}-oasislmf-${GITHUB_SHA}"
+          cat > Dockerfile.patch << 'DOCKERFILE'
+          ARG BASE_IMAGE
+          FROM ${BASE_IMAGE}
+          ARG OASISLMF_BRANCH
+          USER root
+          RUN apt-get update && apt-get install -y --no-install-recommends gcc python3-dev && rm -rf /var/lib/apt/lists/*
+          USER worker
+          RUN pip uninstall oasislmf -y && \
+              pip install --user --no-warn-script-location "git+https://github.com/OasisLMF/OasisLMF.git@${OASISLMF_BRANCH}#egg=oasislmf[extra]"
+          ARG ODS_BRANCH
+          RUN if [ ! -z "$ODS_BRANCH" ]; then \
+              pip uninstall ods-tools -y && \
+              pip install --user --no-warn-script-location "git+https://github.com/OasisLMF/ODS_Tools.git@${ODS_BRANCH}#egg=ods-tools"; \
+            fi
+          DOCKERFILE
+          docker build \
+            --build-arg BASE_IMAGE="coreoasis/github-actions:model_worker-${PLATFORM_SHA}" \
+            --build-arg OASISLMF_BRANCH="${{ github.ref }}" \
+            --build-arg ODS_BRANCH="${{ inputs.ods_branch }}" \
+            -t "coreoasis/github-actions:${WORKER_TAG}" \
+            -f Dockerfile.patch .
+          docker push "coreoasis/github-actions:${WORKER_TAG}"
+          echo "worker_tag=${WORKER_TAG}" >> $GITHUB_OUTPUT
 
   platform2:
     if: ${{ !failure() && !cancelled() }}
-    needs: [check_images, build_platform]
+    needs: [check_images, build_platform, patch_worker_image]
     uses: OasisLMF/OasisPiWind/.github/workflows/integration.yml@main
     secrets: inherit
     with:
@@ -81,10 +117,10 @@ jobs:
       oasislmf_branch: ${{ github.ref }}
       ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
       worker_image: coreoasis/github-actions
-      worker_tag: model_worker-${{ needs.check_images.outputs.platform_sha }}
+      worker_tag: ${{ needs.patch_worker_image.outputs.worker_tag }}
       server_image: coreoasis/github-actions
       server_tag: api_server-${{ needs.check_images.outputs.platform_sha }}
       debug_mode: '1'
-      pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml"
+      pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml -k all_outputs"
       worker_api_ver: 'v2'
       storage_suffix: '_platform2'

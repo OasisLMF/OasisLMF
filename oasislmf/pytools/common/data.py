@@ -1,8 +1,17 @@
+import logging
 import os
 import sys
 import numba as nb
 import numpy as np
-import pandas as pd
+
+from oasislmf.utils.exceptions import OasisException
+
+try:
+    from oasis_writecsv import write_rows as cython_write_csv
+except ImportError:
+    cython_write_csv = None
+
+logger = logging.getLogger(__name__)
 
 
 oasis_int = np.dtype(os.environ.get('OASIS_INT', 'i4'))
@@ -370,17 +379,30 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
         return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
-        # in csv column cam be out of order and have different name,
-        # we load with pandas and write each column to the ndarray
+        # in csv column can be out of order and have different name,
+        # col_map maps {dtype_field_name: csv_header_name}
         if col_map is None:
             col_map = {}
-        with open(os.path.join(dir_path, name + '.csv')) as file_in:
-            cvs_dtype = {col_map.get(key, key): col_dtype for key, (col_dtype, _) in _dtype.fields.items()}
-            df = pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype, usecols=list(cvs_dtype.keys()))
-            res = np.empty(df.shape[0], dtype=_dtype)
-            for name in _dtype.names:
-                res[name] = df[col_map.get(name, name)]
-            return res
+        filepath = os.path.join(dir_path, name + '.csv')
+        with open(filepath) as file_in:
+            header = {h.strip(): i for i, h in enumerate(file_in.readline().split(','))}
+            _usecols = []
+            _use_dtype = []
+            missing = []
+            for field_name, (field_dtype, _) in _dtype.fields.items():
+                csv_name = col_map.get(field_name, field_name)
+                if csv_name in header:
+                    _usecols.append(header[csv_name])
+                    _use_dtype.append((field_name, field_dtype))
+                else:
+                    missing.append(csv_name)
+            if missing:
+                raise OasisException(f"columns expected in {filepath} but not found: {missing}")
+
+            if _usecols:
+                return np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=np.dtype(_use_dtype), usecols=_usecols))
+            else:
+                return np.empty(0, dtype=_dtype)
     else:
         return np.empty(0, dtype=_dtype)
 
@@ -410,7 +432,7 @@ def load_as_array(dir_path, name, _dtype, must_exist=True):
         return np.empty(0, dtype=_dtype)
 
 
-def write_ndarray_to_fmt_csv(output_file, data, headers, row_fmt):
+def write_ndarray_to_fmt_csv(output_file, data, headers, row_fmt, use_cython=True):
     """Writes a custom dtype array with headers to csv with the provided row_fmt str
 
     This function is a faster replacement for np.savetxt as it formats each row one at a time before writing to csv.
@@ -423,9 +445,22 @@ def write_ndarray_to_fmt_csv(output_file, data, headers, row_fmt):
         data (ndarray[<custom dtype>]): Custom dtype ndarray with column names
         headers (list[str]): Column names for custom ndarray
         row_fmt (str): Format for each row in csv
+        use_cython (bool): Use the Cython implementation. Default: True.
     """
     if len(headers) != len(row_fmt.split(",")):
         raise RuntimeError(f"ERROR: write_ndarray_to_fmt_csv requires row_fmt ({row_fmt}) and headers ({headers}) to have the same length.")
+
+    if use_cython and cython_write_csv is None:
+        logger.warning("Cython CSV writer requested but oasis_writecsv is not available; falling back to Python.")
+    if use_cython and cython_write_csv is not None:
+        try:
+            cython_write_csv(output_file, data, headers, row_fmt)
+            return
+        except Exception as e:
+            logger.warning(
+                "Cython CSV writer failed (%s: %s); falling back to Python.",
+                type(e).__name__, e,
+            )
 
     # Copy data as np.ravel does not work with custom dtype arrays
     # Default type of np.empty is np.float64.

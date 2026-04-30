@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 import numba as nb
 from pathlib import Path
+from mock import patch
 from oasislmf.lookup.builtin import (
     Lookup, z_index, undo_z_index,
     z_index_to_normal, normal_to_z_index,
@@ -10,6 +11,7 @@ from oasislmf.lookup.builtin import (
 )
 
 from oasislmf.utils.status import OASIS_UNKNOWN_ID
+
 FILES_DIR = Path(__file__).resolve().parent
 
 

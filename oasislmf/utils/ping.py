@@ -14,6 +14,9 @@ def oasis_ping(data):
     If `analysis_pk` but missing variables, no message sent.
     Else, websocket sent to `OASIS_SOCKET_SERVER_IP` `OASIS_SOCKET_SERVER_PORT` defaulted to 127.0.0.1 8888.
 
+    If ``data`` contains a ``port_override`` key, that port is used in place of the default/env-var port
+    when connecting to the socket server. The key is stripped before the message is sent.
+
     For a specific socket or websocket, use `oasis_ping_socket` or `oasis_ping_websocket` with the target location.
 
     Args:
@@ -28,7 +31,9 @@ def oasis_ping(data):
             return oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg)
         logging.error("Missing environment variables `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_PORT`.")
         return False
-    target = (os.environ.get("OASIS_SOCKET_SERVER_IP", SERVER_DEFAULT_IP), int(os.environ.get("OASIS_SOCKET_SERVER_PORT", SERVER_DEFAULT_PORT)))
+    port_override = data.pop('port_override', None)
+    target_port = int(port_override) if port_override is not None else int(os.environ.get("OASIS_SOCKET_SERVER_PORT", SERVER_DEFAULT_PORT))
+    target = (os.environ.get("OASIS_SOCKET_SERVER_IP", SERVER_DEFAULT_IP), target_port)
     return oasis_ping_socket(target, msg)
 
 

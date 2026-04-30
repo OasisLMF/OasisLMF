@@ -33,15 +33,20 @@ on:
       pre_release:
         description: 'Mark GitHub release as pre-release [true, false]'
         required: true
-        default: 'false'
+        type: boolean
+
+      pypi_test:
+        description: 'Upload package to pypi test server'
+        required: false
+        type: boolean
 
 
 env:
   WORKSPACE: ${{ github.workspace }}/OasisLMF
   RELEASE_TAG: ${{ inputs.release_tag }}
   PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
-  PRE_RELEASE: ${{ inputs.pre_release }}
-
+  PRE_RELEASE: ${{ inputs.pre_release == '' && 'false' || inputs.pre_release }}
+  PYPI_TEST: ${{ inputs.pypi_test == '' && 'false' || inputs.pypi_test }}
 
 jobs:
   update:
@@ -54,6 +59,8 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     needs: update
+    with:
+      platforms: 'all'
 
   build_schema:
     uses: ./.github/workflows/build-schema.yml
@@ -75,13 +82,13 @@ jobs:
     steps:
     # --- Pre Publish checks --- #
     - name: check branchname is valid for release
-      if: ${{ !startsWith(github.ref_name , 'release/') && !startsWith(github.ref_name, 'stable/') }}
+      if: ${{ !startsWith(github.ref_name , 'release/') && !startsWith(github.ref_name, 'stable/') && env.PYPI_TEST == 'false' }} 
       run: |
         echo "Releases must be trigged on branchs 'release/x.x.x' or 'stable/x.x.x' "
         exit 1
 
     - name: Check tag is valid for release
-      if: env.PRE_RELEASE == 'false'
+      if: env.PRE_RELEASE == 'false' && env.PYPI_TEST == 'false'
       run: |
         VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)$")
         if [[ ! "$VALID" == 1 ]]; then
@@ -90,7 +97,7 @@ jobs:
         fi
 
     - name: Check tag is valid for pre-release
-      if: env.PRE_RELEASE == 'true'
+      if: env.PRE_RELEASE == 'true' && env.PYPI_TEST == 'false'
       run: |
         VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)$")
         if [[ ! "$VALID" == 1 ]]; then
@@ -99,11 +106,15 @@ jobs:
         fi
 
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0 # fetch the whole repo for complete history
         ref: ${{ github.ref_name }}
         path: ${{ env.WORKSPACE }}
+
+    - name: Pull latest (pick up version commit)
+      working-directory: ${{ env.WORKSPACE }}
+      run: git pull  
 
     - name: Check tag matches version set
       working-directory: ${{ env.WORKSPACE }}
@@ -117,16 +128,12 @@ jobs:
 
     - name: Test package names
       run: |
-        ERROR_CODE=0
         SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)")
-        BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)")
-        [[ "${{ env.RELEASE_TAG }}" = "$SRC_VER" ]] || ERROR_CODE=1
-        [[ "${{ env.RELEASE_TAG }}" = "$BIN_VER" ]] || ERROR_CODE=1
-        if [[ "$ERROR_CODE" == 1 ]]; then
-            echo "Package names don't match release tag."
+        if [[ "${{ env.RELEASE_TAG }}" != "$SRC_VER" ]]; then
+            echo "Source package name doesn't match release tag."
             echo "  RELEASE_TAG: ${{ env.RELEASE_TAG }}"
-            echo "  PACKAGES: ${{ needs.build.outputs.src_pkg_filename }}, ${{ needs.build.outputs.linux_pkg_filename }}"
-            exit $ERROR_CODE
+            echo "  SRC_PACKAGE: ${{ needs.build.outputs.src_pkg_filename }}"
+            exit 1
         fi
 
     # --- Setup Changelog builder script --- #
@@ -148,7 +155,7 @@ jobs:
         git tag ${{ env.RELEASE_TAG }}
 
     - name: Setup python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
 
@@ -199,18 +206,12 @@ jobs:
         name: oasislmf-source-pkg
         path: ${{ github.workspace }}/
 
-    - name: Download Linux package
+    - name: Download all wheels
       uses: actions/download-artifact@v4
       with:
-        name: oasislmf-bin-pkg_linux
-        path: ${{ github.workspace }}/
-
-    - name: Download OSX package
-      if: needs.build.outputs.osx_pkg_filename != ''
-      uses: actions/download-artifact@v4
-      with:
-        name: oasislmf-bin-pkg_darwin
-        path: ${{ github.workspace }}/
+        pattern: oasislmf-wheels-*
+        path: ${{ github.workspace }}/wheels/
+        merge-multiple: true
 
 
     # --- Fetch schema --- #
@@ -272,46 +273,42 @@ jobs:
         asset_content_type: application/json
 
 
-    - name: Upload Linux package
-      id: upload-linux-release-asset
-      uses: actions/upload-release-asset@v1
+    - name: Upload wheels to release
       env:
         GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.linux_pkg_filename }}
-        asset_name: ${{ needs.build.outputs.linux_pkg_filename }}
-        asset_content_type: application/octet-stream
+      run: |
+        for whl in ${{ github.workspace }}/wheels/*.whl; do
+          gh release upload ${{ env.RELEASE_TAG }} "$whl" --repo ${{ github.repository }}
+        done
 
-    - name: Upload OSX package
-      if: needs.build.outputs.osx_pkg_filename != ''
-      id: upload-osx-release-asset
-      uses: actions/upload-release-asset@v1
+
+    # --- Publish to Pypi TEST server --- #
+    - name: PYPI TEST - Upload all wheels
+      if: ${{ env.PYPI_TEST == 'true' }}
+      run: twine upload --repository testpypi --skip-existing ${{ github.workspace }}/wheels/*.whl --verbose
       env:
-        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.osx_pkg_filename }}
-        asset_name: ${{ needs.build.outputs.osx_pkg_filename }}
-        asset_content_type: application/octet-stream
+        TWINE_USERNAME: ${{ secrets.PYPI_TEST_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
+
+    - name: PYPI TEST - Source package
+      if: ${{ env.PYPI_TEST == 'true' }}
+      run: twine upload --repository testpypi --skip-existing ${{ needs.build.outputs.src_pkg_filename }} --verbose
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_TEST_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
 
 
     # --- Publish to Pypi --- #
-    - name: PYPI - Source package
-      run: twine upload ${{ needs.build.outputs.src_pkg_filename }}
+    - name: PYPI LIVE - Upload all wheels
+      if: ${{ env.PYPI_TEST == 'false' }}
+      run: twine upload --skip-existing ${{ github.workspace }}/wheels/*.whl --verbose
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
 
-    - name: PYPI - Linux package
-      run: twine upload ${{ needs.build.outputs.linux_pkg_filename }}
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-
-    - name: PYPI - OSX package
-      if: needs.build.outputs.osx_pkg_filename != ''
-      run: twine upload ${{ needs.build.outputs.osx_pkg_filename }}
+    - name: PYPI LIVE - Source package
+      if: ${{ env.PYPI_TEST == 'false' }}
+      run: twine upload --skip-existing ${{ needs.build.outputs.src_pkg_filename }} --verbose
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
@@ -336,6 +333,7 @@ jobs:
 
   # --- Notify Slack --- #
   slack:
+    if: ${{ env.PYPI_TEST == 'false' }}
     uses: ./.github/workflows/notify.yml
     secrets: inherit
     needs: release

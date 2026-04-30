@@ -1,0 +1,108 @@
+# Workflow to validate oasislmf installation and basic functionality on macOS.
+#
+# This runs on every PR and push to main to catch macOS-specific regressions.
+# It is intentionally lightweight — install + smoke test only — to keep CI costs low.
+
+name: macOS Smoke Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - stable**
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      platforms: 'macos-14/arm64'
+
+  macos-arm64-install:
+    runs-on: macos-14
+    needs: [build]
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Verify ARM64 architecture
+        run: |
+          python -c "import platform; arch = platform.machine(); print(f'Architecture: {arch}'); assert arch == 'arm64', f'Expected arm64, got {arch}'"
+
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: oasislmf-wheels-macos-14-arm64
+          path: ${{ github.workspace }}/
+
+      - name: Install oasislmf from wheel
+        run: |
+          PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
+          WHL=$(find "${{ github.workspace }}" -name "oasislmf-*-${PY_TAG}-*.whl" | head -1)
+          pip install --upgrade pip
+          pip install "$WHL"
+
+      - name: Run validation script
+        run: python scripts/validate_install.py
+
+      - name: Smoke test - CLI entry point
+        run: oasislmf --help
+
+      - name: Smoke test - import and version
+        run: |
+          python -c "
+          import oasislmf
+          print(f'Version: {oasislmf.__version__}')
+          from oasislmf.pytools.fm.cli import main as fm_main
+          from oasislmf.pytools.gulpy import main as gul_main
+          from oasislmf.execution.bin import check_conversion_tools
+          print('All key submodules imported successfully')
+          "
+
+      - name: Smoke test - oasis_writecsv Cython extension
+        run: |
+          python -c "
+          from oasis_writecsv import write_rows
+          print('oasis_writecsv Cython extension loaded successfully')
+          "
+
+      - name: Smoke test - numba JIT compilation
+        run: |
+          python -c "
+          import numpy as np
+          from numba import njit
+
+          @njit
+          def test_jit(x):
+              return x * 2.0 + 1.0
+
+          result = test_jit(np.float64(21.0))
+          assert result == 43.0, f'JIT test failed: expected 43.0, got {result}'
+          print('numba JIT compilation works on ARM64')
+          "
+
+      - name: Smoke test - core numerical stack
+        run: |
+          python -c "
+          import numpy as np
+          import pandas as pd
+          import scipy
+          import pyarrow
+          import fastparquet
+
+          arr = np.random.rand(1000)
+          df = pd.DataFrame({'values': arr})
+          assert len(df) == 1000
+          print(f'numpy {np.__version__}, pandas {pd.__version__}, scipy {scipy.__version__}')
+          print(f'pyarrow {pyarrow.__version__}, fastparquet {fastparquet.__version__}')
+          print('Core numerical stack works on ARM64')
+          "
