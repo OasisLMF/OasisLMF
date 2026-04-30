@@ -90,7 +90,8 @@ def main():
         total = int(sys.argv[1])
     except Exception:
         raise TypeError("Socket server argument must be an integer")
-    with (GulProgressServer(total) as server,
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    with (GulProgressServer(total, port=port) as server,
           tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar):
         counter = 0
         while counter < total:

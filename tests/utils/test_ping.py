@@ -89,3 +89,25 @@ def test_oasis_ping_websocket_failure():
         result = oasis_ping_websocket("ws://fakehost:1234/ws", '{"hello": "world"}')
     assert result is False
     fake_ws.send.assert_not_called()
+
+
+def test_oasis_ping_port_override():
+    data = {"events_complete": 5, "port_override": 9999}
+    with (patch.dict(os.environ, {"OASIS_SOCKET_SERVER_IP": "1.2.3.4", "OASIS_SOCKET_SERVER_PORT": "4321"}),
+          patch("oasislmf.utils.ping.oasis_ping_socket", return_value=True) as mock_sock):
+        oasis_ping(data)
+
+    called_target, called_msg = mock_sock.call_args[0]
+    assert called_target == ("1.2.3.4", 9999)
+    parsed = json.loads(called_msg)
+    assert parsed["events_complete"] == 5
+
+
+def test_oasis_ping_no_port_override_uses_env():
+    data = {"events_complete": 3}
+    with (patch.dict(os.environ, {"OASIS_SOCKET_SERVER_IP": "1.2.3.4", "OASIS_SOCKET_SERVER_PORT": "4321"}),
+          patch("oasislmf.utils.ping.oasis_ping_socket", return_value=True) as mock_sock):
+        oasis_ping(data)
+
+    called_target, _ = mock_sock.call_args[0]
+    assert called_target == ("1.2.3.4", 4321)
