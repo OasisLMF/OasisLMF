@@ -3133,4 +3133,4 @@ def add_server_call(call, analysis_pk=None, socket_server_size=False, socket_ser
         return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='True' --analysis-pk='{analysis_pk}'", call)
     if socket_server_port is not None:
         return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='{socket_server_port}'", call)
-    return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='{socket_server_size}'", call)
+    return call
