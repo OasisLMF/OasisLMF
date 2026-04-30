@@ -43,7 +43,7 @@ _SUMMARIES_DTYPE = np.dtype([
     ("file_idx", np.int32),
     ("period_no", np.int32),
     ("file_offset", np.int64),
-])
+], align=True)  # align=True: int64 at offset 12 is misaligned; Numba generators require isalignedstruct=True
 _SUMMARIES_DTYPE_size = _SUMMARIES_DTYPE.itemsize
 
 
