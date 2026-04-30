@@ -361,7 +361,7 @@ class GenerateLossesDir(GenerateLossesBase):
                 model_df_engine=model_df_engine,
             )
 
-        if not gulmc and not model_custom_gulcalc and model_df_engine:
+        if not gulmc and not model_custom_gulcalc:
             from ...pytools.getmodel.structure import create_getmodel_structure
             from ...pytools.gul.structure import create_gulpy_structure
 

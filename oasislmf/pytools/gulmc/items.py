@@ -23,7 +23,7 @@ from oasislmf.pytools.gulmc.common import ItemAdjustment, agg_vuln_idx_weight_dt
 logger = logging.getLogger(__name__)
 
 
-def read_items(input_path, ignore_file_type=set(), dynamic_footprint=False, legacy=False):
+def read_items(input_path, ignore_file_type=set()):
     """Load the items from the items file.
 
     Args:
@@ -31,9 +31,7 @@ def read_items(input_path, ignore_file_type=set(), dynamic_footprint=False, lega
         ignore_file_type (Set[str]): file extension to ignore when loading.
 
     Returns:
-        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
-          vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-          areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+        np.ndarray[items_dtype]: items table loaded from items.bin (memmap'd) or items.csv.
     """
     input_files = set(os.listdir(input_path))
 
@@ -87,9 +85,12 @@ def generate_item_map(items, coverages,
     """
     N = len(items)
 
-    # --- Pass 1: count unique areaperil_ids and unique (areaperil_id, vuln_id) pairs ---
+    # --- Pass 1: count unique areaperil_ids, unique (areaperil_id, vuln_id) pairs,
+    #             and exact size of the aggregate-vuln output arrays ---
     n_unique_areaperils = nb_int32(0)
     n_unique_pairs = nb_int32(0)
+    n_agg_pair_groups = nb_int32(0)   # number of unique (ap, agg_vuln_id) blocks
+    n_agg_entries_total = nb_int32(0)  # total sub-vuln entries written across all blocks
     prev_ap = areaperil_int.type(0)
     prev_vuln = nb_int32(-1)
     for j in range(N):
@@ -99,6 +100,15 @@ def generate_item_map(items, coverages,
             n_unique_pairs += 1
             if ap != prev_ap:
                 n_unique_areaperils += 1
+            # If this pair's vuln_id is an aggregate, account for one block of size n_sub.
+            # Pass 2 repeats this lookup; the duplication is bounded by n_unique_pairs and
+            # avoids a separate pre-pass over items.
+            agg_idx = get_idx(agg_vuln_id_ja_id_ind, vuln)
+            if agg_idx != NOT_FOUND:
+                n_agg_pair_groups += 1
+                n_agg_entries_total += nb_int32(
+                    agg_vuln_id_ja_offsets[agg_idx + 1] - agg_vuln_id_ja_offsets[agg_idx]
+                )
             prev_ap = ap
             prev_vuln = vuln
 
@@ -118,18 +128,11 @@ def generate_item_map(items, coverages,
     vuln_table = init_dict(max_unique_vulns)
     hm_info, hm_lookup, hm_index = unpack(vuln_table)
 
-    # --- Aggregate vulnerability jagged arrays ---
-    n_agg_vulns = len(agg_vuln_id_ja_offsets) - 1
-    max_sub_vulns = nb_int32(0)
-    for i in range(n_agg_vulns):
-        n = agg_vuln_id_ja_offsets[i + 1] - agg_vuln_id_ja_offsets[i]
-        if n > max_sub_vulns:
-            max_sub_vulns = n
-    max_agg_vuln_size = max(N * max_sub_vulns, 1)
-
-    areaperil_agg_vuln_idx_ja_data = np.zeros(max_agg_vuln_size, dtype=agg_vuln_idx_weight_dtype)
-    areaperil_agg_vuln_idx_ja_areaperil_ids = np.empty(max_agg_vuln_size, dtype=areaperil_int)
-    areaperil_agg_vuln_idx_ja_offsets = np.empty(N + 1, dtype=oasis_int)
+    # --- Aggregate vulnerability jagged arrays (sized exactly from pass 1) ---
+    agg_alloc = max(n_agg_entries_total, 1)  # 0 → 1 to keep array shapes valid
+    areaperil_agg_vuln_idx_ja_data = np.zeros(agg_alloc, dtype=agg_vuln_idx_weight_dtype)
+    areaperil_agg_vuln_idx_ja_areaperil_ids = np.empty(agg_alloc, dtype=areaperil_int)
+    areaperil_agg_vuln_idx_ja_offsets = np.empty(n_agg_pair_groups + 1, dtype=oasis_int)
     ja_ptr = nb_int32(0)
     n_agg_vuln_groups = nb_int32(0)
     areaperil_agg_vuln_idx_ja_offsets[0] = 0

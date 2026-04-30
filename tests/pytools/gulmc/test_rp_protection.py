@@ -236,9 +236,10 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 # ---------------------------------------------------------------------------
 
 def _make_fp_buffers(n):
-    """Pre-allocate reusable per-event footprint buffers for n areaperils."""
+    """Pre-allocate reusable per-event footprint buffers for n areaperils.
+    The first buffer holds dense areaperil indices (uint32), not raw IDs."""
     return (
-        np.empty(n, dtype=areaperil_int),
+        np.empty(n, dtype=np.uint32),
         np.empty(n, dtype=np.int32),
         np.empty(n + 1, dtype=np.int64),
     )
@@ -259,8 +260,8 @@ def test_process_areaperils_builds_event_rp_dict():
     ev[1]['intensity'] = 200
 
     present = _make_present_areaperils(1, 2)
-    fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
-    N, _ = process_areaperils_in_footprint(ev, present, True, fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr)
+    fp_ap_inds, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
+    N, _ = process_areaperils_in_footprint(ev, present, True, fp_ap_inds, fp_event_rps, fp_haz_arr_ptr)
 
     assert N == 2
     assert int(fp_event_rps[0]) == 20
@@ -277,8 +278,8 @@ def test_process_areaperils_event_rp_empty_when_non_dynamic():
     ev[0]['intensity'] = 0
 
     present = _make_present_areaperils(1)
-    fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(1)
-    N, _ = process_areaperils_in_footprint(ev, present, None, fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr)
+    fp_ap_inds, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(1)
+    N, _ = process_areaperils_in_footprint(ev, present, None, fp_ap_inds, fp_event_rps, fp_haz_arr_ptr)
 
     # event_rps is not written for non-dynamic, N tells us how many areaperils were found
     assert N == 1
@@ -299,11 +300,12 @@ def test_process_areaperils_excludes_absent_areaperil():
     ev[1]['intensity'] = 200
 
     present = _make_present_areaperils(1)  # only areaperil 1
-    fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
-    N, _ = process_areaperils_in_footprint(ev, present, True, fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr)
+    fp_ap_inds, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
+    N, _ = process_areaperils_in_footprint(ev, present, True, fp_ap_inds, fp_event_rps, fp_haz_arr_ptr)
 
     assert N == 1
-    assert fp_areaperil_ids[0] == 1
+    # AP 1 in an id_index built from [1] has dense index 0
+    assert fp_ap_inds[0] == 0
 
 
 def test_process_areaperils_multi_bin_areaperil_uses_first_record_rp():
@@ -328,8 +330,8 @@ def test_process_areaperils_multi_bin_areaperil_uses_first_record_rp():
     ev[2]['intensity'] = 200
 
     present = _make_present_areaperils(1, 2)
-    fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
-    N, haz_pdf = process_areaperils_in_footprint(ev, present, True, fp_areaperil_ids, fp_event_rps, fp_haz_arr_ptr)
+    fp_ap_inds, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
+    N, haz_pdf = process_areaperils_in_footprint(ev, present, True, fp_ap_inds, fp_event_rps, fp_haz_arr_ptr)
 
     assert N == 2
     assert int(fp_event_rps[0]) == 25

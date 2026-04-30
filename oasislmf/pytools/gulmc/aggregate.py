@@ -10,11 +10,25 @@ import numpy as np
 import pandas as pd
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasislmf.utils.data import analysis_settings_loader
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, oasis_int, aggregatevulnerability_dtype, vulnerability_weight_dtype
+from oasislmf.pytools.common.data import (
+    areaperil_int, nb_areaperil_int, nb_oasis_int, nb_oasis_float, oasis_float, oasis_int,
+    aggregatevulnerability_dtype, vulnerability_weight_dtype,
+)
 from oasislmf.pytools.common.id_index import build as id_index_build
-from oasislmf.pytools.common.hashmap import unpack as hm_unpack, _find_key as hm_find_key, NOT_FOUND as HM_NOT_FOUND
+from oasislmf.pytools.common.hashmap import (
+    init_dict as hm_init_dict, unpack as hm_unpack, rehash as hm_rehash,
+    _try_add_key as hm_try_add_key, _find_key as hm_find_key,
+    i_add_key_fail as hm_i_add_key_fail,
+    new_slot_bit as hm_new_slot_bit, slot_mask as hm_slot_mask,
+    NOT_FOUND as HM_NOT_FOUND,
+)
 
 logger = logging.getLogger(__name__)
+
+# Key for the (areaperil_id, vuln_idx) -> weight hashmap built in
+# process_vulnerability_weights. Defined at module level so the structured-record
+# fnv1a/key_eq overloads compile once.
+agg_weight_key_dtype = np.dtype([('areaperil_id', areaperil_int), ('vuln_idx', oasis_int)])
 
 
 def read_aggregate_vulnerability(storage: BaseStorage, ignore_file_type=set()):
@@ -127,6 +141,14 @@ def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areap
     """
     Populate the weight field in the merged data array by matching aggregate_weights records.
 
+    Builds a (areaperil_id, vuln_idx) -> weight hashmap from aggregate_weights once, then
+    iterates entries with one O(1) lookup each. Total cost: O(W + E).
+
+    Iterating from the weight side handles the case where the same (ap, vuln_idx) pair
+    appears in multiple entries (two distinct aggregate definitions sharing a sub-vuln on
+    the same areaperil): every such entry gets the same weight, since each is looked up
+    independently.
+
     Args:
         areaperil_agg_vuln_idx_ja_areaperil_ids (np.array[areaperil_int]): areaperil_id for each entry.
         areaperil_agg_vuln_idx_ja_data (np.array[agg_vuln_idx_weight_dtype]): merged (vuln_idx, weight) per entry.
@@ -134,17 +156,51 @@ def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areap
         vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys).
         aggregate_weights (np.array[VulnerabilityWeight]): vulnerability weights table.
     """
-    hm_info, hm_lookup, hm_index = hm_unpack(vuln_map)
+    n_weights = len(aggregate_weights)
     n_entries = len(areaperil_agg_vuln_idx_ja_data)
-    for i in range(len(aggregate_weights)):
+    if n_weights == 0 or n_entries == 0:
+        return
+
+    # Build (areaperil_id, vuln_idx) -> weight hashmap from aggregate_weights.
+    # Pre-sized to fit all weights so the load-factor guard never fires; only the
+    # rehash path on Robin-Hood collision is kept.
+    weight_key_table = np.empty(n_weights, dtype=agg_weight_key_dtype)
+    weight_values = np.empty(n_weights, dtype=oasis_float)
+    weight_table = hm_init_dict(n_weights)
+    w_info, w_lookup, w_index = hm_unpack(weight_table)
+
+    vm_info, vm_lookup, vm_index = hm_unpack(vuln_map)
+    n_valid = 0
+    for i in range(n_weights):
         rec = aggregate_weights[i]
-        slot = hm_find_key(hm_info, hm_lookup, hm_index, vuln_map_keys, rec['vulnerability_id'])
-        if slot != HM_NOT_FOUND:
-            dense_idx = hm_index[slot]
-            ap_id = nb_areaperil_int(rec['areaperil_id'])
-            for j in range(n_entries):
-                if areaperil_agg_vuln_idx_ja_areaperil_ids[j] == ap_id and areaperil_agg_vuln_idx_ja_data[j]['vuln_idx'] == dense_idx:
-                    areaperil_agg_vuln_idx_ja_data[j]['weight'] = nb_oasis_float(rec['weight'])
+        vslot = hm_find_key(vm_info, vm_lookup, vm_index, vuln_map_keys, rec['vulnerability_id'])
+        if vslot == HM_NOT_FOUND:
+            continue
+        weight_key_table[n_valid]['areaperil_id'] = nb_areaperil_int(rec['areaperil_id'])
+        weight_key_table[n_valid]['vuln_idx'] = nb_oasis_int(vm_index[vslot])
+        weight_values[n_valid] = nb_oasis_float(rec['weight'])
+        result = hm_try_add_key(w_info, w_lookup, w_index, weight_key_table,
+                                weight_key_table[n_valid], n_valid)
+        while result == hm_i_add_key_fail:
+            weight_table = hm_rehash(weight_table, weight_key_table)
+            w_info, w_lookup, w_index = hm_unpack(weight_table)
+            result = hm_try_add_key(w_info, w_lookup, w_index, weight_key_table,
+                                    weight_key_table[n_valid], n_valid)
+        if result & hm_new_slot_bit:
+            n_valid += 1
+        else:
+            # Duplicate (ap, vuln_idx) in aggregate_weights: preserve the old "last wins"
+            # behavior by overwriting the previously-stored weight at its original position.
+            weight_values[w_index[result & hm_slot_mask]] = nb_oasis_float(rec['weight'])
+
+    # Apply weights to entries with O(1) lookup each.
+    lookup_key = np.empty(1, dtype=agg_weight_key_dtype)[0]
+    for j in range(n_entries):
+        lookup_key['areaperil_id'] = areaperil_agg_vuln_idx_ja_areaperil_ids[j]
+        lookup_key['vuln_idx'] = areaperil_agg_vuln_idx_ja_data[j]['vuln_idx']
+        eslot = hm_find_key(w_info, w_lookup, w_index, weight_key_table, lookup_key)
+        if eslot != HM_NOT_FOUND:
+            areaperil_agg_vuln_idx_ja_data[j]['weight'] = weight_values[w_index[eslot]]
 
 
 def get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys):

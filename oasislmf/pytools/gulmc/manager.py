@@ -278,8 +278,12 @@ def run(run_dir,
         max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cache size in bytes
         max_Nnumbers_cached_vuln_cdf = max_cached_vuln_cdf_size_bytes // oasis_float.itemsize  # total numbers that can fit in the cache
         max_Nvulnerability_cached_vuln_cdf = max_Nnumbers_cached_vuln_cdf // Ndamage_bins_max  # max number of vulnerability functions that can be stored in cache
-        # number of vulnerability functions to be cached, rounded up to power of two for bitwise masking
+        # number of vulnerability functions to be cached, rounded up to power of two for bitwise masking.
+        # The cache must fit at least one full multi-block write for a single item — that is
+        # 1 effective damage CDF + Nintensity_bins per-bin vuln CDFs — otherwise a block can
+        # trample itself while wrapping around, producing silently corrupted CDF reads.
         Nvulns_cached = min(Nvulnerability * Nintensity_bins, max_Nvulnerability_cached_vuln_cdf)
+        Nvulns_cached = max(Nvulns_cached, Nintensity_bins + 1)
         Nvulns_cached = 1 << (max(Nvulns_cached, 1) - 1).bit_length()  # next power of two
         cdf_cache_mask = np.int64(Nvulns_cached - 1)
         logger.info(f"max vulnerability cdf cache size is {max_cached_vuln_cdf_size_MB}MB")
@@ -311,8 +315,11 @@ def run(run_dir,
         damage_eps_ij = np.empty((1, sample_size), dtype='float64')
 
         # Pre-allocate per-event footprint arrays (reused across events, no per-event allocation)
+        # fp_ap_inds stores dense areaperil indices (from item_map_ja_id_ind) rather than raw
+        # areaperil_ids, so reconstruct_coverages can index item_map_ja_offsets directly without
+        # repeating the id_index lookup that was already done in process_areaperils_in_footprint.
         n_max_areaperils = len(item_map_ja_areaperil_ids)
-        fp_areaperil_ids = np.empty(n_max_areaperils, dtype=areaperil_int)
+        fp_ap_inds = np.empty(n_max_areaperils, dtype=np.uint32)
         fp_event_rps = np.empty(n_max_areaperils, dtype=np.int32)
         fp_haz_arr_ptr = np.empty(n_max_areaperils + 1, dtype=np.int64)
 
@@ -339,7 +346,7 @@ def run(run_dir,
                     event_footprint,
                     item_map_ja_id_ind,
                     dynamic_footprint,
-                    fp_areaperil_ids,
+                    fp_ap_inds,
                     fp_event_rps,
                     fp_haz_arr_ptr)
                 if Nhaz_arr_this_event == 0:
@@ -349,10 +356,9 @@ def run(run_dir,
 
                 items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
                     compute_info,
-                    fp_areaperil_ids,
+                    fp_ap_inds,
                     Nhaz_arr_this_event,
                     fp_event_rps,
-                    item_map_ja_id_ind,
                     item_map_ja_offsets,
                     item_map_ja_vuln_ids,
                     item_map_ja_vuln_ja_offsets,
@@ -883,19 +889,23 @@ def compute_event_losses(compute_info,
 def process_areaperils_in_footprint(event_footprint,
                                     areaperil_id_ind,
                                     dynamic_footprint,
-                                    areaperil_ids,
+                                    ap_inds,
                                     event_rps,
                                     haz_arr_ptr):
     """Process areaperils in the footprint, filtering to those with vulnerability functions.
 
-    Writes into pre-allocated arrays (areaperil_ids, event_rps, haz_arr_ptr) that are
+    Writes into pre-allocated arrays (ap_inds, event_rps, haz_arr_ptr) that are
     owned by the caller and reused across events.
+
+    The buffer stores the dense areaperil index (from `areaperil_id_ind`) rather than
+    the raw `areaperil_id`, so downstream consumers (reconstruct_coverages) can index
+    `item_map_ja_offsets` directly and skip a second id_index lookup.
 
     Args:
         event_footprint (np.array[Event or footprint_event_dtype]): footprint entries.
         areaperil_id_ind (np.array): id_index structure for known areaperil_ids.
         dynamic_footprint (boolean): true if there is dynamic_footprint.
-        areaperil_ids (np.array[areaperil_int]): pre-allocated output buffer for areaperil ids.
+        ap_inds (np.array[uint32]): pre-allocated output buffer for dense areaperil indices.
         event_rps (np.array[int32]): pre-allocated output buffer for return periods (dynamic only).
         haz_arr_ptr (np.array[int64]): pre-allocated output buffer for hazard pdf offsets.
 
@@ -926,9 +936,10 @@ def process_areaperils_in_footprint(event_footprint,
             # one areaperil_id is completed
 
             if last_areaperil_id > 0:
-                if id_index_get_idx(areaperil_id_ind, last_areaperil_id) != ID_INDEX_NOT_FOUND:
-                    # if items with this areaperil_id exist, process and store this areaperil_id
-                    areaperil_ids[haz_arr_i] = last_areaperil_id
+                ap_ind = id_index_get_idx(areaperil_id_ind, last_areaperil_id)
+                if ap_ind != ID_INDEX_NOT_FOUND:
+                    # if items with this areaperil_id exist, store its dense index
+                    ap_inds[haz_arr_i] = ap_ind
                     haz_arr_i += 1
 
                     # store the hazard intensity pdf
@@ -955,10 +966,9 @@ def process_areaperils_in_footprint(event_footprint,
 
 @nb.njit(cache=True, fastmath=True)
 def reconstruct_coverages(compute_info,
-                          areaperil_ids,
+                          ap_inds,
                           Nhaz_arr_this_event,
                           event_rps,
-                          item_map_ja_id_ind,
                           item_map_ja_offsets,
                           item_map_ja_vuln_ids,
                           item_map_ja_vuln_ja_offsets,
@@ -992,11 +1002,10 @@ def reconstruct_coverages(compute_info,
     Args:
         compute_info (gulmc_compute_info_type): computation state; coverage_i, coverage_n,
           and event_id fields are read/written.
-        areaperil_ids (np.array[areaperil_int]): areaperil_ids present in the event footprint
+        ap_inds (np.array[uint32]): dense areaperil indices present in the event footprint
           (from process_areaperils_in_footprint), length >= Nhaz_arr_this_event.
-        Nhaz_arr_this_event (int): number of valid entries in areaperil_ids.
+        Nhaz_arr_this_event (int): number of valid entries in ap_inds.
         event_rps (np.array[int32]): parallel array of return periods per areaperil (dynamic only).
-        item_map_ja_id_ind (np.array): id_index for areaperil_id → dense index.
         item_map_ja_offsets (np.array[oasis_int]): L1 CSR offsets (N_areaperil + 1).
         item_map_ja_vuln_ids (np.array[int32]): vuln_id at each pair position.
         item_map_ja_vuln_ja_offsets (np.array[oasis_int]): L2 CSR offsets (N_pairs + 1).
@@ -1043,8 +1052,7 @@ def reconstruct_coverages(compute_info,
     #  - compute the seeds for the hazard intensity sampling and for the damage sampling
     #  - store data for later processing (hazard cdf index, etc.)
     for ap_i in range(Nhaz_arr_this_event):
-        areaperil_id = areaperil_ids[ap_i]
-        ap_ind = id_index_get_idx(item_map_ja_id_ind, areaperil_id)
+        ap_ind = ap_inds[ap_i]
         vuln_start = item_map_ja_offsets[ap_ind]
         vuln_end = item_map_ja_offsets[ap_ind + 1]
 
