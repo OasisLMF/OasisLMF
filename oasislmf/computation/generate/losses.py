@@ -60,16 +60,6 @@ from ...utils.ping import oasis_ping
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
-def _find_available_port(host, preferred_port):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind((host, preferred_port))
-            return preferred_port
-        except OSError:
-            s.bind((host, 0))
-            return s.getsockname()[1]
-
-
 class GenerateLossesBase(ComputationStep):
     """
     Base class for Loss generation functions
@@ -664,7 +654,7 @@ class GenerateLosses(GenerateLossesDir):
                 socket_server_size = os.path.getsize("input/events.bin") // oasis_int_size
                 socket_host = os.environ.get('OASIS_SOCKET_SERVER_IP', SERVER_DEFAULT_IP)
                 socket_preferred_port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', SERVER_DEFAULT_PORT))
-                socket_server_port = _find_available_port(socket_host, socket_preferred_port)
+                socket_server_port = self._find_available_port(socket_host, socket_preferred_port)
             try:
                 try:
                     run_args = dict(
@@ -949,6 +939,17 @@ class GenerateLossesDeterministic(ComputationStep):
                             losses['ri'] = rils
 
         return losses
+
+    def _find_available_port(self, host, preferred_port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, preferred_port))
+                return preferred_port
+            except OSError:
+                s.bind((host, 0))
+                name = s.getsockname()[1]
+                self.logger.warning(f"Port {preferred_port} unavailable: using port {name}")
+                return name
 
 
 class GenerateLossesDummyModel(GenerateDummyOasisFiles):
