@@ -863,14 +863,6 @@
         "CoverageTypeID": [7,8,9,10,11,12,13,14,15],
         "ProfileType": "Acc"
     },
-    "PolLimit": {
-        "ProfileElementName": "PolLimit",
-        "FMLevelName": "PolAll",
-        "FMTermType": "Limit",
-        "FMTermGroupID": 2,
-        "CoverageTypeID": [7,8,9,10,11,12,13,14,15],
-        "ProfileType": "Acc"
-    },
     "PolDed5PD": {
         "ProfileElementName": "PolDed5PD",
         "DeductibleType": "B",
