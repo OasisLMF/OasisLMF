@@ -466,10 +466,6 @@ class GenerateLossesPartial(GenerateLossesDir):
         # Workaround test -- needs adding into bash_params
         if self.kernel_fifo_queue_dir:
             bash_params['fifo_queue_dir'] = self.kernel_fifo_queue_dir
-        if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
-            bash_params['socket_server_size'] = True
-        else:
-            self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
         bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
 
         with setcwd(model_run_fp):
@@ -643,13 +639,12 @@ class GenerateLosses(GenerateLossesDir):
         # setup for progress updates
 
         with setcwd(model_run_fp):
+            socket_server_size = None
             socket_server_port = None
             if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
                 self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
-                socket_server_size = False
             elif 'analysis_pk' in self.kwargs:
                 oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
-                socket_server_size = True
             else:
                 socket_server_size = os.path.getsize("input/events.bin") // oasis_int_size
                 socket_host = os.environ.get('OASIS_SOCKET_SERVER_IP', SERVER_DEFAULT_IP)
