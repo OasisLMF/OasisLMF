@@ -73,17 +73,11 @@ from ..utils.exceptions import OasisException
 logger = logging.getLogger(__name__)
 
 
-RUNTYPE_GROUNDUP_LOSS = 'gul'
-RUNTYPE_LOAD_BALANCED_LOSS = 'lb'
-RUNTYPE_INSURED_LOSS = 'il'
-RUNTYPE_REINSURANCE_LOSS = 'ri'
-RUNTYPE_REINSURANCE_GROSS_LOSS = 'rl'
-RUNTYPE_FULL_CORRELATION = 'fc'
-
-REINSURANCE_RUNTYPES = [
-    RUNTYPE_REINSURANCE_LOSS,
-    RUNTYPE_REINSURANCE_GROSS_LOSS
-]
+from oasislmf.pytools.common.run_types import (
+    RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS,
+    RUNTYPE_REINSURANCE_GROSS_LOSS, RUNTYPE_FULL_CORRELATION, RUNTYPE_LOAD_BALANCED_LOSS,
+    REINSURANCE_RUNTYPES,
+)
 INTERMEDIATE_INURING_PRIORITY_PREFIX = 'IP'
 
 WAIT_PROCESSING_SWITCHES = {
@@ -615,12 +609,14 @@ def do_post_wait_processing(
 
                 if join_summary_info or analysis_settings.get("join_summary_info", False):
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
-                    process_counter['jpid_monitor_count'] += 1
-                    post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
-                    process_counter['jpid_monitor_count'] += 1
-                    post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                    if ept_output:
+                        process_counter['jpid_monitor_count'] += 1
+                        post_wait_cmds.append(
+                            f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                    if psept_output:
+                        process_counter['jpid_monitor_count'] += 1
+                        post_wait_cmds.append(
+                            f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
     return post_wait_cmds
 
@@ -2198,7 +2194,7 @@ def bash_wrapper(
     print_command(filename, 'shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."')
 
     print_command(filename, '')
-    if process_number:
+    if log_sub_dir:
         print_command(filename, f'LOG_DIR=log/{log_sub_dir}')
     else:
         print_command(filename, 'LOG_DIR=log')
@@ -2572,8 +2568,9 @@ def create_bash_analysis(
     # to read from (when a load balancer is used).
     get_gul_stream_cmds = {}
 
-    if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
-        print_command(filename, f"socket-server {kwargs['socket_server']} > /dev/null & spid=$!")
+    if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
+        port_arg = f" {kwargs['socket_server_port']}" if kwargs.get("socket_server_port") is not None else ""
+        print_command(filename, f"socket-server {kwargs['socket_server_size']}{port_arg} > /dev/null & spid=$!")
         print_command(filename, "trap 'kill -TERM -\"$spid\" 2>/dev/null' INT TERM")
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
@@ -2625,7 +2622,8 @@ def create_bash_analysis(
                     tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
                                                consumer=RUNTYPE_LOAD_BALANCED_LOSS)
                     tee_cmd = f"tee < {getmodel_args['correlated_output']} {fc_gul_fifo_name} > {tee_output} &"
-                    print_command(filename, add_server_call(tee_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
+                    print_command(filename, add_server_call(tee_cmd, kwargs.get("analysis_pk", None),
+                                                            kwargs.get("socket_server_port")))
 
                 else:
                     tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
@@ -2655,7 +2653,8 @@ def create_bash_analysis(
             main_cmd_gul_stream = get_main_cmd_gul_stream(
                 getmodel_cmd, gul_id, fifo_queue_dir, stderr_guard, RUNTYPE_LOAD_BALANCED_LOSS
             )
-            print_command(filename, add_server_call(main_cmd_gul_stream, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
+            print_command(filename, add_server_call(main_cmd_gul_stream, kwargs.get("analysis_pk", None),
+                                                    kwargs.get("socket_server_port")))
         else:
             get_gul_stream_cmds.setdefault(fifo_queue_dir, []).append((getmodel_cmd, False))
 
@@ -2676,7 +2675,8 @@ def create_bash_analysis(
                                              consumer=RUNTYPE_INSURED_LOSS)
             for lb_main_cmd in get_main_cmd_lb(num_lb, num_gul_per_lb, num_fm_per_lb, get_input_stream_name,
                                                get_output_stream_name, stderr_guard):
-                print_command(filename, add_server_call(lb_main_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
+                print_command(filename, add_server_call(lb_main_cmd, kwargs.get("analysis_pk", None),
+                                                        kwargs.get("socket_server_port")))
 
     # Establish whether step policies present
     step_flag = ''
@@ -2719,7 +2719,8 @@ def create_bash_analysis(
                         analysis_settings, num_reinsurance_iterations) if ip['level'] and ri_output},
                     rl_inuring_priorities={ip['level']: ip['text'] for ip in get_rl_inuring_priorities(num_reinsurance_iterations) if rl_output}
                 )
-                print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
+                print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None),
+                                                        kwargs.get("socket_server_port")))
 
             elif il_output:
                 main_cmd = get_main_cmd_il_stream(
@@ -2731,7 +2732,8 @@ def create_bash_analysis(
                     step_flag,
                     process_counter=process_counter
                 )
-                print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
+                print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None),
+                                                        kwargs.get("socket_server_port")))
 
             else:
                 main_cmd = get_main_cmd_gul_stream(
@@ -2741,12 +2743,13 @@ def create_bash_analysis(
                     stderr_guard=stderr_guard,
                     process_counter=process_counter,
                 )
-                print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
+                print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None),
+                                                        kwargs.get("socket_server_port")))
 
     # --- Wait for all background pipeline processes ---
     print_command(filename, '')
     do_pwaits(filename, process_counter)
-    if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
+    if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
         # Ensure killed if server doesnt end
         print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill -9 "$spid"')
 
@@ -3002,7 +3005,8 @@ def genbash(
     model_df_engine=None,
     dynamic_footprint=False,
     analysis_pk=None,
-    socket_server=None
+    socket_server_size=None,
+    socket_server_port=None
 ):
     """
     Generates a bash script containing pytools calculation instructions for an
@@ -3086,7 +3090,8 @@ def genbash(
         os.remove(filename)
 
     params['analysis_pk'] = analysis_pk
-    params['socket_server'] = socket_server
+    params['socket_server_size'] = socket_server_size
+    params['socket_server_port'] = socket_server_port
 
     with bash_wrapper(
         filename,
@@ -3099,19 +3104,19 @@ def genbash(
         create_bash_outputs(**params)
 
 
-def add_server_call(call, analysis_pk=None, socket_server=False):
+def add_server_call(call, analysis_pk=None, socket_server_port=None):
     """Inject WebSocket or socket-server flags into a GUL command string.
 
     If the environment variables ``OASIS_WEBSOCKET_URL`` and
     ``OASIS_WEBSOCKET_PORT`` are set and ``analysis_pk`` is provided, the
     ``gulmc``/``gulpy`` invocation within *call* is augmented with
-    ``--socket-server`` and ``--analysis-pk`` flags.  Otherwise, only the
-    ``--socket-server`` flag is added.
+    ``--socket-server`` and ``--analysis-pk`` flags.  Otherwise, the
+    ``--socket-server`` flag is set to ``IP:port`` when a port is known.
 
     Args:
         call (str): The full pipeline command string.
         analysis_pk (int or None): Analysis primary key for WebSocket mode.
-        socket_server (bool): Default socket-server flag value.
+        socket_server_port (int or None): Pre-checked available port to use.
 
     Returns:
         str: The (possibly modified) command string.
@@ -3120,4 +3125,6 @@ def add_server_call(call, analysis_pk=None, socket_server=False):
         return call
     if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']) and analysis_pk is not None:
         return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='True' --analysis-pk='{analysis_pk}'", call)
-    return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='{socket_server}'", call)
+    if socket_server_port is not None:
+        return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='{socket_server_port}'", call)
+    return call

@@ -275,7 +275,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         counter = 0
         timer = time.time()
-        ping = kwargs.get('socket_server', 'False') != 'False'
+        socket_server_val = kwargs.get('socket_server', 'False')
+        ping = socket_server_val != 'False'
+        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
         for event_data in read_getmodel_stream(streams_in, items,
                                                item_map_hm, item_map_hm_keys,
                                                item_map_ja_offsets,
@@ -321,11 +323,17 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             logger.info(f"event {event_id} DONE")
 
             if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
+                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
+                if ping_port is not None:
+                    ping_data['port_override'] = ping_port
+                oasis_ping(ping_data)
                 counter = 0
 
         if ping:
-            oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
+            ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
+            if ping_port is not None:
+                ping_data['port_override'] = ping_port
+            oasis_ping(ping_data)
     return 0
 
 
