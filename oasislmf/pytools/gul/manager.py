@@ -9,34 +9,32 @@ from contextlib import ExitStack
 from select import select
 
 import numpy as np
-import pandas as pd
 from numba import njit
-from numba.typed import Dict, List
 import time
 from oasislmf.utils.ping import oasis_ping
 
-from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
-from oasislmf.pytools.common.input_files import read_coverages, read_correlations
-from oasislmf.pytools.getmodel.common import Keys, oasis_float
-from oasislmf.pytools.getmodel.manager import get_damage_bins
-from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
-                                         ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,
+from oasislmf.pytools.getmodel.common import oasis_float
+from oasislmf.pytools.common.data import areaperil_int, oasis_int
+from oasislmf.pytools.common.hashmap import (
+    init_dict, unpack as hm_unpack, rehash as hm_rehash,
+    _try_add_key as hm_try_add_key, i_add_key_fail as hm_i_add_key_fail,
+)
+from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX,
+                                         MAX_LOSS_IDX,
                                          MEAN_IDX, NUM_IDX, STD_DEV_IDX,
-                                         TIV_IDX, coverage_type,
+                                         TIV_IDX,
                                          gulSampleslevelHeader_size,
                                          gulSampleslevelRec_size)
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss,
                                        split_tiv_classic,
                                        split_tiv_multiplicative)
 from oasislmf.pytools.gul.io import read_getmodel_stream
-from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
-                                         compute_norm_inv_cdf_lookup,
-                                         generate_correlated_hash_vector,
+from oasislmf.pytools.gul.random import (generate_correlated_hash_vector,
                                          get_corr_rval, get_random_generator)
-from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
+from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
@@ -93,32 +91,68 @@ def gul_get_items(input_path, ignore_file_type=set()):
     return items
 
 
+item_map_key_dtype = np.dtype([('areaperil_id', areaperil_int), ('vulnerability_id', np.int32)])
+
+
 @njit(cache=True, fastmath=True)
 def generate_item_map(items, coverages):
-    """Generate item_map; requires items to be sorted.
+    """Generate item_map as a hashmap + jagged array; requires items to be sorted.
+
+    Items must be sorted by (areaperil_id, vulnerability_id). Builds:
+        - hashmap: (areaperil_id, vulnerability_id) → pair_index
+        - jagged:  pair_index → item indices via ja_offsets / ja_item_idxs
 
     Args:
-        items (numpy.ndarray[int32, int32, int32]): 1-d structured array storing
-          `item_id`, `coverage_id`, `group_id` for all items.
-          items need to be sorted by increasing areaperil_id, vulnerability_id
-          in order to output the items in correct order.
+        items (numpy.ndarray): 1-d structured array sorted by
+            (areaperil_id, vulnerability_id).
+        coverages (numpy.ndarray): coverage id to information on items.
 
     Returns:
-        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-          the mapping between areaperil_id, vulnerability_id to item.
+        item_map_hm (np.array[uint8]): packed hashmap table.
+        item_map_hm_keys (np.array[item_map_key_dtype]): key storage for the hashmap.
+        item_map_ja_offsets (np.array[oasis_int]): CSR offsets (N_pairs + 1).
+        item_map_ja_item_idxs (np.array[oasis_int]): flat item indices into items array.
     """
-    item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
-    Nitems = items.shape[0]
+    N = items.shape[0]
 
-    for j in range(Nitems):
-        append_to_dict_value(
-            item_map,
-            tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['item_id'], items[j]['coverage_id'], items[j]['group_id'])),
-            ITEM_MAP_VALUE_TYPE
-        )
+    # Pass 1: extract unique (areaperil_id, vulnerability_id) pairs and record pair boundaries
+    item_map_hm_keys = np.empty(max(N, 1), dtype=item_map_key_dtype)
+    item_map_ja_offsets = np.empty(N + 1, dtype=oasis_int)
+    item_map_ja_offsets[0] = 0
+    pair_idx = np.int32(-1)
+    prev_ap = areaperil_int.type(0)
+    prev_vuln = np.int32(-1)
+    for j in range(N):
+        ap = items[j]['areaperil_id']
+        vuln = items[j]['vulnerability_id']
         coverages[items[j]['coverage_id']]['max_items'] += 1
-    return item_map
+        if ap != prev_ap or vuln != prev_vuln:
+            if pair_idx >= 0:
+                item_map_ja_offsets[pair_idx + 1] = j
+            pair_idx += 1
+            item_map_hm_keys[pair_idx]['areaperil_id'] = ap
+            item_map_hm_keys[pair_idx]['vulnerability_id'] = vuln
+            prev_ap = ap
+            prev_vuln = vuln
+    if pair_idx >= 0:
+        item_map_ja_offsets[pair_idx + 1] = N
+    n_pairs = pair_idx + 1
+    item_map_hm_keys = item_map_hm_keys[:n_pairs]
+    item_map_ja_offsets = item_map_ja_offsets[:n_pairs + 1]
+
+    # Pass 2: build hashmap from the extracted keys (by-position mode)
+    item_map_hm = init_dict(n_pairs)
+    hm_info, hm_lookup, hm_index = hm_unpack(item_map_hm)
+    for i in range(n_pairs):
+        result = hm_try_add_key(hm_info, hm_lookup, hm_index,
+                                item_map_hm_keys, item_map_hm_keys[i], i)
+        while result == hm_i_add_key_fail:
+            item_map_hm = hm_rehash(item_map_hm, item_map_hm_keys)
+            hm_info, hm_lookup, hm_index = hm_unpack(item_map_hm)
+            result = hm_try_add_key(hm_info, hm_lookup, hm_index,
+                                    item_map_hm_keys, item_map_hm_keys[i], i)
+
+    return (item_map_hm, item_map_hm_keys, item_map_ja_offsets)
 
 
 @redirect_logging(exec_name='gulpy')
@@ -147,43 +181,27 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     """
     logger.info("starting gulpy")
 
-    model_storage = get_storage_from_config_path(
-        os.path.join(run_dir, 'model_storage.json'),
-        os.path.join(run_dir, 'static'),
+    # --- load or build read-only structures --------------------------------
+    from oasislmf.pytools.gul.structure import (
+        gulpy_structure_exists, load_gulpy_structure,
+        build_structures as gul_build_structures,
     )
-    input_path = os.path.join(run_dir, 'input')
-    ignore_file_type = set(ignore_file_type)
-
-    damage_bins = get_damage_bins(model_storage)
-
-    # read coverages from file
-    coverages_tiv = read_coverages(input_path)
-
-    # load keys.csv to determine included AreaPerilID from peril_filter
-    if peril_filter:
-        keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
-        valid_area_peril_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
-        logger.debug(
-            f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
+    if gulpy_structure_exists(run_dir):
+        logger.info("loading pre-computed gulpy structures (shared memory)")
+        structures = load_gulpy_structure(run_dir)
     else:
-        valid_area_peril_id = None
+        logger.info("building gulpy structures from input files")
+        structures = gul_build_structures(run_dir, ignore_file_type, peril_filter)
 
-    # init the structure for computation
-    # coverages are numbered from 1, therefore we skip element 0 in `coverages`
-    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
-    coverages[1:]['tiv'] = coverages_tiv
-    del coverages_tiv
-
-    items = gul_get_items(input_path)
-
-    # in-place sort items in order to store them in item_map in the desired order
-    # currently numba only supports a simple call to np.sort() with no `order` keyword,
-    # so we do the sort here.
-    items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
-    item_map = generate_item_map(items, coverages)
+    damage_bins = structures['damage_bins']
+    coverages = structures['coverages'].copy()  # writable copy: cur_items/start_items mutated per event
+    items = structures['items']
+    item_map_hm = structures['item_map_hm']
+    item_map_hm_keys = structures['item_map_hm_keys']
+    item_map_ja_offsets = structures['item_map_ja_offsets']
 
     # init array to store the coverages to be computed
-    # coverages are numebered from 1, therefore skip element 0.
+    # coverages are numbered from 1, therefore skip element 0.
     compute = np.zeros(coverages.shape[0] + 1, items.dtype['coverage_id'])
 
     with ExitStack() as stack:
@@ -215,49 +233,31 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create the array to store the seeds
         seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
 
-        do_correlation = False
+        # --- correlation setup from pre-computed structures --------------------
+        do_correlation = bool(structures['do_correlation'])
         if ignore_correlation:
+            do_correlation = False
             logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
-
-        else:
-            data = read_correlations(input_path, filename='correlations.bin')
-            Nperil_correlation_groups = len(data)
-            logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
-
-            if Nperil_correlation_groups > 0 and any(data['damage_correlation_value'] > 0):
-                do_correlation = True
-            else:
-                logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
-                            "the correlation value is zero for all peril correlation groups.")
 
         if do_correlation:
             logger.info("Correlated random number generation: switched ON.")
+            corr_data_by_item_id = structures['corr_data_by_item_id']
+            unique_peril_correlation_groups = structures['unique_peril_correlation_groups']
+            norm_inv_cdf = structures['norm_inv_cdf']
+            norm_cdf = structures['norm_cdf']
 
-            corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=correlations_dtype)
-            corr_data_by_item_id[0] = (0, 0., 0., 0, 0.)
-            corr_data_by_item_id[1:]['peril_correlation_group'] = data['peril_correlation_group']
-            corr_data_by_item_id[1:]['damage_correlation_value'] = data['damage_correlation_value']
-
-            logger.info(
-                f"Correlation values for {Nperil_correlation_groups} peril correlation groups have been imported."
-            )
-
-            unique_peril_correlation_groups = np.unique(corr_data_by_item_id[1:]['peril_correlation_group'])
             corr_seeds = np.zeros(np.max(unique_peril_correlation_groups) + 1, dtype='int64')
 
-            # pre-compute lookup tables for the Gaussian cdf and inverse cdf
-            # Notes:
-            #  - the size `arr_N` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
-            #  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N.
             arr_min, arr_max, arr_N = 1e-16, 1 - 1e-16, 1000000
             arr_min_cdf, arr_max_cdf = -20., 20.
-            norm_inv_cdf = compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N)
-            norm_cdf = compute_norm_cdf_lookup(arr_min_cdf, arr_max_cdf, arr_N)
 
             # buffer to be re-used to store all the correlated random values
             z_unif = np.zeros(sample_size, dtype='float64')
 
         else:
+            if not ignore_correlation:
+                logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
+                            "the correlation value is zero for all peril correlation groups.")
             # create dummy data structures with proper dtypes to allow correct numba compilation
             corr_seeds = np.zeros(1, dtype='int64')
             corr_data_by_item_id = np.ndarray(1, dtype=correlations_dtype)
@@ -278,7 +278,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         socket_server_val = kwargs.get('socket_server', 'False')
         ping = socket_server_val != 'False'
         ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
-        for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
+        for event_data in read_getmodel_stream(streams_in, items,
+                                               item_map_hm, item_map_hm_keys,
+                                               item_map_ja_offsets,
+                                               coverages, compute, seeds):
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
             # generation of "base" random values is done as before

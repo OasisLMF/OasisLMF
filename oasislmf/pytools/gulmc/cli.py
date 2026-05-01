@@ -57,6 +57,9 @@ parser.add_argument('--socket-server', help='Send progress updates to a local so
                     default='False')
 parser.add_argument('--analysis-pk', help='Only used by platform to link run to an analysis',
                     default=None)
+parser.add_argument('--create-structures',
+                    help='Build shared gulmc structures and save as numpy files, then exit without processing events.',
+                    action='store_true', default=False)
 
 
 def main():
@@ -73,7 +76,18 @@ def main():
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
 
-    manager.run(**kwargs)
+    if kwargs.pop('create_structures'):
+        from oasislmf.pytools.gulmc.structure import create_gulmc_structure
+        create_gulmc_structure(
+            run_dir=kwargs.get('run_dir', '.'),
+            ignore_file_type=set(kwargs.get('ignore_file_type') or []),
+            peril_filter=kwargs.get('peril_filter') or [],
+            dynamic_footprint=kwargs.get('dynamic_footprint', False),
+            model_df_engine=kwargs.get('model_df_engine',
+                                       'oasis_data_manager.df_reader.reader.OasisPandasReader'),
+        )
+    else:
+        manager.run(**kwargs)
 
 
 if __name__ == '__main__':

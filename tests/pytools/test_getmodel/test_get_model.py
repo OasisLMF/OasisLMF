@@ -1,8 +1,4 @@
 from unittest import main, TestCase, mock
-from unittest.mock import patch
-
-from numba.typed import Dict
-from numba import int32 as nb_int32, float64 as nb_float64
 
 import os
 import shutil
@@ -10,23 +6,40 @@ import tempfile
 
 from oasislmf.pytools.getmodel.manager import get_vulns
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_to_parquet
+from oasislmf.pytools.common.hashmap import (
+    init_dict as hm_init_dict, unpack as hm_unpack, rehash as hm_rehash,
+    _try_add_key as hm_try_add_key, index_dtype as hm_index_dtype,
+    i_add_key_fail as hm_i_add_key_fail, new_slot_bit as hm_new_slot_bit,
+)
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 
 import numpy as np
-import numba as nb
 import pandas as pd
-import subprocess
 
 
 class TestGetVulns(TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.vuln_dict_base = {1: 2, 2: 0, 3: 1}
-        self.vuln_dict = Dict.empty(key_type=nb.int32, value_type=nb.int32)
-        for key, value in self.vuln_dict_base.items():
-            self.vuln_dict[key] = value
+        self.vuln_dict_base = {1: 0, 2: 1, 3: 2}  # insertion order: vuln_id -> dense index
+        self.vuln_ids_sorted = np.array([1, 2, 3], dtype=np.int32)
+        # Build hashmap from sorted vuln ids
+        vuln_key_table = np.empty(len(self.vuln_ids_sorted), dtype=np.int32)
+        vuln_table = hm_init_dict(len(self.vuln_ids_sorted))
+        hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
+        n_unique = hm_index_dtype(0)
+        for vid in self.vuln_ids_sorted:
+            vuln_key_table[n_unique] = vid
+            result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vid, n_unique)
+            while result == hm_i_add_key_fail:
+                vuln_table = hm_rehash(vuln_table, vuln_key_table)
+                hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
+                result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vid, n_unique)
+            if result & hm_new_slot_bit:
+                n_unique += hm_index_dtype(1)
+        self.vuln_map = vuln_table
+        self.vuln_map_keys = vuln_key_table[:n_unique]
         self.num_intensity_bins = 2
         self.mock_vuln_data = np.array([
             (1, 1, 1, 0.330),
@@ -69,13 +82,13 @@ class TestGetVulns(TestCase):
             (0, 2, 3, 0.4),
         ], dtype=[('vulnerability_id', 'i4'), ('intensity_bin_id', 'i4'), ('damage_bin_id', 'i4'), ('probability', 'f4')])
         self.expected_outputs = {
-            'vuln_array_adj': np.array([[[0.83, 0.08], [0.08, 0.08], [0.08, 0.83]],
-                                        [[0.4, 0.3], [0.3, 0.3], [0.3, 0.4]],
-                                        [[0.330, 0.330], [0.333, 0.333], [0.337, 0.337]]], dtype=np.float32),
-            'vuln_array': np.array([[[0.7, 0.1], [0.1, 0.2], [0.2, 0.7]],
-                                    [[0.4, 0.3], [0.3, 0.3], [0.3, 0.4]],
-                                    [[0.330, 0.330], [0.333, 0.333], [0.337, 0.337]]], dtype=np.float32),
-            'vulns_id': np.array([2, 3, 1], dtype=np.int32),
+            'vuln_array_adj': np.array([[[0.330, 0.330], [0.333, 0.333], [0.337, 0.337]],
+                                        [[0.83, 0.08], [0.08, 0.08], [0.08, 0.83]],
+                                        [[0.4, 0.3], [0.3, 0.3], [0.3, 0.4]]], dtype=np.float32),
+            'vuln_array': np.array([[[0.330, 0.330], [0.333, 0.333], [0.337, 0.337]],
+                                    [[0.7, 0.1], [0.1, 0.2], [0.2, 0.7]],
+                                    [[0.4, 0.3], [0.3, 0.3], [0.3, 0.4]]], dtype=np.float32),
+            'vulns_id': np.array([1, 2, 3], dtype=np.int32),
             'num_damage_bins': 3
         }
         self.ignore_file_type = {"parquet", "bin", "csv"}
@@ -142,7 +155,7 @@ class TestGetVulns(TestCase):
         model_storage = LocalStorage(root_dir=self.static_path, cache_dir=None)
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_map, self.vuln_map_keys,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             self.assertIsNotNone(vuln_array)
             self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -157,7 +170,7 @@ class TestGetVulns(TestCase):
         os.remove(os.path.join(self.temp_dir, 'vulnerability.bin'))
         os.rename(os.path.join(self.temp_dir, 'vul.bin'), os.path.join(self.temp_dir, 'vulnerability.bin'))
         os.rename(os.path.join(self.temp_dir, 'vul.idx'), os.path.join(self.temp_dir, 'vulnerability.idx'))
-        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
+        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_map, self.vuln_map_keys,
                                                           self.num_intensity_bins, ignore_file_type=ignore_file_types)
         self.assertIsNotNone(vuln_array)
         self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -178,7 +191,7 @@ class TestGetVulns(TestCase):
                                return_value={'vulnerability_adjustments': {
                                    'replace_file': str(os.path.join(self.static_path, "vulnerability_adj.csv"))}
                                }) as mock_util:
-                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
+                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_map, self.vuln_map_keys,
                                                                       self.num_intensity_bins, ignore_file_type=ignore_file_types)
                     self.assertIsNotNone(vuln_array)
                     self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -198,7 +211,7 @@ class TestGetVulns(TestCase):
                                    'replace_file': str(os.path.join(self.static_path, "vulnerability_adj.csv"))}
                                }) as mock_util:
 
-                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
+                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_map, self.vuln_map_keys,
                                                                       self.num_intensity_bins, ignore_file_type=ignore_file_types)
                     self.assertIsNotNone(vuln_array)
                     self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -221,7 +234,7 @@ class TestGetVulns(TestCase):
                                return_value={'vulnerability_adjustments': {
                                    'replace_file': str(os.path.join(self.static_path, "vulnerability_adj.csv"))}
                                }) as mock_util:
-                vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
+                vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_map, self.vuln_map_keys,
                                                                   self.num_intensity_bins, ignore_file_type=ignore_file_types)
                 self.assertIsNotNone(vuln_array)
                 self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -237,7 +250,7 @@ class TestGetVulns(TestCase):
         model_storage = LocalStorage(root_dir=self.static_path, cache_dir=None)
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_map, self.vuln_map_keys,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             vuln_arrays_no_adj[file_type] = vuln_array
             vuln_ids_no_adj[file_type] = vulns_id
@@ -260,7 +273,7 @@ class TestGetVulns(TestCase):
                                    return_value={'vulnerability_adjustments': {
                                        'replace_data': vuln_dict_adj}
                                    }) as mock_util:
-                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
+                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_map, self.vuln_map_keys,
                                                                       self.num_intensity_bins, ignore_file_type=ignore_file_types)
                     vuln_arrays_with_adj[file_type] = vuln_array
                     vuln_ids_with_adj[file_type] = vulns_id
@@ -285,9 +298,9 @@ class TestGetVulns(TestCase):
                            return_value={'vulnerability_adjustments': {
                                'replace_data': vuln_dict_adj}
                            }) as mock_util:
-                vuln_array_idx_adj, vulns_id_idx_adj, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
+                vuln_array_idx_adj, vulns_id_idx_adj, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_map, self.vuln_map_keys,
                                                                                   self.num_intensity_bins, ignore_file_type=ignore_file_types)
-        vuln_array_idx, vulns_id_idx, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
+        vuln_array_idx, vulns_id_idx, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_map, self.vuln_map_keys,
                                                                   self.num_intensity_bins, ignore_file_type=ignore_file_types)
         for vuln_id in vulns_id_idx:
             idx_no_adj = np.where(vulns_id_idx == vuln_id)[0][0]
