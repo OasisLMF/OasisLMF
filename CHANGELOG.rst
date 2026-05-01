@@ -1,6 +1,22 @@
 OasisLMF Changelog
 ==================
 
+`2.5.3`_
+ ---------
+* [#1903](https://github.com/OasisLMF/OasisLMF/pull/1903) - remove pd from summarypy to save on memory usage
+* [#1920](https://github.com/OasisLMF/OasisLMF/pull/1920) - enhancement/lecpy_speed
+* [#1931](https://github.com/OasisLMF/OasisLMF/pull/1931) - Feature/cython write csv  reverted
+* [#1935](https://github.com/OasisLMF/OasisLMF/pull/1935) - enhacement/peril info from OEDSpec
+* [#1939](https://github.com/OasisLMF/OasisLMF/pull/1939) - bug/move h3 tests
+* [#1941](https://github.com/OasisLMF/OasisLMF/pull/1941) - Fix #1936: correct UTC timestamps in get_utctimestamp
+* [#1945](https://github.com/OasisLMF/OasisLMF/pull/1945) - Fix resource monitor for V2 worker runs
+* [#1948](https://github.com/OasisLMF/OasisLMF/pull/1948) - fix/nonzero default fm profile
+* [#1951](https://github.com/OasisLMF/OasisLMF/pull/1951) - fix/join-summary-info-bugs
+* [#1956](https://github.com/OasisLMF/OasisLMF/pull/1956) - fix: reduce memory usage in FootprintBin/FootprintBinZ and skip footprint load when data_server active
+* [#1959](https://github.com/OasisLMF/OasisLMF/pull/1959) - API client, added option for disabled auth
+* [#1960](https://github.com/OasisLMF/OasisLMF/pull/1960) - Directly send port to gulmc gulpy and socket server
+.. _`2.5.3`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.2...2.5.3
+
 `2.5.2`_
  ---------
 * [#1873](https://github.com/OasisLMF/OasisLMF/pull/1873) - Add docstrings and documentation to bash.py

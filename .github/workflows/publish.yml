@@ -333,7 +333,7 @@ jobs:
 
   # --- Notify Slack --- #
   slack:
-    if: ${{ env.PYPI_TEST == 'false' }}
+    if: ${{ !inputs.pypi_test }}
     uses: ./.github/workflows/notify.yml
     secrets: inherit
     needs: release
