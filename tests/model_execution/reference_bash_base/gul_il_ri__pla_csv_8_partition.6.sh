@@ -59,7 +59,7 @@ tee < fifo/gul_S1_summary_P7 fifo/gul_S1_plt_ord_P7 fifo/gul_S1_elt_ord_P7 fifo/
 tee < fifo/gul_S1_summary_P7.idx work/gul_S1_summary_palt/P7.idx work/gul_S1_summaryleccalc/P7.idx > /dev/null & pid10=$!
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P7 < fifo/gul_P7 &
 
-( evepy 7 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | tee fifo/gul_P7 | fmpy -a2 > fifo/il_P7  ) & pid11=$!
+( evepy 7 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | tee fifo/gul_P7 | fmpy -a2 > fifo/il_P7  ) & pid11=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11
 

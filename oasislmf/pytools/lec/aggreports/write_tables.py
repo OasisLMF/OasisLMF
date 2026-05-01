@@ -1,9 +1,9 @@
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, nb_oasis_int
-from oasislmf.pytools.lec.data import (EPT_dtype, PSEPT_dtype, TAIL_valtype, NB_TAIL_valtype)
-from oasislmf.pytools.lec.utils import (create_empty_array, get_wheatsheaf_items_idx, get_wheatsheaf_items_idx_data, resize_array)
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE
+from oasislmf.pytools.lec.data import (EPT_dtype, PSEPT_dtype, TAIL_valtype)
+from oasislmf.pytools.lec.utils import (get_wheatsheaf_items_idx, get_wheatsheaf_items_idx_data)
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -43,32 +43,28 @@ def get_loss(
 def fill_tvar(
     tail,
     tail_sizes,
+    tail_offsets,
     summary_id,
     next_retperiod,
     tvar
 ):
     """Populate the Tail with retperiod and tvar values for summary_id
     Args:
-        tail (nb.typed.Dict[nb_oasis_int, NB_TAIL_valtype]): Dict of Summary ID to vector of (return period, tvar) values
-        tail_sizes (nb.typed.Dict[nb_oasis_int, nb.types.int64]): Dict of Summary ID to size of each tail array
+        tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
+        tail_sizes (ndarray[int64]): Array of current fill size per summary_id
+        tail_offsets (ndarray[int64]): Array of start positions per summary_id in tail
         summary_id (int): Summary ID
         next_retperiod (float): Next Return Period
         tvar (float): Tail Value at Risk
     Returns:
-        tail (nb.typed.Dict[nb_oasis_int, NB_TAIL_valtype]): Dict of summary_id to vector of (return period, tvar) values
-        tail_sizes (nb.typed.Dict[nb_oasis_int, nb.types.int64]): Dict of summary_id to size of each tail array
+        tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
+        tail_sizes (ndarray[int64]): Array of current fill size per summary_id
     """
-    if summary_id not in tail:
-        tail[summary_id] = create_empty_array(TAIL_valtype)
-        tail_sizes[summary_id] = 0
-    tail_arr = tail[summary_id]
-    tail_arr = resize_array(tail_arr, tail_sizes[summary_id])
-    tail_current_size = tail_sizes[summary_id]
-    tail_arr[tail_current_size]["retperiod"] = next_retperiod
-    tail_arr[tail_current_size]["tvar"] = tvar
-    tail[summary_id] = tail_arr
-    tail_sizes[summary_id] += 1
-
+    idx = summary_id - 1
+    insert_pos = tail_offsets[idx] + tail_sizes[idx]
+    tail[insert_pos]["retperiod"] = next_retperiod
+    tail[insert_pos]["tvar"] = tvar
+    tail_sizes[idx] += 1
     return tail, tail_sizes
 
 
@@ -76,6 +72,7 @@ def fill_tvar(
 def fill_tvar_wheatsheaf(
     tail,
     tail_sizes,
+    tail_offsets,
     summary_id,
     sidx,
     num_sidxs,
@@ -84,29 +81,23 @@ def fill_tvar_wheatsheaf(
 ):
     """Populate the Tail with retperiod and tvar values for (summary_id, sidx) pair
     Args:
-        tail (nb.typed.Dict[nb_oasis_int, NB_TAIL_valtype]): Dict of (summary_id, sidx) pair to vector of (return period, tvar) values
-        tail_sizes (nb.typed.Dict[nb_oasis_int, nb.types.int64]): Dict of (summary_id, sidx) pair to size of each tail array
+        tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
+        tail_sizes (ndarray[int64]): Array of current fill size per (summary_id, sidx) idx
+        tail_offsets (ndarray[int64]): Array of start positions per idx in tail
         summary_id (int): Summary ID
         sidx (int): Sample ID
         num_sidxs (int): Number of sidxs to consider
         next_retperiod (float): Next Return Period
         tvar (float): Tail Value at Risk
     Returns:
-        tail (nb.typed.Dict[nb_oasis_int, NB_TAIL_valtype]): Dict of (summary_id, sidx) pair to vector of (return period, tvar) values
-        tail_sizes (nb.typed.Dict[nb_oasis_int, nb.types.int64]): Dict of (summary_id, sidx) pair to size of each tail array
+        tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
+        tail_sizes (ndarray[int64]): Array of current fill size per (summary_id, sidx) idx
     """
     idx = get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs)
-    if idx not in tail:
-        tail[idx] = create_empty_array(TAIL_valtype)
-        tail_sizes[idx] = 0
-    tail_arr = tail[idx]
-    tail_arr = resize_array(tail_arr, tail_sizes[idx])
-    tail_current_size = tail_sizes[idx]
-    tail_arr[tail_current_size]["retperiod"] = next_retperiod
-    tail_arr[tail_current_size]["tvar"] = tvar
-    tail[idx] = tail_arr
+    insert_pos = tail_offsets[idx] + tail_sizes[idx]
+    tail[insert_pos]["retperiod"] = next_retperiod
+    tail[insert_pos]["tvar"] = tvar
     tail_sizes[idx] += 1
-
     return tail, tail_sizes
 
 
@@ -125,6 +116,7 @@ def write_return_period_out(
     tvar,
     tail,
     tail_sizes,
+    tail_offsets,
     returnperiods,
     mean_map=None,
     is_wheatsheaf=False,
@@ -143,16 +135,17 @@ def write_return_period_out(
         max_retperiod (int): Maximum return period to be used in calculations
         counter (int): Counter used for updating TVaR
         tvar (float): Tail Value at Risk
-        tail (nb.typed.Dict[nb_oasis_int, NB_TAIL_valtype]): Dict of summary_id or (summary_id, sidx) pair to vector of (return period, tvar) values
-        tail_sizes (nb.typed.Dict[nb_oasis_int, nb.types.int64]): Dict of summary_id or (summary_id, sidx) pair to size of each tail array
+        tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
+        tail_sizes (ndarray[int64]): Array of current fill size per summary/idx
+        tail_offsets (ndarray[int64]): Array of start positions per summary/idx in tail
         returnperiods (ndarray[np.int32]): Return Periods array
         mean_map (ndarray[MEANMAP_dtype], optional): An array mapping used for mean loss calculations per Summary ID. Used for EPT output later. Defaults to None.
         is_wheatsheaf (bool, optional): If True, update the wheatsheaf TVaR structure.
         num_sidxs (int, optional): Number of sidxs to consider. Defaults to -1 if not is_wheatsheaf.
     Returns:
         rets (list[EPT_dtype]): Return period and Loss EPT data
-        tail (nb.typed.Dict[nb_oasis_int, NB_TAIL_valtype]): Dict of summary_id or (summary_id, sidx) pair to vector of (return period, tvar) values
-        tail_sizes (nb.typed.Dict[nb_oasis_int, nb.types.int64]): Dict of summary_id or (summary_id, sidx) pair to size of each tail array
+        tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
+        tail_sizes (ndarray[int64]): Array of current fill size per summary/idx
         last_computed_rp (float): Last computed return period
         last_computed_loss (float): Last computed loss value
     """
@@ -192,6 +185,7 @@ def write_return_period_out(
                 tail, tail_sizes = fill_tvar_wheatsheaf(
                     tail,
                     tail_sizes,
+                    tail_offsets,
                     summary_id,
                     epcalc,
                     num_sidxs,
@@ -202,6 +196,7 @@ def write_return_period_out(
                 tail, tail_sizes = fill_tvar(
                     tail,
                     tail_sizes,
+                    tail_offsets,
                     summary_id,
                     next_retperiod,
                     tvar,
@@ -225,21 +220,35 @@ def write_tvar(
     eptype_tvar,
     tail,
     tail_sizes,
+    tail_offsets,
+    max_summary_id,
 ):
     """Get TVaR values for EPT output from tail
     Args:
         epcalc (int): Type of exceedance probability calculation.
         eptype_tvar (int): Type of Tail Value-at-Risk (TVAR) to calculate (0 = OEP TVAR, 1 = AEP TVAR).
-        tail (nb.typed.Dict[nb_oasis_int, NB_TAIL_valtype]): Dict of summary_id to vector of (return period, tvar) values
-        tail_sizes (nb.typed.Dict[nb_oasis_int, nb.types.int64]): Dict of summary_id pair to size of each tail array
+        tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
+        tail_sizes (ndarray[int64]): Array of current fill size per summary_id
+        tail_offsets (ndarray[int64]): Array of start positions per summary_id in tail
+        max_summary_id (int): Maximum summary ID
     Returns:
-        rets (list[EPT_dtype]): Return period and Loss EPT data
+        rets (ndarray[EPT_dtype]): Return period and Loss EPT data
     """
-    rets = []
-    for summary_id in sorted(tail.keys()):
-        vals = tail[summary_id][:tail_sizes[summary_id]]
-        for row in vals:
-            rets.append((summary_id, epcalc, eptype_tvar, row["retperiod"], row["tvar"]))
+    rets = np.empty(np.sum(tail_sizes), dtype=EPT_dtype)
+    pos = 0
+    for i in range(max_summary_id):
+        size = tail_sizes[i]
+        if size == 0:
+            continue
+        summary_id = i + 1
+        for j in range(size):
+            p = tail_offsets[i] + j
+            rets[pos]["SummaryId"] = summary_id
+            rets[pos]["EPCalc"] = epcalc
+            rets[pos]["EPType"] = eptype_tvar
+            rets[pos]["ReturnPeriod"] = tail[p]["retperiod"]
+            rets[pos]["Loss"] = tail[p]["tvar"]
+            pos += 1
     return rets
 
 
@@ -249,22 +258,35 @@ def write_tvar_wheatsheaf(
     eptype_tvar,
     tail,
     tail_sizes,
+    tail_offsets,
+    total_idxs,
 ):
     """Get TVaR values for PSEPT output from tail
     Args:
         num_sidxs (int): Number of sidxs to consider.
         eptype_tvar (int): Type of Tail Value-at-Risk (TVAR) to calculate (0 = OEP TVAR, 1 = AEP TVAR).
-        tail (nb.typed.Dict[nb_oasis_int, NB_TAIL_valtype]): Dict of (summary_id, sidx) pair to vector of (return period, tvar) values
-        tail_sizes (nb.typed.Dict[nb_oasis_int, nb.types.int64]): Dict of (summary_id, sidx) pair to size of each tail array
+        tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
+        tail_sizes (ndarray[int64]): Array of current fill size per (summary_id, sidx) idx
+        tail_offsets (ndarray[int64]): Array of start positions per idx in tail
+        total_idxs (int): Total number of (summary_id, sidx) index entries
     Returns:
-        rets (list[PSEPT_dtype]): Return period and Loss PSEPT data
+        rets (ndarray[PSEPT_dtype]): Return period and Loss PSEPT data
     """
-    rets = []
-    for idx in sorted(tail.keys()):
+    rets = np.empty(np.sum(tail_sizes), dtype=PSEPT_dtype)
+    pos = 0
+    for idx in range(total_idxs):
+        size = tail_sizes[idx]
+        if size == 0:
+            continue
         sidx, summary_id = get_wheatsheaf_items_idx_data(idx, num_sidxs)
-        vals = tail[idx][:tail_sizes[idx]]
-        for row in vals:
-            rets.append((summary_id, sidx, eptype_tvar, row["retperiod"], row["tvar"]))
+        for j in range(size):
+            p = tail_offsets[idx] + j
+            rets[pos]["SummaryId"] = summary_id
+            rets[pos]["SampleId"] = sidx
+            rets[pos]["EPType"] = eptype_tvar
+            rets[pos]["ReturnPeriod"] = tail[p]["retperiod"]
+            rets[pos]["Loss"] = tail[p]["tvar"]
+            pos += 1
     return rets
 
 
@@ -289,7 +311,7 @@ def write_ept(
     - TVAR (Tail Conditional Expectation): Calculated as the average of losses exceeding a given return period.
     Args:
         items (ndarray[LOSSVEC2MAP_dtype]): Array mapping summary_id to loss value (and period_no/period_weighting where applicable)
-        items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each summary_id in the items array 
+        items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each summary_id in the items array
         max_retperiod (int): Maximum return period to be used in calculations
         epcalc (int): Specifies the calculation method (mean damage loss, full uncertainty, per sample mean, sample mean).
         eptype (int): Type of exceedance probability (0 = OEP, 1 = AEP).
@@ -307,8 +329,22 @@ def write_ept(
     if len(items) == 0 or sample_size == 0:
         return
 
-    tail = nb.typed.Dict.empty(nb_oasis_int, NB_TAIL_valtype)
-    tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
+    tail_sizes = np.zeros(max_summary_id, dtype=np.int64)
+    tail_offsets = np.zeros(max_summary_id + 1, dtype=np.int64)
+    if use_return_period:
+        rp_len = len(returnperiods) if len(returnperiods) > 0 else 1
+        for s in range(max_summary_id + 1):
+            tail_offsets[s] = s * rp_len
+        tail = np.zeros(max_summary_id * rp_len, dtype=TAIL_valtype)
+    else:
+        for s in range(max_summary_id):
+            start, end = items_start_end[s]
+            if start != -1:
+                tail_offsets[s + 1] = tail_offsets[s] + (end - start)
+            else:
+                tail_offsets[s + 1] = tail_offsets[s]
+        total_tail = tail_offsets[max_summary_id]
+        tail = np.zeros(total_tail if total_tail > 0 else 1, dtype=TAIL_valtype)
 
     for summary_id in range(1, max_summary_id + 1):
         start, end = items_start_end[summary_id - 1]
@@ -342,6 +378,7 @@ def write_ept(
                         tvar,
                         tail,
                         tail_sizes,
+                        tail_offsets,
                         returnperiods,
                     )
                     for ret in rets:
@@ -357,17 +394,10 @@ def write_ept(
                 tvar = tvar - ((tvar - value) / i)
             else:
                 tvar = tvar - ((tvar - value) / i)
-
-                if summary_id not in tail:
-                    tail[summary_id] = create_empty_array(TAIL_valtype)
-                    tail_sizes[summary_id] = 0
-                tail_arr = tail[summary_id]
-                tail_arr = resize_array(tail_arr, tail_sizes[summary_id])
-                tail_current_size = tail_sizes[summary_id]
-                tail_arr[tail_current_size]["retperiod"] = retperiod
-                tail_arr[tail_current_size]["tvar"] = tvar
-                tail[summary_id] = tail_arr
-                tail_sizes[summary_id] += 1
+                insert_pos = tail_offsets[summary_id - 1] + tail_sizes[summary_id - 1]
+                tail[insert_pos]["retperiod"] = retperiod
+                tail[insert_pos]["tvar"] = tvar
+                tail_sizes[summary_id - 1] += 1
 
                 if bidx >= len(buffer):
                     yield buffer[:bidx]
@@ -403,6 +433,7 @@ def write_ept(
                         tvar,
                         tail,
                         tail_sizes,
+                        tail_offsets,
                         returnperiods,
                     )
                     for ret in rets:
@@ -423,16 +454,18 @@ def write_ept(
         eptype_tvar,
         tail,
         tail_sizes,
+        tail_offsets,
+        max_summary_id,
     )
     for ret in rets:
         if bidx >= len(buffer):
             yield buffer[:bidx]
             bidx = 0
-        buffer[bidx]["SummaryId"] = ret[0]
-        buffer[bidx]["EPCalc"] = ret[1]
-        buffer[bidx]["EPType"] = ret[2]
-        buffer[bidx]["ReturnPeriod"] = ret[3]
-        buffer[bidx]["Loss"] = ret[4]
+        buffer[bidx]["SummaryId"] = ret["SummaryId"]
+        buffer[bidx]["EPCalc"] = ret["EPCalc"]
+        buffer[bidx]["EPType"] = ret["EPType"]
+        buffer[bidx]["ReturnPeriod"] = ret["ReturnPeriod"]
+        buffer[bidx]["Loss"] = ret["Loss"]
         bidx += 1
     yield buffer[:bidx]
 
@@ -453,8 +486,8 @@ def write_ept_weighted(
 ):
     """Generate Loss Exceedance Curve values and Tail Value at Risk values based on items and epcalc/eptype/eptype_tvar.
 
-    This function calculates weighted exceedance probability tables using cumulative period weightings (`period_weighting`), 
-    which impact the calculation of return periods. The weighting allows for more accurate representation of losses when 
+    This function calculates weighted exceedance probability tables using cumulative period weightings (`period_weighting`),
+    which impact the calculation of return periods. The weighting allows for more accurate representation of losses when
     event periods have different probabilities or frequencies of occurrence.
 
     The loss calculation follows these principles:
@@ -463,7 +496,7 @@ def write_ept_weighted(
     - TVAR (Tail Conditional Expectation): Calculated as the average of losses exceeding a given return period.
     Args:
         items (ndarray[LOSSVEC2MAP_dtype]): Array mapping summary_id to loss value (and period_no/period_weighting where applicable)
-        items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each summary_id in the items array 
+        items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each summary_id in the items array
         cum_weight_constant (float): Constant factor for scaling cumulative period weights.
         epcalc (int): Specifies the calculation method (mean damage loss, full uncertainty, per sample mean, sample mean).
         eptype (int): Type of exceedance probability (0 = OEP, 1 = AEP).
@@ -482,8 +515,22 @@ def write_ept_weighted(
     if len(items) == 0 or sample_size == 0:
         return
 
-    tail = nb.typed.Dict.empty(nb_oasis_int, NB_TAIL_valtype)
-    tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
+    tail_sizes = np.zeros(max_summary_id, dtype=np.int64)
+    tail_offsets = np.zeros(max_summary_id + 1, dtype=np.int64)
+    if use_return_period:
+        rp_len = len(returnperiods) if len(returnperiods) > 0 else 1
+        for s in range(max_summary_id + 1):
+            tail_offsets[s] = s * rp_len
+        tail = np.zeros(max_summary_id * rp_len, dtype=TAIL_valtype)
+    else:
+        for s in range(max_summary_id):
+            start, end = items_start_end[s]
+            if start != -1:
+                tail_offsets[s + 1] = tail_offsets[s] + (end - start)
+            else:
+                tail_offsets[s + 1] = tail_offsets[s]
+        total_tail = tail_offsets[max_summary_id]
+        tail = np.zeros(total_tail if total_tail > 0 else 1, dtype=TAIL_valtype)
 
     for summary_id in range(1, max_summary_id + 1):
         start, end = items_start_end[summary_id - 1]
@@ -529,6 +576,7 @@ def write_ept_weighted(
                             tvar,
                             tail,
                             tail_sizes,
+                            tail_offsets,
                             returnperiods,
                         )
                         for ret in rets:
@@ -544,17 +592,10 @@ def write_ept_weighted(
                     tvar = tvar - ((tvar - (value)) / i)
                 else:
                     tvar = tvar - ((tvar - (value)) / i)
-
-                    if summary_id not in tail:
-                        tail[summary_id] = create_empty_array(TAIL_valtype)
-                        tail_sizes[summary_id] = 0
-                    tail_arr = tail[summary_id]
-                    tail_arr = resize_array(tail_arr, tail_sizes[summary_id])
-                    tail_current_size = tail_sizes[summary_id]
-                    tail_arr[tail_current_size]["retperiod"] = retperiod
-                    tail_arr[tail_current_size]["tvar"] = tvar
-                    tail[summary_id] = tail_arr
-                    tail_sizes[summary_id] += 1
+                    insert_pos = tail_offsets[summary_id - 1] + tail_sizes[summary_id - 1]
+                    tail[insert_pos]["retperiod"] = retperiod
+                    tail[insert_pos]["tvar"] = tvar
+                    tail_sizes[summary_id - 1] += 1
 
                     if bidx >= len(buffer):
                         yield buffer[:bidx]
@@ -594,6 +635,7 @@ def write_ept_weighted(
                         tvar,
                         tail,
                         tail_sizes,
+                        tail_offsets,
                         returnperiods,
                     )
                     for ret in rets:
@@ -614,16 +656,18 @@ def write_ept_weighted(
         eptype_tvar,
         tail,
         tail_sizes,
+        tail_offsets,
+        max_summary_id,
     )
     for ret in rets:
         if bidx >= len(buffer):
             yield buffer[:bidx]
             bidx = 0
-        buffer[bidx]["SummaryId"] = ret[0]
-        buffer[bidx]["EPCalc"] = ret[1]
-        buffer[bidx]["EPType"] = ret[2]
-        buffer[bidx]["ReturnPeriod"] = ret[3]
-        buffer[bidx]["Loss"] = ret[4]
+        buffer[bidx]["SummaryId"] = ret["SummaryId"]
+        buffer[bidx]["EPCalc"] = ret["EPCalc"]
+        buffer[bidx]["EPType"] = ret["EPType"]
+        buffer[bidx]["ReturnPeriod"] = ret["ReturnPeriod"]
+        buffer[bidx]["Loss"] = ret["Loss"]
         bidx += 1
     yield buffer[:bidx]
 
@@ -644,7 +688,7 @@ def write_psept(
     exceedance curve for each sample, eptype, eptype_tvar.
     Args:
         items (ndarray[WHEATKEYITEMS_dtype]): Array mapping (summary_id, sidx) to loss value (and period_no/period_weighting where applicable)
-        items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each (summary_id, sidx) pair in the items array 
+        items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each (summary_id, sidx) pair in the items array
         max_retperiod (int): Maximum return period to be used in calculations
         eptype (int): Type of exceedance probability (0 = OEP, 1 = AEP).
         eptype_tvar (int): Type of Tail Value-at-Risk (TVAR) to calculate (0 = OEP TVAR, 1 = AEP TVAR).
@@ -661,10 +705,25 @@ def write_psept(
     if len(items) == 0:
         return
 
-    tail = nb.typed.Dict.empty(nb_oasis_int, NB_TAIL_valtype)
-    tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
+    total_idxs = max_summary_id * num_sidxs
+    tail_sizes = np.zeros(total_idxs, dtype=np.int64)
+    tail_offsets = np.zeros(total_idxs + 1, dtype=np.int64)
+    if use_return_period:
+        rp_len = len(returnperiods) if len(returnperiods) > 0 else 1
+        for s in range(total_idxs + 1):
+            tail_offsets[s] = s * rp_len
+        tail = np.zeros(total_idxs * rp_len, dtype=TAIL_valtype)
+    else:
+        for s in range(total_idxs):
+            start, end = items_start_end[s]
+            if start != -1:
+                tail_offsets[s + 1] = tail_offsets[s] + (end - start)
+            else:
+                tail_offsets[s + 1] = tail_offsets[s]
+        total_tail = tail_offsets[total_idxs]
+        tail = np.zeros(total_tail if total_tail > 0 else 1, dtype=TAIL_valtype)
 
-    for idx in range(max_summary_id * num_sidxs):
+    for idx in range(total_idxs):
         start, end = items_start_end[idx]
         if start == -1:
             continue
@@ -697,6 +756,7 @@ def write_psept(
                         tvar,
                         tail,
                         tail_sizes,
+                        tail_offsets,
                         returnperiods,
                         is_wheatsheaf=True,
                         num_sidxs=num_sidxs,
@@ -714,16 +774,9 @@ def write_psept(
                 tvar = tvar - ((tvar - value) / i)
             else:
                 tvar = tvar - ((tvar - value) / i)
-
-                if idx not in tail:
-                    tail[idx] = create_empty_array(TAIL_valtype)
-                    tail_sizes[idx] = 0
-                tail_arr = tail[idx]
-                tail_arr = resize_array(tail_arr, tail_sizes[idx])
-                tail_current_size = tail_sizes[idx]
-                tail_arr[tail_current_size]["retperiod"] = retperiod
-                tail_arr[tail_current_size]["tvar"] = tvar
-                tail[idx] = tail_arr
+                insert_pos = tail_offsets[idx] + tail_sizes[idx]
+                tail[insert_pos]["retperiod"] = retperiod
+                tail[insert_pos]["tvar"] = tvar
                 tail_sizes[idx] += 1
 
                 if bidx >= len(buffer):
@@ -760,6 +813,7 @@ def write_psept(
                         tvar,
                         tail,
                         tail_sizes,
+                        tail_offsets,
                         returnperiods,
                         is_wheatsheaf=True,
                         num_sidxs=num_sidxs,
@@ -782,16 +836,18 @@ def write_psept(
         eptype_tvar,
         tail,
         tail_sizes,
+        tail_offsets,
+        total_idxs,
     )
     for ret in rets:
         if bidx >= len(buffer):
             yield buffer[:bidx]
             bidx = 0
-        buffer[bidx]["SummaryId"] = ret[0]
-        buffer[bidx]["SampleId"] = ret[1]
-        buffer[bidx]["EPType"] = ret[2]
-        buffer[bidx]["ReturnPeriod"] = ret[3]
-        buffer[bidx]["Loss"] = ret[4]
+        buffer[bidx]["SummaryId"] = ret["SummaryId"]
+        buffer[bidx]["SampleId"] = ret["SampleId"]
+        buffer[bidx]["EPType"] = ret["EPType"]
+        buffer[bidx]["ReturnPeriod"] = ret["ReturnPeriod"]
+        buffer[bidx]["Loss"] = ret["Loss"]
         bidx += 1
     yield buffer[:bidx]
 
@@ -815,7 +871,7 @@ def write_psept_weighted(
     exceedance curve for each sample, eptype, eptype_tvar.
     Args:
         items (ndarray[WHEATKEYITEMS_dtype]): Array mapping (summary_id, sidx) to loss value (and period_no/period_weighting where applicable)
-        items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each (summary_id, sidx) pair in the items array 
+        items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each (summary_id, sidx) pair in the items array
         max_retperiod (int): Maximum return period to be used in calculations
         eptype (int): Type of exceedance probability (0 = OEP, 1 = AEP).
         eptype_tvar (int): Type of Tail Value-at-Risk (TVAR) to calculate (0 = OEP TVAR, 1 = AEP TVAR).
@@ -835,10 +891,25 @@ def write_psept_weighted(
     if len(items) == 0:
         return
 
-    tail = nb.typed.Dict.empty(nb_oasis_int, NB_TAIL_valtype)
-    tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
+    total_idxs = max_summary_id * num_sidxs
+    tail_sizes = np.zeros(total_idxs, dtype=np.int64)
+    tail_offsets = np.zeros(total_idxs + 1, dtype=np.int64)
+    if use_return_period:
+        rp_len = len(returnperiods) if len(returnperiods) > 0 else 1
+        for s in range(total_idxs + 1):
+            tail_offsets[s] = s * rp_len
+        tail = np.zeros(total_idxs * rp_len, dtype=TAIL_valtype)
+    else:
+        for s in range(total_idxs):
+            start, end = items_start_end[s]
+            if start != -1:
+                tail_offsets[s + 1] = tail_offsets[s] + (end - start)
+            else:
+                tail_offsets[s + 1] = tail_offsets[s]
+        total_tail = tail_offsets[total_idxs]
+        tail = np.zeros(total_tail if total_tail > 0 else 1, dtype=TAIL_valtype)
 
-    for idx in range(max_summary_id * num_sidxs):
+    for idx in range(total_idxs):
         start, end = items_start_end[idx]
         if start == -1:
             continue
@@ -883,6 +954,7 @@ def write_psept_weighted(
                             tvar,
                             tail,
                             tail_sizes,
+                            tail_offsets,
                             returnperiods,
                             mean_map=mean_map,
                             is_wheatsheaf=True,
@@ -901,16 +973,9 @@ def write_psept_weighted(
                     tvar = tvar - ((tvar - (value)) / i)
                 else:
                     tvar = tvar - ((tvar - (value)) / i)
-
-                    if idx not in tail:
-                        tail[idx] = create_empty_array(TAIL_valtype)
-                        tail_sizes[idx] = 0
-                    tail_arr = tail[idx]
-                    tail_arr = resize_array(tail_arr, tail_sizes[idx])
-                    tail_current_size = tail_sizes[idx]
-                    tail_arr[tail_current_size]["retperiod"] = retperiod
-                    tail_arr[tail_current_size]["tvar"] = tvar
-                    tail[idx] = tail_arr
+                    insert_pos = tail_offsets[idx] + tail_sizes[idx]
+                    tail[insert_pos]["retperiod"] = retperiod
+                    tail[insert_pos]["tvar"] = tvar
                     tail_sizes[idx] += 1
 
                     if bidx >= len(buffer):
@@ -951,6 +1016,7 @@ def write_psept_weighted(
                         tvar,
                         tail,
                         tail_sizes,
+                        tail_offsets,
                         returnperiods,
                         mean_map=mean_map,
                         is_wheatsheaf=True,
@@ -974,16 +1040,18 @@ def write_psept_weighted(
         eptype_tvar,
         tail,
         tail_sizes,
+        tail_offsets,
+        total_idxs,
     )
     for ret in rets:
         if bidx >= len(buffer):
             yield buffer[:bidx]
             bidx = 0
-        buffer[bidx]["SummaryId"] = ret[0]
-        buffer[bidx]["SampleId"] = ret[1]
-        buffer[bidx]["EPType"] = ret[2]
-        buffer[bidx]["ReturnPeriod"] = ret[3]
-        buffer[bidx]["Loss"] = ret[4]
+        buffer[bidx]["SummaryId"] = ret["SummaryId"]
+        buffer[bidx]["SampleId"] = ret["SampleId"]
+        buffer[bidx]["EPType"] = ret["EPType"]
+        buffer[bidx]["ReturnPeriod"] = ret["ReturnPeriod"]
+        buffer[bidx]["Loss"] = ret["Loss"]
         bidx += 1
     yield buffer[:bidx]
 
@@ -995,7 +1063,7 @@ def write_wheatsheaf_mean(
     epcalc,
     max_summary_id,
 ):
-    """Generate Wheatsheaf Mean Exceedance Probability Table (EPT) by averaging losses for each return period 
+    """Generate Wheatsheaf Mean Exceedance Probability Table (EPT) by averaging losses for each return period
     from a precomputed mean map.
     Args:
         mean_map (ndarray[MEANMAP_dtype]): An array mapping used for mean loss calculations per Summary ID.

@@ -36,7 +36,7 @@ tee < fifo/gul_S2_summary_P3 work/gul_S2_summaryleccalc/P3.bin > /dev/null & pid
 tee < fifo/gul_S2_summary_P3.idx work/gul_S2_summaryleccalc/P3.idx > /dev/null & pid4=$!
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P3 -2 fifo/gul_S2_summary_P3 < fifo/gul_P3 &
 
-( evepy 3 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | plapy -F 0.1 > fifo/gul_P3  ) &  pid5=$!
+( evepy 3 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | plapy -F 0.1 > fifo/gul_P3  ) &  pid5=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5
 

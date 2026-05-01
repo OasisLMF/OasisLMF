@@ -97,7 +97,7 @@ tee < /tmp/%FIFO_DIR%/fifo/il_S3_summary_P2 work/il_S3_summary_palt/P2.bin work/
 tee < /tmp/%FIFO_DIR%/fifo/il_S3_summary_P2.idx work/il_S3_summary_palt/P2.idx > /dev/null & pid7=$!
 ( summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2 -2 /tmp/%FIFO_DIR%/fifo/il_S2_summary_P2 -3 /tmp/%FIFO_DIR%/fifo/il_S3_summary_P2 < /tmp/%FIFO_DIR%/fifo/il_P2 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( evepy 2 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P2  ) 2>> $LOG_DIR/stderror.err ) & pid8=$!
+( ( evepy 2 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P2  ) 2>> $LOG_DIR/stderror.err ) & pid8=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
 

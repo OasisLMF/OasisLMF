@@ -30,7 +30,7 @@ eltpy -E bin  -H -s work/kat/gul_S1_elt_sample_P7 < fifo/gul_S1_selt_ord_P7 & pi
 tee < fifo/gul_S1_summary_P7 fifo/gul_S1_selt_ord_P7 > /dev/null & pid2=$!
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P7 < fifo/gul_P7 &
 
-( evepy 7 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P7  ) &  pid3=$!
+( evepy 7 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P7  ) &  pid3=$!
 
 wait $pid1 $pid2 $pid3
 

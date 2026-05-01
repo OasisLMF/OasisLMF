@@ -31,7 +31,6 @@ AEPTVAR = 4
 
 # Outloss mean and sample dtype, summary_id, period_no (and sidx) obtained from index
 OUTLOSS_DTYPE = np.dtype([
-    ("row_used", np.bool_),
     ("agg_out_loss", oasis_float),
     ("max_out_loss", oasis_float),
 ])

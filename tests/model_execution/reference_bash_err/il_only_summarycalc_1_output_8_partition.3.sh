@@ -83,7 +83,7 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P4
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P4 > /dev/null & pid1=$!
 ( summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P4 < /tmp/%FIFO_DIR%/fifo/il_P4 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( evepy 4 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P4  ) 2>> $LOG_DIR/stderror.err ) & pid2=$!
+( ( evepy 4 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P4  ) 2>> $LOG_DIR/stderror.err ) & pid2=$!
 
 wait $pid1 $pid2
 
