@@ -265,11 +265,11 @@ def fnv1a_overload_record(record, h=init_hash):
             # The buffer is stack-allocated by LLVM (no heap alloc) since its
             # size is known at compile time and it doesn't escape the function.
             if ftype.bitwidth == 64:
-                src.append(f"    _buf = np.empty(1, dtype=np.float64)")
+                src.append("    _buf = np.empty(1, dtype=np.float64)")
                 src.append(f"    _buf[0] = record['{fname}']")
                 src.append(f"    h = (h ^ _buf.view(np.uint64)[0]) * {FNV_PRIME}")
             else:  # float32 → zero-extend to 64 bits after bit-cast to uint32
-                src.append(f"    _buf = np.empty(1, dtype=np.float32)")
+                src.append("    _buf = np.empty(1, dtype=np.float32)")
                 src.append(f"    _buf[0] = record['{fname}']")
                 src.append(f"    h = (h ^ np.uint64(_buf.view(np.uint32)[0])) * {FNV_PRIME}")
         else:

@@ -1,8 +1,4 @@
 from unittest import main, TestCase, mock
-from unittest.mock import patch
-
-from numba.typed import Dict
-from numba import int32 as nb_int32, float64 as nb_float64
 
 import os
 import shutil
@@ -19,9 +15,7 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 
 import numpy as np
-import numba as nb
 import pandas as pd
-import subprocess
 
 
 class TestGetVulns(TestCase):

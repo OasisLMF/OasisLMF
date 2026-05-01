@@ -25,14 +25,8 @@ from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
+from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
-from oasislmf.pytools.common.hashmap import (
-    unpack as hm_unpack, _find_key as hm_find_key, NOT_FOUND as HM_NOT_FOUND,
-    init_dict as hm_init_dict, _try_add_key as hm_try_add_key,
-    i_add_key_fail as HM_ADD_FAIL, new_slot_bit as HM_NEW_SLOT_BIT, slot_mask as HM_SLOT_MASK,
-    rehash as hm_rehash,
-)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
@@ -45,7 +39,6 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
                                            DAMAGE_TYPE_RELATIVE,
                                            NP_BASE_ARRAY_SIZE,
-                                           ItemAdjustment,
                                            NormInversionParameters,
                                            gul_header,
                                            gulSampleslevelHeader_size,

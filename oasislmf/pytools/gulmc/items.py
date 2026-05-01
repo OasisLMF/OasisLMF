@@ -8,12 +8,11 @@ import numpy as np
 import numba as nb
 from numba.types import int32 as nb_int32
 
-from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_int, oasis_int, items_dtype
-from oasislmf.pytools.common.id_index import build as id_index_build, get_idx, NOT_FOUND
+from oasislmf.pytools.common.data import areaperil_int, nb_oasis_int, oasis_int, items_dtype
+from oasislmf.pytools.common.id_index import get_idx, NOT_FOUND
 from oasislmf.pytools.common.hashmap import (
     init_dict, unpack, rehash, _try_add_key,
     i_add_key_fail, new_slot_bit, slot_mask,
-    NOT_FOUND as HM_NOT_FOUND,
     HM_INFO_N_VALID,
 )
 from oasislmf.pytools.getmodel.manager import encode_peril_id

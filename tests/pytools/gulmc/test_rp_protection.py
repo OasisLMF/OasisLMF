@@ -11,7 +11,7 @@ Three levels of coverage:
 """
 import numpy as np
 
-from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_int, oasis_float, oasis_int, damagebin_dtype
+from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int, damagebin_dtype
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.getmodel.common import EventDynamic
 from oasislmf.pytools.gulmc.common import (
