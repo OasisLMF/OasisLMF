@@ -60,7 +60,7 @@ def generate_item_map(items, coverages,
     two-level CSR structure that replaces the former Numba Dict item_map and areaperil_ids_map:
 
         Level 0: areaperil_id → areaperil_ind  (via id_index)
-        Level 1: areaperil_ind → vuln_ids      (areaperil_to_vuln_ja_offsets / areaperil_to_vuln_ja_vuln_ids)
+        Level 1: areaperil_ind → pair index range  (areaperil_to_vuln_ja_offsets)
         Level 2: pair position → item indices   (areaperil_to_vuln_ja_vuln_ja_offsets / areaperil_to_vuln_ja_vuln_ja_item_idxs)
 
     Args:
@@ -74,7 +74,6 @@ def generate_item_map(items, coverages,
     Returns:
         areaperil_to_vuln_ja_areaperil_ids (np.array[areaperil_int]): sorted unique areaperil_ids.
         areaperil_to_vuln_ja_offsets (np.array[oasis_int]): L1 CSR offsets (N_areaperil + 1).
-        areaperil_to_vuln_ja_vuln_ids (np.array[int32]): vuln_id at each pair position.
         areaperil_to_vuln_ja_vuln_ja_offsets (np.array[oasis_int]): L2 CSR offsets (N_pairs + 1).
         areaperil_to_vuln_ja_vuln_ja_item_idxs (np.array[oasis_int]): flat item indices into items array.
         vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
@@ -115,9 +114,9 @@ def generate_item_map(items, coverages,
     # --- Allocate jagged array structures ---
     # L0: unique areaperil_ids (for id_index build, done after this function)
     unique_areaperil_ids = np.empty(n_unique_areaperils, dtype=areaperil_int)
-    # L1: areaperil → vuln pairs
+    # L1: areaperil → vuln pair count (CSR offsets only — pair vuln_ids are
+    # not needed at runtime; consumers go through items[item_idx] for vuln_id)
     areaperil_to_vuln_ja_offsets = np.empty(n_unique_areaperils + 1, dtype=oasis_int)
-    areaperil_to_vuln_ja_vuln_ids = np.empty(n_unique_pairs, dtype=np.int32)
     # L2: pair → item indices
     areaperil_to_vuln_ja_vuln_ja_offsets = np.empty(n_unique_pairs + 1, dtype=oasis_int)
     areaperil_to_vuln_ja_vuln_ja_item_idxs = np.empty(N, dtype=oasis_int)
@@ -158,7 +157,6 @@ def generate_item_map(items, coverages,
                 areaperil_to_vuln_ja_vuln_ja_offsets[pair_idx + 1] = item_ptr
 
             pair_idx += 1
-            areaperil_to_vuln_ja_vuln_ids[pair_idx] = vuln
 
             if ap != prev_ap:
                 # Close previous areaperil's vuln range
@@ -218,7 +216,7 @@ def generate_item_map(items, coverages,
         areaperil_to_vuln_ja_offsets[ap_idx + 1] = pair_idx + 1
 
     return (unique_areaperil_ids, areaperil_to_vuln_ja_offsets,
-            areaperil_to_vuln_ja_vuln_ids, areaperil_to_vuln_ja_vuln_ja_offsets,
+            areaperil_to_vuln_ja_vuln_ja_offsets,
             areaperil_to_vuln_ja_vuln_ja_item_idxs,
             vuln_table, vuln_key_table[:hm_info[HM_INFO_N_VALID]],
             areaperil_agg_vuln_idx_ja_offsets[:n_agg_vuln_groups + 1],

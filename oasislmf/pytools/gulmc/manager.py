@@ -153,7 +153,6 @@ def run(run_dir,
         coverages = structures['coverages'].copy()
         item_map_ja_areaperil_ids = structures['item_map_ja_areaperil_ids']
         item_map_ja_offsets = structures['item_map_ja_offsets']
-        item_map_ja_vuln_ids = structures['item_map_ja_vuln_ids']
         item_map_ja_vuln_ja_offsets = structures['item_map_ja_vuln_ja_offsets']
         item_map_ja_vuln_ja_item_idxs = structures['item_map_ja_vuln_ja_item_idxs']
         item_map_ja_id_ind = structures['item_map_ja_id_ind']
@@ -368,7 +367,6 @@ def run(run_dir,
                     Nhaz_arr_this_event,
                     fp_event_rps,
                     item_map_ja_offsets,
-                    item_map_ja_vuln_ids,
                     item_map_ja_vuln_ja_offsets,
                     item_map_ja_vuln_ja_item_idxs,
                     items,
@@ -981,7 +979,6 @@ def reconstruct_coverages(compute_info,
                           Nhaz_arr_this_event,
                           event_rps,
                           item_map_ja_offsets,
-                          item_map_ja_vuln_ids,
                           item_map_ja_vuln_ja_offsets,
                           item_map_ja_vuln_ja_item_idxs,
                           items,
@@ -1018,7 +1015,6 @@ def reconstruct_coverages(compute_info,
         Nhaz_arr_this_event (int): number of valid entries in ap_inds.
         event_rps (np.array[int32]): parallel array of return periods per areaperil (dynamic only).
         item_map_ja_offsets (np.array[oasis_int]): L1 CSR offsets (N_areaperil + 1).
-        item_map_ja_vuln_ids (np.array[int32]): vuln_id at each pair position.
         item_map_ja_vuln_ja_offsets (np.array[oasis_int]): L2 CSR offsets (N_pairs + 1).
         item_map_ja_vuln_ja_item_idxs (np.array[oasis_int]): flat item indices into items array.
         items (np.ndarray): items table merged with correlation parameters, containing
