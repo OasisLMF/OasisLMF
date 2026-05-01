@@ -4,7 +4,7 @@ This file tests gul/core.py functionality
 from unittest import main, TestCase
 import numpy as np
 
-from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative
+from oasislmf.pytools.gul.core import get_gul, split_tiv_classic, split_tiv_multiplicative
 
 
 class TestGulpyCore(TestCase):
@@ -49,6 +49,23 @@ class TestGulpyCore(TestCase):
         multiplicative_loss = tiv * (1. - np.prod(1. - gulitems_orig / tiv))
         expected_gulitems = gulitems_orig * (multiplicative_loss / np.sum(gulitems_orig))
         np.testing.assert_array_almost_equal(expected_gulitems, gulitems, decimal=1e-14)
+
+    def test_get_gul_point_bin(self) -> None:
+        gul = get_gul(0.5, 0.5, 0.5, 0.1, 0.3, 0.2, 1000.)
+        self.assertAlmostEqual(gul, 500.)
+
+    def test_get_gul_linear(self) -> None:
+        gul = get_gul(0.0, 1.0, 0.5, 0.0, 1.0, 0.5, 100.)
+        self.assertAlmostEqual(gul, 50.)
+
+    def test_get_gul_quadratic(self) -> None:
+        gul = get_gul(0.0, 1.0, 0.3, 0.0, 1.0, 0.5, 100.)
+        self.assertTrue(0. <= gul <= 100.)
+
+    def test_get_gul_small_rval_offset(self) -> None:
+        gul = get_gul(0.0, 1.0, 0.3, 0.0, 1.0, 1e-15, 100.)
+        self.assertFalse(np.isnan(gul))
+        self.assertGreaterEqual(gul, 0.)
 
 
 if __name__ == "__main__":
