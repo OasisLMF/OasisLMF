@@ -35,6 +35,7 @@ from oasislmf.pytools.gulmc.items import (
     read_items, generate_item_map,
     build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id,
 )
+from oasislmf.utils.path import setcwd
 
 logger = logging.getLogger(__name__)
 
@@ -223,10 +224,12 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     unique_peril_correlation_groups = np.unique(items['peril_correlation_group'])
 
     # --- footprint (temporary open to get num_intensity_bins) ------------------
+    # FootprintParquetDynamic.__enter__ reads input/sections.csv and input/keys.csv
+    # via relative paths, so cwd must be the run directory.
     logger.debug('import footprint')
-    with Footprint.load(model_storage, ignore_file_type,
-                        df_engine=model_df_engine,
-                        areaperil_ids=item_map_ja_areaperil_ids) as footprint_obj:
+    with setcwd(run_dir), Footprint.load(model_storage, ignore_file_type,
+                                         df_engine=model_df_engine,
+                                         areaperil_ids=item_map_ja_areaperil_ids) as footprint_obj:
         num_intensity_bins = footprint_obj.num_intensity_bins
 
     # --- vulnerabilities -------------------------------------------------------
