@@ -13,7 +13,7 @@ from oasislmf.pytools.getmodel.common import (
 # Number of output rows to accumulate before flushing to write_ndarray_to_fmt_csv.
 # Reduces per-call overhead (format-string construction, np.empty, etc.) from
 # O(num_events) down to O(num_events / BATCH_ROWS).
-_BATCH_ROWS = 1 << 20  # ~1 M rows
+_BATCH_ROWS = 1 << 13  # 8 K rows
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -49,20 +49,6 @@ def _fill_next_batch(
             out_idx += 1
         i += 1
     return out_idx, i - event_start
-
-
-@nb.njit(cache=True, error_model="numpy")
-def _fill_event_buf(
-    out_event_id, out_areaperil_id, out_intensity_bin_id, out_probability,
-    src_areaperil_id, src_intensity_bin_id, src_probability,
-    event_id,
-):
-    """Single-pass fill of a per-event output buffer (used for the zip path)."""
-    for i in range(len(src_areaperil_id)):
-        out_event_id[i] = event_id
-        out_areaperil_id[i] = src_areaperil_id[i]
-        out_intensity_bin_id[i] = src_intensity_bin_id[i]
-        out_probability[i] = src_probability[i]
 
 
 def _check_event_from_to(event_from_to):
@@ -134,9 +120,15 @@ def footprint_tocsv(stack, file_in, file_out, file_type, noheader, idx_file_in, 
     if not noheader:
         file_out.write(",".join(headers) + "\n")
 
-    # Sort index by event_id once using numpy (avoids building a Python dict and re-sorting keys)
-    sort_order = np.argsort(footprint_index['event_id'], kind='stable')
-    sorted_index = footprint_index[sort_order]
+    # Use the index as-is if already sorted (the common case — footprinttobin always writes
+    # events in ascending order). Only fall back to argsort+copy when out-of-order entries
+    # are detected, avoiding an O(n log n) sort and an O(n_events) index copy.
+    event_ids = footprint_index['event_id']
+    if len(event_ids) > 1 and not np.all(np.diff(event_ids) >= 0):
+        sort_order = np.argsort(event_ids, kind='stable')
+        sorted_index = footprint_index[sort_order]
+    else:
+        sorted_index = footprint_index
 
     # Filter to event range upfront to avoid a per-event branch in the hot loop
     if not no_event_range:
@@ -167,7 +159,9 @@ def _footprint_tocsv_bin(footprint, sorted_index, file_out, dtype, headers, fmt)
     elem_offsets = (sorted_index['offset'].astype(np.int64) - header_size) // item_size
     event_elem_counts = sorted_index['size'].astype(np.int64) // item_size
 
-    batch_data = np.empty(_BATCH_ROWS, dtype=dtype)
+    # Cap to actual data size so small files don't over-allocate
+    actual_batch_rows = min(_BATCH_ROWS, int(event_elem_counts.sum()))
+    batch_data = np.empty(actual_batch_rows, dtype=dtype)
     event_cursor = 0
     n_events = len(sorted_index)
 
@@ -196,11 +190,11 @@ def _footprint_tocsv_bin(footprint, sorted_index, file_out, dtype, headers, fmt)
 
 
 def _footprint_tocsv_zip(footprint, sorted_index, file_out, dtype, headers, fmt):
-    """Zip path: decompress per event; JIT single-pass fill into pre-allocated buffer.
+    """Zip path: decompress per event; numpy field assignment into pre-allocated buffer.
 
     When the index carries a 'd_size' (decompressed size) field we can pre-allocate
     a single reusable buffer.  Without it the compressed size is smaller than the
-    decompressed size, so we allocate per event to avoid out-of-bounds writes in the JIT.
+    decompressed size, so we allocate per event.
     """
     if 'd_size' in sorted_index.dtype.names:
         max_event_elems = int(sorted_index['d_size'].max()) // Event_dtype.itemsize
@@ -218,10 +212,8 @@ def _footprint_tocsv_zip(footprint, sorted_index, file_out, dtype, headers, fmt)
         )
         n = len(event_data)
         buf = event_csv_data[:n] if event_csv_data is not None else np.empty(n, dtype=dtype)
-        _fill_event_buf(
-            buf['event_id'], buf['areaperil_id'],
-            buf['intensity_bin_id'], buf['probability'],
-            event_data['areaperil_id'], event_data['intensity_bin_id'], event_data['probability'],
-            event_id,
-        )
+        buf['event_id'] = event_id
+        buf['areaperil_id'] = event_data['areaperil_id']
+        buf['intensity_bin_id'] = event_data['intensity_bin_id']
+        buf['probability'] = event_data['probability']
         write_ndarray_to_fmt_csv(file_out, buf, headers, fmt)
