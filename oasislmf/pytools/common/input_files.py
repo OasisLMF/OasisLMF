@@ -186,7 +186,7 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
             continue
 
         if ext == "bin":
-            return np.fromfile(coverages_file, dtype=oasis_float)
+            return np.memmap(coverages_file, dtype=oasis_float, mode='r')
         elif ext == "csv":
             with ExitStack() as stack:
                 fin = stack.enter_context(open(coverages_file, "r"))
