@@ -34,7 +34,16 @@ QUANTILE_FILE = "quantile.bin"
 RETURNPERIODS_FILE = "returnperiods.bin"
 
 
-def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=False):
+@nb.njit(cache=True)
+def _check_amplifications_contiguous(item_ids):
+    """Early-exit contiguity check — O(1) memory, no temporaries."""
+    for i in range(1, len(item_ids)):
+        if item_ids[i] - item_ids[i - 1] != 1:
+            return False
+    return True
+
+
+def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=False, raw=False):
     """
     Get array of amplification IDs from amplifications.bin, where index
     corresponds to item ID.
@@ -49,29 +58,38 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
         run_dir (str): path to amplifications.bin file
         filename (str | os.PathLike): amplifications file name
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
+        raw (bool): If True, return the validated flat int32 array (zero-copy memmap for file
+            inputs) instead of building the 1-based lookup copy. Intended for sequential
+            read paths (e.g. bintocsv) where random access by item_id is not needed.
     Returns:
-        items_amps (numpy.ndarray): array of amplification IDs, where index
-            corresponds to item ID
+        items_amps (numpy.ndarray): If raw=False (default), a 1-based lookup array of
+            amplification IDs where index corresponds to item ID. If raw=True, the flat
+            validated int32 array of interleaved (item_id, amplification_id) pairs.
     """
     header_size = 4
     if use_stdin:
-        items_amps = np.frombuffer(sys.stdin.buffer.read(), dtype=np.int32, offset=header_size)
+        flat = np.frombuffer(sys.stdin.buffer.read(), dtype=np.int32, offset=header_size)
     else:
         amplification_file = Path(run_dir, filename)
         if not amplification_file.exists():
             raise FileNotFoundError('amplifications file not found.')
-        items_amps = np.fromfile(amplification_file, dtype=np.int32, offset=header_size)
+        flat = np.memmap(amplification_file, dtype=np.int32, offset=header_size, mode="r")
+
+    pairs = flat.reshape(len(flat) // 2, 2)
 
     # Check item IDs start from 1 and are contiguous
-    if items_amps[0] != 1:
-        raise ValueError(f'First item ID is {items_amps[0]}. Expected 1.')
-    items_amps = items_amps.reshape(len(items_amps) // 2, 2)
-    if not np.all(items_amps[1:, 0] - items_amps[:-1, 0] == 1):
+    if pairs[0, 0] != 1:
+        raise ValueError(f'First item ID is {pairs[0, 0]}. Expected 1.')
+    if not _check_amplifications_contiguous(np.ascontiguousarray(pairs[:, 0])):
         raise ValueError('Item IDs in amplifications file are not contiguous')
 
-    items_amps = np.concatenate((np.array([0]), items_amps[:, 1]))
+    if raw:
+        return flat
 
-    return items_amps
+    result = np.empty(len(pairs) + 1, dtype=np.int32)
+    result[0] = 0
+    result[1:] = pairs[:, 1]
+    return result
 
 
 def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FILENAME):

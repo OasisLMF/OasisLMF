@@ -1,6 +1,6 @@
 from pathlib import Path
 import numpy as np
-from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.input_files import read_amplifications
 from oasislmf.pytools.converters.data import TOOL_INFO
 
@@ -11,15 +11,15 @@ def amplifications_tocsv(stack, file_in, file_out, file_type, noheader):
     fmt = TOOL_INFO[file_type]["fmt"]
 
     if str(file_in) == "-":
-        items_amps = read_amplifications(use_stdin=True)
+        raw = read_amplifications(use_stdin=True, raw=True)
     else:
         amps_fp = Path(file_in)
-        items_amps = read_amplifications(run_dir=amps_fp.parent, filename=amps_fp.name)
-    items_amps = items_amps[1:]
-    data = np.empty(len(items_amps), dtype=dtype)
-    data["item_id"] = np.arange(1, len(items_amps) + 1)
-    data["amplification_id"] = items_amps
+        raw = read_amplifications(run_dir=amps_fp.parent, filename=amps_fp.name, raw=True)
+
+    data = raw.view(dtype)
 
     if not noheader:
         file_out.write(",".join(headers) + "\n")
-    write_ndarray_to_fmt_csv(file_out, data, headers, fmt)
+
+    for start in range(0, len(data), DEFAULT_BUFFER_SIZE):
+        write_ndarray_to_fmt_csv(file_out, data[start:start + DEFAULT_BUFFER_SIZE], headers, fmt)
