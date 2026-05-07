@@ -1,5 +1,4 @@
 from pathlib import Path
-import numpy as np
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.input_files import read_amplifications
 from oasislmf.pytools.converters.data import TOOL_INFO
