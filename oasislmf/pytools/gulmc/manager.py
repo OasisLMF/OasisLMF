@@ -263,6 +263,7 @@ def run(run_dir,
 
         event_id_mv = memoryview(bytearray(4))
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
+        logger.info(f"gulmc running event_ids: {event_ids}")
 
         # load keys.csv to determine included AreaPerilID from peril_filter
         if os.path.exists(os.path.join(input_path, 'keys.csv')):

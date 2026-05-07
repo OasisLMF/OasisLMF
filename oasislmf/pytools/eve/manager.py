@@ -132,6 +132,7 @@ def run(input_file, process_number, total_processes, no_shuffle=False,
             they take priority.
         output_file (str | os.PathLike): Path to output file. If '-' then outputs to stdout.
     """
+    logger.info("Some changes have been made")
     if input_file is None:
         input_file = DEFAULT_EVENTS_FILE
 
