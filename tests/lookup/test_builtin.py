@@ -1,15 +1,20 @@
-import pytest
-import numpy as np
-import numba as nb
 from pathlib import Path
-from mock import patch
-from oasislmf.lookup.builtin import (
-    Lookup, z_index, undo_z_index,
-    z_index_to_normal, normal_to_z_index,
-    create_lat_lon_id_functions, jit_geo_grid_lookup,
-    get_step
-)
 
+import numba as nb
+import numpy as np
+import pandas as pd
+import pytest
+
+from oasislmf.lookup.builtin import (
+    Lookup,
+    create_lat_lon_id_functions,
+    get_step,
+    jit_geo_grid_lookup,
+    normal_to_z_index,
+    undo_z_index,
+    z_index,
+    z_index_to_normal,
+)
 from oasislmf.utils.status import OASIS_UNKNOWN_ID
 
 FILES_DIR = Path(__file__).resolve().parent
@@ -113,3 +118,21 @@ def test_build_merge_respects_filetype(file_path, file_type, success):
     else:
         with pytest.raises(Exception):
             Lookup(config={}).build_merge(file_path=str(FILES_DIR / file_path), file_type=file_type, id_columns=['FIRST_ID', 'SECOND_ID', 'FIFTH_ID'])
+
+
+@pytest.fixture
+def rtree_locations():
+    return pd.DataFrame(columns=["longitude", "latitude", "locname"], data=[
+        [0.373700517342545, 46.4691264361466, "inside_1"],
+        [0.639522260665994, 46.3538195759967, "inside_2"],
+        [0.511892615692815, 46.4703388960666, "close_to_1"],
+        [0.400106650785272, 46.3307289492925, "far_away"]
+    ])
+
+
+def test_build_rtree_associates_correctly(rtree_locations):
+    rtree = Lookup(config={}).build_rtree(file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
+                                          file_type="parquet", id_columns="poly_id", nearest_neighbor_min_distance=12000)
+    output = rtree(rtree_locations)
+    expected = rtree_locations.copy().assign(poly_id=[1, 2, 1, OASIS_UNKNOWN_ID])
+    pd.testing.assert_frame_equal(output, expected, check_dtype=False)
