@@ -13,7 +13,7 @@ rm -R -f $LOG_DIR/*
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
-find fifo/ \( -name '*P7[^0-9]*' -o -name '*P7' \) -exec rm -R -f {} +
+find fifo/ -regextype posix-extended -regex '.*/[^/]*_P7([^0-9].*)?$' -exec rm -f {} +
 rm -R -f work/*
 mkdir -p work/kat/
 
