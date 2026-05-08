@@ -82,16 +82,12 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 
     NOTICE: Assumes that the input Points are in WGS84 projection (lat/lon).
     """
-
-    left_geom_col = left_gdf.geometry.name
-    right_geom_col = right_gdf.geometry.name
-
     # Ensure that index in right gdf is formed of sequential numbers
     right = right_gdf.copy().reset_index(drop=True)
 
     # Parse coordinates from points and insert them into a numpy array as RADIANS
-    left_radians = np.array(left_gdf[left_geom_col].apply(lambda geom: (geom.x * np.pi / 180, geom.y * np.pi / 180)).to_list())
-    right_radians = np.array(right[right_geom_col].apply(lambda geom: (geom.x * np.pi / 180, geom.y * np.pi / 180)).to_list())
+    left_radians = np.transpose(np.array((left_gdf.geometry.x * np.pi / 180, left_gdf.geometry.y * np.pi / 180)))
+    right_radians = np.transpose(np.array((right_gdf.geometry.x * np.pi / 180, left_gdf.geometry.y * np.pi / 180)))
 
     # Find the nearest points
     # -----------------------
@@ -448,6 +444,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         that will change the type of the original column into float.
         this function replace the nan value with the OASIS_UNKNOWN_ID and reset the column type to int
         """
+        # Allow caller to pass single string without wrapping in a list.
+        if isinstance(id_columns, str):
+            id_columns = [id_columns]
         for col in id_columns:
             if col not in df:
                 df[col] = OASIS_UNKNOWN_ID
@@ -676,7 +675,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if nearest_neighbor_min_distance > 0:
             if BallTree is None:
                 raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
-            gdf_area_peril['center'] = gdf_area_peril.centroid
+            with warnings.catch_warnings():
+                # In the context of a nearest neighbour search, we accept a deviation between the
+                # true "ellipsoidal" distance and the cartesian approximation that's used here.
+                warnings.filterwarnings('ignore', category=UserWarning, message="Geometry is in a geographic CRS.")
+                gdf_area_peril['center'] = gdf_area_peril.centroid
             base_geometry_name = gdf_area_peril.geometry.name
 
         def get_area(locations, gdf_area_peril):
@@ -712,7 +715,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             self.set_id_columns(gdf_loc, id_columns)
 
             # index column are created during the sjoin, we can drop them
-            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left'], errors='ignore')
+            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left', 'loc_geometry', 'center'], errors='ignore')
 
             return gdf_loc
 
