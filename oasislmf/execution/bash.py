@@ -193,6 +193,16 @@ EVE_SHUFFLE_OPTIONS = {
 }
 
 
+FIFO_CHECK_FUNC = """
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}"""
+
 TRAP_FUNC = """
 touch $LOG_DIR/stderror.err
 oasis_exec_monitor.sh $$ $LOG_DIR & pid0=$!
@@ -646,7 +656,7 @@ def get_fifo_name(fifo_dir, producer, producer_id, consumer=''):
         return f'{fifo_dir}{producer}_P{producer_id}'
 
 
-def do_fifo_exec(producer, producer_id, filename, fifo_dir, action='mkfifo', consumer=''):
+def do_fifo_exec(producer, producer_id, filename, fifo_dir, action='mkfifo', consumer='') -> str:
     """Write a single FIFO create or remove command to the bash script.
 
     Args:
@@ -657,11 +667,16 @@ def do_fifo_exec(producer, producer_id, filename, fifo_dir, action='mkfifo', con
         action (str): Shell command to execute (``'mkfifo'`` to create,
             ``'rm'`` to remove).
         consumer (str): Optional consumer identifier for the FIFO name.
+
+    Returns:
+        str: The FIFO path that was operated on.
     """
-    print_command(filename, f'{action} {get_fifo_name(fifo_dir, producer, producer_id, consumer)}')
+    fifo_name = get_fifo_name(fifo_dir, producer, producer_id, consumer)
+    print_command(filename, f'{action} {fifo_name}')
+    return fifo_name
 
 
-def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo', consumer=''):
+def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo', consumer='') -> list:
     """Write FIFO create/remove commands for every process in the range.
 
     Iterates over all process IDs and emits one ``mkfifo`` (or ``rm``)
@@ -676,10 +691,14 @@ def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=No
             is used instead of the full range.
         action (str): Shell command (``'mkfifo'`` or ``'rm'``).
         consumer (str): Optional consumer identifier for FIFO names.
+
+    Returns:
+        list[str]: The FIFO paths that were operated on.
     """
-    for process_id in process_range(max_process_id, process_number):
-        do_fifo_exec(runtype, process_id, filename, fifo_dir, action, consumer)
+    fifos = [do_fifo_exec(runtype, process_id, filename, fifo_dir, action, consumer)
+             for process_id in process_range(max_process_id, process_number)]
     print_command(filename, '')
+    return fifos
 
 
 def do_fifos_exec_full_correlation(
@@ -710,7 +729,7 @@ def do_fifos_exec_full_correlation(
     print_command(filename, '')
 
 
-def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None, consumer_prefix=None, action='mkfifo'):
+def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None, consumer_prefix=None, action='mkfifo') -> list:
     """Write FIFO create/remove commands for all summary and ORD output pipes.
 
     For every (process, summary) pair this creates:
@@ -729,32 +748,35 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
         consumer_prefix (str or None): Optional prefix prepended to consumer
             names (used for inuring priority labelling).
         action (str): Shell command (``'mkfifo'`` or ``'rm'``).
+
+    Returns:
+        list[str]: The FIFO paths that were operated on.
     """
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
-        return
+        return []
 
     if not consumer_prefix:
         consumer_prefix = ''
 
+    fifos = []
     for process_id in process_range(max_process_id, process_number):
         for summary in summaries:
             if 'id' in summary:
                 summary_set = summary['id']
-                do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_summary')
+                fifos.append(do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_summary'))
                 if ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
-                    idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'{consumer_prefix}S{summary_set}_summary')
-                    idx_fifo += '.idx'
-                    print_command(filename, f'mkfifo {idx_fifo}')
+                    idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'{consumer_prefix}S{summary_set}_summary') + '.idx'
+                    print_command(filename, f'{action} {idx_fifo}')
+                    fifos.append(idx_fifo)
 
                 for ord_type, output_switch in OUTPUT_SWITCHES.items():
                     for ord_table in output_switch.keys():
                         if summary.get('ord_output', {}).get(ord_table):
-                            do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_{ord_type}')
+                            fifos.append(do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_{ord_type}'))
                             break
-
-        print_command(filename, '')
+    return fifos
 
 
 def create_workfolders(
@@ -2220,6 +2242,7 @@ def bash_wrapper(
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
         print_command(filename, get_check_function(custom_gulcalc_log_start, custom_gulcalc_log_finish))
+    print_command(filename, FIFO_CHECK_FUNC)
 
     # Script content
     yield
@@ -2444,41 +2467,42 @@ def create_bash_analysis(
     # --- Create FIFOs ---
     # Build the list of FIFO directories (standard + full-correlation if enabled)
     fifo_dirs = [fifo_queue_dir]
+    fifo_list = []
     if full_correlation:
         fifo_dirs.append(fifo_full_correlation_dir)
         if (il_output or ri_output) and (gul_output or not num_lb):
             # create fifo for il or ri full correlation compute
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_full_correlation_dir,
-                          process_number, consumer=RUNTYPE_FULL_CORRELATION)
+            fifo_list += do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_full_correlation_dir,
+                                       process_number, consumer=RUNTYPE_FULL_CORRELATION)
 
     for fifo_dir in fifo_dirs:
         # create fifos for Summarycalc
         if gul_output:
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number)
-            do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename, fifo_dir, process_number)
+            fifo_list += do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number)
+            fifo_list += do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename, fifo_dir, process_number)
         if il_output:
-            do_fifos_exec(RUNTYPE_INSURED_LOSS, num_fm_output, filename, fifo_dir, process_number)
-            do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number)
+            fifo_list += do_fifos_exec(RUNTYPE_INSURED_LOSS, num_fm_output, filename, fifo_dir, process_number)
+            fifo_list += do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number)
         if ri_output:
             for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
-                do_fifos_exec(
+                fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
                     consumer=inuring_priority['text'].rstrip('_')
                 )
-                do_fifos_calc(
+                fifo_list += do_fifos_calc(
                     RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                     filename, fifo_dir, process_number,
                     consumer_prefix=inuring_priority['text']
                 )
         if rl_output:
             for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
-                do_fifos_exec(
+                fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
                     consumer=inuring_priority['text'].rstrip('_')
                 )
-                do_fifos_calc(
+                fifo_list += do_fifos_calc(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                     num_fm_output, filename, fifo_dir, process_number,
                     consumer_prefix=inuring_priority['text']
@@ -2486,8 +2510,8 @@ def create_bash_analysis(
 
         # create fifos for Load balancer
         if num_lb:
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number, consumer=RUNTYPE_LOAD_BALANCED_LOSS)
-            do_fifos_exec(RUNTYPE_LOAD_BALANCED_LOSS, num_fm_output, filename, fifo_dir, process_number, consumer=RUNTYPE_INSURED_LOSS)
+            fifo_list += do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number, consumer=RUNTYPE_LOAD_BALANCED_LOSS)
+            fifo_list += do_fifos_exec(RUNTYPE_LOAD_BALANCED_LOSS, num_fm_output, filename, fifo_dir, process_number, consumer=RUNTYPE_INSURED_LOSS)
 
     print_command(filename, '')
     dirs = [(fifo_queue_dir, work_dir)]
@@ -2699,6 +2723,12 @@ def create_bash_analysis(
         pass
     else:
         step_flag = ' -S'
+
+    # --- Verify all FIFOs exist and are pipes before starting main pipeline ---
+    print_command(filename, '')
+    print_command(filename, '# --- Verify FIFO pipes ---')
+    print_command(filename, 'check_fifos \\\n    ' + ' \\\n    '.join(fifo_list))
+    print_command(filename, '')
 
     # --- Route GUL streams to downstream pipelines (RI, IL, or GUL-only) ---
     for fifo_dir, gul_streams in get_gul_stream_cmds.items():
