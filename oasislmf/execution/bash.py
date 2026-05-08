@@ -3147,4 +3147,6 @@ def add_server_call(call, analysis_pk=None, socket_server_port=None):
 def get_redirect_err_cmd(prefix, log_file='$LOG_DIR/stderror.err'):
     """Add prefix to STDERROR redirect and pipe to log_file.
     """
+    PREFIX_MAX_LENGTH = 10
+    prefix = prefix[:PREFIX_MAX_LENGTH]
     return f'2> >(sed "s/^/$(date +"%Y-%m-%d %H:%M:%S") {prefix} /">> {log_file})'
