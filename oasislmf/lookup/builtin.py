@@ -87,7 +87,7 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 
     # Parse coordinates from points and insert them into a numpy array as RADIANS
     left_radians = np.transpose(np.array((left_gdf.geometry.x * np.pi / 180, left_gdf.geometry.y * np.pi / 180)))
-    right_radians = np.transpose(np.array((right_gdf.geometry.x * np.pi / 180, left_gdf.geometry.y * np.pi / 180)))
+    right_radians = np.transpose(np.array((right_gdf.geometry.x * np.pi / 180, right_gdf.geometry.y * np.pi / 180)))
 
     # Find the nearest points
     # -----------------------
