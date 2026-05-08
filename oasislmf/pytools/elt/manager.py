@@ -497,6 +497,7 @@ def run(
 
         # Process summary files
         for event_id in elt_reader.read_streams(streams_in):
+            logger.info(f"event {event_id} STARTED")
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
                     continue
@@ -519,6 +520,8 @@ def run(
                             outmap[out_type]["fmt"]
                         )
                 data_idx[0] = 0
+            logger.info(f"event {event_id} DONE")
+        logger.info('eltpy finished')
 
 
 @redirect_logging(exec_name='eltpy')

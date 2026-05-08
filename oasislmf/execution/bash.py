@@ -505,7 +505,8 @@ def do_post_wait_processing(
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
-                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    redirect_prefix = f'{aal_executable} - S{summary_set} -'
+                    cmd = '( {} ) {} & lpid{}=$!'.format(cmd, get_redirect_err_cmd(redirect_prefix), process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -537,7 +538,8 @@ def do_post_wait_processing(
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
-                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    redirect_prefix = f'{aal_executable} - S{summary_set} -'
+                    cmd = '( {} ) {} & lpid{}=$!'.format(cmd, get_redirect_err_cmd(redirect_prefix), process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -591,18 +593,24 @@ def do_post_wait_processing(
                     summary_set, outfile_ext
                 )
 
+                redirect_prefix = f'{lec_executable} - '
                 if ept_output:
                     cmd = '{} {} {}'.format(
                         cmd, ept_output_flag, ept_filename
                     )
+                    redirect_prefix += f'{ept_output_flag} '
 
                 if psept_output:
                     cmd = '{} {} {}'.format(
                         cmd, psept_output_flag, psept_filename
                     )
+                    redirect_prefix += f'{psept_output_flag} '
 
                 if stderr_guard:
-                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    redirect_prefix += '-'
+                    cmd = '( {} ) {} & lpid{}=$!'.format(cmd,
+                                                         get_redirect_err_cmd(redirect_prefix),
+                                                         process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -960,7 +968,9 @@ def do_summarycalcs(
         cmd, fifo_dir, runtype, input_filename_component, process_id,
         inuring_priority_text
     )
-    cmd = '( {0} ) 2>> $LOG_DIR/stderror.err  &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
+    redirect_prefix = f'summarypy P{process_id} -'
+    cmd = '( {0} ) {1}  &'.format(cmd, get_redirect_err_cmd(redirect_prefix)
+                                  ) if stderr_guard else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
     print_command(filename, cmd)
 
 
@@ -1182,7 +1192,8 @@ def do_ord(
                     cmd = f'{flag_proc["executable"]} -E bin {cmd}'
 
                     if stderr_guard:
-                        cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+                        redirect_prefix = f'{flag_proc["executable"]} S{summary_set}_{ord_type} -'
+                        cmd = f'( {cmd} ) {get_redirect_err_cmd(redirect_prefix)} & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
                         cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
 
@@ -1675,7 +1686,8 @@ def get_main_cmd_ri_stream(
             else:
                 main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id, consumer=ri_inuring_priorities[i].rstrip('_'))}"
 
-    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
+    redirect_prefix = f'{cmd} -'
+    main_cmd = f'( {main_cmd} ) {get_redirect_err_cmd(redirect_prefix)}' if stderr_guard else f'{main_cmd}'
     main_cmd = f'( {main_cmd} ) &'
 
     if process_counter is not None:
@@ -1754,7 +1766,8 @@ def get_main_cmd_gul_stream(
     """
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
-    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
+    redirect_prefix = f'{cmd} -'
+    main_cmd = f'( {main_cmd} ) {get_redirect_err_cmd(redirect_prefix)}' if stderr_guard else f'{main_cmd}'
     main_cmd = f'( {main_cmd} ) & '
 
     if process_counter is not None:
@@ -1823,7 +1836,8 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
             if stderr_guard:
-                cmd = '({}) 2>> $LOG_DIR/gul_stderror.err'.format(cmd)
+                redirect_prefix = f'{custom_gulcalc_cmd} -'
+                cmd = '({}) {}'.format(cmd, get_redirect_err_cmd(redirect_prefix))
 
             return cmd
     else:
@@ -3128,3 +3142,9 @@ def add_server_call(call, analysis_pk=None, socket_server_port=None):
     if socket_server_port is not None:
         return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='{socket_server_port}'", call)
     return call
+
+
+def get_redirect_err_cmd(prefix, log_file='$LOG_DIR/stderror.err'):
+    """Add prefix to STDERROR redirect and pipe to log_file.
+    """
+    return f'2> >(sed "s/^/$(date +"%Y-%m-%d %H:%M:%S") {prefix} /">> {log_file})'
