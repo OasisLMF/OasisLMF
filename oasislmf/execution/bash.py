@@ -57,9 +57,10 @@ import random
 import re
 import shutil
 import string
+import subprocess
 import tempfile
 from collections import Counter
-from functools import partial
+from functools import lru_cache, partial
 
 import pandas as pd
 
@@ -271,29 +272,31 @@ check_complete(){
     return check_function
 
 
+@lru_cache(maxsize=1)
+def _get_bash_version():
+    """Return the system bash version as an (major, minor) int tuple, or None on failure."""
+    try:
+        out = subprocess.check_output(['bash', '--version'], text=True)
+        m = re.search(r'version (\d+)\.(\d+)', out)
+        if m:
+            return (int(m.group(1)), int(m.group(2)))
+    except Exception:
+        pass
+    return None
+
+
 BASH_TRACE = """
 # --- Redirect Bash trace to file ---
-bash_logging_supported(){
-    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
-    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+exec   > >(tee -ia $LOG_DIR/bash.log)
+exec  2> >(tee -ia $LOG_DIR/bash.log >& 2)
+exec 19> $LOG_DIR/bash.log
+export BASH_XTRACEFD="19"
+set -x"""
 
-    if [[ "$BASH_VER_MAJOR" -gt 4 ]]; then
-        echo 1; exit
-    fi
-    if [[ $BASH_VER_MAJOR -eq 4 ]] && [[ $BASH_VER_MINOR -gt 3 ]]; then
-        echo 1; exit
-    fi
-    echo 0
-}
-if [ $(bash_logging_supported) == 1 ]; then
-    exec   > >(tee -ia $LOG_DIR/bash.log)
-    exec  2> >(tee -ia $LOG_DIR/bash.log >& 2)
-    exec 19> $LOG_DIR/bash.log
-    export BASH_XTRACEFD="19"
-    set -x
-else
-    echo "WARNING: logging disabled, bash version '$BASH_VERSION' is not supported, minimum requirement is bash v4.4"
-fi """
+BASH_TRACE_UNSUPPORTED = (
+    "echo \"WARNING: logging disabled, bash version '$BASH_VERSION' is not supported,"
+    " minimum requirement is bash v4.4\""
+)
 
 
 def process_range(max_process_id, process_number=None):
@@ -1490,7 +1493,11 @@ def do_waits(wait_variable, wait_count, filename):
     :type filename: str
     """
     if wait_count > 0:
-        cmd = 'wait'
+        bash_ver = _get_bash_version()
+        if bash_ver is not None and bash_ver >= (5, 1):
+            cmd = 'wait -p {}_exitcode'.format(wait_variable)
+        else:
+            cmd = 'wait'
         for pid in range(1, wait_count + 1):
             cmd = '{} ${}{}'.format(cmd, wait_variable, pid)
 
@@ -2205,7 +2212,11 @@ def bash_wrapper(
 
     # Trap func and logging
     if bash_trace:
-        print_command(filename, BASH_TRACE)
+        bash_ver = _get_bash_version()
+        if bash_ver is not None and bash_ver >= (4, 4):
+            print_command(filename, BASH_TRACE)
+        else:
+            print_command(filename, BASH_TRACE_UNSUPPORTED)
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
         print_command(filename, get_check_function(custom_gulcalc_log_start, custom_gulcalc_log_finish))
