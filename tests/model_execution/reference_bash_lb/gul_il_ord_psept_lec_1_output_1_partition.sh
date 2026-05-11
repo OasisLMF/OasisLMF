@@ -9,6 +9,15 @@ LOG_DIR=log
 mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -26,19 +35,15 @@ mkfifo fifo/gul_P2
 
 mkfifo fifo/gul_S1_summary_P1
 mkfifo fifo/gul_S1_summary_P1.idx
-
 mkfifo fifo/gul_S1_summary_P2
 mkfifo fifo/gul_S1_summary_P2.idx
-
 mkfifo fifo/il_P1
 mkfifo fifo/il_P2
 
 mkfifo fifo/il_S1_summary_P1
 mkfifo fifo/il_S1_summary_P1.idx
-
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_summary_P2.idx
-
 mkfifo fifo/gul_lb_P1
 mkfifo fifo/gul_lb_P2
 
@@ -72,10 +77,30 @@ summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 ( evepy 1 2 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
 ( evepy 2 2 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/gul_P1 \
+    fifo/gul_P2 \
+    fifo/gul_S1_summary_P1 \
+    fifo/gul_S1_summary_P1.idx \
+    fifo/gul_S1_summary_P2 \
+    fifo/gul_S1_summary_P2.idx \
+    fifo/il_P1 \
+    fifo/il_P2 \
+    fifo/il_S1_summary_P1 \
+    fifo/il_S1_summary_P1.idx \
+    fifo/il_S1_summary_P2 \
+    fifo/il_S1_summary_P2.idx \
+    fifo/gul_lb_P1 \
+    fifo/gul_lb_P2 \
+    fifo/lb_il_P1 \
+    fifo/lb_il_P2
+
 ( fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 ) & pid9=$!
 ( fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 ) & pid10=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
+wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
 
 # --- Do insured loss kats ---
@@ -86,7 +111,7 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
 lecpy -r -Kil_S1_summaryleccalc -W -w -o output/il_S1_psept.csv & lpid1=$!
 lecpy  -Kgul_S1_summaryleccalc -W -w -o output/gul_S1_psept.csv & lpid2=$!
-wait $lpid1 $lpid2
+wait -p lpid_exitcode $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f fifo/*

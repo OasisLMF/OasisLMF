@@ -63,6 +63,15 @@ check_complete(){
         echo 'Run Completed'
     fi
 }
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -87,7 +96,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1.idx
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_plt_ord_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_elt_ord_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P1
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
@@ -95,7 +103,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1.idx
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_plt_ord_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_elt_ord_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_selt_ord_P1
-
 
 
 # --- Do insured loss computes ---
@@ -120,9 +127,25 @@ tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1.idx work/gul_S1_summary_palt/P1.idx
 
 ( summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    /tmp/%FIFO_DIR%/fifo/gul_P1 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1.idx \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_plt_ord_P1 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_elt_ord_P1 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1.idx \
+    /tmp/%FIFO_DIR%/fifo/il_S1_plt_ord_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_elt_ord_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_selt_ord_P1
+
 ( ( evepy 1 1 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S50 -L10 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P1 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid11=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11
+wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11
 
 
 # --- Do insured loss kats ---
@@ -142,7 +165,7 @@ katpy -M -f bin -i work/kat/gul_S1_plt_moment_P1 -o output/gul_S1_mplt.csv & kpi
 katpy -q -f bin -i work/kat/gul_S1_elt_quantile_P1 -o output/gul_S1_qelt.csv & kpid10=$!
 katpy -m -f bin -i work/kat/gul_S1_elt_moment_P1 -o output/gul_S1_melt.csv & kpid11=$!
 katpy -s -f bin -i work/kat/gul_S1_elt_sample_P1 -o output/gul_S1_selt.csv & kpid12=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12
+wait -p kpid_exitcode $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12
 
 
 ( aalpy -Kil_S1_summary_palt -c output/il_S1_alct.csv -l 0.95 -a output/il_S1_palt.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
@@ -151,7 +174,7 @@ wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpi
 ( aalpy -Kgul_S1_summary_palt -c output/gul_S1_alct.csv -l 0.95 -a output/gul_S1_palt.csv ) 2>> $LOG_DIR/stderror.err & lpid4=$!
 ( aalpy -Kgul_S1_summary_altmeanonly -a output/gul_S1_altmeanonly.csv ) 2>> $LOG_DIR/stderror.err & lpid5=$!
 ( lecpy -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -O output/gul_S1_ept.csv -o output/gul_S1_psept.csv ) 2>> $LOG_DIR/stderror.err & lpid6=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
+wait -p lpid_exitcode $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
 
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

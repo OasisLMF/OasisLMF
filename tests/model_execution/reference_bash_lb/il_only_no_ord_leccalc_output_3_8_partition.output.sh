@@ -10,6 +10,15 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
 # --- Do insured loss kats ---
 
 katpy -q -f bin -i work/kat/il_S1_elt_quantile_P1 work/kat/il_S1_elt_quantile_P2 work/kat/il_S1_elt_quantile_P3 work/kat/il_S1_elt_quantile_P4 work/kat/il_S1_elt_quantile_P5 work/kat/il_S1_elt_quantile_P6 work/kat/il_S1_elt_quantile_P7 work/kat/il_S1_elt_quantile_P8 -o output/il_S1_qelt.csv & kpid1=$!
@@ -18,12 +27,12 @@ katpy -s -f bin -i work/kat/il_S1_elt_sample_P1 work/kat/il_S1_elt_sample_P2 wor
 katpy -S -f bin -i work/kat/il_S2_plt_sample_P1 work/kat/il_S2_plt_sample_P2 work/kat/il_S2_plt_sample_P3 work/kat/il_S2_plt_sample_P4 work/kat/il_S2_plt_sample_P5 work/kat/il_S2_plt_sample_P6 work/kat/il_S2_plt_sample_P7 work/kat/il_S2_plt_sample_P8 -o output/il_S2_splt.csv & kpid4=$!
 katpy -Q -f bin -i work/kat/il_S2_plt_quantile_P1 work/kat/il_S2_plt_quantile_P2 work/kat/il_S2_plt_quantile_P3 work/kat/il_S2_plt_quantile_P4 work/kat/il_S2_plt_quantile_P5 work/kat/il_S2_plt_quantile_P6 work/kat/il_S2_plt_quantile_P7 work/kat/il_S2_plt_quantile_P8 -o output/il_S2_qplt.csv & kpid5=$!
 katpy -M -f bin -i work/kat/il_S2_plt_moment_P1 work/kat/il_S2_plt_moment_P2 work/kat/il_S2_plt_moment_P3 work/kat/il_S2_plt_moment_P4 work/kat/il_S2_plt_moment_P5 work/kat/il_S2_plt_moment_P6 work/kat/il_S2_plt_moment_P7 work/kat/il_S2_plt_moment_P8 -o output/il_S2_mplt.csv & kpid6=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
+wait -p kpid_exitcode $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 
 aalpy -Kil_S3_summary_palt -c output/il_S3_alct.csv -l 0.95 -a output/il_S3_palt.csv & lpid1=$!
 aalpy -Kil_S3_summary_altmeanonly -a output/il_S3_altmeanonly.csv & lpid2=$!
-wait $lpid1 $lpid2
+wait -p lpid_exitcode $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f fifo/*

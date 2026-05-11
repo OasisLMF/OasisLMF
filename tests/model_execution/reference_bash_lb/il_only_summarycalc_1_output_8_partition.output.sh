@@ -10,6 +10,15 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
 # --- Do insured loss kats ---
 
 

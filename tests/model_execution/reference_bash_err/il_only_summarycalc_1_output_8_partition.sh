@@ -63,6 +63,15 @@ check_complete(){
         echo 'Run Completed'
     fi
 }
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -84,21 +93,13 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_P7
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P8
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P3
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P4
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P5
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P6
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8
-
 
 
 # --- Do insured loss computes ---
@@ -122,6 +123,26 @@ tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8 > /dev/null & pid8=$!
 ( summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7 < /tmp/%FIFO_DIR%/fifo/il_P7 ) 2>> $LOG_DIR/stderror.err  &
 ( summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8 < /tmp/%FIFO_DIR%/fifo/il_P8 ) 2>> $LOG_DIR/stderror.err  &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    /tmp/%FIFO_DIR%/fifo/il_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_P2 \
+    /tmp/%FIFO_DIR%/fifo/il_P3 \
+    /tmp/%FIFO_DIR%/fifo/il_P4 \
+    /tmp/%FIFO_DIR%/fifo/il_P5 \
+    /tmp/%FIFO_DIR%/fifo/il_P6 \
+    /tmp/%FIFO_DIR%/fifo/il_P7 \
+    /tmp/%FIFO_DIR%/fifo/il_P8 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P3 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P4 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P5 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P6 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8
+
 ( ( evepy 1 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid9=$!
 ( ( evepy 2 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P2  ) 2>> $LOG_DIR/stderror.err ) & pid10=$!
 ( ( evepy 3 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P3  ) 2>> $LOG_DIR/stderror.err ) & pid11=$!
@@ -131,7 +152,7 @@ tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8 > /dev/null & pid8=$!
 ( ( evepy 7 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P7  ) 2>> $LOG_DIR/stderror.err ) & pid15=$!
 ( ( evepy 8 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P8  ) 2>> $LOG_DIR/stderror.err ) & pid16=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
+wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
 
 
 # --- Do insured loss kats ---

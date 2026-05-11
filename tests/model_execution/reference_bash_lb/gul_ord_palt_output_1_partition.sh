@@ -9,6 +9,15 @@ LOG_DIR=log
 mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -28,7 +37,6 @@ mkfifo fifo/gul_S2_summary_P1
 mkfifo fifo/gul_S2_summary_P1.idx
 
 
-
 # --- Do ground up loss computes ---
 
 
@@ -39,9 +47,18 @@ tee < fifo/gul_S2_summary_P1.idx work/gul_S2_summary_palt/P1.idx > /dev/null & p
 
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 -2 fifo/gul_S2_summary_P1 < fifo/gul_P1 &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/gul_P1 \
+    fifo/gul_S1_summary_P1 \
+    fifo/gul_S1_summary_P1.idx \
+    fifo/gul_S2_summary_P1 \
+    fifo/gul_S2_summary_P1.idx
+
 ( evepy 1 1 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  > fifo/gul_P1  ) &  pid5=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5
+wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5
 
 
 # --- Do ground up loss kats ---
@@ -49,7 +66,7 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5
 
 aalpy -Kgul_S1_summary_palt -a output/gul_S1_palt.csv & lpid1=$!
 aalpy -Kgul_S2_summary_palt -a output/gul_S2_palt.csv & lpid2=$!
-wait $lpid1 $lpid2
+wait -p lpid_exitcode $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f fifo/*

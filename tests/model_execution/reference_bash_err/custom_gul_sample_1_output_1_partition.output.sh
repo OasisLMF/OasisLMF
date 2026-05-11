@@ -73,10 +73,19 @@ check_complete(){
     fi
 }
 
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
 # --- Do ground up loss kats ---
 
 katpy -s -f bin -i work/kat/gul_S1_elt_sample_P1 -o output/gul_S1_selt.csv & kpid1=$!
-wait $kpid1
+wait -p kpid_exitcode $kpid1
 
 
 rm -R -f work/*

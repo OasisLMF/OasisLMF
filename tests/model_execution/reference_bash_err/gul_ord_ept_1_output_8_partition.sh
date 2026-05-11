@@ -63,6 +63,15 @@ check_complete(){
         echo 'Run Completed'
     fi
 }
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -85,28 +94,20 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_P8
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1.idx
-
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P2.idx
-
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3.idx
-
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P4
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P4.idx
-
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P5
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P5.idx
-
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P6
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P6.idx
-
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7.idx
-
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8.idx
-
 
 
 # --- Do ground up loss computes ---
@@ -138,6 +139,34 @@ tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8.idx work/gul_S1_summaryleccalc/P8.i
 ( summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7 < /tmp/%FIFO_DIR%/fifo/gul_P7 ) 2>> $LOG_DIR/stderror.err  &
 ( summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8 < /tmp/%FIFO_DIR%/fifo/gul_P8 ) 2>> $LOG_DIR/stderror.err  &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    /tmp/%FIFO_DIR%/fifo/gul_P1 \
+    /tmp/%FIFO_DIR%/fifo/gul_P2 \
+    /tmp/%FIFO_DIR%/fifo/gul_P3 \
+    /tmp/%FIFO_DIR%/fifo/gul_P4 \
+    /tmp/%FIFO_DIR%/fifo/gul_P5 \
+    /tmp/%FIFO_DIR%/fifo/gul_P6 \
+    /tmp/%FIFO_DIR%/fifo/gul_P7 \
+    /tmp/%FIFO_DIR%/fifo/gul_P8 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1.idx \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P2 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P2.idx \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3.idx \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P4 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P4.idx \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P5 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P5.idx \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P6 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P6.idx \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7.idx \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8 \
+    /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8.idx
+
 ( ( evepy 1 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err ) &  pid17=$!
 ( ( evepy 2 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P2  ) 2>> $LOG_DIR/stderror.err ) &  pid18=$!
 ( ( evepy 3 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P3  ) 2>> $LOG_DIR/stderror.err ) &  pid19=$!
@@ -147,14 +176,14 @@ tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8.idx work/gul_S1_summaryleccalc/P8.i
 ( ( evepy 7 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P7  ) 2>> $LOG_DIR/stderror.err ) &  pid23=$!
 ( ( evepy 8 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P8  ) 2>> $LOG_DIR/stderror.err ) &  pid24=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24
+wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24
 
 
 # --- Do ground up loss kats ---
 
 
 ( lecpy -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -O output/gul_S1_ept.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
-wait $lpid1
+wait -p lpid_exitcode $lpid1
 
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

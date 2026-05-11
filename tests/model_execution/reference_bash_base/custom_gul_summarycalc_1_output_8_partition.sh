@@ -9,6 +9,15 @@ LOG_DIR=log
 mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -28,21 +37,13 @@ mkfifo fifo/gul_P7
 mkfifo fifo/gul_P8
 
 mkfifo fifo/gul_S1_summary_P1
-
 mkfifo fifo/gul_S1_summary_P2
-
 mkfifo fifo/gul_S1_summary_P3
-
 mkfifo fifo/gul_S1_summary_P4
-
 mkfifo fifo/gul_S1_summary_P5
-
 mkfifo fifo/gul_S1_summary_P6
-
 mkfifo fifo/gul_S1_summary_P7
-
 mkfifo fifo/gul_S1_summary_P8
-
 
 
 # --- Do ground up loss computes ---
@@ -66,6 +67,26 @@ summarypy -m -t gul  -1 fifo/gul_S1_summary_P6 < fifo/gul_P6 &
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P7 < fifo/gul_P7 &
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P8 < fifo/gul_P8 &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/gul_P1 \
+    fifo/gul_P2 \
+    fifo/gul_P3 \
+    fifo/gul_P4 \
+    fifo/gul_P5 \
+    fifo/gul_P6 \
+    fifo/gul_P7 \
+    fifo/gul_P8 \
+    fifo/gul_S1_summary_P1 \
+    fifo/gul_S1_summary_P2 \
+    fifo/gul_S1_summary_P3 \
+    fifo/gul_S1_summary_P4 \
+    fifo/gul_S1_summary_P5 \
+    fifo/gul_S1_summary_P6 \
+    fifo/gul_S1_summary_P7 \
+    fifo/gul_S1_summary_P8
+
 ( evepy 1 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P1  ) &  pid9=$!
 ( evepy 2 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P2  ) &  pid10=$!
 ( evepy 3 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P3  ) &  pid11=$!
@@ -75,7 +96,7 @@ summarypy -m -t gul  -1 fifo/gul_S1_summary_P8 < fifo/gul_P8 &
 ( evepy 7 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P7  ) &  pid15=$!
 ( evepy 8 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P8  ) &  pid16=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
+wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
 
 
 # --- Do ground up loss kats ---

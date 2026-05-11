@@ -9,6 +9,15 @@ LOG_DIR=log
 mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -28,7 +37,6 @@ mkfifo fifo/gul_S2_summary_P5
 mkfifo fifo/gul_S2_summary_P5.idx
 
 
-
 # --- Do ground up loss computes ---
 tee < fifo/gul_S1_summary_P5 work/gul_S1_summaryleccalc/P5.bin > /dev/null & pid1=$!
 tee < fifo/gul_S1_summary_P5.idx work/gul_S1_summaryleccalc/P5.idx > /dev/null & pid2=$!
@@ -36,7 +44,16 @@ tee < fifo/gul_S2_summary_P5 work/gul_S2_summaryleccalc/P5.bin > /dev/null & pid
 tee < fifo/gul_S2_summary_P5.idx work/gul_S2_summaryleccalc/P5.idx > /dev/null & pid4=$!
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P5 -2 fifo/gul_S2_summary_P5 < fifo/gul_P5 &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/gul_P5 \
+    fifo/gul_S1_summary_P5 \
+    fifo/gul_S1_summary_P5.idx \
+    fifo/gul_S2_summary_P5 \
+    fifo/gul_S2_summary_P5.idx
+
 ( evepy 5 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  > fifo/gul_P5  ) &  pid5=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5
+wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5
 

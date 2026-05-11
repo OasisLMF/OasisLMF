@@ -64,12 +64,21 @@ check_complete(){
     fi
 }
 
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
 # --- Do ground up loss kats ---
 
 
 ( aalpy -Kgul_S1_summary_palt -a output/gul_S1_palt.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
 ( aalpy -Kgul_S2_summary_palt -a output/gul_S2_palt.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
-wait $lpid1 $lpid2
+wait -p lpid_exitcode $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

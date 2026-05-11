@@ -9,6 +9,15 @@ LOG_DIR=log
 mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -23,7 +32,6 @@ mkfifo fifo/gul_P1
 mkfifo fifo/gul_S1_summary_P1
 
 
-
 # --- Do ground up loss computes ---
 
 
@@ -31,9 +39,15 @@ tee < fifo/gul_S1_summary_P1 > /dev/null & pid1=$!
 
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/gul_P1 \
+    fifo/gul_S1_summary_P1
+
 ( custom_gulcalc_command > fifo/gul_P1  ) &  pid2=$!
 
-wait $pid1 $pid2
+wait -p pid_exitcode $pid1 $pid2
 
 
 # --- Do ground up loss kats ---

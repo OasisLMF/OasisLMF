@@ -9,6 +9,15 @@ LOG_DIR=log
 mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -39,42 +48,34 @@ mkfifo fifo/gul_S1_summary_P1
 mkfifo fifo/gul_S1_summary_P1.idx
 mkfifo fifo/gul_S2_summary_P1
 mkfifo fifo/gul_S2_summary_P1.idx
-
 mkfifo fifo/gul_S1_summary_P2
 mkfifo fifo/gul_S1_summary_P2.idx
 mkfifo fifo/gul_S2_summary_P2
 mkfifo fifo/gul_S2_summary_P2.idx
-
 mkfifo fifo/gul_S1_summary_P3
 mkfifo fifo/gul_S1_summary_P3.idx
 mkfifo fifo/gul_S2_summary_P3
 mkfifo fifo/gul_S2_summary_P3.idx
-
 mkfifo fifo/gul_S1_summary_P4
 mkfifo fifo/gul_S1_summary_P4.idx
 mkfifo fifo/gul_S2_summary_P4
 mkfifo fifo/gul_S2_summary_P4.idx
-
 mkfifo fifo/gul_S1_summary_P5
 mkfifo fifo/gul_S1_summary_P5.idx
 mkfifo fifo/gul_S2_summary_P5
 mkfifo fifo/gul_S2_summary_P5.idx
-
 mkfifo fifo/gul_S1_summary_P6
 mkfifo fifo/gul_S1_summary_P6.idx
 mkfifo fifo/gul_S2_summary_P6
 mkfifo fifo/gul_S2_summary_P6.idx
-
 mkfifo fifo/gul_S1_summary_P7
 mkfifo fifo/gul_S1_summary_P7.idx
 mkfifo fifo/gul_S2_summary_P7
 mkfifo fifo/gul_S2_summary_P7.idx
-
 mkfifo fifo/gul_S1_summary_P8
 mkfifo fifo/gul_S1_summary_P8.idx
 mkfifo fifo/gul_S2_summary_P8
 mkfifo fifo/gul_S2_summary_P8.idx
-
 mkfifo fifo/il_P1
 mkfifo fifo/il_P2
 mkfifo fifo/il_P3
@@ -88,42 +89,34 @@ mkfifo fifo/il_S1_summary_P1
 mkfifo fifo/il_S1_summary_P1.idx
 mkfifo fifo/il_S2_summary_P1
 mkfifo fifo/il_S2_summary_P1.idx
-
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_summary_P2.idx
 mkfifo fifo/il_S2_summary_P2
 mkfifo fifo/il_S2_summary_P2.idx
-
 mkfifo fifo/il_S1_summary_P3
 mkfifo fifo/il_S1_summary_P3.idx
 mkfifo fifo/il_S2_summary_P3
 mkfifo fifo/il_S2_summary_P3.idx
-
 mkfifo fifo/il_S1_summary_P4
 mkfifo fifo/il_S1_summary_P4.idx
 mkfifo fifo/il_S2_summary_P4
 mkfifo fifo/il_S2_summary_P4.idx
-
 mkfifo fifo/il_S1_summary_P5
 mkfifo fifo/il_S1_summary_P5.idx
 mkfifo fifo/il_S2_summary_P5
 mkfifo fifo/il_S2_summary_P5.idx
-
 mkfifo fifo/il_S1_summary_P6
 mkfifo fifo/il_S1_summary_P6.idx
 mkfifo fifo/il_S2_summary_P6
 mkfifo fifo/il_S2_summary_P6.idx
-
 mkfifo fifo/il_S1_summary_P7
 mkfifo fifo/il_S1_summary_P7.idx
 mkfifo fifo/il_S2_summary_P7
 mkfifo fifo/il_S2_summary_P7.idx
-
 mkfifo fifo/il_S1_summary_P8
 mkfifo fifo/il_S1_summary_P8.idx
 mkfifo fifo/il_S2_summary_P8
 mkfifo fifo/il_S2_summary_P8.idx
-
 
 
 # --- Do insured loss computes ---
@@ -216,6 +209,90 @@ summarypy -m -t gul  -1 fifo/gul_S1_summary_P6 -2 fifo/gul_S2_summary_P6 < fifo/
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P7 -2 fifo/gul_S2_summary_P7 < fifo/gul_P7 &
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P8 -2 fifo/gul_S2_summary_P8 < fifo/gul_P8 &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/gul_P1 \
+    fifo/gul_P2 \
+    fifo/gul_P3 \
+    fifo/gul_P4 \
+    fifo/gul_P5 \
+    fifo/gul_P6 \
+    fifo/gul_P7 \
+    fifo/gul_P8 \
+    fifo/gul_S1_summary_P1 \
+    fifo/gul_S1_summary_P1.idx \
+    fifo/gul_S2_summary_P1 \
+    fifo/gul_S2_summary_P1.idx \
+    fifo/gul_S1_summary_P2 \
+    fifo/gul_S1_summary_P2.idx \
+    fifo/gul_S2_summary_P2 \
+    fifo/gul_S2_summary_P2.idx \
+    fifo/gul_S1_summary_P3 \
+    fifo/gul_S1_summary_P3.idx \
+    fifo/gul_S2_summary_P3 \
+    fifo/gul_S2_summary_P3.idx \
+    fifo/gul_S1_summary_P4 \
+    fifo/gul_S1_summary_P4.idx \
+    fifo/gul_S2_summary_P4 \
+    fifo/gul_S2_summary_P4.idx \
+    fifo/gul_S1_summary_P5 \
+    fifo/gul_S1_summary_P5.idx \
+    fifo/gul_S2_summary_P5 \
+    fifo/gul_S2_summary_P5.idx \
+    fifo/gul_S1_summary_P6 \
+    fifo/gul_S1_summary_P6.idx \
+    fifo/gul_S2_summary_P6 \
+    fifo/gul_S2_summary_P6.idx \
+    fifo/gul_S1_summary_P7 \
+    fifo/gul_S1_summary_P7.idx \
+    fifo/gul_S2_summary_P7 \
+    fifo/gul_S2_summary_P7.idx \
+    fifo/gul_S1_summary_P8 \
+    fifo/gul_S1_summary_P8.idx \
+    fifo/gul_S2_summary_P8 \
+    fifo/gul_S2_summary_P8.idx \
+    fifo/il_P1 \
+    fifo/il_P2 \
+    fifo/il_P3 \
+    fifo/il_P4 \
+    fifo/il_P5 \
+    fifo/il_P6 \
+    fifo/il_P7 \
+    fifo/il_P8 \
+    fifo/il_S1_summary_P1 \
+    fifo/il_S1_summary_P1.idx \
+    fifo/il_S2_summary_P1 \
+    fifo/il_S2_summary_P1.idx \
+    fifo/il_S1_summary_P2 \
+    fifo/il_S1_summary_P2.idx \
+    fifo/il_S2_summary_P2 \
+    fifo/il_S2_summary_P2.idx \
+    fifo/il_S1_summary_P3 \
+    fifo/il_S1_summary_P3.idx \
+    fifo/il_S2_summary_P3 \
+    fifo/il_S2_summary_P3.idx \
+    fifo/il_S1_summary_P4 \
+    fifo/il_S1_summary_P4.idx \
+    fifo/il_S2_summary_P4 \
+    fifo/il_S2_summary_P4.idx \
+    fifo/il_S1_summary_P5 \
+    fifo/il_S1_summary_P5.idx \
+    fifo/il_S2_summary_P5 \
+    fifo/il_S2_summary_P5.idx \
+    fifo/il_S1_summary_P6 \
+    fifo/il_S1_summary_P6.idx \
+    fifo/il_S2_summary_P6 \
+    fifo/il_S2_summary_P6.idx \
+    fifo/il_S1_summary_P7 \
+    fifo/il_S1_summary_P7.idx \
+    fifo/il_S2_summary_P7 \
+    fifo/il_S2_summary_P7.idx \
+    fifo/il_S1_summary_P8 \
+    fifo/il_S1_summary_P8.idx \
+    fifo/il_S2_summary_P8 \
+    fifo/il_S2_summary_P8.idx
+
 ( evepy 1 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P1 | fmpy -a2 > fifo/il_P1  ) & pid65=$!
 ( evepy 2 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P2 | fmpy -a2 > fifo/il_P2  ) & pid66=$!
 ( evepy 3 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P3 | fmpy -a2 > fifo/il_P3  ) & pid67=$!
@@ -225,7 +302,7 @@ summarypy -m -t gul  -1 fifo/gul_S1_summary_P8 -2 fifo/gul_S2_summary_P8 < fifo/
 ( evepy 7 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P7 | fmpy -a2 > fifo/il_P7  ) & pid71=$!
 ( evepy 8 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a0  | tee fifo/gul_P8 | fmpy -a2 > fifo/il_P8  ) & pid72=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60 $pid61 $pid62 $pid63 $pid64 $pid65 $pid66 $pid67 $pid68 $pid69 $pid70 $pid71 $pid72
+wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60 $pid61 $pid62 $pid63 $pid64 $pid65 $pid66 $pid67 $pid68 $pid69 $pid70 $pid71 $pid72
 
 
 # --- Do insured loss kats ---
@@ -241,7 +318,7 @@ aalpy -Kgul_S1_summary_palt -a output/gul_S1_palt.csv & lpid4=$!
 lecpy -r -Kgul_S1_summaryleccalc -F -S -s -M -m -W -w -O output/gul_S1_ept.csv -o output/gul_S1_psept.csv & lpid5=$!
 aalpy -Kgul_S2_summary_palt -a output/gul_S2_palt.csv & lpid6=$!
 lecpy -r -Kgul_S2_summaryleccalc -F -S -s -M -m -W -w -O output/gul_S2_ept.csv -o output/gul_S2_psept.csv & lpid7=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7
+wait -p lpid_exitcode $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7
 
 rm -R -f work/*
 rm -R -f fifo/*
