@@ -99,3 +99,9 @@ sc20,sc20,1,1,QEQ;QFF;QSL;QTS;BFR;QLS;QLF,USD,,,0,QEQ;QFF;QSL;QTS;BFR;QLS;QLF,,,
 sc20,sc20,1,1,QEQ;QFF;QSL;QTS;BFR;QLS;QLF,USD,,,0,QEQ;QFF;QSL;QTS;BFR;QLS;QLF,,,,,890000,0,QEQ;QFF;QSL;QTS;QLS;QLF,E,5,,,22000,,,,5,,,latest version,sc20,WW2;XX1;ZSN;ZIC;ZFZ;ZST;WSS;QEQ;QFF;QSL;BBF;ORF;OSF;QTS;BFR;QLS;QLF,,,,,,,,,,,,,,,,,,,,,,1,0
 sc20,sc20,1,1,QEQ;QFF;QSL;QTS;BFR;QLS;QLF,USD,,,0,QEQ;QFF;QSL;QTS;BFR;QLS;QLF,,,,,890000,0,QEQ;QFF;QSL;QTS;QLS;QLF,A,1,,,22000,,,,1,,,latest version,sc20,WW2;XX1;ZSN;ZIC;ZFZ;ZST;WSS;QEQ;QFF;QSL;BBF;ORF;OSF;QTS;BFR;QLS;QLF,,,,,,,,,,,,,,,,,,,,,,1,0
 sc20,sc20,1,1,QEQ;QFF;QSL;QTS;BFR;QLS;QLF,USD,,,0,QEQ;QFF;QSL;QTS;BFR;QLS;QLF,,,,,890000,0,QEQ;QFF;QSL;QTS;QLS;QLF,B,2,,,22000,,,,2,,,latest version,sc20,WW2;XX1;ZSN;ZIC;ZFZ;ZST;WSS;QEQ;QFF;QSL;BBF;ORF;OSF;QTS;BFR;QLS;QLF,,,,,,,,,,,,,,,,,,,,,,1,0
+sc22,sc22,B,P_B1,AA1,USD,0.1,5000000,0,AA1,,,,,,,,,,,,,,,,,,,latest version,sc22,,,,,,,,,,,,,,,,,,,,,,,,
+sc22,sc22,B,P_B1,AA1,USD,0.1,5000000,0,AA1,,,,,,,AA1,1B,101,0,,,,1000000,0,1,real_l1,0,latest version,sc22,,,,,,,,,,,,,,,,,,,,,,,,
+sc22,sc22,B,P_B2,AA1,USD,0.2,5000000,5000000,AA1,,,,,,,,,,,,,,,,,,,latest version,sc22,,,,,,,,,,,,,,,,,,,,,,,,
+sc22,sc22,B,P_B2,AA1,USD,0.2,5000000,5000000,AA1,,,,,,,AA1,1B,102,0,,,,2000000,0,1,real_l2,0,latest version,sc22,,,,,,,,,,,,,,,,,,,,,,,,
+sc22,sc22,A,P_A,AA1,USD,,,,AA1,,,,,,,,,,,,,,,,,,,latest version,sc22,,,,,,,,,,,,,,,,,,,,,,,,
+sc22,sc22,A,P_A,AA1,USD,,,,AA1,,,,,,,AA1,1A,201,0,,,,0,0,2,tag_only,0,latest version,sc22,,,,,,,,,,,,,,,,,,,,,,,,
