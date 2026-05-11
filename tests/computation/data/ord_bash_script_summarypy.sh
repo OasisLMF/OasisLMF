@@ -63,6 +63,15 @@ check_complete(){
         echo 'Run Completed'
     fi
 }
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -91,13 +100,11 @@ mkfifo fifo/gul_S1_summary_P1.idx
 mkfifo fifo/gul_S1_plt_ord_P1
 mkfifo fifo/gul_S1_elt_ord_P1
 mkfifo fifo/gul_S1_selt_ord_P1
-
 mkfifo fifo/gul_S1_summary_P2
 mkfifo fifo/gul_S1_summary_P2.idx
 mkfifo fifo/gul_S1_plt_ord_P2
 mkfifo fifo/gul_S1_elt_ord_P2
 mkfifo fifo/gul_S1_selt_ord_P2
-
 mkfifo fifo/il_P1
 mkfifo fifo/il_P2
 
@@ -106,13 +113,11 @@ mkfifo fifo/il_S1_summary_P1.idx
 mkfifo fifo/il_S1_plt_ord_P1
 mkfifo fifo/il_S1_elt_ord_P1
 mkfifo fifo/il_S1_selt_ord_P1
-
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_summary_P2.idx
 mkfifo fifo/il_S1_plt_ord_P2
 mkfifo fifo/il_S1_elt_ord_P2
 mkfifo fifo/il_S1_selt_ord_P2
-
 mkfifo fifo/ri_P1
 mkfifo fifo/ri_P2
 
@@ -121,13 +126,11 @@ mkfifo fifo/ri_S1_summary_P1.idx
 mkfifo fifo/ri_S1_plt_ord_P1
 mkfifo fifo/ri_S1_elt_ord_P1
 mkfifo fifo/ri_S1_selt_ord_P1
-
 mkfifo fifo/ri_S1_summary_P2
 mkfifo fifo/ri_S1_summary_P2.idx
 mkfifo fifo/ri_S1_plt_ord_P2
 mkfifo fifo/ri_S1_elt_ord_P2
 mkfifo fifo/ri_S1_selt_ord_P2
-
 
 
 # --- Do reinsurance loss computes ---
@@ -183,6 +186,46 @@ tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summary_palt/P2.idx work/gul_S1_sum
 
 socket-server 2 10006 > /dev/null & spid=$!
 trap 'kill -TERM -"$spid" 2>/dev/null' INT TERM
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/gul_P1 \
+    fifo/gul_P2 \
+    fifo/gul_S1_summary_P1 \
+    fifo/gul_S1_summary_P1.idx \
+    fifo/gul_S1_plt_ord_P1 \
+    fifo/gul_S1_elt_ord_P1 \
+    fifo/gul_S1_selt_ord_P1 \
+    fifo/gul_S1_summary_P2 \
+    fifo/gul_S1_summary_P2.idx \
+    fifo/gul_S1_plt_ord_P2 \
+    fifo/gul_S1_elt_ord_P2 \
+    fifo/gul_S1_selt_ord_P2 \
+    fifo/il_P1 \
+    fifo/il_P2 \
+    fifo/il_S1_summary_P1 \
+    fifo/il_S1_summary_P1.idx \
+    fifo/il_S1_plt_ord_P1 \
+    fifo/il_S1_elt_ord_P1 \
+    fifo/il_S1_selt_ord_P1 \
+    fifo/il_S1_summary_P2 \
+    fifo/il_S1_summary_P2.idx \
+    fifo/il_S1_plt_ord_P2 \
+    fifo/il_S1_elt_ord_P2 \
+    fifo/il_S1_selt_ord_P2 \
+    fifo/ri_P1 \
+    fifo/ri_P2 \
+    fifo/ri_S1_summary_P1 \
+    fifo/ri_S1_summary_P1.idx \
+    fifo/ri_S1_plt_ord_P1 \
+    fifo/ri_S1_elt_ord_P1 \
+    fifo/ri_S1_selt_ord_P1 \
+    fifo/ri_S1_summary_P2 \
+    fifo/ri_S1_summary_P2.idx \
+    fifo/ri_S1_plt_ord_P2 \
+    fifo/ri_S1_elt_ord_P2 \
+    fifo/ri_S1_selt_ord_P2
+
 ( ( evepy 1 2 | gulmc --socket-server='10006' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P1 | fmpy -a2 | tee fifo/il_P1 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err ) & pid31=$!
 ( ( evepy 2 2 | gulmc --socket-server='10006' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P2 | fmpy -a2 | tee fifo/il_P2 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P2 ) 2>> $LOG_DIR/stderror.err ) & pid32=$!
 
