@@ -938,7 +938,7 @@ def get_il_input_items(
 
                 join_keys = [c for c in agg_id_merge_col + agg_id_merge_col_extra
                              if c in gul_inputs_df.columns]
-                if 'need_tiv' in level_df.columns and join_keys: # make sure only 1 need_tiv value per join_keys
+                if 'need_tiv' in level_df.columns and join_keys:  # make sure only 1 need_tiv value per join_keys
                     level_df['need_tiv'] = (level_df
                                             .groupby(join_keys, observed=True, dropna=False)['need_tiv']
                                             .transform('any'))
