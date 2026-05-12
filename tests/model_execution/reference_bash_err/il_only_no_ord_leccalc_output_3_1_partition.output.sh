@@ -73,6 +73,17 @@ check_fifos() {
     [ "$has_error" -eq 0 ] || false
 }
 
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}
+
 # --- Do insured loss kats ---
 
 katpy -q -f bin -i work/kat/il_S1_elt_quantile_P1 -o output/il_S1_qelt.csv & kpid1=$!
@@ -81,12 +92,12 @@ katpy -s -f bin -i work/kat/il_S1_elt_sample_P1 -o output/il_S1_selt.csv & kpid3
 katpy -S -f bin -i work/kat/il_S2_plt_sample_P1 -o output/il_S2_splt.csv & kpid4=$!
 katpy -Q -f bin -i work/kat/il_S2_plt_quantile_P1 -o output/il_S2_qplt.csv & kpid5=$!
 katpy -M -f bin -i work/kat/il_S2_plt_moment_P1 -o output/il_S2_mplt.csv & kpid6=$!
-wait -p kpid_exitcode $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
+exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 
 ( aalpy -Kil_S3_summary_palt -c output/il_S3_alct.csv -l 0.95 -a output/il_S3_palt.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
 ( aalpy -Kil_S3_summary_altmeanonly -a output/il_S3_altmeanonly.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
-wait -p lpid_exitcode $lpid1 $lpid2
+exec_wait $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

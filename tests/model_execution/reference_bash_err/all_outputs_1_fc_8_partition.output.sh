@@ -73,6 +73,17 @@ check_fifos() {
     [ "$has_error" -eq 0 ] || false
 }
 
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}
+
 # --- Do insured loss kats ---
 
 katpy -S -f bin -i work/kat/il_S1_plt_sample_P1 work/kat/il_S1_plt_sample_P2 work/kat/il_S1_plt_sample_P3 work/kat/il_S1_plt_sample_P4 work/kat/il_S1_plt_sample_P5 work/kat/il_S1_plt_sample_P6 work/kat/il_S1_plt_sample_P7 work/kat/il_S1_plt_sample_P8 -o output/il_S1_splt.csv & kpid1=$!
@@ -90,7 +101,7 @@ katpy -M -f bin -i work/kat/gul_S1_plt_moment_P1 work/kat/gul_S1_plt_moment_P2 w
 katpy -q -f bin -i work/kat/gul_S1_elt_quantile_P1 work/kat/gul_S1_elt_quantile_P2 work/kat/gul_S1_elt_quantile_P3 work/kat/gul_S1_elt_quantile_P4 work/kat/gul_S1_elt_quantile_P5 work/kat/gul_S1_elt_quantile_P6 work/kat/gul_S1_elt_quantile_P7 work/kat/gul_S1_elt_quantile_P8 -o output/gul_S1_qelt.csv & kpid10=$!
 katpy -m -f bin -i work/kat/gul_S1_elt_moment_P1 work/kat/gul_S1_elt_moment_P2 work/kat/gul_S1_elt_moment_P3 work/kat/gul_S1_elt_moment_P4 work/kat/gul_S1_elt_moment_P5 work/kat/gul_S1_elt_moment_P6 work/kat/gul_S1_elt_moment_P7 work/kat/gul_S1_elt_moment_P8 -o output/gul_S1_melt.csv & kpid11=$!
 katpy -s -f bin -i work/kat/gul_S1_elt_sample_P1 work/kat/gul_S1_elt_sample_P2 work/kat/gul_S1_elt_sample_P3 work/kat/gul_S1_elt_sample_P4 work/kat/gul_S1_elt_sample_P5 work/kat/gul_S1_elt_sample_P6 work/kat/gul_S1_elt_sample_P7 work/kat/gul_S1_elt_sample_P8 -o output/gul_S1_selt.csv & kpid12=$!
-wait -p kpid_exitcode $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12
+exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12
 
 
 ( aalpy -Kil_S1_summary_palt -c output/il_S1_alct.csv -l 0.95 -a output/il_S1_palt.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
@@ -99,7 +110,7 @@ wait -p kpid_exitcode $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $k
 ( aalpy -Kgul_S1_summary_palt -c output/gul_S1_alct.csv -l 0.95 -a output/gul_S1_palt.csv ) 2>> $LOG_DIR/stderror.err & lpid4=$!
 ( aalpy -Kgul_S1_summary_altmeanonly -a output/gul_S1_altmeanonly.csv ) 2>> $LOG_DIR/stderror.err & lpid5=$!
 ( lecpy -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -O output/gul_S1_ept.csv -o output/gul_S1_psept.csv ) 2>> $LOG_DIR/stderror.err & lpid6=$!
-wait -p lpid_exitcode $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
+exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
 
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

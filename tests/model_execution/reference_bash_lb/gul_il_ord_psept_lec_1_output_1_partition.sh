@@ -18,6 +18,17 @@ check_fifos() {
     done
     [ "$has_error" -eq 0 ] || false
 }
+
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -100,7 +111,7 @@ check_fifos \
 ( fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 ) & pid9=$!
 ( fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 ) & pid10=$!
 
-wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
+exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
 
 # --- Do insured loss kats ---
@@ -111,7 +122,7 @@ wait -p pid_exitcode $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid1
 
 lecpy -r -Kil_S1_summaryleccalc -W -w -o output/il_S1_psept.csv & lpid1=$!
 lecpy  -Kgul_S1_summaryleccalc -W -w -o output/gul_S1_psept.csv & lpid2=$!
-wait -p lpid_exitcode $lpid1 $lpid2
+exec_wait $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f fifo/*
