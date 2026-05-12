@@ -706,8 +706,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if BallTree is None:
                 raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_max_distance, {OPT_INSTALL_MESSAGE}")
             with warnings.catch_warnings():
-                # In the context of a nearest neighbour search, we accept a deviation between the
-                # true "ellipsoidal" distance and the cartesian approximation that's used here.
+                # In the context of a nearest neighbour search, we accept a potentially significant
+                # deviation between the spherical or ellipsoidal distance and the cartesian approximation
+                # that's used here.
                 warnings.filterwarnings('ignore', category=UserWarning, message="Geometry is in a geographic CRS.")
                 gdf_area_peril['center'] = gdf_area_peril.centroid
             base_geometry_name = gdf_area_peril.geometry.name
