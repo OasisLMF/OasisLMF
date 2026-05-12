@@ -72,7 +72,7 @@ class RunExposure(ComputationStep):
         {'name': 'oed_scope_csv', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance scope CSV'},
         # -s flag for scope in other files taken for src dir already
         {'name': 'portfolio_complexity', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
-         'help': 'if True, compute and report portfolio complexity metrics after generating FM files'},
+         'help': 'if True, compute and report portfolio complexity metrics (GUL dimensions always; IL/RI FM structure when present)'},
     ]
 
     chained_commands = [GenerateKeysDeterministic]
@@ -141,8 +141,8 @@ class RunExposure(ComputationStep):
             intermediary_csv=self.intermediary_csv,
         ).run()
 
-        # 3. Portfolio complexity report (IL only – requires fm_programme etc.)
-        if self.portfolio_complexity and il:
+        # 3. Portfolio complexity report
+        if self.portfolio_complexity:
             try:
                 complexity = compute_portfolio_complexity(run_dir)
                 report_path = os.path.join(run_dir, 'portfolio_complexity.json')
