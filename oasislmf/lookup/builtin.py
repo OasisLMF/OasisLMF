@@ -667,8 +667,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         id_columns: column to transform to an 'id_column' (type int32 with nan replace by -1)
 
-        nearest_neighbor_max_distance: option to look for the nearest neighboring geometry if no
-            containing geometries are found.
+        nearest_neighbor_max_distance: option to look for the nearest neighboring geometry up to
+            this distance away if no containing geometries are found.
             We use:
             https://automating-gis-processes.github.io/site/notebooks/L3/nearest-neighbor-faster.html
             but alternatives can be found here:
@@ -677,7 +677,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             distance on a sphere or ellipsoid. It is the maximum accepted distance between the point
             locations and the containing geometry centroids.
 
-        nearest_neighbour_min_distance: deprecated alias for nearest_neighbour_min_distance. May be
+        nearest_neighbour_min_distance: deprecated alias for nearest_neighbour_max_distance. May be
             removed in a future version.
         """
 

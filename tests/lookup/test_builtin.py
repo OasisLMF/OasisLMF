@@ -152,7 +152,7 @@ def rtree_locations_some_coordinates():
     ],
     )
 def test_build_rtree_associates_correctly(locations_by_name, expected_ids, request):
-    """Test that the rtree builin correctly associates locations to polygons.
+    """Test that the rtree builtin correctly associates locations to polygons.
 
     Test polygons have the following centroids:
       - poly1    POINT (0.41289 46.46745)
@@ -176,17 +176,16 @@ def test_build_rtree_associates_correctly(locations_by_name, expected_ids, reque
     )
 
 def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinates):
-    """Test that the rtree builin correctly associates locations to polygons."""
-    locations = rtree_locations_all_coordinates
+    """Test that the rtree builtin still works with the deprecated parameter."""
     with pytest.warns(DeprecationWarning):
         rtree = Lookup(config={}).build_rtree(
             file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
             file_type="parquet",
             id_columns="poly_id",
-            nearest_neighbor_min_distance=12000, # Deprecated parameter name.
+            nearest_neighbor_min_distance=12000, # Deprecated parameter name should raise warning.
         )
-    output = rtree(locations)
-    expected = locations.copy().assign(poly_id=[1, 2, 1, OASIS_UNKNOWN_ID])
+    output = rtree(rtree_locations_all_coordinates)
+    expected = rtree_locations_all_coordinates.copy().assign(poly_id=[1, 2, 1, OASIS_UNKNOWN_ID])
 
     # Sort values so order doesn't matter.
     pd.testing.assert_frame_equal(
