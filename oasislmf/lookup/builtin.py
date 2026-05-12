@@ -643,18 +643,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         file_type,
         id_columns,
         area_peril_read_params=None,
+        file_read_params=None,
         nearest_neighbor_min_distance=-1,
         nearest_neighbor_max_distance=-1
     ):
         """
-        Function Factory to associate location to area_peril based on the rtree method
+        Function Factory to associate location to a geometry (e.g. area peril) based on the rtree method
 
         !!!
-        please note that this method is quite time consuming (specialy if you use the nearest point option
-        if your peril_area are square you should use area_peril function fixed_size_geo_grid
+        please note that this method is quite time consuming (especially if you use the nearest neighbor option
+        if your geometries are square you should use the function fixed_size_geo_grid
         !!!
 
-        file_path: is the path to the file containing the area_peril_dictionary.
+        file_path: is the path to the file containing the geometries.
             this file must be a geopandas Dataframe with a valid geometry.
             an example on how to create such dataframe is available in PiWind
             if you are new to geo data (in python) and want to learn more, you may have a look at this excellent course:
@@ -664,7 +665,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             see: https://geopandas.readthedocs.io/en/latest/docs/reference/io.html
             you may have to install additional library such as pyarrow for parquet
 
-        id_columns: column to transform to an 'id_column' (type int32 with nan replace by -1)
+        id_columns (str or list(str)): column to transform to an 'id_column' (type int32 with nan replace by -1).
+
+        file_read_params (dict or None): extra kwargs to pass to the file reading function.
+
+        area_peril_read_params: deprecated alias for file_read_params.
 
         nearest_neighbor_max_distance: option to look for the nearest neighboring geometry up to
             this distance away if no containing geometries are found.
@@ -685,22 +690,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                           "removed in a future version. Please use `nearest_neighbor_max_distance` "
                           "instead.",
                           DeprecationWarning)
-            if nearest_neighbor_max_distance > 0:
-                warnings.warn("Both parameters `nearest_neighbor_min_distance` and "
-                              "`nearest_neighbor_max_distance` were provided. The latter will be "
-                              "used.")
-            else:
+            if not nearest_neighbor_max_distance > 0:
                 nearest_neighbor_max_distance = nearest_neighbor_min_distance
+
+        if area_peril_read_params:
+            warnings.warn("Parameter `area_peril_read_params` is deprecated and may be removed in a "
+                         "future version. Please use `file_read_params` instead.", DeprecationWarning)
+            if not file_read_params:
+                file_read_params = area_peril_read_params
 
         if Point is None:
             raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
         if hasattr(gpd, f"read_{file_type}"):
-            if area_peril_read_params is None:
-                area_peril_read_params = {}
-            gdf_area_peril = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path), **area_peril_read_params)
+            if file_read_params is None:
+                file_read_params = {}
+            gdf_geometry = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path), **file_read_params)
         else:
-            raise OasisException(f"Unregognised Geopandas read type {file_type}")
+            raise OasisException(f"Unrecognised Geopandas read type {file_type}")
 
         if nearest_neighbor_max_distance > 0:
             if BallTree is None:
@@ -710,10 +717,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 # deviation between the spherical or ellipsoidal distance and the cartesian approximation
                 # that's used here.
                 warnings.filterwarnings('ignore', category=UserWarning, message="Geometry is in a geographic CRS.")
-                gdf_area_peril['center'] = gdf_area_peril.centroid
-            base_geometry_name = gdf_area_peril.geometry.name
+                gdf_geometry['center'] = gdf_geometry.centroid
+            base_geometry_name = gdf_geometry.geometry.name
 
-        def get_area(locations, gdf_area_peril):
+        def get_geometry(locations, gdf_geometry):
             # this conversion could be done in a separate step allowing more posibilities for the geometry
             null_gdf = locations["longitude"].isna() | locations["latitude"].isna()
             null_gdf_loc = locations[null_gdf]
@@ -724,16 +731,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             )
 
             if not gdf_loc.empty:
-                gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
+                gdf_loc = gpd.sjoin(gdf_loc, gdf_geometry, 'left')
 
                 if nearest_neighbor_max_distance > 0:
                     gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
 
                     if gdf_loc_na.shape[0]:
-                        gdf_area_peril.set_geometry('center', inplace=True)
-                        nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_area_peril, return_dist=True)
+                        gdf_geometry.set_geometry('center', inplace=True)
+                        nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_geometry, return_dist=True)
 
-                        gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
+                        gdf_geometry.set_geometry(base_geometry_name, inplace=True)
                         valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_max_distance
                         common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
                         gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
@@ -747,16 +754,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return gdf_loc
 
         def fct(locations):
-            if 'peril_id' in gdf_area_peril.columns:
-                peril_id_covered = np.unique(gdf_area_peril['peril_id'])
+            if 'peril_id' in gdf_geometry.columns:
+                peril_id_covered = np.unique(gdf_geometry['peril_id'])
                 res = [locations[~locations['peril_id'].isin(peril_id_covered)]]
                 for peril_id in peril_id_covered:
-                    res.append(get_area(locations.loc[locations['peril_id'] == peril_id],
-                                        gdf_area_peril.loc[gdf_area_peril['peril_id'] == peril_id].drop(columns=['peril_id'])))
+                    res.append(get_geometry(locations.loc[locations['peril_id'] == peril_id],
+                                        gdf_geometry.loc[gdf_geometry['peril_id'] == peril_id].drop(columns=['peril_id'])))
 
                 return pd.concat(res).reset_index()
             else:
-                return get_area(locations, gdf_area_peril)
+                return get_geometry(locations, gdf_geometry)
         return fct
 
     @staticmethod
