@@ -12,6 +12,7 @@ from oasislmf.pytools.converters.bintoparquet.manager import bintoparquet
 from oasislmf.pytools.converters.parquettobin.manager import parquettobin
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype
+from oasislmf.pytools.getmodel.manager import VulnerabilityIndex_dtype
 from oasislmf.utils.exceptions import OasisException
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_converters")
@@ -405,6 +406,30 @@ def test_vulnerability():
         zip_files=False
     )
 
+    # no_validation=True must produce identical output to validated path on clean input
+    case_runner(
+        converter="csvtobin",
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_noidx",
+        abnormal_dtype=True,
+        idx_file_out=None,
+        max_damage_bin_idx=2,
+        no_validation=True,
+        suppress_int_bin_checks=False,
+        zip_files=False
+    )
+    case_runner_tobin_with_zip_and_idx(
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_idx",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx"),
+        max_damage_bin_idx=2,
+        no_validation=True,
+        suppress_int_bin_checks=False,
+        zip_files=False
+    )
+
     # zip_input = True
     # bintocsv
     case_runner_tocsv_with_zip_and_idx(
@@ -425,6 +450,56 @@ def test_vulnerability():
         suppress_int_bin_checks=False,
         zip_files=True
     )
+    # no_validation=True must produce identical output to validated path on clean input
+    case_runner_tobin_with_zip_and_idx(
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_idx",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx.z"),
+        max_damage_bin_idx=2,
+        no_validation=True,
+        suppress_int_bin_checks=False,
+        zip_files=True
+    )
+
+
+def test_vulnerability_no_validation_unsorted():
+    """no_validation=False rejects unsorted input; no_validation=True accepts it and preserves order."""
+    unsorted_csv = (
+        b"vulnerability_id,intensity_bin_id,damage_bin_id,probability\n"
+        b"2,1,1,1.0\n"
+        b"1,1,1,1.0\n"
+    )
+    with TemporaryDirectory() as tmp:
+        csv_in = Path(tmp) / "vulnerability.csv"
+        csv_in.write_bytes(unsorted_csv)
+
+        with pytest.raises(OasisException, match="not in ascending order"):
+            csvtobin(
+                file_in=csv_in,
+                file_out=Path(tmp) / "v.bin",
+                file_type="vulnerability",
+                idx_file_out=Path(tmp) / "v.idx",
+                max_damage_bin_idx=2,
+                no_validation=False,
+                suppress_int_bin_checks=True,
+                zip_files=False,
+            )
+
+        csvtobin(
+            file_in=csv_in,
+            file_out=Path(tmp) / "n.bin",
+            file_type="vulnerability",
+            idx_file_out=Path(tmp) / "n.idx",
+            max_damage_bin_idx=2,
+            no_validation=True,
+            suppress_int_bin_checks=True,
+            zip_files=False,
+        )
+        idx = np.fromfile(Path(tmp) / "n.idx", dtype=VulnerabilityIndex_dtype)
+        assert idx["vulnerability_id"].tolist() == [2, 1], (
+            f"Expected vulns written in input order [2, 1], got {idx['vulnerability_id'].tolist()}"
+        )
 
 
 def test_weights():
