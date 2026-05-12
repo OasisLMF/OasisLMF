@@ -89,7 +89,7 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     # Ensure that index in right gdf is formed of sequential numbers
     right = right_gdf.copy().reset_index(drop=True)
 
-    # # Parse coordinates from points and insert them into a numpy array as RADIANS
+    # Parse coordinates from points and insert them into a numpy array as RADIANS
     left_radians = np.transpose(np.array((left_gdf.geometry.x * np.pi / 180, left_gdf.geometry.y * np.pi / 180)))
     right_radians = np.transpose(np.array((right_gdf.geometry.x * np.pi / 180, right_gdf.geometry.y * np.pi / 180)))
 
@@ -97,7 +97,6 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     # -----------------------
     # closest ==> index in right_gdf that corresponds to the closest point
     # dist ==> distance between the nearest neighbors (in meters)
-
     closest, dist = get_nearest(src_points=left_radians, candidates=right_radians)
 
     # Return points from right GeoDataFrame that are closest to points in left GeoDataFrame
