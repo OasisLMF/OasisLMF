@@ -1,3 +1,29 @@
+# Footprint binary → CSV converter.
+#
+# The binary footprint is memory-mapped (np.memmap) so only pages that are actually
+# read are loaded — memory usage is proportional to the events being output, not file size.
+# Processing proceeds as follows:
+#
+#   1. Index loading: the .idx file is memory-mapped as EventIndexBin_dtype or
+#      EventIndexBinZ_dtype (when the binary carries a decompressed-size field).
+#      If the index is out of order it is sorted by event_id once upfront via argsort;
+#      the common case (already sorted) skips this entirely.
+#
+#   2. Event range filtering: when event_from_to is supplied the index is masked to the
+#      requested range in one vectorised step before any footprint data is touched.
+#
+#   3. Output — two paths depending on zip_files:
+#
+#      Non-zip (_footprint_tocsv_bin): a JIT inner loop (_fill_next_batch) packs complete
+#      events into a fixed pre-allocated output buffer (_BATCH_ROWS rows). The buffer is
+#      flushed to CSV in one write_ndarray_to_fmt_csv call per batch, reducing per-event
+#      Python overhead from O(num_events) to O(num_events / _BATCH_ROWS). Single events
+#      that exceed the batch size are written directly with an exact-size allocation.
+#
+#      Zip (_footprint_tocsv_zip): each event is decompressed individually with zlib. When
+#      the index carries a d_size field (decompressed size), a single reusable buffer is
+#      pre-allocated at the maximum event size; otherwise a new buffer is allocated per event.
+
 import zlib
 import numba as nb
 import numpy as np
