@@ -121,18 +121,76 @@ def test_build_merge_respects_filetype(file_path, file_type, success):
 
 
 @pytest.fixture
-def rtree_locations():
+def rtree_locations_all_coordinates():
     return pd.DataFrame(columns=["longitude", "latitude", "locname"], data=[
         [0.373700517342545, 46.4691264361466, "inside_1"],
         [0.639522260665994, 46.3538195759967, "inside_2"],
         [0.511892615692815, 46.4703388960666, "close_to_1"],
-        [0.400106650785272, 46.3307289492925, "far_away"]
+        [0.400106650785272, 46.3307289492925, "far_away"],
     ])
 
+@pytest.fixture
+def rtree_locations_no_coordinates():
+    return pd.DataFrame(columns=["longitude", "latitude", "locname"], data=[
+        [None, None, "A"],
+        [None, None, "B"],
+    ])
 
-def test_build_rtree_associates_correctly(rtree_locations):
-    rtree = Lookup(config={}).build_rtree(file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
-                                          file_type="parquet", id_columns="poly_id", nearest_neighbor_min_distance=12000)
-    output = rtree(rtree_locations)
-    expected = rtree_locations.copy().assign(poly_id=[1, 2, 1, OASIS_UNKNOWN_ID])
-    pd.testing.assert_frame_equal(output, expected, check_dtype=False)
+@pytest.fixture
+def rtree_locations_some_coordinates():
+    return pd.DataFrame(columns=["longitude", "latitude", "locname"], data=[
+        [None, None, "A"],
+        [0.373700517342545, 46.4691264361466, "inside_1"],
+    ])
+
+@pytest.mark.parametrize(
+    ("locations_by_name", "expected_ids"),
+    [
+        ("rtree_locations_all_coordinates", [1, 2, 1, OASIS_UNKNOWN_ID]),
+        ("rtree_locations_no_coordinates", [OASIS_UNKNOWN_ID, OASIS_UNKNOWN_ID]),
+        ("rtree_locations_some_coordinates", [OASIS_UNKNOWN_ID, 1]),
+    ],
+    )
+def test_build_rtree_associates_correctly(locations_by_name, expected_ids, request):
+    """Test that the rtree builin correctly associates locations to polygons.
+
+    Test polygons have the following centroids:
+      - poly1    POINT (0.41289 46.46745)
+      - poly2    POINT (0.63856 46.348)
+    """
+    locations = request.getfixturevalue(locations_by_name)
+    rtree = Lookup(config={}).build_rtree(
+        file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
+        file_type="parquet",
+        id_columns="poly_id",
+        nearest_neighbor_max_distance=12000, # Euclidean distance in metres, not spherical distance.
+    )
+    output = rtree(locations)
+    expected = locations.copy().assign(poly_id=expected_ids)
+
+    # Sort values so order doesn't matter.
+    pd.testing.assert_frame_equal(
+        output.sort_values("locname"),
+        expected.sort_values("locname"),
+        check_dtype=False,
+    )
+
+def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinates):
+    """Test that the rtree builin correctly associates locations to polygons."""
+    locations = rtree_locations_all_coordinates
+    with pytest.warns(DeprecationWarning):
+        rtree = Lookup(config={}).build_rtree(
+            file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
+            file_type="parquet",
+            id_columns="poly_id",
+            nearest_neighbor_min_distance=12000, # Deprecated parameter name.
+        )
+    output = rtree(locations)
+    expected = locations.copy().assign(poly_id=[1, 2, 1, OASIS_UNKNOWN_ID])
+
+    # Sort values so order doesn't matter.
+    pd.testing.assert_frame_equal(
+        output.sort_values("locname"),
+        expected.sort_values("locname"),
+        check_dtype=False,
+    )

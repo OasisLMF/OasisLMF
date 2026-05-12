@@ -55,7 +55,10 @@ OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip inst
 
 
 def get_nearest(src_points, candidates, k_neighbors=1):
-    """Find nearest neighbors for all source points from a set of candidate points"""
+    """Find nearest neighbors for all source points from a set of candidate points.
+
+    The distances returned are Euclidean distances, not distances on a sphere or ellipsoid.
+    """
 
     # Create tree from the candidate points
     tree = BallTree(candidates, leaf_size=15, metric='haversine')
@@ -81,11 +84,12 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     For each point in left_gdf, find closest point in right GeoDataFrame and return them.
 
     NOTICE: Assumes that the input Points are in WGS84 projection (lat/lon).
+            Distance returned is the Euclidean distance, not the true distance on a sphere or ellipsoid.
     """
     # Ensure that index in right gdf is formed of sequential numbers
     right = right_gdf.copy().reset_index(drop=True)
 
-    # Parse coordinates from points and insert them into a numpy array as RADIANS
+    # # Parse coordinates from points and insert them into a numpy array as RADIANS
     left_radians = np.transpose(np.array((left_gdf.geometry.x * np.pi / 180, left_gdf.geometry.y * np.pi / 180)))
     right_radians = np.transpose(np.array((right_gdf.geometry.x * np.pi / 180, right_gdf.geometry.y * np.pi / 180)))
 
@@ -634,7 +638,15 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
         return prepare
 
-    def build_rtree(self, file_path, file_type, id_columns, area_peril_read_params=None, nearest_neighbor_min_distance=-1):
+    def build_rtree(
+        self,
+        file_path,
+        file_type,
+        id_columns,
+        area_peril_read_params=None,
+        nearest_neighbor_min_distance=-1,
+        nearest_neighbor_max_distance=-1
+    ):
         """
         Function Factory to associate location to area_peril based on the rtree method
 
@@ -655,13 +667,32 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         id_columns: column to transform to an 'id_column' (type int32 with nan replace by -1)
 
-        nearest_neighbor_min_distance: option to compute the nearest point if intersection method fails
-            we use:
+        nearest_neighbor_max_distance: option to look for the nearest neighboring geometry if no
+            containing geometries are found.
+            We use:
             https://automating-gis-processes.github.io/site/notebooks/L3/nearest-neighbor-faster.html
             but alternatives can be found here:
             https://gis.stackexchange.com/questions/222315/geopandas-find-nearest-point-in-other-dataframe
+            This distance should be provided in metres and is the Euclidean distance, not the
+            distance on a sphere or ellipsoid. It is the maximum accepted distance between the point
+            locations and the containing geometry centroids.
 
+        nearest_neighbour_min_distance: deprecated alias for nearest_neighbour_min_distance. May be
+            removed in a future version.
         """
+
+        if nearest_neighbor_min_distance > 0:
+            warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
+                          "removed in a future version. Please use `nearest_neighbor_max_distance` "
+                          "instead.",
+                          DeprecationWarning)
+            if nearest_neighbor_max_distance > 0:
+                warnings.warn("Both parameters `nearest_neighbor_min_distance` and "
+                              "`nearest_neighbor_max_distance` were provided. The latter will be "
+                              "used.")
+            else:
+                nearest_neighbor_max_distance = nearest_neighbor_min_distance
+
         if Point is None:
             raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
@@ -672,9 +703,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         else:
             raise OasisException(f"Unregognised Geopandas read type {file_type}")
 
-        if nearest_neighbor_min_distance > 0:
+        if nearest_neighbor_max_distance > 0:
             if BallTree is None:
-                raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
+                raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_max_distance, {OPT_INSTALL_MESSAGE}")
             with warnings.catch_warnings():
                 # In the context of a nearest neighbour search, we accept a deviation between the
                 # true "ellipsoidal" distance and the cartesian approximation that's used here.
@@ -686,20 +717,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             # this conversion could be done in a separate step allowing more posibilities for the geometry
             null_gdf = locations["longitude"].isna() | locations["latitude"].isna()
             null_gdf_loc = locations[null_gdf]
-            if not null_gdf_loc.empty:
-                gdf_loc = gpd.GeoDataFrame(locations[~null_gdf], columns=locations.columns)
-            else:
-                gdf_loc = gpd.GeoDataFrame(locations, columns=locations.columns)
+            gdf_loc = gpd.GeoDataFrame(
+                locations[~null_gdf], columns=locations.columns,
+                geometry=gpd.points_from_xy(locations.loc[~null_gdf, "longitude"], locations.loc[~null_gdf, "latitude"]),
+                crs="EPSG:4326",
+            )
 
             if not gdf_loc.empty:
-                gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
-                                                        axis=1,
-                                                        result_type='reduce')
-                gdf_loc = gdf_loc.set_geometry('loc_geometry', crs="EPSG:4326")
-
                 gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
 
-                if nearest_neighbor_min_distance > 0:
+                if nearest_neighbor_max_distance > 0:
                     gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
 
                     if gdf_loc_na.shape[0]:
@@ -707,7 +734,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                         nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_area_peril, return_dist=True)
 
                         gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
-                        valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
+                        valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_max_distance
                         common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
                         gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
             if not null_gdf_loc.empty:
@@ -715,7 +742,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             self.set_id_columns(gdf_loc, id_columns)
 
             # index column are created during the sjoin, we can drop them
-            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left', 'loc_geometry', 'center'], errors='ignore')
+            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left', 'geometry', 'center'], errors='ignore')
 
             return gdf_loc
 
