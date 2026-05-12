@@ -4,6 +4,7 @@ __all__ = [
 ]
 
 import csv
+import json
 import os
 import shutil
 import tempfile
@@ -17,6 +18,8 @@ from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
 from oasislmf.preparation.il_inputs import get_oed_hierarchy
 from oasislmf.preparation.summaries import calculated_summary_cols
+from oasislmf.pytools.fm.portfolio_complexity import (
+    compute_portfolio_complexity, format_complexity_report)
 from oasislmf.utils.data import (get_dataframe, get_exposure_data,
                                  print_dataframe)
 from oasislmf.utils.defaults import (KERNEL_ALLOC_FM_MAX,
@@ -68,6 +71,8 @@ class RunExposure(ComputationStep):
         {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance info CSV'},
         {'name': 'oed_scope_csv', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance scope CSV'},
         # -s flag for scope in other files taken for src dir already
+        {'name': 'portfolio_complexity', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
+         'help': 'if True, compute and report portfolio complexity metrics after generating FM files'},
     ]
 
     chained_commands = [GenerateKeysDeterministic]
@@ -136,7 +141,19 @@ class RunExposure(ComputationStep):
             intermediary_csv=self.intermediary_csv,
         ).run()
 
-        # 3. Run Deterministic Losses
+        # 3. Portfolio complexity report (IL only – requires fm_programme etc.)
+        if self.portfolio_complexity and il:
+            try:
+                complexity = compute_portfolio_complexity(run_dir)
+                report_path = os.path.join(run_dir, 'portfolio_complexity.json')
+                with open(report_path, 'w') as fh:
+                    json.dump(complexity, fh, indent=2)
+                self.logger.info(format_complexity_report(complexity))
+                self.logger.debug(f'Portfolio complexity metrics written to {report_path}')
+            except Exception as exc:
+                self.logger.warning(f'Could not compute portfolio complexity metrics: {exc}')
+
+        # 4. Run Deterministic Losses
         losses = GenerateLossesDeterministic(
             exposure_data=exposure_data,
             oasis_files_dir=run_dir,
