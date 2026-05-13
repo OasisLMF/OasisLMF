@@ -3,7 +3,7 @@
 This module generates bash scripts that orchestrate the pytools loss calculation
 pipeline. The generated scripts coordinate multiple concurrent processes connected
 via named pipes (FIFOs) to compute ground-up losses (GUL), insured losses (IL),
-reinsurance losses (RI), reinsurance gross losses (RL), and optionally
+t reinsurance losses (RI), reinsurance gross losses (RL), and optionally
 fully-correlated (FC) and load-balanced (LB) streams.
 
 The high-level flow of a generated bash script is:
