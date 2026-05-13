@@ -48,10 +48,16 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     # quadratic interpolation
     aa = 3. * bin_height / bin_width**2 * (2. * x - 1.)
     bb = 2. * bin_height / bin_width * (2. - 3. * x)
-    cc = - rval_bin_offset
 
-    gul = tiv * (bin_from + (sqrt(bb**2. - 4. * aa * cc) - bb) / (2. * aa))
+    disc = max(bb**2. + 4. * aa * rval_bin_offset, 0.)
+    sqrt_disc = sqrt(disc)
 
+    if bb > 0.:
+        t = 2. * rval_bin_offset / (bb + sqrt_disc)
+    else:
+        t = (sqrt_disc - bb) / (2. * aa)
+
+    gul = tiv * (bin_from + t)
     return gul
 
 
