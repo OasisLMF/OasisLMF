@@ -695,7 +695,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         if area_peril_read_params:
             warnings.warn("Parameter `area_peril_read_params` is deprecated and may be removed in a "
-                         "future version. Please use `file_read_params` instead.", DeprecationWarning)
+                          "future version. Please use `file_read_params` instead.", DeprecationWarning)
             if not file_read_params:
                 file_read_params = area_peril_read_params
 
@@ -759,7 +759,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 res = [locations[~locations['peril_id'].isin(peril_id_covered)]]
                 for peril_id in peril_id_covered:
                     res.append(get_geometry(locations.loc[locations['peril_id'] == peril_id],
-                                        gdf_geometry.loc[gdf_geometry['peril_id'] == peril_id].drop(columns=['peril_id'])))
+                                            gdf_geometry.loc[gdf_geometry['peril_id'] == peril_id].drop(columns=['peril_id'])))
 
                 return pd.concat(res).reset_index()
             else:

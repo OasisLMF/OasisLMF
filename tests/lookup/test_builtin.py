@@ -129,12 +129,14 @@ def rtree_locations_all_coordinates():
         [0.400106650785272, 46.3307289492925, "far_away"],
     ])
 
+
 @pytest.fixture
 def rtree_locations_no_coordinates():
     return pd.DataFrame(columns=["longitude", "latitude", "locname"], data=[
         [None, None, "A"],
         [None, None, "B"],
     ])
+
 
 @pytest.fixture
 def rtree_locations_some_coordinates():
@@ -143,6 +145,7 @@ def rtree_locations_some_coordinates():
         [0.373700517342545, 46.4691264361466, "inside_1"],
     ])
 
+
 @pytest.mark.parametrize(
     ("locations_by_name", "expected_ids"),
     [
@@ -150,7 +153,7 @@ def rtree_locations_some_coordinates():
         ("rtree_locations_no_coordinates", [OASIS_UNKNOWN_ID, OASIS_UNKNOWN_ID]),
         ("rtree_locations_some_coordinates", [OASIS_UNKNOWN_ID, 1]),
     ],
-    )
+)
 def test_build_rtree_associates_correctly(locations_by_name, expected_ids, request):
     """Test that the rtree builtin correctly associates locations to polygons.
 
@@ -163,7 +166,7 @@ def test_build_rtree_associates_correctly(locations_by_name, expected_ids, reque
         file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
         file_type="parquet",
         id_columns="poly_id",
-        nearest_neighbor_max_distance=12000, # Euclidean distance in metres, not spherical distance.
+        nearest_neighbor_max_distance=12000,  # Euclidean distance in metres, not spherical distance.
     )
     output = rtree(locations)
     expected = locations.copy().assign(poly_id=expected_ids)
@@ -175,6 +178,7 @@ def test_build_rtree_associates_correctly(locations_by_name, expected_ids, reque
         check_dtype=False,
     )
 
+
 def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinates):
     """Test that the rtree builtin still works with the deprecated parameter."""
     with pytest.warns(DeprecationWarning):
@@ -182,7 +186,7 @@ def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinate
             file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
             file_type="parquet",
             id_columns="poly_id",
-            nearest_neighbor_min_distance=12000, # Deprecated parameter name should raise warning.
+            nearest_neighbor_min_distance=12000,  # Deprecated parameter name should raise warning.
         )
     output = rtree(rtree_locations_all_coordinates)
     expected = rtree_locations_all_coordinates.copy().assign(poly_id=[1, 2, 1, OASIS_UNKNOWN_ID])
