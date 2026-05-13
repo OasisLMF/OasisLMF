@@ -45,8 +45,6 @@ class ELTReader(EventReader):
             ('compute_qelt', np.bool_),
             ('summary_id', oasis_int),
             ('impacted_exposure', oasis_float),
-            ('sumloss', np.float64),  # intermediary value need higher precision to not accumulate error
-            ('sumlosssqr', np.float64),  # intermediary value need higher precision to not accumulate error
             ('non_zero_samples', oasis_int),
             ('max_loss', oasis_float),
             ('analytical_mean', oasis_float),
@@ -182,21 +180,19 @@ def read_buffer(
         state["max_loss"] = 0
         state["analytical_mean"] = 0
         state["losses_vec"].fill(0)
-        state["sumloss"] = 0
-        state["sumlosssqr"] = 0
 
     def _get_mean_and_sd_loss():
-        meanloss = state["sumloss"] / state["len_sample"]
+        n = state["len_sample"]
+        meanloss = 0.0
+        for l in state["losses_vec"]:
+            meanloss += l
+        meanloss /= n
         if state["non_zero_samples"] > 1:
-            variance = (
-                state["sumlosssqr"] - (
-                    (state["sumloss"] * state["sumloss"]) / state["len_sample"]
-                )
-            ) / (state["len_sample"] - 1)
-
-            # Tolerance check
-            if variance / state["sumlosssqr"] < 1e-7:
-                variance = 0
+            sum_sq_dev = 0.0
+            for l in state["losses_vec"]:
+                diff = l - meanloss
+                sum_sq_dev += diff * diff
+            variance = sum_sq_dev / (n - 1)
             sdloss = np.sqrt(variance)
         else:
             sdloss = 0
@@ -339,12 +335,8 @@ def read_buffer(
                         return cursor, event_id, item_id, 1
 
                 if sidx > 0:
-                    # Update MELT variables
-                    state["sumloss"] += loss
-                    state["sumlosssqr"] += loss * loss
                     if loss > 0:
                         state["non_zero_samples"] += 1
-                    # Update QELT variables
                     state["losses_vec"][sidx - 1] = loss
             if sidx == MEAN_IDX:
                 # Update MELT variables
