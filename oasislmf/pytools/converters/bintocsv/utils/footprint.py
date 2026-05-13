@@ -15,10 +15,9 @@
 #   3. Output — two paths depending on zip_files:
 #
 #      Non-zip (_footprint_tocsv_bin): a JIT inner loop (_fill_next_batch) packs complete
-#      events into a fixed pre-allocated output buffer (_BATCH_ROWS rows). The buffer is
-#      flushed to CSV in one write_ndarray_to_fmt_csv call per batch, reducing per-event
-#      Python overhead from O(num_events) to O(num_events / _BATCH_ROWS). Single events
-#      that exceed the batch size are written directly with an exact-size allocation.
+#      events into a fixed pre-allocated output buffer (_BATCH_ROWS rows) and flushes it
+#      to write_ndarray_to_fmt_csv in one call per batch. Single events that exceed the
+#      batch size are written directly with an exact-size allocation.
 #
 #      Zip (_footprint_tocsv_zip): each event is decompressed individually with zlib. When
 #      the index carries a d_size field (decompressed size), a single reusable buffer is
@@ -37,8 +36,6 @@ from oasislmf.pytools.getmodel.common import (
 )
 
 # Number of output rows to accumulate before flushing to write_ndarray_to_fmt_csv.
-# Reduces per-call overhead (format-string construction, np.empty, etc.) from
-# O(num_events) down to O(num_events / BATCH_ROWS).
 _BATCH_ROWS = 1 << 13  # 8 K rows
 
 

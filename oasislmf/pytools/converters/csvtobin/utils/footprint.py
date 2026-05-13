@@ -250,8 +250,7 @@ def footprint_tobin(
             partial_event_id = None
             partial_chunks = []
 
-        # Find all event boundaries from pos to end of chunk in one vectorised pass,
-        # replacing per-event np.searchsorted calls with a single np.diff
+        # Find all event boundaries from pos to end of chunk in one vectorised pass
         remaining_ids = event_ids[pos:]
         if len(remaining_ids) == 0:
             continue
@@ -273,8 +272,7 @@ def footprint_tobin(
                         max_intensity_bin_idx, zip_files, decompressed_size, offset,
                     )
             else:
-                # Non-zip path: batch convert and write all complete events in one shot,
-                # replacing N alloc+tobytes+write calls with one of each
+                # Non-zip path: batch convert and write all complete events in one shot
                 complete_end = pos + int(rel_ends[n_complete - 1])
                 complete_rows = chunk[pos:complete_end]
                 bin_data = np.empty(len(complete_rows), dtype=Event_dtype)
