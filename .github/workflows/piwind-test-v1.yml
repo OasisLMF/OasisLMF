@@ -102,7 +102,7 @@ jobs:
           fi
 
       - name: Login to Docker Hub
-        if: steps.check_worker_image.outputs.image_exists != 'true' && steps.check_creds.outputs.has_creds == 'true'
+        if: steps.check_creds.outputs.has_creds == 'true'
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
