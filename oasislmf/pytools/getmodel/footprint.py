@@ -3,32 +3,47 @@ This file houses the classes that load the footprint data from compressed, binar
 """
 import json
 import logging
-import pickle
 import mmap
 import os
+import pickle
 from contextlib import ExitStack
 from typing import Dict, List, Union
 from zlib import decompress
 
+import numba as nb
 import numpy as np
 import pandas as pd
-import numba as nb
-
-from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
+from oasis_data_manager.df_reader.config import (
+    InputReaderConfig,
+    clean_config,
+    get_df_reader,
+)
 from oasis_data_manager.df_reader.reader import OasisReader
 from oasis_data_manager.errors import OasisException
 from oasis_data_manager.filestore.backends.base import BaseStorage
+
+from oasislmf.pytools.common.data import areaperil_int, footprint_event_dtype
+
 from .common import (
-    FootprintHeader, EventIndexBin, EventIndexBinZ, Event,
-    EventDynamic, footprint_filename, footprint_index_filename,
-    zfootprint_filename, zfootprint_index_filename,
-    csvfootprint_filename, parquetfootprint_filename,
-    parquetfootprint_meta_filename, event_defintion_filename,
-    hazard_case_filename, fp_format_priorities,
+    Event,
+    EventDynamic,
+    EventIndexBin,
+    EventIndexBinZ,
+    FootprintHeader,
+    csvfootprint_filename,
+    event_defintion_filename,
+    footprint_bin_lookup,
+    footprint_filename,
+    footprint_index_filename,
+    fp_format_priorities,
+    hazard_case_filename,
     parquetfootprint_chunked_dir,
-    parquetfootprint_chunked_lookup, footprint_bin_lookup
+    parquetfootprint_chunked_lookup,
+    parquetfootprint_filename,
+    parquetfootprint_meta_filename,
+    zfootprint_filename,
+    zfootprint_index_filename,
 )
-from oasislmf.pytools.common.data import footprint_event_dtype, areaperil_int
 
 logger = logging.getLogger(__name__)
 
@@ -602,7 +617,7 @@ class FootprintParquetDynamic(Footprint):
 
         this_event_definition = self.df_event_definition.loc[[event_id]].reset_index()
         sections = this_event_definition['section_id'].unique()
-        df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
+        df_hazard_case = self.df_hazard_case.loc[self.df_hazard_case.index.intersection(sections)].reset_index()
 
         return self._build_footprint(df_hazard_case, this_event_definition)
 
@@ -654,7 +669,7 @@ class FootprintParquetDynamic(Footprint):
         if len(df_footprint) > 0:
             df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
                 (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
-            df_footprint['intensity'] = df_footprint['intensity'].astype('int')
+            df_footprint['intensity'] = df_footprint['intensity'].fillna(0).astype('int')
             df_footprint = df_footprint.sort_values('intensity', ascending=False)
             df_footprint = df_footprint.drop_duplicates(subset=['areaperil_id'], keep='first')
             df_footprint['intensity_bin_id'] = 0  # Placeholder for intensity bin ID
