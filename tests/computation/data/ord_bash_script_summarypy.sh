@@ -63,6 +63,26 @@ check_complete(){
         echo 'Run Completed'
     fi
 }
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -91,13 +111,11 @@ mkfifo fifo/gul_S1_summary_P1.idx
 mkfifo fifo/gul_S1_plt_ord_P1
 mkfifo fifo/gul_S1_elt_ord_P1
 mkfifo fifo/gul_S1_selt_ord_P1
-
 mkfifo fifo/gul_S1_summary_P2
 mkfifo fifo/gul_S1_summary_P2.idx
 mkfifo fifo/gul_S1_plt_ord_P2
 mkfifo fifo/gul_S1_elt_ord_P2
 mkfifo fifo/gul_S1_selt_ord_P2
-
 mkfifo fifo/il_P1
 mkfifo fifo/il_P2
 
@@ -106,13 +124,11 @@ mkfifo fifo/il_S1_summary_P1.idx
 mkfifo fifo/il_S1_plt_ord_P1
 mkfifo fifo/il_S1_elt_ord_P1
 mkfifo fifo/il_S1_selt_ord_P1
-
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_summary_P2.idx
 mkfifo fifo/il_S1_plt_ord_P2
 mkfifo fifo/il_S1_elt_ord_P2
 mkfifo fifo/il_S1_selt_ord_P2
-
 mkfifo fifo/ri_P1
 mkfifo fifo/ri_P2
 
@@ -121,13 +137,11 @@ mkfifo fifo/ri_S1_summary_P1.idx
 mkfifo fifo/ri_S1_plt_ord_P1
 mkfifo fifo/ri_S1_elt_ord_P1
 mkfifo fifo/ri_S1_selt_ord_P1
-
 mkfifo fifo/ri_S1_summary_P2
 mkfifo fifo/ri_S1_summary_P2.idx
 mkfifo fifo/ri_S1_plt_ord_P2
 mkfifo fifo/ri_S1_elt_ord_P2
 mkfifo fifo/ri_S1_selt_ord_P2
-
 
 
 # --- Do reinsurance loss computes ---
@@ -183,10 +197,50 @@ tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summary_palt/P2.idx work/gul_S1_sum
 
 socket-server 2 10006 > /dev/null & spid=$!
 trap 'kill -TERM -"$spid" 2>/dev/null' INT TERM
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/gul_P1 \
+    fifo/gul_P2 \
+    fifo/gul_S1_summary_P1 \
+    fifo/gul_S1_summary_P1.idx \
+    fifo/gul_S1_plt_ord_P1 \
+    fifo/gul_S1_elt_ord_P1 \
+    fifo/gul_S1_selt_ord_P1 \
+    fifo/gul_S1_summary_P2 \
+    fifo/gul_S1_summary_P2.idx \
+    fifo/gul_S1_plt_ord_P2 \
+    fifo/gul_S1_elt_ord_P2 \
+    fifo/gul_S1_selt_ord_P2 \
+    fifo/il_P1 \
+    fifo/il_P2 \
+    fifo/il_S1_summary_P1 \
+    fifo/il_S1_summary_P1.idx \
+    fifo/il_S1_plt_ord_P1 \
+    fifo/il_S1_elt_ord_P1 \
+    fifo/il_S1_selt_ord_P1 \
+    fifo/il_S1_summary_P2 \
+    fifo/il_S1_summary_P2.idx \
+    fifo/il_S1_plt_ord_P2 \
+    fifo/il_S1_elt_ord_P2 \
+    fifo/il_S1_selt_ord_P2 \
+    fifo/ri_P1 \
+    fifo/ri_P2 \
+    fifo/ri_S1_summary_P1 \
+    fifo/ri_S1_summary_P1.idx \
+    fifo/ri_S1_plt_ord_P1 \
+    fifo/ri_S1_elt_ord_P1 \
+    fifo/ri_S1_selt_ord_P1 \
+    fifo/ri_S1_summary_P2 \
+    fifo/ri_S1_summary_P2.idx \
+    fifo/ri_S1_plt_ord_P2 \
+    fifo/ri_S1_elt_ord_P2 \
+    fifo/ri_S1_selt_ord_P2
+
 ( ( evepy 1 2 | gulmc --socket-server='10006' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P1 | fmpy -a2 | tee fifo/il_P1 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err ) & pid31=$!
 ( ( evepy 2 2 | gulmc --socket-server='10006' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P2 | fmpy -a2 | tee fifo/il_P2 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P2 ) 2>> $LOG_DIR/stderror.err ) & pid32=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
+exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
 
 kill -0 "$spid" 2>/dev/null && kill -9 "$spid"
 
@@ -216,7 +270,7 @@ katpy -M -f bin -i work/kat/gul_S1_plt_moment_P1 work/kat/gul_S1_plt_moment_P2 -
 katpy -q -f bin -i work/kat/gul_S1_elt_quantile_P1 work/kat/gul_S1_elt_quantile_P2 -o output/gul_S1_qelt.parquet & kpid16=$!
 katpy -m -f bin -i work/kat/gul_S1_elt_moment_P1 work/kat/gul_S1_elt_moment_P2 -o output/gul_S1_melt.parquet & kpid17=$!
 katpy -s -f bin -i work/kat/gul_S1_elt_sample_P1 work/kat/gul_S1_elt_sample_P2 -o output/gul_S1_selt.parquet & kpid18=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12 $kpid13 $kpid14 $kpid15 $kpid16 $kpid17 $kpid18
+exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12 $kpid13 $kpid14 $kpid15 $kpid16 $kpid17 $kpid18
 
 
 ( aalpy -Kri_S1_summary_palt -E parquet -a output/ri_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid1=$!
@@ -228,7 +282,7 @@ wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpi
 ( aalpy -Kgul_S1_summary_palt -E parquet -a output/gul_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid7=$!
 ( aalpy -Kgul_S1_summary_altmeanonly -E parquet -a output/gul_S1_altmeanonly.cparquetsv ) 2>> $LOG_DIR/stderror.err & lpid8=$!
 ( lecpy  -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/gul_S1_ept.parquet -o output/gul_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid9=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7 $lpid8 $lpid9
+exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7 $lpid8 $lpid9
 
 rm -R -f work/*
 rm -R -f fifo/*

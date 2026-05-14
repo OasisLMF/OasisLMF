@@ -10,6 +10,26 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}
+
 # --- Do insured loss kats ---
 
 
@@ -20,7 +40,7 @@ lecpy -r -Kil_S1_summaryleccalc -F -S -s -M -m -W -w -O output/il_S1_ept.csv -o 
 lecpy -r -Kil_S2_summaryleccalc -F -S -s -M -m -W -w -O output/il_S2_ept.csv -o output/il_S2_psept.csv & lpid2=$!
 lecpy -r -Kgul_S1_summaryleccalc -F -S -s -M -m -W -w -O output/gul_S1_ept.csv -o output/gul_S1_psept.csv & lpid3=$!
 lecpy -r -Kgul_S2_summaryleccalc -F -S -s -M -m -W -w -O output/gul_S2_ept.csv -o output/gul_S2_psept.csv & lpid4=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4
+exec_wait $lpid1 $lpid2 $lpid3 $lpid4
 
 rm -R -f work/*
 rm -R -f fifo/*
