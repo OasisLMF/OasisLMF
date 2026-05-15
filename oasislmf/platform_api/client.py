@@ -419,13 +419,15 @@ class APIClient(object):
         self,
         api_url='http://localhost:8000',
         api_ver='V2',
-        auth_type="simple",
+        auth_type=None,
         username="admin",
         password="password",
         client_id="oasis-service",
         client_secret="serviceNotSoSecret",
         access_token=None,
         refresh_token=None,
+        token_url=None,
+        scope=None,
         timeout=25,
         logger=None,
         **kwargs
@@ -441,6 +443,8 @@ class APIClient(object):
             client_secret=client_secret,
             access_token=access_token,
             refresh_token=refresh_token,
+            token_url=token_url,
+            scope=scope,
             timeout=timeout,
             **kwargs
         )

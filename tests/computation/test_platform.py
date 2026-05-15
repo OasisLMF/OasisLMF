@@ -210,7 +210,7 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(str(context.exception),
                          'Error: At least one of the following inputs is required [portfolio_id, oed_location_csv, oed_accounts_csv]')
 
-    @patch('builtins.input', side_effect=['y', 'AzureDiamond'])
+    @patch('builtins.input', side_effect=['1', 'AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
     def test_run_inputs__enter_password__unauthorized(self, mock_password, mock_input):
         responses.get(
@@ -229,7 +229,7 @@ class TestPlatformRunInputs(ComputationChecker):
             self.manager.platform_run_inputs()
         self.assertIn('HTTPError: 401 Client Error: Unauthorized for url:', str(context.exception))
         mock_input.assert_has_calls([
-            call('Use simple JWT [Y/n]: '),
+            call('Auth type — simple JWT [1], OIDC via platform [2], M2M direct to IdP [3]: '),
             call('Username: ')
         ])
         self.assertEqual(mock_input.call_count, 2)
@@ -250,7 +250,7 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(str(context.exception),
                          f'Authentication Error, HTTPError: 500 Server Error: Internal Server Error for url: {self.api_url}/access_token/')
 
-    @patch('builtins.input', side_effect=['y', 'AzureDiamond'])
+    @patch('builtins.input', side_effect=['1', 'AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
     def test_run_inputs__enter_password__authorized(self, mock_password, mock_input):
         responses.get(
@@ -690,7 +690,8 @@ class TestPlatformRun(ComputationChecker):
                                     reporting_currency):
 
         # Extract funcution kwargs into dict, and replace booleans with temp file paths
-        call_args = {k: v for k, v in locals().items() if k in self.default_args}
+        call_args = dict(self.default_args)
+        call_args.update({k: v for k, v in locals().items() if k in self.default_args})
         call_args['server_url'] = self.api_url
         call_args['lookup_chunks'] = None
         call_args['analysis_chunks'] = None
