@@ -689,6 +689,7 @@ class GenerateLosses(GenerateLossesDir):
                         socket_server_size=socket_server_size,
                         socket_server_port=socket_server_port,
                         resource_monitor_interval=self.resource_monitor_interval,
+                        log_level=self.logger.getEffectiveLevel(),
                     )
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:

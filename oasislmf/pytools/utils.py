@@ -45,7 +45,7 @@ def redirect_logging(exec_name, log_dir='./log'):
        "<log_dir>/<exec_name>_<PID>.log"
 
     The log level is determined in the following priority:
-        - OASIS_LOG_LEVEL environment variable
+        - OASIS_PYTOOLS_LOG_LEVEL environment variable
         - wrapped function kwargs `logging_level`
 
     Each log file is timestamped with start / finish times
@@ -79,7 +79,7 @@ def redirect_logging(exec_name, log_dir='./log'):
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
 
-            log_level = os.environ.get('OASISLMF_LOG_LEVEL', None)
+            log_level = os.environ.get('OASIS_PYTOOLS_LOG_LEVEL', None)
             log_level = int(log_level) if log_level is not None else None
             log_level = log_level or kwargs.get('logging_level', None)
             log_level = log_level or logging.WARNING
