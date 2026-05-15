@@ -566,6 +566,8 @@ def set_hazard_case_set(setting_val, run_dir):
         hazard_case_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val_old}.{extension}')
         if not os.path.isdir(hazard_case_fp):
             raise OasisException(f'Could not find hazard case data with identifier "{setting_val}"')
+    if os.path.islink(hazard_case_target_fp) or os.path.exists(hazard_case_target_fp):
+        os.remove(hazard_case_target_fp)
     os.symlink(hazard_case_fp, hazard_case_target_fp)
 
 

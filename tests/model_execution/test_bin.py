@@ -29,12 +29,14 @@ from oasislmf.execution.bin import (
     prepare_run_directory,
     prepare_run_inputs,
     set_footprint_set,
-    set_vulnerability_set
+    set_vulnerability_set,
+    set_hazard_case_set
 )
 
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
+from oasislmf.pytools.getmodel.common import hazard_case_filename
 
 from tests.data import il_input_files, tar_file_targets
 
@@ -989,6 +991,61 @@ class SetVulnerabilitySet(TestCase):
 
             with self.assertRaises(OasisException):
                 set_vulnerability_set(self.setting_val, d)
+
+
+class SetHazardCaseSet(TestCase):
+
+    def setUp(self):
+        self.setting_val = 'defended'
+        self.stem, self.ext = hazard_case_filename.split('.', 1)
+
+    def _make_hazard_case_dir(self, run_dir, identifier):
+        os.makedirs(os.path.join(run_dir, 'static'), exist_ok=True)
+        os.makedirs(os.path.join(run_dir, 'static', f'{self.stem}_{identifier}.{self.ext}'))
+
+    def test_symbolic_link_creation(self):
+        """ Symlink hazard_case.parquet → hazard_case_defended.parquet is created. """
+        with TemporaryDirectory() as d:
+            self._make_hazard_case_dir(d, self.setting_val)
+            set_hazard_case_set(self.setting_val, d)
+
+            src = os.path.join(d, 'static', f'{self.stem}_{self.setting_val}.{self.ext}')
+            target = os.path.join(d, 'static', hazard_case_filename)
+            self.assertTrue(os.path.islink(target))
+            self.assertEqual(os.readlink(target), src)
+
+    def test_normalised_identifier_resolves(self):
+        """ 'Defended Case' normalises to 'defended_case' and resolves correctly. """
+        with TemporaryDirectory() as d:
+            self._make_hazard_case_dir(d, 'defended_case')
+            set_hazard_case_set('Defended Case', d)
+
+            target = os.path.join(d, 'static', hazard_case_filename)
+            self.assertTrue(os.path.islink(target))
+            src = os.path.join(d, 'static', f'{self.stem}_defended_case.{self.ext}')
+            self.assertEqual(os.readlink(target), src)
+
+    def test_existing_default_symlink_is_replaced(self):
+        """ Pre-existing hazard_case.parquet symlink (from prepare_run_directory) is replaced. """
+        with TemporaryDirectory() as d:
+            self._make_hazard_case_dir(d, self.setting_val)
+            default_src = os.path.join(d, 'static', f'{self.stem}_default.{self.ext}')
+            target = os.path.join(d, 'static', hazard_case_filename)
+            os.makedirs(default_src)
+            os.symlink(default_src, target)
+
+            set_hazard_case_set(self.setting_val, d)
+
+            expected_src = os.path.join(d, 'static', f'{self.stem}_{self.setting_val}.{self.ext}')
+            self.assertTrue(os.path.islink(target))
+            self.assertEqual(os.readlink(target), expected_src)
+
+    def test_missing_hazard_case_dir_raises_exception(self):
+        """ OasisException raised when no matching hazard case directory exists. """
+        with TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, 'static'), exist_ok=True)
+            with self.assertRaises(OasisException):
+                set_hazard_case_set(self.setting_val, d)
 
 
 class CleanBinDirectory(TestCase):
