@@ -463,6 +463,87 @@ def associate_items_peril_to_policy_peril(item_perils, policy_df, fm_peril_col, 
     return policy_df.merge(peril_map_df)
 
 
+def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
+                             level_info, gul_inputs_columns,
+                             acc_id_map=None, max_groups=5):
+    """
+    Pre-validate that the right side of the upcoming
+    `validate='many_to_one'` merge into gul_inputs_df is unique on the actual
+    join keys.
+
+    Pandas' MergeError ("Merge keys are not unique in right dataset") gives the
+    user no clue which key/row is conflicting, so we surface that here. The
+    join keys for the merge are the intersection of right-side columns
+    (``agg_id_merge_col + agg_id_merge_col_extra``) and ``gul_inputs_df``'s
+    columns -- pandas merges on the column-name intersection when ``on=`` is
+    omitted -- which is what we replicate here.
+
+    Args:
+        level_df (pandas.DataFrame): Holds the current level's terms (right
+            side of the merge).
+        agg_id_merge_col (list[str]): Aggregation key columns kept on the
+            right side. Always part of the join.
+        agg_id_merge_col_extra (list[str]): Extra columns kept on the right
+            side. Some of these (e.g. peril_id) are also present in
+            gul_inputs_df and therefore become part of the join key; the rest
+            are pure "brought across" columns whose disagreement on a
+            non-unique join key is what triggers the MergeError.
+        level_info (dict): Level metadata containing 'id' and 'desc'.
+        gul_inputs_columns (Iterable[str]): Columns of the left-hand
+            gul_inputs_df, used to determine which extras participate in the
+            join.
+        acc_id_map (pandas.DataFrame, optional): Mapping acc_id ->
+            (PortNumber, AccNumber) used to translate the diagnostic back to
+            user-facing identifiers. May be None (e.g. cyber/marine).
+        max_groups (int, optional): Cap on conflicting groups shown in the
+            error message. Default 5.
+
+    Raises:
+        OasisException: When two or more rows share the same join keys but
+            disagree on a non-join right-side column. The message lists the
+            conflicting groups (translated to PortNumber/AccNumber when
+            possible) and the column values that disagree.
+    """
+    right_cols = list(agg_id_merge_col) + list(agg_id_merge_col_extra)
+    gul_cols = set(gul_inputs_columns)
+    # Replicate pandas' implicit `on=intersection(...)` behaviour.
+    join_keys = [c for c in right_cols if c in gul_cols]
+    if not join_keys:
+        return
+
+    right_df = level_df[right_cols].drop_duplicates()
+    dup_mask = right_df.duplicated(subset=join_keys, keep=False)
+    if not dup_mask.any():
+        return
+
+    dup_keys = right_df.loc[dup_mask, join_keys].drop_duplicates()
+    n_groups = len(dup_keys)
+    sample_keys = dup_keys.head(max_groups)
+
+    # pull the original level_df rows for the offending keys, so the user sees
+    # the actual conflicting term values (limits, deductibles, ded_type, ...)
+    conflicts = level_df.merge(sample_keys, how='inner', on=join_keys)
+    if acc_id_map is not None and 'acc_id' in conflicts.columns:
+        conflicts = conflicts.merge(acc_id_map, how='left', on='acc_id')
+        # surface PortNumber/AccNumber first for readability
+        front = [c for c in ['PortNumber', 'AccNumber'] if c in conflicts.columns]
+        conflicts = conflicts[front + [c for c in conflicts.columns if c not in front]]
+
+    truncation_note = (f"; first {max_groups} of {n_groups} shown"
+                       if n_groups > max_groups else "")
+    raise OasisException(
+        f"Inconsistent FM terms at level {level_info['id']} "
+        f"({level_info['desc']}).\n"
+        f"The merge join keys {join_keys} map to more than one distinct set "
+        f"of financial terms in the source data, so the IL input merge "
+        f"cannot be resolved unambiguously.\n"
+        f"{n_groups} conflicting key(s) found{truncation_note}:\n"
+        f"{conflicts.to_string(max_rows=60)}\n\n"
+        f"Fix: each unique join key must declare the same financial terms "
+        f"on every row."
+    )
+
+
 @oasis_log
 def get_il_input_items(
         gul_inputs_df,
@@ -854,6 +935,19 @@ def get_il_input_items(
                 level_df = prepare_ded_and_limit(level_df)
 
                 agg_id_merge_col = list(set(agg_id_merge_col).intersection(level_df.columns))
+
+                join_keys = [c for c in agg_id_merge_col + agg_id_merge_col_extra
+                             if c in gul_inputs_df.columns]
+                if 'need_tiv' in level_df.columns and join_keys:  # make sure only 1 need_tiv value per join_keys
+                    level_df['need_tiv'] = (level_df
+                                            .groupby(join_keys, observed=True, dropna=False)['need_tiv']
+                                            .transform('any'))
+
+                _check_unique_merge_keys(
+                    level_df, agg_id_merge_col, agg_id_merge_col_extra, level_info,
+                    gul_inputs_columns=gul_inputs_df.columns,
+                    acc_id_map=acc_id_map if locations_df is not None else None,
+                )
                 gul_inputs_df = gul_inputs_df.merge(
                     level_df[agg_id_merge_col + agg_id_merge_col_extra].drop_duplicates(), how='left', validate='many_to_one')
                 if is_policy_layer_level:  # we merge all on account at this level even if there is no policy
