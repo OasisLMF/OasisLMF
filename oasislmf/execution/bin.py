@@ -14,7 +14,8 @@ __all__ = [
     'prepare_run_inputs',
     'set_footprint_set',
     'set_vulnerability_set',
-    'set_loss_factors_set'
+    'set_loss_factors_set',
+    'set_hazard_case_set'
 ]
 
 import pathlib
@@ -42,6 +43,7 @@ from .bash import ord_enabled, ORD_LECCALC
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
+from oasislmf.pytools.getmodel.common import hazard_case_filename
 from oasislmf.pytools.pla.common import PLAFACTORS_FILE
 
 logger = logging.getLogger(__name__)
@@ -541,6 +543,32 @@ def set_loss_factors_set(setting_val, run_dir):
         os.symlink(loss_factors_fp, loss_factors_target_fp)
         return
     raise OasisException(f'Could not find loss factors files with identifier "{setting_val}"')
+
+
+@oasis_log
+def set_hazard_case_set(setting_val, run_dir):
+    """
+    Create symbolic link to the hazard case dataset that will be used for
+    dynamic footprint calculation.
+
+    :param setting_val: identifier for hazard case set
+    :type setting_val: str
+
+    :param run_dir: model run directory
+    :type run_dir: str
+    """
+    setting_val = str(setting_val)
+    stem, extension = hazard_case_filename.split('.', 1)
+    hazard_case_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
+    hazard_case_target_fp = os.path.join(run_dir, 'static', hazard_case_filename)
+    if not os.path.isdir(hazard_case_fp):
+        setting_val_old = setting_val.replace(' ', '_').lower()
+        hazard_case_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val_old}.{extension}')
+        if not os.path.isdir(hazard_case_fp):
+            raise OasisException(f'Could not find hazard case data with identifier "{setting_val}"')
+    if os.path.islink(hazard_case_target_fp) or os.path.exists(hazard_case_target_fp):
+        os.remove(hazard_case_target_fp)
+    os.symlink(hazard_case_fp, hazard_case_target_fp)
 
 
 @oasis_log
