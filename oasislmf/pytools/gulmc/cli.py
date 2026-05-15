@@ -70,7 +70,7 @@ def main():
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-    logging_level = kwargs.pop('logging_level')
+    logging_level = kwargs.get('logging_level')
     logger.setLevel(logging_level)
 
     manager.run(**kwargs)

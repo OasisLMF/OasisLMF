@@ -28,6 +28,7 @@ def run(analysis_settings,
         model_df_engine=None,
         dynamic_footprint=False,
         resource_monitor_interval=1,
+        log_level=None,
         **kwargs
         ):
     model_df_engine = model_df_engine or df_engine
@@ -101,6 +102,7 @@ def run(analysis_settings,
         custom_gulcalc_log_finish=custom_gulcalc_log_finish,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint,
+        log_level=log_level,
         **kwargs,
     )
     monitor = ResourceMonitor(

@@ -1961,6 +1961,7 @@ def bash_params(
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     dynamic_footprint=False,
+    log_level=None,
     **kwargs
 ):
     """Build the parameter dict consumed by :func:`create_bash_analysis` and :func:`create_bash_outputs`.
@@ -2008,6 +2009,7 @@ def bash_params(
         exposure_df_engine (str): DataFrame engine for exposure data.
         model_df_engine (str): DataFrame engine for model data.
         dynamic_footprint (bool): Enable dynamic footprint mode.
+        log_level (int or None): Enable logging of pytools subprocesses.
 
     Returns:
         dict: Parameter dictionary ready for unpacking into
@@ -2144,6 +2146,7 @@ def bash_params(
     bash_params['exposure_df_engine'] = exposure_df_engine
     bash_params['model_df_engine'] = model_df_engine
     bash_params['dynamic_footprint'] = dynamic_footprint
+    bash_params['log_level'] = log_level
 
     return bash_params
 
@@ -2293,6 +2296,7 @@ def create_bash_analysis(
     peril_filter,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     dynamic_footprint=False,
+    log_level=None,
     **kwargs
 ):
     """Write the main analysis section of the bash script.
@@ -2557,6 +2561,10 @@ def create_bash_analysis(
                 }
             }
             compute_outputs.append(gul_computes)
+
+    # set compute log level through env variable
+    if log_level is not None:
+        print_command(filename, f'export OASIS_PYTOOLS_LOG_LEVEL={log_level}')
 
     do_computes(compute_outputs)
 
@@ -3006,7 +3014,8 @@ def genbash(
     dynamic_footprint=False,
     analysis_pk=None,
     socket_server_size=None,
-    socket_server_port=None
+    socket_server_port=None,
+    log_level=None
 ):
     """
     Generates a bash script containing pytools calculation instructions for an
@@ -3082,7 +3091,8 @@ def genbash(
         peril_filter=peril_filter,
         join_summary_info=join_summary_info,
         model_df_engine=model_df_engine,
-        dynamic_footprint=dynamic_footprint
+        dynamic_footprint=dynamic_footprint,
+        log_level=log_level
     )
 
     # remove the file if it already exists
