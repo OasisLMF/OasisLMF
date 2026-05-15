@@ -36,13 +36,17 @@ def logging_reset_handlers(logger_name):
         logger.setLevel(logging.NOTSET)
 
 
-def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
+def redirect_logging(exec_name, log_dir='./log'):
     """
     Decorator that redirects logging output to a file.
 
     Apply to the main run function of a python exec from the pytools directory.
     Only errors will be send to STDERR, all other logging is stored in a file named:
        "<log_dir>/<exec_name>_<PID>.log"
+
+    The log level is determined in the following priority:
+        - OASIS_PYTOOLS_LOG_LEVEL environment variable
+        - wrapped function kwargs `logging_level`
 
     Each log file is timestamped with start / finish times
         ❯ cat log/fmpy_112820.log
@@ -52,7 +56,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
     Args:
         exec_name (str): The name of the script or function being executed. This will be used as part of the log file name.
         log_dir (str, optional): The path to the directory where log files will be stored. Defaults to './log'.
-        log_level (int or str, optional): The logging level to use. Can be an integer or a string. Defaults to logging.INFO.
+        log_level (int or str, optional): The logging level to use. Can be an integer or a string. See docstring for order of priority of log level set. If no log levels set, then defaults to WARNING.
 
     Returns:
         function: The decorated function.
@@ -75,6 +79,11 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
 
+            log_level = os.environ.get('OASIS_PYTOOLS_LOG_LEVEL', None)
+            log_level = int(log_level) if log_level is not None else None
+            log_level = log_level or kwargs.get('logging_level', None)
+            log_level = log_level or logging.WARNING
+
             childFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
             childFileHandler.setLevel(log_level)
             childFileHandler.setFormatter(formatter)
@@ -92,9 +101,10 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             logger.setLevel(logging.INFO)
             logger.addHandler(rootFileHandler)
 
-            # Set warning log handler
-            warn_logger = logging.getLogger('py.warnings')
-            warn_logger.addHandler(rootFileHandler)
+            # Set warning log handler if not in debug
+            if log_level != logging.DEBUG:
+                warn_logger = logging.getLogger('py.warnings')
+                warn_logger.addHandler(rootFileHandler)
 
             # # Debug: print logging tree
             # import ipdb; ipdb.set_trace()
