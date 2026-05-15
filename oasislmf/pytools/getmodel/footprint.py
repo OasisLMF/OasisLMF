@@ -451,8 +451,10 @@ class FootprintParquet(Footprint):
         if self.storage.exists(dir_path):
             reader = self.get_df_reader(dir_path, filters=self.areaperil_ids_filter)
             numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
+            logger.debug(f'loaded event footprint: {event_id}')
             return numpy_data
         else:
+            logger.debug(f'missing event footprint: {event_id}')
             return np.empty(0, dtype=Event)
 
 

@@ -403,6 +403,7 @@ def run(run_dir,
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function
+        logger.debug('loading random number generator')
         generate_rndm = get_random_generator(random_generator)
         # create the array to store the seeds
         haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])

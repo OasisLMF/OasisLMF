@@ -102,6 +102,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             try:
                 logger.info(kwargs)
                 logger.info('starting process')
+                logger.info(f'environment variable log level: {os.environ.get("OASISLMF_LOG_LEVEL", None)}')
 
                 # Run the wrapped function
                 retval = func(*args, **kwargs)
