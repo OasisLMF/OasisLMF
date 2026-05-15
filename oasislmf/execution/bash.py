@@ -505,8 +505,8 @@ def do_post_wait_processing(
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
-                    cmd = '( {{ {}; }} 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) ) & lpid{}=$!'.format(cmd,
-                                                                                                                       process_counter['lpid_monitor_count'])
+                    cmd = '( {} ) 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) & lpid{}=$!'.format(cmd,
+                                                                                                                process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -538,8 +538,8 @@ def do_post_wait_processing(
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
-                    cmd = '( {{ {}; }} 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) ) & lpid{}=$!'.format(cmd,
-                                                                                                                       process_counter['lpid_monitor_count'])
+                    cmd = '( {} ) 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) & lpid{}=$!'.format(cmd,
+                                                                                                                process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -604,8 +604,8 @@ def do_post_wait_processing(
                     )
 
                 if stderr_guard:
-                    cmd = '( {{ {}; }} 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) ) & lpid{}=$!'.format(cmd,
-                                                                                                                       process_counter['lpid_monitor_count'])
+                    cmd = '( {} ) 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) & lpid{}=$!'.format(cmd,
+                                                                                                                process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -964,7 +964,7 @@ def do_summarycalcs(
         inuring_priority_text
     )
     # Wrap in subshell and pipe stderr to file
-    cmd = '( {{ {0}; }} 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) ) &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)
+    cmd = '( {0} ) 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)
     print_command(filename, cmd)
 
 
@@ -1186,7 +1186,7 @@ def do_ord(
                     cmd = f'{flag_proc["executable"]} -E bin {cmd}'
 
                     if stderr_guard:
-                        cmd = f'( {{ {cmd}; }} 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) ) & pid{process_counter["pid_monitor_count"]}=$!'
+                        cmd = f'( {cmd} ) 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
                         cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
 
@@ -1679,7 +1679,7 @@ def get_main_cmd_ri_stream(
             else:
                 main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id, consumer=ri_inuring_priorities[i].rstrip('_'))}"
 
-    main_cmd = f'( {{ {main_cmd}; }} 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) )' if stderr_guard else f'{main_cmd}'
+    main_cmd = f'( {main_cmd} ) 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err)' if stderr_guard else f'{main_cmd}'
     main_cmd = f'( {main_cmd} ) &'
 
     if process_counter is not None:
@@ -1758,7 +1758,7 @@ def get_main_cmd_gul_stream(
     """
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
-    main_cmd = f'( {{ {main_cmd}; }} 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) )' if stderr_guard else f'{main_cmd}'
+    main_cmd = f'( {main_cmd} ) 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err)' if stderr_guard else f'{main_cmd}'
     main_cmd = f'( {main_cmd} ) & '
 
     if process_counter is not None:
@@ -1827,7 +1827,7 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
             if stderr_guard:
-                cmd = '( {{ {}; }} 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/gul_stderror.err) )'.format(cmd)
+                cmd = '( {} ) 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/gul_stderror.err)'.format(cmd)
 
             return cmd
     else:
@@ -1900,7 +1900,7 @@ def get_main_cmd_lb(num_lb, num_in_per_lb, num_out_per_lb, get_input_stream_name
         lb_out = ' '.join(lb_out_l)
 
         lb_main_cmd = f"load_balancer -i {lb_in} -o {lb_out}"
-        lb_main_cmd = f'( {{ {lb_main_cmd}; }} 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) ) &' if stderr_guard else f'{lb_main_cmd} &'
+        lb_main_cmd = f'( {lb_main_cmd} ) 2> >(sed "s/^/[PID:$BASHPID] /" >> $LOG_DIR/stderror.err) &' if stderr_guard else f'{lb_main_cmd} &'
         yield lb_main_cmd
 
 
@@ -2229,7 +2229,7 @@ def bash_wrapper(
         # check stderror.err before exit (fallback check in case of short run)
         print_command(filename, 'if [ -s $LOG_DIR/stderror.err ]; then')
         print_command(
-            filename, '    if sed \'s/^\\[PID:[0-9]*\\] //\' $LOG_DIR/stderror.err | grep -qvE "(^[[:space:]]*$|.+:[0-9]+: [A-Za-z]+Warning:|^[[:space:]]+warnings\\.warn)"; then')
+            filename, '    if grep -qvE "(^[[:space:]]*$|.+:[0-9]+: [A-Za-z]+Warning:|^[[:space:]]+warnings\\.warn)" $LOG_DIR/stderror.err; then')
         print_command(filename, '        echo "Error detected in $LOG_DIR/stderror.err"')
         print_command(filename, '        exit 1')
         print_command(filename, '    fi')
