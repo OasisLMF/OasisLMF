@@ -63,21 +63,28 @@ class APISession(Session):
         self.health_check()
         self.retry_max = retries
 
-        if self._fetch_server_auth_type() == 'disabled':
+        server_auth = self._fetch_server_auth_type()
+        resolved_type = auth_type if auth_type is not None else server_auth
+
+        if resolved_type == 'disabled':
             self.auth_type = 'disabled'
             self.auth_credentials = {}
             return
 
-        self.auth_type = auth_type
-        if auth_type == "simple" and username and password:
+        self.auth_type = resolved_type
+        if resolved_type == "simple" and username and password:
             self.auth_credentials = {"username": username, "password": password}
-        elif auth_type == "oidc" and client_id and client_secret:
+        elif resolved_type in ("oidc", "m2m") and client_id and client_secret:
+            if resolved_type == "m2m" and not token_url:
+                raise OasisException("auth_type 'm2m' requires token_url")
             self.auth_credentials = {"client_id": client_id, "client_secret": client_secret}
-        elif auth_type == "token" and access_token and refresh_token:
+        elif resolved_type == "token" and access_token and refresh_token:
             self.auth_credentials = {"access_token": access_token, "refresh_token": refresh_token}
         else:
             raise OasisException(
-                f"Missing credentials for auth_type {auth_type}: must provide either username/password or client_id/client_secret or access_token/refresh_token.")
+                f"Missing credentials for auth_type '{resolved_type}': simple requires username/password, "
+                "oidc/m2m requires client_id/client_secret (m2m also requires token_url), "
+                "token requires access_token/refresh_token.")
         self.__get_access_token()
 
     def __get_access_token(self):
@@ -87,8 +94,8 @@ class APISession(Session):
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
             return
 
-        if self.auth_type == "oidc" and self.token_url:
-            # Standard M2M client_credentials grant: Basic Auth + form-encoded body
+        if self.auth_type == "m2m":
+            # client_credentials grant direct to IdP token endpoint
             try:
                 data = {'grant_type': 'client_credentials'}
                 if self.scope:
@@ -110,26 +117,27 @@ class APISession(Session):
                 return
             except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
                 if isinstance(e, HTTPError) and e.response is not None:
-                    self.logger.error('OIDC token request failed (%s): %s', e.response.status_code, e.response.text)
+                    self.logger.error('M2M token request failed (%s): %s', e.response.status_code, e.response.text)
                 raise OasisException('Authentication Error', e)
 
-        try:
-            url = urljoin(self.url_base, 'access_token/')
-            r = self.post(url, json=self.auth_credentials)
-            r.raise_for_status()
-            self.tkn_access = r.json()['access_token']
-            if self.auth_type == "simple":
-                self.tkn_refresh = r.json()['refresh_token']
-            else:
-                self.tkn_refresh = self.tkn_access
-            self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
-            return
-        except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
-            err_msg = 'Authentication Error'
-            raise OasisException(err_msg, e)
+        if self.auth_type in ("simple", "oidc"):
+            # simple: username/password JWT via platform /access_token/
+            # oidc: client_credentials relayed through platform /access_token/
+            try:
+                url = urljoin(self.url_base, 'access_token/')
+                r = self.post(url, json=self.auth_credentials)
+                r.raise_for_status()
+                self.tkn_access = r.json()['access_token']
+                self.tkn_refresh = r.json().get('refresh_token', self.tkn_access)
+                self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
+                return
+            except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
+                raise OasisException('Authentication Error', e)
+
+        raise OasisException(f"Unknown auth_type: '{self.auth_type}'")
 
     def _refresh_token(self):
-        if self.auth_type == "oidc":
+        if self.auth_type == "m2m":
             self.__get_access_token()
             return
         try:

@@ -33,49 +33,54 @@ class PlatformBase(ComputationStep):
             'pre_exist': False, 'help': 'Server login credentials json string'},
         {'name': 'server_url', 'default': 'http://localhost:8000', 'help': 'URL to Oasis Platform server, default is localhost'},
         {'name': 'server_version', 'default': 'v2', 'help': "Version prefix for OasisPlatform server, 'v1' = single server run, 'v2' = distributed on cluster"},
+        {'name': 'auth_type', 'required': False, 'default': None,
+            'choices': ['simple', 'oidc', 'm2m'],
+            'help': 'Authentication type: simple (username/password JWT), oidc (client credentials via platform), m2m (client credentials direct to IdP)'},
         {'name': 'oidc_token_url', 'required': False, 'default': None,
-            'help': 'OIDC token endpoint URL for M2M client_credentials grant (e.g. https://idp.example.com/oauth2/token)'},
+            'help': 'Token endpoint URL for m2m client_credentials grant (e.g. https://idp.example.com/oauth2/token)'},
         {'name': 'oidc_scope', 'required': False, 'default': None,
-            'help': 'OAuth2 scope to request when fetching an M2M token (e.g. oasis/m2m)'},
+            'help': 'OAuth2 scope to request when fetching an m2m token (e.g. oasis/m2m)'},
     ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.server = self.open_connection()
 
-    def load_credentials(self, login_arg):
+    def load_credentials(self, login_arg, auth_type=None):
         """
-        Load credentials from JSON file or Prompt for username / password
+        Load credentials from JSON file or prompt interactively.
 
         Options:
             1.'--server-login ./APIcredentials.json'
             2. Load credentials from default config file '-C oasislmf.json'
+            3. Interactive prompt (menu skipped when auth_type is already known)
         """
         if isinstance(login_arg, str):
             with io.open(login_arg, encoding='utf-8') as f:
                 return json.load(f)
 
-        while True:
-            user_response = input("Auth type — simple JWT [1], OIDC client_credentials via platform [2], OIDC M2M direct [3]: ").strip()
-            if user_response == "1":
-                auth_mode = "simple"
-                break
-            elif user_response == "2":
-                auth_mode = "oidc"
-                break
-            elif user_response == "3":
-                auth_mode = "oidc_m2m"
-                break
+        if auth_type is None:
+            while True:
+                user_response = input("Auth type — simple JWT [1], OIDC via platform [2], M2M direct to IdP [3]: ").strip()
+                if user_response == "1":
+                    auth_type = "simple"
+                    break
+                elif user_response == "2":
+                    auth_type = "oidc"
+                    break
+                elif user_response == "3":
+                    auth_type = "m2m"
+                    break
 
         self.logger.info('API Login:')
         api_login = {}
-        if auth_mode == "simple":
+        if auth_type == "simple":
             api_login['username'] = input('Username: ')
             api_login['password'] = getpass.getpass('Password: ')
-        elif auth_mode == "oidc":
+        elif auth_type == "oidc":
             api_login['client_id'] = input('Client ID: ')
             api_login['client_secret'] = getpass.getpass('Client Secret: ')
-        else:
+        elif auth_type == "m2m":
             api_login['client_id'] = input('Client ID: ')
             api_login['client_secret'] = getpass.getpass('Client Secret: ')
             api_login['token_url'] = input('Token URL: ')
@@ -121,35 +126,40 @@ class PlatformBase(ComputationStep):
     def open_connection(self):
         """
         Attempts connection in this order:
-        1. API_EXAMPLE_AUTH username/password
-        2. API_EXAMPLE_AUTH client_id/client_secret (+ oidc_token_url/oidc_scope if set)
+        1. API_EXAMPLE_AUTH username/password  (skipped when auth_type is oidc or m2m)
+        2. API_EXAMPLE_AUTH client_id/client_secret  (skipped when auth_type is simple)
         3. Prompt or load credentials
         """
+        auth_type = getattr(self, 'auth_type', None)
+
         if not isinstance(self.server_login_json, str):
             # 1. Try example username/password
-            if 'username' in API_EXAMPLE_AUTH and 'password' in API_EXAMPLE_AUTH:
-                conn = self.try_connection(
-                    auth_type="simple",
-                    username=API_EXAMPLE_AUTH['username'],
-                    password=API_EXAMPLE_AUTH['password']
-                )
-                if conn:
-                    return conn
+            if auth_type in (None, "simple"):
+                if 'username' in API_EXAMPLE_AUTH and 'password' in API_EXAMPLE_AUTH:
+                    conn = self.try_connection(
+                        auth_type="simple",
+                        username=API_EXAMPLE_AUTH['username'],
+                        password=API_EXAMPLE_AUTH['password']
+                    )
+                    if conn:
+                        return conn
 
             # 2. Try example client_id/client_secret
-            if 'client_id' in API_EXAMPLE_AUTH and 'client_secret' in API_EXAMPLE_AUTH:
-                conn = self.try_connection(
-                    auth_type="oidc",
-                    client_id=API_EXAMPLE_AUTH['client_id'],
-                    client_secret=API_EXAMPLE_AUTH['client_secret'],
-                    **self._oidc_m2m_kwargs()
-                )
-                if conn:
-                    return conn
+            if auth_type in (None, "oidc", "m2m"):
+                if 'client_id' in API_EXAMPLE_AUTH and 'client_secret' in API_EXAMPLE_AUTH:
+                    example_auth_type = auth_type if auth_type in ("oidc", "m2m") else "oidc"
+                    conn = self.try_connection(
+                        auth_type=example_auth_type,
+                        client_id=API_EXAMPLE_AUTH['client_id'],
+                        client_secret=API_EXAMPLE_AUTH['client_secret'],
+                        **self._oidc_m2m_kwargs()
+                    )
+                    if conn:
+                        return conn
 
         # 3. Load credentials (file or prompt)
         self.logger.info("-- Authentication Required --")
-        credentials = self.load_credentials(self.server_login_json)
+        credentials = self.load_credentials(self.server_login_json, auth_type=auth_type)
         self.logger.info(f'Connecting to - {self.server_url}')
 
         if 'username' in credentials and 'password' in credentials:
@@ -161,14 +171,14 @@ class PlatformBase(ComputationStep):
             )
 
         if 'client_id' in credentials and 'client_secret' in credentials:
-            # token_url in credentials → M2M direct; step params override/supplement
-            m2m_kwargs = {
-                k: credentials[k] for k in ('token_url', 'scope') if k in credentials
-            }
+            m2m_kwargs = {k: credentials[k] for k in ('token_url', 'scope') if k in credentials}
             m2m_kwargs.update(self._oidc_m2m_kwargs())
+            resolved_type = auth_type if auth_type in ("oidc", "m2m") else (
+                "m2m" if m2m_kwargs.get('token_url') else "oidc"
+            )
             return self.try_connection(
                 fail_safe=False,
-                auth_type="oidc",
+                auth_type=resolved_type,
                 client_id=credentials['client_id'],
                 client_secret=credentials['client_secret'],
                 **m2m_kwargs
