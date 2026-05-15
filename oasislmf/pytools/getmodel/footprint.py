@@ -549,14 +549,10 @@ class FootprintParquetDynamic(Footprint):
     def _is_partitioned_by_section(self):
         """Check if event_definition.parquet is partitioned by section_id."""
         section_exist = [self.storage.exists(f'{event_defintion_filename}/section_id={int(section)}') for section in self.location_sections]
-        if any(section_exist):
-            if all(section_exist):
-                return True
-            else:
-                missing_section = [s for s, exists in zip(self.location_sections, section_exist) if not exists]
-                raise OasisException(f"Sections {missing_section} are missing from the footprint")
-        else:
-            return False
+        return any(section_exist)
+        # FIXME this will fail if there isn't at least one section that is relevant for the portfolio in the event def file,
+        # but we want it to still recognise that it's a partitioned file (with no relevant data) or
+        # to immediately shortcut and produce zero losses.
 
     def __enter__(self):
         with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
@@ -588,25 +584,29 @@ class FootprintParquetDynamic(Footprint):
         if len(self.location_sections) > 0:
             df_event_definition_list = []
             for section in self.location_sections:
-                df_section = self.get_df_reader(
-                    f'{event_defintion_filename}/section_id={int(section)}'
-                ).as_pandas()
-                df_section['section_id'] = section
-                df_event_definition_list.append(df_section)
+                if self.storage.exists(f'{event_defintion_filename}/section_id={int(section)}'):
+                    df_section = self.get_df_reader(
+                        f'{event_defintion_filename}/section_id={int(section)}'
+                    ).as_pandas()
+                    df_section['section_id'] = section
+                    df_event_definition_list.append(df_section)
             df_event_definition = pd.concat(df_event_definition_list, ignore_index=True)
+            # FIXME this will fail if the concat list is empty
 
             self.df_event_definition = df_event_definition.set_index('event_id')
             self.event_set = set(df_event_definition['event_id'].unique())
 
             df_hazard_case_list = []
             for section in self.location_sections:
-                df_section = self.get_df_reader(
-                    f'{hazard_case_filename}/section_id={int(section)}',
-                    filters=[("areaperil_id", "in", self.areaperil_ids)]
-                ).as_pandas()
-                df_section['section_id'] = section
-                df_hazard_case_list.append(df_section)
+                if self.storage.exists(f'{hazard_case_filename}/section_id={int(section)}'):
+                    df_section = self.get_df_reader(
+                        f'{hazard_case_filename}/section_id={int(section)}',
+                        filters=[("areaperil_id", "in", self.areaperil_ids)]
+                    ).as_pandas()
+                    df_section['section_id'] = section
+                    df_hazard_case_list.append(df_section)
             df_hazard_case = pd.concat(df_hazard_case_list, ignore_index=True)
+            # FIXME this will fail if the concat list is empty
 
             self.df_hazard_case = df_hazard_case.set_index('section_id')
 
