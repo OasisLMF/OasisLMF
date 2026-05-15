@@ -1,4 +1,5 @@
 import atexit
+import uuid
 import logging
 import os
 import sys
@@ -232,7 +233,25 @@ def run(run_dir,
     Returns:
         int: 0 if no errors occurred.
     """
+    # ch = logging.StreamHandler()
+    # ch.setFormatter(formatter)
+    # logger.addHandler(ch)
+    # logger.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    exec_name = 'tmpgulmc'
+    log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
+
+    rootFileHandler = logging.FileHandler(os.path.join('./log', log_file))
+    rootFileHandler.setLevel(logging.INFO)
+    rootFileHandler.setFormatter(formatter)
+    logger.addHandler(rootFileHandler)
+    logger.setLevel(logging.DEBUG)
+
     logger.info("starting gulmc")
+
+    # logger.info("raising gulmc error")
+    # sys.stderr.write("some gulmc error\n")
 
     model_storage = get_storage_from_config_path(
         os.path.join(run_dir, 'model_storage.json'),
@@ -263,7 +282,6 @@ def run(run_dir,
 
         event_id_mv = memoryview(bytearray(4))
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
-        logger.info(f"gulmc running event_ids: {event_ids}")
 
         # load keys.csv to determine included AreaPerilID from peril_filter
         if os.path.exists(os.path.join(input_path, 'keys.csv')):
@@ -535,6 +553,7 @@ def run(run_dir,
                 break
 
             # get the next event_id from the input stream
+            logger.info(f"event {event_ids[0]} STARTED")
             compute_info['event_id'] = event_ids[0]
             event_footprint = event_footprint_obj.get_event(event_ids[0])
 
@@ -546,6 +565,7 @@ def run(run_dir,
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
                     counter += 1
+                    logger.info(f"event {event_ids[0]} SKIPPED")
                     continue
 
                 items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
@@ -634,6 +654,8 @@ def run(run_dir,
                         write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
 
                 logger.info(f"event {event_ids[0]} DONE")
+            else:
+                logger.info(f"event {event_ids[0]} SKIPPED (no footprint)")
 
             counter += 1
             if ping and time.time() - timer > SERVER_UPDATE_TIME:
@@ -644,6 +666,7 @@ def run(run_dir,
                 oasis_ping(ping_data)
                 counter = 0
 
+    logger.info("gulmc completed")
     return 0
 
 
