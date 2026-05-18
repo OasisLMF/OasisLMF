@@ -110,7 +110,9 @@ def do_lec_output_agg_summary(
     loss,
     filtered_occ_map,
     outloss_mean,
+    row_used_mean,
     outloss_sample,
+    row_used_sample,
     num_sidxs,
     max_summary_id,
 ):
@@ -121,7 +123,9 @@ def do_lec_output_agg_summary(
         loss (oasis_float): Loss value
         filtered_occ_map (ndarray[occ_map_dtype]): Filtered numpy map of event_id, period_no, occ_date_id from the occurrence file_
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
+        row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
+        row_used_sample (ndarray[bool]): bool mask for outloss_sample
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
     """
@@ -129,21 +133,25 @@ def do_lec_output_agg_summary(
         period_no = row["period_no"]
         if sidx == MEAN_IDX:
             idx = get_outloss_mean_idx(period_no, summary_id, max_summary_id)
-            outloss = outloss_mean
+            outloss_mean[idx]["agg_out_loss"] += loss
+            if loss > outloss_mean[idx]["max_out_loss"]:
+                outloss_mean[idx]["max_out_loss"] = loss
+            row_used_mean[idx] = True
         else:
             idx = get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id)
-            outloss = outloss_sample
-        outloss[idx]["row_used"] = True
-        outloss[idx]["agg_out_loss"] += loss
-        max_out_loss = max(outloss[idx]["max_out_loss"], loss)
-        outloss[idx]["max_out_loss"] = max_out_loss
+            outloss_sample[idx]["agg_out_loss"] += loss
+            if loss > outloss_sample[idx]["max_out_loss"]:
+                outloss_sample[idx]["max_out_loss"] = loss
+            row_used_sample[idx] = True
 
 
 @nb.njit(cache=True, error_model="numpy")
 def process_input_file(
     fin,
     outloss_mean,
+    row_used_mean,
     outloss_sample,
+    row_used_sample,
     summary_ids,
     occ_map,
     use_return_period,
@@ -154,7 +162,9 @@ def process_input_file(
     Args:
         fin (np.memmap): summary binary memmap
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
+        row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
+        row_used_sample (ndarray[bool]): bool mask for outloss_sample
         summary_ids (ndarray[bool]): bool array marking which summary_ids are used
         occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         use_return_period (bool): Use Return Period file.
@@ -197,7 +207,9 @@ def process_input_file(
                     loss,
                     filtered_occ_map,
                     outloss_mean,
+                    row_used_mean,
                     outloss_sample,
+                    row_used_sample,
                     num_sidxs,
                     max_summary_id,
                 )
@@ -207,7 +219,9 @@ def process_input_file(
 def run_lec(
     file_handles,
     outloss_mean,
+    row_used_mean,
     outloss_sample,
+    row_used_sample,
     summary_ids,
     occ_map,
     use_return_period,
@@ -218,7 +232,9 @@ def run_lec(
     Args:
         file_handles (List[np.memmap]): List of memmaps for summary files data
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
+        row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
+        row_used_sample (ndarray[bool]): bool mask for outloss_sample
         summary_ids (ndarray[bool]): bool array marking which summary_ids are used
         occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         use_return_period (bool): Use Return Period file.
@@ -229,7 +245,9 @@ def run_lec(
         process_input_file(
             fin,
             outloss_mean,
+            row_used_mean,
             outloss_sample,
+            row_used_sample,
             summary_ids,
             occ_map,
             use_return_period,
@@ -370,18 +388,23 @@ def run(
             outloss_mean_file,
             dtype=OUTLOSS_DTYPE,
             mode="w+",
-            shape=(file_data["no_of_periods"] * max_summary_id),
+            shape=(int(file_data["no_of_periods"]) * max_summary_id),
         )
 
         # outloss_sample has all SIDXs plus -2 and -3
-        num_sidxs = sample_size + 2
+        num_sidxs = int(sample_size) + 2
         outloss_sample_file = Path(lec_files_folder, "lec_outloss_sample.bdat")
         outloss_sample = np.memmap(
             outloss_sample_file,
             dtype=OUTLOSS_DTYPE,
             mode="w+",
-            shape=(file_data["no_of_periods"] * num_sidxs * max_summary_id),
+            shape=(int(file_data["no_of_periods"]) * num_sidxs * max_summary_id),
         )
+
+        row_used_mean_file = Path(lec_files_folder, "lec_row_used_mean.bdat")
+        row_used_mean = np.memmap(row_used_mean_file, dtype=np.bool_, mode="w+", shape=(len(outloss_mean),))
+        row_used_sample_file = Path(lec_files_folder, "lec_row_used_sample.bdat")
+        row_used_sample = np.memmap(row_used_sample_file, dtype=np.bool_, mode="w+", shape=(len(outloss_sample),))
 
         # Array of Summary IDs found
         summary_ids = np.zeros((max_summary_id), dtype=np.bool_)
@@ -390,7 +413,9 @@ def run(
         run_lec(
             file_handles,
             outloss_mean,
+            row_used_mean,
             outloss_sample,
+            row_used_sample,
             summary_ids,
             file_data["occ_map"],
             use_return_period,
@@ -428,7 +453,9 @@ def run(
         agg = AggReports(
             outmap,
             outloss_mean,
+            row_used_mean,
             outloss_sample,
+            row_used_sample,
             file_data["period_weights"],
             max_summary_id,
             sample_size,

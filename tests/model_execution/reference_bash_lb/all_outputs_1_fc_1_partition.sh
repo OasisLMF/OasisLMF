@@ -97,8 +97,8 @@ tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summary_palt/P2.idx work/gul_S1_sum
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 
-( evepy 1 2 | gulmc --socket-server='None' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S50 -L10 -a0  | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
-( evepy 2 2 | gulmc --socket-server='None' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S50 -L10 -a0  | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
+( evepy 1 2 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S50 -L10 -a0  | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
+( evepy 2 2 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S50 -L10 -a0  | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
 ( fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 ) & pid21=$!
 ( fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 ) & pid22=$!

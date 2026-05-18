@@ -26,7 +26,6 @@ event based intermediary data structure:
 import numpy as np
 import numba as nb
 from numba.typed import Dict as nb_dict
-import pandas as pd
 import json
 
 from contextlib import ExitStack
@@ -34,13 +33,13 @@ import logging
 import os
 from itertools import zip_longest
 
-from oasislmf.execution.bash import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
-                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype)
+                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
+from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -57,7 +56,7 @@ risk_key_type = nb.types.UniTuple(nb_oasis_int, 2)
 
 summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 
-SUPPORTED_RUN_TYPE = [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]
+SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
 
 
 def create_summary_object_file(static_path, run_type):
@@ -78,22 +77,21 @@ def get_summary_object(static_path, run_type):
     """read static files to get summary static data structure"""
 
     # extract item_id to index in the loss summary
+    summary_map_dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
     if run_type == RUNTYPE_GROUNDUP_LOSS:
         summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', gul_summary_xref_dtype)
-        summary_map = pd.read_csv(os.path.join(static_path, 'gul_summary_map.csv'),
-                                  usecols=['loc_id', 'item_id', 'building_id', 'coverage_id'],
-                                  dtype=oasis_int)
+        summary_map = load_as_ndarray(static_path, 'gul_summary_map', summary_map_dtype)
+
     elif run_type == RUNTYPE_INSURED_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
-        summary_map = pd.read_csv(os.path.join(static_path, 'fm_summary_map.csv'),
-                                  usecols=['loc_id', 'output_id', 'building_id', 'coverage_id'],
-                                  dtype=oasis_int,
-                                  ).rename(columns={'output_id': 'item_id'})
+        summary_map = load_as_ndarray(static_path, 'fm_summary_map', summary_map_dtype, col_map={'item_id': 'output_id'})
+
     elif run_type == RUNTYPE_REINSURANCE_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
         summary_map = None  # numba use none to optimise function when some part are not used
+
     else:
         raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
 
@@ -134,17 +132,17 @@ def read_summary_objects(static_path, run_type):
 
 
 @nb.njit(cache=True)
-def nb_extract_risk_info(item_id_to_risks_i, summary_map_item_ids, summary_map_loc_ids, summary_map_building_ids):
+def nb_extract_risk_info(item_id_to_risks_i, summary_map):
     loc_id_building_id_to_building_risk = nb_dict.empty(risk_key_type, nb_oasis_int)
     last_risk_i = 0
-    for i in range(summary_map_item_ids.shape[0]):
-        loc_id_building_id = (nb_oasis_int(summary_map_loc_ids[i]), nb_oasis_int(summary_map_building_ids[i]))
+    for i in range(summary_map.shape[0]):
+        loc_id_building_id = (nb_oasis_int(summary_map["loc_id"][i]), nb_oasis_int(summary_map["building_id"][i]))
         if loc_id_building_id in loc_id_building_id_to_building_risk:
             risk_i = loc_id_building_id_to_building_risk[loc_id_building_id]
         else:
             loc_id_building_id_to_building_risk[loc_id_building_id] = risk_i = nb_oasis_int(last_risk_i)
             last_risk_i += 1
-        item_id_to_risks_i[summary_map_item_ids[i]] = nb_oasis_int(risk_i)
+        item_id_to_risks_i[summary_map["item_id"][i]] = nb_oasis_int(risk_i)
     return last_risk_i
 
 
@@ -162,9 +160,7 @@ def extract_risk_info(len_item_id, summary_map):
     item_id_to_risks_i = np.zeros(len_item_id, oasis_int)
     nb_risk = nb_extract_risk_info(
         item_id_to_risks_i,
-        summary_map['item_id'].astype(oasis_int).to_numpy(),
-        summary_map['loc_id'].astype(oasis_int).to_numpy(),
-        summary_map['building_id'].astype(oasis_int).to_numpy())
+        summary_map)
     return nb_risk, item_id_to_risks_i
 
 
@@ -429,7 +425,8 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
         # data for index file (low_memory==True)
         summary_sets_cursor = np.zeros(summary_sets_id.shape[0], dtype=np.int64)
-        summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=np.dtype([('summary_id', oasis_int), ('offset', np.int64)]))
+        summary_stream_index_dtype = np.dtype([('summary_id', oasis_int), ('offset', np.int64)])
+        summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=summary_stream_index_dtype)
 
         for summary_set_index, summary_set_id in enumerate(summary_sets_id):
             summary_pipe = summary_sets_pipe[summary_set_id]
@@ -457,9 +454,12 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                             break
                     if low_memory:
                         # write the summary.idx file
-                        np.savetxt(summary_sets_index_pipe[summary_set_id],
-                                   summary_stream_index[:summary_index_cursor],
-                                   fmt="%i,%i")
+                        write_ndarray_to_fmt_csv(
+                            summary_sets_index_pipe[summary_set_id],
+                            summary_stream_index[:summary_index_cursor],
+                            summary_stream_index_dtype.names,
+                            "%i,%i"
+                        )
 
                 loss_summary.fill(0)
                 present_summary_id.fill(0)

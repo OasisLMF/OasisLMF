@@ -1,9 +1,9 @@
-# Workflow to validate oasislmf installation and basic functionality on macOS ARM64
+# Workflow to validate oasislmf installation and basic functionality on macOS.
 #
 # This runs on every PR and push to main to catch macOS-specific regressions.
 # It is intentionally lightweight — install + smoke test only — to keep CI costs low.
 
-name: macOS ARM64 Smoke Test
+name: macOS Smoke Test
 
 on:
   pull_request:
@@ -14,8 +14,15 @@ on:
   workflow_dispatch:
 
 jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      platforms: 'macos-14/arm64'
+
   macos-arm64-install:
-    runs-on: macos-14  # Apple Silicon (M1) runner
+    runs-on: macos-14
+    needs: [build]
     strategy:
       matrix:
         python-version: ["3.10", "3.12"]
@@ -31,10 +38,18 @@ jobs:
         run: |
           python -c "import platform; arch = platform.machine(); print(f'Architecture: {arch}'); assert arch == 'arm64', f'Expected arm64, got {arch}'"
 
-      - name: Install oasislmf from source
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: oasislmf-wheels-macos-14-arm64
+          path: ${{ github.workspace }}/
+
+      - name: Install oasislmf from wheel
         run: |
+          PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
+          WHL=$(find "${{ github.workspace }}" -name "oasislmf-*-${PY_TAG}-*.whl" | head -1)
           pip install --upgrade pip
-          pip install -e .
+          pip install "$WHL"
 
       - name: Run validation script
         run: python scripts/validate_install.py
@@ -47,12 +62,17 @@ jobs:
           python -c "
           import oasislmf
           print(f'Version: {oasislmf.__version__}')
-
-          # Verify key submodules import
           from oasislmf.pytools.fm.cli import main as fm_main
           from oasislmf.pytools.gulpy import main as gul_main
           from oasislmf.execution.bin import check_conversion_tools
           print('All key submodules imported successfully')
+          "
+
+      - name: Smoke test - oasis_writecsv Cython extension
+        run: |
+          python -c "
+          from oasis_writecsv import write_rows
+          print('oasis_writecsv Cython extension loaded successfully')
           "
 
       - name: Smoke test - numba JIT compilation
@@ -79,7 +99,6 @@ jobs:
           import pyarrow
           import fastparquet
 
-          # Basic operations to verify native code works
           arr = np.random.rand(1000)
           df = pd.DataFrame({'values': arr})
           assert len(df) == 1000

@@ -13,7 +13,7 @@ rm -R -f $LOG_DIR/*
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
-find fifo/ \( -name '*P8[^0-9]*' -o -name '*P8' \) -exec rm -R -f {} +
+find fifo/ -regextype posix-extended -regex '.*/[^/]*_P8([^0-9].*)?$' -exec rm -f {} +
 rm -R -f work/*
 mkdir -p work/kat/
 
@@ -29,7 +29,7 @@ mkfifo fifo/il_S1_summary_P8
 tee < fifo/il_S1_summary_P8 > /dev/null & pid1=$!
 summarypy -m -t il  -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
 
-( evepy 8 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P8  ) & pid2=$!
+( evepy 8 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P8  ) & pid2=$!
 
 wait $pid1 $pid2
 

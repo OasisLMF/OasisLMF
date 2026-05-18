@@ -690,12 +690,21 @@ def get_timestamp(thedate=datetime.now(), fmt='%Y%m%d%H%M%S'):
     return thedate.strftime(fmt)
 
 
-def get_utctimestamp(thedate=datetime.utcnow(), fmt='%Y-%b-%d %H:%M:%S'):
+def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
     """
-    Get a UTC timestamp string from a ``datetime.datetime`` object
+    Get a UTC timestamp string from a ``datetime.datetime`` object.
 
-    :param thedate: ``datetime.datetime`` object
-    :type thedate: datetime.datetime
+    When ``thedate`` is omitted, the current UTC time is used. A naive
+    ``datetime`` (no ``tzinfo``) is interpreted as UTC, matching the
+    function's name; a tz-aware ``datetime`` is converted to UTC before
+    formatting. This avoids the CPython gotcha that
+    ``naive.astimezone(utc)`` interprets naive datetimes as *local*
+    time, which caused run-directory timestamps to drift by the local
+    UTC offset on non-UTC hosts (issue #1936).
+
+    :param thedate: ``datetime.datetime`` object. If ``None`` (the
+        default), ``datetime.now(pytz.utc)`` is used.
+    :type thedate: datetime.datetime or None
 
     :param fmt: Timestamp format string, default is "%Y-%b-%d %H:%M:%S"
     :type fmt: str
@@ -703,6 +712,10 @@ def get_utctimestamp(thedate=datetime.utcnow(), fmt='%Y-%b-%d %H:%M:%S'):
     :return: UTC timestamp string
     :rtype: str
     """
+    if thedate is None:
+        thedate = datetime.now(pytz.utc)
+    elif thedate.tzinfo is None:
+        thedate = thedate.replace(tzinfo=pytz.utc)
     return thedate.astimezone(pytz.utc).strftime(fmt)
 
 

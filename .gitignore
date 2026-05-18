@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Cython-generated C source files
+oasislmf/**/oasis_writecsv.c
+
 # Ktools binary files
 *.bin
 

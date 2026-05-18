@@ -43,8 +43,8 @@ tee < fifo/il_S1_summary_P2 > /dev/null & pid2=$!
 summarypy -m -t il  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 summarypy -m -t il  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
 
-( evepy 1 2 | gulmc --socket-server='None' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_lb_P1  ) & 
-( evepy 2 2 | gulmc --socket-server='None' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_lb_P2  ) & 
+( evepy 1 2 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_lb_P1  ) & 
+( evepy 2 2 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_lb_P2  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
 ( fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 ) & pid3=$!
 ( fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 ) & pid4=$!

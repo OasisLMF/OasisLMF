@@ -76,7 +76,7 @@ check_complete(){
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
-find /tmp/%FIFO_DIR%/fifo/ \( -name '*P3[^0-9]*' -o -name '*P3' \) -exec rm -R -f {} +
+find /tmp/%FIFO_DIR%/fifo/ -regextype posix-extended -regex '.*/[^/]*_P3([^0-9].*)?$' -exec rm -f {} +
 rm -R -f work/*
 mkdir -p work/kat/
 
@@ -93,7 +93,7 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P3
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3 /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P3 > /dev/null & pid2=$!
 ( summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3 < /tmp/%FIFO_DIR%/fifo/gul_P3 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( evepy 3 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P3  ) 2>> $LOG_DIR/stderror.err ) &  pid3=$!
+( ( evepy 3 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P3  ) 2>> $LOG_DIR/stderror.err ) &  pid3=$!
 
 wait $pid1 $pid2 $pid3
 

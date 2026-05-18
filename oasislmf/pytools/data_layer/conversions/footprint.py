@@ -41,7 +41,7 @@ def convert_bin_to_parquet_event(static_path: str, **kwargs) -> None:
             "has_intensity_uncertainty": True if footprint_obj.has_intensity_uncertainty == 1 else False
         }
 
-        for event_id in tqdm(index_data.keys(), desc="processing events"):
+        for event_id in tqdm(index_data['event_id'], desc="processing events"):
             data_slice = footprint_obj.get_event(event_id)
             df = pd.DataFrame(data_slice)
             df["event_id"] = event_id
@@ -89,7 +89,7 @@ def convert_bin_to_parquet_chunk(static_path, chunk_size, **kwargs) -> None:
         }
 
         event_data = []
-        for event_id in tqdm(index_data.keys(), desc="parsing index file"):
+        for event_id in tqdm(index_data['event_id'], desc="parsing index file"):
             data_slice = footprint_obj.get_event(event_id)
             df = pd.DataFrame(data_slice)
             min_areaperil_id = min(df['areaperil_id'])

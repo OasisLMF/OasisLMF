@@ -165,6 +165,8 @@ def rerun():
 
 @oasis_log()
 def run_analysis(**params):
+    resource_monitor_interval = params.pop('resource_monitor_interval', 1.0)
+
     with bash_wrapper(params['filename'],
                       params['bash_trace'],
                       params['stderr_guard'],
@@ -172,15 +174,38 @@ def run_analysis(**params):
                       process_number=params.get("process_number", None)):
         create_bash_analysis(**params)
 
-    bash_trace = subprocess.check_output(['bash', params['filename']]).decode('utf-8')
+    process_number = params.get('process_number')
+    run_dir = os.path.dirname(params['filename'])
+    log_root = os.path.join(run_dir, 'log')
+    monitor_dir = os.path.join(log_root, str(process_number)) if process_number else log_root
+    monitor = ResourceMonitor(output_dir=monitor_dir, poll_interval=resource_monitor_interval, generate_report=False)
+    proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
+    monitor.start(proc.pid)
+    stdout, _ = proc.communicate()
+    monitor.stop()
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
+    bash_trace = stdout.decode('utf-8')
     logging.info(bash_trace)
     return params['fifo_queue_dir'], bash_trace
 
 
 @oasis_log()
 def run_outputs(**params):
+    resource_monitor_interval = params.pop('resource_monitor_interval', 1.0)
+
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'], log_sub_dir='out'):
         create_bash_outputs(**params)
-    bash_trace = subprocess.check_output(['bash', params['filename']]).decode('utf-8')
+
+    run_dir = os.path.dirname(params['filename'])
+    log_root = os.path.join(run_dir, 'log')
+    monitor = ResourceMonitor(output_dir=os.path.join(log_root, 'out'), poll_interval=resource_monitor_interval, log_root=log_root)
+    proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
+    monitor.start(proc.pid)
+    stdout, _ = proc.communicate()
+    monitor.stop()
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
+    bash_trace = stdout.decode('utf-8')
     logging.info(bash_trace)
     return bash_trace

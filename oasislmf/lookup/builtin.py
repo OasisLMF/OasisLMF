@@ -967,7 +967,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         def h3_lookup(locations):
             valid = locations['latitude'].notna() & locations['longitude'].notna()
-            locations['h3_int64'] = 0 #  0 correponds to an invalid H3 index
+            locations['h3_int64'] = 0  # 0 correponds to an invalid H3 index
 
             if valid.any():
                 locations.loc[valid, 'h3_int64'] = [
