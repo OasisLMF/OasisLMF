@@ -64,6 +64,23 @@ def test_server_handles_missing_key():
     server.stop()
 
 
+def test_server_handles_unknown_fields_logs_warning(caplog):
+    port = get_free_port()
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
+    server.start()
+    target = (server.host, server.port)
+    payload = {"unknown_field": "some_value"}
+
+    with caplog.at_level("WARNING", logger="root"):
+        assert oasis_ping_socket(target, json.dumps(payload)) is True
+        time.sleep(0.1)
+
+    assert server.counter == 0
+    assert any("Json received with no valid fields" in r.message for r in caplog.records)
+
+    server.stop()
+
+
 def test_server_handles_invalid_json(caplog):
     port = get_free_port()
     server = GulProgressServer(10, host="127.0.0.1", port=port)

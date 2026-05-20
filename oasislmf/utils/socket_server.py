@@ -62,7 +62,10 @@ class GulProgressServer:
             if 'terminate' in payload:
                 self.counter = self.total
                 self.stop()
-            self.counter += int(payload.get("events_complete", 0))
+            elif "events_complete" in payload:
+                self.counter += int(payload.get("events_complete", 0))
+            else:
+                logging.warning(f"Json received with no valid fields {payload}")
 
     def _read_all(self, client_socket):
         buffer = b""
