@@ -137,9 +137,7 @@ def test_empty_input():
                 "ext": "csv",
                 elt_type: outfile,
             }
-            with patch('oasislmf.pytools.elt.manager.read_event_rates',
-                       return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
-                main(**kwargs)
+            main(**kwargs)
 
             assert outfile.exists(), f"{elt_type}.csv was not created"
             lines = outfile.read_text().strip().splitlines()

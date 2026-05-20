@@ -319,11 +319,13 @@ def bin_concat_sort_by_headers(
         out_file (str | os.PathLike): Output Concatenated Binary file.
     """
     dtype = KAT_MAP[file_type]["dtype"]
-    files = [
-        np.memmap(fp, dtype=dtype) if Path(fp).stat().st_size > 0 and Path(fp).stat().st_size % dtype.itemsize == 0
-        else np.empty(0, dtype=dtype)
-        for fp in file_paths
-    ]
+    files = []
+    for fp in file_paths:
+        size = Path(fp).stat().st_size
+        aligned = size % dtype.itemsize == 0
+        if size > 0 and not aligned:
+            logger.warning(f"{fp}: file size {size} is not a multiple of record size {dtype.itemsize}, skipping")
+        files.append(np.memmap(fp, dtype=dtype) if size > 0 and aligned else np.empty(0, dtype=dtype))
 
     if out_type == "elt":
         gen = merge_elt_data(files)
@@ -635,6 +637,8 @@ def run(
             fmt = KAT_MAP[out_type]["fmt"]
             dtype = KAT_MAP[out_type]["dtype"]
             out_size = out_file.stat().st_size
+            if out_size % dtype.itemsize != 0:
+                logger.warning(f"Output binary size {out_size} is not a multiple of record size {dtype.itemsize}, treating as empty")
             if out_size == 0 or out_size % dtype.itemsize != 0:
                 if bin_to_csv:
                     with open(final_out_file_path, "w") as csv_out_file:
