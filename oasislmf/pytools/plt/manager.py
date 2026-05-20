@@ -246,19 +246,19 @@ def read_buffer(
 
     def _get_mean_and_sd_loss():
         n = state["len_sample"]
-        meanloss = 0.0
+        meanloss = np.float64(0.0)
         for l in state["vrec"]:
-            meanloss += l
-        meanloss /= n
+            meanloss += np.float64(l)
+        meanloss /= np.float64(n)
         if n != 1:
-            sum_sq_dev = 0.0
+            sum_sq_dev = np.float64(0.0)
             for l in state["vrec"]:
-                diff = l - meanloss
+                diff = np.float64(l) - meanloss
                 sum_sq_dev += diff * diff
-            variance = sum_sq_dev / (n - 1)
+            variance = sum_sq_dev / np.float64(n - 1)
             sdloss = np.sqrt(variance)
         else:
-            sdloss = 0
+            sdloss = np.float64(0.0)
         return meanloss, sdloss
 
     # Read input loop
