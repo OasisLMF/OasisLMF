@@ -64,25 +64,53 @@ jobs:
       docker_push: 'true'
       checkout_ref: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.platform_branch }}
 
-  patch_worker_image:
+  platform1:
     if: ${{ !failure() && !cancelled() }}
     needs: [check_images, build_platform]
     runs-on: ubuntu-latest
-    outputs:
-      worker_tag: ${{ steps.patch.outputs.worker_tag }}
+    env:
+      DOCKERFILE_WORKER: 'docker/Dockerfile.piwind_worker'
+      DOCKERFILE_SERVER: 'docker/Dockerfile.piwind_server'
+      PIWIND_BRANCH: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
+      SERVER_IMG: coreoasis/github-actions
+      SERVER_TAG: api_server-${{ needs.check_images.outputs.platform_sha }}
+      WORKER_IMG: coreoasis/github-actions
+      WORKER_TAG: model_worker-${{ needs.check_images.outputs.platform_sha }}-oasislmf-${{ github.sha }}
+      BASE_WORKER_TAG: model_worker-${{ needs.check_images.outputs.platform_sha }}
+      WORKER_API_VER: v1
+      DEBUG: 1
     steps:
+      - name: Check if worker image exists
+        id: check_worker_image
+        run: |
+          if docker manifest inspect "$WORKER_IMG:$WORKER_TAG" > /dev/null 2>&1; then
+            echo "image_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "image_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check Docker Hub credentials
+        id: check_creds
+        if: steps.check_worker_image.outputs.image_exists != 'true'
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "has_creds=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_creds=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Login to Docker Hub
+        if: steps.check_creds.outputs.has_creds == 'true'
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build worker image with oasislmf branch
-        id: patch
-        env:
-          PLATFORM_SHA: ${{ needs.check_images.outputs.platform_sha }}
+        if: steps.check_worker_image.outputs.image_exists != 'true'
         run: |
-          WORKER_TAG="model_worker-${PLATFORM_SHA}-oasislmf-${GITHUB_SHA}"
           cat > Dockerfile.patch << 'DOCKERFILE'
           ARG BASE_IMAGE
           FROM ${BASE_IMAGE}
@@ -99,28 +127,64 @@ jobs:
             fi
           DOCKERFILE
           docker build \
-            --build-arg BASE_IMAGE="coreoasis/github-actions:model_worker-${PLATFORM_SHA}" \
+            --build-arg BASE_IMAGE="$WORKER_IMG:$BASE_WORKER_TAG" \
             --build-arg OASISLMF_BRANCH="${{ github.ref }}" \
             --build-arg ODS_BRANCH="${{ inputs.ods_branch }}" \
-            -t "coreoasis/github-actions:${WORKER_TAG}" \
+            -t "$WORKER_IMG:$WORKER_TAG" \
             -f Dockerfile.patch .
-          docker push "coreoasis/github-actions:${WORKER_TAG}"
-          echo "worker_tag=${WORKER_TAG}" >> $GITHUB_OUTPUT
+          if [ "${{ steps.check_creds.outputs.has_creds }}" = "true" ]; then
+            docker push "$WORKER_IMG:$WORKER_TAG"
+          fi
 
-  platform1:
-    if: ${{ !failure() && !cancelled() }}
-    needs: [check_images, build_platform, patch_worker_image]
-    uses: OasisLMF/OasisPiWind/.github/workflows/integration.yml@main
-    secrets: inherit
-    with:
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
-      oasislmf_branch: ${{ github.ref }}
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
-      worker_image: coreoasis/github-actions
-      worker_tag: ${{ needs.patch_worker_image.outputs.worker_tag }}
-      server_image: coreoasis/github-actions
-      server_tag: api_server-${{ needs.check_images.outputs.platform_sha }}
-      debug_mode: '1'
-      pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml -k all_outputs"
-      worker_api_ver: 'v1'
-      storage_suffix: '_platform1'
+      - name: Clone PiWind repository
+        uses: actions/checkout@v3
+        with:
+          repository: OasisLMF/OasisPiWind
+          ref: ${{ env.PIWIND_BRANCH }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade "pip<23.3"
+          pip install pip-tools
+          wget $BASE_URL/$PIWIND_BRANCH/tests/requirements.in
+          pip-compile requirements.in -o requirements.txt
+          pip install -r requirements.txt
+        env:
+          BASE_URL: 'https://raw.githubusercontent.com/OasisLMF/OasisPiWind'
+
+      - name: Reinstall oasislmf from branch
+        run: |
+          pip uninstall oasislmf -y
+          pip install -v "git+https://git@github.com/OasisLMF/OasisLMF.git@${{ github.ref }}#egg=oasislmf[extra]"
+
+      - name: Run Checks
+        run: pytest -v --use-running-containers --docker-compose=./docker/plat2-v2.docker-compose.yml -k all_outputs
+
+      - name: Create docker logs
+        if: always()
+        run: |
+           mkdir -p docker_logs
+           docker ps --format '{{.Names}}' | xargs -I CONTAINER bash -c "docker logs CONTAINER >> docker_logs/CONTAINER.log 2>&1"
+           docker ps -aq | xargs -r docker stop
+           docker ps -aq | xargs -r docker rm
+
+      - name: Store docker logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-logs_platform1
+          path: ./docker_logs
+          retention-days: 3
+
+      - name: Store result data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-tars_platform1
+          path: ./tests/result/
+          retention-days: 3
