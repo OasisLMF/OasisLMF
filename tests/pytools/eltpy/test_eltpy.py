@@ -117,6 +117,35 @@ def test_qelt_output_parquet():
     case_runner("qelt", "bin")
 
 
+def test_empty_input():
+    """Test ELT does not crash and produces header-only output when summary binary has no loss records"""
+    from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+
+        # 12-byte header-only summary binary: stream_type (4B) + sample_size (4B) + reserved (4B)
+        stream_header_int32 = np.frombuffer(stream_info_to_bytes(SUMMARY_STREAM_ID, 1), dtype=np.int32)[0]
+        empty_bin = tmp_dir / "empty_summary.bin"
+        np.array([stream_header_int32, 10, 1], dtype=np.int32).tofile(empty_bin)
+
+        for elt_type in ["selt", "melt"]:
+            outfile = tmp_dir / f"{elt_type}.csv"
+            kwargs = {
+                "run_dir": tmp_dir,
+                "files_in": empty_bin,
+                "ext": "csv",
+                elt_type: outfile,
+            }
+            with patch('oasislmf.pytools.elt.manager.read_event_rates',
+                       return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+                main(**kwargs)
+
+            assert outfile.exists(), f"{elt_type}.csv was not created"
+            lines = outfile.read_text().strip().splitlines()
+            assert len(lines) == 1, f"{elt_type}.csv should contain only a header line, got {len(lines)} lines"
+
+
 def test_selt_stdin(monkeypatch):
     input_file = Path(TESTS_ASSETS_DIR, "summarypy.bin")
     expected_outfile = Path(TESTS_ASSETS_DIR, "py_selt.csv")

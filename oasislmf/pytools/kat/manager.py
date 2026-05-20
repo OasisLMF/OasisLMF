@@ -318,7 +318,12 @@ def bin_concat_sort_by_headers(
         out_type (str): Out type str between "elt" and "plt"
         out_file (str | os.PathLike): Output Concatenated Binary file.
     """
-    files = [np.memmap(fp, dtype=KAT_MAP[file_type]["dtype"]) for fp in file_paths]
+    dtype = KAT_MAP[file_type]["dtype"]
+    files = [
+        np.memmap(fp, dtype=dtype) if Path(fp).stat().st_size > 0 and Path(fp).stat().st_size % dtype.itemsize == 0
+        else np.empty(0, dtype=dtype)
+        for fp in file_paths
+    ]
 
     if out_type == "elt":
         gen = merge_elt_data(files)
@@ -626,42 +631,54 @@ def run(
 
     if bin_to_csv or bin_to_parquet:
         try:
-            data = np.memmap(out_file, dtype=KAT_MAP[out_type]["dtype"])
             headers = KAT_MAP[out_type]["headers"]
             fmt = KAT_MAP[out_type]["fmt"]
-            num_rows = data.shape[0]
-            if bin_to_csv:
-                csv_out_file = open(final_out_file_path, "w")
-                csv_out_file.write(",".join(headers) + "\n")
+            dtype = KAT_MAP[out_type]["dtype"]
+            out_size = out_file.stat().st_size
+            if out_size == 0 or out_size % dtype.itemsize != 0:
+                if bin_to_csv:
+                    with open(final_out_file_path, "w") as csv_out_file:
+                        csv_out_file.write(",".join(headers) + "\n")
+                if bin_to_parquet:
+                    empty = np.empty(0, dtype=dtype)
+                    arrays = [pa.array(empty[name]) for name in dtype.names]
+                    schema = pa.schema([(name, arr.type) for name, arr in zip(dtype.names, arrays)])
+                    pq.write_table(pa.Table.from_arrays(arrays, schema=schema), final_out_file_path)
+            else:
+                data = np.memmap(out_file, dtype=dtype)
+                num_rows = data.shape[0]
+                if bin_to_csv:
+                    csv_out_file = open(final_out_file_path, "w")
+                    csv_out_file.write(",".join(headers) + "\n")
 
-                buffer_size = DEFAULT_BUFFER_SIZE
-                for start in range(0, num_rows, buffer_size):
-                    end = min(start + buffer_size, num_rows)
-                    buffer_data = data[start:end]
-                    write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
-                csv_out_file.close()
-            if bin_to_parquet:
-                parquet_writer = None
-                buffer_size = DEFAULT_BUFFER_SIZE
-                for start in range(0, num_rows, buffer_size):
-                    end = min(start + buffer_size, num_rows)
-                    buffer_data = data[start:end]
+                    buffer_size = DEFAULT_BUFFER_SIZE
+                    for start in range(0, num_rows, buffer_size):
+                        end = min(start + buffer_size, num_rows)
+                        buffer_data = data[start:end]
+                        write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
+                    csv_out_file.close()
+                if bin_to_parquet:
+                    parquet_writer = None
+                    buffer_size = DEFAULT_BUFFER_SIZE
+                    for start in range(0, num_rows, buffer_size):
+                        end = min(start + buffer_size, num_rows)
+                        buffer_data = data[start:end]
 
-                    arrays = []
-                    fields = []
-                    for name in buffer_data.dtype.names:
-                        array = pa.array(buffer_data[name])
-                        arrays.append(array)
-                        fields.append((name, array.type))
+                        arrays = []
+                        fields = []
+                        for name in buffer_data.dtype.names:
+                            array = pa.array(buffer_data[name])
+                            arrays.append(array)
+                            fields.append((name, array.type))
 
-                    schema = pa.schema(fields)
-                    table = pa.Table.from_arrays(arrays, schema=schema)
-                    if parquet_writer is None:
-                        parquet_writer = pq.ParquetWriter(final_out_file_path, schema)
-                    parquet_writer.write_table(table)
+                        schema = pa.schema(fields)
+                        table = pa.Table.from_arrays(arrays, schema=schema)
+                        if parquet_writer is None:
+                            parquet_writer = pq.ParquetWriter(final_out_file_path, schema)
+                        parquet_writer.write_table(table)
 
-                if parquet_writer is not None:
-                    parquet_writer.close()
+                    if parquet_writer is not None:
+                        parquet_writer.close()
         finally:
             out_file.unlink(missing_ok=True)
 

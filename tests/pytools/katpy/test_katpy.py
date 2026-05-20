@@ -47,6 +47,34 @@ def case_runner(dir_in, out_name, sorted):
             raise Exception(f"running 'katpy {arg_str}' led to diff, see files at {error_path}") from e
 
 
+def test_empty_input():
+    """Test katpy does not crash and produces header-only output when CSV inputs have no data rows"""
+    from oasislmf.pytools.kat.manager import KAT_MAP, KAT_QPLT
+
+    qplt_headers = KAT_MAP[KAT_QPLT]["headers"]
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        dir_in = tmp_dir / "qplt_empty"
+        dir_in.mkdir()
+
+        # Create a header-only QPLT CSV file
+        (dir_in / "py_qplt1.csv").write_text(",".join(qplt_headers) + "\n")
+
+        outfile = tmp_dir / "katpy_qplt_empty.csv"
+        kwargs = {
+            "dir_in": dir_in,
+            "qplt": True,
+            "out": outfile,
+            "unsorted": False,
+        }
+        main(**kwargs)
+
+        assert outfile.exists(), "Output CSV was not created"
+        lines = outfile.read_text().strip().splitlines()
+        assert len(lines) == 1, f"Output CSV should contain only a header line, got {len(lines)} lines"
+
+
 def test_katpy_csv_sorted():
     """Test katpy with csv inputs (using QPLT) sorted"""
     case_runner("qplt", "katpy_qplt.csv", True)
