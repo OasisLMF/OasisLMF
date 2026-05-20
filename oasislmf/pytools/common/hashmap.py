@@ -625,31 +625,3 @@ def factorize(df):
         arr[_name] = np_arrays[_name]
 
     return jit_factorize(arr)
-
-
-if __name__ == "__main__":
-    # Sanity test mirroring hashmap.py's __main__: factorize by all fields and
-    # compare against a pure-Python reference.
-    _dtype = np.dtype([('a', 'int32'), ('b', 'uint8')])
-    np.random.seed(seed=1)
-    arr = np.empty(1000, dtype=_dtype)
-    arr['a'] = np.random.randint(1, 1000, size=1000)
-    arr['b'] = np.random.randint(0, 256, size=1000)
-
-    ref = []
-    _dict = {}
-    agg_id = 0
-    for val in arr:
-        key = (int(val['a']), int(val['b']))
-        if key not in _dict:
-            agg_id += 1
-            _dict[key] = agg_id
-        ref.append(_dict[key])
-
-    res = list(jit_factorize(arr))
-    for i in range(len(res)):
-        if res[i] != ref[i]:
-            print("error for ", arr[i], i, ref[i], res[i])
-            break
-    else:
-        print(f"ok! {len(set(ref))} unique keys / {len(ref)} rows")
