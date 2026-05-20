@@ -593,19 +593,18 @@ class FootprintParquetDynamic(Footprint):
             df_event_definition = pd.concat(df_event_definition_list, ignore_index=True)
             # FIXME this will fail if the concat list is empty
 
-            self.df_event_definition = df_event_definition.set_index('event_id')
+            self.df_event_definition = df_event_definition.set_index('event_id').sort_index()
             self.event_set = set(df_event_definition['event_id'].unique())
 
             df_hazard_case_list = []
             for section in self.location_sections:
                 if self.storage.exists(f'{hazard_case_filename}/section_id={int(section)}'):
                     df_section = self.get_df_reader(
-                        f'{hazard_case_filename}/section_id={int(section)}',
-                        filters=[("areaperil_id", "in", self.areaperil_ids)]
+                        f'{hazard_case_filename}/section_id={int(section)}'
                     ).as_pandas()
                     df_section['section_id'] = section
                     df_hazard_case_list.append(df_section)
-            df_hazard_case = pd.concat(df_hazard_case_list, ignore_index=True)
+            df_hazard_case = pd.concat(df_hazard_case_list, ignore_index=True).query("areaperil_id.isin(@self.areaperil_ids)")
             # FIXME this will fail if the concat list is empty
 
             self.df_hazard_case = df_hazard_case.set_index('section_id')
