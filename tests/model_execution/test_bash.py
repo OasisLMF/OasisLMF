@@ -13,6 +13,7 @@ from oasislmf.model_execution.bash import (bash_params, bash_wrapper,
 from oasislmf.utils import diff
 
 TEST_DIRECTORY = os.path.dirname(__file__)
+UPDATE_BASH_TESTS = os.environ.get('UPDATE_BASH_TESTS', '').lower() in ('1', 'true', 'yes')
 
 
 class GenbashBase(TestCase):
@@ -39,7 +40,8 @@ class GenbashBase(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER, ignore_errors=True)
+        if not UPDATE_BASH_TESTS:
+            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER, ignore_errors=True)
 
     def setUp(self):
         self.temp_reference_file = None
@@ -266,7 +268,11 @@ class Genbash_base(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_base_')
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_base")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_base_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_base")
 
 
@@ -277,7 +283,11 @@ class Genbash_ErrorGuard_and_TempDir(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_err_')
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_err")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_err_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_err")
 
         cls.gul_alloc_rule = 1
@@ -294,7 +304,11 @@ class Genbash_LoadBalancer_and_gulpy(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_lb_')
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_lb")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_lb_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_lb")
 
         cls.num_gul_per_lb = 2
@@ -308,7 +322,11 @@ class Genbash_CustomGulcalc(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_csm_')
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_csm")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_csm_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_csm")
 
     @staticmethod

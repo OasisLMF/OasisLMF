@@ -76,7 +76,7 @@ check_complete(){
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
-find /tmp/%FIFO_DIR%/fifo/ \( -name '*P8[^0-9]*' -o -name '*P8' \) -exec rm -R -f {} +
+find /tmp/%FIFO_DIR%/fifo/ -regextype posix-extended -regex '.*/[^/]*_P8([^0-9].*)?$' -exec rm -f {} +
 rm -R -f work/*
 mkdir -p work/kat/
 
