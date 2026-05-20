@@ -1104,9 +1104,12 @@ def get_il_input_items(
         default_pol_agg_key = [v['field'] for v in fm_aggregation_profile[SUPPORTED_FM_LEVELS['policy layer']['id']]['FMAggKey'].values()]
         no_polnumber_df = gul_inputs_df.loc[gul_inputs_df['PolNumber'].isna(), default_pol_agg_key + ['output_id']]
         if not no_polnumber_df.empty:  # empty polnumber, we use accounts_df to set PolNumber based on policy layer agg_key
-            gul_inputs_df.loc[gul_inputs_df['PolNumber'].isna(), 'PolNumber'] = no_polnumber_df.merge(
-                accounts_df[default_pol_agg_key + ['PolNumber']].drop_duplicates(subset=default_pol_agg_key)
-            ).set_index(no_polnumber_df['output_id'] - 1)['PolNumber']
+            polnumber_lookup = no_polnumber_df.reset_index().merge(
+                accounts_df[default_pol_agg_key + ['PolNumber']].drop_duplicates(subset=default_pol_agg_key),
+                how='left',
+                on=default_pol_agg_key,
+            ).set_index('index')['PolNumber']
+            gul_inputs_df.loc[polnumber_lookup.index, 'PolNumber'] = polnumber_lookup
 
         # fm_xref: Maps GUL item IDs (agg_id) to FM output IDs
         # This is the final cross-reference between GUL and IL outputs
