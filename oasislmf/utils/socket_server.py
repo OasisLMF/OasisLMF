@@ -53,7 +53,11 @@ class GulProgressServer:
 
     def _handle_client(self, client_socket):
         data = self._read_all(client_socket)
-        payload = json.loads(data)
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError:
+            logging.warning(f"Invalid json received: {data}")
+            return
         with self.counter_lock:
             if 'terminate' in payload:
                 self.counter = self.total

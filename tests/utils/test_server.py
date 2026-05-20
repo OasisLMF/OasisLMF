@@ -64,6 +64,22 @@ def test_server_handles_missing_key():
     server.stop()
 
 
+def test_server_handles_invalid_json(caplog):
+    port = get_free_port()
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
+    server.start()
+    target = (server.host, server.port)
+
+    with caplog.at_level("WARNING", logger="root"):
+        assert oasis_ping_socket(target, "not valid json {{{") is True
+        time.sleep(0.1)
+
+    assert server.counter == 0
+    assert any("Invalid json received" in r.message for r in caplog.records)
+
+    server.stop()
+
+
 def test_server_can_stop_and_not_accept():
     port = get_free_port()
     server = GulProgressServer(10, host="127.0.0.1", port=port)
