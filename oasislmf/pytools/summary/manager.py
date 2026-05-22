@@ -58,6 +58,9 @@ summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 
 SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
 
+loss_pair_dtype = np.dtype([('sidx', oasis_int), ('loss', oasis_float)], align=False)
+loss_pair_size = loss_pair_dtype.itemsize
+
 
 def create_summary_object_file(static_path, run_type):
     """create and write summary object into static path"""
@@ -173,11 +176,21 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
     last_event_id = event_id
     while True:
         if item_id:
-            if valid_buff - cursor < (oasis_int_size + oasis_float_size):
+            n_sidx_loss = (valid_buff - cursor) // loss_pair_size
+            if n_sidx_loss == 0:
                 break
-            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            if sidx:
-                loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+            sidx_loss_view = byte_mv[cursor:cursor + n_sidx_loss * loss_pair_size].view(loss_pair_dtype)
+            terminated = False
+            for k in range(n_sidx_loss):
+                sidx = sidx_loss_view[k]['sidx']
+                if not sidx:
+                    ##### do item exit ####
+                    ##########
+                    cursor += (k + 1) * loss_pair_size
+                    item_id = 0
+                    terminated = True
+                    break
+                loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
@@ -185,22 +198,14 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     for summary_set_index in range(summary_sets_id.shape[0]):
                         loss_summary[loss_index[summary_set_index], sidx] += loss
                 ##########
-
-            else:
-                ##### do item exit ####
-                ##########
-                cursor += oasis_float_size
-                item_id = 0
+            if not terminated:
+                cursor += n_sidx_loss * loss_pair_size
         else:
             if valid_buff - cursor < 2 * oasis_int_size:
                 break
             event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if event_id != last_event_id:
                 if last_event_id:  # we have a new event we return the one we just finished
-                    for summary_set_index in range(summary_sets_id.shape[0]):  # reorder summary_id for each summary set
-                        summary_set_start = summary_set_index_to_loss_ptr[summary_set_index]
-                        summary_set_end = summary_set_index_to_present_loss_ptr_end[summary_set_index]
-                        present_summary_id[summary_set_start: summary_set_end] = np.sort(present_summary_id[summary_set_start: summary_set_end])
                     return cursor - oasis_int_size, last_event_id, 0, 1
                 else:  # first pass we store the event we are reading
                     last_event_id = event_id
@@ -230,10 +235,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 elif has_affected_risk is not None:
                     loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] += new_risk
             ##########
-    for summary_set_index in range(summary_sets_id.shape[0]):  # reorder summary_id for each summary set
-        summary_set_start = summary_set_index_to_loss_ptr[summary_set_index]
-        summary_set_end = summary_set_index_to_present_loss_ptr_end[summary_set_index]
-        present_summary_id[summary_set_start: summary_set_end] = np.sort(present_summary_id[summary_set_start: summary_set_end])
+    # Buffer exhausted; caller may re-enter to accumulate more sidx_loss for this event,
     return cursor, event_id, item_id, 0
 
 
@@ -320,6 +322,13 @@ class SummaryReader(EventReader):
             self.loss_index, self.loss_summary, self.present_summary_id, self.summary_set_index_to_present_loss_ptr_end,
             self.item_id_to_risks_i, self.is_risk_affected, self.has_affected_risk
         )
+
+    def finalize_event(self, **kwargs):
+        # Sort the slice of summary_ids seen this event so mv_write_event emits in summary_id order.
+        for summary_set_index in range(self.summary_sets_id.shape[0]):
+            start = self.summary_set_index_to_loss_ptr[summary_set_index]
+            end = self.summary_set_index_to_present_loss_ptr_end[summary_set_index]
+            self.present_summary_id[start:end] = np.sort(self.present_summary_id[start:end])
 
 
 def get_summary_set_id_to_summary_set_index(summary_sets_id):
