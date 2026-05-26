@@ -60,8 +60,6 @@ class PLTReader(EventReader):
             ('max_impacted_exposure', oasis_float),
             ('chance_of_loss', oasis_float),
             ('vrec', oasis_float, (len_sample,)),
-            ('sumloss', oasis_float),
-            ('sumlosssqr', oasis_float),
             ('hasrec', np.bool_),
         ])
 
@@ -244,25 +242,23 @@ def read_buffer(
         state["max_impacted_exposure"] = 0
         state["chance_of_loss"] = 0
         state["vrec"].fill(0)
-        state["sumloss"] = 0
-        state["sumlosssqr"] = 0
         state["hasrec"] = False
 
     def _get_mean_and_sd_loss():
-        meanloss = state["sumloss"] / state["len_sample"]
-        if state["len_sample"] != 1:
-            variance = (
-                state["sumlosssqr"] - (
-                    (state["sumloss"] * state["sumloss"]) / state["len_sample"]
-                )
-            ) / (state["len_sample"] - 1)
-
-            # Tolerance check
-            if variance / state["sumlosssqr"] < 1e-7:
-                variance = 0
+        n = state["len_sample"]
+        meanloss = np.float64(0.0)
+        for l in state["vrec"]:
+            meanloss += np.float64(l)
+        meanloss /= np.float64(n)
+        if n != 1:
+            sum_sq_dev = np.float64(0.0)
+            for l in state["vrec"]:
+                diff = np.float64(l) - meanloss
+                sum_sq_dev += diff * diff
+            variance = sum_sq_dev / np.float64(n - 1)
             sdloss = np.sqrt(variance)
         else:
-            sdloss = 0
+            sdloss = np.float64(0.0)
         return meanloss, sdloss
 
     # Read input loop
@@ -297,14 +293,8 @@ def read_buffer(
 
                 # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
-                    firsttime = True
                     if event_id in occ_map:
                         for record in occ_map[event_id]:
-                            if firsttime:
-                                for l in state["vrec"]:
-                                    state["sumloss"] += l
-                                    state["sumlosssqr"] += l * l
-                                firsttime = False
                             if state["hasrec"]:
                                 meanloss, sdloss = _get_mean_and_sd_loss()
                                 if meanloss > 0 or sdloss > 0:
