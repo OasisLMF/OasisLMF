@@ -34,7 +34,7 @@ import os
 from itertools import zip_longest
 
 from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
-                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype, write_ndarray_to_fmt_csv)
+                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
@@ -395,7 +395,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         summary_sets_pipe = {i: stack.enter_context(open(summary_set_path, 'wb')) for i, summary_set_path in summary_sets_path.items()}
 
         if low_memory:
-            summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'w'))
+            summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'wb'))
                                        for summary_set_id, setpath in summary_sets_path.items()}
 
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
@@ -462,12 +462,9 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                         if last_loss_summary_index == -1:
                             break
                     if low_memory:
-                        # write the summary.idx file
-                        write_ndarray_to_fmt_csv(
-                            summary_sets_index_pipe[summary_set_id],
-                            summary_stream_index[:summary_index_cursor],
-                            summary_stream_index_dtype.names,
-                            "%i,%i"
+                        # write the per-event index records to .idx as packed binary
+                        summary_sets_index_pipe[summary_set_id].write(
+                            summary_stream_index[:summary_index_cursor].tobytes()
                         )
 
                 loss_summary.fill(0)
