@@ -503,6 +503,37 @@ def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
             disagree on a non-join right-side column. The message lists the
             conflicting groups (translated to PortNumber/AccNumber when
             possible) and the column values that disagree.
+
+    Examples:
+        Unique join keys -> silent pass:
+
+        >>> import pandas as pd
+        >>> level_df = pd.DataFrame({
+        ...     'agg_id': [1, 2],
+        ...     'peril_id': ['WTC', 'WEC'],
+        ...     'deductible': [100.0, 200.0],
+        ... })
+        >>> _check_unique_merge_keys(
+        ...     level_df, ['agg_id'], ['peril_id', 'deductible'],
+        ...     {'id': 1, 'desc': 'site coverage'},
+        ...     ['agg_id', 'peril_id'],
+        ... )
+
+        Same (agg_id, peril_id) with disagreeing deductible -> raises:
+
+        >>> bad = pd.DataFrame({
+        ...     'agg_id': [1, 1],
+        ...     'peril_id': ['WTC', 'WTC'],
+        ...     'deductible': [100.0, 200.0],
+        ... })
+        >>> _check_unique_merge_keys(
+        ...     bad, ['agg_id'], ['peril_id', 'deductible'],
+        ...     {'id': 1, 'desc': 'site coverage'},
+        ...     ['agg_id', 'peril_id'],
+        ... )  # doctest: +IGNORE_EXCEPTION_DETAIL
+        Traceback (most recent call last):
+            ...
+        OasisException: Inconsistent FM terms at level 1 ...
     """
     right_cols = list(agg_id_merge_col) + list(agg_id_merge_col_extra)
     gul_cols = set(gul_inputs_columns)
