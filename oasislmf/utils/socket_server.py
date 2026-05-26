@@ -4,7 +4,7 @@ import json
 import os
 import time
 import sys
-from tqdm import tqdm
+from oasislmf.utils.rounded_tqdm import rounded_tqdm
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME, SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
 import logging
 
@@ -99,7 +99,7 @@ def main():
         raise TypeError("Socket server argument must be an integer")
     port = int(sys.argv[2]) if len(sys.argv) > 2 else None
     with (GulProgressServer(total, port=port) as server,
-          tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar):
+          rounded_tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar):
         counter = 0
         while counter < total:
             with server.counter_lock:
