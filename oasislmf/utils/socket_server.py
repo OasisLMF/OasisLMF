@@ -53,12 +53,19 @@ class GulProgressServer:
 
     def _handle_client(self, client_socket):
         data = self._read_all(client_socket)
-        payload = json.loads(data)
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError:
+            logging.warning(f"Invalid json received: {data}")
+            return
         with self.counter_lock:
             if 'terminate' in payload:
                 self.counter = self.total
                 self.stop()
-            self.counter += int(payload.get("events_complete", 0))
+            elif "events_complete" in payload:
+                self.counter += int(payload.get("events_complete", 0))
+            else:
+                logging.warning(f"Json received with no valid fields {payload}")
 
     def _read_all(self, client_socket):
         buffer = b""
