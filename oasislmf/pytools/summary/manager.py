@@ -40,6 +40,7 @@ from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, 
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
+from oasislmf.pytools.summary.data import loss_pair_dtype, loss_pair_size, summary_stream_index_dtype
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -57,9 +58,6 @@ risk_key_type = nb.types.UniTuple(nb_oasis_int, 2)
 summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 
 SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
-
-loss_pair_dtype = np.dtype([('sidx', oasis_int), ('loss', oasis_float)], align=False)
-loss_pair_size = loss_pair_dtype.itemsize
 
 
 def create_summary_object_file(static_path, run_type):
@@ -235,7 +233,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 elif has_affected_risk is not None:
                     loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] += new_risk
             ##########
-    # Buffer exhausted; caller may re-enter to accumulate more sidx_loss for this event,
+    # Buffer exhausted; caller may re-enter to accumulate more sidx_loss for this event.
+    # SummaryReader.finalize_event handles the per-event sort once, just before yield.
     return cursor, event_id, item_id, 0
 
 
@@ -434,7 +433,6 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
         # data for index file (low_memory==True)
         summary_sets_cursor = np.zeros(summary_sets_id.shape[0], dtype=np.int64)
-        summary_stream_index_dtype = np.dtype([('summary_id', oasis_int), ('offset', np.int64)])
         summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=summary_stream_index_dtype)
 
         for summary_set_index, summary_set_id in enumerate(summary_sets_id):
