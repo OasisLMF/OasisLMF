@@ -74,6 +74,40 @@ def case_runner(sub_folder, test_name, out_ext="csv", meanonly=False):
             raise Exception(f"running 'aalpy {arg_str}' led to diff, see files at {error_path}") from e
 
 
+def test_empty_input():
+    """Test AAL does not crash and produces no output when summary binary has no loss records"""
+    from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        input_dir = tmp_dir / "input"
+        work_dir = tmp_dir / "work" / "gul"
+        input_dir.mkdir(parents=True)
+        work_dir.mkdir(parents=True)
+
+        # Minimal occurrence.bin: date_opts=1, no_of_periods=1000, no event records
+        np.array([1, 1000], dtype=np.int32).tofile(input_dir / "occurrence.bin")
+
+        # 12-byte header-only summary binary (no loss records)
+        stream_header_int32 = np.frombuffer(stream_info_to_bytes(SUMMARY_STREAM_ID, 1), dtype=np.int32)[0]
+        np.array([stream_header_int32, 10, 1], dtype=np.int32).tofile(work_dir / "summarypy1.bin")
+
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+        outfile = out_dir / "aal.csv"
+
+        kwargs = {
+            "run_dir": tmp_dir,
+            "subfolder": "gul",
+            "ext": "csv",
+            "aal": outfile,
+        }
+        main(**kwargs)
+
+        # Early return when no loss records: output file should not be created
+        assert not outfile.exists(), "aal.csv should not be created when there are no loss records"
+
+
 def test_aal_output():
     """Tests AAL output
     """

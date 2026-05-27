@@ -83,7 +83,7 @@ def get_max_summary_id(file_handles):
     Returns:
         max_summary_id (int): Max summary ID
     """
-    max_summary_id = -1
+    max_summary_id = 0
     for fin in file_handles:
         cursor = oasis_int_size * 3
 
@@ -343,6 +343,8 @@ def run(
             raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
         max_summary_id = get_max_summary_id(file_handles)
+        if max_summary_id == 0:
+            return
 
         file_data, use_return_period, agg_wheatsheaf_mean, occ_wheatsheaf_mean = read_input_files(
             run_dir,
