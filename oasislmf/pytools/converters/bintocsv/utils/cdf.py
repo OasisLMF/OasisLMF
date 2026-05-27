@@ -1,6 +1,27 @@
-#!/usr/bin/env python
+# CDF binary → CSV converter.
+#
+# Input is a getmodel binary stream (CDF_STREAM_ID) piped or read from file.
+# read_getmodel_stream (Numba JIT in gul/io.py) parses the stream and yields
+# one tuple per event: (event_id, damagecdfrecs, recs, rec_idx_ptr).
+# damagecdfrecs is a structured array of (areaperil_id, vulnerability_id) per
+# CDF group; recs is a flat ProbMean array; rec_idx_ptr is a numba.typed.List
+# of start indices into recs for each group (length = n_groups + 1).
+#
+# Output paths:
+#
+#   Normal events (n_rows <= _BATCH_ROWS):
+#     A JIT inner loop (_fill_cdf_batch) writes one event's rows directly into
+#     a pre-allocated output buffer (batch_data, _BATCH_ROWS rows), starting at
+#     the current write position.  The buffer is flushed to
+#     write_ndarray_to_fmt_csv in one call per _BATCH_ROWS rows, amortising
+#     per-call overhead across multiple events.  rec_idx_ptr is passed directly
+#     as a numba.typed.List without conversion.
+#
+#   Oversized events (n_rows > _BATCH_ROWS):
+#     An exact-size buffer is allocated and written in one call, then freed.
 
 import logging
+import numba as nb
 import numpy as np
 from pathlib import Path
 
@@ -12,36 +33,34 @@ from oasislmf.pytools.gul.manager import generate_item_map, gul_get_items, read_
 
 logger = logging.getLogger(__name__)
 
+_BATCH_ROWS = 1 << 13  # 8 K rows
 
-def get_cdf_data(event_id, damagecdfrecs, recs, rec_idx_ptr, cdf_dtype):
-    """Get the cdf data produced by getmodel.
-    Note that the input arrays are lists of cdf entries, namely
-    the shape on axis=0 is the number of entries.
-    Args:
-        event_id (int): event_id
-        damagecdfrecs (ndarray[damagecdfrec]): cdf record keys
-        recs (ndarray[ProbMean]): cdf record values
-        rec_idx_ptr (ndarray[int]): array with the indices of `rec` where each cdf record starts.
-        cdf_dtype (np.dtype): cdf numpy dtype.
-    Returns:
-        data (ndarray[cdf_dtype]): cdf data extracted from recs/getmodel.
+
+@nb.njit(cache=True, error_model="numpy")
+def _fill_cdf_batch(
+    out_eid, out_apid, out_vid, out_binidx, out_prob_to, out_bin_mean,
+    event_id, damagecdfrecs, recs, rec_idx_ptr, out_start,
+):
+    """Fill output column arrays with one event's rows starting at *out_start*.
+
+    Returns the new write position (out_start + rows_written).
     """
-    assert len(damagecdfrecs) == len(rec_idx_ptr) - 1, "Number of cdfrecs groups does not match number of cdf keys found"
-
-    data = np.zeros(len(recs), dtype=cdf_dtype)
-    Nbins = len(rec_idx_ptr) - 1
-    idx = 0
-    for group_idx in range(Nbins):
-        areaperil_id, vulnerability_id = damagecdfrecs[group_idx]
-        for bin_index, rec in enumerate(recs[rec_idx_ptr[group_idx]:rec_idx_ptr[group_idx + 1]]):
-            data[idx]["event_id"] = event_id
-            data[idx]["areaperil_id"] = areaperil_id
-            data[idx]["vulnerability_id"] = vulnerability_id
-            data[idx]["bin_index"] = bin_index + 1
-            data[idx]["prob_to"] = rec["prob_to"]
-            data[idx]["bin_mean"] = rec["bin_mean"]
-            idx += 1
-    return data
+    n_groups = len(rec_idx_ptr) - 1
+    out_idx = out_start
+    for g in range(n_groups):
+        ap_id = damagecdfrecs[g]['areaperil_id']
+        vuln_id = damagecdfrecs[g]['vulnerability_id']
+        s = rec_idx_ptr[g]
+        e = rec_idx_ptr[g + 1]
+        for j in range(s, e):
+            out_eid[out_idx] = event_id
+            out_apid[out_idx] = ap_id
+            out_vid[out_idx] = vuln_id
+            out_binidx[out_idx] = j - s + 1
+            out_prob_to[out_idx] = recs[j]['prob_to']
+            out_bin_mean[out_idx] = recs[j]['bin_mean']
+            out_idx += 1
+    return out_idx
 
 
 def cdf_tocsv(stack, file_in, file_out, file_type, noheader, run_dir):
@@ -66,7 +85,35 @@ def cdf_tocsv(stack, file_in, file_out, file_type, noheader, run_dir):
     seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
     valid_area_peril_id = None
 
+    batch_data = np.empty(_BATCH_ROWS, dtype=dtype)
+    batch_pos = 0
+
     for event_data in read_getmodel_stream(file_in, item_map, coverages, compute, seeds, valid_area_peril_id):
         event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
-        data = get_cdf_data(event_id, damagecdfrecs, recs, rec_idx_ptr, dtype)
-        write_ndarray_to_fmt_csv(file_out, data, headers, fmt)
+        n_rows = len(recs)
+
+        if batch_pos + n_rows > _BATCH_ROWS:
+            if batch_pos > 0:
+                write_ndarray_to_fmt_csv(file_out, batch_data[:batch_pos], headers, fmt)
+                batch_pos = 0
+            if n_rows > _BATCH_ROWS:
+                # Single event exceeds batch; allocate exactly and write directly
+                large_buf = np.empty(n_rows, dtype=dtype)
+                _fill_cdf_batch(
+                    large_buf['event_id'], large_buf['areaperil_id'],
+                    large_buf['vulnerability_id'], large_buf['bin_index'],
+                    large_buf['prob_to'], large_buf['bin_mean'],
+                    event_id, damagecdfrecs, recs, rec_idx_ptr, 0,
+                )
+                write_ndarray_to_fmt_csv(file_out, large_buf, headers, fmt)
+                continue
+
+        batch_pos = _fill_cdf_batch(
+            batch_data['event_id'], batch_data['areaperil_id'],
+            batch_data['vulnerability_id'], batch_data['bin_index'],
+            batch_data['prob_to'], batch_data['bin_mean'],
+            event_id, damagecdfrecs, recs, rec_idx_ptr, batch_pos,
+        )
+
+    if batch_pos > 0:
+        write_ndarray_to_fmt_csv(file_out, batch_data[:batch_pos], headers, fmt)

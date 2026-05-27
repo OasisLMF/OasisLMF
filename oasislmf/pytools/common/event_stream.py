@@ -298,6 +298,7 @@ class EventReader:
                         sKey.data['cursor'] = cursor
                         sKey.data['valid_buff'] = valid_buff
                         self.event_read_log(event_id)
+                        self.finalize_event()
                         yield event_id
 
             # Stream is read, we need to check if there is remaining event to be parsed
@@ -314,6 +315,7 @@ class EventReader:
                         if event_id:
                             self.item_exit()
                             self.event_read_log(event_id)
+                            self.finalize_event()
                             yield event_id
 
         finally:
@@ -374,6 +376,12 @@ class EventReader:
         raise NotImplementedError
 
     def item_exit(self):
+        pass
+
+    def finalize_event(self):
+        """Hook called by read_streams just before yielding each event_id.
+        Subclasses use this to perform any per-event finishing work that read_buffer
+        cannot do on its own — e.g. sorting accumulated state. Default is a no-op."""
         pass
 
     def event_read_log(self, event_id):

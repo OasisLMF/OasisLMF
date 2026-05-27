@@ -37,6 +37,7 @@ class GenbashBase(TestCase):
         cls.fifo_tmp_dir = False
         cls.bash_trace = False
         cls.stderr_guard = False
+        cls.summarypy_low_memory = True
 
     @classmethod
     def tearDownClass(cls):
@@ -91,6 +92,7 @@ class GenbashBase(TestCase):
             event_shuffle=self.event_shuffle,
             bash_trace=bash_trace or self.bash_trace,
             _get_getmodel_cmd=_get_getmodel_cmd,
+            summarypy_low_memory=self.summarypy_low_memory,
         )
 
     def gen_chunked_bash(self, name, num_partitions, num_reinsurance_iterations=None,
@@ -117,6 +119,7 @@ class GenbashBase(TestCase):
             event_shuffle=self.event_shuffle,
             bash_trace=bash_trace or self.bash_trace,
             _get_getmodel_cmd=_get_getmodel_cmd,
+            summarypy_low_memory=self.summarypy_low_memory,
         )
 
         # Generate partition scripts
@@ -346,3 +349,27 @@ class Genbash_CustomGulcalc(GenbashBase):
         self.gen_chunked_bash("custom_gul_summarycalc_1_output", 1,
                               _get_getmodel_cmd=self._get_getmodel_cmd)
         self.check_chunks("custom_gul_summarycalc_1_output_1_partition", 1)
+
+
+class Genbash_summarypy_default(GenbashBase):
+    """Exercises the summarypy_low_memory=False default (no -m flag emitted).
+
+    The base GenbashBase fixtures were captured when summarypy unconditionally
+    received -m; they keep summarypy_low_memory=True for compatibility. This
+    class flips the flag back to its real default so a single end-to-end render
+    is checked against a fixture without -m.
+    """
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_summarypy_default")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_summarypy_default_')
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_summarypy_default")
+        cls.summarypy_low_memory = False
+
+    def test_gul_summarycalc_no_low_memory_flag(self):
+        self.genbash("gul_summarycalc_1_output", 1)
+        self.check("gul_summarycalc_1_output_1_partition")

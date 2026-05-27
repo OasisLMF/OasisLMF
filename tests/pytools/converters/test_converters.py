@@ -1,5 +1,7 @@
+import struct
 import numpy as np
 import pandas as pd
+import pytest
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
@@ -9,6 +11,9 @@ from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.converters.bintoparquet.manager import bintoparquet
 from oasislmf.pytools.converters.parquettobin.manager import parquettobin
 from oasislmf.pytools.converters.data import TOOL_INFO
+from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype
+from oasislmf.pytools.getmodel.manager import VulnerabilityIndex_dtype
+from oasislmf.utils.exceptions import OasisException
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_converters")
 
@@ -197,6 +202,18 @@ def test_footprint():
         no_validation=False,
         zip_files=False
     )
+    # no_validation=True must produce identical output to validated path on clean input
+    case_runner_tobin_with_zip_and_idx(
+        file_type="footprint",
+        sub_dir="static",
+        filename="footprint",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "footprint.idx"),
+        max_intensity_bin_idx=3,
+        no_intensity_uncertainty=True,
+        decompressed_size=False,
+        no_validation=True,
+        zip_files=False
+    )
 
     # zip_input = True
     case_runner_tocsv_with_zip_and_idx(
@@ -218,6 +235,122 @@ def test_footprint():
         no_validation=False,
         zip_files=True
     )
+    # no_validation=True must produce identical output to validated path on clean input
+    case_runner_tobin_with_zip_and_idx(
+        file_type="footprint",
+        sub_dir="static",
+        filename="footprint_zip",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "footprint_zip.idx.z"),
+        max_intensity_bin_idx=58,
+        no_intensity_uncertainty=False,
+        decompressed_size=False,
+        no_validation=True,
+        zip_files=True
+    )
+    # decompressed_size=True: index includes uncompressed size field alongside compressed
+    case_runner_tobin_with_zip_and_idx(
+        file_type="footprint",
+        sub_dir="static",
+        filename="footprint_zip_dsize",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "footprint_zip_dsize.idx.z"),
+        max_intensity_bin_idx=58,
+        no_intensity_uncertainty=False,
+        decompressed_size=True,
+        no_validation=False,
+        zip_files=True
+    )
+    # decompressed_size=True tocsv: exercises pre-allocated buffer path (d_size in index)
+    case_runner_tocsv_with_zip_and_idx(
+        file_type="footprint",
+        sub_dir="static",
+        filename="footprint_zip_dsize",
+        idx_file_in=Path(TESTS_ASSETS_DIR, "static", "footprint_zip_dsize.idx.z"),
+        event_from_to="1-3",
+        zip_files=True
+    )
+
+
+def test_footprint_no_validation_unsorted():
+    """no_validation=False rejects unsorted input; no_validation=True accepts it and preserves order."""
+    unsorted_csv = (
+        b"event_id,areaperil_id,intensity_bin_id,probability\n"
+        b"2,1,1,1.0\n"
+        b"1,1,1,1.0\n"
+    )
+    with TemporaryDirectory() as tmp:
+        csv_in = Path(tmp) / "footprint.csv"
+        csv_in.write_bytes(unsorted_csv)
+
+        # validated path must reject unsorted input
+        with pytest.raises(OasisException, match="not in ascending order"):
+            csvtobin(
+                file_in=csv_in,
+                file_out=Path(tmp) / "v.bin",
+                file_type="footprint",
+                idx_file_out=Path(tmp) / "v.idx",
+                max_intensity_bin_idx=3,
+                no_intensity_uncertainty=True,
+                decompressed_size=False,
+                no_validation=False,
+                zip_files=False,
+            )
+
+        # no_validation path must accept unsorted input and preserve input order
+        csvtobin(
+            file_in=csv_in,
+            file_out=Path(tmp) / "n.bin",
+            file_type="footprint",
+            idx_file_out=Path(tmp) / "n.idx",
+            max_intensity_bin_idx=3,
+            no_intensity_uncertainty=True,
+            decompressed_size=False,
+            no_validation=True,
+            zip_files=False,
+        )
+        idx = np.fromfile(Path(tmp) / "n.idx", dtype=EventIndexBin_dtype)
+        assert idx["event_id"].tolist() == [2, 1], (
+            f"Expected events written in input order [2, 1], got {idx['event_id'].tolist()}"
+        )
+
+
+def test_footprint_unsorted_index():
+    """bintocsv must sort events by event_id even when the index is out of order."""
+    # Build a binary footprint: header + event 2 data (offset 8) + event 1 data (offset 20)
+    header = struct.pack("<ii", 3, 1)  # num_intensity_bins=3, has_intensity_uncertainty=1
+    ev2 = np.array([(1, 1, 1.0)], dtype=Event_dtype).tobytes()
+    ev1 = np.array([(1, 1, 1.0)], dtype=Event_dtype).tobytes()
+    bin_bytes = header + ev2 + ev1
+
+    item_size = Event_dtype.itemsize  # 12
+    header_size = 8
+    # Index with event 2 first (unsorted order)
+    idx = np.array(
+        [(2, header_size, item_size), (1, header_size + item_size, item_size)],
+        dtype=EventIndexBin_dtype,
+    )
+
+    with TemporaryDirectory() as tmp:
+        bin_path = Path(tmp) / "footprint.bin"
+        idx_path = Path(tmp) / "footprint.idx"
+        out_path = Path(tmp) / "footprint.csv"
+        bin_path.write_bytes(bin_bytes)
+        idx.tofile(idx_path)
+
+        bintocsv(
+            file_in=bin_path,
+            file_out=out_path,
+            file_type="footprint",
+            idx_file_in=idx_path,
+            zip_files=False,
+            event_from_to=None,
+        )
+
+        data = np.genfromtxt(out_path, delimiter=",", skip_header=1,
+                             dtype=[("event_id", int), ("areaperil_id", int),
+                                    ("intensity_bin_id", int), ("probability", float)])
+        assert data["event_id"].tolist() == [1, 2], (
+            f"Expected sorted output [1, 2], got {data['event_id'].tolist()}"
+        )
 
 
 def test_lossfactors():
@@ -273,6 +406,30 @@ def test_vulnerability():
         zip_files=False
     )
 
+    # no_validation=True must produce identical output to validated path on clean input
+    case_runner(
+        converter="csvtobin",
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_noidx",
+        abnormal_dtype=True,
+        idx_file_out=None,
+        max_damage_bin_idx=2,
+        no_validation=True,
+        suppress_int_bin_checks=False,
+        zip_files=False
+    )
+    case_runner_tobin_with_zip_and_idx(
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_idx",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx"),
+        max_damage_bin_idx=2,
+        no_validation=True,
+        suppress_int_bin_checks=False,
+        zip_files=False
+    )
+
     # zip_input = True
     # bintocsv
     case_runner_tocsv_with_zip_and_idx(
@@ -293,6 +450,56 @@ def test_vulnerability():
         suppress_int_bin_checks=False,
         zip_files=True
     )
+    # no_validation=True must produce identical output to validated path on clean input
+    case_runner_tobin_with_zip_and_idx(
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_idx",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx.z"),
+        max_damage_bin_idx=2,
+        no_validation=True,
+        suppress_int_bin_checks=False,
+        zip_files=True
+    )
+
+
+def test_vulnerability_no_validation_unsorted():
+    """no_validation=False rejects unsorted input; no_validation=True accepts it and preserves order."""
+    unsorted_csv = (
+        b"vulnerability_id,intensity_bin_id,damage_bin_id,probability\n"
+        b"2,1,1,1.0\n"
+        b"1,1,1,1.0\n"
+    )
+    with TemporaryDirectory() as tmp:
+        csv_in = Path(tmp) / "vulnerability.csv"
+        csv_in.write_bytes(unsorted_csv)
+
+        with pytest.raises(OasisException, match="not in ascending order"):
+            csvtobin(
+                file_in=csv_in,
+                file_out=Path(tmp) / "v.bin",
+                file_type="vulnerability",
+                idx_file_out=Path(tmp) / "v.idx",
+                max_damage_bin_idx=2,
+                no_validation=False,
+                suppress_int_bin_checks=True,
+                zip_files=False,
+            )
+
+        csvtobin(
+            file_in=csv_in,
+            file_out=Path(tmp) / "n.bin",
+            file_type="vulnerability",
+            idx_file_out=Path(tmp) / "n.idx",
+            max_damage_bin_idx=2,
+            no_validation=True,
+            suppress_int_bin_checks=True,
+            zip_files=False,
+        )
+        idx = np.fromfile(Path(tmp) / "n.idx", dtype=VulnerabilityIndex_dtype)
+        assert idx["vulnerability_id"].tolist() == [2, 1], (
+            f"Expected vulns written in input order [2, 1], got {idx['vulnerability_id'].tolist()}"
+        )
 
 
 def test_weights():
