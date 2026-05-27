@@ -137,8 +137,13 @@ Notes:
     - The hash function (fnv1a) is deterministic with no random seed. Both
       `table` and `key_storage` can be saved/loaded from binary files and
       used directly with find_key — no rebuild needed.
-    - Float fields are hashed via bit-cast (IEEE 754 bytes reinterpreted as
-      uint64), so distinct float bit patterns always produce distinct hashes.
+    - Float keys (scalar or record field) are hashed AND compared bit-wise:
+      IEEE 754 bytes are reinterpreted as a same-width uint for both fnv1a
+      and key_eq. Consequences:
+        * +0.0 and -0.0 are distinct keys (their sign bits differ).
+        * NaN equals NaN iff the bit patterns match (no `NaN != NaN` rule).
+        * Two NaN values with different mantissa/sign bits are distinct keys.
+      Integer/uint/bool keys keep ordinary value-equality semantics.
 """
 import numpy as np
 import numba as nb
@@ -208,22 +213,8 @@ INFO_BYTES = INFO_N * INDEX_ITEMSIZE
 
 
 # ---------------------------------------------------------------------------
-# Bit helpers (unchanged from hashmap.py)
+# Bit helpers
 # ---------------------------------------------------------------------------
-
-@nb.jit(nb.uint8(nb.uint8), cache=True)
-def extract_i_rh(lookup_val):
-    return lookup_val & i_rh_mask
-
-
-# @nb.jit(nb.uint8(nb.uint64), cache=True)
-# def extract_hash_bit(hash_key):
-#     return hash_key >> np.uint64(61)
-#
-#
-# @nb.jit(nb.uint8(nb.uint8, nb.uint8, nb.uint8), cache=True)
-# def make_lookup_val(is_full, i_rh, hash_lookup_bit):
-#     return is_full | i_rh | hash_lookup_bit
 
 @nb.jit(nb_lookup_dtype(nb.uint64), cache=True)
 def extract_hash_bit(hash_key):
@@ -241,13 +232,30 @@ def make_lookup_val(is_full, i_rh, hash_lookup_bit):
 # time with a body that does typed field accesses for the actual dtype.
 # ---------------------------------------------------------------------------
 
+def _float_as_uint(fld):
+    """Reinterpret a numpy float scalar's IEEE 754 bytes as a same-width uint."""
+    return fld.view('u4' if fld.itemsize == 4 else 'u8')
+
+
 def fnv1a(record, h=init_hash):
-    """FNV-1a hash of a key. Under JIT, @overload synthesizes a typed impl.
-    This Python fallback handles both structured records and scalars."""
-    if hasattr(record, 'dtype') and record.dtype.names:
+    """FNV-1a hash of a numpy scalar or structured record. Under JIT,
+    @overload synthesizes a typed impl with the same contract.
+
+    Floats are hashed via bit-cast (IEEE 754 bytes reinterpreted as uint),
+    so +0.0 and -0.0 hash distinctly and NaN bit patterns are preserved.
+
+    Note: plain Python ``float`` / ``int`` keys (without a numpy dtype) take
+    the ``np.uint64(record)`` value-cast path. Production code uses numpy
+    types throughout, so this restriction is academic."""
+    if hasattr(record, 'dtype') and record.dtype.names is not None:
         for fname in record.dtype.names:
-            h = (h ^ np.uint64(record[fname])) * FNV_PRIME
+            fld = record[fname]
+            if fld.dtype.kind == 'f':
+                fld = _float_as_uint(fld)
+            h = (h ^ np.uint64(fld)) * FNV_PRIME
         return h
+    if hasattr(record, 'dtype') and record.dtype.kind == 'f':
+        record = _float_as_uint(record)
     return (h ^ np.uint64(record)) * FNV_PRIME
 
 
@@ -286,20 +294,54 @@ def fnv1a_overload_record(record, h=init_hash):
 
 @overload(fnv1a)
 def fnv1a_overload_scalar(key, h=init_hash):
-    """Handles any numeric scalar: int8..int64, uint8..uint64, float32, float64, bool."""
+    """Handles any numeric scalar: int8..int64, uint8..uint64, float32, float64, bool.
+    Floats are bit-cast to match the record overload's behavior."""
     if not isinstance(key, nbt.Number):
         return None
 
+    if isinstance(key, nbt.Float):
+        if key.bitwidth == 64:
+            def impl(key, h=init_hash):
+                _buf = np.empty(1, dtype=np.float64)
+                _buf[0] = key
+                return (h ^ _buf.view(np.uint64)[0]) * FNV_PRIME
+            return impl
+
+        def impl(key, h=init_hash):  # float32
+            _buf = np.empty(1, dtype=np.float32)
+            _buf[0] = key
+            return (h ^ np.uint64(_buf.view(np.uint32)[0])) * FNV_PRIME
+        return impl
+
     def impl(key, h=init_hash):
-        return (h ^ np.uint64(key)) * np.uint64(1099511628211)
+        return (h ^ np.uint64(key)) * FNV_PRIME
     return impl
 
 
 def key_eq(a, b):
-    """Equality of two keys. Under JIT, @overload synthesizes a typed impl.
-    This Python fallback handles both structured records and scalars."""
-    if hasattr(a, 'dtype') and a.dtype.names:
-        return all(a[fname] == b[fname] for fname in a.dtype.names)
+    """Equality of two keys for numpy scalars / structured records. Under JIT,
+    @overload synthesizes a typed impl with the same contract.
+
+    Records are compared field-by-field (NOT via ``a.tobytes() == b.tobytes()``,
+    which would also compare any padding bytes left uninitialized by
+    ``np.empty`` under aligned dtypes). Float fields and float scalars are
+    bit-compared so +0.0 ≠ -0.0 and NaN == NaN when bit patterns match;
+    int/uint/bool fields use value equality.
+
+    Note: plain Python ``float`` / ``int`` keys (without a numpy dtype) fall
+    back to Python ``==`` semantics. Production code uses numpy types
+    throughout, so this restriction is academic."""
+    if hasattr(a, 'dtype') and a.dtype.names is not None:
+        for fname in a.dtype.names:
+            fa, fb = a[fname], b[fname]
+            if fa.dtype.kind == 'f':
+                if fa.tobytes() != fb.tobytes():
+                    return False
+            elif fa != fb:
+                return False
+        return True
+    if hasattr(a, 'dtype') and a.dtype.kind == 'f':
+        return a.tobytes() == b.tobytes()
     return a == b
 
 
@@ -310,19 +352,57 @@ def key_eq_overload_record(a, b):
     field_names = list(a.fields)
 
     src = ["def impl(a, b):"]
-    compare = ' and '.join(f"a['{fname}'] == b['{fname}']" for fname in field_names)
-    src.append(f"    return {compare}")
+    for i, fname in enumerate(field_names):
+        ftype = a.fields[fname][0]
+        if isinstance(ftype, nbt.Float):
+            # bit-compare: load each field into a 1-element buffer and compare
+            # as the matching-width uint. Matches fnv1a's bit-cast hashing so
+            # +0.0 ≠ -0.0 and NaN equals NaN iff bit patterns match.
+            if ftype.bitwidth == 64:
+                src.append(f"    _a{i} = np.empty(1, dtype=np.float64)")
+                src.append(f"    _b{i} = np.empty(1, dtype=np.float64)")
+                src.append(f"    _a{i}[0] = a['{fname}']")
+                src.append(f"    _b{i}[0] = b['{fname}']")
+                src.append(f"    if _a{i}.view(np.uint64)[0] != _b{i}.view(np.uint64)[0]: return False")
+            else:
+                src.append(f"    _a{i} = np.empty(1, dtype=np.float32)")
+                src.append(f"    _b{i} = np.empty(1, dtype=np.float32)")
+                src.append(f"    _a{i}[0] = a['{fname}']")
+                src.append(f"    _b{i}[0] = b['{fname}']")
+                src.append(f"    if _a{i}.view(np.uint32)[0] != _b{i}.view(np.uint32)[0]: return False")
+        else:
+            src.append(f"    if a['{fname}'] != b['{fname}']: return False")
+    src.append("    return True")
 
-    ns = {}
+    ns = {'np': np}
     exec("\n".join(src), ns)
     return ns['impl']
 
 
 @overload(key_eq)
 def key_eq_overload_scalar(a, b):
-    """Handles any numeric scalar."""
+    """Handles any numeric scalar. Floats are bit-compared to match the
+    fnv1a hash side: +0.0 ≠ -0.0, NaN equals NaN iff bit patterns match."""
     if not (isinstance(a, nbt.Number) and isinstance(b, nbt.Number)):
         return None
+
+    if isinstance(a, nbt.Float):
+        if a.bitwidth == 64:
+            def impl(a, b):
+                _a = np.empty(1, dtype=np.float64)
+                _b = np.empty(1, dtype=np.float64)
+                _a[0] = a
+                _b[0] = b
+                return _a.view(np.uint64)[0] == _b.view(np.uint64)[0]
+            return impl
+
+        def impl(a, b):  # float32
+            _a = np.empty(1, dtype=np.float32)
+            _b = np.empty(1, dtype=np.float32)
+            _a[0] = a
+            _b[0] = b
+            return _a.view(np.uint32)[0] == _b.view(np.uint32)[0]
+        return impl
 
     def impl(a, b):
         return a == b

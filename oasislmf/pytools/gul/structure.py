@@ -74,11 +74,11 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
 
     # --- damage bins -----------------------------------------------------------
     logger.debug('import damage bins')
-    damage_bins = get_damage_bins(model_storage)
+    damage_bins = get_damage_bins(model_storage, ignore_file_type)
 
     # --- coverages -------------------------------------------------------------
     logger.debug('import coverages')
-    coverages_tiv = read_coverages(input_path)
+    coverages_tiv = read_coverages(input_path, ignore_file_type)
     coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
     coverages[1:]['tiv'] = coverages_tiv
 
@@ -97,7 +97,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     else:
         valid_area_peril_id = None
 
-    items = gul_get_items(input_path)
+    items = gul_get_items(input_path, ignore_file_type)
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
     if valid_area_peril_id is not None:
         items = items[np.isin(items['areaperil_id'], valid_area_peril_id)]
@@ -109,7 +109,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
 
     # --- correlations ----------------------------------------------------------
     logger.debug('import correlations')
-    data = read_correlations(input_path, filename='correlations.bin')
+    data = read_correlations(input_path, ignore_file_type, filename='correlations.bin')
     Nperil_correlation_groups = len(data)
 
     do_correlation = False

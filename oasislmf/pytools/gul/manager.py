@@ -111,7 +111,6 @@ def generate_item_map(items, coverages):
         item_map_hm (np.array[uint8]): packed hashmap table.
         item_map_hm_keys (np.array[item_map_key_dtype]): key storage for the hashmap.
         item_map_ja_offsets (np.array[oasis_int]): CSR offsets (N_pairs + 1).
-        item_map_ja_item_idxs (np.array[oasis_int]): flat item indices into items array.
     """
     N = items.shape[0]
 
