@@ -3,10 +3,14 @@ import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import numpy as np
+
 from oasislmf.pytools.summary.cli import parser, manager
 
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_summarypy")
+
+IDX_DTYPE = np.dtype([('summary_id', '<i4'), ('offset', '<i8')]) # fix dtype to reproduce test setup
 
 
 def case_runner(test_name, test_case):
@@ -36,6 +40,15 @@ def case_runner(test_name, test_case):
                     for file_extention in ['.bin', '.idx']:
                         assert filecmp.cmp(Path(tmp_result_dir_str, base_file_name + file_extention),
                                            Path(base_path, base_file_name + file_extention), shallow=True)
+                    idx_path = Path(tmp_result_dir_str, base_file_name + '.idx')
+                    assert idx_path.stat().st_size % IDX_DTYPE.itemsize == 0, \
+                        f"{idx_path} size is not a multiple of IDX_DTYPE.itemsize ({IDX_DTYPE.itemsize})"
+                    recs = np.fromfile(idx_path, dtype=IDX_DTYPE)
+                    assert len(recs) > 0, f"{idx_path} parsed to zero records"
+                    assert (recs['summary_id'] >= 1).all(), f"{idx_path} has summary_id < 1"
+                    assert (recs['offset'] >= 0).all(), f"{idx_path} has negative offsets"
+                    assert (np.diff(recs['offset']) > 0).all(), \
+                        f"{idx_path} offsets are not strictly increasing"
                 except Exception as e:
                     error_path = base_path.joinpath('error_files')
                     error_path.mkdir(exist_ok=True)

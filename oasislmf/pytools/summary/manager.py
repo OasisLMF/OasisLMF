@@ -34,12 +34,13 @@ import os
 from itertools import zip_longest
 
 from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
-                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype, write_ndarray_to_fmt_csv)
+                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
+from oasislmf.pytools.summary.data import loss_pair_dtype, loss_pair_size, summary_stream_index_dtype
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -173,11 +174,21 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
     last_event_id = event_id
     while True:
         if item_id:
-            if valid_buff - cursor < (oasis_int_size + oasis_float_size):
+            n_sidx_loss = (valid_buff - cursor) // loss_pair_size
+            if n_sidx_loss == 0:
                 break
-            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            if sidx:
-                loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+            sidx_loss_view = byte_mv[cursor:cursor + n_sidx_loss * loss_pair_size].view(loss_pair_dtype)
+            terminated = False
+            for k in range(n_sidx_loss):
+                sidx = sidx_loss_view[k]['sidx']
+                if not sidx:
+                    ##### do item exit ####
+                    ##########
+                    cursor += (k + 1) * loss_pair_size
+                    item_id = 0
+                    terminated = True
+                    break
+                loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
@@ -185,22 +196,14 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     for summary_set_index in range(summary_sets_id.shape[0]):
                         loss_summary[loss_index[summary_set_index], sidx] += loss
                 ##########
-
-            else:
-                ##### do item exit ####
-                ##########
-                cursor += oasis_float_size
-                item_id = 0
+            if not terminated:
+                cursor += n_sidx_loss * loss_pair_size
         else:
             if valid_buff - cursor < 2 * oasis_int_size:
                 break
             event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if event_id != last_event_id:
                 if last_event_id:  # we have a new event we return the one we just finished
-                    for summary_set_index in range(summary_sets_id.shape[0]):  # reorder summary_id for each summary set
-                        summary_set_start = summary_set_index_to_loss_ptr[summary_set_index]
-                        summary_set_end = summary_set_index_to_present_loss_ptr_end[summary_set_index]
-                        present_summary_id[summary_set_start: summary_set_end] = np.sort(present_summary_id[summary_set_start: summary_set_end])
                     return cursor - oasis_int_size, last_event_id, 0, 1
                 else:  # first pass we store the event we are reading
                     last_event_id = event_id
@@ -230,10 +233,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 elif has_affected_risk is not None:
                     loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] += new_risk
             ##########
-    for summary_set_index in range(summary_sets_id.shape[0]):  # reorder summary_id for each summary set
-        summary_set_start = summary_set_index_to_loss_ptr[summary_set_index]
-        summary_set_end = summary_set_index_to_present_loss_ptr_end[summary_set_index]
-        present_summary_id[summary_set_start: summary_set_end] = np.sort(present_summary_id[summary_set_start: summary_set_end])
+    # Buffer exhausted; caller may re-enter to accumulate more sidx_loss for this event.
+    # SummaryReader.finalize_event handles the per-event sort once, just before yield.
     return cursor, event_id, item_id, 0
 
 
@@ -321,6 +322,13 @@ class SummaryReader(EventReader):
             self.item_id_to_risks_i, self.is_risk_affected, self.has_affected_risk
         )
 
+    def finalize_event(self, **kwargs):
+        # Sort the slice of summary_ids seen this event so mv_write_event emits in summary_id order.
+        for summary_set_index in range(self.summary_sets_id.shape[0]):
+            start = self.summary_set_index_to_loss_ptr[summary_set_index]
+            end = self.summary_set_index_to_present_loss_ptr_end[summary_set_index]
+            self.present_summary_id[start:end] = np.sort(self.present_summary_id[start:end])
+
 
 def get_summary_set_id_to_summary_set_index(summary_sets_id):
     """create an array mapping summary_set_id => summary_set_index"""
@@ -386,7 +394,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         summary_sets_pipe = {i: stack.enter_context(open(summary_set_path, 'wb')) for i, summary_set_path in summary_sets_path.items()}
 
         if low_memory:
-            summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'w'))
+            summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'wb'))
                                        for summary_set_id, setpath in summary_sets_path.items()}
 
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
@@ -425,7 +433,6 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
         # data for index file (low_memory==True)
         summary_sets_cursor = np.zeros(summary_sets_id.shape[0], dtype=np.int64)
-        summary_stream_index_dtype = np.dtype([('summary_id', oasis_int), ('offset', np.int64)])
         summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=summary_stream_index_dtype)
 
         for summary_set_index, summary_set_id in enumerate(summary_sets_id):
@@ -453,12 +460,9 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                         if last_loss_summary_index == -1:
                             break
                     if low_memory:
-                        # write the summary.idx file
-                        write_ndarray_to_fmt_csv(
-                            summary_sets_index_pipe[summary_set_id],
-                            summary_stream_index[:summary_index_cursor],
-                            summary_stream_index_dtype.names,
-                            "%i,%i"
+                        # write the per-event index records to .idx as packed binary
+                        summary_sets_index_pipe[summary_set_id].write(
+                            summary_stream_index[:summary_index_cursor].tobytes()
                         )
 
                 loss_summary.fill(0)
