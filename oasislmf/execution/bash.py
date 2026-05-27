@@ -2526,11 +2526,11 @@ def create_bash_analysis(
         if gul_output:
             fifo_list += do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number)
             fifo_list += do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename, fifo_dir, process_number,
-                          summarypy_low_memory=summarypy_low_memory)
+                                       summarypy_low_memory=summarypy_low_memory)
         if il_output:
             fifo_list += do_fifos_exec(RUNTYPE_INSURED_LOSS, num_fm_output, filename, fifo_dir, process_number)
             fifo_list += do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number,
-                          summarypy_low_memory=summarypy_low_memory)
+                                       summarypy_low_memory=summarypy_low_memory)
         if ri_output:
             for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
                 fifo_list += do_fifos_exec(
