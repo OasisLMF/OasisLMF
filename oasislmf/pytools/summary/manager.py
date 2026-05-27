@@ -34,13 +34,13 @@ import os
 from itertools import zip_longest
 
 from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
-                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype)
+                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype,
+                                          loss_pair_dtype, loss_pair_size, summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
-from oasislmf.pytools.summary.data import loss_pair_dtype, loss_pair_size, summary_stream_index_dtype
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)

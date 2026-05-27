@@ -361,6 +361,12 @@ vulnerability_weight_output = [
 ]
 vulnerability_weight_headers, vulnerability_weight_dtype, vulnerability_weight_fmt = generate_output_metadata(vulnerability_weight_output)
 
+loss_pair_dtype = np.dtype([('sidx', oasis_int), ('loss', oasis_float)], align=False)
+loss_pair_size = loss_pair_dtype.itemsize
+
+summary_stream_index_dtype = np.dtype([('summary_id', oasis_int), ('offset', np.int64)])
+summary_stream_index_size = summary_stream_index_dtype.itemsize
+
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """
