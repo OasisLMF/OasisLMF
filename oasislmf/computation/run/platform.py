@@ -112,7 +112,7 @@ class PlatformBase(ComputationStep):
                 )
                 return None
             else:
-                raise e  # propagate unexpected errors
+                raise e  # Some other error – propagate  
 
     def _oidc_m2m_kwargs(self):
         """Return token_url/scope kwargs when the step params are set."""
