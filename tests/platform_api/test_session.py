@@ -923,3 +923,188 @@ class TestGetAccessTokenDirectToken(unittest.TestCase):
         self.assertEqual(session.tkn_access, 'direct_access')
         self.assertEqual(session.tkn_refresh, 'direct_refresh')
         self.assertEqual(session.headers['authorization'], 'Bearer direct_access')
+
+
+# ---------------------------------------------------------------------------
+# Token-expiry / 401 behaviour tests
+# ---------------------------------------------------------------------------
+
+class TestTokenExpiry(unittest.TestCase):
+    """
+    Verify how each auth mode reacts when the server returns 401/403
+    (expired or invalid access token).
+    """
+
+    def _expired_response(self, status=401):
+        r = Mock()
+        r.raise_for_status.side_effect = HTTPError(response=Mock(status_code=status))
+        return r
+
+    def _success_response(self):
+        r = Mock()
+        r.raise_for_status.return_value = None
+        return r
+
+    # --- oidc: tkn_refresh is None → 401 is not retried ---
+
+    def test_oidc__401_raises_immediately_without_refresh(self):
+        session, _, _ = _make_session(
+            auth_type='oidc',
+            client_id='cid',
+            client_secret='secret',
+        )
+        self.assertIsNone(session.tkn_refresh)
+
+        refresh_mock = Mock()
+        with patch.object(Session, 'get', return_value=self._expired_response()), \
+             patch.object(session, '_refresh_token', refresh_mock):
+            with self.assertRaises(HTTPError):
+                session.get('http://example.com/api/resource/')
+
+        refresh_mock.assert_not_called()
+
+    def test_oidc__401_does_not_retry(self):
+        session, _, _ = _make_session(
+            auth_type='oidc',
+            client_id='cid',
+            client_secret='secret',
+        )
+        get_mock = Mock(return_value=self._expired_response())
+
+        with patch.object(Session, 'get', get_mock):
+            with self.assertRaises(HTTPError):
+                session.get('http://example.com/api/resource/')
+
+        self.assertEqual(get_mock.call_count, 1)
+
+    def test_oidc__403_also_raises_immediately(self):
+        session, _, _ = _make_session(
+            auth_type='oidc',
+            client_id='cid',
+            client_secret='secret',
+        )
+        with patch.object(Session, 'get', return_value=self._expired_response(403)):
+            with self.assertRaises(HTTPError):
+                session.get('http://example.com/api/resource/')
+
+    # --- disabled: auth_type == 'disabled' → 401 is not retried ---
+
+    def test_disabled__401_raises_immediately_without_refresh(self):
+        session, _, _ = _make_session(auth_type='disabled')
+        refresh_mock = Mock()
+
+        with patch.object(Session, 'get', return_value=self._expired_response()), \
+             patch.object(session, '_refresh_token', refresh_mock):
+            with self.assertRaises(HTTPError):
+                session.get('http://example.com/api/resource/')
+
+        refresh_mock.assert_not_called()
+
+    # --- simple / token: tkn_refresh is set → 401 triggers _refresh_token then retries ---
+
+    def test_simple__401_triggers_refresh_and_succeeds(self):
+        session, _, _ = _make_session(
+            auth_type='simple',
+            username='user',
+            password='pass',
+        )
+        get_mock = Mock(side_effect=[
+            self._expired_response(401),
+            self._success_response(),
+        ])
+        refresh_mock = Mock()
+
+        with patch.object(Session, 'get', get_mock), \
+             patch.object(session, '_refresh_token', refresh_mock):
+            session.get('http://example.com/api/resource/')
+
+        refresh_mock.assert_called_once()
+        self.assertEqual(get_mock.call_count, 2)
+
+    def test_token__401_triggers_refresh_and_succeeds(self):
+        session, _, _ = _make_session(
+            auth_type='token',
+            access_token='access',
+            refresh_token='refresh',
+        )
+        get_mock = Mock(side_effect=[
+            self._expired_response(401),
+            self._success_response(),
+        ])
+        refresh_mock = Mock()
+
+        with patch.object(Session, 'get', get_mock), \
+             patch.object(session, '_refresh_token', refresh_mock):
+            session.get('http://example.com/api/resource/')
+
+        refresh_mock.assert_called_once()
+        self.assertEqual(get_mock.call_count, 2)
+
+    # --- m2m: tkn_refresh mirrors access token (not None) → 401 triggers re-fetch from IdP ---
+
+    def test_m2m__401_triggers_refresh_and_succeeds(self):
+        session, _, _ = _make_session(
+            auth_type='m2m',
+            client_id='cid',
+            client_secret='secret',
+            token_url='http://idp.example.com/token',
+        )
+        self.assertIsNotNone(session.tkn_refresh)
+
+        get_mock = Mock(side_effect=[
+            self._expired_response(401),
+            self._success_response(),
+        ])
+        refresh_mock = Mock()
+
+        with patch.object(Session, 'get', get_mock), \
+             patch.object(session, '_refresh_token', refresh_mock):
+            session.get('http://example.com/api/resource/')
+
+        refresh_mock.assert_called_once()
+        self.assertEqual(get_mock.call_count, 2)
+
+    def test_m2m__persistent_401_exhausts_retries_and_raises(self):
+        session, _, _ = _make_session(
+            auth_type='m2m',
+            client_id='cid',
+            client_secret='secret',
+            token_url='http://idp.example.com/token',
+        )
+        retries = session.retry_max
+        get_mock = Mock(return_value=self._expired_response(401))
+        refresh_mock = Mock()
+
+        with patch.object(Session, 'get', get_mock), \
+             patch.object(session, '_refresh_token', refresh_mock):
+            with self.assertRaises(OasisException):
+                session.get('http://example.com/api/resource/')
+
+        self.assertEqual(get_mock.call_count, retries)
+        self.assertEqual(refresh_mock.call_count, retries - 1)
+
+    def test_m2m__401_new_token_set_on_retry(self):
+        """After expiry, a refreshed token should be used for subsequent requests."""
+        session, _, _ = _make_session(
+            auth_type='m2m',
+            client_id='cid',
+            client_secret='secret',
+            token_url='http://idp.example.com/token',
+        )
+
+        def fake_refresh():
+            session.tkn_access = 'refreshed_access'
+            session.tkn_refresh = 'refreshed_access'
+            session.headers['authorization'] = 'Bearer refreshed_access'
+
+        get_mock = Mock(side_effect=[
+            self._expired_response(401),
+            self._success_response(),
+        ])
+
+        with patch.object(Session, 'get', get_mock), \
+             patch.object(session, '_refresh_token', side_effect=fake_refresh):
+            session.get('http://example.com/api/resource/')
+
+        self.assertEqual(session.tkn_access, 'refreshed_access')
+        self.assertEqual(session.headers['authorization'], 'Bearer refreshed_access')
