@@ -56,7 +56,7 @@ from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      get_default_accounts_profile,
                                      get_default_exposure_profile,
                                      get_default_fm_aggregation_profile)
-from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.exceptions import OasisException, OasisExceptionNoKeys
 from oasislmf.utils.inputs import str2bool
 
 
@@ -246,12 +246,17 @@ class GenerateFiles(ComputationStep):
         keys_error_fp = os.path.join(os.path.dirname(_keys_fp), 'keys-errors.csv') if _keys_fp else 'Missing'
         missing_keys_msg = 'No successful lookup results found in the keys file - '
         missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
-        keys_df = get_dataframe(
-            src_fp=_keys_fp,
-            col_dtypes=dtypes,
-            empty_data_error_msg=missing_keys_msg,
-            memory_map=True
-        )
+        try:
+            keys_df = get_dataframe(
+                src_fp=_keys_fp,
+                col_dtypes=dtypes,
+                empty_data_error_msg=missing_keys_msg,
+                memory_map=True
+            )
+        except OasisException as e:
+            if str(e) == missing_keys_msg:
+                raise OasisExceptionNoKeys(missing_keys_msg) from e
+            raise
         # ************************************************
 
         # check that all loc_ids have been returned from keys lookup
