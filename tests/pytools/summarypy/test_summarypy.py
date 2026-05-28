@@ -10,7 +10,7 @@ from oasislmf.pytools.summary.cli import parser, manager
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_summarypy")
 
-IDX_DTYPE = np.dtype([('summary_id', '<i4'), ('offset', '<i8')]) # fix dtype to reproduce test setup
+IDX_DTYPE = np.dtype([('summary_id', '<i4'), ('offset', '<i8')])  # fix dtype to reproduce test setup
 
 
 def case_runner(test_name, test_case):
