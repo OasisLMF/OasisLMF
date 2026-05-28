@@ -212,7 +212,7 @@ def prepare_run_directory(
         if model_storage_config_fp:
             try:
                 shutil.copy(model_storage_config_fp, os.path.join(run_dir, "model_storage.json"))
-            except shutil.SameFileError as e:
+            except shutil.SameFileError:
                 pass
 
         if user_data_dir and os.path.exists(user_data_dir):
@@ -562,6 +562,7 @@ def set_hazard_case_set(setting_val, run_dir):
     hazard_case_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
     hazard_case_target_fp = os.path.join(run_dir, 'static', hazard_case_filename)
     if not os.path.isdir(hazard_case_fp):
+        logger.debug(f"{hazard_case_fp} not found: attempting to change {setting_val}")
         setting_val_old = setting_val.replace(' ', '_').lower()
         hazard_case_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val_old}.{extension}')
         if not os.path.isdir(hazard_case_fp):
