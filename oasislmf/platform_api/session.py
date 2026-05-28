@@ -88,14 +88,14 @@ class APISession(Session):
         self.__get_access_token()
 
     def __get_access_token(self):
-        # Token given directly     
+        # Token given directly
         if self.auth_type == "token":
             self.tkn_access = self.auth_credentials["access_token"]
             self.tkn_refresh = self.auth_credentials["refresh_token"]
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
             return
 
-        # Attempt to fetch token 
+        # Attempt to fetch token
         try:
             # client_credentials grant - direct request to IdP token endpoint
             if self.auth_type == "m2m":
@@ -116,7 +116,7 @@ class APISession(Session):
                 self.tkn_access = r.json()['access_token']
                 self.tkn_refresh = self.tkn_access
                 self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
-                return     
+                return
 
             # Authorization Code Flow — redirect user to IdP, receive an auth code
             elif self.auth_type == "oidc":
@@ -126,7 +126,7 @@ class APISession(Session):
                 self.tkn_access = r.json()['access_token']
                 self.tkn_refresh = None  # oidc has no refresh token
                 self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
-                return     
+                return
 
             # usermame / password ~ token fetch direct to Django with refresh
             elif self.auth_type == "simple":
@@ -136,8 +136,8 @@ class APISession(Session):
                 self.tkn_access = r.json()['access_token']
                 self.tkn_refresh = r.json()['refresh_token']
                 self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
-                return     
-            
+                return
+
             # Unsupported auth type
             raise OasisException(f"Unknown auth_type: '{self.auth_type}'")
 
@@ -146,9 +146,8 @@ class APISession(Session):
                 self.logger.error('Access token request failed (%s): %s', e.response.status_code, e.response.text)
             raise OasisException('Authentication Error', e)
 
-
     def _refresh_token(self):
-        if self.auth_type in  ("m2m", "oidc"):
+        if self.auth_type in ("m2m", "oidc"):
             self.__get_access_token()
             return
         try:

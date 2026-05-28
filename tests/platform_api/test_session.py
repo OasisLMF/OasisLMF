@@ -509,8 +509,8 @@ def _make_session(auth_type=None, post_response=None, server_auth_type=None, **i
     get_mock = Mock(return_value=server_info)
 
     with patch.object(APISession, 'health_check'), \
-         patch.object(Session, 'post', post_mock), \
-         patch.object(Session, 'get', get_mock):
+            patch.object(Session, 'post', post_mock), \
+            patch.object(Session, 'get', get_mock):
         session = APISession(
             'http://example.com/api/',
             auth_type=auth_type,
@@ -654,7 +654,7 @@ class TestAPISessionInitCredentialErrors(unittest.TestCase):
 
     def _assert_raises_on_init(self, **init_kwargs):
         with patch.object(APISession, 'health_check'), \
-             patch.object(Session, 'get'):
+                patch.object(Session, 'get'):
             with self.assertRaises(OasisException):
                 APISession('http://example.com/api/', timeout=0.1, **init_kwargs)
 
@@ -751,8 +751,8 @@ class TestAPISessionServerAuthTypeFallback(unittest.TestCase):
         server_info.json.return_value = {'config': {'API_AUTH_TYPE': 'simple'}}
 
         with patch.object(APISession, 'health_check'), \
-             patch.object(Session, 'post', return_value=post_response), \
-             patch.object(Session, 'get', return_value=server_info):
+                patch.object(Session, 'post', return_value=post_response), \
+                patch.object(Session, 'get', return_value=server_info):
             session = APISession(
                 'http://example.com/api/',
                 # auth_type intentionally omitted
@@ -810,7 +810,7 @@ class TestRefreshTokenOIDCAndM2M(unittest.TestCase):
         get_access_mock = Mock()
 
         with patch.object(session, '_APISession__get_access_token', get_access_mock), \
-             patch.object(Session, 'post') as post_mock:
+                patch.object(Session, 'post') as post_mock:
             session._refresh_token()
 
         post_mock.assert_not_called()
@@ -820,7 +820,7 @@ class TestRefreshTokenOIDCAndM2M(unittest.TestCase):
         get_access_mock = Mock()
 
         with patch.object(session, '_APISession__get_access_token', get_access_mock), \
-             patch.object(Session, 'post') as post_mock:
+                patch.object(Session, 'post') as post_mock:
             session._refresh_token()
 
         post_mock.assert_not_called()
@@ -957,7 +957,7 @@ class TestTokenExpiry(unittest.TestCase):
 
         refresh_mock = Mock()
         with patch.object(Session, 'get', return_value=self._expired_response()), \
-             patch.object(session, '_refresh_token', refresh_mock):
+                patch.object(session, '_refresh_token', refresh_mock):
             with self.assertRaises(HTTPError):
                 session.get('http://example.com/api/resource/')
 
@@ -994,7 +994,7 @@ class TestTokenExpiry(unittest.TestCase):
         refresh_mock = Mock()
 
         with patch.object(Session, 'get', return_value=self._expired_response()), \
-             patch.object(session, '_refresh_token', refresh_mock):
+                patch.object(session, '_refresh_token', refresh_mock):
             with self.assertRaises(HTTPError):
                 session.get('http://example.com/api/resource/')
 
@@ -1015,7 +1015,7 @@ class TestTokenExpiry(unittest.TestCase):
         refresh_mock = Mock()
 
         with patch.object(Session, 'get', get_mock), \
-             patch.object(session, '_refresh_token', refresh_mock):
+                patch.object(session, '_refresh_token', refresh_mock):
             session.get('http://example.com/api/resource/')
 
         refresh_mock.assert_called_once()
@@ -1034,7 +1034,7 @@ class TestTokenExpiry(unittest.TestCase):
         refresh_mock = Mock()
 
         with patch.object(Session, 'get', get_mock), \
-             patch.object(session, '_refresh_token', refresh_mock):
+                patch.object(session, '_refresh_token', refresh_mock):
             session.get('http://example.com/api/resource/')
 
         refresh_mock.assert_called_once()
@@ -1058,7 +1058,7 @@ class TestTokenExpiry(unittest.TestCase):
         refresh_mock = Mock()
 
         with patch.object(Session, 'get', get_mock), \
-             patch.object(session, '_refresh_token', refresh_mock):
+                patch.object(session, '_refresh_token', refresh_mock):
             session.get('http://example.com/api/resource/')
 
         refresh_mock.assert_called_once()
@@ -1076,7 +1076,7 @@ class TestTokenExpiry(unittest.TestCase):
         refresh_mock = Mock()
 
         with patch.object(Session, 'get', get_mock), \
-             patch.object(session, '_refresh_token', refresh_mock):
+                patch.object(session, '_refresh_token', refresh_mock):
             with self.assertRaises(OasisException):
                 session.get('http://example.com/api/resource/')
 
@@ -1103,7 +1103,7 @@ class TestTokenExpiry(unittest.TestCase):
         ])
 
         with patch.object(Session, 'get', get_mock), \
-             patch.object(session, '_refresh_token', side_effect=fake_refresh):
+                patch.object(session, '_refresh_token', side_effect=fake_refresh):
             session.get('http://example.com/api/resource/')
 
         self.assertEqual(session.tkn_access, 'refreshed_access')
