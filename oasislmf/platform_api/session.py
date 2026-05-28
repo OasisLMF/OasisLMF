@@ -114,7 +114,7 @@ class APISession(Session):
                 )
                 r.raise_for_status()
                 self.tkn_access = r.json()['access_token']
-                self.tkn_refresh = self.tkn_access
+                self.tkn_refresh = None
                 self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
                 return
 
