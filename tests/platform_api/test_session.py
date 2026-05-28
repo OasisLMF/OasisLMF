@@ -623,8 +623,8 @@ class TestAPISessionInitM2M(unittest.TestCase):
     def test_m2m_auth__access_token_set(self):
         self.assertEqual(self.session.tkn_access, 'test_access')
 
-    def test_m2m_auth__refresh_token_equals_access_token(self):
-        self.assertEqual(self.session.tkn_refresh, self.session.tkn_access)
+    def test_m2m_auth__no_refresh_token(self):
+        self.assertIsNone(self.session.tkn_refresh)
 
     def test_m2m_auth__authorization_header_set(self):
         self.assertEqual(self.session.headers['authorization'], 'Bearer test_access')
@@ -891,14 +891,14 @@ class TestGetAccessTokenM2M(unittest.TestCase):
         self.assertEqual(auth_used.username, 'm2m_cid')
         self.assertEqual(auth_used.password, 'm2m_secret')
 
-    def test_get_access_token__refresh_token_mirrors_access_token(self):
+    def test_get_access_token__no_refresh_token(self):
         new_response = _ok_response('fresh_access', 'ignored')
 
         with patch.object(Session, 'post', return_value=new_response):
             self.session._APISession__get_access_token()
 
         self.assertEqual(self.session.tkn_access, 'fresh_access')
-        self.assertEqual(self.session.tkn_refresh, 'fresh_access')
+        self.assertIsNone(self.session.tkn_refresh)
 
     def test_get_access_token__http_error_raises_oasis_exception(self):
         error_response = Mock()
@@ -1081,7 +1081,7 @@ class TestTokenExpiry(unittest.TestCase):
             client_secret='secret',
             token_url='http://idp.example.com/token',
         )
-        self.assertIsNotNone(session.tkn_refresh)
+        self.assertIsNone(session.tkn_refresh)  # m2m has no refresh token; re-auth uses auth_type check
 
         get_mock = Mock(side_effect=[
             self._expired_response(401),

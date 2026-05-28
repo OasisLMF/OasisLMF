@@ -121,7 +121,7 @@ class APISession(Session):
             # Authorization Code Flow — redirect user to IdP, receive an auth code
             elif self.auth_type == "oidc":
                 url = urljoin(self.url_base, 'access_token/')
-                r = self.post(url, json=self.auth_credentials)
+                r = super(APISession, self).post(url, json=self.auth_credentials, timeout=self.timeout)
                 r.raise_for_status()
                 self.tkn_access = r.json()['access_token']
                 self.tkn_refresh = None  # oidc has no refresh token
@@ -198,7 +198,7 @@ class APISession(Session):
                 error = "HTTP {}".format(http_err_code)
                 return True
             elif http_err_code in [401, 403]:
-                if self.auth_type != 'disabled' and self.tkn_refresh is not None:
+                if self.auth_type != 'disabled' and (self.tkn_refresh is not None or self.auth_type in ('m2m', 'oidc')):
                     self.logger.debug("requesting refresh token")
                     self._refresh_token()
                     return True
