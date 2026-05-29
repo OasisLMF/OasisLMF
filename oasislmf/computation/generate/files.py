@@ -254,8 +254,8 @@ class GenerateFiles(ComputationStep):
                 memory_map=True
             )
         except OasisException as e:
-            if str(e) == missing_keys_msg:
-                raise OasisExceptionNoKeys(missing_keys_msg) from e
+            if missing_keys_msg in str(e):
+                raise OasisExceptionNoKeys(missing_keys_msg, e) from e
             raise
         # ************************************************
 
