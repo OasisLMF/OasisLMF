@@ -151,6 +151,11 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
                                  'building_id', 'risk_id']},
         **{t: 'float64' for t in ['tiv']}
     }
+    if is_fm_summary and SOURCE_IDX['acc'] in summary_mapping.columns:
+        nan_mask = summary_mapping[SOURCE_IDX['acc']].isna()
+        if nan_mask.any():
+            logger.warning(f"{nan_mask.sum()} rows dropped from summary mapping due to no account index")
+            summary_mapping = summary_mapping[~nan_mask]
     summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
     return summary_mapping
 
