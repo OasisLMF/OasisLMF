@@ -9,6 +9,26 @@ LOG_DIR=log
 mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -31,7 +51,6 @@ mkfifo fifo/il_S2_summary_P1
 mkfifo fifo/il_S2_plt_ord_P1
 mkfifo fifo/il_S3_summary_P1
 mkfifo fifo/il_S3_summary_P1.idx
-
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_elt_ord_P2
 mkfifo fifo/il_S1_selt_ord_P2
@@ -39,7 +58,6 @@ mkfifo fifo/il_S2_summary_P2
 mkfifo fifo/il_S2_plt_ord_P2
 mkfifo fifo/il_S3_summary_P2
 mkfifo fifo/il_S3_summary_P2.idx
-
 mkfifo fifo/gul_lb_P1
 mkfifo fifo/gul_lb_P2
 
@@ -72,10 +90,34 @@ summarypy -m -t il  -1 fifo/il_S1_summary_P2 -2 fifo/il_S2_summary_P2 -3 fifo/il
 ( evepy 1 2 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_lb_P1  ) & 
 ( evepy 2 2 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_lb_P2  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/il_P1 \
+    fifo/il_P2 \
+    fifo/il_S1_summary_P1 \
+    fifo/il_S1_elt_ord_P1 \
+    fifo/il_S1_selt_ord_P1 \
+    fifo/il_S2_summary_P1 \
+    fifo/il_S2_plt_ord_P1 \
+    fifo/il_S3_summary_P1 \
+    fifo/il_S3_summary_P1.idx \
+    fifo/il_S1_summary_P2 \
+    fifo/il_S1_elt_ord_P2 \
+    fifo/il_S1_selt_ord_P2 \
+    fifo/il_S2_summary_P2 \
+    fifo/il_S2_plt_ord_P2 \
+    fifo/il_S3_summary_P2 \
+    fifo/il_S3_summary_P2.idx \
+    fifo/gul_lb_P1 \
+    fifo/gul_lb_P2 \
+    fifo/lb_il_P1 \
+    fifo/lb_il_P2
+
 ( fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 ) & pid15=$!
 ( fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 ) & pid16=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
+exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
 
 
 # --- Do insured loss kats ---
@@ -86,12 +128,12 @@ katpy -s -f bin -i work/kat/il_S1_elt_sample_P1 -o output/il_S1_selt.csv & kpid3
 katpy -S -f bin -i work/kat/il_S2_plt_sample_P1 -o output/il_S2_splt.csv & kpid4=$!
 katpy -Q -f bin -i work/kat/il_S2_plt_quantile_P1 -o output/il_S2_qplt.csv & kpid5=$!
 katpy -M -f bin -i work/kat/il_S2_plt_moment_P1 -o output/il_S2_mplt.csv & kpid6=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
+exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 
 aalpy -Kil_S3_summary_palt -c output/il_S3_alct.csv -l 0.95 -a output/il_S3_palt.csv & lpid1=$!
 aalpy -Kil_S3_summary_altmeanonly -a output/il_S3_altmeanonly.csv & lpid2=$!
-wait $lpid1 $lpid2
+exec_wait $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f fifo/*
