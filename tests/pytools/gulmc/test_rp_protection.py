@@ -10,17 +10,15 @@ Three levels of coverage:
   3. compute_event_losses             – losses are zeroed when event_rp < item_rp
 """
 import numpy as np
-import numba as nb
-from numba.typed import Dict, List
-from numba.types import int32 as nb_int32, Tuple as nb_Tuple
 
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_int, oasis_float, damagebin_dtype
+from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int, damagebin_dtype
+from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.getmodel.common import EventDynamic
 from oasislmf.pytools.gulmc.common import (
     items_MC_data_type, coverage_type, haz_arr_type, gulmc_compute_info_type, NormInversionParameters,
+    agg_vuln_idx_weight_dtype,
 )
-from oasislmf.pytools.gulmc.manager import process_areaperils_in_footprint, compute_event_losses, gen_empty_vuln_cdf_lookup
-from oasislmf.pytools.gulmc.aggregate import gen_empty_areaperil_vuln_idx_to_weights
+from oasislmf.pytools.gulmc.manager import process_areaperils_in_footprint, compute_event_losses, CDF_CACHE_EMPTY
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 
 
@@ -58,11 +56,9 @@ def _make_event_footprint(areaperil_id=AREAPERIL_ID, return_period=EVENT_RP_BELO
 
 
 def _make_present_areaperils(*areaperil_ids):
-    """Build the present_areaperils dict mapping areaperil_id → 0."""
-    d = Dict.empty(nb_areaperil_int, nb_oasis_int)
-    for ap in areaperil_ids:
-        d[np.uint32(ap)] = nb_oasis_int(0)
-    return d
+    """Build an id_index for the given areaperil_ids."""
+    keys = np.array(sorted(areaperil_ids), dtype=areaperil_int)
+    return id_index_build(keys)
 
 
 def _make_items_array(intensity_adjustment=0, return_period=0):
@@ -83,7 +79,8 @@ def _make_items_array(intensity_adjustment=0, return_period=0):
         ('damage_correlation_value', np.float32),
         ('hazard_group_id', np.int32),
         ('hazard_correlation_value', np.float32),
-        ('vulnerability_idx', np.int32),
+        ('vulnerability_idx', oasis_int),
+        ('areaperil_agg_vuln_idx', oasis_int),
         ('intensity_adjustment', np.int32),
         ('return_period', np.int32),
         ('peril_id', np.int32),
@@ -97,6 +94,7 @@ def _make_items_array(intensity_adjustment=0, return_period=0):
     items[0]['vulnerability_id'] = VULN_ID
     items[0]['group_id'] = 1
     items[0]['vulnerability_idx'] = 0
+    items[0]['areaperil_agg_vuln_idx'] = -1
     items[0]['peril_id'] = PERIL_ID
     items[0]['intensity_adjustment'] = intensity_adjustment
     items[0]['return_period'] = return_period
@@ -164,8 +162,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     haz_pdf[0]['intensity_bin_id'] = HAZ_BIN_ID
     haz_pdf[0]['intensity'] = HAZ_INTENSITY
 
-    # haz_arr_ptr as a numba List: [0, 1]
-    haz_arr_ptr = List([np.int32(0), np.int32(1)])
+    haz_arr_ptr = np.array([0, 1], dtype=np.int64)
 
     # --- vulnerability array: shape (1, Ndamage_bins, Nintensity_bins) ---
     # All probability in damage bin 1 (index 1) → always max damage
@@ -183,16 +180,16 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     damage_bins[1]['interpolation'] = 0.75
     damage_bins[1]['damage_type'] = 0
 
-    # --- CDF cache ---
-    Nvulns_cached = 10
-    cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys = gen_empty_vuln_cdf_lookup(
-        Nvulns_cached, compute_info
-    )
+    # --- CDF cache (power-of-two sized, array-based) ---
+    Nvulns_cached = 16  # power of two
+    cdf_cache_mask = np.int64(Nvulns_cached - 1)
+    cdf_cache_tag = np.full(1, CDF_CACHE_EMPTY, dtype=np.int64)  # 1 triplet
+    cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
     cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins), dtype=oasis_float)
 
-    # --- aggregate vulnerability maps (empty – no aggregate vulns) ---
-    agg_vuln_to_vuln_idxs = Dict.empty(nb_int32, nb.types.ListType(nb_int32))
-    areaperil_vuln_idx_to_weight = gen_empty_areaperil_vuln_idx_to_weights()
+    # --- aggregate vulnerability CRS arrays (empty – no aggregate vulns) ---
+    areaperil_agg_vuln_idx_ja_data = np.empty(0, dtype=agg_vuln_idx_weight_dtype)
+    areaperil_agg_vuln_idx_ja_offsets = np.zeros(1, dtype=oasis_int)  # single sentinel: [0]
 
     # --- losses buffer ---
     losses = np.zeros((sample_size + 6, 1), dtype=oasis_float)  # 6 = NUM_IDX + 1
@@ -214,21 +211,22 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     # --- output byte buffer ---
     byte_mv = np.zeros(PIPE_CAPACITY * 2, dtype='b')
 
-    # --- intensity_bin_dict: (peril_id, intensity) → bin_id ---
-    intensity_bin_dict = Dict.empty(nb_Tuple((nb_int32, nb_int32)), nb_int32)
-    intensity_bin_dict[(PERIL_ID, HAZ_INTENSITY)] = HAZ_BIN_ID
+    # --- intensity bin lookup arrays: peril_ids and 2D bins ---
+    intensity_bin_peril_ids = np.array([PERIL_ID], dtype=np.int32)
+    intensity_bins = np.zeros((1, int(HAZ_INTENSITY) + 1), dtype=np.int32)
+    intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
 
     dynamic_footprint = True  # truthy, enables dynamic footprint path
 
     args = (
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
-        cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cached_vuln_cdfs,
-        agg_vuln_to_vuln_idxs, areaperil_vuln_idx_to_weight,
+        cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
+        areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
-        byte_mv, dynamic_footprint, intensity_bin_dict,
+        byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
     )
     return args, losses
 
@@ -237,8 +235,18 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 # Tests: process_areaperils_in_footprint
 # ---------------------------------------------------------------------------
 
+def _make_fp_buffers(n):
+    """Pre-allocate reusable per-event footprint buffers for n areaperils.
+    The first buffer holds dense areaperil indices (uint32), not raw IDs."""
+    return (
+        np.empty(n, dtype=np.uint32),
+        np.empty(n, dtype=np.int32),
+        np.empty(n + 1, dtype=np.int64),
+    )
+
+
 def test_process_areaperils_builds_event_rp_dict():
-    """areaperil_to_event_rp is populated from EventDynamic return_period values."""
+    """event_rps array is populated from EventDynamic return_period values."""
     ev = np.zeros(2, dtype=EventDynamic)
     ev[0]['areaperil_id'] = 1
     ev[0]['return_period'] = 20
@@ -252,15 +260,16 @@ def test_process_areaperils_builds_event_rp_dict():
     ev[1]['intensity'] = 200
 
     present = _make_present_areaperils(1, 2)
-    _, N, _, areaperil_to_event_rp, _, _ = process_areaperils_in_footprint(ev, present, True)
+    fp_ap_inds, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
+    N, _ = process_areaperils_in_footprint(ev, present, True, fp_ap_inds, fp_event_rps, fp_haz_arr_ptr)
 
     assert N == 2
-    assert int(areaperil_to_event_rp[np.uint32(1)]) == 20
-    assert int(areaperil_to_event_rp[np.uint32(2)]) == 50
+    assert int(fp_event_rps[0]) == 20
+    assert int(fp_event_rps[1]) == 50
 
 
 def test_process_areaperils_event_rp_empty_when_non_dynamic():
-    """areaperil_to_event_rp is always empty for non-dynamic footprints (dynamic_footprint=None)."""
+    """No areaperils with event_rp are populated for non-dynamic footprints (dynamic_footprint=None)."""
     ev = np.zeros(1, dtype=EventDynamic)
     ev[0]['areaperil_id'] = 1
     ev[0]['return_period'] = 30
@@ -269,13 +278,15 @@ def test_process_areaperils_event_rp_empty_when_non_dynamic():
     ev[0]['intensity'] = 0
 
     present = _make_present_areaperils(1)
-    _, _, _, areaperil_to_event_rp, _, _ = process_areaperils_in_footprint(ev, present, None)
+    fp_ap_inds, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(1)
+    N, _ = process_areaperils_in_footprint(ev, present, None, fp_ap_inds, fp_event_rps, fp_haz_arr_ptr)
 
-    assert len(areaperil_to_event_rp) == 0
+    # event_rps is not written for non-dynamic, N tells us how many areaperils were found
+    assert N == 1
 
 
 def test_process_areaperils_excludes_absent_areaperil():
-    """Areaperils not in present_areaperils are excluded from areaperil_to_event_rp."""
+    """Areaperils not in present_areaperils are excluded."""
     ev = np.zeros(2, dtype=EventDynamic)
     ev[0]['areaperil_id'] = 1
     ev[0]['return_period'] = 20
@@ -289,11 +300,12 @@ def test_process_areaperils_excludes_absent_areaperil():
     ev[1]['intensity'] = 200
 
     present = _make_present_areaperils(1)  # only areaperil 1
-    _, N, _, areaperil_to_event_rp, _, _ = process_areaperils_in_footprint(ev, present, True)
+    fp_ap_inds, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
+    N, _ = process_areaperils_in_footprint(ev, present, True, fp_ap_inds, fp_event_rps, fp_haz_arr_ptr)
 
     assert N == 1
-    assert np.uint32(1) in areaperil_to_event_rp
-    assert np.uint32(2) not in areaperil_to_event_rp
+    # AP 1 in an id_index built from [1] has dense index 0
+    assert fp_ap_inds[0] == 0
 
 
 def test_process_areaperils_multi_bin_areaperil_uses_first_record_rp():
@@ -318,11 +330,12 @@ def test_process_areaperils_multi_bin_areaperil_uses_first_record_rp():
     ev[2]['intensity'] = 200
 
     present = _make_present_areaperils(1, 2)
-    _, N, _, areaperil_to_event_rp, haz_pdf, _ = process_areaperils_in_footprint(ev, present, True)
+    fp_ap_inds, fp_event_rps, fp_haz_arr_ptr = _make_fp_buffers(2)
+    N, haz_pdf = process_areaperils_in_footprint(ev, present, True, fp_ap_inds, fp_event_rps, fp_haz_arr_ptr)
 
     assert N == 2
-    assert int(areaperil_to_event_rp[np.uint32(1)]) == 25
-    assert int(areaperil_to_event_rp[np.uint32(2)]) == 100
+    assert int(fp_event_rps[0]) == 25
+    assert int(fp_event_rps[1]) == 100
     # Both probability records for areaperil 1 should be in haz_pdf
     assert len(haz_pdf) == 3
 
@@ -421,7 +434,8 @@ def test_rp_protection_only_affects_protected_items():
         ('vulnerability_id', np.int32), ('group_id', np.uint32),
         ('peril_correlation_group', np.int32), ('damage_correlation_value', np.float32),
         ('hazard_group_id', np.int32), ('hazard_correlation_value', np.float32),
-        ('vulnerability_idx', np.int32), ('intensity_adjustment', np.int32),
+        ('vulnerability_idx', oasis_int), ('areaperil_agg_vuln_idx', oasis_int),
+        ('intensity_adjustment', np.int32),
         ('return_period', np.int32), ('peril_id', np.int32),
         ('group_seq_id', np.int32), ('hazard_group_seq_id', np.int32),
     ])
@@ -433,6 +447,7 @@ def test_rp_protection_only_affects_protected_items():
         items[i]['vulnerability_id'] = VULN_ID
         items[i]['group_id'] = 1
         items[i]['vulnerability_idx'] = 0
+        items[i]['areaperil_agg_vuln_idx'] = -1
         items[i]['peril_id'] = PERIL_ID
         items[i]['group_seq_id'] = 0
         items[i]['hazard_group_seq_id'] = 0
@@ -457,7 +472,7 @@ def test_rp_protection_only_affects_protected_items():
     haz_pdf[0]['probability'] = 1.0
     haz_pdf[0]['intensity_bin_id'] = HAZ_BIN_ID
     haz_pdf[0]['intensity'] = HAZ_INTENSITY
-    haz_arr_ptr = List([np.int32(0), np.int32(1)])
+    haz_arr_ptr = np.array([0, 1], dtype=np.int64)
 
     vuln_array = np.zeros((1, Ndamage_bins, Nintensity_bins), dtype=oasis_float)
     vuln_array[0, 1, 0] = 1.0
@@ -466,13 +481,14 @@ def test_rp_protection_only_affects_protected_items():
     damage_bins[0] = (0, 0.0, 0.5, 0.25, 0)
     damage_bins[1] = (0, 0.5, 1.0, 0.75, 0)
 
-    Nvulns_cached = 10
-    cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys = gen_empty_vuln_cdf_lookup(
-        Nvulns_cached, compute_info)
+    Nvulns_cached = 16  # power of two
+    cdf_cache_mask = np.int64(Nvulns_cached - 1)
+    cdf_cache_tag = np.full(1, CDF_CACHE_EMPTY, dtype=np.int64)  # 1 triplet (both items share it)
+    cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
     cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins), dtype=oasis_float)
 
-    agg_vuln_to_vuln_idxs = Dict.empty(nb_int32, nb.types.ListType(nb_int32))
-    areaperil_vuln_idx_to_weight = gen_empty_areaperil_vuln_idx_to_weights()
+    areaperil_agg_vuln_idx_ja_data = np.empty(0, dtype=agg_vuln_idx_weight_dtype)
+    areaperil_agg_vuln_idx_ja_offsets = np.zeros(1, dtype=oasis_int)
 
     losses = np.zeros((sample_size + 6, 2), dtype=oasis_float)
 
@@ -488,18 +504,19 @@ def test_rp_protection_only_affects_protected_items():
     haz_z_unif = np.zeros(1, dtype=np.float64)
     byte_mv = np.zeros(PIPE_CAPACITY * 2, dtype='b')
 
-    intensity_bin_dict = Dict.empty(nb_Tuple((nb_int32, nb_int32)), nb_int32)
-    intensity_bin_dict[(PERIL_ID, HAZ_INTENSITY)] = HAZ_BIN_ID
+    intensity_bin_peril_ids = np.array([PERIL_ID], dtype=np.int32)
+    intensity_bins = np.zeros((1, int(HAZ_INTENSITY) + 1), dtype=np.int32)
+    intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
 
     compute_event_losses(
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
-        cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cached_vuln_cdfs,
-        agg_vuln_to_vuln_idxs, areaperil_vuln_idx_to_weight,
+        cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
+        areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
-        byte_mv, True, intensity_bin_dict,
+        byte_mv, True, intensity_bin_peril_ids, intensity_bins,
     )
 
     # Item 0 (RP-protected): all losses must be zero
