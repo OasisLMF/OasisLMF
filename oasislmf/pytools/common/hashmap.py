@@ -1,10 +1,12 @@
 """
 Robin Hood hash table for numba JIT code.
 
-Supports both structured-record keys (e.g. np.dtype([('a','i4'),('b','u1')]))
-and scalar numeric keys (int32, uint64, float64, ...). Hash and equality are
-synthesized per dtype at compile time via @numba.extending.overload, so each
-call site does typed field accesses only — no byte view, no buffer allocation.
+Supports structured-record keys (e.g. np.dtype([('a','i4'),('b','u1')])) and
+scalar keys — numeric (int8..int64, uint8..uint64, bool, float32, float64) or
+unicode (fixed-width 'U<n>' / variable-length unicode strings). Hash and
+equality are synthesized per dtype at compile time via @numba.extending.overload,
+so each call site does typed field accesses only — no byte view, no buffer
+allocation.
 
 All hashmap state is stored in a single packed uint8 buffer ("table") holding
 [info | lookup_table | index_table]. Use unpack(table) to get views.
@@ -20,11 +22,15 @@ Internal API (hot-path — caller unpacks once):
     _try_add_key(info, lookup, index, key_storage, key, i_item=None)
     _find_key(info, lookup, index, key_storage, key)
 
-Performance (1M ops, numba 0.64, int32 keys):
-    Public  try_add_key  : ~2.3 M ops/s   (unpack overhead per call)
-    Public  find_key     : ~5.3 M ops/s
-    Internal _try_add_key: ~4.6 M ops/s   (2x faster)
-    Internal _find_key   : ~21  M ops/s   (4x faster)
+Performance (indicative — varies with hardware, numba / numpy versions,
+and workload; here on int32 scalar keys, 1M ops, 50% hit / 50% miss):
+    Public  try_add_key  : a few M ops/s     (unpack overhead per call)
+    Public  find_key     : a few M ops/s
+    Internal _try_add_key: ~1.5–2x faster than public
+    Internal _find_key   : ~2–3x faster than public
+
+Records, floats, and unicode keys are slower than int32 scalars roughly in
+proportion to the number of fields / code points hashed.
 
 Rule of thumb: use the public API for one-off or low-volume calls. For tight
 loops (inserting/looking up thousands of keys), unpack once and call the
@@ -144,6 +150,10 @@ Notes:
         * NaN equals NaN iff the bit patterns match (no `NaN != NaN` rule).
         * Two NaN values with different mantissa/sign bits are distinct keys.
       Integer/uint/bool keys keep ordinary value-equality semantics.
+    - Fixed-width unicode keys ('U<n>', whether scalar or record field) are
+      hashed and compared code-point-by-code-point, with trailing NUL
+      padding stripped (numpy's fixed-width convention). So "ab" stored in
+      'U3' hashes and compares equal to "ab" stored in 'U4'.
 """
 import numpy as np
 import numba as nb
@@ -152,12 +162,25 @@ from numba.core import types as nbt
 from pandas.api.types import is_numeric_dtype
 
 
-# initial val for fnv1a hashing function
+# Seed and per-field accumulation prime for the FNV-1a-style accumulation step.
 init_hash = np.uint64(14695981039346656037)
 FNV_PRIME = np.uint64(1099511628211)
 
-# lookup bit definition
-# 1 bit - 0 empty / 1 full | 4 bit - robinhood index 0 to 15 | left over n bits - first left n bit of hash
+# Murmur3 fmix64 constants — used in the final avalanche step. Single-shift
+# finalize (h ^= h >> 33) wasn't strong enough to mix biased low-bit inputs
+# (e.g. integers spaced by a power of 2), leaving most of the table unused.
+# Full Murmur3 fmix64 fixes this; cost is two extra multiplications per
+# hash call.
+M3_C1 = np.uint64(0xff51afd7ed558ccd)
+M3_C2 = np.uint64(0xc4ceb9fe1a85ec53)
+
+# lookup_dtype bit layout (uint16 → 16 bits total):
+#   top bit : 1 = slot occupied, 0 = empty
+#   4 bits  : Robin Hood displacement index (0..15)
+#   11 bits : high bits of the hash (`hash_key >> hash_key_shift`)
+# Concretely for uint16: full_bit=0x8000, i_rh in [0x0000..0x7800] step 0x0800,
+# hash mask = 0x07FF. If lookup_dtype is widened, the i_rh field stays at 4 bits
+# and the hash field absorbs the extra width.
 
 lookup_dtype = np.uint16
 nb_lookup_dtype = nb.from_dtype(lookup_dtype)
@@ -165,12 +188,12 @@ lookup_bitsize = nb_lookup_dtype(0).itemsize * 8
 lookup_hash_bitsize = lookup_bitsize - 5
 hash_key_shift = 64 - lookup_hash_bitsize
 
-full_bit = lookup_dtype(1 << (lookup_bitsize - 1))  # for 8 bit          0b10000000
-hash_mask = lookup_dtype((2**lookup_bitsize - 1) >> 5)  # for 8 bit      0b00000111
-max_rh = lookup_dtype(1 << (lookup_bitsize - 1))  # for 8 bit            0b10000000
-i_rh_mask = lookup_dtype(0b1111 << lookup_hash_bitsize)  # for 8 bit   0b01111000
-i_rh_increment = lookup_dtype(0b1 << lookup_hash_bitsize)  # for 8 bit  0b00001000
-full_rh = lookup_dtype(0b11111 << lookup_hash_bitsize)  # lookval is full and i_rh = 15
+full_bit = lookup_dtype(1 << (lookup_bitsize - 1))         # top bit: slot-occupied flag (uint16: 0x8000)
+hash_mask = lookup_dtype((2**lookup_bitsize - 1) >> 5)     # low (bitsize-5) bits: hash payload (uint16: 0x07FF)
+max_rh = lookup_dtype(1 << (lookup_bitsize - 1))           # i_rh ceiling (16 increments past 0, equals full_bit numerically)
+i_rh_mask = lookup_dtype(0b1111 << lookup_hash_bitsize)    # 4 bits below top: Robin Hood index (uint16: 0x7800)
+i_rh_increment = lookup_dtype(0b1 << lookup_hash_bitsize)  # +1 step in the Robin Hood index (uint16: 0x0800)
+full_rh = lookup_dtype(0b11111 << lookup_hash_bitsize)     # full_bit | i_rh=15: max-poor lookval (uint16: 0xF800)
 n_full_factor = 0.95
 inverse_n_full_factor = 1 / n_full_factor
 
@@ -228,8 +251,13 @@ def make_lookup_val(is_full, i_rh, hash_lookup_bit):
 
 # ---------------------------------------------------------------------------
 # Per-dtype specialized hash and equality.
-# Both stubs raise NotImplementedError; @overload replaces them at compile
-# time with a body that does typed field accesses for the actual dtype.
+# Each of ``fnv1a`` and ``key_eq`` is defined twice:
+#   1. A pure-Python body (executed when the function is called outside JIT)
+#      that dispatches on the runtime numpy dtype kind ('f', 'U', else).
+#   2. One or more ``@overload`` arms that numba's typing pass uses to
+#      synthesize a typed impl per call site (records, numeric scalars,
+#      unicode scalars). The arms do typed field accesses — no byte view,
+#      no buffer allocation — and each compiles to specialized code.
 # ---------------------------------------------------------------------------
 
 def _float_as_uint(fld):
@@ -237,12 +265,35 @@ def _float_as_uint(fld):
     return fld.view('u4' if fld.itemsize == 4 else 'u8')
 
 
+def _fmix64(h):
+    """Murmur3 64-bit finalizer (fmix64) — three rounds of shift / multiply
+    / shift. Strong avalanche: even a single-bit input change touches
+    every output bit with ~50% probability. Eliminates the bucket skew
+    seen with biased low-bit inputs (floats in [0,1), stride-spaced ints).
+    Bijective, so distinct inputs always produce distinct outputs."""
+    h = h ^ np.uint64(h >> np.uint64(33))
+    h = h * M3_C1
+    h = h ^ np.uint64(h >> np.uint64(33))
+    h = h * M3_C2
+    h = h ^ np.uint64(h >> np.uint64(33))
+    return h
+
+
 def fnv1a(record, h=init_hash):
-    """FNV-1a hash of a numpy scalar or structured record. Under JIT,
-    @overload synthesizes a typed impl with the same contract.
+    """FNV-1a hash of a numpy scalar or structured record, followed by a
+    finalizer mix. Under JIT, @overload synthesizes a typed impl with the
+    same contract.
 
     Floats are hashed via bit-cast (IEEE 754 bytes reinterpreted as uint),
     so +0.0 and -0.0 hash distinctly and NaN bit patterns are preserved.
+    Fixed-width unicode scalars and record fields ('U<n>') are hashed
+    code-point-by-code-point after stripping trailing NUL padding (numpy's
+    fixed-width convention).
+
+    The finalizer is Murmur3 fmix64 (three shift/multiply rounds; see
+    ``_fmix64``). Without it, biased low-bit inputs (e.g. floats in [0, 1)
+    or integers spaced by a power of 2) produce a non-uniform bucket
+    distribution and exceed the Robin Hood probe limit.
 
     Note: plain Python ``float`` / ``int`` keys (without a numpy dtype) take
     the ``np.uint64(record)`` value-cast path. Production code uses numpy
@@ -252,11 +303,20 @@ def fnv1a(record, h=init_hash):
             fld = record[fname]
             if fld.dtype.kind == 'f':
                 fld = _float_as_uint(fld)
-            h = (h ^ np.uint64(fld)) * FNV_PRIME
-        return h
+                h = (h ^ np.uint64(fld)) * FNV_PRIME
+            elif fld.dtype.kind == 'U':
+                for c in str(fld):
+                    h = (h ^ np.uint64(ord(c))) * FNV_PRIME
+            else:
+                h = (h ^ np.uint64(fld)) * FNV_PRIME
+        return _fmix64(h)
+    if hasattr(record, 'dtype') and record.dtype.kind == 'U':
+        for c in str(record):
+            h = (h ^ np.uint64(ord(c))) * FNV_PRIME
+        return _fmix64(h)
     if hasattr(record, 'dtype') and record.dtype.kind == 'f':
         record = _float_as_uint(record)
-    return (h ^ np.uint64(record)) * FNV_PRIME
+    return _fmix64((h ^ np.uint64(record)) * FNV_PRIME)
 
 
 @overload(fnv1a)
@@ -280,14 +340,29 @@ def fnv1a_overload_record(record, h=init_hash):
                 src.append("    _buf = np.empty(1, dtype=np.float32)")
                 src.append(f"    _buf[0] = record['{fname}']")
                 src.append(f"    h = (h ^ np.uint64(_buf.view(np.uint32)[0])) * {FNV_PRIME}")
+        elif isinstance(ftype, nbt.UnicodeCharSeq):
+            # Fixed-width unicode (e.g. 'U3') field. str(field) trims trailing
+            # NUL padding via numba's UnicodeCharSeq.__len__ (numpy's fixed-
+            # width convention), so "ab" stored in U3 hashes identically to
+            # "ab" stored in U4. Hash each code point with FNV-1a.
+            src.append(f"    _s = str(record['{fname}'])")
+            src.append("    for _i in range(len(_s)):")
+            src.append("        h = (h ^ np.uint64(ord(_s[_i]))) * FNV_PRIME")
         else:
             # int/uint/bool: np.uint64() is already a zero-extension, equivalent to bitcast
             src.append(
                 f"    h = (h ^ np.uint64(record['{fname}'])) * {FNV_PRIME}"
             )
+    # Final Murmur3 fmix64 — three rounds of shift / mult / shift. See _fmix64().
+    src.append("    h ^= h >> np.uint64(33)")
+    src.append("    h = h * M3_C1")
+    src.append("    h ^= h >> np.uint64(33)")
+    src.append("    h = h * M3_C2")
+    src.append("    h ^= h >> np.uint64(33)")
     src.append("    return h")
 
-    ns = {'np': np, 'init_hash': init_hash}
+    ns = {'np': np, 'init_hash': init_hash, 'FNV_PRIME': FNV_PRIME,
+          'M3_C1': M3_C1, 'M3_C2': M3_C2}
     exec("\n".join(src), ns)
     return ns['impl']
 
@@ -295,7 +370,10 @@ def fnv1a_overload_record(record, h=init_hash):
 @overload(fnv1a)
 def fnv1a_overload_scalar(key, h=init_hash):
     """Handles any numeric scalar: int8..int64, uint8..uint64, float32, float64, bool.
-    Floats are bit-cast to match the record overload's behavior."""
+    Floats are bit-cast to match the record overload's behavior.
+
+    Unicode scalars (``UnicodeCharSeq`` / ``UnicodeType``) are handled by
+    ``fnv1a_overload_unichr`` (the next overload arm)."""
     if not isinstance(key, nbt.Number):
         return None
 
@@ -304,17 +382,59 @@ def fnv1a_overload_scalar(key, h=init_hash):
             def impl(key, h=init_hash):
                 _buf = np.empty(1, dtype=np.float64)
                 _buf[0] = key
-                return (h ^ _buf.view(np.uint64)[0]) * FNV_PRIME
+                h = (h ^ _buf.view(np.uint64)[0]) * FNV_PRIME
+                h ^= h >> np.uint64(33)
+                h = h * M3_C1
+                h ^= h >> np.uint64(33)
+                h = h * M3_C2
+                h ^= h >> np.uint64(33)
+                return h
             return impl
 
         def impl(key, h=init_hash):  # float32
             _buf = np.empty(1, dtype=np.float32)
             _buf[0] = key
-            return (h ^ np.uint64(_buf.view(np.uint32)[0])) * FNV_PRIME
+            h = (h ^ np.uint64(_buf.view(np.uint32)[0])) * FNV_PRIME
+            h ^= h >> np.uint64(33)
+            h = h * M3_C1
+            h ^= h >> np.uint64(33)
+            h = h * M3_C2
+            h ^= h >> np.uint64(33)
+            return h
         return impl
 
     def impl(key, h=init_hash):
-        return (h ^ np.uint64(key)) * FNV_PRIME
+        h = (h ^ np.uint64(key)) * FNV_PRIME
+        h ^= h >> np.uint64(33)
+        h = h * M3_C1
+        h ^= h >> np.uint64(33)
+        h = h * M3_C2
+        h ^= h >> np.uint64(33)
+        return h
+    return impl
+
+
+@overload(fnv1a)
+def fnv1a_overload_unichr(key, h=init_hash):
+    """Handles unicode scalar keys — both fixed-width ``UnicodeCharSeq``
+    (e.g. when indexed inside JIT from a 'U<n>' array) and variable-length
+    ``UnicodeType`` (e.g. when a numpy.str_ scalar is passed in from Python
+    and lowered to a unicode string). ``str(key)`` is a no-op for
+    UnicodeType and trims trailing NUL padding for UnicodeCharSeq, so both
+    converge on the same hash for the same logical string."""
+    if not isinstance(key, (nbt.UnicodeCharSeq, nbt.UnicodeType)):
+        return None
+
+    def impl(key, h=init_hash):
+        _s = str(key)
+        for _i in range(len(_s)):
+            h = (h ^ np.uint64(ord(_s[_i]))) * FNV_PRIME
+        h ^= h >> np.uint64(33)
+        h = h * M3_C1
+        h ^= h >> np.uint64(33)
+        h = h * M3_C2
+        h ^= h >> np.uint64(33)
+        return h
     return impl
 
 
@@ -326,7 +446,10 @@ def key_eq(a, b):
     which would also compare any padding bytes left uninitialized by
     ``np.empty`` under aligned dtypes). Float fields and float scalars are
     bit-compared so +0.0 ≠ -0.0 and NaN == NaN when bit patterns match;
-    int/uint/bool fields use value equality.
+    int/uint/bool fields use value equality. Fixed-width unicode scalars
+    and record fields ('U<n>') compare via numpy / numba's UnicodeCharSeq
+    equality, which strips trailing NUL padding — matching fnv1a's hashing
+    semantics.
 
     Note: plain Python ``float`` / ``int`` keys (without a numpy dtype) fall
     back to Python ``==`` semantics. Production code uses numpy types
@@ -382,7 +505,10 @@ def key_eq_overload_record(a, b):
 @overload(key_eq)
 def key_eq_overload_scalar(a, b):
     """Handles any numeric scalar. Floats are bit-compared to match the
-    fnv1a hash side: +0.0 ≠ -0.0, NaN equals NaN iff bit patterns match."""
+    fnv1a hash side: +0.0 ≠ -0.0, NaN equals NaN iff bit patterns match.
+
+    Unicode scalar pairs are handled by ``key_eq_overload_unichr`` (the
+    next overload arm)."""
     if not (isinstance(a, nbt.Number) and isinstance(b, nbt.Number)):
         return None
 
@@ -403,6 +529,21 @@ def key_eq_overload_scalar(a, b):
             _b[0] = b
             return _a.view(np.uint32)[0] == _b.view(np.uint32)[0]
         return impl
+
+    def impl(a, b):
+        return a == b
+    return impl
+
+
+@overload(key_eq)
+def key_eq_overload_unichr(a, b):
+    """Handles unicode scalar key pairs — any combination of
+    ``UnicodeCharSeq`` and ``UnicodeType``. Numba's `==` for these types
+    (``charseq_eq``) compares code-by-code after trimming trailing NUL
+    padding on the UnicodeCharSeq side, matching fnv1a's hashing semantics."""
+    str_types = (nbt.UnicodeCharSeq, nbt.UnicodeType)
+    if not (isinstance(a, str_types) and isinstance(b, str_types)):
+        return None
 
     def impl(a, b):
         return a == b
@@ -685,7 +826,14 @@ def jit_factorize(key_table):
 
 
 def factorize(df):
-    """pd.factorize-equivalent driver. Same surface as hashmap.factorize."""
+    """pd.factorize-equivalent driver for a pandas DataFrame.
+
+    Per-column coercion to a numpy-friendly dtype:
+        - Nullable integer columns ('Int*') → float32 (NaN-preserving).
+        - Other numeric columns → kept as-is.
+        - Everything else → fixed-width unicode 'U<max_len>' via astype(str).
+    The resulting columns are packed into a single structured array and
+    handed to ``jit_factorize`` for grouping."""
     np_arrays = {}
     np_dtypes = []
     for _name, _dtype in df.dtypes.items():

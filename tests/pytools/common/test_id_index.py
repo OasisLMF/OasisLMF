@@ -90,6 +90,22 @@ def test_build_sorted_nonuniform_mode():
     assert arr[0] == MODE_SORTED_NONUNIFORM
 
 
+def test_build_sorted_nonuniform_mode_bimodal():
+    """Two tight clusters separated by a wide gap — the catastrophic shape
+    for interpolation search. Linear interp predicts positions inside the
+    gap on every probe, narrowing the live range by only one element at a
+    time → O(n) lookups. The build heuristic must classify this as
+    NONUNIFORM so we fall back to binary search."""
+    rng = np.random.RandomState(42)
+    n = 2000
+    half = n // 2
+    cluster_a = rng.randint(0, n, size=half * 2)
+    cluster_b = rng.randint(10**7, 10**7 + n, size=(n - half) * 2)
+    keys = np.unique(np.concatenate([cluster_a, cluster_b])).astype(np.uint32)[:n]
+    arr = build(keys)
+    assert arr[0] == MODE_SORTED_NONUNIFORM
+
+
 # ---------------------------------------------------------------------------
 # Lookups across dtypes
 # ---------------------------------------------------------------------------

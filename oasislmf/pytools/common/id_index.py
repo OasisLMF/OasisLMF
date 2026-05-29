@@ -3,7 +3,7 @@ Unified integer key → index lookup.
 
 Auto-selects strategy at build time:
     mode 0: flat   (density >= 25%, shifted by min_id)
-    mode 1: sorted uniform   (avg_err < 500, use interpolation)
+    mode 1: sorted uniform   (avg_err / n < 0.02, use interpolation)
     mode 2: sorted non-uniform (use binary search)
 
 Keys must be sorted on input. Return array has same dtype as input keys.
@@ -33,6 +33,15 @@ MODE_FLAT = 0
 MODE_SORTED_UNIFORM = 1
 MODE_SORTED_NONUNIFORM = 2
 MODE_EMPTY = 3
+
+# Build-time mode selection thresholds.
+FLAT_DENSITY_THRESHOLD = 0.25       # density >= this → MODE_FLAT
+# Scale-invariant: _avg_err / n is the average fraction of n by which a
+# linear interpolation mispredicts a key's position. Empirical bench shows
+# the interp-vs-binary crossover sits around 0.02–0.075 depending on the
+# distribution shape; 0.02 is the tightest value that classifies every
+# distribution tested correctly. See tmp/id_index_bench/bench_heuristic.py.
+SORTED_UNIFORM_REL_ERR = 0.02       # _avg_err / n < this → MODE_SORTED_UNIFORM
 
 # dtype shorthand (used for hot-path helper signatures)
 _u32 = types.uint32
@@ -93,7 +102,7 @@ def build(keys):
     density = n / id_range
 
     # ── FLAT MODE ──
-    if density >= 0.25:
+    if density >= FLAT_DENSITY_THRESHOLD:
         arr = np.full(HEADER + id_range, NOT_FOUND, dtype=dtype)
         arr[0] = MODE_FLAT
         arr[1] = dtype.type(n)
@@ -105,8 +114,8 @@ def build(keys):
         return arr
 
     # ── SORTED MODE (keys already sorted, store directly) ──
-    avg_error = _avg_err(keys)
-    if avg_error < 500.0:
+    rel_error = _avg_err(keys) / n
+    if rel_error < SORTED_UNIFORM_REL_ERR:
         mode = MODE_SORTED_UNIFORM
     else:
         mode = MODE_SORTED_NONUNIFORM
@@ -309,12 +318,15 @@ def get_idx_sorted_batch(arr, sorted_keys, out):
         sorted_keys: sorted array (same dtype as build input).
         out: uint32 array of length len(sorted_keys).
     """
+    if len(sorted_keys) == 0:
+        return
+
     mode = arr[0]
     data = arr[HEADER:]
 
     # ── FLAT ──
     if mode == MODE_FLAT:
-        if len(sorted_keys) == 0 or sorted_keys[0] >= arr[2]:
+        if sorted_keys[0] >= arr[2]:
             lo = 0
         else:
             lo = _interp_find_pos(sorted_keys, arr[2], 0)

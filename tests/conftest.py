@@ -35,3 +35,9 @@ def pytest_addoption(parser):
         '--fm-keep-output', action='store_true', default=False,
         help='If True, keep the test results (useful for debugging purposes). Default: False.'
     )
+    parser.addoption(
+        '--remine-hash-collisions', action='store_true', default=False,
+        help='If True, brute-force a fresh colliding-int32-keys set for the hashmap '
+             'collision test and print it for paste-back. Use when the hash function '
+             'in oasislmf.pytools.common.hashmap changes. Adds ~5-15 s to the run.'
+    )
