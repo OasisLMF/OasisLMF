@@ -192,6 +192,16 @@ EVE_SHUFFLE_OPTIONS = {
 }
 
 
+FIFO_CHECK_FUNC = """
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}"""
+
 TRAP_FUNC = """
 touch $LOG_DIR/stderror.err
 oasis_exec_monitor.sh $$ $LOG_DIR & pid0=$!
@@ -294,6 +304,18 @@ if [ $(bash_logging_supported) == 1 ]; then
 else
     echo "WARNING: logging disabled, bash version '$BASH_VERSION' is not supported, minimum requirement is bash v4.4"
 fi """
+
+WAIT_FUNC = """
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}"""
 
 
 def process_range(max_process_id, process_number=None):
@@ -643,7 +665,7 @@ def get_fifo_name(fifo_dir, producer, producer_id, consumer=''):
         return f'{fifo_dir}{producer}_P{producer_id}'
 
 
-def do_fifo_exec(producer, producer_id, filename, fifo_dir, action='mkfifo', consumer=''):
+def do_fifo_exec(producer, producer_id, filename, fifo_dir, action='mkfifo', consumer='') -> str:
     """Write a single FIFO create or remove command to the bash script.
 
     Args:
@@ -654,11 +676,16 @@ def do_fifo_exec(producer, producer_id, filename, fifo_dir, action='mkfifo', con
         action (str): Shell command to execute (``'mkfifo'`` to create,
             ``'rm'`` to remove).
         consumer (str): Optional consumer identifier for the FIFO name.
+
+    Returns:
+        str: The FIFO path that was operated on.
     """
-    print_command(filename, f'{action} {get_fifo_name(fifo_dir, producer, producer_id, consumer)}')
+    fifo_name = get_fifo_name(fifo_dir, producer, producer_id, consumer)
+    print_command(filename, f'{action} {fifo_name}')
+    return fifo_name
 
 
-def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo', consumer=''):
+def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo', consumer='') -> list:
     """Write FIFO create/remove commands for every process in the range.
 
     Iterates over all process IDs and emits one ``mkfifo`` (or ``rm``)
@@ -673,10 +700,14 @@ def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=No
             is used instead of the full range.
         action (str): Shell command (``'mkfifo'`` or ``'rm'``).
         consumer (str): Optional consumer identifier for FIFO names.
+
+    Returns:
+        list[str]: The FIFO paths that were operated on.
     """
-    for process_id in process_range(max_process_id, process_number):
-        do_fifo_exec(runtype, process_id, filename, fifo_dir, action, consumer)
+    fifos = [do_fifo_exec(runtype, process_id, filename, fifo_dir, action, consumer)
+             for process_id in process_range(max_process_id, process_number)]
     print_command(filename, '')
+    return fifos
 
 
 def do_fifos_exec_full_correlation(
@@ -707,13 +738,16 @@ def do_fifos_exec_full_correlation(
     print_command(filename, '')
 
 
-def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None, consumer_prefix=None, action='mkfifo'):
+def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None,
+                  consumer_prefix=None, action='mkfifo', summarypy_low_memory=False):
     """Write FIFO create/remove commands for all summary and ORD output pipes.
 
     For every (process, summary) pair this creates:
 
     * A summary FIFO (and its ``.idx`` companion when leccalc or ALT output
-      is enabled).
+      is enabled **and** ``summarypy_low_memory`` is True — only then will
+      ``summarypy -m`` open the ``.idx`` writer that the companion consumer
+      reads from).
     * One FIFO per active ORD output type (plt, elt, selt).
 
     Args:
@@ -726,32 +760,37 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
         consumer_prefix (str or None): Optional prefix prepended to consumer
             names (used for inuring priority labelling).
         action (str): Shell command (``'mkfifo'`` or ``'rm'``).
+        summarypy_low_memory (bool): Whether ``summarypy -m`` will be used.
+            Gates creation of the ``.idx`` companion FIFO so we don't leave a
+            tee consumer blocked on an unwritten pipe (only the legacy ktools
+            ``leccalc``/``aalcalc`` binaries consume that pipe; ``lecpy``/
+            ``aalpy`` only read ``.bin`` work files).
     """
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
-        return
+        return []
 
     if not consumer_prefix:
         consumer_prefix = ''
 
+    fifos = []
     for process_id in process_range(max_process_id, process_number):
         for summary in summaries:
             if 'id' in summary:
                 summary_set = summary['id']
-                do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_summary')
-                if ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
-                    idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'{consumer_prefix}S{summary_set}_summary')
-                    idx_fifo += '.idx'
-                    print_command(filename, f'mkfifo {idx_fifo}')
+                fifos.append(do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_summary'))
+                if summarypy_low_memory and (ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES)):
+                    idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'{consumer_prefix}S{summary_set}_summary') + '.idx'
+                    print_command(filename, f'{action} {idx_fifo}')
+                    fifos.append(idx_fifo)
 
                 for ord_type, output_switch in OUTPUT_SWITCHES.items():
                     for ord_table in output_switch.keys():
                         if summary.get('ord_output', {}).get(ord_table):
-                            do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_{ord_type}')
+                            fifos.append(do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_{ord_type}'))
                             break
-
-        print_command(filename, '')
+    return fifos
 
 
 def create_workfolders(
@@ -899,6 +938,7 @@ def do_summarycalcs(
     num_reinsurance_iterations=0,
     gul_full_correlation=False,
     inuring_priority=None,
+    summarypy_low_memory=False,
 ):
     """Write a ``summarypy`` command for one process to the bash script.
 
@@ -919,6 +959,13 @@ def do_summarycalcs(
             ``_sumcalc`` FIFO variant used by the full-correlation path.
         inuring_priority (dict or None): Inuring priority dict with keys
             ``'text'`` and ``'level'``, or None for non-reinsurance runs.
+        summarypy_low_memory (bool): If True, append the ``-m`` flag to
+            ``summarypy`` so it writes a ``.idx`` side-file alongside each
+            summary stream. The ``.idx`` is consumed by the legacy ktools
+            ``leccalc`` and ``aalcalc`` binaries via the parallel ``tee``
+            chain (see ``do_tees``). The Python aggregators (``lecpy``,
+            ``aalpy``, ``eltpy``, ``pltpy``) glob ``*.bin`` work files and
+            do not read ``.idx`` -- so they don't require this flag.
     """
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -945,9 +992,9 @@ def do_summarycalcs(
     if gul_full_correlation:
         input_filename_component = '_sumcalc'
 
-    # Use -m flag to create summary index files
     cmd = 'summarypy'
-    cmd = f'{cmd} -m {summarycalc_switch} {summarycalc_directory_switch}'
+    low_memory_switch = ' -m' if summarypy_low_memory else ''
+    cmd = f'{cmd}{low_memory_switch} {summarycalc_switch} {summarycalc_directory_switch}'
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
@@ -972,7 +1019,8 @@ def do_tees(
     process_counter,
     fifo_dir='fifo/',
     work_dir='work/',
-    inuring_priority=None
+    inuring_priority=None,
+    summarypy_low_memory=False,
 ):
     """Write ``tee`` commands that fan each summary stream to ORD and work FIFOs.
 
@@ -982,8 +1030,10 @@ def do_tees(
     * ORD output FIFOs (for ``eltpy``/``pltpy`` consumers).
     * Work-folder binary files (for ``aalpy``/``lecpy`` post-wait processing).
 
-    When leccalc or ALT output is enabled, a companion ``.idx`` tee is also
-    emitted.
+    When ``summarypy_low_memory`` is True and leccalc or ALT output is
+    enabled, a companion ``.idx`` tee is also emitted. Only the legacy ktools
+    ``leccalc``/``aalcalc`` binaries consume the ``.idx`` chain; ``lecpy`` and
+    ``aalpy`` only glob ``*.bin`` work files and don't need it.
 
     Args:
         runtype (str): The run type identifier.
@@ -996,6 +1046,9 @@ def do_tees(
         work_dir (str): Root working directory.
         inuring_priority (str or None): Inuring priority label for file and
             FIFO names, or None / empty for the final priority.
+        summarypy_low_memory (bool): Whether ``summarypy -m`` is being used.
+            When False the ``.idx`` companion is skipped to avoid leaving a
+            tee blocked on a pipe nothing writes to.
     """
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -1013,8 +1066,10 @@ def do_tees(
             process_counter['pid_monitor_count'] += 1
             summary_set = summary['id']
 
+            emit_idx = summarypy_low_memory and (ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES))
+
             cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_summary")}'
-            if ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
+            if emit_idx:
                 cmd_idx = cmd + '.idx'
 
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
@@ -1026,7 +1081,8 @@ def do_tees(
             if summary.get('ord_output', {}).get('alt_period'):
                 aalcalc_ord_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt/P{process_id}'
                 cmd = f'{cmd} {aalcalc_ord_out}.bin'
-                cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
+                if emit_idx:
+                    cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
 
             if summary.get('ord_output', {}).get('alt_meanonly'):
                 aalcalcmeanonly_ord_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly/P{process_id}'
@@ -1037,11 +1093,12 @@ def do_tees(
             if ord_enabled(summary, ORD_LECCALC):
                 leccalc_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryleccalc/P{process_id}'
                 cmd = f'{cmd} {leccalc_out}.bin'
-                cmd_idx = f'{cmd_idx} {leccalc_out}.idx'
+                if emit_idx:
+                    cmd_idx = f'{cmd_idx} {leccalc_out}.idx'
 
             cmd = '{} > /dev/null & pid{}=$!'.format(cmd, process_counter['pid_monitor_count'])
             print_command(filename, cmd)
-            if ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
+            if emit_idx:
                 process_counter['pid_monitor_count'] += 1
                 cmd_idx = '{} > /dev/null & pid{}=$!'.format(cmd_idx, process_counter['pid_monitor_count'])
                 print_command(filename, cmd_idx)
@@ -1250,7 +1307,8 @@ def rl(
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
-    process_number=None
+    process_number=None,
+    summarypy_low_memory=False,
 ):
     """Write all reinsurance gross loss (RL) consumer commands.
 
@@ -1269,6 +1327,8 @@ def rl(
         stderr_guard (bool): If True, wrap commands in a sub-shell that
             redirects stderr to the log.
         process_number (int or None): If set, restrict to a single process.
+        summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
+            side-files for downstream seek-by-event consumers).
     """
 
     for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
@@ -1283,7 +1343,8 @@ def rl(
             do_tees(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'],
+                summarypy_low_memory=summarypy_low_memory,
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1295,7 +1356,8 @@ def rl(
                 fifo_dir=fifo_dir,
                 stderr_guard=stderr_guard,
                 num_reinsurance_iterations=num_reinsurance_iterations,
-                inuring_priority=inuring_priority
+                inuring_priority=inuring_priority,
+                summarypy_low_memory=summarypy_low_memory,
             )
 
 
@@ -1308,7 +1370,8 @@ def ri(
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
-    process_number=None
+    process_number=None,
+    summarypy_low_memory=False,
 ):
     """Write all reinsurance net loss (RI) consumer commands.
 
@@ -1327,6 +1390,8 @@ def ri(
         stderr_guard (bool): If True, wrap commands in a sub-shell that
             redirects stderr to the log.
         process_number (int or None): If set, restrict to a single process.
+        summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
+            side-files for downstream seek-by-event consumers).
     """
 
     for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
@@ -1342,7 +1407,8 @@ def ri(
             do_tees(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'],
+                summarypy_low_memory=summarypy_low_memory,
             )
 
         # TODO => insert server here
@@ -1356,11 +1422,13 @@ def ri(
                 fifo_dir=fifo_dir,
                 stderr_guard=stderr_guard,
                 num_reinsurance_iterations=num_reinsurance_iterations,
-                inuring_priority=inuring_priority
+                inuring_priority=inuring_priority,
+                summarypy_low_memory=summarypy_low_memory,
             )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True,
+       process_number=None, summarypy_low_memory=False):
     """Write all insured loss (IL) consumer commands.
 
     Emits ``do_ord``, ``do_tees``, and ``do_summarycalcs`` commands for every
@@ -1376,13 +1444,15 @@ def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='f
         stderr_guard (bool): If True, wrap commands in a sub-shell that
             redirects stderr to the log.
         process_number (int or None): If set, restrict to a single process.
+        summarypy_low_memory (bool): Enable summarypy ``-m``.
     """
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
                process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
+        do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir,
+                summarypy_low_memory=summarypy_low_memory)
 
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
@@ -1392,6 +1462,7 @@ def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='f
             filename=filename,
             fifo_dir=fifo_dir,
             stderr_guard=stderr_guard,
+            summarypy_low_memory=summarypy_low_memory,
         )
 
 
@@ -1404,6 +1475,7 @@ def do_gul(
     work_dir='work/',
     stderr_guard=True,
     process_number=None,
+    summarypy_low_memory=False,
 ):
     """Write all ground-up loss (GUL) consumer commands.
 
@@ -1420,6 +1492,7 @@ def do_gul(
         stderr_guard (bool): If True, wrap commands in a sub-shell that
             redirects stderr to the log.
         process_number (int or None): If set, restrict to a single process.
+        summarypy_low_memory (bool): Enable summarypy ``-m``.
     """
 
     for process_id in process_range(max_process_id, process_number):
@@ -1427,7 +1500,8 @@ def do_gul(
                process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
+        do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir,
+                summarypy_low_memory=summarypy_low_memory)
 
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
@@ -1436,7 +1510,8 @@ def do_gul(
             process_id=process_id,
             filename=filename,
             fifo_dir=fifo_dir,
-            stderr_guard=stderr_guard
+            stderr_guard=stderr_guard,
+            summarypy_low_memory=summarypy_low_memory,
         )
 
 
@@ -1490,7 +1565,7 @@ def do_waits(wait_variable, wait_count, filename):
     :type filename: str
     """
     if wait_count > 0:
-        cmd = 'wait'
+        cmd = 'exec_wait'
         for pid in range(1, wait_count + 1):
             cmd = '{} ${}{}'.format(cmd, wait_variable, pid)
 
@@ -1945,6 +2020,7 @@ def bash_params(
     custom_args={},
     fmpy_low_memory=False,
     fmpy_sort_output=False,
+    summarypy_low_memory=False,
     event_shuffle=None,
     gulmc=True,
     gul_random_generator=1,
@@ -2033,6 +2109,7 @@ def bash_params(
     bash_params['gulmc_vuln_cache_size'] = gulmc_vuln_cache_size
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
+    bash_params['summarypy_low_memory'] = summarypy_low_memory
     bash_params['process_number'] = process_number
     bash_params['remove_working_files'] = remove_working_files
     bash_params['model_run_dir'] = model_run_dir
@@ -2209,6 +2286,8 @@ def bash_wrapper(
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
         print_command(filename, get_check_function(custom_gulcalc_log_start, custom_gulcalc_log_finish))
+    print_command(filename, FIFO_CHECK_FUNC)
+    print_command(filename, WAIT_FUNC)
 
     # Script content
     yield
@@ -2255,6 +2334,7 @@ def create_bash_analysis(
     custom_args,
     fmpy_low_memory,
     fmpy_sort_output,
+    summarypy_low_memory,
     process_number,
     remove_working_files,
     model_run_dir,
@@ -2433,50 +2513,55 @@ def create_bash_analysis(
     # --- Create FIFOs ---
     # Build the list of FIFO directories (standard + full-correlation if enabled)
     fifo_dirs = [fifo_queue_dir]
+    fifo_list = []
     if full_correlation:
         fifo_dirs.append(fifo_full_correlation_dir)
         if (il_output or ri_output) and (gul_output or not num_lb):
             # create fifo for il or ri full correlation compute
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_full_correlation_dir,
-                          process_number, consumer=RUNTYPE_FULL_CORRELATION)
+            fifo_list += do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_full_correlation_dir,
+                                       process_number, consumer=RUNTYPE_FULL_CORRELATION)
 
     for fifo_dir in fifo_dirs:
         # create fifos for Summarycalc
         if gul_output:
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number)
-            do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename, fifo_dir, process_number)
+            fifo_list += do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number)
+            fifo_list += do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename, fifo_dir, process_number,
+                                       summarypy_low_memory=summarypy_low_memory)
         if il_output:
-            do_fifos_exec(RUNTYPE_INSURED_LOSS, num_fm_output, filename, fifo_dir, process_number)
-            do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number)
+            fifo_list += do_fifos_exec(RUNTYPE_INSURED_LOSS, num_fm_output, filename, fifo_dir, process_number)
+            fifo_list += do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number,
+                                       summarypy_low_memory=summarypy_low_memory)
         if ri_output:
             for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
-                do_fifos_exec(
+                fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
                     consumer=inuring_priority['text'].rstrip('_')
                 )
-                do_fifos_calc(
+                fifo_list += do_fifos_calc(
                     RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                     filename, fifo_dir, process_number,
-                    consumer_prefix=inuring_priority['text']
+                    consumer_prefix=inuring_priority['text'],
+                    summarypy_low_memory=summarypy_low_memory,
                 )
         if rl_output:
             for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
-                do_fifos_exec(
+                fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
                     consumer=inuring_priority['text'].rstrip('_')
                 )
-                do_fifos_calc(
+                fifo_list += do_fifos_calc(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                     num_fm_output, filename, fifo_dir, process_number,
-                    consumer_prefix=inuring_priority['text']
+                    consumer_prefix=inuring_priority['text'],
+                    summarypy_low_memory=summarypy_low_memory,
                 )
 
         # create fifos for Load balancer
         if num_lb:
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number, consumer=RUNTYPE_LOAD_BALANCED_LOSS)
-            do_fifos_exec(RUNTYPE_LOAD_BALANCED_LOSS, num_fm_output, filename, fifo_dir, process_number, consumer=RUNTYPE_INSURED_LOSS)
+            fifo_list += do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number, consumer=RUNTYPE_LOAD_BALANCED_LOSS)
+            fifo_list += do_fifos_exec(RUNTYPE_LOAD_BALANCED_LOSS, num_fm_output, filename, fifo_dir, process_number, consumer=RUNTYPE_INSURED_LOSS)
 
     print_command(filename, '')
     dirs = [(fifo_queue_dir, work_dir)]
@@ -2501,7 +2586,8 @@ def create_bash_analysis(
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
-                    'process_number': process_number
+                    'process_number': process_number,
+                    'summarypy_low_memory': summarypy_low_memory,
                 }
             }
             compute_outputs.append(rl_computes)
@@ -2519,7 +2605,8 @@ def create_bash_analysis(
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
-                    'process_number': process_number
+                    'process_number': process_number,
+                    'summarypy_low_memory': summarypy_low_memory,
                 }
             }
             compute_outputs.append(ri_computes)
@@ -2536,7 +2623,8 @@ def create_bash_analysis(
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
-                    'process_number': process_number
+                    'process_number': process_number,
+                    'summarypy_low_memory': summarypy_low_memory,
                 }
             }
             compute_outputs.append(il_computes)
@@ -2553,7 +2641,8 @@ def create_bash_analysis(
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
-                    'process_number': process_number
+                    'process_number': process_number,
+                    'summarypy_low_memory': summarypy_low_memory,
                 }
             }
             compute_outputs.append(gul_computes)
@@ -2688,6 +2777,12 @@ def create_bash_analysis(
         pass
     else:
         step_flag = ' -S'
+
+    # --- Verify all FIFOs exist and are pipes before starting main pipeline ---
+    print_command(filename, '')
+    print_command(filename, '# --- Verify FIFO pipes ---')
+    print_command(filename, 'check_fifos \\\n    ' + ' \\\n    '.join(fifo_list))
+    print_command(filename, '')
 
     # --- Route GUL streams to downstream pipelines (RI, IL, or GUL-only) ---
     for fifo_dir, gul_streams in get_gul_stream_cmds.items():
@@ -2993,6 +3088,7 @@ def genbash(
     custom_args={},
     fmpy_low_memory=False,
     fmpy_sort_output=False,
+    summarypy_low_memory=False,
     event_shuffle=None,
     gulmc=True,
     gul_random_generator=1,
@@ -3073,6 +3169,7 @@ def genbash(
         custom_args=custom_args,
         fmpy_low_memory=fmpy_low_memory,
         fmpy_sort_output=fmpy_sort_output,
+        summarypy_low_memory=summarypy_low_memory,
         event_shuffle=event_shuffle,
         gulmc=gulmc,
         gul_random_generator=gul_random_generator,

@@ -43,7 +43,7 @@ _SUMMARIES_DTYPE = np.dtype([
     ("file_idx", np.int32),
     ("period_no", np.int32),
     ("file_offset", np.int64),
-])
+], align=True)  # align=True: int64 at offset 12 is misaligned; Numba generators require isalignedstruct=True
 _SUMMARIES_DTYPE_size = _SUMMARIES_DTYPE.itemsize
 
 
@@ -208,18 +208,20 @@ def get_summaries_data(
                 temp_files.append(temp_file_path)
                 chunk_index += 1
                 summaries_idx = 0
-                max_summary_id = max(max_summary_id, np.max(summaries_data["summary_id"]))
+                if len(summaries_data) > 0:
+                    max_summary_id = max(max_summary_id, np.max(summaries_data["summary_id"]))
 
             # End of file, move to next file
             if offset >= len(fbin):
                 break
 
     # Write remaining summaries data to temporary file
-    temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
     summaries_data = summaries_data[:summaries_idx]
-    sort_and_save_chunk(summaries_data, temp_file_path)
-    max_summary_id = max(max_summary_id, np.max(summaries_data["summary_id"]))
-    temp_files.append(temp_file_path)
+    if len(summaries_data) > 0:
+        temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
+        sort_and_save_chunk(summaries_data, temp_file_path)
+        max_summary_id = max(max_summary_id, np.max(summaries_data["summary_id"]))
+        temp_files.append(temp_file_path)
 
     memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]
 
@@ -851,6 +853,8 @@ def run(
             file_data["occ_map"],
             stack
         )
+        if max_summary_id == 0:
+            return
         # aal vec are Indexed on summary_id - 1
         num_subsets = get_num_subsets(outmap["alct"]["compute"], sample_size, max_summary_id)
         vecs_sample_aal = np.zeros(num_subsets * max_summary_id, dtype=_AAL_REC_PERIOD_DTYPE)

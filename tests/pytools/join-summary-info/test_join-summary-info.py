@@ -10,6 +10,32 @@ from oasislmf.pytools.join_summary_info.manager import main
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_join-summary-info")
 
 
+def test_empty_input():
+    """Test join-summary-info does not crash and produces header-only output when input CSVs have no data rows"""
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+
+        # Header-only summary info CSV
+        summaryinfo_csv = tmp_dir / "gul_summary-info.csv"
+        summaryinfo_csv.write_text("summary_id,PortNumber,AccNumber,LocNumber,tiv\n")
+
+        # Header-only ORD data CSV
+        data_csv = tmp_dir / "aalgul_ord.csv"
+        data_csv.write_text("SummaryId,SampleType,MeanLoss,SDLoss\n")
+
+        output_csv = tmp_dir / "joined_output.csv"
+        kwargs = {
+            "summaryinfo": summaryinfo_csv,
+            "data": data_csv,
+            "output": output_csv,
+        }
+        main(**kwargs)
+
+        assert output_csv.exists(), "Output CSV was not created"
+        lines = output_csv.read_text().strip().splitlines()
+        assert len(lines) == 1, f"Output CSV should contain only a header line, got {len(lines)} lines"
+
+
 def test_join():
     """Tests join-summary-info output with csv ORD file
     """

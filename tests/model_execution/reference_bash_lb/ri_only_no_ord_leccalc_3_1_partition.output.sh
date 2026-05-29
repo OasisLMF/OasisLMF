@@ -10,6 +10,26 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}
+
 # --- Do insured loss kats ---
 
 katpy -S -f bin -i work/kat/il_S1_plt_sample_P1 -o output/il_S1_splt.csv & kpid1=$!
@@ -27,7 +47,7 @@ katpy -M -f bin -i work/kat/gul_S1_plt_moment_P1 -o output/gul_S1_mplt.csv & kpi
 katpy -q -f bin -i work/kat/gul_S1_elt_quantile_P1 -o output/gul_S1_qelt.csv & kpid10=$!
 katpy -m -f bin -i work/kat/gul_S1_elt_moment_P1 -o output/gul_S1_melt.csv & kpid11=$!
 katpy -s -f bin -i work/kat/gul_S1_elt_sample_P1 -o output/gul_S1_selt.csv & kpid12=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12
+exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12
 
 
 aalpy -Kil_S1_summary_palt -c output/il_S1_alct.csv -l 0.95 -a output/il_S1_palt.csv & lpid1=$!
@@ -36,7 +56,7 @@ lecpy -r -Kil_S1_summaryleccalc -F -f -S -s -M -m -W -w -O output/il_S1_ept.csv 
 aalpy -Kgul_S1_summary_palt -c output/gul_S1_alct.csv -l 0.95 -a output/gul_S1_palt.csv & lpid4=$!
 aalpy -Kgul_S1_summary_altmeanonly -a output/gul_S1_altmeanonly.csv & lpid5=$!
 lecpy -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -O output/gul_S1_ept.csv -o output/gul_S1_psept.csv & lpid6=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
+exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
 
 rm -R -f work/*
 rm -R -f fifo/*
