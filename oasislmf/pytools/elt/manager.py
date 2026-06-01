@@ -187,7 +187,7 @@ def read_buffer(
         for l in state["losses_vec"]:
             meanloss += np.float64(l)
         meanloss /= np.float64(n)
-        if state["non_zero_samples"] > 1:
+        if state["len_sample"] > 1:
             sum_sq_dev = np.float64(0.0)
             for l in state["losses_vec"]:
                 diff = np.float64(l) - meanloss
