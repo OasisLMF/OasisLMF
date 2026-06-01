@@ -57,6 +57,9 @@ def load_summary_info(stack, summaryinfo_file):
     else:
         raise ValueError(f"Unsupported file format {summaryinfo_file.suffix}.")
 
+    if len(summary_ids) == 0:
+        return np.array([], dtype=object), headers, 0
+
     max_summary_id = summary_ids.max()
     full_summary_data = np.full((max_summary_id + 1,), "," * (len(headers) - 1), dtype=object)
     for i in range(len(summary_ids)):

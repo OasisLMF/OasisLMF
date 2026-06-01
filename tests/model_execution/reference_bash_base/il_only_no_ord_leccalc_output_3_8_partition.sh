@@ -9,6 +9,26 @@ LOG_DIR=log
 mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -37,7 +57,6 @@ mkfifo fifo/il_S2_summary_P1
 mkfifo fifo/il_S2_plt_ord_P1
 mkfifo fifo/il_S3_summary_P1
 mkfifo fifo/il_S3_summary_P1.idx
-
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_elt_ord_P2
 mkfifo fifo/il_S1_selt_ord_P2
@@ -45,7 +64,6 @@ mkfifo fifo/il_S2_summary_P2
 mkfifo fifo/il_S2_plt_ord_P2
 mkfifo fifo/il_S3_summary_P2
 mkfifo fifo/il_S3_summary_P2.idx
-
 mkfifo fifo/il_S1_summary_P3
 mkfifo fifo/il_S1_elt_ord_P3
 mkfifo fifo/il_S1_selt_ord_P3
@@ -53,7 +71,6 @@ mkfifo fifo/il_S2_summary_P3
 mkfifo fifo/il_S2_plt_ord_P3
 mkfifo fifo/il_S3_summary_P3
 mkfifo fifo/il_S3_summary_P3.idx
-
 mkfifo fifo/il_S1_summary_P4
 mkfifo fifo/il_S1_elt_ord_P4
 mkfifo fifo/il_S1_selt_ord_P4
@@ -61,7 +78,6 @@ mkfifo fifo/il_S2_summary_P4
 mkfifo fifo/il_S2_plt_ord_P4
 mkfifo fifo/il_S3_summary_P4
 mkfifo fifo/il_S3_summary_P4.idx
-
 mkfifo fifo/il_S1_summary_P5
 mkfifo fifo/il_S1_elt_ord_P5
 mkfifo fifo/il_S1_selt_ord_P5
@@ -69,7 +85,6 @@ mkfifo fifo/il_S2_summary_P5
 mkfifo fifo/il_S2_plt_ord_P5
 mkfifo fifo/il_S3_summary_P5
 mkfifo fifo/il_S3_summary_P5.idx
-
 mkfifo fifo/il_S1_summary_P6
 mkfifo fifo/il_S1_elt_ord_P6
 mkfifo fifo/il_S1_selt_ord_P6
@@ -77,7 +92,6 @@ mkfifo fifo/il_S2_summary_P6
 mkfifo fifo/il_S2_plt_ord_P6
 mkfifo fifo/il_S3_summary_P6
 mkfifo fifo/il_S3_summary_P6.idx
-
 mkfifo fifo/il_S1_summary_P7
 mkfifo fifo/il_S1_elt_ord_P7
 mkfifo fifo/il_S1_selt_ord_P7
@@ -85,7 +99,6 @@ mkfifo fifo/il_S2_summary_P7
 mkfifo fifo/il_S2_plt_ord_P7
 mkfifo fifo/il_S3_summary_P7
 mkfifo fifo/il_S3_summary_P7.idx
-
 mkfifo fifo/il_S1_summary_P8
 mkfifo fifo/il_S1_elt_ord_P8
 mkfifo fifo/il_S1_selt_ord_P8
@@ -93,7 +106,6 @@ mkfifo fifo/il_S2_summary_P8
 mkfifo fifo/il_S2_plt_ord_P8
 mkfifo fifo/il_S3_summary_P8
 mkfifo fifo/il_S3_summary_P8.idx
-
 
 
 # --- Do insured loss computes ---
@@ -165,6 +177,74 @@ summarypy -m -t il  -1 fifo/il_S1_summary_P6 -2 fifo/il_S2_summary_P6 -3 fifo/il
 summarypy -m -t il  -1 fifo/il_S1_summary_P7 -2 fifo/il_S2_summary_P7 -3 fifo/il_S3_summary_P7 < fifo/il_P7 &
 summarypy -m -t il  -1 fifo/il_S1_summary_P8 -2 fifo/il_S2_summary_P8 -3 fifo/il_S3_summary_P8 < fifo/il_P8 &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    fifo/il_P1 \
+    fifo/il_P2 \
+    fifo/il_P3 \
+    fifo/il_P4 \
+    fifo/il_P5 \
+    fifo/il_P6 \
+    fifo/il_P7 \
+    fifo/il_P8 \
+    fifo/il_S1_summary_P1 \
+    fifo/il_S1_elt_ord_P1 \
+    fifo/il_S1_selt_ord_P1 \
+    fifo/il_S2_summary_P1 \
+    fifo/il_S2_plt_ord_P1 \
+    fifo/il_S3_summary_P1 \
+    fifo/il_S3_summary_P1.idx \
+    fifo/il_S1_summary_P2 \
+    fifo/il_S1_elt_ord_P2 \
+    fifo/il_S1_selt_ord_P2 \
+    fifo/il_S2_summary_P2 \
+    fifo/il_S2_plt_ord_P2 \
+    fifo/il_S3_summary_P2 \
+    fifo/il_S3_summary_P2.idx \
+    fifo/il_S1_summary_P3 \
+    fifo/il_S1_elt_ord_P3 \
+    fifo/il_S1_selt_ord_P3 \
+    fifo/il_S2_summary_P3 \
+    fifo/il_S2_plt_ord_P3 \
+    fifo/il_S3_summary_P3 \
+    fifo/il_S3_summary_P3.idx \
+    fifo/il_S1_summary_P4 \
+    fifo/il_S1_elt_ord_P4 \
+    fifo/il_S1_selt_ord_P4 \
+    fifo/il_S2_summary_P4 \
+    fifo/il_S2_plt_ord_P4 \
+    fifo/il_S3_summary_P4 \
+    fifo/il_S3_summary_P4.idx \
+    fifo/il_S1_summary_P5 \
+    fifo/il_S1_elt_ord_P5 \
+    fifo/il_S1_selt_ord_P5 \
+    fifo/il_S2_summary_P5 \
+    fifo/il_S2_plt_ord_P5 \
+    fifo/il_S3_summary_P5 \
+    fifo/il_S3_summary_P5.idx \
+    fifo/il_S1_summary_P6 \
+    fifo/il_S1_elt_ord_P6 \
+    fifo/il_S1_selt_ord_P6 \
+    fifo/il_S2_summary_P6 \
+    fifo/il_S2_plt_ord_P6 \
+    fifo/il_S3_summary_P6 \
+    fifo/il_S3_summary_P6.idx \
+    fifo/il_S1_summary_P7 \
+    fifo/il_S1_elt_ord_P7 \
+    fifo/il_S1_selt_ord_P7 \
+    fifo/il_S2_summary_P7 \
+    fifo/il_S2_plt_ord_P7 \
+    fifo/il_S3_summary_P7 \
+    fifo/il_S3_summary_P7.idx \
+    fifo/il_S1_summary_P8 \
+    fifo/il_S1_elt_ord_P8 \
+    fifo/il_S1_selt_ord_P8 \
+    fifo/il_S2_summary_P8 \
+    fifo/il_S2_plt_ord_P8 \
+    fifo/il_S3_summary_P8 \
+    fifo/il_S3_summary_P8.idx
+
 ( evepy 1 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P1  ) & pid57=$!
 ( evepy 2 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P2  ) & pid58=$!
 ( evepy 3 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P3  ) & pid59=$!
@@ -174,7 +254,7 @@ summarypy -m -t il  -1 fifo/il_S1_summary_P8 -2 fifo/il_S2_summary_P8 -3 fifo/il
 ( evepy 7 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P7  ) & pid63=$!
 ( evepy 8 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P8  ) & pid64=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60 $pid61 $pid62 $pid63 $pid64
+exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60 $pid61 $pid62 $pid63 $pid64
 
 
 # --- Do insured loss kats ---
@@ -185,12 +265,12 @@ katpy -s -f bin -i work/kat/il_S1_elt_sample_P1 work/kat/il_S1_elt_sample_P2 wor
 katpy -S -f bin -i work/kat/il_S2_plt_sample_P1 work/kat/il_S2_plt_sample_P2 work/kat/il_S2_plt_sample_P3 work/kat/il_S2_plt_sample_P4 work/kat/il_S2_plt_sample_P5 work/kat/il_S2_plt_sample_P6 work/kat/il_S2_plt_sample_P7 work/kat/il_S2_plt_sample_P8 -o output/il_S2_splt.csv & kpid4=$!
 katpy -Q -f bin -i work/kat/il_S2_plt_quantile_P1 work/kat/il_S2_plt_quantile_P2 work/kat/il_S2_plt_quantile_P3 work/kat/il_S2_plt_quantile_P4 work/kat/il_S2_plt_quantile_P5 work/kat/il_S2_plt_quantile_P6 work/kat/il_S2_plt_quantile_P7 work/kat/il_S2_plt_quantile_P8 -o output/il_S2_qplt.csv & kpid5=$!
 katpy -M -f bin -i work/kat/il_S2_plt_moment_P1 work/kat/il_S2_plt_moment_P2 work/kat/il_S2_plt_moment_P3 work/kat/il_S2_plt_moment_P4 work/kat/il_S2_plt_moment_P5 work/kat/il_S2_plt_moment_P6 work/kat/il_S2_plt_moment_P7 work/kat/il_S2_plt_moment_P8 -o output/il_S2_mplt.csv & kpid6=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
+exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 
 aalpy -Kil_S3_summary_palt -c output/il_S3_alct.csv -l 0.95 -a output/il_S3_palt.csv & lpid1=$!
 aalpy -Kil_S3_summary_altmeanonly -a output/il_S3_altmeanonly.csv & lpid2=$!
-wait $lpid1 $lpid2
+exec_wait $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f fifo/*

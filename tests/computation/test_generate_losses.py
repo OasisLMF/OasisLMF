@@ -235,7 +235,8 @@ class TestGenLosses(ComputationChecker):
                 'kernel_fifo_relative': True,
                 'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
                 'model_run_dir': model_run_dir,
-                'summarypy': summary_type == 'summarypy'
+                'summarypy': summary_type == 'summarypy',
+                'summarypy_low_memory': True,
             }
             with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}):
                 self.manager.generate_losses(**call_args)

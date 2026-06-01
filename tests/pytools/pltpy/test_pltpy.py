@@ -134,6 +134,37 @@ def test_qplt_output_parquet():
     case_runner("occ_gran_files", "qplt", "parquet")  # Granular occurrence input file present
 
 
+def test_empty_input():
+    """Test PLT does not crash and produces header-only output when summary binary has no loss records"""
+    from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        input_dir = tmp_dir / "input"
+        input_dir.mkdir()
+
+        # Minimal occurrence.bin: date_opts=1, no_of_periods=1000, no event records
+        np.array([1, 1000], dtype=np.int32).tofile(input_dir / "occurrence.bin")
+
+        # 12-byte header-only summary binary
+        stream_header_int32 = np.frombuffer(stream_info_to_bytes(SUMMARY_STREAM_ID, 1), dtype=np.int32)[0]
+        empty_bin = tmp_dir / "empty_summary.bin"
+        np.array([stream_header_int32, 10, 1], dtype=np.int32).tofile(empty_bin)
+
+        outfile = tmp_dir / "splt.csv"
+        kwargs = {
+            "run_dir": tmp_dir,
+            "files_in": empty_bin,
+            "ext": "csv",
+            "splt": outfile,
+        }
+        main(**kwargs)
+
+        assert outfile.exists(), "splt.csv was not created"
+        lines = outfile.read_text().strip().splitlines()
+        assert len(lines) == 1, f"splt.csv should contain only a header line, got {len(lines)} lines"
+
+
 def test_splt_stdin(monkeypatch):
     test_asset_subdir = Path(TESTS_ASSETS_DIR, "all_files")
     input_file = Path(TESTS_ASSETS_DIR, "summarypy.bin")

@@ -24,11 +24,6 @@
         "OEDHierarchy": "Portfolio",
         "Key": "PortNum"
     },
-    "CondNumber": {
-        "ProfileElementName": "CondNumber",
-        "OEDHierarchy": "SpecialCondition",
-        "Key": "CondNum"
-    },
     "BuildingTIV": {
         "ProfileElementName": "BuildingTIV",
         "CoverageTypeID": 1,
@@ -496,7 +491,7 @@
         "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Loc"
     },
-    "CyberBITIV": {
+    "CyberNPBITIV": {
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 7,
         "FMLevelName": "SiteCoverage",
@@ -544,7 +539,7 @@
         "FMTermGroupID": 12,
         "ProfileType": "Loc"
     },
-    "CyberLIABTIV": {
+    "CyberLIATIV": {
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 13,
         "FMLevelName": "SiteCoverage",

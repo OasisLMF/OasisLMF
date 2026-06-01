@@ -13,6 +13,7 @@ from oasislmf.model_execution.bash import (bash_params, bash_wrapper,
 from oasislmf.utils import diff
 
 TEST_DIRECTORY = os.path.dirname(__file__)
+UPDATE_BASH_TESTS = os.environ.get('UPDATE_BASH_TESTS', '').lower() in ('1', 'true', 'yes')
 
 
 class GenbashBase(TestCase):
@@ -36,10 +37,12 @@ class GenbashBase(TestCase):
         cls.fifo_tmp_dir = False
         cls.bash_trace = False
         cls.stderr_guard = False
+        cls.summarypy_low_memory = True
 
     @classmethod
     def tearDownClass(cls):
-        shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER, ignore_errors=True)
+        if not UPDATE_BASH_TESTS:
+            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER, ignore_errors=True)
 
     def setUp(self):
         self.temp_reference_file = None
@@ -89,6 +92,7 @@ class GenbashBase(TestCase):
             event_shuffle=self.event_shuffle,
             bash_trace=bash_trace or self.bash_trace,
             _get_getmodel_cmd=_get_getmodel_cmd,
+            summarypy_low_memory=self.summarypy_low_memory,
         )
 
     def gen_chunked_bash(self, name, num_partitions, num_reinsurance_iterations=None,
@@ -115,6 +119,7 @@ class GenbashBase(TestCase):
             event_shuffle=self.event_shuffle,
             bash_trace=bash_trace or self.bash_trace,
             _get_getmodel_cmd=_get_getmodel_cmd,
+            summarypy_low_memory=self.summarypy_low_memory,
         )
 
         # Generate partition scripts
@@ -266,7 +271,11 @@ class Genbash_base(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_base_')
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_base")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_base_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_base")
 
 
@@ -277,7 +286,11 @@ class Genbash_ErrorGuard_and_TempDir(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_err_')
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_err")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_err_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_err")
 
         cls.gul_alloc_rule = 1
@@ -294,7 +307,11 @@ class Genbash_LoadBalancer_and_gulpy(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_lb_')
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_lb")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_lb_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_lb")
 
         cls.num_gul_per_lb = 2
@@ -308,7 +325,11 @@ class Genbash_CustomGulcalc(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_csm_')
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_csm")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_csm_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_csm")
 
     @staticmethod
@@ -328,3 +349,27 @@ class Genbash_CustomGulcalc(GenbashBase):
         self.gen_chunked_bash("custom_gul_summarycalc_1_output", 1,
                               _get_getmodel_cmd=self._get_getmodel_cmd)
         self.check_chunks("custom_gul_summarycalc_1_output_1_partition", 1)
+
+
+class Genbash_summarypy_default(GenbashBase):
+    """Exercises the summarypy_low_memory=False default (no -m flag emitted).
+
+    The base GenbashBase fixtures were captured when summarypy unconditionally
+    received -m; they keep summarypy_low_memory=True for compatibility. This
+    class flips the flag back to its real default so a single end-to-end render
+    is checked against a fixture without -m.
+    """
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_summarypy_default")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_summarypy_default_')
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_summarypy_default")
+        cls.summarypy_low_memory = False
+
+    def test_gul_summarycalc_no_low_memory_flag(self):
+        self.genbash("gul_summarycalc_1_output", 1)
+        self.check("gul_summarycalc_1_output_1_partition")

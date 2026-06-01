@@ -18,6 +18,9 @@ parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 parser.add_argument('--df-engine', help='The engine to use when loading dataframes', default='oasis_data_manager.df_reader.reader.OasisPandasReader')
 parser.add_argument('--analysis-pk', help='Analysis pk to send updates to', default=None)
+parser.add_argument('--create-structures',
+                    help='Build shared getmodel structures and save as numpy files, then exit without processing events.',
+                    action='store_true', default=False)
 
 
 def main() -> None:
@@ -36,7 +39,17 @@ def main() -> None:
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
 
-    manager.run(**kwargs)
+    if kwargs.pop('create_structures'):
+        from oasislmf.pytools.getmodel.structure import create_getmodel_structure
+        create_getmodel_structure(
+            run_dir=kwargs.get('run_dir', '.'),
+            ignore_file_type=set(kwargs.get('ignore_file_type') or []),
+            peril_filter=kwargs.get('peril_filter') or [],
+            model_df_engine=kwargs.get('df_engine',
+                                       'oasis_data_manager.df_reader.reader.OasisPandasReader'),
+        )
+    else:
+        manager.run(**kwargs)
 
 
 if __name__ == "__main__":

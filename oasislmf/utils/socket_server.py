@@ -4,7 +4,7 @@ import json
 import os
 import time
 import sys
-from tqdm import tqdm
+from oasislmf.utils.rounded_tqdm import rounded_tqdm
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME, SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
 import logging
 
@@ -53,12 +53,19 @@ class GulProgressServer:
 
     def _handle_client(self, client_socket):
         data = self._read_all(client_socket)
-        payload = json.loads(data)
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError:
+            logging.warning(f"Invalid json received: {data}")
+            return
         with self.counter_lock:
             if 'terminate' in payload:
                 self.counter = self.total
                 self.stop()
-            self.counter += int(payload.get("events_complete", 0))
+            elif "events_complete" in payload:
+                self.counter += int(payload.get("events_complete", 0))
+            else:
+                logging.warning(f"Json received with no valid fields {payload}")
 
     def _read_all(self, client_socket):
         buffer = b""
@@ -92,7 +99,7 @@ def main():
         raise TypeError("Socket server argument must be an integer")
     port = int(sys.argv[2]) if len(sys.argv) > 2 else None
     with (GulProgressServer(total, port=port) as server,
-          tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar):
+          rounded_tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar):
         counter = 0
         while counter < total:
             with server.counter_lock:

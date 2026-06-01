@@ -622,13 +622,13 @@ class TestGetDataframe(TestCase):
         try:
             int_col = list(range(len(data)))
             np.random.shuffle(int_col)
-            data = [{k: (v if k != 'int_col' else int_col[i]) for i, (k, v) in enumerate(it.items())} for it in data]
+            data = [{k: (v if k != 'int_col' else int_col[row_i]) for k, v in it.items()} for row_i, it in enumerate(data)]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
 
             sort_cols = ['int_col']
-            expected = df.sort_values(sort_cols, axis=0)
+            expected = df.sort_values(sort_cols, axis=0, kind='stable')
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
@@ -655,13 +655,13 @@ class TestGetDataframe(TestCase):
         try:
             int_col = list(range(len(data)))
             np.random.shuffle(int_col)
-            data = [{k: (v if k != 'IntCol' else int_col[i]) for i, (k, v) in enumerate(it.items())} for it in data]
+            data = [{k: (v if k != 'IntCol' else int_col[row_i]) for k, v in it.items()} for row_i, it in enumerate(data)]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
 
             sort_cols = ['IntCol']
-            expected = df.sort_values(sort_cols, axis=0)
+            expected = df.sort_values(sort_cols, axis=0, kind='stable')
             expected.columns = expected.columns.str.lower()
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
@@ -1149,13 +1149,13 @@ class TestGetDataframe(TestCase):
         try:
             int_col = list(range(len(data)))
             np.random.shuffle(int_col)
-            data = [{k: (v if k != 'IntCol' else int_col[i]) for i, (k, v) in enumerate(it.items())} for it in data]
+            data = [{k: (v if k != 'IntCol' else int_col[row_i]) for k, v in it.items()} for row_i, it in enumerate(data)]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
 
             sort_cols = ['IntCol']
-            expected = df.sort_values(sort_cols, axis=0)
+            expected = df.sort_values(sort_cols, axis=0, kind='stable')
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
