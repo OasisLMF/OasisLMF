@@ -68,8 +68,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             _tmp_dir = tempfile.mkdtemp(prefix=f'oasis_{exec_name}_', dir=os.environ.get('OASIS_TMPDIR')) \
                 if os.environ.get('OASIS_PYTEST_REDIRECT_LOGS') else None
             _log_dir = _tmp_dir or log_dir
-            if not os.path.isdir(_log_dir):
-                os.makedirs(_log_dir)
+            os.makedirs(_log_dir, exist_ok=True)
             logging_config = logging.root.manager.loggerDict.keys()
             logging.captureWarnings(True)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
