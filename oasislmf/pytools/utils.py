@@ -82,7 +82,7 @@ def redirect_logging(exec_name, log_dir='./log'):
             log_level = os.environ.get('OASIS_PYTOOLS_LOG_LEVEL', None)
             log_level = kwargs.get('logging_level', None) if log_level is None else log_level
             if log_level is not None:
-                log_level = logging.getLevelName(log_level) # if sucessful converts to int
+                log_level = logging.getLevelName(log_level)  # if sucessful converts to int
                 log_level = None if isinstance(log_level, str) else log_level
             log_level = logging.WARNING if log_level is None else logging.getLevelName(log_level)
 
