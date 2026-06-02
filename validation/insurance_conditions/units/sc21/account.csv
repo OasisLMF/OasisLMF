@@ -1,0 +1,5 @@
+FlexiAccTestCase,PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolDedType6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,PolLimitType6All,CondPeril,CondTag,CondNumber,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPriority,CondName,CondClass,OEDVersion
+sc21,sc21,sc21,1010,AA1,USD,0.25,15000000,25000000,AA1,,,,,,,,,,,,,,,,,,,latest version
+sc21,sc21,sc21,1010,AA1,USD,0.25,15000000,25000000,AA1,,,,,,,AA1,1,8233,0,2,,,1,2,5,,,latest version
+sc21,sc21,sc21,1234,AA1,USD,0.067297,25000000,0,AA1,,,,,,,,,,,,,,,,,,,latest version
+sc21,sc21,sc21,1234,AA1,USD,0.067297,25000000,0,AA1,,,,,,,AA1,1,10814,0,2,200000,,0,2,5,,,latest version

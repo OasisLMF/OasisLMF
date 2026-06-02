@@ -63,6 +63,26 @@ check_complete(){
         echo 'Run Completed'
     fi
 }
+
+check_fifos() {
+    local has_error=0
+    for f in "$@"; do
+        [ -e "$f" ] || { echo "[ERROR] Expected FIFO not found: $f"; has_error=1; continue; }
+        [ -p "$f" ] || { echo "[ERROR] Not a FIFO: $f"; has_error=1; }
+    done
+    [ "$has_error" -eq 0 ] || false
+}
+
+exec_wait(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
+        local pid_exitcode
+        wait -p pid_exitcode "$@"
+    else
+        wait "$@"
+    fi
+}
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
@@ -87,7 +107,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S3_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S3_summary_P1.idx
 
 
-
 # --- Do insured loss computes ---
 
 ( eltpy -E bin  -q work/kat/il_S1_elt_quantile_P1 -m work/kat/il_S1_elt_moment_P1 < /tmp/%FIFO_DIR%/fifo/il_S1_elt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
@@ -101,9 +120,21 @@ tee < /tmp/%FIFO_DIR%/fifo/il_S3_summary_P1.idx work/il_S3_summary_palt/P1.idx >
 
 ( summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 -2 /tmp/%FIFO_DIR%/fifo/il_S2_summary_P1 -3 /tmp/%FIFO_DIR%/fifo/il_S3_summary_P1 < /tmp/%FIFO_DIR%/fifo/il_P1 ) 2>> $LOG_DIR/stderror.err  &
 
+
+# --- Verify FIFO pipes ---
+check_fifos \
+    /tmp/%FIFO_DIR%/fifo/il_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_elt_ord_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S1_selt_ord_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S2_summary_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S2_plt_ord_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S3_summary_P1 \
+    /tmp/%FIFO_DIR%/fifo/il_S3_summary_P1.idx
+
 ( ( evepy 1 1 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid8=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
+exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
 
 
 # --- Do insured loss kats ---
@@ -114,12 +145,12 @@ katpy -s -f bin -i work/kat/il_S1_elt_sample_P1 -o output/il_S1_selt.csv & kpid3
 katpy -S -f bin -i work/kat/il_S2_plt_sample_P1 -o output/il_S2_splt.csv & kpid4=$!
 katpy -Q -f bin -i work/kat/il_S2_plt_quantile_P1 -o output/il_S2_qplt.csv & kpid5=$!
 katpy -M -f bin -i work/kat/il_S2_plt_moment_P1 -o output/il_S2_mplt.csv & kpid6=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
+exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 
 ( aalpy -Kil_S3_summary_palt -c output/il_S3_alct.csv -l 0.95 -a output/il_S3_palt.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
 ( aalpy -Kil_S3_summary_altmeanonly -a output/il_S3_altmeanonly.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
-wait $lpid1 $lpid2
+exec_wait $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

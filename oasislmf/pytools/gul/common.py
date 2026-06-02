@@ -28,8 +28,6 @@ NP_BASE_ARRAY_SIZE = 8
 SPECIAL_SIDX = np.array([MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX], dtype=oasis_int)
 NUM_IDX = SPECIAL_SIDX.shape[0]
 
-ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
-ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)
 AREAPERIL_TO_EFF_VULN_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int64))
 AREAPERIL_TO_EFF_VULN_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 2)
 

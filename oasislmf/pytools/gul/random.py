@@ -21,6 +21,15 @@ HAZARD_GROUP_ID_HASH_CODE = np.int64(1143271949)
 HAZARD_EVENT_ID_HASH_CODE = np.int64(1243274353)
 HAZARD_HASH_MOD_CODE = np.int64(1957483729)
 
+# parameters for get_corr_rval in a normal cdf
+x_min = 1e-16
+x_max = 1 - 1e-16
+norm_inv_N = 1000000
+cdf_min = -20
+cdf_max = 20.
+inv_factor = (norm_inv_N - 1) / (x_max - x_min)
+norm_factor = (norm_inv_N - 1) / (cdf_max - cdf_min)
+
 
 @njit(cache=True, fastmath=True)
 def generate_hash(group_id, event_id, base_seed=0):

@@ -35,7 +35,8 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from ...execution import bash, runner
 from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (move_bin, prepare_run_directory,
-                              prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set)
+                              prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set,
+                              set_hazard_case_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...pytools.fm.manager import run as fmpy_run
@@ -142,7 +143,7 @@ class GenerateLossesBase(ComputationStep):
         option
         """
         user_peril_filter = analysis_settings.get('peril_filter', None)
-        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else self.peril_filter))
+        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else getattr(self, 'peril_filter', [])))
         return peril_filter
 
     def _print_error_logs(self, run_log_fp, e):
@@ -329,7 +330,8 @@ class GenerateLossesDir(GenerateLossesBase):
 
         optional_model_sets = {'footprint_set': set_footprint_set,
                                'vulnerability_set': set_vulnerability_set,
-                               'pla_loss_factors_set': set_loss_factors_set}
+                               'pla_loss_factors_set': set_loss_factors_set,
+                               'hazard_case_set': set_hazard_case_set}
 
         for model_set, model_setter in optional_model_sets.items():
             model_set_val = self.settings.get('model_settings', {}).get(model_set)
@@ -347,6 +349,40 @@ class GenerateLossesDir(GenerateLossesBase):
                 ri_target_dir = os.path.join(self.model_run_dir, 'input', ri_sub_dir)
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.kernel_alloc_rule_ri, ri_target_dir)
+
+        gulmc = getattr(self, 'gulmc', False)
+        model_custom_gulcalc = getattr(self, 'model_custom_gulcalc', None)
+        model_df_engine = getattr(self, 'model_df_engine', None) or getattr(self, 'base_df_engine', None)
+
+        if gulmc and not model_custom_gulcalc:
+            from ...pytools.gulmc.structure import create_gulmc_structure
+            self.logger.info(f'Creating GULMC shared structures: {model_run_fp}')
+            create_gulmc_structure(
+                run_dir=model_run_fp,
+                ignore_file_type=set(),
+                peril_filter=self._get_peril_filter(self.settings),
+                dynamic_footprint=getattr(self, 'dynamic_footprint', False),
+                model_df_engine=model_df_engine,
+            )
+
+        if not gulmc and not model_custom_gulcalc:
+            from ...pytools.getmodel.structure import create_getmodel_structure
+            from ...pytools.gul.structure import create_gulpy_structure
+
+            self.logger.info(f'Creating getmodel shared structures: {model_run_fp}')
+            create_getmodel_structure(
+                run_dir=model_run_fp,
+                ignore_file_type=set(),
+                peril_filter=self._get_peril_filter(self.settings),
+                model_df_engine=model_df_engine,
+            )
+
+            self.logger.info(f'Creating gulpy shared structures: {model_run_fp}')
+            create_gulpy_structure(
+                run_dir=model_run_fp,
+                ignore_file_type=set(),
+                peril_filter=self._get_peril_filter(self.settings),
+            )
 
         for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
             if self.settings.get(f'{runtype}_output'):
@@ -396,6 +432,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
+        {'name': 'summarypy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'pass -m to summarypy so it writes a .idx side-file (consumed by the legacy ktools leccalc/aalcalc binaries via the parallel .idx tee chain). Python aggregators (lecpy, aalpy, eltpy, pltpy) glob *.bin work files and do not need this flag.'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
@@ -456,6 +494,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
+            summarypy_low_memory=self.summarypy_low_memory,
             event_shuffle=self.kernel_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
@@ -609,6 +648,8 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
+        {'name': 'summarypy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'pass -m to summarypy so it writes a .idx side-file (consumed by the legacy ktools leccalc/aalcalc binaries via the parallel .idx tee chain). Python aggregators (lecpy, aalpy, eltpy, pltpy) glob *.bin work files and do not need this flag.'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server', 'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
@@ -679,6 +720,7 @@ class GenerateLosses(GenerateLossesDir):
                         gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
+                        summarypy_low_memory=self.summarypy_low_memory,
                         event_shuffle=self.kernel_event_shuffle,
                         model_py_server=self.model_py_server,
                         peril_filter=self._get_peril_filter(self.settings),

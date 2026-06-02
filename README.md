@@ -128,7 +128,7 @@ In that case you can run this after installation.
 
 The package provides a built-in lookup framework (`oasislmf.model_preparation.lookup.OasisLookup`) which uses the Rtree Python package, which in turn requires the `libspatialindex` spatial indexing C library.
 
-https://libspatialindex.github.io/index.html
+https://libspatialindex.github.io/
 
 Linux users can install the development version of `libspatialindex` from the command line using `apt`.
 

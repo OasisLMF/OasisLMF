@@ -7,12 +7,12 @@ from select import select
 import numpy as np
 from numba import njit
 from numba.typed import Dict, List
-from numba.types import int8 as nb_int8
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasislmf.pytools.common.data import areaperil_int, areaperil_int_size, oasis_int, oasis_int_size, oasis_float, oasis_float_size
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, bytes_to_stream_types, mv_read, CDF_STREAM_ID
+from oasislmf.pytools.common.hashmap import unpack as hm_unpack, _find_key as hm_find_key, NOT_FOUND as HM_NOT_FOUND
 from oasislmf.pytools.gul.common import (NP_BASE_ARRAY_SIZE, ProbMean,
                                          ProbMean_size, damagecdfrec,
                                          damagecdfrec_stream, items_data_type)
@@ -34,27 +34,21 @@ def gen_structs():
     return group_id_rng_index, rec_idx_ptr
 
 
-@njit(cache=True)
-def gen_valid_area_peril(valid_area_peril_id):
-    valid_area_peril_dict = Dict()
-    for i in range(valid_area_peril_id.shape[0]):
-        valid_area_peril_dict[valid_area_peril_id[i]] = nb_int8(0)
-
-    return valid_area_peril_dict
-
-
-def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_area_peril_id=None, buff_size=PIPE_CAPACITY):
+def read_getmodel_stream(stream_in, items,
+                         item_map_hm, item_map_hm_keys,
+                         item_map_ja_offsets,
+                         coverages, compute, seeds, buff_size=PIPE_CAPACITY):
     """Read the getmodel output stream yielding data event by event.
 
     Args:
         stream_in (buffer-like): input stream, e.g. `sys.stdin.buffer`.
-        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-          the mapping between areaperil_id, vulnerability_id to item.
+        items (numpy.ndarray): sorted items array (already filtered by peril if applicable).
+        item_map_hm (np.array[uint8]): packed hashmap (areaperil_id, vulnerability_id) → pair_index.
+        item_map_hm_keys (np.array[item_map_key_dtype]): key storage for the hashmap.
+        item_map_ja_offsets (np.array[oasis_int]): CSR offsets into items array (N_pairs + 1).
         coverages (numpy.ndarray[coverage_type]): array with coverage data.
         compute (numpy.array[int]): list of coverages to be computed.
         seeds (numpy.array[int]): the random seeds for each coverage_id.
-        buff_size (int): size in bytes of the read buffer (see note).
-        valid_area_peril_id (list[int]): list of valid areaperil_ids.
 
     Raises:
         ValueError: If the stream type is not 1.
@@ -94,11 +88,6 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
     last_event_id = -1
     len_read = 1
 
-    if valid_area_peril_id is not None:
-        valid_area_peril_dict = gen_valid_area_peril(valid_area_peril_id)
-    else:
-        valid_area_peril_dict = None
-
     # init data structures
     group_id_rng_index, rec_idx_ptr = gen_structs()
     rng_index = 0
@@ -128,7 +117,9 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
 
         # read the streamed data into formatted data
         cursor, yield_event, event_id, dmgcdfrec, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
-            byte_mv, valid_buf, min_size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
+            byte_mv, valid_buf, min_size_cdf_entry, last_event_id, items,
+            item_map_hm, item_map_hm_keys, item_map_ja_offsets,
+            coverages,
             compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
             damagecdf_i, rec_idx_ptr
         )
@@ -168,7 +159,9 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
 
 
 @njit(cache=True, fastmath=True)
-def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
+def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
+                   item_map_hm, item_map_hm_keys, item_map_ja_offsets,
+                   coverages,
                    compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
 
@@ -177,8 +170,10 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, 
         valid_buf (int): number of bytes with valid data
         size_cdf_entry (int): size (in bytes) of a single record
         last_event_id (int): event_id of the last event that was completed
-        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-          the mapping between areaperil_id, vulnerability_id to item.
+        items (numpy.ndarray): sorted items array.
+        item_map_hm (np.array[uint8]): packed hashmap (areaperil_id, vulnerability_id) → pair_index.
+        item_map_hm_keys (np.array[item_map_key_dtype]): key storage for the hashmap.
+        item_map_ja_offsets (np.array[oasis_int]): CSR offsets into items array (N_pairs + 1).
         coverages (numpy.ndarray[coverage_type]): array with coverage data.
         compute_i (int): index of the last coverage id stored in `compute`.
         compute (numpy.array[int]): list of coverage ids to be computed.
@@ -192,12 +187,12 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, 
 
     Returns:
         int, bool, int, numpy.array[ProbMean], numpy.array[int], int, int, int, numpy.array[items_data_type],
-        int, Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]), int:
+        int, Dict, int:
           number of int numbers read from the int32_mv ndarray, whether the current event (id=`event_id`)
           has been fully read, cdf record, array with the indices of `rec` where each cdf record starts, last or current
           event id, index of the last coverage id stored in `compute`, index of the last items_data_i stored in `items_data`,
           item-related data, number of unique random seeds computed so far, map of group ids to random seeds,
-          index of the last cdf record that has been read from stream and stored in `rec`W
+          index of the last cdf record that has been read from stream and stored in `rec`.
     """
     yield_event = False
 
@@ -213,6 +208,12 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, 
     # init a counter for the local `rec` array
     last_rec_idx_ptr = 0
     rec_valid_len = 0
+
+    # unpack hashmap once for the loop
+    hm_info, hm_lookup, hm_index = hm_unpack(item_map_hm)
+    # scratch record for hashmap key lookup (separate from key storage)
+    lookup_key_buf = np.empty(1, dtype=item_map_hm_keys.dtype)
+    lookup_key = lookup_key_buf[0]
 
     while cursor + size_cdf_entry <= valid_buf:
 
@@ -239,11 +240,15 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, 
             cursor = event_cursor
             break
 
-        # peril filter
-        if valid_area_peril_dict is not None:
-            if areaperil_id not in valid_area_peril_dict:
-                cursor += ProbMean_size * Nbins_to_read
-                continue
+        # lookup (areaperil_id, vulnerability_id) in item_map hashmap
+        # (also handles peril filtering: items are pre-filtered before building the map)
+        lookup_key['areaperil_id'] = areaperil_id
+        lookup_key['vulnerability_id'] = vulnerability_id
+        slot = hm_find_key(hm_info, hm_lookup, hm_index, item_map_hm_keys, lookup_key)
+        if slot == HM_NOT_FOUND:
+            cursor += ProbMean_size * Nbins_to_read
+            continue
+        pair_idx = hm_index[slot]
 
         dmgcdfrec[dmgcdfrec_idx]["areaperil_id"] = areaperil_id
         dmgcdfrec[dmgcdfrec_idx]["vulnerability_id"] = vulnerability_id
@@ -260,11 +265,14 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, 
         last_rec_idx_ptr = end_rec
         rec_valid_len += Nbins_to_read
 
-        # register the items to their coverage
-        item_key = tuple((areaperil_id, vulnerability_id))
-
-        for item in item_map[item_key]:
-            item_id, coverage_id, group_id = item
+        # iterate items for this (areaperil_id, vulnerability_id) pair
+        # offsets point directly into the sorted items array
+        item_start = item_map_ja_offsets[pair_idx]
+        item_end = item_map_ja_offsets[pair_idx + 1]
+        for j in range(item_start, item_end):
+            item_id = items[j]['item_id']
+            coverage_id = items[j]['coverage_id']
+            group_id = items[j]['group_id']
 
             # if this group_id was not seen yet, process it.
             # it assumes that hash only depends on event_id and group_id

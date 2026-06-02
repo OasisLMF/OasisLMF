@@ -7,7 +7,7 @@ import responses
 from unittest.mock import patch
 
 from ods_tools.oed.common import OdsException
-from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.exceptions import OasisException, OasisExceptionNoKeys
 from oasislmf.utils.path import setcwd
 from oasislmf.manager import OasisManager
 from .data.common import (
@@ -363,6 +363,67 @@ class TestGenFiles(ComputationChecker):
             # check correlations csv content
             correlations_csv_data = self.read_file(correlations_csv_path)
             self.assertEqual(EXPECTED_CORRELATION_CSV, correlations_csv_data)
+
+
+class TestGenFilesEmptyKeys(ComputationChecker):
+    """Tests that empty keys.csv is reported as OasisExceptionNoKeys, not a generic OasisException."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+
+    def _base_args(self, keys_path, t_dir):
+        import tempfile
+        loc_file = tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False)
+        loc_file.write(MIN_LOC)
+        loc_file.flush()
+        return {
+            'oed_location_csv': loc_file.name,
+            'keys_data_path': keys_path,
+            'oasis_files_dir': t_dir,
+        }, loc_file
+
+    def test_files__header_only_keys__raises_no_keys(self):
+        """Header-only keys.csv (empty DataFrame) must raise OasisExceptionNoKeys."""
+        with self.tmp_dir() as t_dir:
+            keys_path = os.path.join(t_dir, 'keys.csv')
+            with open(keys_path, 'w') as f:
+                f.write('LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID\n')
+            args, loc_file = self._base_args(keys_path, t_dir)
+            try:
+                with self.assertRaises(OasisExceptionNoKeys):
+                    self.manager.generate_files(**args)
+            finally:
+                os.unlink(loc_file.name)
+
+    def test_files__zero_byte_keys__raises_no_keys(self):
+        """Zero-byte keys.csv (mmap error path) must also raise OasisExceptionNoKeys."""
+        with self.tmp_dir() as t_dir:
+            keys_path = os.path.join(t_dir, 'keys.csv')
+            open(keys_path, 'w').close()  # create 0-byte file
+            args, loc_file = self._base_args(keys_path, t_dir)
+            try:
+                with self.assertRaises(OasisExceptionNoKeys):
+                    self.manager.generate_files(**args)
+            finally:
+                os.unlink(loc_file.name)
+
+    def test_files__other_oasis_exception__propagates_unchanged(self):
+        """An OasisException unrelated to empty keys must not be converted to OasisExceptionNoKeys."""
+        unrelated_msg = 'Something else went wrong entirely'
+        with patch('oasislmf.computation.generate.files.get_dataframe', side_effect=OasisException(unrelated_msg)):
+            with self.tmp_dir() as t_dir:
+                keys_path = os.path.join(t_dir, 'keys.csv')
+                with open(keys_path, 'w') as f:
+                    f.write('LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID\n')
+                args, loc_file = self._base_args(keys_path, t_dir)
+                try:
+                    with self.assertRaises(OasisException) as ctx:
+                        self.manager.generate_files(**args)
+                    self.assertNotIsInstance(ctx.exception, OasisExceptionNoKeys)
+                    self.assertIn(unrelated_msg, str(ctx.exception))
+                finally:
+                    os.unlink(loc_file.name)
 
 
 class TestGenDummyModelFiles(ComputationChecker):

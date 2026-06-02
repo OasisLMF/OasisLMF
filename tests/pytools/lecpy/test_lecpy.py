@@ -101,6 +101,47 @@ def case_runner(sub_folder, test_name, out_ext="csv", use_return_period=False):
             raise Exception(f"running 'lecpy {arg_str}' led to diff, see files at {error_path}") from e
 
 
+def test_empty_input():
+    """Test LEC does not crash and produces no output when summary binary has no loss records"""
+    from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        work_dir = tmp_dir / "work" / "gul"
+        work_dir.mkdir(parents=True)
+
+        # 12-byte header-only summary binary (no loss records)
+        # Occurrence files are read after the early return so are not needed here
+        stream_header_int32 = np.frombuffer(stream_info_to_bytes(SUMMARY_STREAM_ID, 1), dtype=np.int32)[0]
+        np.array([stream_header_int32, 10, 1], dtype=np.int32).tofile(work_dir / "summarypy1.bin")
+
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+        ept_outfile = out_dir / "ept.csv"
+        psept_outfile = out_dir / "psept.csv"
+
+        kwargs = {
+            "run_dir": tmp_dir,
+            "subfolder": "gul",
+            "agg_full_uncertainty": True,
+            "agg_wheatsheaf": True,
+            "agg_sample_mean": True,
+            "agg_wheatsheaf_mean": True,
+            "occ_full_uncertainty": True,
+            "occ_wheatsheaf": True,
+            "occ_sample_mean": True,
+            "occ_wheatsheaf_mean": True,
+            "ept": ept_outfile,
+            "psept": psept_outfile,
+            "ext": "csv",
+        }
+        main(**kwargs)
+
+        # Early return when no loss records: output files should not be created
+        assert not ept_outfile.exists(), "ept.csv should not be created when there are no loss records"
+        assert not psept_outfile.exists(), "psept.csv should not be created when there are no loss records"
+
+
 def test_lec_output_period_weights_and_return_periods():
     """Tests LEC output with period weights and return_periods flag True
     """

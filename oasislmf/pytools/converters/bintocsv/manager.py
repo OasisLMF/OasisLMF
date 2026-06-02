@@ -47,7 +47,7 @@ def default_tocsv(stack, file_in, file_out, file_type, noheader):
     if file_in == sys.stdin.buffer:
         data = np.frombuffer(file_in.read(), dtype=dtype)
     else:
-        data = np.fromfile(file_in, dtype=dtype)
+        data = np.memmap(file_in, dtype=dtype, mode='r')
     num_rows = data.shape[0]
 
     if not noheader:
