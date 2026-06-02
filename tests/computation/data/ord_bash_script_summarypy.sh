@@ -32,7 +32,7 @@ exit_handler(){
 " $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
 
        ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
-       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *startup.sh$ | sort -n -r)
+       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v \.log$  | egrep -v startup.sh$ | sort -n -r)
        echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
        exit $exit_code
@@ -143,6 +143,7 @@ mkfifo fifo/ri_S1_plt_ord_P2
 mkfifo fifo/ri_S1_elt_ord_P2
 mkfifo fifo/ri_S1_selt_ord_P2
 
+export OASIS_PYTOOLS_LOG_LEVEL=30
 
 # --- Do reinsurance loss computes ---
 
