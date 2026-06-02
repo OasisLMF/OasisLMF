@@ -114,7 +114,7 @@ def _run_stage(cmd, stdin_path=None, stdout_path=None, cwd=None, timeout=300):
     try:
         result = subprocess.run(
             cmd, stdin=stdin_fh, stdout=stdout_fh,
-            stderr=subprocess.PIPE, cwd=str(cwd), timeout=timeout,
+            stderr=subprocess.PIPE, cwd=str(cwd) if cwd is not None else None, timeout=timeout,
         )
     finally:
         if stdin_path:
