@@ -104,9 +104,8 @@ def redirect_logging(exec_name, log_dir='./log'):
             logger.addHandler(rootFileHandler)
 
             # Set warning log handler if not in debug
-            if log_level != logging.DEBUG:
-                warn_logger = logging.getLogger('py.warnings')
-                warn_logger.addHandler(rootFileHandler)
+            warn_logger = logging.getLogger('py.warnings')
+            warn_logger.addHandler(rootFileHandler)
 
             # # Debug: print logging tree
             # import ipdb; ipdb.set_trace()
