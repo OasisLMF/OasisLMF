@@ -24,6 +24,7 @@ Disable (when using NUMBA_DISABLE_JIT):
     NUMBA_DISABLE_JIT=1 oasislmf warmup
 """
 
+import contextlib
 import functools
 import os
 import shutil
@@ -109,18 +110,13 @@ def _run_stage(cmd, stdin_path=None, stdout_path=None, cwd=None, timeout=300):
     starts. Shell pipes run all stages concurrently, causing races on the shared
     .nbi index that silently drop type variants from the cache.
     """
-    stdin_fh = open(stdin_path, 'rb') if stdin_path else subprocess.DEVNULL
-    stdout_fh = open(stdout_path, 'wb') if stdout_path else subprocess.DEVNULL
-    try:
+    with contextlib.ExitStack() as stack:
+        stdin_fh = stack.enter_context(open(stdin_path, 'rb')) if stdin_path else subprocess.DEVNULL
+        stdout_fh = stack.enter_context(open(stdout_path, 'wb')) if stdout_path else subprocess.DEVNULL
         result = subprocess.run(
             cmd, stdin=stdin_fh, stdout=stdout_fh,
             stderr=subprocess.PIPE, cwd=str(cwd) if cwd is not None else None, timeout=timeout,
         )
-    finally:
-        if stdin_path:
-            stdin_fh.close()
-        if stdout_path:
-            stdout_fh.close()
     if result.returncode != 0:
         raise RuntimeError(
             f"{cmd[0]} failed (rc={result.returncode}):\n"
