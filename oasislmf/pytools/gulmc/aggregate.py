@@ -21,6 +21,7 @@ from oasislmf.pytools.common.hashmap import (
     i_add_key_fail as hm_i_add_key_fail,
     new_slot_bit as hm_new_slot_bit, slot_mask as hm_slot_mask,
     NOT_FOUND as HM_NOT_FOUND,
+    HM_INFO_N_VALID, HM_INFO_N_FULL,
 )
 
 logger = logging.getLogger(__name__)
@@ -162,11 +163,14 @@ def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areap
         return
 
     # Build (areaperil_id, vuln_idx) -> weight hashmap from aggregate_weights.
-    # Pre-sized to fit all weights so the load-factor guard never fires; only the
-    # rehash path on Robin-Hood collision is kept.
+    # key_table and values are sized for n_weights (upper bound); the hashmap
+    # starts at the default small size and grows via load-factor rehash as valid
+    # entries are added. This avoids the pre-sizing-vs-skipped-entries mismatch
+    # that caused "rehashed too many times" when many aggregate_weights records
+    # reference vulnerability IDs absent from vuln_map.
     weight_key_table = np.empty(n_weights, dtype=agg_weight_key_dtype)
     weight_values = np.empty(n_weights, dtype=oasis_float)
-    weight_table = hm_init_dict(n_weights)
+    weight_table = hm_init_dict()
     w_info, w_lookup, w_index = hm_unpack(weight_table)
 
     vm_info, vm_lookup, vm_index = hm_unpack(vuln_map)
@@ -179,6 +183,9 @@ def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areap
         weight_key_table[n_valid]['areaperil_id'] = nb_areaperil_int(rec['areaperil_id'])
         weight_key_table[n_valid]['vuln_idx'] = nb_oasis_int(vm_index[vslot])
         weight_values[n_valid] = nb_oasis_float(rec['weight'])
+        if w_info[HM_INFO_N_VALID] >= w_info[HM_INFO_N_FULL]:
+            weight_table = hm_rehash(weight_table, weight_key_table)
+            w_info, w_lookup, w_index = hm_unpack(weight_table)
         result = hm_try_add_key(w_info, w_lookup, w_index, weight_key_table,
                                 weight_key_table[n_valid], n_valid)
         while result == hm_i_add_key_fail:
