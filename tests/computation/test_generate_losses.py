@@ -238,8 +238,8 @@ class TestGenLosses(ComputationChecker):
                 'summarypy': summary_type == 'summarypy',
                 'summarypy_low_memory': True,
             }
-            with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006",
-                                         "OASIS_PYTOOLS_LOG_LEVEL": "10"}):
+            with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}):
+                logging.getLogger("oasislmf").setLevel(logging.WARNING)
                 self.manager.generate_losses(**call_args)
 
             # Check bash script vs reference
