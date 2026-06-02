@@ -742,40 +742,42 @@ def find_key(table, key_table, key):
 @nb.jit(cache=True)
 def rehash(table, key_table):
     """Double the table size and re-insert every live key. Returns a new
-    packed table buffer (the old one becomes stale)."""
-    info, lookup_table, index_table = unpack(table)
+    packed table buffer (the old one becomes stale).
 
-    while info[HM_INFO_N_VALID] > (info[HM_INFO_N_FULL] >> np.uint8(3)):
-        new_table_size = nb.int64(lookup_table.shape[0]) * 2
+    Always iterates from the original source table so no keys are lost when
+    a re-insertion attempt fails partway through. The target size doubles on
+    each retry. Gives up once the target exceeds 256× the actual key count,
+    which signals a genuine hash-collision pathology rather than a sizing
+    mismatch caused by pre-allocated-but-unused capacity."""
+    src_info, src_lookup, src_index = unpack(table)
+    orig_n_valid = nb.int64(src_info[HM_INFO_N_VALID])
+    target_size = nb.int64(src_lookup.shape[0]) * 2
+
+    while target_size <= nb.int64(256) * orig_n_valid:
         new_table = np.zeros(
-            INFO_BYTES + new_table_size * LOOKUP_ITEMSIZE + new_table_size * INDEX_ITEMSIZE,
+            INFO_BYTES + target_size * LOOKUP_ITEMSIZE + target_size * INDEX_ITEMSIZE,
             dtype=np.uint8
         )
         # Write info BEFORE unpack — unpack reads mask to compute view sizes
-        new_mask = (info[HM_INFO_MASK] << index_dtype(1)) + index_dtype(1)
+        new_mask = index_dtype(target_size - nb.int64(1))
         new_table[:INFO_BYTES].view(index_dtype)[HM_INFO_MASK] = new_mask
         new_table[:INFO_BYTES].view(index_dtype)[HM_INFO_N_VALID] = index_dtype(0)
-        new_table[:INFO_BYTES].view(index_dtype)[HM_INFO_N_FULL] = index_dtype(new_table_size * n_full_factor)
+        new_table[:INFO_BYTES].view(index_dtype)[HM_INFO_N_FULL] = index_dtype(target_size * n_full_factor)
         new_info, new_lookup, new_index = unpack(new_table)
 
-        for i_lookup in range(lookup_table.shape[0]):
-            masked_i_lookup = index_dtype(i_lookup) & info[HM_INFO_MASK]
-            if lookup_table[masked_i_lookup] >= full_bit:
-                i_item = index_table[masked_i_lookup]
+        for i_lookup in range(src_lookup.shape[0]):
+            if src_lookup[i_lookup] >= full_bit:
+                i_item = src_index[i_lookup]
                 added = _try_add_key(new_info, new_lookup, new_index, key_table, key_table[i_item], i_item)
                 if added == i_add_key_fail:
                     break
         else:
-            break
-        # retry with doubled table — update refs for next iteration
-        info = new_info
-        lookup_table = new_lookup
-        index_table = new_index
-        table = new_table
-    else:
-        raise Exception("rehashed too many times")
+            return new_table
+        # Re-insertion failed: keep src_lookup/src_index pointing at the
+        # original table so all keys are available on the next attempt.
+        target_size *= 2
 
-    return new_table
+    raise Exception("rehashed too many times")
 
 
 @nb.jit(cache=True)
