@@ -303,7 +303,11 @@ class TestGenerateSummaryxrefRI(TestCase):
 
 class TestBashParamsInuringPriorityConversion(TestCase):
     """Verify bash_params() converts ri_inuring_priorities from OED values to RI layer indices
-    when the mapping file exists in model_run_dir/input/."""
+    when the mapping file exists in model_run_dir/input/.
+
+    Conversion must be reflected in bash_params['analysis_settings'] but must NOT mutate
+    the caller's original dict — this makes repeated calls with the same settings object safe.
+    """
 
     def _make_analysis_settings(self, ri_inuring_priorities):
         return {
@@ -314,11 +318,10 @@ class TestBashParamsInuringPriorityConversion(TestCase):
 
     def _call_bash_params(self, model_run_dir, analysis_settings):
         from oasislmf.execution.bash import bash_params
-        # Use minimal required params; redirect fifo dir to a temp location
         with tempfile.NamedTemporaryFile(suffix='.sh', delete=False) as f:
             script_fp = f.name
         try:
-            bash_params(
+            return bash_params(
                 analysis_settings=analysis_settings,
                 filename=script_fp,
                 num_reinsurance_iterations=3,
@@ -329,32 +332,59 @@ class TestBashParamsInuringPriorityConversion(TestCase):
             if os.path.exists(script_fp):
                 os.remove(script_fp)
 
-    def test_oed_priorities_converted_to_ri_layer_indices(self):
-        """OED priority 1 → layer 2, OED priority 2 → layer 3 (priority 1 spans two risk levels)."""
+    def test_oed_priorities_converted_in_bash_params(self):
+        """OED priority 1 → layer 2 in bash_params['analysis_settings']."""
         mapping = {1: 2, 2: 3}
         with tempfile.TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, 'input'))
             _write_json(os.path.join(d, 'input', 'ri_inuring_priority_output_levels.json'), mapping)
 
             settings = self._make_analysis_settings([1])
-            self._call_bash_params(d, settings)
-            # OED priority 1 should have been converted to RI layer index 2
-            self.assertEqual(settings['ri_inuring_priorities'], [2])
+            result = self._call_bash_params(d, settings)
+            self.assertEqual(result['analysis_settings']['ri_inuring_priorities'], [2])
 
-    def test_no_conversion_without_model_run_dir(self):
-        """When model_run_dir is empty, ri_inuring_priorities is left unchanged."""
-        settings = self._make_analysis_settings([1])
-        self._call_bash_params('', settings)
-        self.assertEqual(settings['ri_inuring_priorities'], [1])
-
-    def test_no_conversion_without_mapping_file(self):
-        """When the mapping file does not exist, ri_inuring_priorities is left unchanged."""
+    def test_caller_dict_not_mutated(self):
+        """The original analysis_settings dict passed by the caller is never modified."""
+        mapping = {1: 2, 2: 3}
         with tempfile.TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, 'input'))
-            # deliberately do NOT write the mapping file
+            _write_json(os.path.join(d, 'input', 'ri_inuring_priority_output_levels.json'), mapping)
+
             settings = self._make_analysis_settings([1])
+            original_priorities = list(settings['ri_inuring_priorities'])
             self._call_bash_params(d, settings)
-            self.assertEqual(settings['ri_inuring_priorities'], [1])
+            # caller's dict must be unchanged
+            self.assertEqual(settings['ri_inuring_priorities'], original_priorities)
+
+    def test_repeated_calls_are_idempotent(self):
+        """Calling bash_params() twice with the same settings dict produces the same result both times."""
+        mapping = {1: 2, 2: 3}
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, 'input'))
+            _write_json(os.path.join(d, 'input', 'ri_inuring_priority_output_levels.json'), mapping)
+
+            settings = self._make_analysis_settings([1])
+            result1 = self._call_bash_params(d, settings)
+            result2 = self._call_bash_params(d, settings)
+            self.assertEqual(
+                result1['analysis_settings']['ri_inuring_priorities'],
+                result2['analysis_settings']['ri_inuring_priorities'],
+            )
+            self.assertEqual(result1['analysis_settings']['ri_inuring_priorities'], [2])
+
+    def test_no_conversion_without_model_run_dir(self):
+        """When model_run_dir is empty, ri_inuring_priorities passes through unchanged."""
+        settings = self._make_analysis_settings([1])
+        result = self._call_bash_params('', settings)
+        self.assertEqual(result['analysis_settings']['ri_inuring_priorities'], [1])
+
+    def test_no_conversion_without_mapping_file(self):
+        """When the mapping file does not exist, ri_inuring_priorities passes through unchanged."""
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, 'input'))
+            settings = self._make_analysis_settings([1])
+            result = self._call_bash_params(d, settings)
+            self.assertEqual(result['analysis_settings']['ri_inuring_priorities'], [1])
 
     def test_multiple_oed_priorities_converted(self):
         """Multiple OED priorities are each converted to their respective RI layer indices."""
@@ -364,8 +394,8 @@ class TestBashParamsInuringPriorityConversion(TestCase):
             _write_json(os.path.join(d, 'input', 'ri_inuring_priority_output_levels.json'), mapping)
 
             settings = self._make_analysis_settings([1, 2])
-            self._call_bash_params(d, settings)
-            self.assertEqual(sorted(settings['ri_inuring_priorities']), [2, 3])
+            result = self._call_bash_params(d, settings)
+            self.assertEqual(sorted(result['analysis_settings']['ri_inuring_priorities']), [2, 3])
 
     def test_unknown_oed_priority_silently_dropped(self):
         """An OED priority value absent from the mapping is silently dropped."""
@@ -375,6 +405,6 @@ class TestBashParamsInuringPriorityConversion(TestCase):
             _write_json(os.path.join(d, 'input', 'ri_inuring_priority_output_levels.json'), mapping)
 
             settings = self._make_analysis_settings([1, 99])
-            self._call_bash_params(d, settings)
+            result = self._call_bash_params(d, settings)
             # 99 is not in the mapping so it is dropped; 1 → 2
-            self.assertEqual(settings['ri_inuring_priorities'], [2])
+            self.assertEqual(result['analysis_settings']['ri_inuring_priorities'], [2])

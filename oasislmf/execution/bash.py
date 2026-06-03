@@ -2117,19 +2117,22 @@ def bash_params(
 
     # Convert ri_inuring_priorities from OED InuringPriority values to RI output level indices.
     # The mapping file produced during input generation records, for each OED InuringPriority, the
-    # index of the last RI layer (output level) belonging to that priority.  We update
-    # analysis_settings in-place so all downstream consumers of get_ri_inuring_priorities() receive
-    # the already-converted values without needing to know about the mapping themselves.
+    # index of the last RI layer (output level) belonging to that priority.
+    # We shadow analysis_settings with a shallow copy so the caller's dict is never mutated —
+    # this means repeated bash_params() calls with the same dict remain safe (idempotent).
     if model_run_dir and analysis_settings.get('ri_inuring_priorities'):
         mapping_fp = os.path.join(model_run_dir, 'input', 'ri_inuring_priority_output_levels.json')
         if os.path.exists(mapping_fp):
             with io.open(mapping_fp, encoding='utf-8') as _f:
                 _ip_to_level = {int(k): int(v) for k, v in json.load(_f).items()}
-            analysis_settings['ri_inuring_priorities'] = [
-                _ip_to_level[int(p)]
-                for p in analysis_settings['ri_inuring_priorities']
-                if int(p) in _ip_to_level
-            ]
+            analysis_settings = {
+                **analysis_settings,
+                'ri_inuring_priorities': [
+                    _ip_to_level[int(p)]
+                    for p in analysis_settings['ri_inuring_priorities']
+                    if int(p) in _ip_to_level
+                ],
+            }
 
     if model_storage_json:
         bash_params['model_storage_json'] = model_storage_json
