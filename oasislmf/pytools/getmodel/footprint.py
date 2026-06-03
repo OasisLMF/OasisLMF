@@ -16,7 +16,6 @@ import pandas as pd
 from oasis_data_manager.df_reader.config import (InputReaderConfig,
                                                  clean_config, get_df_reader)
 from oasis_data_manager.df_reader.reader import OasisReader
-from oasis_data_manager.errors import OasisException
 from oasis_data_manager.filestore.backends.base import BaseStorage
 
 from oasislmf.pytools.common.data import areaperil_int, footprint_event_dtype
