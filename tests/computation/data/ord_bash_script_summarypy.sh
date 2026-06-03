@@ -20,6 +20,7 @@ exit_handler(){
    trap - QUIT HUP INT KILL TERM ERR EXIT
 
    kill -9 $pid0 2> /dev/null
+   [ -n "${spid:-}" ] && { kill -TERM "$spid" 2>/dev/null; kill -9 "$spid" 2>/dev/null; } || true
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
        echo 'Kernel execution error - exitcode='$exit_code
@@ -196,7 +197,6 @@ tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summary_palt/P2.idx work/gul_S1_sum
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 ) 2>> $LOG_DIR/stderror.err  &
 
 socket-server 2 10006 > /dev/null & spid=$!
-trap 'kill -TERM -"$spid" 2>/dev/null' INT TERM
 
 # --- Verify FIFO pipes ---
 check_fifos \
