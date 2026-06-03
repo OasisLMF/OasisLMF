@@ -191,11 +191,11 @@ class TestGenerateSummaryxrefRI(TestCase):
         dummy_df = pd.DataFrame()
 
         with patch('oasislmf.preparation.summaries.get_summary_xref_df') as mock_xref, \
-             patch('oasislmf.preparation.summaries.df_to_ndarray') as mock_ndarray, \
-             patch('oasislmf.preparation.summaries.write_df_to_csv_file') as mock_csv, \
-             patch('oasislmf.preparation.summaries.write_df_to_parquet_file') as mock_parquet, \
-             patch('oasislmf.preparation.summaries.get_dataframe') as mock_get_df, \
-             patch('oasislmf.preparation.summaries.os.path.exists', return_value=True):
+                patch('oasislmf.preparation.summaries.df_to_ndarray') as mock_ndarray, \
+                patch('oasislmf.preparation.summaries.write_df_to_csv_file') as mock_csv, \
+                patch('oasislmf.preparation.summaries.write_df_to_parquet_file') as mock_parquet, \
+                patch('oasislmf.preparation.summaries.get_dataframe') as mock_get_df, \
+                patch('oasislmf.preparation.summaries.os.path.exists', return_value=True):
 
             # get_summary_xref_df returns (xref_df, summary_desc)
             xref_array = MagicMock()
