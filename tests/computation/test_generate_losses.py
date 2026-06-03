@@ -239,8 +239,10 @@ class TestGenLosses(ComputationChecker):
                 'summarypy_low_memory': True,
             }
             with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}):
+                previous_level = logging.getLogger("oasislmf").level
                 logging.getLogger("oasislmf").setLevel(logging.WARNING)
                 self.manager.generate_losses(**call_args)
+                logging.getLogger("oasislmf").setLevel(previous_level)
 
             # Check bash script vs reference
             self.assertTrue(mock_popen.called)
