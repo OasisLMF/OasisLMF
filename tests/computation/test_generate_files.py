@@ -121,6 +121,7 @@ class TestGenFiles(ComputationChecker):
                 'fm_programme': f'{expected_run_dir}/fm_programme.bin',
                 'fm_xref': f'{expected_run_dir}/fm_xref.bin',
                 'ri_layers': f'{expected_run_dir}/ri_layers.json',
+                'ri_inuring_priority_output_levels': f'{expected_run_dir}/ri_inuring_priority_output_levels.json',
                 'RI_1': f'{expected_run_dir}/RI_1'
             }
             self.assertEqual(file_gen_return, expected_return)
