@@ -670,7 +670,7 @@ class FootprintParquetDynamic(Footprint):
         if len(df_footprint) > 0:
             df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
                 (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
-            df_footprint['intensity'] = df_footprint['intensity'].astype('int')
+            df_footprint['intensity'] = df_footprint['intensity'].fillna(0).astype('int')
 
             # Collapse realisations that produce the same intensity after interpolation,
             # summing their probabilities, then normalise per areaperil to absorb float drift.
