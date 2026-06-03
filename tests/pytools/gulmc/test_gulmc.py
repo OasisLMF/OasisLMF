@@ -346,3 +346,55 @@ def test_adjustments(test_model: Tuple[str, str]):
             # remove temporary file
             file_out.unlink()
             file_out.with_suffix('.csv').unlink()
+
+
+def _run_gulmc_to(out_path, run_dir, sample_size, random_generator):
+    """Helper: run gulmc once into out_path with the given generator."""
+    run_gulmc(
+        run_dir=run_dir,
+        ignore_file_type=set(),
+        file_in=run_dir.joinpath('input').joinpath('events.bin'),
+        file_out=out_path,
+        sample_size=sample_size,
+        loss_threshold=0.,
+        alloc_rule=1,
+        debug=0,
+        random_generator=random_generator,
+        ignore_correlation=False,
+        effective_damageability=False,
+    )
+
+
+@pytest.mark.parametrize("random_generator", [2], ids=lambda x: f"random_generator={x} ")
+@pytest.mark.parametrize("sample_size", [10, 100], ids=lambda x: f"S{x} ")
+def test_gulmc_philox_generators(random_generator, sample_size):
+    """End-to-end smoke test for the Philox LH generator (rng 2).
+
+    No reference data exists for Philox (it is not bit-compatible with the
+    Mersenne-Twister generators), so we assert the two properties we can check
+    without a reference: the run produces output, that output is deterministic
+    (byte-identical across two runs), and it differs from the rng=1 (LH-on-MT) output.
+    """
+    test_model_dir = Path(test_models_dirs[0][1])
+
+    with TemporaryDirectory() as d1, TemporaryDirectory() as d2, TemporaryDirectory() as d_mt:
+        a1 = Path(d1).joinpath("assets")
+        a2 = Path(d2).joinpath("assets")
+        a_mt = Path(d_mt).joinpath("assets")
+        os.symlink(test_model_dir, a1, target_is_directory=True)
+        os.symlink(test_model_dir, a2, target_is_directory=True)
+        os.symlink(test_model_dir, a_mt, target_is_directory=True)
+
+        out1 = a1.joinpath("gulmc_philox_1.bin")
+        out2 = a2.joinpath("gulmc_philox_2.bin")
+        out_mt = a_mt.joinpath("gulmc_mt.bin")
+
+        _run_gulmc_to(out1, a1, sample_size, random_generator)
+        _run_gulmc_to(out2, a2, sample_size, random_generator)
+        _run_gulmc_to(out_mt, a_mt, sample_size, 1)
+
+        assert out1.exists() and out1.stat().st_size > 0
+        # deterministic: same generator + inputs -> byte-identical output
+        assert filecmp.cmp(out1, out2, shallow=False), "Philox output is not deterministic across runs"
+        # not bit-compatible with the MT-based Latin Hypercube (sanity: generator is actually used)
+        assert not filecmp.cmp(out1, out_mt, shallow=False), "Philox output unexpectedly matches rng=1"

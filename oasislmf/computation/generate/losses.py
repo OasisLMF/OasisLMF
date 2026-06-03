@@ -108,7 +108,8 @@ class GenerateLossesBase(ComputationStep):
             'kernel_alloc_rule_il': KERNEL_ALLOC_FM_MAX,
             'kernel_alloc_rule_ri': KERNEL_ALLOC_FM_MAX,
             'kernel_event_shuffle': EVE_STD_SHUFFLE,
-            'gul_random_generator': 1}
+            # 0: Mersenne-Twister, 1: Latin Hypercube, 2: LH on Philox4x32-7
+            'gul_random_generator': 2}
 
         for rule in rule_ranges:
             rule_val = int(getattr(self, rule))
@@ -424,7 +425,8 @@ class GenerateLossesPartial(GenerateLossesDir):
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
         {'name': 'gul_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube, '
+                 '2: Latin Hypercube on Philox4x32-7. Default: 1).'},
         {'name': 'gulmc_effective_damageability', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
@@ -640,7 +642,8 @@ class GenerateLosses(GenerateLossesDir):
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
         {'name': 'gul_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube, '
+                 '2: Latin Hypercube on Philox4x32-7. Default: 1).'},
         {'name': 'gulmc_effective_damageability', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
