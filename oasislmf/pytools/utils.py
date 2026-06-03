@@ -81,9 +81,14 @@ def redirect_logging(exec_name, log_dir='./log'):
 
             log_level = os.environ.get('OASIS_PYTOOLS_LOG_LEVEL', None)
             log_level = kwargs.get('logging_level', None) if log_level is None else log_level
-            if log_level is not None:
-                log_level = logging.getLevelName(log_level)  # if sucessful converts to int
-                log_level = None if isinstance(log_level, str) else log_level
+            # convert to int representation
+            if isinstance(log_level, str):
+                if log_level.isdigit():
+                    log_level = int(log_level)
+                else:
+                    log_level = logging.getLevelName(log_level)
+                    log_level = log_level if isinstance(log_level, int) else None
+
             log_level = logging.WARNING if log_level is None else logging.getLevelName(log_level)
 
             childFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
