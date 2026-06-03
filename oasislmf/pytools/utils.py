@@ -89,7 +89,7 @@ def redirect_logging(exec_name, log_dir='./log'):
                     log_level = logging.getLevelName(log_level)
                     log_level = log_level if isinstance(log_level, int) else None
 
-            log_level = logging.WARNING if log_level is None else logging.getLevelName(log_level)
+            log_level = logging.WARNING if log_level is None else log_level
 
             childFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
             childFileHandler.setLevel(log_level)
