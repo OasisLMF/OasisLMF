@@ -143,7 +143,7 @@ mkfifo fifo/ri_S1_plt_ord_P2
 mkfifo fifo/ri_S1_elt_ord_P2
 mkfifo fifo/ri_S1_selt_ord_P2
 
-export OASIS_PYTOOLS_LOG_LEVEL=30
+export OASIS_PYTOOLS_LOG_LEVEL=10
 
 # --- Do reinsurance loss computes ---
 
