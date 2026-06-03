@@ -11,7 +11,6 @@ import inspect
 import logging
 import os
 import time
-import sys
 
 from functools import wraps
 from logging.handlers import RotatingFileHandler
