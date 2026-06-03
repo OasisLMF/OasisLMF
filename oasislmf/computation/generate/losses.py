@@ -498,6 +498,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             event_shuffle=self.kernel_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
+            model_run_dir=model_run_fp,
             peril_filter=self._get_peril_filter(self.settings),
             join_summary_info=self.join_summary_info,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
@@ -576,6 +577,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             fifo_tmp_dir=not self.kernel_fifo_relative,
             remove_working_file=self.remove_working_file,
             max_process_id=self.max_process_id,
+            model_run_dir=model_run_fp,
         )
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
         with setcwd(model_run_fp):

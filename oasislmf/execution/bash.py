@@ -50,6 +50,7 @@ Entry points:
 
 import contextlib
 import io
+import json
 import logging
 import multiprocessing
 import os
@@ -2113,6 +2114,22 @@ def bash_params(
     bash_params['process_number'] = process_number
     bash_params['remove_working_files'] = remove_working_files
     bash_params['model_run_dir'] = model_run_dir
+
+    # Convert ri_inuring_priorities from OED InuringPriority values to RI output level indices.
+    # The mapping file produced during input generation records, for each OED InuringPriority, the
+    # index of the last RI layer (output level) belonging to that priority.  We update
+    # analysis_settings in-place so all downstream consumers of get_ri_inuring_priorities() receive
+    # the already-converted values without needing to know about the mapping themselves.
+    if model_run_dir and analysis_settings.get('ri_inuring_priorities'):
+        mapping_fp = os.path.join(model_run_dir, 'input', 'ri_inuring_priority_output_levels.json')
+        if os.path.exists(mapping_fp):
+            with io.open(mapping_fp, encoding='utf-8') as _f:
+                _ip_to_level = {int(k): int(v) for k, v in json.load(_f).items()}
+            analysis_settings['ri_inuring_priorities'] = [
+                _ip_to_level[int(p)]
+                for p in analysis_settings['ri_inuring_priorities']
+                if int(p) in _ip_to_level
+            ]
 
     if model_storage_json:
         bash_params['model_storage_json'] = model_storage_json
