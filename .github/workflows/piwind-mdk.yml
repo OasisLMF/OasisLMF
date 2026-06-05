@@ -1,9 +1,3 @@
-# Workflow to test the MDK command line works by invoking
-#   'oasislmf model run' on a piwind branch
-#
-#    The output is not checked, and will fail on either exceptions
-#    or empty output files
-
 name: PiWind MDK
 
 on:
@@ -15,24 +9,66 @@ on:
 
   workflow_dispatch:
     inputs:
-      piwind_branch:
-        description: 'Branch to run PiWind from'
-        required: true
-        default: main
-      mdk_run_type:
-        description: 'Loss modes to test, options are one of "[gul, il, ri]"'
-        required: true
-        default: ri
-      ods_branch:
-        description: 'Build ods_tools package before test [git ref]'
+      oasis_models_branch:
+        description: 'OasisModels branch to test against'
         required: false
-        type: string
+        default: main
+      ods_branch:
+        description: 'ODS_Tools git branch to install (leave empty for version bundled with oasislmf)'
+        required: false
+        default: ''
 
 jobs:
-  PiWind:
-    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@main
-    with:
-      mdk_branch: ${{ github.ref }}
-      mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
+  run-model-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+
+    steps:
+      - name: Checkout oasislmf
+        uses: actions/checkout@v4
+        with:
+          path: oasislmf
+
+      - name: Clone OasisModels
+        uses: actions/checkout@v4
+        with:
+          repository: OasisLMF/OasisModels
+          ref: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.oasis_models_branch }}
+          path: OasisModels
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install oasislmf from source
+        run: pip install "./oasislmf[extra]"
+
+      - name: Install ODS_Tools (git branch)
+        if: ${{ inputs.ods_branch }}
+        run: pip install "git+https://github.com/OasisLMF/ODS_Tools.git@${{ inputs.ods_branch }}"
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Install Complex Model wrapper
+        run: cd OasisModels/PiWindComplexModel && pip install .
+
+      - name: Run model tests
+        working-directory: OasisModels
+        run: pytest tests/test_model_runs.py -v --check-results --basetemp=pytest-tmp
+
+      - name: Archive model logs
+        if: always()
+        working-directory: OasisModels
+        run: |
+          find pytest-tmp -path "*/run/log" -type d \
+            | tar -czf model-logs.tar.gz --files-from=-
+
+      - name: Upload model logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-logs-py${{ matrix.python-version }}
+          path: OasisModels/model-logs.tar.gz
