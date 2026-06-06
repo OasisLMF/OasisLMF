@@ -118,7 +118,7 @@ check_fifos \
     /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P4 \
     /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P4.idx
 
-( ( evepy 4 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P4  ) 2>> $LOG_DIR/stderror.err ) &  pid5=$!
+( ( evepy 4 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P4  ) 2>> $LOG_DIR/stderror.err ) &  pid5=$!
 
 exec_wait $pid1 $pid2 $pid3 $pid4 $pid5
 

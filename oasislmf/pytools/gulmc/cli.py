@@ -50,8 +50,8 @@ parser.add_argument('--random-generator',
                          '0: numpy default (MT19937)\n'
                          '1: Latin Hypercube\n'
                          '2: Latin Hypercube on Philox4x32-7 (counter-based, faster)\n'
-                         'Default: 1',
-                    default=1, type=int, dest='random_generator')
+                         'Default: 2',
+                    default=2, type=int, dest='random_generator')
 parser.add_argument('--run-dir', help='path to the run directory. Default: "."', default='.')
 parser.add_argument('--model-df-engine', help='The engine to use when loading model dataframes',
                     default='oasis_data_manager.df_reader.reader.OasisPandasReader')
