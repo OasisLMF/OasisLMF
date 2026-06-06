@@ -3,7 +3,6 @@ This file tests gulmc functionality
 """
 import filecmp
 import os
-import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Tuple
@@ -23,12 +22,18 @@ TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 test_models_dirs = [(x.name, x) for x in sorted(TESTS_ASSETS_DIR.glob("test_model_*")) if x.is_dir()]
 
 # define the grid of model parameters to test
-sample_sizes = [0, 1, 10, 100, 1000]
+# Sample sizes are JIT-aware: the positive sizes all exercise the same sampling code,
+# so we cover S=0 (the distinct no-sampling path) plus a loop edge and a large/scale
+# case under JIT, and just a small fast size when the JIT is disabled (the pure-Python
+# coverage CI job, where large sample sizes are slow for no extra coverage).
+if os.environ.get("NUMBA_DISABLE_JIT", "0") != "0":
+    sample_sizes = [0, 10]
+else:
+    sample_sizes = [0, 1, 1000]
 alloc_rules = [1, 2, 3]
 ignore_correlations = [True, False]
-random_generators = [0, 1]
+random_generators = [0, 1, 2]
 effective_damageabilities = [True, False]
-socket_server = ['False', '2.0', 'True']
 
 
 @pytest.fixture
@@ -61,9 +66,7 @@ def gul_atol(request):
 @pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
 @pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
 @pytest.mark.parametrize("test_model", test_models_dirs, ids=lambda x: x[0])
-@pytest.mark.parametrize("socket_server", socket_server, ids=lambda x: f"socket_server={x}")
-def test_gulmc(socket_server: str,
-               test_model: Tuple[str, str],
+def test_gulmc(test_model: Tuple[str, str],
                sample_size: int,
                alloc_rule: int,
                ignore_correlation: bool,
@@ -101,8 +104,7 @@ def test_gulmc(socket_server: str,
     test_model_name, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
-    with (TemporaryDirectory() as tmp_result_dir_str,
-          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping):
+    with TemporaryDirectory() as tmp_result_dir_str:
 
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
 
@@ -131,7 +133,6 @@ def test_gulmc(socket_server: str,
                 random_generator=random_generator,
                 ignore_correlation=ignore_correlation,
                 effective_damageability=effective_damageability,
-                socket_server=socket_server
             )
 
         else:
@@ -149,12 +150,7 @@ def test_gulmc(socket_server: str,
                 random_generator=random_generator,
                 ignore_correlation=ignore_correlation,
                 effective_damageability=effective_damageability,
-                socket_server=socket_server
             )
-            if socket_server != 'False':
-                mock_ping.assert_called()
-            else:
-                mock_ping.assert_not_called()
             # compare the test results to the expected results
             try:
                 assert filecmp.cmp(file_out, ref_out_bin_fname.with_suffix('.bin'), shallow=False)
@@ -348,53 +344,72 @@ def test_adjustments(test_model: Tuple[str, str]):
             file_out.with_suffix('.csv').unlink()
 
 
-def _run_gulmc_to(out_path, run_dir, sample_size, random_generator):
-    """Helper: run gulmc once into out_path with the given generator."""
-    run_gulmc(
-        run_dir=run_dir,
-        ignore_file_type=set(),
-        file_in=run_dir.joinpath('input').joinpath('events.bin'),
-        file_out=out_path,
-        sample_size=sample_size,
-        loss_threshold=0.,
-        alloc_rule=1,
-        debug=0,
-        random_generator=random_generator,
-        ignore_correlation=False,
-        effective_damageability=False,
-    )
+@pytest.mark.parametrize("socket_server,ping_expected,port_expected", [
+    ('False', False, None),   # ping disabled (default / real loss runs)
+    ('True', True, None),     # ping enabled, non-numeric value -> no port override
+    ('8888', True, 8888),     # ping enabled, numeric value -> port override (matrix never hit this)
+], ids=lambda v: f"socket_server={v}")
+def test_gulmc_socket_server_ping(socket_server, ping_expected, port_expected):
+    """The socket_server value controls the end-of-run progress ping (oasis_ping).
 
-
-@pytest.mark.parametrize("random_generator", [2], ids=lambda x: f"random_generator={x} ")
-@pytest.mark.parametrize("sample_size", [10, 100], ids=lambda x: f"S{x} ")
-def test_gulmc_philox_generators(random_generator, sample_size):
-    """End-to-end smoke test for the Philox LH generator (rng 2).
-
-    No reference data exists for Philox (it is not bit-compatible with the
-    Mersenne-Twister generators), so we assert the two properties we can check
-    without a reference: the run produces output, that output is deterministic
-    (byte-identical across two runs), and it differs from the rng=1 (LH-on-MT) output.
+    The ping is emitted only when socket_server != 'False', and a numeric value is
+    passed through as a `port_override`. Kept separate from test_gulmc so this small,
+    loss-independent feature isn't multiplied across the whole loss-regression matrix.
     """
-    test_model_dir = Path(test_models_dirs[0][1])
+    test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
+    with (TemporaryDirectory() as tmp_result_dir_str,
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping):
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        run_gulmc(
+            run_dir=tmp_result_dir,
+            ignore_file_type=set(),
+            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+            file_out=tmp_result_dir.joinpath('tmp.bin'),
+            sample_size=10,
+            loss_threshold=0.,
+            alloc_rule=1,
+            debug=0,
+            random_generator=1,
+            ignore_correlation=False,
+            effective_damageability=False,
+            socket_server=socket_server,
+        )
+        if ping_expected:
+            mock_ping.assert_called()
+            ping_payloads = [c.args[0] for c in mock_ping.call_args_list]
+            assert all(('port_override' in p) == (port_expected is not None) for p in ping_payloads)
+            if port_expected is not None:
+                assert all(p['port_override'] == port_expected for p in ping_payloads)
+        else:
+            mock_ping.assert_not_called()
 
-    with TemporaryDirectory() as d1, TemporaryDirectory() as d2, TemporaryDirectory() as d_mt:
-        a1 = Path(d1).joinpath("assets")
-        a2 = Path(d2).joinpath("assets")
-        a_mt = Path(d_mt).joinpath("assets")
-        os.symlink(test_model_dir, a1, target_is_directory=True)
-        os.symlink(test_model_dir, a2, target_is_directory=True)
-        os.symlink(test_model_dir, a_mt, target_is_directory=True)
 
-        out1 = a1.joinpath("gulmc_philox_1.bin")
-        out2 = a2.joinpath("gulmc_philox_2.bin")
-        out_mt = a_mt.joinpath("gulmc_mt.bin")
+def test_gulmc_socket_server_periodic_ping():
+    """The in-loop periodic ping fires once more than SERVER_UPDATE_TIME elapses between events.
 
-        _run_gulmc_to(out1, a1, sample_size, random_generator)
-        _run_gulmc_to(out2, a2, sample_size, random_generator)
-        _run_gulmc_to(out_mt, a_mt, sample_size, 1)
-
-        assert out1.exists() and out1.stat().st_size > 0
-        # deterministic: same generator + inputs -> byte-identical output
-        assert filecmp.cmp(out1, out2, shallow=False), "Philox output is not deterministic across runs"
-        # not bit-compatible with the MT-based Latin Hypercube (sanity: generator is actually used)
-        assert not filecmp.cmp(out1, out_mt, shallow=False), "Philox output unexpectedly matches rng=1"
+    Forcing the threshold below zero makes the periodic ping (distinct from the
+    end-of-run ping) fire on every event, so oasis_ping is called more than once.
+    """
+    test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
+    with (TemporaryDirectory() as tmp_result_dir_str,
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping,
+          patch('oasislmf.pytools.gulmc.manager.SERVER_UPDATE_TIME', -1)):
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        run_gulmc(
+            run_dir=tmp_result_dir,
+            ignore_file_type=set(),
+            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+            file_out=tmp_result_dir.joinpath('tmp.bin'),
+            sample_size=10,
+            loss_threshold=0.,
+            alloc_rule=1,
+            debug=0,
+            random_generator=1,
+            ignore_correlation=False,
+            effective_damageability=False,
+            socket_server='True',
+        )
+        # periodic ping (per event, threshold forced negative) + end-of-run ping -> >1 call
+        assert mock_ping.call_count > 1
