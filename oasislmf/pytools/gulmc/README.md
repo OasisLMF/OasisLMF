@@ -212,7 +212,7 @@ Positive indices `1..sample_size` are the Monte Carlo samples.
 ## Usage
 
 ```bash
-gulmc --random-generator=1 \
+gulmc --random-generator=2 \
   --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' \
   --vuln-cache-size 200 \
   -S10 -L0 -a1 \

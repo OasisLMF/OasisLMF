@@ -115,11 +115,13 @@ def test_skip_seeds():
 
 @pytest.mark.parametrize("n", [1, 4, 7, 50, 128])
 def test_valid_latin_hypercube(n):
-    """Each row is a valid LHS in [0,1): exactly one sample falls in each of the n strata."""
+    """Each row is a valid LHS in (0,1]: exactly one sample falls in each of the n strata."""
     seeds = _seeds()
     out = GEN(seeds, n, 0)
     assert out.shape == (len(seeds), n)
-    assert (out >= 0.0).all() and (out < 1.0).all()
+    # Range is (0,1] -- the jitter w*INV32 lies in [0,1), so (perms[k]-jitter)/n
+    # can reach exactly 1.0 (w=0, perms[k]=n) but is strictly above 0.
+    assert (out > 0.0).all() and (out <= 1.0).all()
     for row in out:
         strata = np.minimum((row * n).astype(np.int64), n - 1)
         assert (np.bincount(strata, minlength=n) == 1).all()

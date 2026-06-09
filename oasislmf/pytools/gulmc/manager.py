@@ -1173,7 +1173,7 @@ if __name__ == '__main__':
         'data_server': False,
         'max_cached_vuln_cdf_size_MB': 200,
         'peril_filter': None,
-        'random_generator': 1,
+        'random_generator': 2,
         'run_dir': '.',
         'model_df_engine': 'oasis_data_manager.df_reader.reader.OasisPandasReader',
         'dynamic_footprint': False}
