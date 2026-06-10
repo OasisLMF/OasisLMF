@@ -9,7 +9,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_float, oasis_int_size, oasis_float_size,
+                                          summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_returnperiods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
@@ -143,6 +144,75 @@ def do_lec_output_agg_summary(
             if loss > outloss_sample[idx]["max_out_loss"]:
                 outloss_sample[idx]["max_out_loss"] = loss
             row_used_sample[idx] = True
+
+
+@nb.njit(cache=True, error_model="numpy")
+def process_summary_entries(
+    fin,
+    offsets,
+    occ_map,
+    use_return_period,
+    outloss_mean_s,
+    row_used_mean_s,
+    outloss_sample_s,
+    row_used_sample_s,
+    num_sidxs,
+):
+    """Process all indexed event blocks for one (summary_id, file) pair in a single call.
+
+    Eliminates per-event Python→numba overhead by looping over all offsets inside numba.
+    offsets should be sorted ascending for best OS page-cache utilisation.
+    """
+    valid_buff = len(fin)
+    for offset in offsets:
+        cursor = offset
+        event_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+        _, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)    # summary_id known from idx
+        _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)  # expval
+
+        if event_id not in occ_map:
+            continue
+
+        filtered_occ_map = occ_map[event_id]
+        while cursor < valid_buff:
+            sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+            loss, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+            if sidx == 0:
+                break
+            if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
+                continue
+            if loss > 0 or use_return_period:
+                do_lec_output_agg_summary(
+                    1, sidx, loss, filtered_occ_map,
+                    outloss_mean_s, row_used_mean_s,
+                    outloss_sample_s, row_used_sample_s,
+                    num_sidxs, 1,
+                )
+
+
+_MERGED_IDX_DTYPE = np.dtype([
+    ("summary_id", np.int32),
+    ("file_index", np.int32),
+    ("offset", np.int64),
+])
+
+
+def build_merged_idx(idx_handles):
+    """Merge per-file .idx memmaps into one array sorted by summary_id."""
+    parts = []
+    for file_index, idx in enumerate(idx_handles):
+        if idx is None or len(idx) == 0:
+            continue
+        chunk = np.empty(len(idx), dtype=_MERGED_IDX_DTYPE)
+        chunk["summary_id"] = idx["summary_id"]
+        chunk["file_index"] = file_index
+        chunk["offset"] = idx["offset"]
+        parts.append(chunk)
+    if not parts:
+        return np.empty(0, dtype=_MERGED_IDX_DTYPE)
+    merged = np.concatenate(parts)
+    merged.sort(order="summary_id")
+    return merged
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -334,15 +404,40 @@ def run(
         lec_files_folder = Path(workspace_folder, "lec_files")
         lec_files_folder.mkdir(parents=False, exist_ok=True)
 
-        # Find summary binary files
-        files = [file for file in workspace_folder.glob("*.bin")]
+        # Find summary binary files (sorted for stable pairing with .idx files)
+        files = sorted(workspace_folder.glob("*.bin"))
         file_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
 
         streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files, stack)
         if stream_source_type != SUMMARY_STREAM_ID:
             raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
-        max_summary_id = get_max_summary_id(file_handles)
+        # Detect .idx files for per-summary streaming path
+        idx_handles_raw = []
+        for f in files:
+            idx_path = f.with_suffix(".idx")
+            if idx_path.exists():
+                if idx_path.stat().st_size > 0:
+                    idx_handles_raw.append(np.memmap(str(idx_path), mode="r", dtype=summary_stream_index_dtype))
+                else:
+                    idx_handles_raw.append(np.empty(0, dtype=summary_stream_index_dtype))
+            else:
+                idx_handles_raw.append(None)
+        n_idx = sum(h is not None for h in idx_handles_raw)
+        use_idx_path = n_idx == len(files) and n_idx > 0
+        if use_idx_path:
+            logger.info("Found %d/%d .idx file(s) — using per-summary-id indexing (reduced disk)", n_idx, len(files))
+            merged = build_merged_idx(idx_handles_raw)
+            unique_summary_ids = np.unique(merged["summary_id"])
+            max_summary_id = int(unique_summary_ids[-1]) if len(unique_summary_ids) > 0 else 0
+        else:
+            if 0 < n_idx < len(files):
+                logger.warning(
+                    "%d/%d .idx files found — all .bin files must have .idx to use index path; "
+                    "falling back to sequential scan", n_idx, len(files)
+                )
+            max_summary_id = get_max_summary_id(file_handles)
+
         if max_summary_id == 0:
             return
 
@@ -383,6 +478,95 @@ def run(
         if not (outmap["ept"]["compute"] or outmap["psept"]["compute"]):
             return
 
+        # ── Per-summary streaming path (idx files present) ───────────────────────
+        if use_idx_path:
+            num_sidxs = int(sample_size) + 2
+            no_of_periods = int(file_data["no_of_periods"])
+
+            # Open output files before the loop so headers are written once
+            if output_binary:
+                for out_type in outmap:
+                    if not outmap[out_type]["compute"]:
+                        continue
+                    out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
+                    outmap[out_type]["file"] = out_file
+            elif output_parquet:
+                for out_type in outmap:
+                    if not outmap[out_type]["compute"]:
+                        continue
+                    temp_out_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=outmap[out_type]["dtype"])
+                    temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
+                    temp_table = pa.Table.from_pandas(temp_df)
+                    out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+                    outmap[out_type]["file"] = out_file
+            else:
+                for out_type in outmap:
+                    if not outmap[out_type]["compute"]:
+                        continue
+                    out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
+                    if not noheader:
+                        out_file.write(','.join(outmap[out_type]["headers"]) + '\n')
+                    outmap[out_type]["file"] = out_file
+
+            # In the idx path only output_for_summary is ever called on this instance.
+            # That method takes per-summary arrays as explicit arguments and never reads
+            # self.outloss_mean, self.outloss_sample, self.row_used_indices_mean, or
+            # self.row_used_indices_sample — so the arrays passed here are unused
+            # placeholders that satisfy the constructor signature. max_summary_id=1
+            # is also passed as a placeholder; output_for_summary hardcodes 1 directly.
+            _d_mean = np.zeros(no_of_periods, dtype=OUTLOSS_DTYPE)
+            _d_rw_m = np.zeros(no_of_periods, dtype=np.bool_)
+            _d_samp = np.zeros(no_of_periods * num_sidxs, dtype=OUTLOSS_DTYPE)
+            _d_rw_s = np.zeros(no_of_periods * num_sidxs, dtype=np.bool_)
+            agg = AggReports(
+                outmap, _d_mean, _d_rw_m, _d_samp, _d_rw_s,
+                file_data["period_weights"], 1, sample_size, no_of_periods, num_sidxs,
+                use_return_period, file_data["returnperiods"], lec_files_folder,
+                output_binary, output_parquet,
+            )
+
+            # Per-summary arrays — no × max_summary_id factor
+            outloss_mean_s   = np.zeros(no_of_periods,             dtype=OUTLOSS_DTYPE)
+            outloss_sample_s = np.zeros(no_of_periods * num_sidxs, dtype=OUTLOSS_DTYPE)
+            row_used_mean_s   = np.zeros(no_of_periods,             dtype=np.bool_)
+            row_used_sample_s = np.zeros(no_of_periods * num_sidxs, dtype=np.bool_)
+
+            # Pre-compute uint8 views once — numpy's struct[:]=0 is ~4x slower than raw byte zeroing
+            _mean_bytes   = outloss_mean_s.view(np.uint8)
+            _sample_bytes = outloss_sample_s.view(np.uint8)
+
+            for summary_id in unique_summary_ids:
+                _mean_bytes[:] = 0
+                _sample_bytes[:] = 0
+                row_used_mean_s[:] = False
+                row_used_sample_s[:] = False
+
+                lo = int(np.searchsorted(merged["summary_id"], summary_id, side="left"))
+                hi = int(np.searchsorted(merged["summary_id"], summary_id, side="right"))
+                entries = merged[lo:hi]
+                for fi in np.unique(entries["file_index"]):
+                    offsets = np.sort(entries[entries["file_index"] == fi]["offset"])
+                    process_summary_entries(
+                        file_handles[int(fi)],
+                        offsets,
+                        file_data["occ_map"],
+                        use_return_period,
+                        outloss_mean_s,
+                        row_used_mean_s,
+                        outloss_sample_s,
+                        row_used_sample_s,
+                        num_sidxs,
+                    )
+
+                agg.output_for_summary(
+                    int(summary_id),
+                    outloss_mean_s, row_used_mean_s,
+                    outloss_sample_s, row_used_sample_s,
+                    output_flags, hasOCC, hasAGG,
+                )
+            return  # skip sequential path below
+
+        # ── Sequential path (no .idx files) ──────────────────────────────────────
         # Create outloss array maps
         # outloss_mean has only -1 SIDX
         outloss_mean_file = Path(lec_files_folder, "lec_outloss_mean.bdat")
