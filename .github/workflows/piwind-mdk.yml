@@ -17,6 +17,14 @@ on:
         description: 'ODS_Tools git branch to install (leave empty for version bundled with oasislmf)'
         required: false
         default: ''
+      oasis_data_manager_branch:
+        description: 'oasis-data-manager git branch to install (leave empty to skip)'
+        required: false
+        default: ''
+      pytest_params:
+        description: 'Extra pytest parameters (e.g. -k testname)'
+        required: false
+        default: ''
 
 jobs:
   run-model-tests:
@@ -47,23 +55,27 @@ jobs:
 
       - name: Install ODS_Tools (git branch)
         if: ${{ inputs.ods_branch }}
-        run: pip install "git+https://github.com/OasisLMF/ODS_Tools.git@${{ inputs.ods_branch }}"
+        run: pip uninstall ods-tools -y && pip install "git+https://github.com/OasisLMF/ODS_Tools.git@${{ inputs.ods_branch }}"
+
+      - name: Install oasis-data-manager (git branch)
+        if: ${{ inputs.oasis_data_manager_branch }}
+        run: pip uninstall oasis-data-manager -y && pip install "git+https://github.com/OasisLMF/OasisDataManager.git@${{ inputs.oasis_data_manager_branch }}"
 
       - name: Install test dependencies
-        run: pip install pytest
+        run: pip install pytest s3fs
 
       - name: Install Complex Model wrapper
         run: cd OasisModels/PiWindComplexModel && pip install .
 
       - name: Run model tests
         working-directory: OasisModels
-        run: pytest tests/test_model_runs.py -v --check-results --basetemp=pytest-tmp
+        run: pytest tests/test_model_runs.py -v --check-results --basetemp=pytest-tmp ${{ inputs.pytest_params }}
 
       - name: Archive model logs
         if: always()
         working-directory: OasisModels
         run: |
-          find pytest-tmp -path "*/run/log" -type d \
+          find pytest-tmp -path "*/run/*" -type d \
             | tar -czf model-logs.tar.gz --files-from=-
 
       - name: Upload model logs
