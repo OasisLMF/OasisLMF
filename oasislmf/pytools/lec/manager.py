@@ -16,7 +16,7 @@ from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, r
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
                                        OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR,
                                        OUTLOSS_DTYPE, EPT_dtype, EPT_fmt, EPT_headers, PSEPT_dtype, PSEPT_fmt, PSEPT_headers)
-from oasislmf.pytools.lec.aggreports import AggReports
+from oasislmf.pytools.lec.aggreports import AggReports, LecConfig, make_output_fn, output_for_summary_idx
 from oasislmf.pytools.lec.utils import get_outloss_mean_idx, get_outloss_sample_idx
 from oasislmf.pytools.utils import redirect_logging
 
@@ -222,7 +222,6 @@ def process_input_file(
     row_used_mean,
     outloss_sample,
     row_used_sample,
-    summary_ids,
     occ_map,
     use_return_period,
     num_sidxs,
@@ -235,7 +234,6 @@ def process_input_file(
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
-        summary_ids (ndarray[bool]): bool array marking which summary_ids are used
         occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
@@ -244,7 +242,6 @@ def process_input_file(
     # Set cursor to end of stream header (stream_type, sample_size, summary_set_id)
     cursor = oasis_int_size * 3
 
-    # Read all samples
     valid_buff = len(fin)
     while cursor < valid_buff:
         event_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
@@ -261,7 +258,6 @@ def process_input_file(
             continue
 
         filtered_occ_map = occ_map[event_id]
-        summary_ids[summary_id - 1] = True
 
         while cursor < valid_buff:
             sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
@@ -292,7 +288,6 @@ def run_lec(
     row_used_mean,
     outloss_sample,
     row_used_sample,
-    summary_ids,
     occ_map,
     use_return_period,
     num_sidxs,
@@ -305,7 +300,6 @@ def run_lec(
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
-        summary_ids (ndarray[bool]): bool array marking which summary_ids are used
         occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
@@ -318,12 +312,35 @@ def run_lec(
             row_used_mean,
             outloss_sample,
             row_used_sample,
-            summary_ids,
             occ_map,
             use_return_period,
             num_sidxs,
             max_summary_id,
         )
+
+
+def _open_output_files(outmap, stack, output_binary, output_parquet, noheader):
+    if output_binary:
+        for out_type in outmap:
+            if not outmap[out_type]["compute"]:
+                continue
+            outmap[out_type]["file"] = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
+    elif output_parquet:
+        for out_type in outmap:
+            if not outmap[out_type]["compute"]:
+                continue
+            temp_out_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=outmap[out_type]["dtype"])
+            temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
+            temp_table = pa.Table.from_pandas(temp_df)
+            outmap[out_type]["file"] = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+    else:
+        for out_type in outmap:
+            if not outmap[out_type]["compute"]:
+                continue
+            out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
+            if not noheader:
+                out_file.write(','.join(outmap[out_type]["headers"]) + '\n')
+            outmap[out_type]["file"] = out_file
 
 
 def run(
@@ -424,6 +441,8 @@ def run(
             else:
                 idx_handles_raw.append(None)
         n_idx = sum(h is not None for h in idx_handles_raw)
+        # All files must have .idx: the merged index covers all files simultaneously,
+        # so a gap would silently drop events from the missing file.
         use_idx_path = n_idx == len(files) and n_idx > 0
         if use_idx_path:
             logger.info("Found %d/%d .idx file(s) — using per-summary-id indexing (reduced disk)", n_idx, len(files))
@@ -484,55 +503,27 @@ def run(
             no_of_periods = int(file_data["no_of_periods"])
 
             # Open output files before the loop so headers are written once
-            if output_binary:
-                for out_type in outmap:
-                    if not outmap[out_type]["compute"]:
-                        continue
-                    out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
-                    outmap[out_type]["file"] = out_file
-            elif output_parquet:
-                for out_type in outmap:
-                    if not outmap[out_type]["compute"]:
-                        continue
-                    temp_out_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=outmap[out_type]["dtype"])
-                    temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
-                    temp_table = pa.Table.from_pandas(temp_df)
-                    out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
-                    outmap[out_type]["file"] = out_file
-            else:
-                for out_type in outmap:
-                    if not outmap[out_type]["compute"]:
-                        continue
-                    out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
-                    if not noheader:
-                        out_file.write(','.join(outmap[out_type]["headers"]) + '\n')
-                    outmap[out_type]["file"] = out_file
+            _open_output_files(outmap, stack, output_binary, output_parquet, noheader)
 
-            # In the idx path only output_for_summary is ever called on this instance.
-            # That method takes per-summary arrays as explicit arguments and never reads
-            # self.outloss_mean, self.outloss_sample, self.row_used_indices_mean, or
-            # self.row_used_indices_sample — so the arrays passed here are unused
-            # placeholders that satisfy the constructor signature. max_summary_id=1
-            # is also passed as a placeholder; output_for_summary hardcodes 1 directly.
-            _d_mean = np.zeros(no_of_periods, dtype=OUTLOSS_DTYPE)
-            _d_rw_m = np.zeros(no_of_periods, dtype=np.bool_)
-            _d_samp = np.zeros(no_of_periods * num_sidxs, dtype=OUTLOSS_DTYPE)
-            _d_rw_s = np.zeros(no_of_periods * num_sidxs, dtype=np.bool_)
-            agg = AggReports(
-                outmap, _d_mean, _d_rw_m, _d_samp, _d_rw_s,
-                file_data["period_weights"], 1, sample_size, no_of_periods, num_sidxs,
-                use_return_period, file_data["returnperiods"], lec_files_folder,
-                output_binary, output_parquet,
+            idx_config = LecConfig(
+                period_weights=file_data["period_weights"],
+                max_summary_id=1,
+                sample_size=int(sample_size),
+                no_of_periods=no_of_periods,
+                num_sidxs=num_sidxs,
+                use_return_period=use_return_period,
+                returnperiods=file_data["returnperiods"],
             )
+            output_fn = make_output_fn(outmap, output_binary, output_parquet)
 
             # Per-summary arrays — no × max_summary_id factor
-            outloss_mean_s   = np.zeros(no_of_periods,             dtype=OUTLOSS_DTYPE)
+            outloss_mean_s = np.zeros(no_of_periods, dtype=OUTLOSS_DTYPE)
             outloss_sample_s = np.zeros(no_of_periods * num_sidxs, dtype=OUTLOSS_DTYPE)
-            row_used_mean_s   = np.zeros(no_of_periods,             dtype=np.bool_)
+            row_used_mean_s = np.zeros(no_of_periods, dtype=np.bool_)
             row_used_sample_s = np.zeros(no_of_periods * num_sidxs, dtype=np.bool_)
 
             # Pre-compute uint8 views once — numpy's struct[:]=0 is ~4x slower than raw byte zeroing
-            _mean_bytes   = outloss_mean_s.view(np.uint8)
+            _mean_bytes = outloss_mean_s.view(np.uint8)
             _sample_bytes = outloss_sample_s.view(np.uint8)
 
             for summary_id in unique_summary_ids:
@@ -558,16 +549,16 @@ def run(
                         num_sidxs,
                     )
 
-                agg.output_for_summary(
+                output_for_summary_idx(
                     int(summary_id),
                     outloss_mean_s, row_used_mean_s,
                     outloss_sample_s, row_used_sample_s,
                     output_flags, hasOCC, hasAGG,
+                    outmap=outmap, config=idx_config, output_fn=output_fn,
                 )
             return  # skip sequential path below
 
         # ── Sequential path (no .idx files) ──────────────────────────────────────
-        # Create outloss array maps
         # outloss_mean has only -1 SIDX
         outloss_mean_file = Path(lec_files_folder, "lec_outloss_mean.bdat")
         outloss_mean = np.memmap(
@@ -592,17 +583,13 @@ def run(
         row_used_sample_file = Path(lec_files_folder, "lec_row_used_sample.bdat")
         row_used_sample = np.memmap(row_used_sample_file, dtype=np.bool_, mode="w+", shape=(len(outloss_sample),))
 
-        # Array of Summary IDs found
-        summary_ids = np.zeros((max_summary_id), dtype=np.bool_)
-
-        # Run LEC calculations to populate outloss and summary_ids arrays
+        # Run LEC calculations to populate outloss arrays
         run_lec(
             file_handles,
             outloss_mean,
             row_used_mean,
             outloss_sample,
             row_used_sample,
-            summary_ids,
             file_data["occ_map"],
             use_return_period,
             num_sidxs,
@@ -610,45 +597,23 @@ def run(
         )
 
         # Initialise output files LEC
-        if output_binary:
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
-                outmap[out_type]["file"] = out_file
-        elif output_parquet:
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-                temp_out_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=outmap[out_type]["dtype"])
-                temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
-                temp_table = pa.Table.from_pandas(temp_df)
-                out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
-                outmap[out_type]["file"] = out_file
-        else:
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
-                if not noheader:
-                    csv_headers = ','.join(outmap[out_type]["headers"])
-                    out_file.write(csv_headers + '\n')
-                outmap[out_type]["file"] = out_file
+        _open_output_files(outmap, stack, output_binary, output_parquet, noheader)
 
         # Output aggregate reports to CSVs
+        seq_config = LecConfig(
+            period_weights=file_data["period_weights"],
+            max_summary_id=max_summary_id,
+            sample_size=int(sample_size),
+            no_of_periods=int(file_data["no_of_periods"]),
+            num_sidxs=num_sidxs,
+            use_return_period=use_return_period,
+            returnperiods=file_data["returnperiods"],
+        )
         agg = AggReports(
             outmap,
-            outloss_mean,
-            row_used_mean,
-            outloss_sample,
-            row_used_sample,
-            file_data["period_weights"],
-            max_summary_id,
-            sample_size,
-            file_data["no_of_periods"],
-            num_sidxs,
-            use_return_period,
-            file_data["returnperiods"],
+            outloss_mean, row_used_mean,
+            outloss_sample, row_used_sample,
+            seq_config,
             lec_files_folder,
             output_binary,
             output_parquet,

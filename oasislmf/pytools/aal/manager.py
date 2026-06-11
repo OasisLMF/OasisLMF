@@ -183,6 +183,19 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
     sorted_chunk.tofile(temp_file_path)
 
 
+def _save_chunk(summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id):
+    """Flush summaries_data[:summaries_idx] to a numbered temp file.
+    Returns:
+        chunk_index (int): incremented chunk counter
+        max_summary_id (int): updated running maximum
+    """
+    chunk = summaries_data[:summaries_idx]
+    temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
+    sort_and_save_chunk(chunk, temp_file_path)
+    temp_files.append(temp_file_path)
+    return chunk_index + 1, max(max_summary_id, int(np.max(chunk["summary_id"])))
+
+
 @nb.njit(cache=True, error_model="numpy")
 def merge_sorted_chunks(memmaps):
     """
@@ -267,12 +280,9 @@ def get_summaries_data(
                     fbin, idx_data, cursor, occ_map, summaries_data, summaries_idx, file_index,
                 )
                 if resize_flag:
-                    temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
-                    chunk = summaries_data[:summaries_idx]
-                    sort_and_save_chunk(chunk, temp_file_path)
-                    temp_files.append(temp_file_path)
-                    chunk_index += 1
-                    max_summary_id = max(max_summary_id, int(np.max(chunk["summary_id"])))
+                    chunk_index, max_summary_id = _save_chunk(
+                        summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id
+                    )
                     summaries_idx = 0
                 if cursor >= len(idx_data):
                     break
@@ -283,23 +293,17 @@ def get_summaries_data(
                     fbin, offset, occ_map, summaries_data, summaries_idx, file_index,
                 )
                 if resize_flag:
-                    temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
-                    chunk = summaries_data[:summaries_idx]
-                    sort_and_save_chunk(chunk, temp_file_path)
-                    temp_files.append(temp_file_path)
-                    chunk_index += 1
-                    max_summary_id = max(max_summary_id, int(np.max(chunk["summary_id"])))
+                    chunk_index, max_summary_id = _save_chunk(
+                        summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id
+                    )
                     summaries_idx = 0
                 if offset >= len(fbin):
                     break
 
     # Write remaining summaries data to temporary file
     if summaries_idx > 0:
-        temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
-        chunk = summaries_data[:summaries_idx]
-        sort_and_save_chunk(chunk, temp_file_path)
-        max_summary_id = max(max_summary_id, int(np.max(chunk["summary_id"])))
-        temp_files.append(temp_file_path)
+        _, max_summary_id = _save_chunk(
+            summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id)
 
     memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]
 
@@ -349,6 +353,8 @@ def summary_index(path, occ_map, stack):
         else:
             idx_handles.append(None)
 
+    # Partial coverage is fine: get_summaries_data dispatches per-file, falling back to
+    # sequential scan for any .bin without a paired .idx.
     if n_idx > 0:
         logger.info(f"Found {n_idx}/{len(files)} .idx file(s) — using direct-seek indexing")
     idx_handles_arg = idx_handles if n_idx > 0 else None
@@ -814,7 +820,6 @@ def calculate_confidence_interval(std_err, confidence_level):
         ((c[2] * p_value + c[1]) * p_value + c[0]) /
         (((d[2] * p_value + d[1]) * p_value + d[0]) * p_value + 1)
     )
-    # Return the confidence interval
     return std_err * z_value
 
 
@@ -971,7 +976,7 @@ def run(
             sample_size,
             max_summary_id,
             files_handles,
-            vec_analytical_aal,  # unique in output_aal
+            vec_analytical_aal,
             vecs_sample_aal,
             vec_used_summary_id,
         )

@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -21,6 +22,185 @@ from oasislmf.pytools.lec.data import LOSSVEC2MAP_dtype, MEANMAP_dtype, WHEATKEY
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class LecConfig:
+    """Shared per-run configuration passed to output helpers and output_for_summary_idx."""
+    period_weights: np.ndarray
+    max_summary_id: int
+    sample_size: int
+    no_of_periods: int
+    num_sidxs: int
+    use_return_period: bool
+    returnperiods: np.ndarray
+
+
+def make_output_fn(outmap, output_binary, output_parquet):
+    """Return a callable(data, out_type) that writes data in the correct output format."""
+    def output_data(data, out_type):
+        if output_binary:
+            data.tofile(outmap[out_type]["file"])
+        elif output_parquet:
+            data_df = pd.DataFrame(data)
+            data_table = pa.Table.from_pandas(data_df)
+            outmap[out_type]["file"].write_table(data_table)
+        else:
+            write_ndarray_to_fmt_csv(
+                outmap[out_type]["file"],
+                data,
+                outmap[out_type]["headers"],
+                outmap[out_type]["fmt"]
+            )
+    return output_data
+
+
+# ---------------------------------------------------------------------------
+# Shared compute-and-write helpers — arrays pre-allocated by caller
+# (memmap for sequential, np.zeros for idx). alloc_* callables handle late-sized arrays.
+# ---------------------------------------------------------------------------
+
+def _write_mean_damage_ratio(
+    items, items_start_end, row_used_indices_mean, outloss_mean_vals,
+    config, eptype, eptype_tvar, output_fn,
+):
+    has_weights, used_period_no = output_mean_damage_ratio(
+        items, items_start_end, row_used_indices_mean,
+        outloss_mean_vals, config.period_weights, config.max_summary_id,
+    )
+    unused_pw = config.period_weights[~used_period_no]
+    if has_weights:
+        gen = write_ept_weighted(
+            items, items_start_end, config.sample_size, MEANDR,
+            eptype, eptype_tvar, unused_pw,
+            config.use_return_period, config.returnperiods, config.max_summary_id,
+        )
+    else:
+        gen = write_ept(
+            items, items_start_end, config.no_of_periods, MEANDR,
+            eptype, eptype_tvar,
+            config.use_return_period, config.returnperiods, config.max_summary_id,
+        )
+    for data in gen:
+        output_fn(data, "ept")
+
+
+def _write_full_uncertainty(
+    items, items_start_end, row_used_indices_sample, outloss_sample_vals,
+    config, eptype, eptype_tvar, output_fn,
+):
+    has_weights, used_period_no = output_full_uncertainty(
+        items, items_start_end, row_used_indices_sample,
+        outloss_sample_vals, config.period_weights, config.max_summary_id, config.num_sidxs,
+    )
+    unused_pw = config.period_weights[~used_period_no]
+    if has_weights:
+        gen = write_ept_weighted(
+            items, items_start_end, 1, FULL,
+            eptype, eptype_tvar, unused_pw,
+            config.use_return_period, config.returnperiods, config.max_summary_id,
+        )
+    else:
+        gen = write_ept(
+            items, items_start_end, config.no_of_periods * config.sample_size, FULL,
+            eptype, eptype_tvar,
+            config.use_return_period, config.returnperiods, config.max_summary_id,
+        )
+    for data in gen:
+        output_fn(data, "ept")
+
+
+def _write_wheatsheaf(
+    wheatsheaf_items, wheatsheaf_items_start_end, mean_map,
+    row_used_indices_sample, outloss_sample_vals,
+    config, eptype, eptype_tvar, do_wheat, do_wheat_mean, alloc_wm_items, output_fn,
+):
+    """alloc_wm_items: no-weights branch only; np.zeros for idx, memmap lambda for seq."""
+    has_weights, used_period_no = fill_wheatsheaf_items(
+        wheatsheaf_items, wheatsheaf_items_start_end, row_used_indices_sample,
+        outloss_sample_vals, config.period_weights, config.max_summary_id, config.num_sidxs,
+    )
+    unused_pw = config.period_weights[~used_period_no]
+
+    if has_weights:
+        if do_wheat:
+            gen = write_psept_weighted(
+                wheatsheaf_items, wheatsheaf_items_start_end, config.no_of_periods,
+                eptype, eptype_tvar, unused_pw,
+                config.use_return_period, config.returnperiods,
+                config.max_summary_id, config.num_sidxs, config.sample_size, mean_map=mean_map,
+            )
+            for data in gen:
+                output_fn(data, "psept")
+        if do_wheat_mean and mean_map is not None:
+            gen = write_wheatsheaf_mean(mean_map, eptype, PERSAMPLEMEAN, config.max_summary_id)
+            for data in gen:
+                output_fn(data, "ept")
+    else:
+        if do_wheat:
+            gen = write_psept(
+                wheatsheaf_items, wheatsheaf_items_start_end, config.no_of_periods,
+                eptype, eptype_tvar,
+                config.use_return_period, config.returnperiods,
+                config.max_summary_id, config.num_sidxs,
+            )
+            for data in gen:
+                output_fn(data, "psept")
+        if do_wheat_mean:
+            maxcounts = get_wheatsheaf_max_count(
+                wheatsheaf_items, wheatsheaf_items_start_end, config.max_summary_id)
+            if np.any(maxcounts != -1):
+                wm_items = alloc_wm_items(np.sum(maxcounts[maxcounts != -1]))
+                wm_items_start_end = fill_wheatsheaf_mean_items(
+                    wm_items, wheatsheaf_items, wheatsheaf_items_start_end,
+                    maxcounts, config.max_summary_id, config.num_sidxs,
+                )
+                gen = write_ept(
+                    wm_items, wm_items_start_end, config.no_of_periods,
+                    PERSAMPLEMEAN, eptype, eptype_tvar,
+                    config.use_return_period, config.returnperiods, config.max_summary_id,
+                    sample_size=config.sample_size,
+                )
+                for data in gen:
+                    output_fn(data, "ept")
+
+
+def _write_sample_mean(
+    reordered_outlosses, row_used_indices_sample, outloss_sample_vals,
+    config, eptype, eptype_tvar, alloc_items, output_fn,
+):
+    """reordered_outlosses shape: no_of_periods * max_summary_id. alloc_items size is post-computation."""
+    reorder_losses_by_summary_and_period(
+        reordered_outlosses, row_used_indices_sample, outloss_sample_vals,
+        config.max_summary_id, config.no_of_periods, config.num_sidxs, config.sample_size,
+    )
+    row_used_ro = np.flatnonzero(reordered_outlosses["row_used"])
+    items = alloc_items(len(row_used_ro))
+    items_start_end = np.full((config.max_summary_id, 2), -1, dtype=np.int32)
+    has_weights, used_period_no = output_sample_mean(
+        items, items_start_end, row_used_ro, reordered_outlosses["value"],
+        config.period_weights, config.max_summary_id, config.no_of_periods,
+    )
+    unused_pw = config.period_weights[~used_period_no]
+    if has_weights:
+        gen = write_ept_weighted(
+            items, items_start_end, config.sample_size, MEANSAMPLE,
+            eptype, eptype_tvar, unused_pw,
+            config.use_return_period, config.returnperiods, config.max_summary_id,
+        )
+    else:
+        gen = write_ept(
+            items, items_start_end, config.no_of_periods, MEANSAMPLE,
+            eptype, eptype_tvar,
+            config.use_return_period, config.returnperiods, config.max_summary_id,
+        )
+    for data in gen:
+        output_fn(data, "ept")
+
+
+# ---------------------------------------------------------------------------
+# Sequential path — AggReports
+# Allocates memmaps, calls the shared helpers above.
+# ---------------------------------------------------------------------------
+
 class AggReports():
     def __init__(
         self,
@@ -29,13 +209,7 @@ class AggReports():
         row_used_mean,
         outloss_sample,
         row_used_sample,
-        period_weights,
-        max_summary_id,
-        sample_size,
-        no_of_periods,
-        num_sidxs,
-        use_return_period,
-        returnperiods,
+        config,
         lec_files_folder,
         output_binary,
         output_parquet,
@@ -43,33 +217,11 @@ class AggReports():
         self.outmap = outmap
         self.outloss_mean = outloss_mean
         self.outloss_sample = outloss_sample
-        self.period_weights = period_weights
-        self.max_summary_id = max_summary_id
-        self.sample_size = sample_size
-        self.no_of_periods = no_of_periods
-        self.num_sidxs = num_sidxs
-        self.use_return_period = use_return_period
-        self.returnperiods = returnperiods
         self.lec_files_folder = lec_files_folder
-        self.output_binary = output_binary
-        self.output_parquet = output_parquet
         self.row_used_indices_mean = np.flatnonzero(row_used_mean)
         self.row_used_indices_sample = np.flatnonzero(row_used_sample)
-
-    def output_data(self, data, out_type):
-        if self.output_binary:
-            data.tofile(self.outmap[out_type]["file"])
-        elif self.output_parquet:
-            data_df = pd.DataFrame(data)
-            data_table = pa.Table.from_pandas(data_df)
-            self.outmap[out_type]["file"].write_table(data_table)
-        else:
-            write_ndarray_to_fmt_csv(
-                self.outmap[out_type]["file"],
-                data,
-                self.outmap[out_type]["headers"],
-                self.outmap[out_type]["fmt"]
-            )
+        self.config = config
+        self.output_data = make_output_fn(outmap, output_binary, output_parquet)
 
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
         """Output Mean Damage Ratio
@@ -80,65 +232,19 @@ class AggReports():
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
             outloss_type (string): Which loss to output
         """
-        epcalc = MEANDR
-
-        row_used_indices = self.row_used_indices_mean
-
-        # Allocate storage for the flat data array
-        items_fp = Path(self.lec_files_folder, f"lec_mean_damage_ratio-{outloss_type}-items.bdat")
-        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
-        # Track start and end indices for each summary_id
-        items_start_end = np.full((self.max_summary_id, 2), -1, dtype=np.int32)
-
-        # Select the correct outloss values based on type
-        # Required if-else condition as njit cannot resolve outloss_type inside []
-        if outloss_type == "agg_out_loss":
-            outloss_vals = self.outloss_mean["agg_out_loss"]
-        elif outloss_type == "max_out_loss":
-            outloss_vals = self.outloss_mean["max_out_loss"]
-        else:
+        if outloss_type not in ("agg_out_loss", "max_out_loss"):
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
-
-        # Populate items and items_start_end
-        has_weights, used_period_no = output_mean_damage_ratio(
-            items,
-            items_start_end,
-            row_used_indices,
-            outloss_vals,
-            self.period_weights,
-            self.max_summary_id,
+        outloss_vals = self.outloss_mean[outloss_type]
+        row_used_indices = self.row_used_indices_mean
+        items = np.memmap(
+            Path(self.lec_files_folder, f"lec_mean_damage_ratio-{outloss_type}-items.bdat"),
+            dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),),
         )
-        unused_period_weights = self.period_weights[~used_period_no]
-
-        if has_weights:
-            gen = write_ept_weighted(
-                items,
-                items_start_end,
-                self.sample_size,
-                epcalc,
-                eptype,
-                eptype_tvar,
-                unused_period_weights,
-                self.use_return_period,
-                self.returnperiods,
-                self.max_summary_id
-            )
-        else:
-            gen = write_ept(
-                items,
-                items_start_end,
-                self.no_of_periods,
-                epcalc,
-                eptype,
-                eptype_tvar,
-                self.use_return_period,
-                self.returnperiods,
-                self.max_summary_id
-
-            )
-
-        for data in gen:
-            self.output_data(data, "ept")
+        items_start_end = np.full((self.config.max_summary_id, 2), -1, dtype=np.int32)
+        _write_mean_damage_ratio(
+            items, items_start_end, row_used_indices, outloss_vals,
+            self.config, eptype, eptype_tvar, self.output_data,
+        )
 
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         """Output Full Uncertainty
@@ -149,70 +255,24 @@ class AggReports():
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
             outloss_type (string): Which loss to output
         """
-        epcalc = FULL
-
-        row_used_indices = self.row_used_indices_sample
-
-        # Allocate storage for the flat data array
-        items_fp = Path(self.lec_files_folder, f"lec_full_uncertainty-{outloss_type}-items.bdat")
-        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
-        # Track start and end indices for each summary_id
-        items_start_end = np.full((self.max_summary_id, 2), -1, dtype=np.int32)
-
-        # Select the correct outloss values based on type
-        # Required if-else condition as njit cannot resolve outloss_type inside []
-        if outloss_type == "agg_out_loss":
-            outloss_vals = self.outloss_sample["agg_out_loss"]
-        elif outloss_type == "max_out_loss":
-            outloss_vals = self.outloss_sample["max_out_loss"]
-        else:
+        if outloss_type not in ("agg_out_loss", "max_out_loss"):
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
-
-        # Populate items and items_start_end
-        has_weights, used_period_no = output_full_uncertainty(
-            items,
-            items_start_end,
-            row_used_indices,
-            outloss_vals,
-            self.period_weights,
-            self.max_summary_id,
-            self.num_sidxs,
+        outloss_vals = self.outloss_sample[outloss_type]
+        row_used_indices = self.row_used_indices_sample
+        items = np.memmap(
+            Path(self.lec_files_folder, f"lec_full_uncertainty-{outloss_type}-items.bdat"),
+            dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),),
         )
-        unused_period_weights = self.period_weights[~used_period_no]
-
-        if has_weights:
-            gen = write_ept_weighted(
-                items,
-                items_start_end,
-                1,
-                epcalc,
-                eptype,
-                eptype_tvar,
-                unused_period_weights,
-                self.use_return_period,
-                self.returnperiods,
-                self.max_summary_id
-            )
-        else:
-            gen = write_ept(
-                items,
-                items_start_end,
-                self.no_of_periods * self.sample_size,
-                epcalc,
-                eptype,
-                eptype_tvar,
-                self.use_return_period,
-                self.returnperiods,
-                self.max_summary_id
-            )
-
-        for data in gen:
-            self.output_data(data, "ept")
+        items_start_end = np.full((self.config.max_summary_id, 2), -1, dtype=np.int32)
+        _write_full_uncertainty(
+            items, items_start_end, row_used_indices, outloss_vals,
+            self.config, eptype, eptype_tvar, self.output_data,
+        )
 
     def output_wheatsheaf_and_wheatsheafmean(self, eptype, eptype_tvar, outloss_type, output_wheatsheaf, output_wheatsheaf_mean):
         """Output Wheatsheaf and Wheatsheaf Mean
         Wheatsheaf, Per Sample EPT (PSEPT) – this means calculate the EP Curve for each sample and
-        leave it at the sample level of detail, resulting in multiple “curves”.
+        leave it at the sample level of detail, resulting in multiple "curves".
         Wheatsheaf Mean, Per Sample mean EPT – this means average the loss at each return period of
         the Per Sample EPT.
         Args:
@@ -222,137 +282,34 @@ class AggReports():
             output_wheatsheaf (bool): Bool to Output Wheatsheaf
             output_wheatsheaf_mean (bool): Bool to Output Wheatsheaf Mean
         """
-        epcalc = PERSAMPLEMEAN
-
-        row_used_indices = self.row_used_indices_sample
-
-        wheatsheaf_items_file = Path(self.lec_files_folder, f"lec_wheatsheaf-items-{outloss_type}.bdat")
-        wheatsheaf_items = np.memmap(
-            wheatsheaf_items_file,
-            dtype=WHEATKEYITEMS_dtype,
-            mode="w+",
-            shape=(len(row_used_indices)),
-        )
-        # Track start and end indices for each summary_id and sidx
-        wheatsheaf_items_start_end = np.full((self.max_summary_id * self.num_sidxs, 2), -1, dtype=np.int32)
-
-        # Select the correct outloss values based on type
-        # Required if-else condition as njit cannot resolve outloss_type inside []
-        if outloss_type == "agg_out_loss":
-            outloss_vals = self.outloss_sample["agg_out_loss"]
-        elif outloss_type == "max_out_loss":
-            outloss_vals = self.outloss_sample["max_out_loss"]
-        else:
+        if outloss_type not in ("agg_out_loss", "max_out_loss"):
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
-
-        # Populate wheatsheaf_items and wheatsheaf_items_start_end
-        has_weights, used_period_no = fill_wheatsheaf_items(
-            wheatsheaf_items,
-            wheatsheaf_items_start_end,
-            row_used_indices,
-            outloss_vals,
-            self.period_weights,
-            self.max_summary_id,
-            self.num_sidxs,
+        outloss_vals = self.outloss_sample[outloss_type]
+        row_used_indices = self.row_used_indices_sample
+        wh_items = np.memmap(
+            Path(self.lec_files_folder, f"lec_wheatsheaf-items-{outloss_type}.bdat"),
+            dtype=WHEATKEYITEMS_dtype, mode="w+", shape=(len(row_used_indices),),
         )
-        unused_period_weights = self.period_weights[~used_period_no]
-
-        if has_weights:
-            mean_map = None
-
-            if output_wheatsheaf_mean:
-                mean_map_file = Path(self.lec_files_folder, f"lec_wheatsheaf_mean-map-{outloss_type}.bdat")
-                mean_map = np.memmap(
-                    mean_map_file,
-                    dtype=MEANMAP_dtype,
-                    mode="w+",
-                    shape=(self.max_summary_id, len(self.returnperiods)),
-                )
-
-            if output_wheatsheaf:
-                gen = write_psept_weighted(
-                    wheatsheaf_items,
-                    wheatsheaf_items_start_end,
-                    self.no_of_periods,
-                    eptype,
-                    eptype_tvar,
-                    unused_period_weights,
-                    self.use_return_period,
-                    self.returnperiods,
-                    self.max_summary_id,
-                    self.num_sidxs,
-                    self.sample_size,
-                    mean_map=mean_map,
-                )
-                for data in gen:
-                    self.output_data(data, "psept")
-
-            if output_wheatsheaf_mean:
-                gen = write_wheatsheaf_mean(
-                    mean_map,
-                    eptype,
-                    epcalc,
-                    self.max_summary_id,
-                )
-                for data in gen:
-                    self.output_data(data, "ept")
-        else:
-            if output_wheatsheaf:
-                gen = write_psept(
-                    wheatsheaf_items,
-                    wheatsheaf_items_start_end,
-                    self.no_of_periods,
-                    eptype,
-                    eptype_tvar,
-                    self.use_return_period,
-                    self.returnperiods,
-                    self.max_summary_id,
-                    self.num_sidxs,
-                )
-                for data in gen:
-                    self.output_data(data, "psept")
-
-            if not output_wheatsheaf_mean:
-                return
-
-            maxcounts = get_wheatsheaf_max_count(
-                wheatsheaf_items,
-                wheatsheaf_items_start_end,
-                self.max_summary_id,
+        wh_items_start_end = np.full(
+            (self.config.max_summary_id * self.config.num_sidxs, 2), -1, dtype=np.int32,
+        )
+        mean_map = None
+        if output_wheatsheaf_mean:
+            mean_map = np.memmap(
+                Path(self.lec_files_folder, f"lec_wheatsheaf_mean-map-{outloss_type}.bdat"),
+                dtype=MEANMAP_dtype, mode="w+",
+                shape=(self.config.max_summary_id, len(self.config.returnperiods)),
             )
+        wm_items_path = Path(self.lec_files_folder, f"lec_wheatsheaf_mean-items-{outloss_type}.bdat")
 
-            wheatsheaf_mean_items_file = Path(self.lec_files_folder, f"lec_wheatsheaf_mean-items-{outloss_type}.bdat")
-            wheatsheaf_mean_items = np.memmap(
-                wheatsheaf_mean_items_file,
-                dtype=LOSSVEC2MAP_dtype,
-                mode="w+",
-                shape=(np.sum(maxcounts[maxcounts != -1])),
-            )
-
-            wheatsheaf_mean_items_start_end = fill_wheatsheaf_mean_items(
-                wheatsheaf_mean_items,
-                wheatsheaf_items,
-                wheatsheaf_items_start_end,
-                maxcounts,
-                self.max_summary_id,
-                self.num_sidxs,
-            )
-
-            gen = write_ept(
-                wheatsheaf_mean_items,
-                wheatsheaf_mean_items_start_end,
-                self.no_of_periods,
-                epcalc,
-                eptype,
-                eptype_tvar,
-                self.use_return_period,
-                self.returnperiods,
-                self.max_summary_id,
-                sample_size=self.sample_size
-            )
-
-            for data in gen:
-                self.output_data(data, "ept")
+        def alloc_wm_items(size): return np.memmap(
+            wm_items_path, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(size,)
+        )
+        _write_wheatsheaf(
+            wh_items, wh_items_start_end, mean_map, row_used_indices, outloss_vals,
+            self.config, eptype, eptype_tvar, output_wheatsheaf, output_wheatsheaf_mean,
+            alloc_wm_items, self.output_data,
+        )
 
     def output_sample_mean(self, eptype, eptype_tvar, outloss_type):
         """Output Sample Mean
@@ -363,260 +320,123 @@ class AggReports():
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
             outloss_type (string): Which loss to output
         """
-        if self.sample_size == 0:
+        if self.config.sample_size == 0:
             logger.warning("aggreports.output_sample_mean, self.sample_size is 0, not outputting any sample mean")
             return
-        epcalc = MEANSAMPLE
-
-        # outloss_sample has all SIDXs plus -2 and -3
-        reordered_outlosses_file = Path(self.lec_files_folder, f"lec_sample_mean-reordered_outlosses-{outloss_type}.bdat")
-        reordered_outlosses = np.memmap(
-            reordered_outlosses_file,
-            dtype=np.dtype([
-                ("row_used", np.bool_),
-                ("value", oasis_float),
-            ]),
-            mode="w+",
-            shape=(self.no_of_periods * self.max_summary_id),
-        )
-
-        # Select the correct outloss values based on type
-        # Required if-else condition as njit cannot resolve outloss_type inside []
-        if outloss_type == "agg_out_loss":
-            outloss_vals = self.outloss_sample["agg_out_loss"]
-        elif outloss_type == "max_out_loss":
-            outloss_vals = self.outloss_sample["max_out_loss"]
-        else:
+        if outloss_type not in ("agg_out_loss", "max_out_loss"):
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
+        outloss_vals = self.outloss_sample[outloss_type]
+        reordered_outlosses = np.memmap(
+            Path(self.lec_files_folder, f"lec_sample_mean-reordered_outlosses-{outloss_type}.bdat"),
+            dtype=np.dtype([("row_used", np.bool_), ("value", oasis_float)]),
+            mode="w+",
+            shape=(self.config.no_of_periods * self.config.max_summary_id),
+        )
+        items_path = Path(self.lec_files_folder, f"lec_sample_mean-{outloss_type}-items.bdat")
 
-        row_used_indices = self.row_used_indices_sample
-
-        # Reorder outlosses by summary_id and period_no
-        reorder_losses_by_summary_and_period(
-            reordered_outlosses,
-            row_used_indices,
-            outloss_vals,
-            self.max_summary_id,
-            self.no_of_periods,
-            self.num_sidxs,
-            self.sample_size,
+        def alloc_items(size): return np.memmap(
+            items_path, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(size,)
+        )
+        _write_sample_mean(
+            reordered_outlosses, self.row_used_indices_sample, outloss_vals,
+            self.config, eptype, eptype_tvar, alloc_items, self.output_data,
         )
 
-        # Get row indices that are used
-        row_used_indices = np.flatnonzero(reordered_outlosses["row_used"])
 
-        # Allocate storage for the flat data array
-        items_fp = Path(self.lec_files_folder, f"lec_sample_mean-{outloss_type}-items.bdat")
-        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
-        # Track start and end indices for each summary_id
-        items_start_end = np.full((self.max_summary_id, 2), -1, dtype=np.int32)
+# ---------------------------------------------------------------------------
+# Idx path — output_for_summary_idx
+# Allocates small np.zeros arrays (single summary at a time), calls the same helpers.
+# ---------------------------------------------------------------------------
 
-        # Populate items and items_start_end
-        has_weights, used_period_no = output_sample_mean(
-            items,
-            items_start_end,
-            row_used_indices,
-            reordered_outlosses["value"],
-            self.period_weights,
-            self.max_summary_id,
-            self.no_of_periods,
-        )
-        unused_period_weights = self.period_weights[~used_period_no]
+def output_for_summary_idx(
+    summary_id,
+    outloss_mean_s,
+    row_used_mean_s,
+    outloss_sample_s,
+    row_used_sample_s,
+    output_flags,
+    hasOCC,
+    hasAGG,
+    outmap,
+    config,
+    output_fn,
+):
+    """Output all report types for a single summary_id (idx path).
 
-        if has_weights:
-            gen = write_ept_weighted(
-                items,
-                items_start_end,
-                self.sample_size,
-                epcalc,
-                eptype,
-                eptype_tvar,
-                unused_period_weights,
-                self.use_return_period,
-                self.returnperiods,
-                self.max_summary_id
+    Called once per summary_id. config.max_summary_id must be 1; arrays are sized
+    for a single summary. Write generators emit SummaryId=1, corrected here before each write.
+    """
+    row_used_indices_mean = np.flatnonzero(row_used_mean_s)
+    row_used_indices_sample = np.flatnonzero(row_used_sample_s)
+    if not len(row_used_indices_mean) and not len(row_used_indices_sample):
+        return
+
+    def _out(data, out_type):
+        if len(data):
+            data["SummaryId"] = summary_id
+        output_fn(data, out_type)
+
+    if outmap["ept"]["compute"] and (hasOCC or hasAGG):
+        for eptype, eptype_tvar, outloss_type, wanted in (
+            (OEP, OEPTVAR, "max_out_loss", hasOCC),
+            (AEP, AEPTVAR, "agg_out_loss", hasAGG),
+        ):
+            if not wanted:
+                continue
+            items = np.zeros(len(row_used_indices_mean), dtype=LOSSVEC2MAP_dtype)
+            items_start_end = np.full((1, 2), -1, dtype=np.int32)
+            _write_mean_damage_ratio(
+                items, items_start_end, row_used_indices_mean,
+                outloss_mean_s[outloss_type], config, eptype, eptype_tvar, _out,
             )
-        else:
-            gen = write_ept(
-                items,
-                items_start_end,
-                self.no_of_periods,
-                epcalc,
-                eptype,
-                eptype_tvar,
-                self.use_return_period,
-                self.returnperiods,
-                self.max_summary_id
-            )
 
-        for data in gen:
-            self.output_data(data, "ept")
-
-    def output_for_summary(
-        self,
-        summary_id,
-        outloss_mean_s,
-        row_used_mean_s,
-        outloss_sample_s,
-        row_used_sample_s,
-        output_flags,
-        hasOCC,
-        hasAGG,
+    for flag, eptype, eptype_tvar, outloss_type in (
+        (OCC_FULL_UNCERTAINTY, OEP, OEPTVAR, "max_out_loss"),
+        (AGG_FULL_UNCERTAINTY, AEP, AEPTVAR, "agg_out_loss"),
     ):
-        """Output all report types for a single summary_id using per-summary arrays.
+        if not output_flags[flag]:
+            continue
+        items = np.zeros(len(row_used_indices_sample), dtype=LOSSVEC2MAP_dtype)
+        items_start_end = np.full((1, 2), -1, dtype=np.int32)
+        _write_full_uncertainty(
+            items, items_start_end, row_used_indices_sample,
+            outloss_sample_s[outloss_type], config, eptype, eptype_tvar, _out,
+        )
 
-        Called only in the idx path. Receives fresh per-summary arrays as explicit
-        arguments and writes directly to output; does not use any pre-computed state
-        from __init__ (self.outloss_mean, self.row_used_indices_*, self.max_summary_id).
+    for flag_w, flag_wm, eptype, eptype_tvar, outloss_type in (
+        (OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, "max_out_loss"),
+        (AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN, AEP, AEPTVAR, "agg_out_loss"),
+    ):
+        do_wheat = output_flags[flag_w]
+        do_wheat_mean = output_flags[flag_wm]
+        if not (do_wheat or do_wheat_mean):
+            continue
+        wheatsheaf_items = np.zeros(len(row_used_indices_sample), dtype=WHEATKEYITEMS_dtype)
+        wheatsheaf_items_start_end = np.full((config.num_sidxs, 2), -1, dtype=np.int32)
+        mean_map = np.zeros((1, len(config.returnperiods)), dtype=MEANMAP_dtype) if do_wheat_mean else None
+        _write_wheatsheaf(
+            wheatsheaf_items, wheatsheaf_items_start_end, mean_map,
+            row_used_indices_sample, outloss_sample_s[outloss_type],
+            config, eptype, eptype_tvar, do_wheat, do_wheat_mean,
+            lambda size: np.zeros(size, dtype=LOSSVEC2MAP_dtype),
+            _out,
+        )
 
-        All internal calls use max_summary_id=1 so the numba index functions collapse
-        to zero-based offsets into the single-summary arrays. The write generators
-        therefore emit SummaryId=1, which is corrected inline to the real summary_id
-        before each write.
-        """
-        row_used_indices_mean   = np.flatnonzero(row_used_mean_s)
-        row_used_indices_sample = np.flatnonzero(row_used_sample_s)
-
-        if not len(row_used_indices_mean) and not len(row_used_indices_sample):
-            return
-
-        def _output(gen, out_type):
-            for data in gen:
-                if len(data):
-                    data["SummaryId"] = summary_id
-                self.output_data(data, out_type)
-
-        # ── Mean Damage Ratio ──────────────────────────────────────────────────
-        if self.outmap["ept"]["compute"] and (hasOCC or hasAGG):
-            for eptype, eptype_tvar, outloss_type, wanted in (
-                (OEP, OEPTVAR, "max_out_loss", hasOCC),
-                (AEP, AEPTVAR, "agg_out_loss", hasAGG),
-            ):
-                if not wanted:
-                    continue
-                items = np.zeros(len(row_used_indices_mean), dtype=LOSSVEC2MAP_dtype)
-                items_start_end = np.full((1, 2), -1, dtype=np.int32)
-                has_weights, used_period_no = output_mean_damage_ratio(
-                    items, items_start_end, row_used_indices_mean,
-                    outloss_mean_s[outloss_type], self.period_weights, 1,
-                )
-                unused_pw = self.period_weights[~used_period_no]
-                if has_weights:
-                    _output(write_ept_weighted(items, items_start_end, self.sample_size,
-                                               MEANDR, eptype, eptype_tvar, unused_pw,
-                                               self.use_return_period, self.returnperiods, 1), "ept")
-                else:
-                    _output(write_ept(items, items_start_end, self.no_of_periods,
-                                      MEANDR, eptype, eptype_tvar,
-                                      self.use_return_period, self.returnperiods, 1), "ept")
-
-        # ── Full Uncertainty ───────────────────────────────────────────────────
-        for flag, eptype, eptype_tvar, outloss_type in (
-            (OCC_FULL_UNCERTAINTY, OEP, OEPTVAR, "max_out_loss"),
-            (AGG_FULL_UNCERTAINTY, AEP, AEPTVAR, "agg_out_loss"),
-        ):
-            if not output_flags[flag]:
-                continue
-            items = np.zeros(len(row_used_indices_sample), dtype=LOSSVEC2MAP_dtype)
-            items_start_end = np.full((1, 2), -1, dtype=np.int32)
-            has_weights, used_period_no = output_full_uncertainty(
-                items, items_start_end, row_used_indices_sample,
-                outloss_sample_s[outloss_type], self.period_weights, 1, self.num_sidxs,
-            )
-            unused_pw = self.period_weights[~used_period_no]
-            if has_weights:
-                _output(write_ept_weighted(items, items_start_end, 1,
-                                           FULL, eptype, eptype_tvar, unused_pw,
-                                           self.use_return_period, self.returnperiods, 1), "ept")
-            else:
-                _output(write_ept(items, items_start_end, self.no_of_periods * self.sample_size,
-                                  FULL, eptype, eptype_tvar,
-                                  self.use_return_period, self.returnperiods, 1), "ept")
-
-        # ── Wheatsheaf & Wheatsheaf Mean ───────────────────────────────────────
-        for flag_w, flag_wm, eptype, eptype_tvar, outloss_type in (
-            (OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, "max_out_loss"),
-            (AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN, AEP, AEPTVAR, "agg_out_loss"),
-        ):
-            do_wheat      = output_flags[flag_w]
-            do_wheat_mean = output_flags[flag_wm]
-            if not (do_wheat or do_wheat_mean):
-                continue
-
-            wheatsheaf_items = np.zeros(len(row_used_indices_sample), dtype=WHEATKEYITEMS_dtype)
-            wheatsheaf_items_start_end = np.full((self.num_sidxs, 2), -1, dtype=np.int32)
-            has_weights, used_period_no = fill_wheatsheaf_items(
-                wheatsheaf_items, wheatsheaf_items_start_end, row_used_indices_sample,
-                outloss_sample_s[outloss_type], self.period_weights, 1, self.num_sidxs,
-            )
-            unused_pw = self.period_weights[~used_period_no]
-
-            if has_weights:
-                mean_map = None
-                if do_wheat_mean:
-                    mean_map = np.zeros((1, len(self.returnperiods)), dtype=MEANMAP_dtype)
-                if do_wheat:
-                    _output(write_psept_weighted(
-                        wheatsheaf_items, wheatsheaf_items_start_end, self.no_of_periods,
-                        eptype, eptype_tvar, unused_pw, self.use_return_period, self.returnperiods,
-                        1, self.num_sidxs, self.sample_size, mean_map=mean_map,
-                    ), "psept")
-                if do_wheat_mean and mean_map is not None:
-                    _output(write_wheatsheaf_mean(mean_map, eptype, PERSAMPLEMEAN, 1), "ept")
-            else:
-                if do_wheat:
-                    _output(write_psept(
-                        wheatsheaf_items, wheatsheaf_items_start_end, self.no_of_periods,
-                        eptype, eptype_tvar, self.use_return_period, self.returnperiods,
-                        1, self.num_sidxs,
-                    ), "psept")
-                if do_wheat_mean:
-                    maxcounts = get_wheatsheaf_max_count(
-                        wheatsheaf_items, wheatsheaf_items_start_end, 1)
-                    if np.any(maxcounts != -1):
-                        wheatsheaf_mean_items = np.zeros(
-                            np.sum(maxcounts[maxcounts != -1]), dtype=LOSSVEC2MAP_dtype)
-                        wheatsheaf_mean_items_start_end = fill_wheatsheaf_mean_items(
-                            wheatsheaf_mean_items, wheatsheaf_items, wheatsheaf_items_start_end,
-                            maxcounts, 1, self.num_sidxs,
-                        )
-                        _output(write_ept(
-                            wheatsheaf_mean_items, wheatsheaf_mean_items_start_end,
-                            self.no_of_periods, PERSAMPLEMEAN, eptype, eptype_tvar,
-                            self.use_return_period, self.returnperiods, 1,
-                            sample_size=self.sample_size,
-                        ), "ept")
-
-        # ── Sample Mean ────────────────────────────────────────────────────────
-        if self.sample_size == 0:
-            return
-        for flag, eptype, eptype_tvar, outloss_type in (
-            (OCC_SAMPLE_MEAN, OEP, OEPTVAR, "max_out_loss"),
-            (AGG_SAMPLE_MEAN, AEP, AEPTVAR, "agg_out_loss"),
-        ):
-            if not output_flags[flag]:
-                continue
-            reordered = np.zeros(
-                self.no_of_periods,
-                dtype=np.dtype([("row_used", np.bool_), ("value", oasis_float)]),
-            )
-            reorder_losses_by_summary_and_period(
-                reordered, row_used_indices_sample, outloss_sample_s[outloss_type],
-                1, self.no_of_periods, self.num_sidxs, self.sample_size,
-            )
-            row_used_ro = np.flatnonzero(reordered["row_used"])
-            items = np.zeros(len(row_used_ro), dtype=LOSSVEC2MAP_dtype)
-            items_start_end = np.full((1, 2), -1, dtype=np.int32)
-            has_weights, used_period_no = output_sample_mean(
-                items, items_start_end, row_used_ro, reordered["value"],
-                self.period_weights, 1, self.no_of_periods,
-            )
-            unused_pw = self.period_weights[~used_period_no]
-            if has_weights:
-                _output(write_ept_weighted(items, items_start_end, self.sample_size,
-                                           MEANSAMPLE, eptype, eptype_tvar, unused_pw,
-                                           self.use_return_period, self.returnperiods, 1), "ept")
-            else:
-                _output(write_ept(items, items_start_end, self.no_of_periods,
-                                  MEANSAMPLE, eptype, eptype_tvar,
-                                  self.use_return_period, self.returnperiods, 1), "ept")
+    if config.sample_size == 0:
+        return
+    for flag, eptype, eptype_tvar, outloss_type in (
+        (OCC_SAMPLE_MEAN, OEP, OEPTVAR, "max_out_loss"),
+        (AGG_SAMPLE_MEAN, AEP, AEPTVAR, "agg_out_loss"),
+    ):
+        if not output_flags[flag]:
+            continue
+        reordered = np.zeros(
+            config.no_of_periods,
+            dtype=np.dtype([("row_used", np.bool_), ("value", oasis_float)]),
+        )
+        _write_sample_mean(
+            reordered, row_used_indices_sample, outloss_sample_s[outloss_type],
+            config, eptype, eptype_tvar,
+            lambda size: np.zeros(size, dtype=LOSSVEC2MAP_dtype),
+            _out,
+        )
