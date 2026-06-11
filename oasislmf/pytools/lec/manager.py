@@ -560,7 +560,7 @@ def run(
             return  # skip sequential path below
 
         # ── Sequential path (no .idx files) ──────────────────────────────────────
-        
+
         # Check required disk space for work bdat files
         num_sidxs = int(sample_size) + 2
         no_of_periods = int(file_data["no_of_periods"])
