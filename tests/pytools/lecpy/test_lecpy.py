@@ -1,9 +1,11 @@
 import shutil
 from pathlib import Path
-import pandas as pd
+from unittest.mock import patch
 from tempfile import TemporaryDirectory
 
 import numpy as np
+import pandas as pd
+import pytest
 from oasislmf.pytools.common.data import summary_stream_index_dtype
 from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.lec.data import EPT_dtype, PSEPT_dtype
@@ -307,6 +309,28 @@ def test_lec_idx_empty_file_no_crash():
         )
         assert (out_dir / "py_ept.csv").exists(), "EPT output should be created when populated bins are present"
         assert (out_dir / "py_psept.csv").exists(), "PSEPT output should be created when populated bins are present"
+
+
+def test_lec_sequential_raises_on_insufficient_disk():
+    """Sequential path raises RuntimeError before allocating .bdat files when disk is full."""
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "lec"), tmp_dir)
+
+        # No .idx files → sequential path is taken
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+
+        real = shutil.disk_usage("/")
+        fake_usage = type(real)(total=real.total, used=real.used, free=0)
+
+        with patch("oasislmf.pytools.lec.manager.shutil.disk_usage", return_value=fake_usage):
+            with pytest.raises(RuntimeError, match="Insufficient disk space"):
+                main(
+                    run_dir=tmp_dir, subfolder="gul", use_return_period=False,
+                    ept=out_dir / "py_ept.csv", psept=out_dir / "py_psept.csv", ext="csv",
+                    **_ALL_OUTPUT_FLAGS,
+                )
 
 
 def test_lec_idx_partial_coverage_falls_back_to_sequential():

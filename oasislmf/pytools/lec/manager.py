@@ -1,6 +1,7 @@
 # lec/manager.py
 
 import logging
+import shutil
 import numpy as np
 import numba as nb
 from contextlib import ExitStack
@@ -559,23 +560,44 @@ def run(
             return  # skip sequential path below
 
         # ── Sequential path (no .idx files) ──────────────────────────────────────
+        
+        # Check required disk space for work bdat files
+        num_sidxs = int(sample_size) + 2
+        no_of_periods = int(file_data["no_of_periods"])
+        _mean_elems = no_of_periods * max_summary_id
+        _sample_elems = no_of_periods * num_sidxs * max_summary_id
+        _required_bytes = (
+            _mean_elems * OUTLOSS_DTYPE.itemsize
+            + _sample_elems * OUTLOSS_DTYPE.itemsize
+            + _mean_elems  # row_used_mean (bool_)
+            + _sample_elems  # row_used_sample (bool_)
+        )
+        _free_bytes = shutil.disk_usage(lec_files_folder).free
+        if _required_bytes > _free_bytes:
+            raise RuntimeError(
+                f"Insufficient disk space for lec .bdat files: "
+                f"{_required_bytes / 2**30:.2f} GiB required "
+                f"({no_of_periods} periods × {num_sidxs} sidxs × {max_summary_id} summary_ids), "
+                f"but only {_free_bytes / 2**30:.2f} GiB free at {lec_files_folder}. "
+                f"Run summarypy with -m to generate .idx files and avoid this pre-allocation."
+            )
+
         # outloss_mean has only -1 SIDX
         outloss_mean_file = Path(lec_files_folder, "lec_outloss_mean.bdat")
         outloss_mean = np.memmap(
             outloss_mean_file,
             dtype=OUTLOSS_DTYPE,
             mode="w+",
-            shape=(int(file_data["no_of_periods"]) * max_summary_id),
+            shape=(_mean_elems),
         )
 
         # outloss_sample has all SIDXs plus -2 and -3
-        num_sidxs = int(sample_size) + 2
         outloss_sample_file = Path(lec_files_folder, "lec_outloss_sample.bdat")
         outloss_sample = np.memmap(
             outloss_sample_file,
             dtype=OUTLOSS_DTYPE,
             mode="w+",
-            shape=(int(file_data["no_of_periods"]) * num_sidxs * max_summary_id),
+            shape=(_sample_elems),
         )
 
         row_used_mean_file = Path(lec_files_folder, "lec_row_used_mean.bdat")
