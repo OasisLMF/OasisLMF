@@ -1,13 +1,40 @@
 import shutil
 from pathlib import Path
-import pandas as pd
+from unittest.mock import patch
 from tempfile import TemporaryDirectory
 
 import numpy as np
+import pandas as pd
+import pytest
+from oasislmf.pytools.common.data import summary_stream_index_dtype
+from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.lec.data import EPT_dtype, PSEPT_dtype
 from oasislmf.pytools.lec.manager import main
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_lecpy")
+
+
+def make_idx_from_bin(bin_path: Path, idx_path: Path) -> None:
+    """Scan a summary .bin and write a paired .idx recording each event block's byte offset.
+
+    If the bin contains no data blocks (header only), creates a 0-byte idx to match
+    summarypy --low-memory behaviour for partitions that received no events.
+    """
+    raw = np.fromfile(str(bin_path), dtype=np.int32)
+    pos = 3  # skip 3-int stream header (stream_type, sample_size, summary_set_id)
+    entries = []
+    while pos < len(raw):
+        byte_offset = pos * 4
+        summary_id = int(raw[pos + 1])
+        pos += 3  # event_id, summary_id, expval
+        while pos < len(raw) and raw[pos] != 0:
+            pos += 2  # sidx + loss pair (any non-zero sidx, including special negatives)
+        pos += 2  # terminating (sidx=0, loss=0.0)
+        entries.append((summary_id, byte_offset))
+    if entries:
+        np.array(entries, dtype=summary_stream_index_dtype).tofile(str(idx_path))
+    else:
+        idx_path.touch()  # empty partition → 0-byte idx
 
 
 def case_runner(sub_folder, test_name, out_ext="csv", use_return_period=False):
@@ -103,8 +130,6 @@ def case_runner(sub_folder, test_name, out_ext="csv", use_return_period=False):
 
 def test_empty_input():
     """Test LEC does not crash and produces no output when summary binary has no loss records"""
-    from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
-
     with TemporaryDirectory() as tmp_dir_str:
         tmp_dir = Path(tmp_dir_str)
         work_dir = tmp_dir / "work" / "gul"
@@ -212,3 +237,126 @@ def test_lec_output_parquet():
     """Tests LEC output with no period weights, and with return_periods flag False
     """
     case_runner("gul", "lec", "parquet", use_return_period=False)
+
+
+# ---------------------------------------------------------------------------
+# .idx path tests
+# ---------------------------------------------------------------------------
+
+_ALL_OUTPUT_FLAGS = dict(
+    agg_full_uncertainty=True, agg_wheatsheaf=True,
+    agg_sample_mean=True, agg_wheatsheaf_mean=True,
+    occ_full_uncertainty=True, occ_wheatsheaf=True,
+    occ_sample_mean=True, occ_wheatsheaf_mean=True,
+)
+
+
+def test_lec_idx_output_matches_sequential():
+    """LEC .idx path produces identical EPT/PSEPT output to the sequential path."""
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "lec"), tmp_dir)
+
+        work_dir = tmp_dir / "work" / "gul"
+        for bin_path in sorted(work_dir.glob("*.bin")):
+            make_idx_from_bin(bin_path, bin_path.with_suffix(".idx"))
+
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+        actual_ept = out_dir / "py_ept.csv"
+        actual_psept = out_dir / "py_psept.csv"
+
+        main(
+            run_dir=tmp_dir, subfolder="gul", use_return_period=False,
+            ept=actual_ept, psept=actual_psept, ext="csv",
+            **_ALL_OUTPUT_FLAGS,
+        )
+
+        for out_file, golden_name in [(actual_ept, "py_ept.csv"), (actual_psept, "py_psept.csv")]:
+            expected = np.genfromtxt(tmp_dir / golden_name, delimiter=',', skip_header=1)
+            actual = np.genfromtxt(out_file, delimiter=',', skip_header=1)
+            assert expected.shape == actual.shape, f"Shape mismatch for {golden_name}: {expected.shape} vs {actual.shape}"
+            np.testing.assert_allclose(expected, actual, rtol=1e-5, atol=1e-8,
+                                       err_msg=f".idx path output differs from sequential for {golden_name}")
+
+
+def test_lec_idx_empty_file_no_crash():
+    """A 0-byte .idx for an empty partition does not raise ValueError (crash regression).
+
+    summarypy --low-memory creates 0-byte .idx files for partitions that received no
+    events. Before the fix np.memmap raised 'ValueError: cannot mmap an empty file'.
+    """
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "lec"), tmp_dir)
+
+        work_dir = tmp_dir / "work" / "gul"
+        for bin_path in sorted(work_dir.glob("*.bin")):
+            make_idx_from_bin(bin_path, bin_path.with_suffix(".idx"))
+
+        # Add an empty partition: header-only .bin + 0-byte .idx
+        stream_hdr = np.frombuffer(stream_info_to_bytes(SUMMARY_STREAM_ID, 1), dtype=np.int32)[0]
+        np.array([stream_hdr, 100, 1], dtype=np.int32).tofile(work_dir / "summarypy9.bin")
+        (work_dir / "summarypy9.idx").touch()
+
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+
+        main(
+            run_dir=tmp_dir, subfolder="gul", use_return_period=False,
+            ept=out_dir / "py_ept.csv", psept=out_dir / "py_psept.csv", ext="csv",
+            **_ALL_OUTPUT_FLAGS,
+        )
+        assert (out_dir / "py_ept.csv").exists(), "EPT output should be created when populated bins are present"
+        assert (out_dir / "py_psept.csv").exists(), "PSEPT output should be created when populated bins are present"
+
+
+def test_lec_sequential_raises_on_insufficient_disk():
+    """Sequential path raises RuntimeError before allocating .bdat files when disk is full."""
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "lec"), tmp_dir)
+
+        # No .idx files → sequential path is taken
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+
+        real = shutil.disk_usage("/")
+        fake_usage = type(real)(total=real.total, used=real.used, free=0)
+
+        with patch("oasislmf.pytools.lec.manager.shutil.disk_usage", return_value=fake_usage):
+            with pytest.raises(RuntimeError, match="Insufficient disk space"):
+                main(
+                    run_dir=tmp_dir, subfolder="gul", use_return_period=False,
+                    ept=out_dir / "py_ept.csv", psept=out_dir / "py_psept.csv", ext="csv",
+                    **_ALL_OUTPUT_FLAGS,
+                )
+
+
+def test_lec_idx_partial_coverage_falls_back_to_sequential():
+    """Partial .idx coverage (not all .bin files have .idx) triggers sequential fallback with correct output."""
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "lec"), tmp_dir)
+
+        work_dir = tmp_dir / "work" / "gul"
+        bins = sorted(work_dir.glob("*.bin"))
+        # Only provide idx for the first bin → triggers warning + sequential fallback
+        make_idx_from_bin(bins[0], bins[0].with_suffix(".idx"))
+
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+        actual_ept = out_dir / "py_ept.csv"
+        actual_psept = out_dir / "py_psept.csv"
+
+        main(
+            run_dir=tmp_dir, subfolder="gul", use_return_period=False,
+            ept=actual_ept, psept=actual_psept, ext="csv",
+            **_ALL_OUTPUT_FLAGS,
+        )
+
+        for out_file, golden_name in [(actual_ept, "py_ept.csv"), (actual_psept, "py_psept.csv")]:
+            expected = np.genfromtxt(tmp_dir / golden_name, delimiter=',', skip_header=1)
+            actual = np.genfromtxt(out_file, delimiter=',', skip_header=1)
+            assert expected.shape == actual.shape, f"Shape mismatch for {golden_name}: {expected.shape} vs {actual.shape}"
+            np.testing.assert_allclose(expected, actual, rtol=1e-5, atol=1e-8)
