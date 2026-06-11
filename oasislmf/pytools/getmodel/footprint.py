@@ -3,32 +3,32 @@ This file houses the classes that load the footprint data from compressed, binar
 """
 import json
 import logging
-import pickle
 import mmap
 import os
+import pickle
 from contextlib import ExitStack
 from typing import Dict, List, Union
 from zlib import decompress
 
+import numba as nb
 import numpy as np
 import pandas as pd
-import numba as nb
-
-from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
+from oasis_data_manager.df_reader.config import (InputReaderConfig,
+                                                 clean_config, get_df_reader)
 from oasis_data_manager.df_reader.reader import OasisReader
-from oasis_data_manager.errors import OasisException
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from .common import (
-    FootprintHeader, EventIndexBin, EventIndexBinZ, Event,
-    EventDynamic, footprint_filename, footprint_index_filename,
-    zfootprint_filename, zfootprint_index_filename,
-    csvfootprint_filename, parquetfootprint_filename,
-    parquetfootprint_meta_filename, event_defintion_filename,
-    hazard_case_filename, fp_format_priorities,
-    parquetfootprint_chunked_dir,
-    parquetfootprint_chunked_lookup, footprint_bin_lookup
-)
-from oasislmf.pytools.common.data import footprint_event_dtype, areaperil_int
+
+from oasislmf.pytools.common.data import areaperil_int, footprint_event_dtype
+
+from .common import (Event, EventDynamic, EventIndexBin, EventIndexBinZ,
+                     FootprintHeader, csvfootprint_filename,
+                     event_defintion_filename, footprint_bin_lookup,
+                     footprint_filename, footprint_index_filename,
+                     fp_format_priorities, hazard_case_filename,
+                     parquetfootprint_chunked_dir,
+                     parquetfootprint_chunked_lookup,
+                     parquetfootprint_filename, parquetfootprint_meta_filename,
+                     zfootprint_filename, zfootprint_index_filename)
 
 logger = logging.getLogger(__name__)
 
@@ -534,14 +534,10 @@ class FootprintParquetDynamic(Footprint):
     def _is_partitioned_by_section(self):
         """Check if event_definition.parquet is partitioned by section_id."""
         section_exist = [self.storage.exists(f'{event_defintion_filename}/section_id={int(section)}') for section in self.location_sections]
-        if any(section_exist):
-            if all(section_exist):
-                return True
-            else:
-                missing_section = [s for s, exists in zip(self.location_sections, section_exist) if not exists]
-                raise OasisException(f"Sections {missing_section} are missing from the footprint")
-        else:
-            return False
+        return any(section_exist)
+        # FIXME this will fail if there isn't at least one section that is relevant for the portfolio in the event def file,
+        # but we want it to still recognise that it's a partitioned file (with no relevant data) or
+        # to immediately shortcut and produce zero losses.
 
     def __enter__(self):
         with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
@@ -573,25 +569,28 @@ class FootprintParquetDynamic(Footprint):
         if len(self.location_sections) > 0:
             df_event_definition_list = []
             for section in self.location_sections:
-                df_section = self.get_df_reader(
-                    f'{event_defintion_filename}/section_id={int(section)}'
-                ).as_pandas()
-                df_section['section_id'] = section
-                df_event_definition_list.append(df_section)
+                if self.storage.exists(f'{event_defintion_filename}/section_id={int(section)}'):
+                    df_section = self.get_df_reader(
+                        f'{event_defintion_filename}/section_id={int(section)}'
+                    ).as_pandas()
+                    df_section['section_id'] = section
+                    df_event_definition_list.append(df_section)
             df_event_definition = pd.concat(df_event_definition_list, ignore_index=True)
+            # FIXME this will fail if the concat list is empty
 
-            self.df_event_definition = df_event_definition.set_index('event_id')
+            self.df_event_definition = df_event_definition.set_index('event_id').sort_index()
             self.event_set = set(df_event_definition['event_id'].unique())
 
             df_hazard_case_list = []
             for section in self.location_sections:
-                df_section = self.get_df_reader(
-                    f'{hazard_case_filename}/section_id={int(section)}',
-                    filters=[("areaperil_id", "in", self.areaperil_ids)]
-                ).as_pandas()
-                df_section['section_id'] = section
-                df_hazard_case_list.append(df_section)
-            df_hazard_case = pd.concat(df_hazard_case_list, ignore_index=True)
+                if self.storage.exists(f'{hazard_case_filename}/section_id={int(section)}'):
+                    df_section = self.get_df_reader(
+                        f'{hazard_case_filename}/section_id={int(section)}'
+                    ).as_pandas()
+                    df_section['section_id'] = section
+                    df_hazard_case_list.append(df_section)
+            df_hazard_case = pd.concat(df_hazard_case_list, ignore_index=True).query("areaperil_id.isin(@self.areaperil_ids)")
+            # FIXME this will fail if the concat list is empty
 
             self.df_hazard_case = df_hazard_case.set_index('section_id')
 
@@ -602,7 +601,7 @@ class FootprintParquetDynamic(Footprint):
 
         this_event_definition = self.df_event_definition.loc[[event_id]].reset_index()
         sections = this_event_definition['section_id'].unique()
-        df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
+        df_hazard_case = self.df_hazard_case.loc[self.df_hazard_case.index.intersection(sections)].reset_index()
 
         return self._build_footprint(df_hazard_case, this_event_definition)
 
@@ -671,7 +670,7 @@ class FootprintParquetDynamic(Footprint):
         if len(df_footprint) > 0:
             df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
                 (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
-            df_footprint['intensity'] = df_footprint['intensity'].astype('int')
+            df_footprint['intensity'] = df_footprint['intensity'].fillna(0).astype('int')
 
             # Collapse realisations that produce the same intensity after interpolation,
             # summing their probabilities, then normalise per areaperil to absorb float drift.
