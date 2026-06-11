@@ -1,4 +1,4 @@
-name: PiWind MDK
+name: OasisModels CLI
 
 on:
   pull_request:
