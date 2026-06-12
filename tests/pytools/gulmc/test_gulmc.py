@@ -3,14 +3,17 @@ This file tests gulmc functionality
 """
 import filecmp
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Tuple
 from unittest.mock import patch
+import numpy as np
 import pandas as pd
 import pytest
 
+from oasislmf.pytools.gulmc.items import get_dynamic_footprint_adjustments
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 from oasislmf.pytools.utils import assert_allclose
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
@@ -346,3 +349,25 @@ def test_adjustments(test_model: Tuple[str, str]):
             # remove temporary file
             file_out.unlink()
             file_out.with_suffix('.csv').unlink()
+
+
+def test_get_dynamic_footprint_adjustments_without_item_adjustments_bin_only():
+    """Regression test for issue #2015.
+
+    When the keys stage does not run a `dynamic_model_adjustment` step,
+    `item_adjustments.csv` is absent and the items file only exists as
+    `items.bin`. The fallback must read the binary items file (rather than
+    hard-coding `items.csv`) and return zero adjustments per item.
+    """
+    src_items_bin = TESTS_ASSETS_DIR.joinpath("test_adjustments_1", "input", "items.bin")
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        # only items.bin is present: no item_adjustments.csv and no items.csv
+        shutil.copy(src_items_bin, tmp_dir.joinpath("items.bin"))
+
+        adjustments = get_dynamic_footprint_adjustments(str(tmp_dir))
+
+        assert len(adjustments) == 1
+        assert adjustments[0]["item_id"] == 1
+        assert np.all(adjustments["intensity_adjustment"] == 0)
+        assert np.all(adjustments["return_period"] == 0)
