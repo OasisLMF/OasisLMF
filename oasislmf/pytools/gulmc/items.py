@@ -299,7 +299,7 @@ def get_dynamic_footprint_adjustments(input_path):
     adjustments_fn = os.path.join(input_path, 'item_adjustments.csv')
     if os.path.isfile(adjustments_fn):
         adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
-    else: # Fall back to the items file (items.bin or items.csv) with zero adjustments.
+    else:  # Fall back to the items file (items.bin or items.csv) with zero adjustments.
         items_tb = read_items(input_path)
         adjustments_tb = np.array([(i['item_id'], 0, 0) for i in items_tb], dtype=ItemAdjustment)
 
