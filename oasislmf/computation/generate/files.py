@@ -434,6 +434,21 @@ class GenerateFiles(ComputationStep):
             for layer, layer_info in ri_layers.items():
                 oasis_files['RI_{}'.format(layer)] = layer_info['directory']
 
+        # Build mapping from OED InuringPriority to the last RI output level (layer index) for that priority.
+        # Multiple risk levels within the same InuringPriority each get their own RI layer, so the
+        # "output level" for a given priority is the highest-indexed layer belonging to it.
+        inuring_priority_to_output_level = {}
+        for layer_idx, layer_info in ri_layers.items():
+            ip = layer_info['inuring_priority']
+            idx = int(layer_idx)
+            if ip not in inuring_priority_to_output_level or idx > inuring_priority_to_output_level[ip]:
+                inuring_priority_to_output_level[ip] = idx
+
+        ri_priority_map_fp = os.path.join(target_dir, 'ri_inuring_priority_output_levels.json')
+        with io.open(ri_priority_map_fp, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(inuring_priority_to_output_level, ensure_ascii=False, indent=4))
+        oasis_files['ri_inuring_priority_output_levels'] = os.path.abspath(ri_priority_map_fp)
+
         self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
 
         return oasis_files

@@ -1,6 +1,7 @@
 __all__ = [
     'get_summary_mapping',
     'generate_summaryxref_files',
+    'get_ri_inuring_priority_output_levels',
     'merge_oed_to_mapping',
     'write_exposure_summary',
     'get_exposure_summary',
@@ -409,6 +410,25 @@ def get_ri_settings(run_dir):
     return get_json(src_fp=os.path.join(run_dir, 'ri_layers.json'))
 
 
+def get_ri_inuring_priority_output_levels(run_dir):
+    """Load the mapping from OED InuringPriority to RI output level from the input directory.
+
+    The mapping is created during input generation and records, for each OED
+    InuringPriority value, the index of the last RI layer (output level) that
+    belongs to that priority.  When an InuringPriority spans multiple risk
+    levels (e.g. LOC and ACC), its output level is the highest RI layer index
+    among those risk levels.
+
+    :param run_dir: Directory containing ``ri_inuring_priority_output_levels.json``
+    :type run_dir: str
+
+    :return: mapping ``{inuring_priority: output_level}`` with integer keys/values
+    :rtype: dict
+    """
+    raw = get_json(src_fp=os.path.join(run_dir, 'ri_inuring_priority_output_levels.json'))
+    return {int(k): int(v) for k, v in raw.items()}
+
+
 def write_df_to_csv_file(df, target_dir, filename):
     """
     Write a generated summary xref dataframe to disk in csv format.
@@ -718,36 +738,60 @@ def generate_summaryxref_files(
             analysis_settings['ri_summaries'],
             'ri'
         )
-        # Write Xref file for each inuring priority where output has been requested
+        # Write Xref file for each inuring priority where output has been requested.
+        # analysis_settings['ri_inuring_priorities'] contains OED InuringPriority values; we use the
+        # mapping file (written during input generation) to convert each to the RI output level (last
+        # RI layer index for that OED priority).
         ri_settings = get_ri_settings(os.path.join(model_run_fp, 'input'))
         ri_layers = {int(x) for x in ri_settings}
-        max_layer = max(ri_layers)
-        ri_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
-        ri_inuring_priorities.add(max_layer)
 
-        if not ri_inuring_priorities.issubset(ri_layers):
-            ri_missing_layers = ri_inuring_priorities.difference(ri_layers)
-            ri_missing_layers = [str(layer) for layer in ri_missing_layers]
-            missing_layers = ', '.join(ri_missing_layers[:-1])
-            missing_layers += ' and ' * (len(ri_missing_layers) > 1) + ri_missing_layers[-1]
-            missing_layers = ('priority ' if len(ri_missing_layers) == 1 else 'priorities ') + missing_layers
-            raise OasisException(f'Requested outputs for inuring priorities {missing_layers} lie outside of scope.')
-        # If requested, gross RL output at every inuring priority
+        inuring_priority_to_output_level = get_ri_inuring_priority_output_levels(
+            os.path.join(model_run_fp, 'input')
+        )
+        valid_oed_priorities = set(inuring_priority_to_output_level.keys())
+        max_oed_priority = max(valid_oed_priorities)
+
+        ri_inuring_priorities_oed = set(int(p) for p in analysis_settings.get('ri_inuring_priorities', []))
+        ri_inuring_priorities_oed.add(max_oed_priority)  # final priority always gets output
+
+        if not ri_inuring_priorities_oed.issubset(valid_oed_priorities):
+            ri_missing = ri_inuring_priorities_oed.difference(valid_oed_priorities)
+            ri_missing = [str(p) for p in sorted(ri_missing)]
+            missing_str = ', '.join(ri_missing[:-1])
+            missing_str += ' and ' * (len(ri_missing) > 1) + ri_missing[-1]
+            missing_str = ('priority ' if len(ri_missing) == 1 else 'priorities ') + missing_str
+            raise OasisException(f'Requested outputs for inuring {missing_str} lie outside of scope.')
+
+        # Convert OED priorities to the RI output levels that should receive summary xref files.
+        # For gross RL output every RI layer is needed; for net RI output only the last layer of
+        # each requested OED priority is needed.
         if rl_summaries:
-            ri_inuring_priorities = ri_layers
-        for inuring_priority in ri_inuring_priorities:
+            ri_output_levels = ri_layers
+        else:
+            ri_output_levels = {inuring_priority_to_output_level[p] for p in ri_inuring_priorities_oed}
+
+        for output_level in ri_output_levels:
             summary_ri_fp = os.path.join(
-                model_run_fp, 'input', os.path.basename(ri_settings[str(inuring_priority)]['directory']))
+                model_run_fp, 'input', os.path.basename(ri_settings[str(output_level)]['directory']))
             df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.bin"))
             if intermediary_csv:
                 write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.csv")
 
         # Write summary_id description files
+        output_dir = os.path.join(model_run_fp, 'output')
         for desc_key in ri_summary_desc:
             if desc_key.split('.')[-1] == 'parquet':
-                write_df_to_parquet_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+                write_df_to_parquet_file(ri_summary_desc[desc_key], output_dir, desc_key)
             else:
-                write_df_to_csv_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+                write_df_to_csv_file(ri_summary_desc[desc_key], output_dir, desc_key)
+
+        # Copy the inuring-priority-to-output-level mapping into the output directory so it is
+        # available alongside the results for downstream consumers.
+        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+        with io.open(os.path.join(model_run_fp, 'input', 'ri_inuring_priority_output_levels.json'), encoding='utf-8') as src_f:
+            mapping_data = src_f.read()
+        with io.open(os.path.join(output_dir, 'ri_inuring_priority_output_levels.json'), 'w', encoding='utf-8') as dst_f:
+            dst_f.write(mapping_data)
 
 
 def get_exposure_summary_field(df, exposure_summary, field_name, field_value, status):
