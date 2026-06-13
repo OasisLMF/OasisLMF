@@ -24,11 +24,17 @@ TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 # gulpy only supports model data in test_model_1
 test_models_dirs = [(x.name, x) for x in TESTS_ASSETS_DIR.glob("test_model_1") if x.is_dir()]
 
-sample_sizes = [1, 10, 100, 1000]
+# JIT-aware sample sizes (mirrors test_gulmc): a loop edge + a large/scale size under
+# JIT, and just a small fast size when the JIT is disabled (the pure-Python coverage
+# job), since the positive sample sizes all exercise the same sampling code. gulpy has
+# no sample_size=0 path.
+if os.environ.get("NUMBA_DISABLE_JIT", "0") != "0":
+    sample_sizes = [10]
+else:
+    sample_sizes = [1, 1000]
 alloc_rules = [1, 2, 3]
 ignore_correlations = [True, False]
-random_generators = [0, 1]
-socket_server = ["True", "3.0", "False"]
+random_generators = [0, 1, 2]
 
 
 @pytest.fixture
@@ -103,11 +109,19 @@ def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
             test_out_bin_fname.with_suffix('.bin').unlink()
 
 
-@pytest.mark.parametrize("socket_server", socket_server)
-@pytest.mark.parametrize("test_model", test_models_dirs, ids=lambda x: x[0])
-def test_gulpy_ping(test_model, socket_server):
-    _, test_model_dir_str = test_model
-    test_model_dir = Path(test_model_dir_str)
+@pytest.mark.parametrize("socket_server,ping_expected,port_expected", [
+    ('False', False, None),   # ping disabled
+    ('True', True, None),     # ping enabled, non-numeric value -> no port override
+    ('8888', True, 8888),     # ping enabled, numeric value -> port override
+], ids=lambda v: f"socket_server={v}")
+def test_gulpy_ping(socket_server, ping_expected, port_expected):
+    """gulpy's socket_server value controls the end-of-run progress ping (oasis_ping).
+
+    The ping is emitted only when socket_server != 'False', and a numeric value is passed
+    through as a `port_override`. The model stream is mocked empty, so only the
+    end-of-run ping fires (the periodic in-loop ping is covered separately).
+    """
+    test_model_dir = Path(test_models_dirs[0][1])
     with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
           patch('oasislmf.pytools.gul.manager.read_getmodel_stream', return_value=[]),
           TemporaryDirectory() as tmp_result_dir_str):
@@ -115,7 +129,35 @@ def test_gulpy_ping(test_model, socket_server):
         os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
         gulpy_run(run_dir=tmp_result_dir, ignore_file_type="", sample_size=1, loss_threshold=1,
                   alloc_rule=1, debug=False, random_generator=1, socket_server=socket_server)
-        if socket_server != 'False':
+        if ping_expected:
             mock_ping.assert_called()
+            payloads = [c.args[0] for c in mock_ping.call_args_list]
+            assert all(('port_override' in p) == (port_expected is not None) for p in payloads)
+            if port_expected is not None:
+                assert all(p['port_override'] == port_expected for p in payloads)
         else:
             mock_ping.assert_not_called()
+
+
+def test_gulpy_periodic_ping():
+    """The in-loop periodic ping fires once more than SERVER_UPDATE_TIME elapses between events.
+
+    Feeds gulpy a real getmodel stream (so the event loop runs) and forces the threshold
+    negative, so the periodic ping fires per event -> oasis_ping is called more than once
+    (periodic pings + the end-of-run ping).
+    """
+    test_model_dir = Path(test_models_dirs[0][1])
+    with TemporaryDirectory() as tmp_result_dir_str:
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        stream = tmp_result_dir.joinpath("getmodel_stream.bin")
+        # capture a real getmodel stream (evepy | modelpy) so gulpy processes events
+        with open(stream, 'wb') as fout:
+            subprocess.run("evepy 1 1 | modelpy", cwd=test_model_dir, shell=True, check=True, stdout=fout)
+        with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
+              patch('oasislmf.pytools.gul.manager.SERVER_UPDATE_TIME', -1)):
+            gulpy_run(run_dir=tmp_result_dir, ignore_file_type=set(), sample_size=10, loss_threshold=0.,
+                      alloc_rule=1, debug=False, random_generator=1,
+                      file_in=str(stream), file_out=str(tmp_result_dir.joinpath("out.bin")),
+                      socket_server='True')
+        assert mock_ping.call_count > 1
