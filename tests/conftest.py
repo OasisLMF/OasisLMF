@@ -12,5 +12,3 @@ def _use_tmp_log_dir(tmp_path_factory):
     yield
     del os.environ['OASIS_PYTEST_REDIRECT_LOGS']
     del os.environ['OASIS_TMPDIR']
-
-
