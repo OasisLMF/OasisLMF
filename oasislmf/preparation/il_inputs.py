@@ -871,7 +871,7 @@ def get_il_input_items(
                     continue
 
                 # reset non layered agg_id
-                layered_agg_id = gul_inputs_df[gul_inputs_df['layer_id'] > 1]["agg_id_prev"].unique()
+                layered_agg_id = gul_inputs_df[gul_inputs_df['layer_id'] > 0]["agg_id_prev"].unique()
                 gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].where(gul_inputs_df['agg_id_prev'].isin(layered_agg_id), 0)
 
                 # get all rows with terms in term_df_source and determine the correct FMTermGroupID
