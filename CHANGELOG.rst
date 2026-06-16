@@ -1,6 +1,10 @@
 OasisLMF Changelog
 ==================
 
+`2.5.5`_
+ ---------
+* [#2023](https://github.com/OasisLMF/OasisLMF/pull/2023) - fix(lookup): assume EPSG:4326 and warn when geometry file has no CRS metadata
+
 `2.5.4`_
  ---------
 * [#1940](https://github.com/OasisLMF/OasisLMF/pull/1940) - enhancement/profile check script
@@ -26,6 +30,7 @@ OasisLMF Changelog
 * [#1994](https://github.com/OasisLMF/OasisLMF/pull/1994) - fix summarypy missing dtypes
 * [#1997](https://github.com/OasisLMF/OasisLMF/pull/1997) - Fix for ci error
 * [#1999](https://github.com/OasisLMF/OasisLMF/pull/1999) - fix/input_gen_status
+.. _`2.5.5`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.4...2.5.5
 .. _`2.5.4`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.3...2.5.4
 
 `2.5.3`_
