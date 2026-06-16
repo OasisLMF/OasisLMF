@@ -710,6 +710,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             raise OasisException(f"Unrecognised Geopandas read type {file_type}")
 
         if gdf_geometry.crs is None:
+            warnings.warn(
+                f"Geometry file '{file_path}' has no CRS metadata — assuming EPSG:4326. "
+                "Re-save the file with a CRS to suppress this warning.",
+                UserWarning,
+            )
             gdf_geometry = gdf_geometry.set_crs("EPSG:4326")
 
         if nearest_neighbor_max_distance > 0:
