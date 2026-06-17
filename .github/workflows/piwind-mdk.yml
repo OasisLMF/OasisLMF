@@ -67,14 +67,13 @@ jobs:
 
       - name: Run model tests
         working-directory: OasisModels
-        run: pytest tests/test_model_runs.py -v --check-results --basetemp=pytest-tmp ${{ inputs.pytest_params }}
+        run: pytest tests/test_model_runs.py -s -v --check-results --basetemp=pytest-tmp ${{ inputs.pytest_params }}
 
       - name: Archive model logs
         if: always()
         working-directory: OasisModels
         run: |
-          find pytest-tmp -path "*/run/*" -type d \
-            | tar -czf model-logs.tar.gz --files-from=-
+          find pytest-tmp -path "*/run/log" -o -path "*/run/output" -type d | tar -czf model-logs.tar.gz --files-from=-
 
       - name: Upload model logs
         if: always()
