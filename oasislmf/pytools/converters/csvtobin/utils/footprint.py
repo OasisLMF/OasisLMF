@@ -26,7 +26,7 @@ import zlib
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import resolve_file
+from oasislmf.pytools.common.data import areaperil_int, resolve_file
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype, EventIndexBinZ_dtype
@@ -202,12 +202,12 @@ def footprint_tobin(
 
     # Validation carry state (dummy initial values; first_chunk=True prevents their use)
     prev_sort_event = np.int32(0)
-    prev_sort_areaperil = np.uint32(0)
+    prev_sort_areaperil = areaperil_int.type(0)
     prev_prob_event = np.int32(0)
-    prev_prob_areaperil = np.uint32(0)
+    prev_prob_areaperil = areaperil_int.type(0)
     running_sum = np.float64(0.0)
     prev_dup_event = np.int32(0)
-    prev_dup_areaperil = np.uint32(0)
+    prev_dup_areaperil = areaperil_int.type(0)
     prev_dup_intensity = np.int32(0)
 
     # Partial-event buffer for events that span chunk boundaries
