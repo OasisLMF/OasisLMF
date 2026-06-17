@@ -67,7 +67,7 @@ jobs:
 
       - name: Run model tests
         working-directory: OasisModels
-        run: pytest tests/test_model_runs.py -s -v --check-results --basetemp=pytest-tmp ${{ inputs.pytest_params }}
+        run: pytest tests/test_model_runs.py -v --check-results --basetemp=pytest-tmp ${{ inputs.pytest_params }}
 
       - name: Archive model logs
         if: always()
