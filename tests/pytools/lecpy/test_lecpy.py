@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 import numpy as np
 import pandas as pd
 import pytest
-from oasislmf.pytools.common.data import summary_stream_index_dtype
+from oasislmf.pytools.common.data import occurrence_dtype, summary_stream_index_dtype
 from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.lec.data import EPT_dtype, PSEPT_dtype
 from oasislmf.pytools.lec.manager import main
@@ -360,3 +360,86 @@ def test_lec_idx_partial_coverage_falls_back_to_sequential():
             actual = np.genfromtxt(out_file, delimiter=',', skip_header=1)
             assert expected.shape == actual.shape, f"Shape mismatch for {golden_name}: {expected.shape} vs {actual.shape}"
             np.testing.assert_allclose(expected, actual, rtol=1e-5, atol=1e-8)
+
+
+def _build_multi_summary_run(tmp_dir, n_summaries, n_events=40, sample_size=20, n_periods=50, n_files=3, seed=7):
+    """Build a minimal multi-summary, partitioned summary stream + occurrence for chunking tests.
+
+    Events are split across n_files (partition-by-event); every summary_id appears in each
+    file for the events that landed there — mirroring a real partitioned run. A paired .idx
+    is generated for each .bin so the per-summary-id (chunked) path is taken.
+    """
+    rng = np.random.default_rng(seed)
+    input_dir = tmp_dir / "input"
+    work_dir = tmp_dir / "work" / "gul"
+    input_dir.mkdir(parents=True)
+    work_dir.mkdir(parents=True)
+
+    event_ids = np.arange(1, n_events + 1, dtype=np.int32)
+    recs = np.zeros(n_events, dtype=occurrence_dtype)
+    recs["event_id"] = event_ids
+    recs["period_no"] = (event_ids % n_periods) + 1
+    with open(input_dir / "occurrence.bin", "wb") as f:
+        f.write(np.array([1, n_periods], dtype=np.int32).tobytes())
+        f.write(recs.tobytes())
+
+    stream_hdr = np.frombuffer(stream_info_to_bytes(SUMMARY_STREAM_ID, sample_size), dtype=np.int32)[0]
+    sidxs = np.array([-1] + list(range(1, sample_size + 1)), dtype=np.int32)  # mean + samples
+    for fi, events in enumerate(np.array_split(event_ids, n_files), start=1):
+        rows = [np.array([stream_hdr, sample_size, 1], dtype=np.int32)]
+        for ev in events:
+            for sid in range(1, n_summaries + 1):
+                block = np.empty(3 + 2 * (len(sidxs) + 1), dtype=np.int32)
+                block[0] = ev
+                block[1] = sid
+                block[2] = np.float32(0.0).view(np.int32)  # expval
+                pos = 3
+                for s, loss in zip(sidxs, rng.uniform(1.0, 1000.0, len(sidxs)).astype(np.float32)):
+                    block[pos] = s
+                    block[pos + 1] = loss.view(np.int32)
+                    pos += 2
+                block[pos] = 0                               # terminating sidx
+                block[pos + 1] = np.float32(0.0).view(np.int32)
+                rows.append(block)
+        np.concatenate(rows).tofile(work_dir / f"summarypy{fi}.bin")
+    for b in sorted(work_dir.glob("*.bin")):
+        make_idx_from_bin(b, b.with_suffix(".idx"))
+
+
+def _run_lec_idx(tmp_dir, out_name, chunk_size):
+    out_dir = tmp_dir / out_name
+    out_dir.mkdir()
+    with patch("oasislmf.pytools.lec.manager.LEC_IDX_CHUNK_SIZE", chunk_size):
+        main(
+            run_dir=tmp_dir, subfolder="gul", use_return_period=False,
+            ept=out_dir / "py_ept.csv", psept=out_dir / "py_psept.csv", ext="csv",
+            **_ALL_OUTPUT_FLAGS,
+        )
+    return out_dir
+
+
+@pytest.mark.parametrize("chunk_size", [7, 23, 1000], ids=["k7_partial_last", "k_exact", "k_single_chunk"])
+def test_lec_idx_chunking_invariant_to_k(chunk_size):
+    """Chunked idx output is identical to the strict per-summary (K=1) path for any K.
+
+    K=1 is already pinned to the sequential golden by test_lec_idx_output_matches_sequential,
+    so equality with K=1 transitively validates each chunk size — in particular the
+    local-slot → real-summary_id remap across chunk boundaries, including a partial final
+    chunk (n_summaries=23 is not a multiple of 7) and the whole-run single-chunk case.
+    """
+    n_summaries = 23
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        _build_multi_summary_run(tmp_dir, n_summaries=n_summaries)
+
+        baseline = _run_lec_idx(tmp_dir, "out_k1", 1)
+        chunked = _run_lec_idx(tmp_dir, f"out_k{chunk_size}", chunk_size)
+
+        for name in ("py_ept.csv", "py_psept.csv"):
+            a = np.genfromtxt(baseline / name, delimiter=',', skip_header=1)
+            b = np.genfromtxt(chunked / name, delimiter=',', skip_header=1)
+            a = a[np.lexsort(a.T[::-1])]
+            b = b[np.lexsort(b.T[::-1])]
+            assert a.shape == b.shape, f"Shape mismatch for {name} at K={chunk_size}: {a.shape} vs {b.shape}"
+            np.testing.assert_allclose(a, b, rtol=1e-5, atol=1e-8,
+                                       err_msg=f"chunk_size={chunk_size} differs from K=1 for {name}")

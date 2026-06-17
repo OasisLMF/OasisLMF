@@ -349,7 +349,7 @@ class AggReports():
 # ---------------------------------------------------------------------------
 
 def output_for_summary_idx(
-    summary_id,
+    chunk_ids,
     outloss_mean_s,
     row_used_mean_s,
     outloss_sample_s,
@@ -361,10 +361,12 @@ def output_for_summary_idx(
     config,
     output_fn,
 ):
-    """Output all report types for a single summary_id (idx path).
+    """Output all report types for a chunk of summary_ids (idx path).
 
-    Called once per summary_id. config.max_summary_id must be 1; arrays are sized
-    for a single summary. Write generators emit SummaryId=1, corrected here before each write.
+    Called once per chunk. config.max_summary_id must equal len(chunk_ids); arrays are
+    sized for that many summaries. Write generators emit a 1-based local SummaryId
+    (1..len(chunk_ids)); it is remapped to the real summary_id before each write.
+    chunk_ids of length 1 reproduces the original strict per-summary behaviour.
     """
     row_used_indices_mean = np.flatnonzero(row_used_mean_s)
     row_used_indices_sample = np.flatnonzero(row_used_sample_s)
@@ -373,7 +375,7 @@ def output_for_summary_idx(
 
     def _out(data, out_type):
         if len(data):
-            data["SummaryId"] = summary_id
+            data["SummaryId"] = chunk_ids[data["SummaryId"] - 1]  # local slot → real summary_id
         output_fn(data, out_type)
 
     if outmap["ept"]["compute"] and (hasOCC or hasAGG):
@@ -384,7 +386,7 @@ def output_for_summary_idx(
             if not wanted:
                 continue
             items = np.zeros(len(row_used_indices_mean), dtype=LOSSVEC2MAP_dtype)
-            items_start_end = np.full((1, 2), -1, dtype=np.int32)
+            items_start_end = np.full((config.max_summary_id, 2), -1, dtype=np.int32)
             _write_mean_damage_ratio(
                 items, items_start_end, row_used_indices_mean,
                 outloss_mean_s[outloss_type], config, eptype, eptype_tvar, _out,
@@ -397,7 +399,7 @@ def output_for_summary_idx(
         if not output_flags[flag]:
             continue
         items = np.zeros(len(row_used_indices_sample), dtype=LOSSVEC2MAP_dtype)
-        items_start_end = np.full((1, 2), -1, dtype=np.int32)
+        items_start_end = np.full((config.max_summary_id, 2), -1, dtype=np.int32)
         _write_full_uncertainty(
             items, items_start_end, row_used_indices_sample,
             outloss_sample_s[outloss_type], config, eptype, eptype_tvar, _out,
@@ -412,8 +414,8 @@ def output_for_summary_idx(
         if not (do_wheat or do_wheat_mean):
             continue
         wheatsheaf_items = np.zeros(len(row_used_indices_sample), dtype=WHEATKEYITEMS_dtype)
-        wheatsheaf_items_start_end = np.full((config.num_sidxs, 2), -1, dtype=np.int32)
-        mean_map = np.zeros((1, len(config.returnperiods)), dtype=MEANMAP_dtype) if do_wheat_mean else None
+        wheatsheaf_items_start_end = np.full((config.max_summary_id * config.num_sidxs, 2), -1, dtype=np.int32)
+        mean_map = np.zeros((config.max_summary_id, len(config.returnperiods)), dtype=MEANMAP_dtype) if do_wheat_mean else None
         _write_wheatsheaf(
             wheatsheaf_items, wheatsheaf_items_start_end, mean_map,
             row_used_indices_sample, outloss_sample_s[outloss_type],
@@ -431,7 +433,7 @@ def output_for_summary_idx(
         if not output_flags[flag]:
             continue
         reordered = np.zeros(
-            config.no_of_periods,
+            config.no_of_periods * config.max_summary_id,
             dtype=np.dtype([("row_used", np.bool_), ("value", oasis_float)]),
         )
         _write_sample_mean(

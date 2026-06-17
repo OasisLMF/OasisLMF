@@ -1,6 +1,7 @@
 # lec/manager.py
 
 import logging
+import os
 import shutil
 import numpy as np
 import numba as nb
@@ -23,6 +24,11 @@ from oasislmf.pytools.utils import redirect_logging
 
 
 logger = logging.getLogger(__name__)
+
+# Number of summary_ids processed together per chunk in the .idx path. K=1 is the
+# original strict per-summary behaviour; larger K amortises the fixed per-call kernel
+# and CSV-write overhead while keeping peak working memory at O(periods × sidxs × K).
+LEC_IDX_CHUNK_SIZE = int(os.environ.get("OASIS_LEC_IDX_CHUNK", "64"))
 
 
 def read_input_files(
@@ -151,6 +157,7 @@ def do_lec_output_agg_summary(
 def process_summary_entries(
     fin,
     offsets,
+    local_sids,
     occ_map,
     use_return_period,
     outloss_mean_s,
@@ -158,15 +165,19 @@ def process_summary_entries(
     outloss_sample_s,
     row_used_sample_s,
     num_sidxs,
+    max_summary_id,
 ):
-    """Process all indexed event blocks for one (summary_id, file) pair in a single call.
+    """Process all indexed event blocks for one (chunk, file) pair in a single call.
 
     Eliminates per-event Python→numba overhead by looping over all offsets inside numba.
-    offsets should be sorted ascending for best OS page-cache utilisation.
+    offsets should be sorted ascending for best OS page-cache utilisation; local_sids[i]
+    is the 1-based slot (within the chunk) that offsets[i]'s summary maps to, and
+    max_summary_id is the chunk size used as the stride into the output arrays.
     """
     valid_buff = len(fin)
-    for offset in offsets:
-        cursor = offset
+    for i in range(len(offsets)):
+        cursor = offsets[i]
+        local_sid = local_sids[i]
         event_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
         _, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)    # summary_id known from idx
         _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)  # expval
@@ -184,10 +195,10 @@ def process_summary_entries(
                 continue
             if loss > 0 or use_return_period:
                 do_lec_output_agg_summary(
-                    1, sidx, loss, filtered_occ_map,
+                    local_sid, sidx, loss, filtered_occ_map,
                     outloss_mean_s, row_used_mean_s,
                     outloss_sample_s, row_used_sample_s,
-                    num_sidxs, 1,
+                    num_sidxs, max_summary_id,
                 )
 
 
@@ -506,41 +517,59 @@ def run(
             # Open output files before the loop so headers are written once
             _open_output_files(outmap, stack, output_binary, output_parquet, noheader)
 
+            output_fn = make_output_fn(outmap, output_binary, output_parquet)
+
+            # Process summaries in chunks of K to amortise the fixed per-call kernel and
+            # CSV-write overhead, while keeping peak working memory at O(periods × sidxs × K).
+            chunk_size = max(1, LEC_IDX_CHUNK_SIZE)
+
             idx_config = LecConfig(
                 period_weights=file_data["period_weights"],
-                max_summary_id=1,
+                max_summary_id=chunk_size,
                 sample_size=int(sample_size),
                 no_of_periods=no_of_periods,
                 num_sidxs=num_sidxs,
                 use_return_period=use_return_period,
                 returnperiods=file_data["returnperiods"],
             )
-            output_fn = make_output_fn(outmap, output_binary, output_parquet)
 
-            # Per-summary arrays — no × max_summary_id factor
-            outloss_mean_s = np.zeros(no_of_periods, dtype=OUTLOSS_DTYPE)
-            outloss_sample_s = np.zeros(no_of_periods * num_sidxs, dtype=OUTLOSS_DTYPE)
-            row_used_mean_s = np.zeros(no_of_periods, dtype=np.bool_)
-            row_used_sample_s = np.zeros(no_of_periods * num_sidxs, dtype=np.bool_)
+            # Per-chunk arrays — sized for K summaries (not the full max_summary_id)
+            outloss_mean_s = np.zeros(no_of_periods * chunk_size, dtype=OUTLOSS_DTYPE)
+            outloss_sample_s = np.zeros(no_of_periods * num_sidxs * chunk_size, dtype=OUTLOSS_DTYPE)
+            row_used_mean_s = np.zeros(no_of_periods * chunk_size, dtype=np.bool_)
+            row_used_sample_s = np.zeros(no_of_periods * num_sidxs * chunk_size, dtype=np.bool_)
 
             # Pre-compute uint8 views once — numpy's struct[:]=0 is ~4x slower than raw byte zeroing
             _mean_bytes = outloss_mean_s.view(np.uint8)
             _sample_bytes = outloss_sample_s.view(np.uint8)
 
-            for summary_id in unique_summary_ids:
+            merged_sids = merged["summary_id"]
+            for start in range(0, len(unique_summary_ids), chunk_size):
+                chunk_ids = unique_summary_ids[start:start + chunk_size]
+                kc = len(chunk_ids)
+                idx_config.max_summary_id = kc  # array stride for this chunk
+
                 _mean_bytes[:] = 0
                 _sample_bytes[:] = 0
                 row_used_mean_s[:] = False
                 row_used_sample_s[:] = False
 
-                lo = int(np.searchsorted(merged["summary_id"], summary_id, side="left"))
-                hi = int(np.searchsorted(merged["summary_id"], summary_id, side="right"))
+                # merged is sorted by summary_id, so this chunk is one contiguous slice
+                lo = int(np.searchsorted(merged_sids, chunk_ids[0], side="left"))
+                hi = int(np.searchsorted(merged_sids, chunk_ids[-1], side="right"))
                 entries = merged[lo:hi]
+                # 1-based slot within the chunk for each entry's summary_id
+                local = (np.searchsorted(chunk_ids, entries["summary_id"]) + 1).astype(np.int32)
+
                 for fi in np.unique(entries["file_index"]):
-                    offsets = np.sort(entries[entries["file_index"] == fi]["offset"])
+                    fmask = entries["file_index"] == fi
+                    offsets = entries["offset"][fmask]
+                    lsids = local[fmask]
+                    order = np.argsort(offsets, kind="stable")  # ascending offsets for page-cache
                     process_summary_entries(
                         file_handles[int(fi)],
-                        offsets,
+                        offsets[order],
+                        lsids[order],
                         file_data["occ_map"],
                         use_return_period,
                         outloss_mean_s,
@@ -548,10 +577,11 @@ def run(
                         outloss_sample_s,
                         row_used_sample_s,
                         num_sidxs,
+                        kc,
                     )
 
                 output_for_summary_idx(
-                    int(summary_id),
+                    chunk_ids,
                     outloss_mean_s, row_used_mean_s,
                     outloss_sample_s, row_used_sample_s,
                     output_flags, hasOCC, hasAGG,
