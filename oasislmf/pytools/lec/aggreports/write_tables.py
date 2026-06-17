@@ -292,6 +292,7 @@ def write_tvar_wheatsheaf(
 
 @nb.njit(cache=True, error_model="numpy")
 def write_ept(
+    buffer,
     items,
     items_start_end,
     max_retperiod,
@@ -323,7 +324,6 @@ def write_ept(
     Yields:
         buffer (ndarray[EPT_dtype]): Buffered chunks of EPT data
     """
-    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
     bidx = 0
 
     if len(items) == 0 or sample_size == 0:
@@ -472,6 +472,7 @@ def write_ept(
 
 @nb.njit(cache=True, error_model="numpy")
 def write_ept_weighted(
+    buffer,
     items,
     items_start_end,
     cum_weight_constant,
@@ -509,7 +510,6 @@ def write_ept_weighted(
     Yields:
         buffer (ndarray[EPT_dtype]): Buffered chunks of EPT data
     """
-    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
     bidx = 0
 
     if len(items) == 0 or sample_size == 0:
@@ -674,6 +674,7 @@ def write_ept_weighted(
 
 @nb.njit(cache=True, error_model="numpy")
 def write_psept(
+    buffer,
     items,
     items_start_end,
     max_retperiod,
@@ -699,7 +700,6 @@ def write_psept(
     Yields:
         buffer (ndarray[PSEPT_dtype]): Buffered chunks of PSEPT data
     """
-    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=PSEPT_dtype)
     bidx = 0
 
     if len(items) == 0:
@@ -854,6 +854,7 @@ def write_psept(
 
 @nb.njit(cache=True, error_model="numpy")
 def write_psept_weighted(
+    buffer,
     items,
     items_start_end,
     max_retperiod,
@@ -885,7 +886,6 @@ def write_psept_weighted(
     Yields:
         buffer (ndarray[PSEPT_dtype]): Buffered chunks of PSEPT data
     """
-    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=PSEPT_dtype)
     bidx = 0
 
     if len(items) == 0:
@@ -1058,6 +1058,7 @@ def write_psept_weighted(
 
 @nb.njit(cache=True, error_model="numpy")
 def write_wheatsheaf_mean(
+    buffer,
     mean_map,
     eptype,
     epcalc,
@@ -1076,7 +1077,6 @@ def write_wheatsheaf_mean(
     if len(mean_map) == 0:
         return
 
-    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
     bidx = 0
 
     for summary_id in range(1, max_summary_id + 1):

@@ -32,6 +32,11 @@ class LecConfig:
     num_sidxs: int
     use_return_period: bool
     returnperiods: np.ndarray
+    # Reusable output buffers, allocated once per run and shared across all generator
+    # calls (the write_* generators fully overwrite each row before yielding, so no
+    # re-zeroing is needed). Avoids a ~19 MB allocation on every per-summary call.
+    ept_buffer: np.ndarray
+    psept_buffer: np.ndarray
 
 
 def make_output_fn(outmap, output_binary, output_parquet):
@@ -69,12 +74,14 @@ def _write_mean_damage_ratio(
     unused_pw = config.period_weights[~used_period_no]
     if has_weights:
         gen = write_ept_weighted(
+            config.ept_buffer,
             items, items_start_end, config.sample_size, MEANDR,
             eptype, eptype_tvar, unused_pw,
             config.use_return_period, config.returnperiods, config.max_summary_id,
         )
     else:
         gen = write_ept(
+            config.ept_buffer,
             items, items_start_end, config.no_of_periods, MEANDR,
             eptype, eptype_tvar,
             config.use_return_period, config.returnperiods, config.max_summary_id,
@@ -94,12 +101,14 @@ def _write_full_uncertainty(
     unused_pw = config.period_weights[~used_period_no]
     if has_weights:
         gen = write_ept_weighted(
+            config.ept_buffer,
             items, items_start_end, 1, FULL,
             eptype, eptype_tvar, unused_pw,
             config.use_return_period, config.returnperiods, config.max_summary_id,
         )
     else:
         gen = write_ept(
+            config.ept_buffer,
             items, items_start_end, config.no_of_periods * config.sample_size, FULL,
             eptype, eptype_tvar,
             config.use_return_period, config.returnperiods, config.max_summary_id,
@@ -123,6 +132,7 @@ def _write_wheatsheaf(
     if has_weights:
         if do_wheat:
             gen = write_psept_weighted(
+                config.psept_buffer,
                 wheatsheaf_items, wheatsheaf_items_start_end, config.no_of_periods,
                 eptype, eptype_tvar, unused_pw,
                 config.use_return_period, config.returnperiods,
@@ -131,12 +141,13 @@ def _write_wheatsheaf(
             for data in gen:
                 output_fn(data, "psept")
         if do_wheat_mean and mean_map is not None:
-            gen = write_wheatsheaf_mean(mean_map, eptype, PERSAMPLEMEAN, config.max_summary_id)
+            gen = write_wheatsheaf_mean(config.ept_buffer, mean_map, eptype, PERSAMPLEMEAN, config.max_summary_id)
             for data in gen:
                 output_fn(data, "ept")
     else:
         if do_wheat:
             gen = write_psept(
+                config.psept_buffer,
                 wheatsheaf_items, wheatsheaf_items_start_end, config.no_of_periods,
                 eptype, eptype_tvar,
                 config.use_return_period, config.returnperiods,
@@ -154,6 +165,7 @@ def _write_wheatsheaf(
                     maxcounts, config.max_summary_id, config.num_sidxs,
                 )
                 gen = write_ept(
+                    config.ept_buffer,
                     wm_items, wm_items_start_end, config.no_of_periods,
                     PERSAMPLEMEAN, eptype, eptype_tvar,
                     config.use_return_period, config.returnperiods, config.max_summary_id,
@@ -182,12 +194,14 @@ def _write_sample_mean(
     unused_pw = config.period_weights[~used_period_no]
     if has_weights:
         gen = write_ept_weighted(
+            config.ept_buffer,
             items, items_start_end, config.sample_size, MEANSAMPLE,
             eptype, eptype_tvar, unused_pw,
             config.use_return_period, config.returnperiods, config.max_summary_id,
         )
     else:
         gen = write_ept(
+            config.ept_buffer,
             items, items_start_end, config.no_of_periods, MEANSAMPLE,
             eptype, eptype_tvar,
             config.use_return_period, config.returnperiods, config.max_summary_id,
