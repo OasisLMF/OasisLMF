@@ -55,6 +55,12 @@ def gul_atol(request):
     return request.config.getoption('--gul-atol')
 
 
+@pytest.fixture
+def gulmc_max_sample_size(request):
+    """Fixture to get the value of the `--gulmc-max-sample-size` command line argument."""
+    return request.config.getoption('--gulmc-max-sample-size')
+
+
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
 @pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
@@ -72,7 +78,8 @@ def test_gulmc(socket_server: str,
                gulmc_generate_missing_expected: bool,
                update_expected: bool,
                gul_rtol: float,
-               gul_atol: float):
+               gul_atol: float,
+               gulmc_max_sample_size):
     """Test gulmc functionality.
 
     Args:
@@ -98,6 +105,9 @@ def test_gulmc(socket_server: str,
             pytest --gulmc-generate-missing-expected --update-expected tests/pytools/gulmc/test_gulmc.py
         ```
     """
+    if gulmc_max_sample_size is not None and sample_size > gulmc_max_sample_size:
+        pytest.skip(f"sample_size={sample_size} exceeds --gulmc-max-sample-size={gulmc_max_sample_size}")
+
     test_model_name, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
@@ -196,7 +206,8 @@ def test_debug_flag(test_model: Tuple[str, str],
                     alloc_rule: int,
                     ignore_correlation: bool,
                     random_generator: int,
-                    effective_damageability: bool):
+                    effective_damageability: bool,
+                    gulmc_max_sample_size):
     """Test gulmc to raise ValueError if debug is 1 or 2 (i.e., the user wants to print out the random values used
     for the sampling), but alloc_rule is 1, 2, or 3, which does not make sense as it applies back-allocation rules
     on the random values.
@@ -211,6 +222,9 @@ def test_debug_flag(test_model: Tuple[str, str],
         random_generator (int): random generator (0: Mersenne-Twister, 1: Latin Hypercube).
         effective_damageability (bool): if True, draw loss samples from the effective damageability.
     """
+    if gulmc_max_sample_size is not None and sample_size > gulmc_max_sample_size:
+        pytest.skip(f"sample_size={sample_size} exceeds --gulmc-max-sample-size={gulmc_max_sample_size}")
+
     _, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
@@ -256,7 +270,8 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
                           alloc_rule: int,
                           ignore_correlation: bool,
                           random_generator: int,
-                          effective_damageability: bool):
+                          effective_damageability: bool,
+                          gulmc_max_sample_size):
     """Test gulmc to raise ValueError if alloc rule does not have a valid value.
 
     Args:
@@ -267,6 +282,9 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
         random_generator (int): random generator (0: Mersenne-Twister, 1: Latin Hypercube).
         effective_damageability (bool): if True, draw loss samples from the effective damageability.
     """
+    if gulmc_max_sample_size is not None and sample_size > gulmc_max_sample_size:
+        pytest.skip(f"sample_size={sample_size} exceeds --gulmc-max-sample-size={gulmc_max_sample_size}")
+
     _, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 

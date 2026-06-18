@@ -25,3 +25,7 @@ def pytest_addoption(parser):
              'collision test and print it for paste-back. Use when the hash function '
              'in oasislmf.pytools.common.hashmap changes. Adds ~5-15 s to the run.'
     )
+    parser.addoption(
+        '--gulmc-max-sample-size', type=int, default=None,
+        help='If set, skip gulmc tests where sample_size exceeds this value (e.g. --gulmc-max-sample-size=10 skips S100 and S1000).'
+    )
