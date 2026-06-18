@@ -335,11 +335,11 @@ def fnv1a_overload_record(record, h=init_hash):
             if ftype.bitwidth == 64:
                 src.append("    _buf = np.empty(1, dtype=np.float64)")
                 src.append(f"    _buf[0] = record['{fname}']")
-                src.append(f"    h = (h ^ _buf.view(np.uint64)[0]) * {FNV_PRIME}")
+                src.append("    h = (h ^ _buf.view(np.uint64)[0]) * FNV_PRIME")
             else:  # float32 → zero-extend to 64 bits after bit-cast to uint32
                 src.append("    _buf = np.empty(1, dtype=np.float32)")
                 src.append(f"    _buf[0] = record['{fname}']")
-                src.append(f"    h = (h ^ np.uint64(_buf.view(np.uint32)[0])) * {FNV_PRIME}")
+                src.append("    h = (h ^ np.uint64(_buf.view(np.uint32)[0])) * FNV_PRIME")
         elif isinstance(ftype, nbt.UnicodeCharSeq):
             # Fixed-width unicode (e.g. 'U3') field. str(field) trims trailing
             # NUL padding via numba's UnicodeCharSeq.__len__ (numpy's fixed-
@@ -351,7 +351,7 @@ def fnv1a_overload_record(record, h=init_hash):
         else:
             # int/uint/bool: np.uint64() is already a zero-extension, equivalent to bitcast
             src.append(
-                f"    h = (h ^ np.uint64(record['{fname}'])) * {FNV_PRIME}"
+                f"    h = (h ^ np.uint64(record['{fname}'])) * FNV_PRIME"
             )
     # Final Murmur3 fmix64 — three rounds of shift / mult / shift. See _fmix64().
     src.append("    h ^= h >> np.uint64(33)")
