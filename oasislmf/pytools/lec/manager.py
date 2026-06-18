@@ -506,6 +506,10 @@ def run(
             # Open output files before the loop so headers are written once
             _open_output_files(outmap, stack, output_binary, output_parquet, noheader)
 
+            # Output buffers allocated once and reused across every per-summary generator
+            # call (the write_* generators overwrite each row before yielding, so no zeroing).
+            ept_buffer = np.empty(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
+            psept_buffer = np.empty(DEFAULT_BUFFER_SIZE, dtype=PSEPT_dtype)
             idx_config = LecConfig(
                 period_weights=file_data["period_weights"],
                 max_summary_id=1,
@@ -514,6 +518,8 @@ def run(
                 num_sidxs=num_sidxs,
                 use_return_period=use_return_period,
                 returnperiods=file_data["returnperiods"],
+                ept_buffer=ept_buffer,
+                psept_buffer=psept_buffer,
             )
             output_fn = make_output_fn(outmap, output_binary, output_parquet)
 
@@ -622,6 +628,8 @@ def run(
         _open_output_files(outmap, stack, output_binary, output_parquet, noheader)
 
         # Output aggregate reports to CSVs
+        ept_buffer = np.empty(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
+        psept_buffer = np.empty(DEFAULT_BUFFER_SIZE, dtype=PSEPT_dtype)
         seq_config = LecConfig(
             period_weights=file_data["period_weights"],
             max_summary_id=max_summary_id,
@@ -630,6 +638,8 @@ def run(
             num_sidxs=num_sidxs,
             use_return_period=use_return_period,
             returnperiods=file_data["returnperiods"],
+            ept_buffer=ept_buffer,
+            psept_buffer=psept_buffer,
         )
         agg = AggReports(
             outmap,
