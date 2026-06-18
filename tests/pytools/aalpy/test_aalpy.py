@@ -7,34 +7,12 @@ import pytest
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from oasislmf.pytools.common.data import occurrence_dtype, summary_stream_index_dtype
+from oasislmf.pytools.common.data import occurrence_dtype
 from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.aal.manager import _SUMMARIES_DTYPE_size, main
+from tests.pytools.utils import make_idx_from_bin
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_aalpy")
-
-
-def make_idx_from_bin(bin_path: Path, idx_path: Path) -> None:
-    """Scan a summary .bin and write a paired .idx recording each event block's byte offset.
-
-    If the bin contains no data blocks (header only), creates a 0-byte idx to match
-    summarypy --low-memory behaviour for partitions that received no events.
-    """
-    raw = np.fromfile(str(bin_path), dtype=np.int32)
-    pos = 3  # skip 3-int stream header (stream_type, sample_size, summary_set_id)
-    entries = []
-    while pos < len(raw):
-        byte_offset = pos * 4
-        summary_id = int(raw[pos + 1])
-        pos += 3  # event_id, summary_id, expval
-        while pos < len(raw) and raw[pos] != 0:
-            pos += 2  # sidx + loss pair (any non-zero sidx, including special negatives)
-        pos += 2  # terminating (sidx=0, loss=0.0)
-        entries.append((summary_id, byte_offset))
-    if entries:
-        np.array(entries, dtype=summary_stream_index_dtype).tofile(str(idx_path))
-    else:
-        idx_path.touch()  # empty partition → 0-byte idx
 
 
 def case_runner(sub_folder, test_name, out_ext="csv", meanonly=False):
@@ -237,8 +215,39 @@ def test_aal_idx_empty_file_no_crash():
         out_dir = tmp_dir / "out"
         out_dir.mkdir()
 
-        main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / "py_aalgul.csv")
-        assert (out_dir / "py_aalgul.csv").exists(), "AAL output should be created when populated bins are present"
+        outfile_name = "py_aalgul.csv"
+        main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / outfile_name)
+
+        expected = np.genfromtxt(tmp_dir / outfile_name, delimiter=',', skip_header=1)
+        actual = np.genfromtxt(out_dir / outfile_name, delimiter=',', skip_header=1)
+        assert expected.shape == actual.shape, f"Shape mismatch: {expected.shape} vs {actual.shape}"
+        np.testing.assert_allclose(expected, actual, rtol=1e-5, atol=1e-8,
+                                   err_msg="Empty partition changed AAL output")
+
+
+def test_aal_idx_partial_coverage_mixed_dispatch():
+    """Partial .idx coverage uses per-file mixed dispatch: indexed files use process_idx_file,
+    files without .idx use process_bin_file. Output must match full sequential golden."""
+    outfile_name = "py_aalgul.csv"
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "all_files"), tmp_dir)
+
+        work_dir = tmp_dir / "work" / "gul"
+        bins = sorted(work_dir.glob("*.bin"))
+        # Only provide idx for the first bin → it uses process_idx_file, the rest use process_bin_file
+        make_idx_from_bin(bins[0], bins[0].with_suffix(".idx"))
+
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+
+        main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / outfile_name)
+
+        expected = np.genfromtxt(tmp_dir / outfile_name, delimiter=',', skip_header=1)
+        actual = np.genfromtxt(out_dir / outfile_name, delimiter=',', skip_header=1)
+        assert expected.shape == actual.shape, f"Shape mismatch: {expected.shape} vs {actual.shape}"
+        np.testing.assert_allclose(expected, actual, rtol=1e-5, atol=1e-8,
+                                   err_msg="Mixed idx/sequential dispatch changed AAL output")
 
 
 # ---------------------------------------------------------------------------
