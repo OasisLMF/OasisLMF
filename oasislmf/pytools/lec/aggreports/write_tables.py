@@ -1,7 +1,6 @@
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE
 from oasislmf.pytools.lec.data import (EPT_dtype, PSEPT_dtype, TAIL_valtype)
 from oasislmf.pytools.lec.utils import (get_wheatsheaf_items_idx, get_wheatsheaf_items_idx_data)
 

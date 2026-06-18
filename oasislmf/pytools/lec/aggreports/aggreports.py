@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 
-from oasislmf.pytools.common.data import oasis_float, write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import oasis_float, periods_dtype, write_ndarray_to_fmt_csv
 from oasislmf.pytools.lec.aggreports.outputs.full_uncertainty import output_full_uncertainty
 from oasislmf.pytools.lec.aggreports.outputs.mean_damage_ratio import output_mean_damage_ratio
 from oasislmf.pytools.lec.aggreports.outputs.sample_mean import output_sample_mean, reorder_losses_by_summary_and_period
@@ -17,7 +17,7 @@ from oasislmf.pytools.lec.data import (
     FULL, MEANDR, MEANSAMPLE, OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF,
     OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, PERSAMPLEMEAN,
 )
-from oasislmf.pytools.lec.data import LOSSVEC2MAP_dtype, MEANMAP_dtype, WHEATKEYITEMS_dtype
+from oasislmf.pytools.lec.data import LOSSVEC2MAP_dtype, MEANMAP_dtype, WHEATKEYITEMS_dtype, EPT_dtype, PSEPT_dtype
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,18 @@ class LecConfig:
     # Reusable output buffers, allocated once per run and shared across all generator
     # calls (the write_* generators fully overwrite each row before yielding, so no
     # re-zeroing is needed). Avoids a ~19 MB allocation on every per-summary call.
-    ept_buffer: np.ndarray
-    psept_buffer: np.ndarray
+    ept_buffer: np.ndarray   # must have dtype EPT_dtype
+    psept_buffer: np.ndarray  # must have dtype PSEPT_dtype
+
+    def __post_init__(self):
+        if self.period_weights.dtype != periods_dtype:
+            raise TypeError(f"period_weights dtype must be {periods_dtype}, got {self.period_weights.dtype}")
+        if self.returnperiods is not None and self.returnperiods.dtype != np.dtype('i4'):
+            raise TypeError(f"returnperiods dtype must be int32, got {self.returnperiods.dtype}")
+        if self.ept_buffer.dtype != EPT_dtype:
+            raise TypeError(f"ept_buffer dtype must be {EPT_dtype}, got {self.ept_buffer.dtype}")
+        if self.psept_buffer.dtype != PSEPT_dtype:
+            raise TypeError(f"psept_buffer dtype must be {PSEPT_dtype}, got {self.psept_buffer.dtype}")
 
 
 def make_output_fn(outmap, output_binary, output_parquet):
