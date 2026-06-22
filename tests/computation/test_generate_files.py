@@ -2,6 +2,7 @@ import pathlib
 import os
 import logging
 import re
+import pandas as pd
 import responses
 
 from unittest.mock import patch
@@ -20,6 +21,7 @@ from .test_computation import ComputationChecker
 
 TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
+ISSUE_1989_DATA = pathlib.Path(os.path.realpath(__file__)).parent.joinpath('data', 'issue_1989')
 
 
 class TestGenFiles(ComputationChecker):
@@ -220,6 +222,28 @@ class TestGenFiles(ComputationChecker):
                          'keys_data_path': keys_file,
                          'keys_errors_path': keys_err_file}
             file_gen_return = self.manager.generate_files(**call_args)
+
+    def test_files__level_with_no_matching_terms__acc_idx_populated__issue_1989(self):
+        # Regression test for issue #1989: check that file generation succeeds
+        # when an FM level has policy terms defined but none of them apply to the
+        # perils returned by the keys lookup.
+        with self.tmp_dir() as t_dir:
+            call_args = {
+                'oed_location_csv': str(ISSUE_1989_DATA.joinpath('location.csv')),
+                'oed_accounts_csv': str(ISSUE_1989_DATA.joinpath('account.csv')),
+                'keys_data_path': str(ISSUE_1989_DATA.joinpath('keys.csv')),
+                'keys_errors_path': str(ISSUE_1989_DATA.joinpath('keys-errors.csv')),
+                'oasis_files_dir': t_dir,
+                'check_oed': False,
+            }
+            # must not raise ValueError: cannot convert NA to integer
+            self.manager.generate_files(**call_args)
+
+            fm_summary_map = pd.read_csv(os.path.join(t_dir, 'fm_summary_map.csv'))
+            # acc_idx must be fully populated (the single item maps to account index 0)
+            self.assertFalse(fm_summary_map['acc_idx'].isna().any())
+            self.assertEqual(fm_summary_map['acc_idx'].tolist(), [0])
+            self.assertEqual(fm_summary_map['layer_id'].tolist(), [1])
 
     def test_files__keys_csv__missing_loc_id__error_is_raised(self):
         keys_file = self.tmp_files.get('keys_data_path').name

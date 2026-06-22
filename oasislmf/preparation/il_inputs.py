@@ -870,10 +870,6 @@ def get_il_input_items(
                         t0 = time.time()
                     continue
 
-                # reset non layered agg_id
-                layered_agg_id = gul_inputs_df[gul_inputs_df['layer_id'] > 1]["agg_id_prev"].unique()
-                gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].where(gul_inputs_df['agg_id_prev'].isin(layered_agg_id), 0)
-
                 # get all rows with terms in term_df_source and determine the correct FMTermGroupID
                 level_df_list = []
                 valid_term_default = {}
@@ -963,6 +959,11 @@ def get_il_input_items(
                         logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                         t0 = time.time()
                     continue
+
+                # reset non layered agg_id when level has term to merge
+                layered_agg_id = gul_inputs_df[gul_inputs_df['layer_id'] > 1]["agg_id_prev"].unique()
+                gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].where(gul_inputs_df['agg_id_prev'].isin(layered_agg_id), 0)
+
                 level_df = prepare_ded_and_limit(level_df)
 
                 agg_id_merge_col = list(set(agg_id_merge_col).intersection(level_df.columns))
