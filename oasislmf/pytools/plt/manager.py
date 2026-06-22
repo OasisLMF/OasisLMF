@@ -13,7 +13,8 @@ from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTI
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
-from oasislmf.pytools.common.input_files import occ_get_date, read_occurrence, read_periods, read_quantile
+from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as OCC_IDX_NOT_FOUND
+from oasislmf.pytools.common.input_files import occ_get_date, read_occurrence_id_index_csr, read_periods, read_quantile
 from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
 
@@ -27,7 +28,9 @@ class PLTReader(EventReader):
         compute_splt,
         compute_mplt,
         compute_qplt,
-        occ_map,
+        event_id_index,
+        occ_offsets,
+        occ_flat,
         period_weights,
         granular_date,
         intervals,
@@ -71,7 +74,9 @@ class PLTReader(EventReader):
         self.state["compute_mplt"] = compute_mplt
         self.state["compute_qplt"] = compute_qplt
         self.state["hasrec"] = False
-        self.occ_map = occ_map
+        self.event_id_index = event_id_index
+        self.occ_offsets = occ_offsets
+        self.occ_flat = occ_flat
         self.period_weights = period_weights
         self.granular_date = granular_date
         self.intervals = intervals
@@ -114,7 +119,9 @@ class PLTReader(EventReader):
             self.splt_data, self.splt_idx,
             self.mplt_data, self.mplt_idx,
             self.qplt_data, self.qplt_idx,
-            self.occ_map,
+            self.event_id_index,
+            self.occ_offsets,
+            self.occ_flat,
             self.period_weights,
             self.granular_date,
             self.intervals,
@@ -218,7 +225,9 @@ def read_buffer(
         splt_data, splt_idx,
         mplt_data, mplt_idx,
         qplt_data, qplt_idx,
-        occ_map,
+        event_id_index,
+        occ_offsets,
+        occ_flat,
         period_weights,
         granular_date,
         intervals,
@@ -293,8 +302,9 @@ def read_buffer(
 
                 # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
-                    if event_id in occ_map:
-                        for record in occ_map[event_id]:
+                    _occ_i_mplt = id_index_get_idx(event_id_index, nb.int32(event_id))
+                    if _occ_i_mplt != OCC_IDX_NOT_FOUND:
+                        for record in occ_flat[occ_offsets[_occ_i_mplt]:occ_offsets[_occ_i_mplt + 1]]:
                             if state["hasrec"]:
                                 meanloss, sdloss = _get_mean_and_sd_loss()
                                 if meanloss > 0 or sdloss > 0:
@@ -321,8 +331,9 @@ def read_buffer(
                 # Update QPLT data
                 if state["compute_qplt"]:
                     state["vrec"].sort()
-                    if event_id in occ_map:
-                        for record in occ_map[event_id]:
+                    _occ_i_qplt = id_index_get_idx(event_id_index, nb.int32(event_id))
+                    if _occ_i_qplt != OCC_IDX_NOT_FOUND:
+                        for record in occ_flat[occ_offsets[_occ_i_qplt]:occ_offsets[_occ_i_qplt + 1]]:
                             for i in range(len(intervals)):
                                 q = intervals[i]["quantile"]
                                 ipart = intervals[i]["integer_part"]
@@ -360,8 +371,9 @@ def read_buffer(
                 impacted_exposure = state["exposure_value"] * (loss > 0)
                 # Update SPLT data
                 if state["compute_splt"]:
-                    if event_id in occ_map:
-                        for record in occ_map[event_id]:
+                    _occ_i_splt = id_index_get_idx(event_id_index, nb.int32(event_id))
+                    if _occ_i_splt != OCC_IDX_NOT_FOUND:
+                        for record in occ_flat[occ_offsets[_occ_i_splt]:occ_offsets[_occ_i_splt + 1]]:
                             _update_splt_data(
                                 splt_data, si, period_weights, granular_date,
                                 record=record,
@@ -381,8 +393,9 @@ def read_buffer(
             elif sidx == MEAN_IDX:
                 # Update MPLT data (analytical mean)
                 if state["compute_mplt"]:
-                    if event_id in occ_map:
-                        for record in occ_map[event_id]:
+                    _occ_i_analytical = id_index_get_idx(event_id_index, nb.int32(event_id))
+                    if _occ_i_analytical != OCC_IDX_NOT_FOUND:
+                        for record in occ_flat[occ_offsets[_occ_i_analytical]:occ_offsets[_occ_i_analytical + 1]]:
                             if loss <= 0:
                                 continue
                             _update_mplt_data(
@@ -432,12 +445,14 @@ def read_input_files(run_dir, compute_qplt, sample_size):
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
-    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
+    (event_id_index, occ_offsets, occ_flat), date_algorithm, granular_date, no_of_periods = read_occurrence_id_index_csr(Path(run_dir, "input"))
     period_weights = read_periods(no_of_periods, Path(run_dir, "input"))
     intervals = read_quantile(sample_size, Path(run_dir, "input"), return_empty=not compute_qplt)
 
     file_data = {
-        "occ_map": occ_map,
+        "event_id_index": event_id_index,
+        "occ_offsets": occ_offsets,
+        "occ_flat": occ_flat,
         "date_algorithm": date_algorithm,
         "granular_date": granular_date,
         "no_of_periods": no_of_periods,
@@ -527,7 +542,9 @@ def run(
             outmap["splt"]["compute"],
             outmap["mplt"]["compute"],
             outmap["qplt"]["compute"],
-            file_data["occ_map"],
+            file_data["event_id_index"],
+            file_data["occ_offsets"],
+            file_data["occ_flat"],
             file_data["period_weights"],
             file_data["granular_date"],
             file_data["intervals"],
