@@ -73,7 +73,7 @@ jobs:
         if: always()
         working-directory: OasisModels
         run: |
-          find pytest-tmp -path "*/run/log" -o -path "*/run/output" -type d | tar -czf model-logs.tar.gz --files-from=-
+          find pytest-tmp \( -path "*/run/log" -o -path "*/run/output" \) -type d | tar -czf model-logs.tar.gz --files-from=-
 
       - name: Upload model logs
         if: always()
