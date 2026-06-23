@@ -11,8 +11,7 @@ import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
-from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as OCC_IDX_NOT_FOUND
-from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence_id_index_csr, read_periods, read_returnperiods
+from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_get, read_occurrence_id_index_csr, read_periods, read_returnperiods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
                                        OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR,
                                        OUTLOSS_DTYPE, EPT_dtype, EPT_fmt, EPT_headers, PSEPT_dtype, PSEPT_fmt, PSEPT_headers)
@@ -45,7 +44,7 @@ def read_input_files(
         occ_wheatsheaf_mean (bool): Occurrence Wheatsheaf Mean.
     """
     input_dir = Path(run_dir, "input")
-    (event_id_index, occ_offsets, occ_flat), date_algorithm, granular_date, no_of_periods = read_occurrence_id_index_csr(input_dir)
+    occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence_id_index_csr(input_dir)
     period_weights = read_periods(no_of_periods, input_dir)
     periods_fp = Path(input_dir, PERIODS_FILE)
     if not periods_fp.exists():
@@ -66,9 +65,7 @@ def read_input_files(
             logger.info("INFO: Tail Value at Risk for Wheatsheaf mean/per sample mean is not supported if you wish to use non-uniform period weights.")
 
     file_data = {
-        "event_id_index": event_id_index,
-        "occ_offsets": occ_offsets,
-        "occ_flat": occ_flat,
+        "occ_csr": occ_csr,
         "date_algorithm": date_algorithm,
         "granular_date": granular_date,
         "no_of_periods": no_of_periods,
@@ -156,9 +153,7 @@ def process_input_file(
     outloss_sample,
     row_used_sample,
     summary_ids,
-    event_id_index,
-    occ_offsets,
-    occ_flat,
+    occ_csr,
     use_return_period,
     num_sidxs,
     max_summary_id,
@@ -171,9 +166,7 @@ def process_input_file(
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
         summary_ids (ndarray[bool]): bool array marking which summary_ids are used
-        event_id_index (ndarray[uint32]): id_index array for event lookup
-        occ_offsets (ndarray[int64]): CSR offsets into occ_flat, length = n_unique_events + 1
-        occ_flat (ndarray): structured array [(period_no, occ_date_id)] sorted by event_id
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
@@ -188,17 +181,14 @@ def process_input_file(
         summary_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
         expval, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
 
-        # Discard samples if event_id not found
-        _occ_i = id_index_get_idx(event_id_index, nb.int32(event_id))
-        if _occ_i == OCC_IDX_NOT_FOUND:
+        filtered_occ_map = occ_get(occ_csr, event_id)
+        if len(filtered_occ_map) == 0:
             while cursor < valid_buff:
                 sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
                 _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
                 if sidx == 0:
                     break
             continue
-
-        filtered_occ_map = occ_flat[occ_offsets[_occ_i]:occ_offsets[_occ_i + 1]]
         summary_ids[summary_id - 1] = True
 
         while cursor < valid_buff:
@@ -231,9 +221,7 @@ def run_lec(
     outloss_sample,
     row_used_sample,
     summary_ids,
-    event_id_index,
-    occ_offsets,
-    occ_flat,
+    occ_csr,
     use_return_period,
     num_sidxs,
     max_summary_id,
@@ -246,9 +234,7 @@ def run_lec(
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
         summary_ids (ndarray[bool]): bool array marking which summary_ids are used
-        event_id_index (ndarray[uint32]): id_index array for event lookup
-        occ_offsets (ndarray[int64]): CSR offsets into occ_flat, length = n_unique_events + 1
-        occ_flat (ndarray): structured array [(period_no, occ_date_id)] sorted by event_id
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
@@ -261,9 +247,7 @@ def run_lec(
             outloss_sample,
             row_used_sample,
             summary_ids,
-            event_id_index,
-            occ_offsets,
-            occ_flat,
+            occ_csr,
             use_return_period,
             num_sidxs,
             max_summary_id,
@@ -433,9 +417,7 @@ def run(
             outloss_sample,
             row_used_sample,
             summary_ids,
-            file_data["event_id_index"],
-            file_data["occ_offsets"],
-            file_data["occ_flat"],
+            file_data["occ_csr"],
             use_return_period,
             num_sidxs,
             max_summary_id,

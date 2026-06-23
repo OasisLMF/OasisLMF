@@ -1,3 +1,4 @@
+from collections import namedtuple
 from contextlib import ExitStack
 import logging
 import sys
@@ -9,13 +10,16 @@ from oasislmf.pytools.common.data import (
     load_as_ndarray, nb_oasis_int,
     correlations_headers, correlations_dtype, coverages_headers,
     occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
-    quantile_interval_dtype, returnperiods_dtype
+    quantile_interval_dtype, returnperiods_dtype,
 )
 from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
-from oasislmf.pytools.common.id_index import build as _id_index_build
+from oasislmf.pytools.common.id_index import build as _id_index_build, get_idx as _id_index_get_idx, NOT_FOUND as _OCC_IDX_NOT_FOUND
 
 
 logger = logging.getLogger(__name__)
+
+
+OccurrenceCSR = namedtuple('OccurrenceCSR', ['event_id_index', 'occ_offsets', 'occ_flat'])
 
 # Input file names (input/<file_name>)
 AMPLIFICATIONS_FILE = "amplifications.bin"
@@ -394,7 +398,7 @@ def _build_occ_id_index_csr(occ_arr, granular_date):
     occ_offsets = np.zeros(len(unique_ids) + 1, dtype=np.int64)
     np.cumsum(counts, out=occ_offsets[1:])
 
-    return _id_index_build(unique_ids), occ_offsets, occ_flat
+    return OccurrenceCSR(_id_index_build(unique_ids), occ_offsets, occ_flat)
 
 
 def read_occurrence_id_index_csr(run_dir, filename=OCCURRENCE_FILE):
@@ -411,8 +415,21 @@ def read_occurrence_id_index_csr(run_dir, filename=OCCURRENCE_FILE):
         no_of_periods (int): number of periods
     """
     occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(run_dir, filename=filename)
-    event_id_index, occ_offsets, occ_flat = _build_occ_id_index_csr(occ_arr, granular_date)
-    return (event_id_index, occ_offsets, occ_flat), date_algorithm, granular_date, no_of_periods
+    occ_csr = _build_occ_id_index_csr(occ_arr, granular_date)
+    return occ_csr, date_algorithm, granular_date, no_of_periods
+
+
+@nb.njit(cache=True)
+def occ_get(occ_csr, event_id):
+    """Return the occ_flat slice for event_id, or an empty slice on miss.
+
+    The caller iterates the result directly; the loop body is skipped if the
+    event is not present in the occurrence file.
+    """
+    i = _id_index_get_idx(occ_csr.event_id_index, nb.int32(event_id))
+    if i == _OCC_IDX_NOT_FOUND:
+        return occ_csr.occ_flat[0:0]
+    return occ_csr.occ_flat[occ_csr.occ_offsets[i]:occ_csr.occ_offsets[i + 1]]
 
 
 @nb.njit(cache=True)
