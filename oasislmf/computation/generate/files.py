@@ -1,7 +1,8 @@
 __all__ = [
     'GenerateFiles',
     'GenerateDummyModelFiles',
-    'GenerateDummyOasisFiles'
+    'GenerateDummyOasisFiles',
+    'compute_ri_inuring_priority_output_levels',
 ]
 
 import io
@@ -58,6 +59,21 @@ from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException, OasisExceptionNoKeys
 from oasislmf.utils.inputs import str2bool
+
+
+def compute_ri_inuring_priority_output_levels(ri_layers):
+    """Return a dict mapping each OED InuringPriority to its RI output level.
+
+    The output level for a given InuringPriority is the highest-indexed RI layer
+    that belongs to that priority (i.e. the last layer written for it).
+    """
+    mapping = {}
+    for layer_idx, layer_info in ri_layers.items():
+        ip = layer_info['inuring_priority']
+        idx = int(layer_idx)
+        if ip not in mapping or idx > mapping[ip]:
+            mapping[ip] = idx
+    return mapping
 
 
 class GenerateFiles(ComputationStep):
@@ -434,15 +450,7 @@ class GenerateFiles(ComputationStep):
             for layer, layer_info in ri_layers.items():
                 oasis_files['RI_{}'.format(layer)] = layer_info['directory']
 
-        # Build mapping from OED InuringPriority to the last RI output level (layer index) for that priority.
-        # Multiple risk levels within the same InuringPriority each get their own RI layer, so the
-        # "output level" for a given priority is the highest-indexed layer belonging to it.
-        inuring_priority_to_output_level = {}
-        for layer_idx, layer_info in ri_layers.items():
-            ip = layer_info['inuring_priority']
-            idx = int(layer_idx)
-            if ip not in inuring_priority_to_output_level or idx > inuring_priority_to_output_level[ip]:
-                inuring_priority_to_output_level[ip] = idx
+        inuring_priority_to_output_level = compute_ri_inuring_priority_output_levels(ri_layers)
 
         ri_priority_map_fp = os.path.join(target_dir, 'ri_inuring_priority_output_levels.json')
         with io.open(ri_priority_map_fp, 'w', encoding='utf-8') as f:

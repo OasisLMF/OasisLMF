@@ -3,7 +3,7 @@ Tests for the inuring-priority-to-output-level mapping introduced in #1845.
 
 Covers:
 - get_ri_inuring_priority_output_levels() helper
-- Mapping file written during input generation (logic extracted from files.py)
+- compute_ri_inuring_priority_output_levels() from files.py
 - generate_summaryxref_files() RI section: OED→RI-layer conversion, validation,
   output-directory file
 - bash_params() conversion of analysis_settings['ri_inuring_priorities']
@@ -15,6 +15,7 @@ import tempfile
 from unittest import TestCase
 from unittest.mock import MagicMock, call, patch
 
+from oasislmf.computation.generate.files import compute_ri_inuring_priority_output_levels
 from oasislmf.preparation.summaries import get_ri_inuring_priority_output_levels
 from oasislmf.utils.exceptions import OasisException
 
@@ -78,34 +79,24 @@ class TestInuringPriorityMappingComputation(TestCase):
     """Verify the mapping formula: for each OED InuringPriority, the output level
     is the highest RI layer index that belongs to that priority."""
 
-    def _compute_mapping(self, ri_layers):
-        """Replicate the mapping logic from files.py."""
-        mapping = {}
-        for layer_idx, layer_info in ri_layers.items():
-            ip = layer_info['inuring_priority']
-            idx = int(layer_idx)
-            if ip not in mapping or idx > mapping[ip]:
-                mapping[ip] = idx
-        return mapping
-
     def test_single_priority_single_risk_level(self):
         ri_layers = _make_ri_layers([(1, 'LOC')])
-        self.assertEqual(self._compute_mapping(ri_layers), {1: 1})
+        self.assertEqual(compute_ri_inuring_priority_output_levels(ri_layers), {1: 1})
 
     def test_single_priority_multiple_risk_levels(self):
         # InuringPriority 1 spans LOC (RI_1) and ACC (RI_2); output level should be 2
         ri_layers = _make_ri_layers([(1, 'LOC'), (1, 'ACC')])
-        self.assertEqual(self._compute_mapping(ri_layers), {1: 2})
+        self.assertEqual(compute_ri_inuring_priority_output_levels(ri_layers), {1: 2})
 
     def test_two_priorities_each_one_risk_level(self):
         ri_layers = _make_ri_layers([(1, 'LOC'), (2, 'SEL')])
-        self.assertEqual(self._compute_mapping(ri_layers), {1: 1, 2: 2})
+        self.assertEqual(compute_ri_inuring_priority_output_levels(ri_layers), {1: 1, 2: 2})
 
     def test_two_priorities_first_spans_multiple_risk_levels(self):
         # Priority 1: RI_1 (LOC), RI_2 (ACC)  →  output level 2
         # Priority 2: RI_3 (SEL)               →  output level 3
         ri_layers = _make_ri_layers([(1, 'LOC'), (1, 'ACC'), (2, 'SEL')])
-        self.assertEqual(self._compute_mapping(ri_layers), {1: 2, 2: 3})
+        self.assertEqual(compute_ri_inuring_priority_output_levels(ri_layers), {1: 2, 2: 3})
 
     def test_three_priorities(self):
         ri_layers = _make_ri_layers([
@@ -113,17 +104,17 @@ class TestInuringPriorityMappingComputation(TestCase):
             (2, 'LOC'),                # priority 2 → output level 3
             (3, 'SEL'),                # priority 3 → output level 4
         ])
-        self.assertEqual(self._compute_mapping(ri_layers), {1: 2, 2: 3, 3: 4})
+        self.assertEqual(compute_ri_inuring_priority_output_levels(ri_layers), {1: 2, 2: 3, 3: 4})
 
     def test_mapping_file_written_to_input_dir(self):
-        """files.py should write the mapping JSON to target_dir."""
+        """The mapping JSON should survive a write/read round-trip (JSON keys become strings)."""
         ri_layers = _make_ri_layers([(1, 'LOC'), (1, 'ACC'), (2, 'SEL')])
         expected = {1: 2, 2: 3}
 
         with tempfile.TemporaryDirectory() as d:
             mapping_fp = os.path.join(d, 'ri_inuring_priority_output_levels.json')
             with io.open(mapping_fp, 'w', encoding='utf-8') as f:
-                f.write(json.dumps(self._compute_mapping(ri_layers), ensure_ascii=False, indent=4))
+                f.write(json.dumps(compute_ri_inuring_priority_output_levels(ri_layers), ensure_ascii=False, indent=4))
 
             loaded = _read_json(mapping_fp)
             # JSON round-trip: keys become strings

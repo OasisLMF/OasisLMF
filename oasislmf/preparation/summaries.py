@@ -14,6 +14,7 @@ __all__ = [
 
 import logging
 import pathlib
+import shutil
 
 import io
 import json
@@ -788,10 +789,10 @@ def generate_summaryxref_files(
         # Copy the inuring-priority-to-output-level mapping into the output directory so it is
         # available alongside the results for downstream consumers.
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        with io.open(os.path.join(model_run_fp, 'input', 'ri_inuring_priority_output_levels.json'), encoding='utf-8') as src_f:
-            mapping_data = src_f.read()
-        with io.open(os.path.join(output_dir, 'ri_inuring_priority_output_levels.json'), 'w', encoding='utf-8') as dst_f:
-            dst_f.write(mapping_data)
+        shutil.copyfile(
+            os.path.join(model_run_fp, 'input', 'ri_inuring_priority_output_levels.json'),
+            os.path.join(output_dir, 'ri_inuring_priority_output_levels.json'),
+        )
 
 
 def get_exposure_summary_field(df, exposure_summary, field_name, field_value, status):
