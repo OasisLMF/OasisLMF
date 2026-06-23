@@ -2,7 +2,8 @@
 import logging
 import numba as nb
 import numpy as np
-from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, oasis_int, oasis_int_size, oasis_float, oasis_float_size, write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size,
+                                          write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (
     FM_STREAM_ID, GUL_STREAM_ID, LOSS_STREAM_ID, EventReader, init_streams_in, mv_read
 )
@@ -66,27 +67,32 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
                 break  # Not enough for whole summary header
 
         if state["reading_losses"]:
-            if valid_buff - cursor < oasis_int_size + oasis_float_size:
+            # View the whole remaining (sidx, loss) payload once as a packed
+            # structured array instead of two mv_read slice+casts per pair.
+            n_pairs = (valid_buff - cursor) // loss_pair_size
+            if n_pairs == 0:
                 break  # Not enough for whole record
 
-            # Read sidx
-            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            if sidx == 0:  # sidx == 0, end of record
-                cursor += oasis_float_size  # Read extra 0 for end of record
-                _reset_state()
-                continue
+            sidx_loss_view = byte_mv[cursor:cursor + n_pairs * loss_pair_size].view(loss_pair_dtype)
+            for k in range(n_pairs):
+                sidx = sidx_loss_view[k]["sidx"]
+                if sidx == 0:  # sidx == 0, end of record (loss field is the trailing 0)
+                    cursor += (k + 1) * loss_pair_size
+                    _reset_state()
+                    break
 
-            # Read loss
-            loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
-            data[idx]["event_id"] = event_id
-            data[idx]["output_id"] = item_id
-            data[idx]["sidx"] = sidx
-            data[idx]["loss"] = loss
-            idx += 1
-            if idx >= data.shape[0]:
-                # Output array is full
-                _update_idxs()
-                return cursor, event_id, item_id, 1
+                data[idx]["event_id"] = event_id
+                data[idx]["output_id"] = item_id
+                data[idx]["sidx"] = sidx
+                data[idx]["loss"] = sidx_loss_view[k]["loss"]
+                idx += 1
+                if idx >= data.shape[0]:
+                    # Output array is full
+                    cursor += (k + 1) * loss_pair_size
+                    _update_idxs()
+                    return cursor, event_id, item_id, 1
+            else:
+                cursor += n_pairs * loss_pair_size
         else:
             pass  # Should never reach here
 

@@ -2,9 +2,9 @@ import numba as nb
 import numpy as np
 import logging
 
-from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float, oasis_float_size
+from oasislmf.pytools.common.data import oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size
 from oasislmf.pytools.common.event_stream import (EventReader, get_and_check_header_in, stream_info_to_bytes, write_mv_to_stream,
-                                                  mv_read, mv_write, PIPE_CAPACITY)
+                                                  mv_read, PIPE_CAPACITY)
 
 logger = logging.getLogger(__name__)
 
@@ -33,22 +33,31 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
         factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
     while True:
         if item_id:
-            if valid_buff - cursor < (oasis_int_size + oasis_float_size):
+            # View the whole remaining (sidx, loss) payload once and apply the
+            # factor in place, instead of mv_read sidx + mv_read loss + mv_write
+            # per pair. The view shares memory with byte_mv, so writing the loss
+            # field updates the buffer that is bulk-copied to out_byte_mv below.
+            n_pairs = (valid_buff - cursor) // loss_pair_size
+            if n_pairs == 0:
                 break
-            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            if sidx:
-                loss, _ = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+            sidx_loss_view = byte_mv[cursor:cursor + n_pairs * loss_pair_size].view(loss_pair_dtype)
+            for k in range(n_pairs):
+                sidx = sidx_loss_view[k]['sidx']
+                if not sidx:
+                    ##### do item exit ####
+                    ##########
+                    cursor += (k + 1) * loss_pair_size
+                    item_id = 0
+                    break
+
+                loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
-                cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, loss * factor)
+                sidx_loss_view[k]['loss'] = loss * factor
                 ##########
-
             else:
-                ##### do item exit ####
-                ##########
-                cursor += oasis_float_size
-                item_id = 0
+                cursor += n_pairs * loss_pair_size
         else:
             if valid_buff - cursor < 2 * oasis_int_size:
                 break
@@ -66,22 +75,29 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
 def read_buffer_uniform(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
     while True:
         if item_id:
-            if valid_buff - cursor < (oasis_int_size + oasis_float_size):
+            # View the whole remaining (sidx, loss) payload once and apply the
+            # uniform factor in place (see read_buffer for details).
+            n_pairs = (valid_buff - cursor) // loss_pair_size
+            if n_pairs == 0:
                 break
-            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            if sidx:
-                loss, _ = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+            sidx_loss_view = byte_mv[cursor:cursor + n_pairs * loss_pair_size].view(loss_pair_dtype)
+            for k in range(n_pairs):
+                sidx = sidx_loss_view[k]['sidx']
+                if not sidx:
+                    ##### do item exit ####
+                    ##########
+                    cursor += (k + 1) * loss_pair_size
+                    item_id = 0
+                    break
+
+                loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
-                cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, loss * default_factor)
+                sidx_loss_view[k]['loss'] = loss * default_factor
                 ##########
-
             else:
-                ##### do item exit ####
-                ##########
-                cursor += oasis_float_size
-                item_id = 0
+                cursor += n_pairs * loss_pair_size
         else:
             if valid_buff - cursor < 2 * oasis_int_size:
                 break
