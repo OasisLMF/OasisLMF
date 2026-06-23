@@ -1,6 +1,7 @@
 # lec/manager.py
 
 import logging
+import shutil
 import numpy as np
 import numba as nb
 from contextlib import ExitStack
@@ -9,13 +10,14 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_float, oasis_int_size, oasis_float_size,
+                                          summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_returnperiods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
                                        OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR,
                                        OUTLOSS_DTYPE, EPT_dtype, EPT_fmt, EPT_headers, PSEPT_dtype, PSEPT_fmt, PSEPT_headers)
-from oasislmf.pytools.lec.aggreports import AggReports
+from oasislmf.pytools.lec.aggreports import AggReports, LecConfig, make_output_fn, output_for_summary_idx
 from oasislmf.pytools.lec.utils import get_outloss_mean_idx, get_outloss_sample_idx
 from oasislmf.pytools.utils import redirect_logging
 
@@ -146,13 +148,81 @@ def do_lec_output_agg_summary(
 
 
 @nb.njit(cache=True, error_model="numpy")
+def process_summary_entries(
+    fin,
+    offsets,
+    occ_map,
+    use_return_period,
+    outloss_mean_s,
+    row_used_mean_s,
+    outloss_sample_s,
+    row_used_sample_s,
+    num_sidxs,
+):
+    """Process all indexed event blocks for one (summary_id, file) pair in a single call.
+
+    Eliminates per-event Python→numba overhead by looping over all offsets inside numba.
+    offsets should be sorted ascending for best OS page-cache utilisation.
+    """
+    valid_buff = len(fin)
+    for offset in offsets:
+        cursor = offset
+        event_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+        _, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)    # summary_id known from idx
+        _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)  # expval
+
+        if event_id not in occ_map:
+            continue
+
+        filtered_occ_map = occ_map[event_id]
+        while cursor < valid_buff:
+            sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+            loss, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+            if sidx == 0:
+                break
+            if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
+                continue
+            if loss > 0 or use_return_period:
+                do_lec_output_agg_summary(
+                    1, sidx, loss, filtered_occ_map,
+                    outloss_mean_s, row_used_mean_s,
+                    outloss_sample_s, row_used_sample_s,
+                    num_sidxs, 1,
+                )
+
+
+_MERGED_IDX_DTYPE = np.dtype([
+    ("summary_id", np.int32),
+    ("file_index", np.int32),
+    ("offset", np.int64),
+])
+
+
+def build_merged_idx(idx_handles):
+    """Merge per-file .idx memmaps into one array sorted by summary_id."""
+    parts = []
+    for file_index, idx in enumerate(idx_handles):
+        if idx is None or len(idx) == 0:
+            continue
+        chunk = np.empty(len(idx), dtype=_MERGED_IDX_DTYPE)
+        chunk["summary_id"] = idx["summary_id"]
+        chunk["file_index"] = file_index
+        chunk["offset"] = idx["offset"]
+        parts.append(chunk)
+    if not parts:
+        return np.empty(0, dtype=_MERGED_IDX_DTYPE)
+    merged = np.concatenate(parts)
+    merged.sort(order="summary_id")
+    return merged
+
+
+@nb.njit(cache=True, error_model="numpy")
 def process_input_file(
     fin,
     outloss_mean,
     row_used_mean,
     outloss_sample,
     row_used_sample,
-    summary_ids,
     occ_map,
     use_return_period,
     num_sidxs,
@@ -165,7 +235,6 @@ def process_input_file(
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
-        summary_ids (ndarray[bool]): bool array marking which summary_ids are used
         occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
@@ -174,7 +243,6 @@ def process_input_file(
     # Set cursor to end of stream header (stream_type, sample_size, summary_set_id)
     cursor = oasis_int_size * 3
 
-    # Read all samples
     valid_buff = len(fin)
     while cursor < valid_buff:
         event_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
@@ -191,7 +259,6 @@ def process_input_file(
             continue
 
         filtered_occ_map = occ_map[event_id]
-        summary_ids[summary_id - 1] = True
 
         while cursor < valid_buff:
             sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
@@ -222,7 +289,6 @@ def run_lec(
     row_used_mean,
     outloss_sample,
     row_used_sample,
-    summary_ids,
     occ_map,
     use_return_period,
     num_sidxs,
@@ -235,7 +301,6 @@ def run_lec(
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
-        summary_ids (ndarray[bool]): bool array marking which summary_ids are used
         occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
@@ -248,12 +313,35 @@ def run_lec(
             row_used_mean,
             outloss_sample,
             row_used_sample,
-            summary_ids,
             occ_map,
             use_return_period,
             num_sidxs,
             max_summary_id,
         )
+
+
+def _open_output_files(outmap, stack, output_binary, output_parquet, noheader):
+    if output_binary:
+        for out_type in outmap:
+            if not outmap[out_type]["compute"]:
+                continue
+            outmap[out_type]["file"] = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
+    elif output_parquet:
+        for out_type in outmap:
+            if not outmap[out_type]["compute"]:
+                continue
+            temp_out_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=outmap[out_type]["dtype"])
+            temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
+            temp_table = pa.Table.from_pandas(temp_df)
+            outmap[out_type]["file"] = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+    else:
+        for out_type in outmap:
+            if not outmap[out_type]["compute"]:
+                continue
+            out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
+            if not noheader:
+                out_file.write(','.join(outmap[out_type]["headers"]) + '\n')
+            outmap[out_type]["file"] = out_file
 
 
 def run(
@@ -334,15 +422,42 @@ def run(
         lec_files_folder = Path(workspace_folder, "lec_files")
         lec_files_folder.mkdir(parents=False, exist_ok=True)
 
-        # Find summary binary files
-        files = [file for file in workspace_folder.glob("*.bin")]
+        # Find summary binary files (sorted for stable pairing with .idx files)
+        files = sorted(workspace_folder.glob("*.bin"))
         file_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
 
         streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files, stack)
         if stream_source_type != SUMMARY_STREAM_ID:
             raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
-        max_summary_id = get_max_summary_id(file_handles)
+        # Detect .idx files for per-summary streaming path
+        idx_handles_raw = []
+        for f in files:
+            idx_path = f.with_suffix(".idx")
+            if idx_path.exists():
+                if idx_path.stat().st_size > 0:
+                    idx_handles_raw.append(np.memmap(str(idx_path), mode="r", dtype=summary_stream_index_dtype))
+                else:
+                    idx_handles_raw.append(np.empty(0, dtype=summary_stream_index_dtype))
+            else:
+                idx_handles_raw.append(None)
+        n_idx = sum(h is not None for h in idx_handles_raw)
+        # All files must have .idx: the merged index covers all files simultaneously,
+        # so a gap would silently drop events from the missing file.
+        use_idx_path = n_idx == len(files) and n_idx > 0
+        if use_idx_path:
+            logger.info("Found %d/%d .idx file(s) — using per-summary-id indexing (reduced disk)", n_idx, len(files))
+            merged = build_merged_idx(idx_handles_raw)
+            unique_summary_ids = np.unique(merged["summary_id"])
+            max_summary_id = int(unique_summary_ids[-1]) if len(unique_summary_ids) > 0 else 0
+        else:
+            if 0 < n_idx < len(files):
+                logger.warning(
+                    "%d/%d .idx files found — all .bin files must have .idx to use index path; "
+                    "falling back to sequential scan", n_idx, len(files)
+                )
+            max_summary_id = get_max_summary_id(file_handles)
+
         if max_summary_id == 0:
             return
 
@@ -383,24 +498,112 @@ def run(
         if not (outmap["ept"]["compute"] or outmap["psept"]["compute"]):
             return
 
-        # Create outloss array maps
+        # ── Per-summary streaming path (idx files present) ───────────────────────
+        if use_idx_path:
+            num_sidxs = int(sample_size) + 2
+            no_of_periods = int(file_data["no_of_periods"])
+
+            # Open output files before the loop so headers are written once
+            _open_output_files(outmap, stack, output_binary, output_parquet, noheader)
+
+            # Output buffers allocated once and reused across every per-summary generator
+            # call (the write_* generators overwrite each row before yielding, so no zeroing).
+            ept_buffer = np.empty(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
+            psept_buffer = np.empty(DEFAULT_BUFFER_SIZE, dtype=PSEPT_dtype)
+            idx_config = LecConfig(
+                period_weights=file_data["period_weights"],
+                max_summary_id=1,
+                sample_size=int(sample_size),
+                no_of_periods=no_of_periods,
+                num_sidxs=num_sidxs,
+                use_return_period=use_return_period,
+                returnperiods=file_data["returnperiods"],
+                ept_buffer=ept_buffer,
+                psept_buffer=psept_buffer,
+            )
+            output_fn = make_output_fn(outmap, output_binary, output_parquet)
+
+            # Per-summary arrays — no × max_summary_id factor
+            outloss_mean_s = np.zeros(no_of_periods, dtype=OUTLOSS_DTYPE)
+            outloss_sample_s = np.zeros(no_of_periods * num_sidxs, dtype=OUTLOSS_DTYPE)
+            row_used_mean_s = np.zeros(no_of_periods, dtype=np.bool_)
+            row_used_sample_s = np.zeros(no_of_periods * num_sidxs, dtype=np.bool_)
+
+            # Pre-compute uint8 views once — numpy's struct[:]=0 is ~4x slower than raw byte zeroing
+            _mean_bytes = outloss_mean_s.view(np.uint8)
+            _sample_bytes = outloss_sample_s.view(np.uint8)
+
+            for summary_id in unique_summary_ids:
+                _mean_bytes[:] = 0
+                _sample_bytes[:] = 0
+                row_used_mean_s[:] = False
+                row_used_sample_s[:] = False
+
+                lo = int(np.searchsorted(merged["summary_id"], summary_id, side="left"))
+                hi = int(np.searchsorted(merged["summary_id"], summary_id, side="right"))
+                entries = merged[lo:hi]
+                for fi in np.unique(entries["file_index"]):
+                    offsets = np.sort(entries[entries["file_index"] == fi]["offset"])
+                    process_summary_entries(
+                        file_handles[int(fi)],
+                        offsets,
+                        file_data["occ_map"],
+                        use_return_period,
+                        outloss_mean_s,
+                        row_used_mean_s,
+                        outloss_sample_s,
+                        row_used_sample_s,
+                        num_sidxs,
+                    )
+
+                output_for_summary_idx(
+                    int(summary_id),
+                    outloss_mean_s, row_used_mean_s,
+                    outloss_sample_s, row_used_sample_s,
+                    output_flags, hasOCC, hasAGG,
+                    outmap=outmap, config=idx_config, output_fn=output_fn,
+                )
+            return  # skip sequential path below
+
+        # ── Sequential path (no .idx files) ──────────────────────────────────────
+
+        # Check required disk space for work bdat files
+        num_sidxs = int(sample_size) + 2
+        no_of_periods = int(file_data["no_of_periods"])
+        _mean_elems = no_of_periods * max_summary_id
+        _sample_elems = no_of_periods * num_sidxs * max_summary_id
+        _required_bytes = (
+            _mean_elems * OUTLOSS_DTYPE.itemsize
+            + _sample_elems * OUTLOSS_DTYPE.itemsize
+            + _mean_elems  # row_used_mean (bool_)
+            + _sample_elems  # row_used_sample (bool_)
+        )
+        _free_bytes = shutil.disk_usage(lec_files_folder).free
+        if _required_bytes > _free_bytes:
+            raise RuntimeError(
+                f"Insufficient disk space for lec .bdat files: "
+                f"{_required_bytes / 2**30:.2f} GiB required "
+                f"({no_of_periods} periods × {num_sidxs} sidxs × {max_summary_id} summary_ids), "
+                f"but only {_free_bytes / 2**30:.2f} GiB free at {lec_files_folder}. "
+                f"Run summarypy with -m to generate .idx files and avoid this pre-allocation."
+            )
+
         # outloss_mean has only -1 SIDX
         outloss_mean_file = Path(lec_files_folder, "lec_outloss_mean.bdat")
         outloss_mean = np.memmap(
             outloss_mean_file,
             dtype=OUTLOSS_DTYPE,
             mode="w+",
-            shape=(int(file_data["no_of_periods"]) * max_summary_id),
+            shape=(_mean_elems),
         )
 
         # outloss_sample has all SIDXs plus -2 and -3
-        num_sidxs = int(sample_size) + 2
         outloss_sample_file = Path(lec_files_folder, "lec_outloss_sample.bdat")
         outloss_sample = np.memmap(
             outloss_sample_file,
             dtype=OUTLOSS_DTYPE,
             mode="w+",
-            shape=(int(file_data["no_of_periods"]) * num_sidxs * max_summary_id),
+            shape=(_sample_elems),
         )
 
         row_used_mean_file = Path(lec_files_folder, "lec_row_used_mean.bdat")
@@ -408,17 +611,13 @@ def run(
         row_used_sample_file = Path(lec_files_folder, "lec_row_used_sample.bdat")
         row_used_sample = np.memmap(row_used_sample_file, dtype=np.bool_, mode="w+", shape=(len(outloss_sample),))
 
-        # Array of Summary IDs found
-        summary_ids = np.zeros((max_summary_id), dtype=np.bool_)
-
-        # Run LEC calculations to populate outloss and summary_ids arrays
+        # Run LEC calculations to populate outloss arrays
         run_lec(
             file_handles,
             outloss_mean,
             row_used_mean,
             outloss_sample,
             row_used_sample,
-            summary_ids,
             file_data["occ_map"],
             use_return_period,
             num_sidxs,
@@ -426,45 +625,27 @@ def run(
         )
 
         # Initialise output files LEC
-        if output_binary:
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
-                outmap[out_type]["file"] = out_file
-        elif output_parquet:
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-                temp_out_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=outmap[out_type]["dtype"])
-                temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
-                temp_table = pa.Table.from_pandas(temp_df)
-                out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
-                outmap[out_type]["file"] = out_file
-        else:
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
-                if not noheader:
-                    csv_headers = ','.join(outmap[out_type]["headers"])
-                    out_file.write(csv_headers + '\n')
-                outmap[out_type]["file"] = out_file
+        _open_output_files(outmap, stack, output_binary, output_parquet, noheader)
 
         # Output aggregate reports to CSVs
+        ept_buffer = np.empty(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
+        psept_buffer = np.empty(DEFAULT_BUFFER_SIZE, dtype=PSEPT_dtype)
+        seq_config = LecConfig(
+            period_weights=file_data["period_weights"],
+            max_summary_id=max_summary_id,
+            sample_size=int(sample_size),
+            no_of_periods=int(file_data["no_of_periods"]),
+            num_sidxs=num_sidxs,
+            use_return_period=use_return_period,
+            returnperiods=file_data["returnperiods"],
+            ept_buffer=ept_buffer,
+            psept_buffer=psept_buffer,
+        )
         agg = AggReports(
             outmap,
-            outloss_mean,
-            row_used_mean,
-            outloss_sample,
-            row_used_sample,
-            file_data["period_weights"],
-            max_summary_id,
-            sample_size,
-            file_data["no_of_periods"],
-            num_sidxs,
-            use_return_period,
-            file_data["returnperiods"],
+            outloss_mean, row_used_mean,
+            outloss_sample, row_used_sample,
+            seq_config,
             lec_files_folder,
             output_binary,
             output_parquet,
