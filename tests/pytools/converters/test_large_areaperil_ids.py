@@ -50,27 +50,6 @@ _U8_EVENT_DTYPE = np.dtype([
 ])
 
 
-def test_uint32_silently_truncates_large_areaperil_id():
-    """pandas silently wraps areaperil_id values beyond 4,294,967,295 when dtype=uint32.
-
-    This is the root cause of issue #2011: pd.read_csv with dtype=uint32 silently
-    truncates large integer values rather than raising an error.
-
-    50,776,441,987 % 2^32 = 3,531,801,731
-    """
-    import io
-    import pandas as pd
-
-    df = pd.read_csv(
-        io.BytesIO(FOOTPRINT_CSV),
-        dtype={"areaperil_id": np.uint32},
-    )
-    stored = int(df["areaperil_id"][0])
-
-    assert stored != LARGE_AREAPERIL_ID
-    assert stored == LARGE_AREAPERIL_ID % (2 ** 32)
-
-
 def test_large_areaperil_id_preserved_with_uint64():
     """uint64 preserves areaperil_id values > uint32 max through the full conversion.
 
@@ -82,7 +61,6 @@ def test_large_areaperil_id_preserved_with_uint64():
     with (
         TemporaryDirectory() as tmp,
         mock.patch.dict(TOOL_INFO["footprint"], {"dtype": _U8_FOOTPRINT_DTYPE}),
-        mock.patch.object(footprint_utils, "areaperil_int", np.dtype("u8")),
         mock.patch.object(footprint_utils, "Event_dtype", _U8_EVENT_DTYPE),
     ):
         csv_path = Path(tmp) / "footprint.csv"
