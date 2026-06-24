@@ -21,6 +21,21 @@ HAZARD_GROUP_ID_HASH_CODE = np.int64(1143271949)
 HAZARD_EVENT_ID_HASH_CODE = np.int64(1243274353)
 HAZARD_HASH_MOD_CODE = np.int64(1957483729)
 
+# --- Philox4x32 counter-based RNG (random_generator 2) ----------------------
+# Constants from the Random123 library (philox4x32). A counter-based generator is a
+# keyed pseudo-random function value_j = F(key, j): keying it with a group's per-event
+# seed yields a reproducible, order-independent stream WITHOUT the per-row
+# np.random.seed() reseed that dominates the MersenneTwister/Latin Hypercube cost.
+PHILOX_M0 = np.uint64(0xD2511F53)
+PHILOX_M1 = np.uint64(0xCD9E8D57)
+PHILOX_W0 = np.uint32(0x9E3779B9)
+PHILOX_W1 = np.uint32(0xBB67AE85)
+PHILOX_U32_MASK = np.uint64(0xFFFFFFFF)
+PHILOX_SHIFT32 = np.uint64(32)
+PHILOX_INV32 = np.float64(1.0) / np.float64(2.0 ** 32)
+PHILOX_STREAM_JITTER = np.uint32(0)
+PHILOX_STREAM_SHUFFLE = np.uint32(1)
+
 # parameters for get_corr_rval in a normal cdf
 x_min = 1e-16
 x_max = 1 - 1e-16
@@ -85,6 +100,10 @@ def get_random_generator(random_generator):
     elif random_generator == 1:
         logger.info("Random generator: Latin Hypercube")
         return random_LatinHypercube
+
+    elif random_generator == 2:
+        logger.info("Random generator: Latin Hypercube on Philox4x32-7 (counter-based)")
+        return random_LatinHypercube_Philox7
 
     else:
         raise ValueError(f"No random generator exists for random_generator={random_generator}.")
@@ -242,4 +261,148 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
         # vectorized Latin Hypercube transformation
         rndms[seed_i, :] = (perms - samples) / float(n)
 
+    return rndms
+
+
+@njit(cache=True, fastmath=True)
+def _philox4x32_7(c0, c1, c2, c3, k0, k1):
+    """Compute one Philox4x32-7 block (4 uint32 outputs) for a counter and key.
+
+    Implements the Random123 philox4x32 round function with 7 rounds — the documented
+    Monte-Carlo-safe minimum (passes TestU01 BigCrush). The round function is validated
+    against the official Random123 known-answer test vectors in the unit tests.
+
+    Args:
+        c0, c1, c2, c3 (uint32): the 128-bit counter words.
+        k0, k1 (uint32): the 64-bit key words.
+
+    Returns:
+        tuple(uint32, uint32, uint32, uint32): the four output words.
+    """
+    for _r in range(7):
+        p0 = PHILOX_M0 * np.uint64(c0)
+        hi0 = np.uint32(p0 >> PHILOX_SHIFT32)
+        lo0 = np.uint32(p0 & PHILOX_U32_MASK)
+        p1 = PHILOX_M1 * np.uint64(c2)
+        hi1 = np.uint32(p1 >> PHILOX_SHIFT32)
+        lo1 = np.uint32(p1 & PHILOX_U32_MASK)
+        c0, c1, c2, c3 = hi1 ^ c1 ^ k0, lo1, hi0 ^ c3 ^ k1, lo0
+        k0 = np.uint32(k0 + PHILOX_W0)
+        k1 = np.uint32(k1 + PHILOX_W1)
+    return c0, c1, c2, c3
+
+
+# Latin Hypercube on Philox4x32 (random_generator 2).
+#
+# Reproduces the Latin Hypercube math of `random_LatinHypercube`
+# (rndms = (perms - jitter) / n) but draws randomness from Philox instead of a
+# per-row-reseeded Mersenne Twister. For each seed two independent Philox streams are
+# used, keyed by the seed and separated by a counter "stream tag" word: stream 0 for
+# the within-stratum jitter and stream 1 for the Fisher-Yates permutation. The result
+# is a valid Latin Hypercube sample (exactly one point per stratum), deterministic and
+# order-independent per seed (= per group_id/event_id), and NOT bit-identical to the
+# Mersenne-Twister-based generators.
+
+
+@njit(cache=True, fastmath=True)
+def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
+    """Latin Hypercube on Philox4x32-7 (random_generator=2).
+
+    See the module comment above `random_LatinHypercube_Philox7` for the algorithm.
+
+    Args:
+        seeds (array[int]): per-row seeds (a hash of group_id/event_id).
+        n (int): number of samples to generate for each seed.
+        skip_seeds (int): number of leading rows to skip (left as zeros); correlation
+          arrays pass 1.
+
+    Returns:
+        rndms (array[float64]): 2-d array of shape (len(seeds), n) of LH samples in (0, 1].
+    """
+    Nseeds = len(seeds)
+    rndms = np.zeros((Nseeds, n), dtype=np.float64)
+    perms = np.empty(n, dtype=np.float64)
+    inv_n = np.float64(1.0) / np.float64(n)
+    nfull = n - (n & 3)
+    zero = np.uint32(0)
+    for i in range(skip_seeds, Nseeds):
+        s = np.uint64(seeds[i])
+        k0 = np.uint32(s & PHILOX_U32_MASK)
+        k1 = np.uint32(s >> PHILOX_SHIFT32)
+
+        for k in range(n):
+            perms[k] = np.float64(k + 1)
+
+        # Fisher-Yates permutation of perms, driven by the shuffle stream (4 swaps/block).
+        # Head/tail split (mirrors the jitter loop below): the nfull_shuf bulk swaps run
+        # guard-free in groups of 4; only the final partial block needs the idx>=1 guards.
+        # The (Philox word -> idx) pairing is identical to a flat per-swap loop, so the
+        # permutation (and therefore the output) is unchanged.
+        nshuf = n - 1
+        nfull_shuf = nshuf - (nshuf & 3)
+        ctr = np.uint32(0)
+        idx = n - 1
+        c = 0
+        while c < nfull_shuf:
+            w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_SHUFFLE, zero, zero, k0, k1)
+            ctr = np.uint32(ctr + 1)
+            jj = int(np.float64(w0) * PHILOX_INV32 * np.float64(idx + 1))
+            t = perms[idx]
+            perms[idx] = perms[jj]
+            perms[jj] = t
+            jj = int(np.float64(w1) * PHILOX_INV32 * np.float64(idx))
+            t = perms[idx - 1]
+            perms[idx - 1] = perms[jj]
+            perms[jj] = t
+            jj = int(np.float64(w2) * PHILOX_INV32 * np.float64(idx - 1))
+            t = perms[idx - 2]
+            perms[idx - 2] = perms[jj]
+            perms[jj] = t
+            jj = int(np.float64(w3) * PHILOX_INV32 * np.float64(idx - 2))
+            t = perms[idx - 3]
+            perms[idx - 3] = perms[jj]
+            perms[jj] = t
+            idx -= 4
+            c += 4
+        if idx >= 1:
+            w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_SHUFFLE, zero, zero, k0, k1)
+            jj = int(np.float64(w0) * PHILOX_INV32 * np.float64(idx + 1))
+            t = perms[idx]
+            perms[idx] = perms[jj]
+            perms[jj] = t
+            idx -= 1
+            if idx >= 1:
+                jj = int(np.float64(w1) * PHILOX_INV32 * np.float64(idx + 1))
+                t = perms[idx]
+                perms[idx] = perms[jj]
+                perms[jj] = t
+                idx -= 1
+            if idx >= 1:
+                jj = int(np.float64(w2) * PHILOX_INV32 * np.float64(idx + 1))
+                t = perms[idx]
+                perms[idx] = perms[jj]
+                perms[jj] = t
+                idx -= 1
+
+        # combine perms with the jitter stream (4 outputs/block)
+        ctr = np.uint32(0)
+        k = 0
+        while k < nfull:
+            w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_JITTER, zero, zero, k0, k1)
+            ctr = np.uint32(ctr + 1)
+            rndms[i, k] = (perms[k] - np.float64(w0) * PHILOX_INV32) * inv_n
+            rndms[i, k + 1] = (perms[k + 1] - np.float64(w1) * PHILOX_INV32) * inv_n
+            rndms[i, k + 2] = (perms[k + 2] - np.float64(w2) * PHILOX_INV32) * inv_n
+            rndms[i, k + 3] = (perms[k + 3] - np.float64(w3) * PHILOX_INV32) * inv_n
+            k += 4
+        if k < n:
+            w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_JITTER, zero, zero, k0, k1)
+            rndms[i, k] = (perms[k] - np.float64(w0) * PHILOX_INV32) * inv_n
+            k += 1
+            if k < n:
+                rndms[i, k] = (perms[k] - np.float64(w1) * PHILOX_INV32) * inv_n
+                k += 1
+            if k < n:
+                rndms[i, k] = (perms[k] - np.float64(w2) * PHILOX_INV32) * inv_n
+                k += 1
     return rndms

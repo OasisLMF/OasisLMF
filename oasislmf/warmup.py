@@ -117,7 +117,7 @@ def _compile_modelpy_gulpy_gulmc():
         out_file = Path(tmpdir) / "gulpy_out.bin"
         cmd = (
             f"evepy 1 1 | modelpy | gulpy -a1 -S1 -L0 "
-            f"--random-generator=1 > '{out_file}'"
+            f"--random-generator=2 > '{out_file}'"
         )
         result = subprocess.run(
             cmd, cwd=str(workspace), shell=True,
@@ -133,7 +133,7 @@ def _compile_modelpy_gulpy_gulmc():
         out_file = Path(tmpdir) / "gulmc_out.bin"
         cmd = (
             f"evepy 1 1 | modelpy | gulmc -a1 -S1 -L0 "
-            f"--ignore-correlation --random-generator=1 > '{out_file}'"
+            f"--ignore-correlation --random-generator=2 > '{out_file}'"
         )
         result = subprocess.run(
             cmd, cwd=str(workspace), shell=True,

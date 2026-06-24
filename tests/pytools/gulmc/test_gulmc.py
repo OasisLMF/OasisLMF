@@ -26,12 +26,18 @@ TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 test_models_dirs = [(x.name, x) for x in sorted(TESTS_ASSETS_DIR.glob("test_model_*")) if x.is_dir()]
 
 # define the grid of model parameters to test
-sample_sizes = [0, 1, 10, 100, 1000]
+# Sample sizes are JIT-aware: the positive sizes all exercise the same sampling code,
+# so we cover S=0 (the distinct no-sampling path) plus a loop edge and a large/scale
+# case under JIT, and just a small fast size when the JIT is disabled (the pure-Python
+# coverage CI job, where large sample sizes are slow for no extra coverage).
+if os.environ.get("NUMBA_DISABLE_JIT", "0") != "0":
+    sample_sizes = [0, 10]
+else:
+    sample_sizes = [0, 1, 1000]
 alloc_rules = [1, 2, 3]
 ignore_correlations = [True, False]
-random_generators = [0, 1]
+random_generators = [0, 1, 2]
 effective_damageabilities = [True, False]
-socket_server = ['False', '2.0', 'True']
 
 
 @pytest.fixture
@@ -64,9 +70,7 @@ def gul_atol(request):
 @pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
 @pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
 @pytest.mark.parametrize("test_model", test_models_dirs, ids=lambda x: x[0])
-@pytest.mark.parametrize("socket_server", socket_server, ids=lambda x: f"socket_server={x}")
-def test_gulmc(socket_server: str,
-               test_model: Tuple[str, str],
+def test_gulmc(test_model: Tuple[str, str],
                sample_size: int,
                alloc_rule: int,
                ignore_correlation: bool,
@@ -104,8 +108,7 @@ def test_gulmc(socket_server: str,
     test_model_name, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
-    with (TemporaryDirectory() as tmp_result_dir_str,
-          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping):
+    with TemporaryDirectory() as tmp_result_dir_str:
 
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
 
@@ -134,7 +137,6 @@ def test_gulmc(socket_server: str,
                 random_generator=random_generator,
                 ignore_correlation=ignore_correlation,
                 effective_damageability=effective_damageability,
-                socket_server=socket_server
             )
 
         else:
@@ -152,12 +154,7 @@ def test_gulmc(socket_server: str,
                 random_generator=random_generator,
                 ignore_correlation=ignore_correlation,
                 effective_damageability=effective_damageability,
-                socket_server=socket_server
             )
-            if socket_server != 'False':
-                mock_ping.assert_called()
-            else:
-                mock_ping.assert_not_called()
             # compare the test results to the expected results
             try:
                 assert filecmp.cmp(file_out, ref_out_bin_fname.with_suffix('.bin'), shallow=False)
@@ -349,6 +346,77 @@ def test_adjustments(test_model: Tuple[str, str]):
             # remove temporary file
             file_out.unlink()
             file_out.with_suffix('.csv').unlink()
+
+
+@pytest.mark.parametrize("socket_server,ping_expected,port_expected", [
+    ('False', False, None),   # ping disabled (default / real loss runs)
+    ('True', True, None),     # ping enabled, non-numeric value -> no port override
+    ('8888', True, 8888),     # ping enabled, numeric value -> port override (matrix never hit this)
+], ids=lambda v: f"socket_server={v}")
+def test_gulmc_socket_server_ping(socket_server, ping_expected, port_expected):
+    """The socket_server value controls the end-of-run progress ping (oasis_ping).
+
+    The ping is emitted only when socket_server != 'False', and a numeric value is
+    passed through as a `port_override`. Kept separate from test_gulmc so this small,
+    loss-independent feature isn't multiplied across the whole loss-regression matrix.
+    """
+    test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
+    with (TemporaryDirectory() as tmp_result_dir_str,
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping):
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        run_gulmc(
+            run_dir=tmp_result_dir,
+            ignore_file_type=set(),
+            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+            file_out=tmp_result_dir.joinpath('tmp.bin'),
+            sample_size=10,
+            loss_threshold=0.,
+            alloc_rule=1,
+            debug=0,
+            random_generator=1,
+            ignore_correlation=False,
+            effective_damageability=False,
+            socket_server=socket_server,
+        )
+        if ping_expected:
+            mock_ping.assert_called()
+            ping_payloads = [c.args[0] for c in mock_ping.call_args_list]
+            assert all(('port_override' in p) == (port_expected is not None) for p in ping_payloads)
+            if port_expected is not None:
+                assert all(p['port_override'] == port_expected for p in ping_payloads)
+        else:
+            mock_ping.assert_not_called()
+
+
+def test_gulmc_socket_server_periodic_ping():
+    """The in-loop periodic ping fires once more than SERVER_UPDATE_TIME elapses between events.
+
+    Forcing the threshold below zero makes the periodic ping (distinct from the
+    end-of-run ping) fire on every event, so oasis_ping is called more than once.
+    """
+    test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
+    with (TemporaryDirectory() as tmp_result_dir_str,
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping,
+          patch('oasislmf.pytools.gulmc.manager.SERVER_UPDATE_TIME', -1)):
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        run_gulmc(
+            run_dir=tmp_result_dir,
+            ignore_file_type=set(),
+            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+            file_out=tmp_result_dir.joinpath('tmp.bin'),
+            sample_size=10,
+            loss_threshold=0.,
+            alloc_rule=1,
+            debug=0,
+            random_generator=1,
+            ignore_correlation=False,
+            effective_damageability=False,
+            socket_server='True',
+        )
+        # periodic ping (per event, threshold forced negative) + end-of-run ping -> >1 call
+        assert mock_ping.call_count > 1
 
 
 def test_get_dynamic_footprint_adjustments_without_item_adjustments_bin_only():
