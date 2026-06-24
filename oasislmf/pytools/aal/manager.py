@@ -16,7 +16,7 @@ from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTI
                                           summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
-from oasislmf.pytools.common.input_files import occ_get, read_occurrence_id_index_csr, read_periods
+from oasislmf.pytools.common.input_files import occ_get, read_occurrence, read_periods
 from oasislmf.pytools.common.utils.nb_heapq import heap_pop, heap_push, init_heap
 from oasislmf.pytools.utils import redirect_logging
 
@@ -378,7 +378,7 @@ def read_input_files(run_dir):
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
-    occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence_id_index_csr(Path(run_dir, "input"))
+    occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
     period_weights = read_periods(no_of_periods, Path(run_dir, "input"))
 
     file_data = {

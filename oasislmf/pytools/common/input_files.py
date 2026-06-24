@@ -317,27 +317,6 @@ def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
     return occ_arr, date_algorithm, granular_date, no_of_periods
 
 
-def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
-    """Read the occurrence binary file and returns an occurrence map
-    Args:
-        run_dir (str | os.PathLike): Path to input files dir
-        filename (str | os.PathLike): occurrence binary file name
-    Returns:
-        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
-    """
-    occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(run_dir, filename=filename)
-
-    occ_dtype = occurrence_dtype
-    if granular_date:
-        occ_dtype = occurrence_granular_dtype
-
-    occ_map_valtype = occ_dtype[["period_no", "occ_date_id"]]
-    NB_occ_map_valtype = nb.types.Array(nb.from_dtype(occ_map_valtype), 1, "C")
-
-    occ_map = _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype)
-
-    return occ_map, date_algorithm, granular_date, no_of_periods
-
 
 @nb.njit(cache=True, error_model="numpy")
 def _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype):
@@ -401,15 +380,11 @@ def _build_occ_id_index_csr(occ_arr, granular_date):
     return OccurrenceCSR(_id_index_build(unique_ids), occ_offsets, occ_flat)
 
 
-def read_occurrence_id_index_csr(run_dir, filename=OCCURRENCE_FILE):
+def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
     """Read the occurrence binary file and return an id_index-backed CSR map.
 
-    Replaces read_occurrence for production use in aal/lec/plt managers.
-    Lookup is 12-50x faster than the nb.typed.Dict returned by read_occurrence,
-    and memory is O(N_unique) regardless of event_id sparsity.
-
     Returns:
-        (event_id_index, occ_offsets, occ_flat): CSR lookup structure
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         date_algorithm (int): date algorithm flag
         granular_date (int): granular date flag
         no_of_periods (int): number of periods

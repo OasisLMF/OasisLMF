@@ -13,7 +13,7 @@ import pyarrow.parquet as pq
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_float, oasis_int_size, oasis_float_size,
                                           summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
-from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_get, read_occurrence_id_index_csr, read_periods, read_returnperiods
+from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_get, read_occurrence, read_periods, read_returnperiods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
                                        OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR,
                                        OUTLOSS_DTYPE, EPT_dtype, EPT_fmt, EPT_headers, PSEPT_dtype, PSEPT_fmt, PSEPT_headers)
@@ -46,7 +46,7 @@ def read_input_files(
         occ_wheatsheaf_mean (bool): Occurrence Wheatsheaf Mean.
     """
     input_dir = Path(run_dir, "input")
-    occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence_id_index_csr(input_dir)
+    occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(input_dir)
     period_weights = read_periods(no_of_periods, input_dir)
     periods_fp = Path(input_dir, PERIODS_FILE)
     if not periods_fp.exists():
