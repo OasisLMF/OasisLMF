@@ -473,7 +473,7 @@ def run(
                 if not outmap[out_type]["compute"]:
                     continue
                 dtype = elt_reader.get_data(out_type).dtype
-                schema = pa.schema([(name, pa.array(np.empty(0, dtype=dtype[name])).type) for name in dtype.names])
+                schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
                 outmap[out_type]["schema"] = schema
                 outmap[out_type]["file"] = stack.enter_context(pq.ParquetWriter(outmap[out_type]["file_path"], schema))
         else:
