@@ -6,7 +6,6 @@ import numba as nb
 import os
 from contextlib import ExitStack
 from pathlib import Path
-import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -992,11 +991,10 @@ def run(
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
                     continue
-                temp_out_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=outmap[out_type]["dtype"])
-                temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
-                temp_table = pa.Table.from_pandas(temp_df)
-                out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
-                outmap[out_type]["file"] = out_file
+                dtype = outmap[out_type]["dtype"]
+                schema = pa.schema([(name, pa.array(np.empty(0, dtype=dtype[name])).type) for name in dtype.names])
+                outmap[out_type]["schema"] = schema
+                outmap[out_type]["file"] = stack.enter_context(pq.ParquetWriter(outmap[out_type]["file_path"], schema))
         else:
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
@@ -1011,8 +1009,8 @@ def run(
             if output_binary:
                 data.tofile(outmap[out_type]["file"])
             elif output_parquet:
-                data_df = pd.DataFrame(data)
-                data_table = pa.Table.from_pandas(data_df)
+                arrays = [pa.array(data[name]) for name in data.dtype.names]
+                data_table = pa.Table.from_arrays(arrays, schema=outmap[out_type]["schema"])
                 outmap[out_type]["file"].write_table(data_table)
             else:
                 write_ndarray_to_fmt_csv(

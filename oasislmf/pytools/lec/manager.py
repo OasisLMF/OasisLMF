@@ -6,7 +6,6 @@ import numpy as np
 import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
-import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -330,10 +329,10 @@ def _open_output_files(outmap, stack, output_binary, output_parquet, noheader):
         for out_type in outmap:
             if not outmap[out_type]["compute"]:
                 continue
-            temp_out_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=outmap[out_type]["dtype"])
-            temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
-            temp_table = pa.Table.from_pandas(temp_df)
-            outmap[out_type]["file"] = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+            dtype = outmap[out_type]["dtype"]
+            schema = pa.schema([(name, pa.array(np.empty(0, dtype=dtype[name])).type) for name in dtype.names])
+            outmap[out_type]["schema"] = schema
+            outmap[out_type]["file"] = stack.enter_context(pq.ParquetWriter(outmap[out_type]["file_path"], schema))
     else:
         for out_type in outmap:
             if not outmap[out_type]["compute"]:
