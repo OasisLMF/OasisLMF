@@ -225,7 +225,7 @@ Key flags:
 - `-S`: sample size
 - `-L`: loss threshold
 - `-a`: allocation rule (0, 1, 2, or 3)
-- `--random-generator`: 0 = Mersenne Twister, 1 = Latin Hypercube
+- `--random-generator`: 0 = Mersenne Twister, 1 = Latin Hypercube, 2 = Latin Hypercube on Philox4x32-7 (counter-based; default)
 - `--vuln-cache-size`: CDF cache size in MB (default 200)
 - `--effective-damageability`: use effective damageability mode
 - `--ignore-correlation`: skip hazard/damage correlation

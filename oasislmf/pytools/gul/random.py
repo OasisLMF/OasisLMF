@@ -317,7 +317,7 @@ def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
           arrays pass 1.
 
     Returns:
-        rndms (array[float64]): 2-d array of shape (len(seeds), n) of LH samples in [0, 1).
+        rndms (array[float64]): 2-d array of shape (len(seeds), n) of LH samples in (0, 1].
     """
     Nseeds = len(seeds)
     rndms = np.zeros((Nseeds, n), dtype=np.float64)
@@ -333,12 +333,39 @@ def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
         for k in range(n):
             perms[k] = np.float64(k + 1)
 
-        # Fisher-Yates permutation of perms, driven by the shuffle stream (4 words/block)
+        # Fisher-Yates permutation of perms, driven by the shuffle stream (4 swaps/block).
+        # Head/tail split (mirrors the jitter loop below): the nfull_shuf bulk swaps run
+        # guard-free in groups of 4; only the final partial block needs the idx>=1 guards.
+        # The (Philox word -> idx) pairing is identical to a flat per-swap loop, so the
+        # permutation (and therefore the output) is unchanged.
+        nshuf = n - 1
+        nfull_shuf = nshuf - (nshuf & 3)
         ctr = np.uint32(0)
         idx = n - 1
-        while idx >= 1:
+        c = 0
+        while c < nfull_shuf:
             w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_SHUFFLE, zero, zero, k0, k1)
             ctr = np.uint32(ctr + 1)
+            jj = int(np.float64(w0) * PHILOX_INV32 * np.float64(idx + 1))
+            t = perms[idx]
+            perms[idx] = perms[jj]
+            perms[jj] = t
+            jj = int(np.float64(w1) * PHILOX_INV32 * np.float64(idx))
+            t = perms[idx - 1]
+            perms[idx - 1] = perms[jj]
+            perms[jj] = t
+            jj = int(np.float64(w2) * PHILOX_INV32 * np.float64(idx - 1))
+            t = perms[idx - 2]
+            perms[idx - 2] = perms[jj]
+            perms[jj] = t
+            jj = int(np.float64(w3) * PHILOX_INV32 * np.float64(idx - 2))
+            t = perms[idx - 3]
+            perms[idx - 3] = perms[jj]
+            perms[jj] = t
+            idx -= 4
+            c += 4
+        if idx >= 1:
+            w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_SHUFFLE, zero, zero, k0, k1)
             jj = int(np.float64(w0) * PHILOX_INV32 * np.float64(idx + 1))
             t = perms[idx]
             perms[idx] = perms[jj]
@@ -352,12 +379,6 @@ def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
                 idx -= 1
             if idx >= 1:
                 jj = int(np.float64(w2) * PHILOX_INV32 * np.float64(idx + 1))
-                t = perms[idx]
-                perms[idx] = perms[jj]
-                perms[jj] = t
-                idx -= 1
-            if idx >= 1:
-                jj = int(np.float64(w3) * PHILOX_INV32 * np.float64(idx + 1))
                 t = perms[idx]
                 perms[idx] = perms[jj]
                 perms[jj] = t
