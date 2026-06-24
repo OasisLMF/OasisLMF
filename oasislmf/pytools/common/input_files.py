@@ -317,7 +317,6 @@ def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
     return occ_arr, date_algorithm, granular_date, no_of_periods
 
 
-
 @nb.njit(cache=True, error_model="numpy")
 def _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype):
     """Reads occurrence file array and returns an occurrence map of event_id to list of (period_no, occ_date_id)
