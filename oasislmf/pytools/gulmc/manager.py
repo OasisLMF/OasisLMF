@@ -342,7 +342,9 @@ def run(run_dir,
             compute_info['event_id'] = event_ids[0]
             event_footprint = event_footprint_obj.get_event(event_ids[0])
 
-            if event_footprint is not None:
+            if event_footprint is None:
+                logger.info(f"event {event_ids[0]} SKIPPED - no footprint")
+            else:
                 Nhaz_arr_this_event, haz_pdf = process_areaperils_in_footprint(
                     event_footprint,
                     item_map_ja_id_ind,
@@ -353,6 +355,7 @@ def run(run_dir,
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
                     counter += 1
+                    logger.info(f"event {event_ids[0]} SKIPPED - no items")
                     continue
 
                 items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
@@ -397,6 +400,7 @@ def run(run_dir,
                 compute_info['cdf_cache_ctr'] = 0
 
                 processing_done = False
+                logger.info(f"event {event_ids[0]} STARTED")
                 while not processing_done:
                     try:
                         processing_done = compute_event_losses(
