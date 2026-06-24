@@ -32,7 +32,7 @@ running any ``oasislmf`` command or importing the package.
         export OASIS_FLOAT=f8
 
 ``OASIS_INT``
-    Controls integer precision for loss values.
+    Controls integer precision for internal Oasis fields for example `SummaryId`.
     Default: ``i4`` (int32). Set to ``i8`` (int64) for extended range.
 
     .. code-block:: bash
