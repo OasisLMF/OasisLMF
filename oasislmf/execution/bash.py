@@ -1659,7 +1659,7 @@ def get_getmodel_cmd(
 
     else:
         modelcmd = get_modelcmd(modelpy_server, peril_filter)
-        gulcmd = get_gulcmd(gulmc, gul_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
+        gulcmd = get_gulcmd(gulmc, gul_random_generator, False, 0, False, 0, model_df_engine=model_df_engine)
         cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     cmd = '{} -a{}'.format(cmd, gul_alloc_rule)

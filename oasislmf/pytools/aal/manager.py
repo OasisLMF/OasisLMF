@@ -12,7 +12,8 @@ import pyarrow.parquet as pq
 
 from oasislmf.pytools.aal.data import AAL_meanonly_dtype, AAL_meanonly_fmt, AAL_meanonly_headers, AAL_dtype, AAL_fmt, AAL_headers, ALCT_dtype, ALCT_fmt, ALCT_headers
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
-                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
+                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv,
+                                          summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
 from oasislmf.pytools.common.input_files import occ_get, read_occurrence_id_index_csr, read_periods
@@ -85,6 +86,8 @@ def process_bin_file(
         # Get the number of rows for the current event_id
         n_rows = nb.int64(len(occ_rows))
 
+        if n_rows > len(summaries_data):
+            raise ValueError("OASIS_AAL_MEMORY is too small: a single event has more occurrences than the entire buffer. Increase OASIS_AAL_MEMORY.")
         if summaries_idx + n_rows >= len(summaries_data):
             # Resize array if full
             return summaries_idx, True, offset
@@ -110,6 +113,65 @@ def process_bin_file(
     return summaries_idx, False, offset
 
 
+@nb.njit(cache=True, error_model="numpy")
+def process_idx_file(
+    fbin,
+    idx_data,
+    idx_cursor,
+    occ_csr,
+    summaries_data,
+    summaries_idx,
+    file_index,
+):
+    """Use a pre-built .idx file to populate summaries_data without scanning sample records.
+
+    Instead of reading the entire .bin sequentially (including all loss records just to advance
+    the cursor), each .idx entry gives the byte offset of an event header directly. Only the
+    4-byte event_id is read from the .bin per entry; loss records are never touched here.
+
+    Args:
+        fbin (np.memmap): summary binary memmap (dtype u1)
+        idx_data (np.memmap): index file memmap (dtype summary_stream_index_dtype)
+        idx_cursor (int): current position in idx_data to resume from
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
+        summaries_data (ndarray[_SUMMARIES_DTYPE]): output index buffer
+        summaries_idx (int): next free slot in summaries_data
+        file_index (int): which .bin file this is (used as file_idx in output)
+    Returns:
+        summaries_idx (int): updated cursor into summaries_data
+        resize_flag (bool): True if summaries_data is full and must be flushed before resuming
+        idx_cursor (int): position in idx_data to resume from after a flush
+    """
+    n_idx = len(idx_data)
+    while idx_cursor < n_idx:
+        summary_id = idx_data[idx_cursor]['summary_id']
+        offset = idx_data[idx_cursor]['offset']
+
+        event_id, _ = mv_read(fbin, offset, oasis_int, oasis_int_size)
+
+        occ_rows = occ_get(occ_csr, event_id)
+        if len(occ_rows) == 0:
+            idx_cursor += 1
+            continue
+
+        n_rows = nb.int64(len(occ_rows))
+        if n_rows > len(summaries_data):
+            raise ValueError("OASIS_AAL_MEMORY is too small: a single event has more occurrences than the entire buffer. Increase OASIS_AAL_MEMORY.")
+        if summaries_idx + n_rows >= len(summaries_data):
+            return summaries_idx, True, idx_cursor
+
+        for row in occ_rows:
+            summaries_data[summaries_idx]['summary_id'] = summary_id
+            summaries_data[summaries_idx]['file_idx'] = file_index
+            summaries_data[summaries_idx]['period_no'] = row['period_no']
+            summaries_data[summaries_idx]['file_offset'] = offset
+            summaries_idx += 1
+
+        idx_cursor += 1
+
+    return summaries_idx, False, idx_cursor
+
+
 def sort_and_save_chunk(summaries_data, temp_file_path):
     """Sort a chunk of summaries data and save it to a temporary file.
     Args:
@@ -120,6 +182,19 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
     sorted_indices = np.lexsort([summaries_data[col] for col in sort_columns])
     sorted_chunk = summaries_data[sorted_indices]
     sorted_chunk.tofile(temp_file_path)
+
+
+def _save_chunk(summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id):
+    """Flush summaries_data[:summaries_idx] to a numbered temp file.
+    Returns:
+        chunk_index (int): incremented chunk counter
+        max_summary_id (int): updated running maximum
+    """
+    chunk = summaries_data[:summaries_idx]
+    temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
+    sort_and_save_chunk(chunk, temp_file_path)
+    temp_files.append(temp_file_path)
+    return chunk_index + 1, max(max_summary_id, int(np.max(chunk["summary_id"])))
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -164,14 +239,22 @@ def get_summaries_data(
     path,
     files_handles,
     occ_csr,
-    aal_max_memory
+    aal_max_memory,
+    idx_handles=None,
 ):
-    """Gets the indexed summaries data, ordered with k-way merge if not enough memory
+    """Gets the indexed summaries data, ordered with k-way merge if not enough memory.
+
+    When idx_handles[i] is not None (a memmap of summary_stream_index_dtype records), uses
+    process_idx_file for that file — seeking directly to each event header via pre-computed
+    offsets, never reading sample records during indexing. Falls back to process_bin_file
+    (full sequential scan) for any file without a paired .idx.
+
     Args:
         path (os.PathLike): Path to the workspace folder containing summary binaries
         files_handles (List[np.memmap]): List of memmaps for summary files data
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         aal_max_memory (float): OASIS_AAL_MEMORY value (has to be passed in as numba won't update from environment variable)
+        idx_handles (List[np.memmap | None] | None): Per-file .idx memmaps, or None to use sequential scan for all files
     Returns:
         memmaps (List[np.memmap]): List of temporary file memmaps
         max_summary_id (int): Max summary ID
@@ -187,41 +270,41 @@ def get_summaries_data(
     summaries_data = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
     summaries_idx = 0
     max_summary_id = 0
+
     for file_index, fbin in enumerate(files_handles):
-        offset = oasis_int_size * 3  # Summary stream header size
+        idx_data = idx_handles[file_index] if idx_handles is not None else None
 
-        while True:
-            summaries_idx, resize_flag, offset = process_bin_file(
-                fbin,
-                offset,
-                occ_csr,
-                summaries_data,
-                summaries_idx,
-                file_index,
-            )
-
-            # Write new summaries partial file when buffer size or end of summary file reached
-            if resize_flag:
-                temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
-                summaries_data = summaries_data[:summaries_idx]
-                sort_and_save_chunk(summaries_data, temp_file_path)
-                temp_files.append(temp_file_path)
-                chunk_index += 1
-                summaries_idx = 0
-                if len(summaries_data) > 0:
-                    max_summary_id = max(max_summary_id, np.max(summaries_data["summary_id"]))
-
-            # End of file, move to next file
-            if offset >= len(fbin):
-                break
+        if idx_data is not None:
+            cursor = 0
+            while True:
+                summaries_idx, resize_flag, cursor = process_idx_file(
+                    fbin, idx_data, cursor, occ_csr, summaries_data, summaries_idx, file_index,
+                )
+                if resize_flag:
+                    chunk_index, max_summary_id = _save_chunk(
+                        summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id
+                    )
+                    summaries_idx = 0
+                if cursor >= len(idx_data):
+                    break
+        else:
+            offset = oasis_int_size * 3  # Summary stream header size
+            while True:
+                summaries_idx, resize_flag, offset = process_bin_file(
+                    fbin, offset, occ_csr, summaries_data, summaries_idx, file_index,
+                )
+                if resize_flag:
+                    chunk_index, max_summary_id = _save_chunk(
+                        summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id
+                    )
+                    summaries_idx = 0
+                if offset >= len(fbin):
+                    break
 
     # Write remaining summaries data to temporary file
-    summaries_data = summaries_data[:summaries_idx]
-    if len(summaries_data) > 0:
-        temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
-        sort_and_save_chunk(summaries_data, temp_file_path)
-        max_summary_id = max(max_summary_id, np.max(summaries_data["summary_id"]))
-        temp_files.append(temp_file_path)
+    if summaries_idx > 0:
+        _, max_summary_id = _save_chunk(
+            summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id)
 
     memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]
 
@@ -229,7 +312,13 @@ def get_summaries_data(
 
 
 def summary_index(path, occ_csr, stack):
-    """Index the summary binary outputs
+    """Index the summary binary outputs.
+
+    If a .idx file (summary_stream_index_dtype) exists alongside a .bin file, uses
+    process_idx_file to build the index without scanning sample records. Falls back to
+    process_bin_file (full sequential scan) for any .bin without a paired .idx.
+
+
     Args:
         path (os.PathLike): Path to the workspace folder containing summary binaries
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
@@ -244,19 +333,40 @@ def summary_index(path, occ_csr, stack):
     aal_files_folder = Path(path, "aal_files")
     aal_files_folder.mkdir(parents=False, exist_ok=True)
 
-    # Find summary binary files
-    files = [file for file in path.glob("*.bin")]
+    # Find summary binary files (sorted for stable pairing with .idx files)
+    files = sorted(path.glob("*.bin"))
     files_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
 
     streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files, stack)
     if stream_source_type != SUMMARY_STREAM_ID:
         raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
+    # Pair each .bin with its .idx if present
+    idx_handles = []
+    n_idx = 0
+    for f in files:
+        idx_path = f.with_suffix('.idx')
+        if idx_path.exists():
+            if idx_path.stat().st_size > 0:
+                idx_handles.append(np.memmap(str(idx_path), mode="r", dtype=summary_stream_index_dtype))
+            else:
+                idx_handles.append(np.empty(0, dtype=summary_stream_index_dtype))
+            n_idx += 1
+        else:
+            idx_handles.append(None)
+
+    # Partial coverage is fine: get_summaries_data dispatches per-file, falling back to
+    # sequential scan for any .bin without a paired .idx.
+    if n_idx > 0:
+        logger.info(f"Found {n_idx}/{len(files)} .idx file(s) — using direct-seek indexing")
+    idx_handles_arg = idx_handles if n_idx > 0 else None
+
     memmaps, max_summary_id = get_summaries_data(
         aal_files_folder,
         files_handles,
         occ_csr,
-        OASIS_AAL_MEMORY
+        OASIS_AAL_MEMORY,
+        idx_handles=idx_handles_arg,
     )
     return files_handles, sample_size, max_summary_id, memmaps
 
@@ -712,7 +822,6 @@ def calculate_confidence_interval(std_err, confidence_level):
         ((c[2] * p_value + c[1]) * p_value + c[0]) /
         (((d[2] * p_value + d[1]) * p_value + d[0]) * p_value + 1)
     )
-    # Return the confidence interval
     return std_err * z_value
 
 
@@ -869,7 +978,7 @@ def run(
             sample_size,
             max_summary_id,
             files_handles,
-            vec_analytical_aal,  # unique in output_aal
+            vec_analytical_aal,
             vecs_sample_aal,
             vec_used_summary_id,
         )
