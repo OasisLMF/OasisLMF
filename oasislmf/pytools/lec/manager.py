@@ -223,7 +223,6 @@ def process_input_file(
     row_used_mean,
     outloss_sample,
     row_used_sample,
-    summary_ids,
     occ_csr,
     use_return_period,
     num_sidxs,
@@ -236,7 +235,6 @@ def process_input_file(
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
-        summary_ids (ndarray[bool]): bool array marking which summary_ids are used
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
@@ -259,8 +257,6 @@ def process_input_file(
                 if sidx == 0:
                     break
             continue
-        summary_ids[summary_id - 1] = True
-
         while cursor < valid_buff:
             sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
             loss, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
@@ -290,7 +286,6 @@ def run_lec(
     row_used_mean,
     outloss_sample,
     row_used_sample,
-    summary_ids,
     occ_csr,
     use_return_period,
     num_sidxs,
@@ -303,7 +298,6 @@ def run_lec(
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
-        summary_ids (ndarray[bool]): bool array marking which summary_ids are used
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
@@ -316,7 +310,6 @@ def run_lec(
             row_used_mean,
             outloss_sample,
             row_used_sample,
-            summary_ids,
             occ_csr,
             use_return_period,
             num_sidxs,
@@ -616,14 +609,12 @@ def run(
         row_used_sample = np.memmap(row_used_sample_file, dtype=np.bool_, mode="w+", shape=(len(outloss_sample),))
 
         # Run LEC calculations to populate outloss arrays
-        summary_ids = np.zeros(max_summary_id, dtype=np.bool_)
         run_lec(
             file_handles,
             outloss_mean,
             row_used_mean,
             outloss_sample,
             row_used_sample,
-            summary_ids,
             file_data["occ_csr"],
             use_return_period,
             num_sidxs,

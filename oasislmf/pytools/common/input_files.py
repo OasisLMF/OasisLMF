@@ -365,7 +365,7 @@ def _build_occ_id_index_csr(occ_arr, granular_date):
     if len(occ_arr) == 0:
         return OccurrenceCSR(_id_index_build(np.zeros(0, dtype=np.int32)), np.zeros(1, dtype=np.int64), np.zeros(0, dtype=valtype))
 
-    sort_idx = np.argsort(occ_arr["event_id"].astype(np.int64), kind="stable")
+    sort_idx = np.argsort(occ_arr["event_id"], kind="stable")
     sorted_event_ids = occ_arr["event_id"][sort_idx].astype(np.int32)
 
     occ_flat = np.empty(len(occ_arr), dtype=valtype)
