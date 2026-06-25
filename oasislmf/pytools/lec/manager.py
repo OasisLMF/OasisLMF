@@ -12,7 +12,7 @@ import pyarrow.parquet as pq
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_float, oasis_int_size, oasis_float_size,
                                           summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
-from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_returnperiods
+from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_get, read_occurrence, read_periods, read_returnperiods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
                                        OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR,
                                        OUTLOSS_DTYPE, EPT_dtype, EPT_fmt, EPT_headers, PSEPT_dtype, PSEPT_fmt, PSEPT_headers)
@@ -45,7 +45,7 @@ def read_input_files(
         occ_wheatsheaf_mean (bool): Occurrence Wheatsheaf Mean.
     """
     input_dir = Path(run_dir, "input")
-    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(input_dir)
+    occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(input_dir)
     period_weights = read_periods(no_of_periods, input_dir)
     periods_fp = Path(input_dir, PERIODS_FILE)
     if not periods_fp.exists():
@@ -66,7 +66,7 @@ def read_input_files(
             logger.info("INFO: Tail Value at Risk for Wheatsheaf mean/per sample mean is not supported if you wish to use non-uniform period weights.")
 
     file_data = {
-        "occ_map": occ_map,
+        "occ_csr": occ_csr,
         "date_algorithm": date_algorithm,
         "granular_date": granular_date,
         "no_of_periods": no_of_periods,
@@ -150,7 +150,7 @@ def do_lec_output_agg_summary(
 def process_summary_entries(
     fin,
     offsets,
-    occ_map,
+    occ_csr,
     use_return_period,
     outloss_mean_s,
     row_used_mean_s,
@@ -170,10 +170,10 @@ def process_summary_entries(
         _, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)    # summary_id known from idx
         _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)  # expval
 
-        if event_id not in occ_map:
+        filtered_occ_map = occ_get(occ_csr, event_id)
+        if len(filtered_occ_map) == 0:
             continue
 
-        filtered_occ_map = occ_map[event_id]
         while cursor < valid_buff:
             sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
             loss, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
@@ -222,7 +222,7 @@ def process_input_file(
     row_used_mean,
     outloss_sample,
     row_used_sample,
-    occ_map,
+    occ_csr,
     use_return_period,
     num_sidxs,
     max_summary_id,
@@ -234,7 +234,7 @@ def process_input_file(
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
-        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
@@ -248,17 +248,14 @@ def process_input_file(
         summary_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
         expval, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
 
-        # Discard samples if event_id not found
-        if event_id not in occ_map:
+        filtered_occ_map = occ_get(occ_csr, event_id)
+        if len(filtered_occ_map) == 0:
             while cursor < valid_buff:
                 sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
                 _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
                 if sidx == 0:
                     break
             continue
-
-        filtered_occ_map = occ_map[event_id]
-
         while cursor < valid_buff:
             sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
             loss, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
@@ -288,7 +285,7 @@ def run_lec(
     row_used_mean,
     outloss_sample,
     row_used_sample,
-    occ_map,
+    occ_csr,
     use_return_period,
     num_sidxs,
     max_summary_id,
@@ -300,7 +297,7 @@ def run_lec(
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
-        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
@@ -312,7 +309,7 @@ def run_lec(
             row_used_mean,
             outloss_sample,
             row_used_sample,
-            occ_map,
+            occ_csr,
             use_return_period,
             num_sidxs,
             max_summary_id,
@@ -546,7 +543,7 @@ def run(
                     process_summary_entries(
                         file_handles[int(fi)],
                         offsets,
-                        file_data["occ_map"],
+                        file_data["occ_csr"],
                         use_return_period,
                         outloss_mean_s,
                         row_used_mean_s,
@@ -617,7 +614,7 @@ def run(
             row_used_mean,
             outloss_sample,
             row_used_sample,
-            file_data["occ_map"],
+            file_data["occ_csr"],
             use_return_period,
             num_sidxs,
             max_summary_id,

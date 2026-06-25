@@ -15,7 +15,7 @@ from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE
                                           summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
-from oasislmf.pytools.common.input_files import read_occurrence, read_periods
+from oasislmf.pytools.common.input_files import occ_get, read_occurrence, read_periods
 from oasislmf.pytools.common.utils.nb_heapq import heap_pop, heap_push, init_heap
 from oasislmf.pytools.utils import redirect_logging
 
@@ -51,7 +51,7 @@ _SUMMARIES_DTYPE_size = _SUMMARIES_DTYPE.itemsize
 def process_bin_file(
     fbin,
     offset,
-    occ_map,
+    occ_csr,
     summaries_data,
     summaries_idx,
     file_index,
@@ -60,7 +60,7 @@ def process_bin_file(
     Args:
         fbin (np.memmap): summary binary memmap
         offset (int): file offset to read from
-        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
         summaries_idx (int): current index reached in summaries_data
         file_index (int): Summary bin file index
@@ -74,8 +74,8 @@ def process_bin_file(
         event_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
         summary_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
 
-        if event_id not in occ_map:
-            # If the event_id doesn't exist in occ_map, continue with the next
+        occ_rows = occ_get(occ_csr, event_id)
+        if len(occ_rows) == 0:
             offset = cursor
             # Skip over Expval and losses
             _, offset = mv_read(fbin, offset, oasis_float, oasis_float_size)
@@ -83,7 +83,7 @@ def process_bin_file(
             continue
 
         # Get the number of rows for the current event_id
-        n_rows = occ_map[event_id].shape[0]
+        n_rows = nb.int64(len(occ_rows))
 
         if n_rows > len(summaries_data):
             raise ValueError("OASIS_AAL_MEMORY is too small: a single event has more occurrences than the entire buffer. Increase OASIS_AAL_MEMORY.")
@@ -92,8 +92,8 @@ def process_bin_file(
             return summaries_idx, True, offset
 
         # Now fill the summaries_data with the rows that match the current event_id
-        current_row = 0
-        for row in occ_map[event_id]:
+        current_row = nb.int64(0)
+        for row in occ_rows:
             summaries_data[summaries_idx]["summary_id"] = summary_id
             summaries_data[summaries_idx]["file_idx"] = file_index
             summaries_data[summaries_idx]["period_no"] = row["period_no"]
@@ -117,7 +117,7 @@ def process_idx_file(
     fbin,
     idx_data,
     idx_cursor,
-    occ_map,
+    occ_csr,
     summaries_data,
     summaries_idx,
     file_index,
@@ -132,7 +132,7 @@ def process_idx_file(
         fbin (np.memmap): summary binary memmap (dtype u1)
         idx_data (np.memmap): index file memmap (dtype summary_stream_index_dtype)
         idx_cursor (int): current position in idx_data to resume from
-        occ_map (nb.typed.Dict): numpy map of event_id -> rows with period_no, occ_date_id
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         summaries_data (ndarray[_SUMMARIES_DTYPE]): output index buffer
         summaries_idx (int): next free slot in summaries_data
         file_index (int): which .bin file this is (used as file_idx in output)
@@ -148,17 +148,18 @@ def process_idx_file(
 
         event_id, _ = mv_read(fbin, offset, oasis_int, oasis_int_size)
 
-        if event_id not in occ_map:
+        occ_rows = occ_get(occ_csr, event_id)
+        if len(occ_rows) == 0:
             idx_cursor += 1
             continue
 
-        n_rows = occ_map[event_id].shape[0]
+        n_rows = nb.int64(len(occ_rows))
         if n_rows > len(summaries_data):
             raise ValueError("OASIS_AAL_MEMORY is too small: a single event has more occurrences than the entire buffer. Increase OASIS_AAL_MEMORY.")
         if summaries_idx + n_rows >= len(summaries_data):
             return summaries_idx, True, idx_cursor
 
-        for row in occ_map[event_id]:
+        for row in occ_rows:
             summaries_data[summaries_idx]['summary_id'] = summary_id
             summaries_data[summaries_idx]['file_idx'] = file_index
             summaries_data[summaries_idx]['period_no'] = row['period_no']
@@ -236,7 +237,7 @@ def merge_sorted_chunks(memmaps):
 def get_summaries_data(
     path,
     files_handles,
-    occ_map,
+    occ_csr,
     aal_max_memory,
     idx_handles=None,
 ):
@@ -250,7 +251,7 @@ def get_summaries_data(
     Args:
         path (os.PathLike): Path to the workspace folder containing summary binaries
         files_handles (List[np.memmap]): List of memmaps for summary files data
-        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         aal_max_memory (float): OASIS_AAL_MEMORY value (has to be passed in as numba won't update from environment variable)
         idx_handles (List[np.memmap | None] | None): Per-file .idx memmaps, or None to use sequential scan for all files
     Returns:
@@ -276,7 +277,7 @@ def get_summaries_data(
             cursor = 0
             while True:
                 summaries_idx, resize_flag, cursor = process_idx_file(
-                    fbin, idx_data, cursor, occ_map, summaries_data, summaries_idx, file_index,
+                    fbin, idx_data, cursor, occ_csr, summaries_data, summaries_idx, file_index,
                 )
                 if resize_flag:
                     chunk_index, max_summary_id = _save_chunk(
@@ -289,7 +290,7 @@ def get_summaries_data(
             offset = oasis_int_size * 3  # Summary stream header size
             while True:
                 summaries_idx, resize_flag, offset = process_bin_file(
-                    fbin, offset, occ_map, summaries_data, summaries_idx, file_index,
+                    fbin, offset, occ_csr, summaries_data, summaries_idx, file_index,
                 )
                 if resize_flag:
                     chunk_index, max_summary_id = _save_chunk(
@@ -309,16 +310,17 @@ def get_summaries_data(
     return memmaps, max_summary_id
 
 
-def summary_index(path, occ_map, stack):
+def summary_index(path, occ_csr, stack):
     """Index the summary binary outputs.
 
     If a .idx file (summary_stream_index_dtype) exists alongside a .bin file, uses
     process_idx_file to build the index without scanning sample records. Falls back to
     process_bin_file (full sequential scan) for any .bin without a paired .idx.
 
+
     Args:
         path (os.PathLike): Path to the workspace folder containing summary binaries
-        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         stack (ExitStack): Exit stack
     Returns:
         files_handles (List[np.memmap]): List of memmaps for summary files data
@@ -361,7 +363,7 @@ def summary_index(path, occ_map, stack):
     memmaps, max_summary_id = get_summaries_data(
         aal_files_folder,
         files_handles,
-        occ_map,
+        occ_csr,
         OASIS_AAL_MEMORY,
         idx_handles=idx_handles_arg,
     )
@@ -375,11 +377,11 @@ def read_input_files(run_dir):
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
-    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
+    occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
     period_weights = read_periods(no_of_periods, Path(run_dir, "input"))
 
     file_data = {
-        "occ_map": occ_map,
+        "occ_csr": occ_csr,
         "date_algorithm": date_algorithm,
         "granular_date": granular_date,
         "no_of_periods": no_of_periods,
@@ -956,7 +958,7 @@ def run(
         file_data = read_input_files(run_dir)
         files_handles, sample_size, max_summary_id, memmaps = summary_index(
             workspace_folder,
-            file_data["occ_map"],
+            file_data["occ_csr"],
             stack
         )
         if max_summary_id == 0:

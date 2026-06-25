@@ -1,3 +1,4 @@
+from collections import namedtuple
 from contextlib import ExitStack
 import logging
 import sys
@@ -9,12 +10,16 @@ from oasislmf.pytools.common.data import (
     load_as_ndarray, nb_oasis_int,
     correlations_headers, correlations_dtype, coverages_headers,
     occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
-    quantile_interval_dtype, returnperiods_dtype
+    quantile_interval_dtype, returnperiods_dtype,
 )
 from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
+from oasislmf.pytools.common.id_index import build as _id_index_build, get_idx as _id_index_get_idx, NOT_FOUND as _OCC_IDX_NOT_FOUND
 
 
 logger = logging.getLogger(__name__)
+
+
+OccurrenceCSR = namedtuple('OccurrenceCSR', ['event_id_index', 'occ_offsets', 'occ_flat'])
 
 # Input file names (input/<file_name>)
 AMPLIFICATIONS_FILE = "amplifications.bin"
@@ -312,28 +317,6 @@ def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
     return occ_arr, date_algorithm, granular_date, no_of_periods
 
 
-def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
-    """Read the occurrence binary file and returns an occurrence map
-    Args:
-        run_dir (str | os.PathLike): Path to input files dir
-        filename (str | os.PathLike): occurrence binary file name
-    Returns:
-        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
-    """
-    occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(run_dir, filename=filename)
-
-    occ_dtype = occurrence_dtype
-    if granular_date:
-        occ_dtype = occurrence_granular_dtype
-
-    occ_map_valtype = occ_dtype[["period_no", "occ_date_id"]]
-    NB_occ_map_valtype = nb.types.Array(nb.from_dtype(occ_map_valtype), 1, "C")
-
-    occ_map = _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype)
-
-    return occ_map, date_algorithm, granular_date, no_of_periods
-
-
 @nb.njit(cache=True, error_model="numpy")
 def _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype):
     """Reads occurrence file array and returns an occurrence map of event_id to list of (period_no, occ_date_id)
@@ -363,6 +346,64 @@ def _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype):
         occ_map[event_id] = occ_map[event_id][:occ_map_sizes[event_id]]
 
     return occ_map
+
+
+def _occ_flat_valtype(granular_date):
+    occ_date_np_type = np.int64 if granular_date else np.int32
+    return np.dtype([("period_no", np.int32), ("occ_date_id", occ_date_np_type)])
+
+
+def _build_occ_id_index_csr(occ_arr, granular_date):
+    """Build an id_index-backed CSR from an occurrence record array.
+
+    Returns (event_id_index, occ_offsets, occ_flat) where:
+      - event_id_index  uint32 array built by id_index.build()
+      - occ_offsets     int64 offsets of length n_unique_events + 1
+      - occ_flat        structured array [(period_no, occ_date_id)] sorted by event_id
+    """
+    valtype = _occ_flat_valtype(granular_date)
+    if len(occ_arr) == 0:
+        return OccurrenceCSR(_id_index_build(np.zeros(0, dtype=np.int32)), np.zeros(1, dtype=np.int64), np.zeros(0, dtype=valtype))
+
+    sort_idx = np.argsort(occ_arr["event_id"], kind="stable")
+    sorted_event_ids = occ_arr["event_id"][sort_idx].astype(np.int32)
+
+    occ_flat = np.empty(len(occ_arr), dtype=valtype)
+    occ_flat["period_no"] = occ_arr["period_no"][sort_idx]
+    occ_flat["occ_date_id"] = occ_arr["occ_date_id"][sort_idx]
+
+    unique_ids, counts = np.unique(sorted_event_ids, return_counts=True)
+    occ_offsets = np.zeros(len(unique_ids) + 1, dtype=np.int64)
+    np.cumsum(counts, out=occ_offsets[1:])
+
+    return OccurrenceCSR(_id_index_build(unique_ids), occ_offsets, occ_flat)
+
+
+def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
+    """Read the occurrence binary file and return an id_index-backed CSR map.
+
+    Returns:
+        occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
+        date_algorithm (int): date algorithm flag
+        granular_date (int): granular date flag
+        no_of_periods (int): number of periods
+    """
+    occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(run_dir, filename=filename)
+    occ_csr = _build_occ_id_index_csr(occ_arr, granular_date)
+    return occ_csr, date_algorithm, granular_date, no_of_periods
+
+
+@nb.njit(cache=True)
+def occ_get(occ_csr, event_id):
+    """Return the occ_flat slice for event_id, or an empty slice on miss.
+
+    The caller iterates the result directly; the loop body is skipped if the
+    event is not present in the occurrence file.
+    """
+    i = _id_index_get_idx(occ_csr.event_id_index, nb.int32(event_id))
+    if i == _OCC_IDX_NOT_FOUND:
+        return occ_csr.occ_flat[0:0]
+    return occ_csr.occ_flat[occ_csr.occ_offsets[i]:occ_csr.occ_offsets[i + 1]]
 
 
 @nb.njit(cache=True)
