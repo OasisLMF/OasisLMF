@@ -974,7 +974,7 @@ class GenerateLossesDeterministic(ComputationStep):
                                 files_out=[ri_layer_bin_fp],
                                 low_memory=self.fmpy_low_memory,
                                 sort_output=self.fmpy_sort_output,
-                                net_loss='' if self.net_ri else None,
+                                net_loss='',
                                 storage_method='sparse',
                             )
                             bintocsv(ri_layer_bin_fp, ri_layer_fp, "fm")
@@ -992,9 +992,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         return rils
 
                     for i in range(1, ri_layers + 1):
-                        rils = run_ri_layer(i)
-                        if i in [1, ri_layers]:
-                            losses['ri'] = rils
+                        losses['ri'] = run_ri_layer(i)
 
         return losses
 
