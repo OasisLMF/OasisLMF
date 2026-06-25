@@ -2,6 +2,7 @@ import sys
 
 from oasislmf.cli.admin import AdminCmd
 from oasislmf.cli.api import ApiCmd
+from oasislmf.cli.clearcache import ClearCacheCmd
 from oasislmf.cli.command import OasisBaseCommand
 from oasislmf.cli.config import ConfigCmd
 from oasislmf.cli.exposure import ExposureCmd
@@ -24,7 +25,8 @@ class RootCmd(OasisBaseCommand):
         'exposure': ExposureCmd,
         'api': ApiCmd,
         'config': ConfigCmd,
-        'warmup': WarmupCmd
+        'warmup': WarmupCmd,
+        'clearcache': ClearCacheCmd,
     }
 
     def run(self, args=None):
