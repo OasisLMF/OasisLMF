@@ -8,24 +8,24 @@ from .command import OasisBaseCommand
 # Deletion runs in a subprocess with NUMBA_DISABLE_JIT=1 because Numba
 # re-creates cache files instantly if JIT is active in the same process
 
+_CACHE_GLOBS = ('*.nbi', '*.nbc')
+
 _DELETE_SCRIPT = """\
 import sys
 from pathlib import Path
 
 roots = sys.argv[1:]
-files = [f for r in roots for ext in ('*.nbi', '*.nbc') for f in Path(r).rglob(ext)]
+files = [f for r in roots for ext in {globs!r} for f in Path(r).rglob(ext)]
 removed = failed = 0
 for f in files:
     try:
         f.unlink()
         removed += 1
     except OSError as e:
-        print(f'WARNING: {e}', flush=True)
+        print(f'WARNING: {{e}}', flush=True)
         failed += 1
 print(removed, failed, flush=True)
-"""
-
-_CACHE_GLOBS = ('*.nbi', '*.nbc')
+""".format(globs=_CACHE_GLOBS)
 
 
 def _find_cache_files(roots):
