@@ -1,6 +1,33 @@
 OasisLMF Changelog
 ==================
 
+`2.5.4`_
+ ---------
+* [#1940](https://github.com/OasisLMF/OasisLMF/pull/1940) - enhancement/profile check script
+* [#1942](https://github.com/OasisLMF/OasisLMF/pull/1942) - Fix brittle PolNumber backfill in IL input preparation
+* [#1947](https://github.com/OasisLMF/OasisLMF/pull/1947) - enhancement/conversion_tool_speed
+* [#1955](https://github.com/OasisLMF/OasisLMF/pull/1955) - improved quadratic interpolation so it evaluates in a way that's robu…
+* [#1957](https://github.com/OasisLMF/OasisLMF/pull/1957) - Stochastic hazard dynamic footprint
+* [#1963](https://github.com/OasisLMF/OasisLMF/pull/1963) - Update API client for OIDC M2M
+* [#1964](https://github.com/OasisLMF/OasisLMF/pull/1964) - perf(gulmc): replace numba dicts with precomputed array-backed structures
+* [#1967](https://github.com/OasisLMF/OasisLMF/pull/1967) - Fix for stalled runs on V2 workers 
+* [#1968](https://github.com/OasisLMF/OasisLMF/pull/1968) - improve numerical stability in variance calculations and add unit tests
+* [#1969](https://github.com/OasisLMF/OasisLMF/pull/1969) - Improved bash error detection 
+* [#1971](https://github.com/OasisLMF/OasisLMF/pull/1971) - Fix IL merge failure when layers sharing a CondTag mix %-TIV and flat terms
+* [#1973](https://github.com/OasisLMF/OasisLMF/pull/1973) - Add portfolio complexity metrics to oasislmf exposure run
+* [#1974](https://github.com/OasisLMF/OasisLMF/pull/1974) - Improve rtree builtin
+* [#1975](https://github.com/OasisLMF/OasisLMF/pull/1975) - Fix platform checks for external PRs 
+* [#1979](https://github.com/OasisLMF/OasisLMF/pull/1979) - Feature/hazard selection dynamic
+* [#1980](https://github.com/OasisLMF/OasisLMF/pull/1980) - Round progress bar down
+* [#1985](https://github.com/OasisLMF/OasisLMF/pull/1985) - port receiving data from non oasis source wont crash
+* [#1987](https://github.com/OasisLMF/OasisLMF/pull/1987) - fix/pytools-empty-inputs
+* [#1992](https://github.com/OasisLMF/OasisLMF/pull/1992) - Speed up summarypy read_buffer
+* [#1993](https://github.com/OasisLMF/OasisLMF/pull/1993) - fix broken docs link
+* [#1994](https://github.com/OasisLMF/OasisLMF/pull/1994) - fix summarypy missing dtypes
+* [#1997](https://github.com/OasisLMF/OasisLMF/pull/1997) - Fix for ci error
+* [#1999](https://github.com/OasisLMF/OasisLMF/pull/1999) - fix/input_gen_status
+.. _`2.5.4`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.3...2.5.4
+
 `2.5.3`_
  ---------
 * [#1903](https://github.com/OasisLMF/OasisLMF/pull/1903) - remove pd from summarypy to save on memory usage

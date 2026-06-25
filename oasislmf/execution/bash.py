@@ -50,6 +50,7 @@ Entry points:
 
 import contextlib
 import io
+import json
 import logging
 import multiprocessing
 import os
@@ -224,7 +225,7 @@ exit_handler(){
        printf "Script PID:%d, GPID:%s, SPID:%d\n" $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
 
        ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
-       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk \'BEGIN { FS = "[ \\t\\n]+" }{ if ($1 >= \'$script_pid\') print}\' | grep -v celery | egrep -v *\\\\.log$  | egrep -v *startup.sh$ | sort -n -r)
+       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk \'BEGIN { FS = "[ \\t\\n]+" }{ if ($1 >= \'$script_pid\') print}\' | grep -v celery | egrep -v \\.log$  | egrep -v startup.sh$ | sort -n -r)
        echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
        exit $exit_code
@@ -1621,7 +1622,7 @@ def get_getmodel_cmd(
         modelpy_server=False,
         peril_filter=[],
         gulmc=False,
-        gul_random_generator=1,
+        gul_random_generator=2,
         gulmc_effective_damageability=False,
         gulmc_vuln_cache_size=200,
         model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
@@ -1659,7 +1660,7 @@ def get_getmodel_cmd(
 
     else:
         modelcmd = get_modelcmd(modelpy_server, peril_filter)
-        gulcmd = get_gulcmd(gulmc, gul_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
+        gulcmd = get_gulcmd(gulmc, gul_random_generator, False, 0, False, 0, model_df_engine=model_df_engine)
         cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     cmd = '{} -a{}'.format(cmd, gul_alloc_rule)
@@ -2023,7 +2024,7 @@ def bash_params(
     summarypy_low_memory=False,
     event_shuffle=None,
     gulmc=True,
-    gul_random_generator=1,
+    gul_random_generator=2,
     gulmc_effective_damageability=False,
     gulmc_vuln_cache_size=200,
 
@@ -2037,6 +2038,7 @@ def bash_params(
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     dynamic_footprint=False,
+    log_level=None,
     **kwargs
 ):
     """Build the parameter dict consumed by :func:`create_bash_analysis` and :func:`create_bash_outputs`.
@@ -2084,6 +2086,7 @@ def bash_params(
         exposure_df_engine (str): DataFrame engine for exposure data.
         model_df_engine (str): DataFrame engine for model data.
         dynamic_footprint (bool): Enable dynamic footprint mode.
+        log_level (int or None): Enable logging of pytools subprocesses.
 
     Returns:
         dict: Parameter dictionary ready for unpacking into
@@ -2113,6 +2116,25 @@ def bash_params(
     bash_params['process_number'] = process_number
     bash_params['remove_working_files'] = remove_working_files
     bash_params['model_run_dir'] = model_run_dir
+
+    # Convert ri_inuring_priorities from OED InuringPriority values to RI output level indices.
+    # The mapping file produced during input generation records, for each OED InuringPriority, the
+    # index of the last RI layer (output level) belonging to that priority.
+    # We shadow analysis_settings with a shallow copy so the caller's dict is never mutated —
+    # this means repeated bash_params() calls with the same dict remain safe (idempotent).
+    if model_run_dir and analysis_settings.get('ri_inuring_priorities'):
+        mapping_fp = os.path.join(model_run_dir, 'input', 'ri_inuring_priority_output_levels.json')
+        if os.path.exists(mapping_fp):
+            with io.open(mapping_fp, encoding='utf-8') as _f:
+                _ip_to_level = {int(k): int(v) for k, v in json.load(_f).items()}
+            analysis_settings = {
+                **analysis_settings,
+                'ri_inuring_priorities': [
+                    _ip_to_level[int(p)]
+                    for p in analysis_settings['ri_inuring_priorities']
+                    if int(p) in _ip_to_level
+                ],
+            }
 
     if model_storage_json:
         bash_params['model_storage_json'] = model_storage_json
@@ -2221,6 +2243,7 @@ def bash_params(
     bash_params['exposure_df_engine'] = exposure_df_engine
     bash_params['model_df_engine'] = model_df_engine
     bash_params['dynamic_footprint'] = dynamic_footprint
+    bash_params['log_level'] = log_level
 
     return bash_params
 
@@ -2373,6 +2396,7 @@ def create_bash_analysis(
     peril_filter,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     dynamic_footprint=False,
+    log_level=None,
     **kwargs
 ):
     """Write the main analysis section of the bash script.
@@ -2646,6 +2670,10 @@ def create_bash_analysis(
                 }
             }
             compute_outputs.append(gul_computes)
+
+    # set compute log level through env variable
+    if log_level is not None:
+        print_command(filename, f'export OASIS_PYTOOLS_LOG_LEVEL={log_level}')
 
     do_computes(compute_outputs)
 
@@ -3091,7 +3119,7 @@ def genbash(
     summarypy_low_memory=False,
     event_shuffle=None,
     gulmc=True,
-    gul_random_generator=1,
+    gul_random_generator=2,
     gulmc_effective_damageability=False,
     gulmc_vuln_cache_size=200,
     model_py_server=False,
@@ -3102,7 +3130,8 @@ def genbash(
     dynamic_footprint=False,
     analysis_pk=None,
     socket_server_size=None,
-    socket_server_port=None
+    socket_server_port=None,
+    log_level=None
 ):
     """
     Generates a bash script containing pytools calculation instructions for an
@@ -3179,7 +3208,8 @@ def genbash(
         peril_filter=peril_filter,
         join_summary_info=join_summary_info,
         model_df_engine=model_df_engine,
-        dynamic_footprint=dynamic_footprint
+        dynamic_footprint=dynamic_footprint,
+        log_level=log_level
     )
 
     # remove the file if it already exists

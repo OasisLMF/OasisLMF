@@ -489,7 +489,9 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
                 ['level_id', 'agg_id', 'layer_id', 'profile_id']
             ].reset_index(drop=True)
             fm_policytc_df['level_id'] = fm_policytc_df['level_id'] - 1
-            # Net losses across all layers is associated to the max layer ID.
+            # fmpy outputs net_loss[layer_i] = IL - sum(ceded_1..i), so pointing
+            # fm_xref to the maximum layer gives the final net retained after all
+            # parallel treaties at this inuring priority.
             fm_xref_df['layer_id'] = fm_policytc_df['layer_id'].max()
 
             _log_dataframe(logger, {'fm_programme_df': fm_programme_df, 'fm_profile_df': fm_profile_df,

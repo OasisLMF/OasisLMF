@@ -153,13 +153,13 @@ def _compile_modelpy_gulpy_gulmc():
 
         # Stage 3a: gulpy — reads the captured modelpy output from file
         _run_stage(
-            ["gulpy", "-a1", "-S1", "-L0", "--random-generator=1"],
+            ["gulpy", "-a1", "-S1", "-L0", "--random-generator=2"],
             stdin_path=modelpy_out, cwd=workspace,
         )
 
         # Stage 3b: gulmc — sequential after gulpy, reuses same modelpy output
         _run_stage(
-            ["gulmc", "-a1", "-S1", "-L0", "--ignore-correlation", "--random-generator=1"],
+            ["gulmc", "-a1", "-S1", "-L0", "--ignore-correlation", "--random-generator=2"],
             stdin_path=modelpy_out, cwd=workspace,
         )
 

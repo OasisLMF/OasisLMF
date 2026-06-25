@@ -1,7 +1,8 @@
 __all__ = [
     'GenerateFiles',
     'GenerateDummyModelFiles',
-    'GenerateDummyOasisFiles'
+    'GenerateDummyOasisFiles',
+    'compute_ri_inuring_priority_output_levels',
 ]
 
 import io
@@ -56,8 +57,23 @@ from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      get_default_accounts_profile,
                                      get_default_exposure_profile,
                                      get_default_fm_aggregation_profile)
-from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.exceptions import OasisException, OasisExceptionNoKeys
 from oasislmf.utils.inputs import str2bool
+
+
+def compute_ri_inuring_priority_output_levels(ri_layers):
+    """Return a dict mapping each OED InuringPriority to its RI output level.
+
+    The output level for a given InuringPriority is the highest-indexed RI layer
+    that belongs to that priority (i.e. the last layer written for it).
+    """
+    mapping = {}
+    for layer_idx, layer_info in ri_layers.items():
+        ip = layer_info['inuring_priority']
+        idx = int(layer_idx)
+        if ip not in mapping or idx > mapping[ip]:
+            mapping[ip] = idx
+    return mapping
 
 
 class GenerateFiles(ComputationStep):
@@ -246,12 +262,17 @@ class GenerateFiles(ComputationStep):
         keys_error_fp = os.path.join(os.path.dirname(_keys_fp), 'keys-errors.csv') if _keys_fp else 'Missing'
         missing_keys_msg = 'No successful lookup results found in the keys file - '
         missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
-        keys_df = get_dataframe(
-            src_fp=_keys_fp,
-            col_dtypes=dtypes,
-            empty_data_error_msg=missing_keys_msg,
-            memory_map=True
-        )
+        try:
+            keys_df = get_dataframe(
+                src_fp=_keys_fp,
+                col_dtypes=dtypes,
+                empty_data_error_msg=missing_keys_msg,
+                memory_map=True
+            )
+        except OasisException as e:
+            if missing_keys_msg in str(e):
+                raise OasisExceptionNoKeys(missing_keys_msg, e) from e
+            raise
         # ************************************************
 
         # check that all loc_ids have been returned from keys lookup
@@ -428,6 +449,13 @@ class GenerateFiles(ComputationStep):
             oasis_files['ri_layers'] = os.path.abspath(f.name)
             for layer, layer_info in ri_layers.items():
                 oasis_files['RI_{}'.format(layer)] = layer_info['directory']
+
+        inuring_priority_to_output_level = compute_ri_inuring_priority_output_levels(ri_layers)
+
+        ri_priority_map_fp = os.path.join(target_dir, 'ri_inuring_priority_output_levels.json')
+        with io.open(ri_priority_map_fp, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(inuring_priority_to_output_level, ensure_ascii=False, indent=4))
+        oasis_files['ri_inuring_priority_output_levels'] = os.path.abspath(ri_priority_map_fp)
 
         self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
 

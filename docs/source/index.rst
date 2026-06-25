@@ -33,6 +33,7 @@ in this process. It includes:
    building-and-running-models
    logging-configuration
    options_config_file
+   environment-variables
 
 Indices and tables
 ==================

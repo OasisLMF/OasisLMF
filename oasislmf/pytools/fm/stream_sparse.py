@@ -54,7 +54,7 @@ import logging
 from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY, EventReader,
                                                   MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, MEAN_IDX,
                                                   mv_read, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter, write_mv_to_stream)
-from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float, oasis_float_size
+from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float_size, loss_pair_dtype, loss_pair_size
 
 logger = logging.getLogger(__name__)
 
@@ -177,11 +177,22 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
     while True:
         if item_id:
             # --- Reading (sidx, loss) pairs for current item ---
-            if valid_buff - cursor < (oasis_int_size + oasis_float_size):
+            # View the whole remaining payload once as packed (sidx, loss) pairs
+            # instead of two mv_read slice+casts per pair.
+            n_pairs = (valid_buff - cursor) // loss_pair_size
+            if n_pairs == 0:
                 break  # Need more data
-            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            if sidx:
-                loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+            sidx_loss_view = byte_mv[cursor:cursor + n_pairs * loss_pair_size].view(loss_pair_dtype)
+            for k in range(n_pairs):
+                sidx = sidx_loss_view[k]['sidx']
+                if not sidx:
+                    # sidx == 0: Item delimiter reached
+                    reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes)
+                    cursor += (k + 1) * loss_pair_size  # consume pairs incl. delimiter
+                    item_id = 0  # Return to header-reading state
+                    break
+
+                loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
                 # Process the (sidx, loss) pair
@@ -195,10 +206,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                         # Regular sample or special index (-5, -3, -1, 1..N)
                         add_new_loss(sidx, loss, compute_idx['next_compute_i'], sidx_indptr, sidx_val, loss_val)
             else:
-                # sidx == 0: Item delimiter reached
-                reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes)
-                cursor += oasis_float_size  # Skip the delimiter's loss value
-                item_id = 0  # Return to header-reading state
+                cursor += n_pairs * loss_pair_size
         else:
             # --- Reading event_id + item_id header ---
             if valid_buff - cursor < 2 * oasis_int_size:
