@@ -533,6 +533,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             process_number=self.process_number,
             max_process_id=self.max_process_id,
             modelpy=self.modelpy,
+            model_run_dir=model_run_fp,
             peril_filter=self._get_peril_filter(self.settings),
             summarypy=self.summarypy,
             join_summary_info=self.join_summary_info,
@@ -617,6 +618,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             fifo_tmp_dir=not self.ktools_fifo_relative,
             remove_working_file=self.remove_working_file,
             max_process_id=self.max_process_id,
+            model_run_dir=model_run_fp,
         )
         with setcwd(model_run_fp):
             try:
