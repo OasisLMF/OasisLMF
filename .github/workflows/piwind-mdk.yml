@@ -20,7 +20,7 @@ on:
       oasis_data_manager_branch:
         description: 'oasis-data-manager git branch to install'
         required: false
-        default: 'develop'
+        default: 'main'
       pytest_params:
         description: 'Extra pytest parameters (e.g. -k testname)'
         required: false
@@ -57,7 +57,7 @@ jobs:
         run: pip uninstall ods-tools -y && pip install "git+https://github.com/OasisLMF/ODS_Tools.git@${{ inputs.ods_branch || 'main' }}"
 
       - name: Install oasis-data-manager (git branch)
-        run: pip uninstall oasis-data-manager -y && pip install "git+https://github.com/OasisLMF/OasisDataManager.git@${{ inputs.oasis_data_manager_branch || 'develop' }}"
+        run: pip uninstall oasis-data-manager -y && pip install "git+https://github.com/OasisLMF/OasisDataManager.git@${{ inputs.oasis_data_manager_branch || 'main' }}"
 
       - name: Install test dependencies
         run: pip install pytest s3fs
