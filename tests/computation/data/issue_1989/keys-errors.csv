@@ -1,0 +1,4 @@
+LocID,PerilID,CoverageTypeID,Status,Message
+1,5,1,notatrisk,No coverage
+1,5,3,notatrisk,No coverage
+1,5,2,notatrisk,No coverage
