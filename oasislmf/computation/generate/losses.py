@@ -108,7 +108,8 @@ class GenerateLossesBase(ComputationStep):
             'kernel_alloc_rule_il': KERNEL_ALLOC_FM_MAX,
             'kernel_alloc_rule_ri': KERNEL_ALLOC_FM_MAX,
             'kernel_event_shuffle': EVE_STD_SHUFFLE,
-            'gul_random_generator': 1}
+            # 0: Mersenne-Twister, 1: Latin Hypercube, 2: LH on Philox4x32-7
+            'gul_random_generator': 2}
 
         for rule in rule_ranges:
             rule_val = int(getattr(self, rule))
@@ -423,8 +424,9 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
-        {'name': 'gul_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'gul_random_generator', 'default': 2, 'type': int,
+         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube, '
+                 '2: Latin Hypercube on Philox4x32-7. Default: 2).'},
         {'name': 'gulmc_effective_damageability', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
@@ -498,6 +500,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             event_shuffle=self.kernel_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
+            model_run_dir=model_run_fp,
             peril_filter=self._get_peril_filter(self.settings),
             join_summary_info=self.join_summary_info,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
@@ -576,6 +579,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             fifo_tmp_dir=not self.kernel_fifo_relative,
             remove_working_file=self.remove_working_file,
             max_process_id=self.max_process_id,
+            model_run_dir=model_run_fp,
         )
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
         with setcwd(model_run_fp):
@@ -639,8 +643,9 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
-        {'name': 'gul_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'gul_random_generator', 'default': 2, 'type': int,
+         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube, '
+                 '2: Latin Hypercube on Philox4x32-7. Default: 2).'},
         {'name': 'gulmc_effective_damageability', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
@@ -731,6 +736,7 @@ class GenerateLosses(GenerateLossesDir):
                         socket_server_size=socket_server_size,
                         socket_server_port=socket_server_port,
                         resource_monitor_interval=self.resource_monitor_interval,
+                        log_level=self.logger.getEffectiveLevel(),
                     )
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:
@@ -970,7 +976,7 @@ class GenerateLossesDeterministic(ComputationStep):
                                 files_out=[ri_layer_bin_fp],
                                 low_memory=self.fmpy_low_memory,
                                 sort_output=self.fmpy_sort_output,
-                                net_loss='' if self.net_ri else None,
+                                net_loss='',
                                 storage_method='sparse',
                             )
                             bintocsv(ri_layer_bin_fp, ri_layer_fp, "fm")
@@ -988,9 +994,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         return rils
 
                     for i in range(1, ri_layers + 1):
-                        rils = run_ri_layer(i)
-                        if i in [1, ri_layers]:
-                            losses['ri'] = rils
+                        losses['ri'] = run_ri_layer(i)
 
         return losses
 

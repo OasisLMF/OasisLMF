@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 
 
 CDF_CACHE_EMPTY = nb_int64(-1)
+NO_RNG_INDEX = nb_int64(-1)
 
 
 @redirect_logging(exec_name='gulmc')
@@ -341,7 +342,9 @@ def run(run_dir,
             compute_info['event_id'] = event_ids[0]
             event_footprint = event_footprint_obj.get_event(event_ids[0])
 
-            if event_footprint is not None:
+            if event_footprint is None:
+                logger.info(f"event {event_ids[0]} SKIPPED - no footprint")
+            else:
                 Nhaz_arr_this_event, haz_pdf = process_areaperils_in_footprint(
                     event_footprint,
                     item_map_ja_id_ind,
@@ -352,12 +355,14 @@ def run(run_dir,
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
                     counter += 1
+                    logger.info(f"event {event_ids[0]} SKIPPED - no items")
                     continue
 
                 items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
                     compute_info,
                     fp_ap_inds,
                     Nhaz_arr_this_event,
+                    fp_haz_arr_ptr,
                     fp_event_rps,
                     item_map_ja_offsets,
                     item_map_ja_vuln_ja_offsets,
@@ -383,10 +388,11 @@ def run(run_dir,
                 # for random values accounts for 25% of the runtime of the losses step not including
                 # the get_event despite having a sample size of 0.
                 if sample_size > 0:
-                    # generation of "base" random values for hazard intensity and vulnerability sampling
+                    # generation of "base" random values for hazard intensity and vulnerability sampling.
                     haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
                     vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
-                    haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
+                    if hazard_rng_index > 0:
+                        haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
                 # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
@@ -394,6 +400,7 @@ def run(run_dir,
                 compute_info['cdf_cache_ctr'] = 0
 
                 processing_done = False
+                logger.info(f"event {event_ids[0]} STARTED")
                 while not processing_done:
                     try:
                         processing_done = compute_event_losses(
@@ -813,16 +820,19 @@ def compute_event_losses(compute_info,
             losses[MEAN_IDX, item_j] = gul_mean
 
             if sample_size > 0:  # compute random losses
-                if compute_info['do_haz_correlation'] and item['hazard_correlation_value'] > 0:
-                    # use correlation definitions to draw correlated random values into haz_z_unif
-                    get_corr_rval_float(
-                        haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], item['hazard_correlation_value'],
-                        norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
-                        norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
-                        sample_size, haz_z_unif
-                    )
-                else:
-                    haz_z_unif[:] = haz_rndms_base[hazard_rng_index]
+                # hazard random values only exist (hazard_rng_index >= 0) when this areaperil's
+                # hazard intensity is non-deterministic and we are running full Monte Carlo.
+                if hazard_rng_index >= 0:
+                    if compute_info['do_haz_correlation'] and item['hazard_correlation_value'] > 0:
+                        # use correlation definitions to draw correlated random values into haz_z_unif
+                        get_corr_rval_float(
+                            haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], item['hazard_correlation_value'],
+                            norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
+                            norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
+                            sample_size, haz_z_unif
+                        )
+                    else:
+                        haz_z_unif[:] = haz_rndms_base[hazard_rng_index]
 
                 if compute_info['do_correlation'] and item['damage_correlation_value'] > 0:
                     # use correlation definitions to draw correlated random values into vuln_z_unif
@@ -840,7 +850,11 @@ def compute_event_losses(compute_info,
                     vuln_z_unif *= vuln_adj[item['vulnerability_idx']]
 
                 if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
-                    losses[1:, item_j] = haz_z_unif[:]
+                    if hazard_rng_index >= 0:
+                        losses[1:, item_j] = haz_z_unif[:]
+                    else:
+                        # deterministic hazard / effective damageability: no hazard intensity sampled
+                        losses[1:, item_j] = 0
 
                 elif compute_info['debug'] == 2:  # store the random value used for the damage sampling instead of the loss
                     losses[1:, item_j] = vuln_z_unif[:]
@@ -978,6 +992,7 @@ def process_areaperils_in_footprint(event_footprint,
 def reconstruct_coverages(compute_info,
                           ap_inds,
                           Nhaz_arr_this_event,
+                          haz_arr_ptr,
                           event_rps,
                           item_map_ja_offsets,
                           item_map_ja_vuln_ja_offsets,
@@ -1014,6 +1029,9 @@ def reconstruct_coverages(compute_info,
         ap_inds (np.array[uint32]): dense areaperil indices present in the event footprint
           (from process_areaperils_in_footprint), length >= Nhaz_arr_this_event.
         Nhaz_arr_this_event (int): number of valid entries in ap_inds.
+        haz_arr_ptr (np.array[int64]): per-areaperil offsets into the event hazard pdf; the
+          number of hazard intensity bins for areaperil ap_i is haz_arr_ptr[ap_i+1] - haz_arr_ptr[ap_i].
+          A count of 1 means the hazard is deterministic and no hazard rng row is needed.
         event_rps (np.array[int32]): parallel array of return periods per areaperil (dynamic only).
         item_map_ja_offsets (np.array[oasis_int]): L1 CSR offsets (N_areaperil + 1).
         item_map_ja_vuln_ja_offsets (np.array[oasis_int]): L2 CSR offsets (N_pairs + 1).
@@ -1032,7 +1050,7 @@ def reconstruct_coverages(compute_info,
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
         byte_mv (numpy.array[byte]): output byte buffer, may be resized if needed.
         group_seq_rng_index (numpy.array[int64]): pre-allocated array of size n_unique_groups,
-          used for O(1) group_id to rng_index mapping (reset to -1 each event).
+          used for O(1) group_id to rng_index mapping (reset to NO_RNG_INDEX each event).
         hazard_group_seq_rng_index (numpy.array[int64]): pre-allocated array of size
           n_unique_haz_groups, for hazard_group_id to rng_index mapping.
 
@@ -1041,13 +1059,17 @@ def reconstruct_coverages(compute_info,
           - items_event_data (numpy.array[items_MC_data_type]): per-item data including
             item_idx, haz_arr_i, rng_index, hazard_rng_index, eff_cdf_id.
           - rng_index (int): number of unique damage random seeds generated.
-          - hazard_rng_index (int): number of unique hazard random seeds generated.
+          - hazard_rng_index (int): number of unique hazard random seeds generated. Only hazard
+            groups touching a non-deterministic areaperil (and only under full Monte Carlo, not
+            effective damageability) are counted, so this is 0 for events with no hazard
+            uncertainty. Items not assigned a hazard rng row carry the NO_RNG_INDEX sentinel in
+            items_event_data['hazard_rng_index'].
           - byte_mv (numpy.array[byte]): output buffer, possibly resized.
     """
     # init data structures
     # Reset pre-allocated arrays instead of creating new Numba Dicts
-    group_seq_rng_index[:] = -1
-    hazard_group_seq_rng_index[:] = -1
+    group_seq_rng_index[:] = NO_RNG_INDEX
+    hazard_group_seq_rng_index[:] = NO_RNG_INDEX
     rng_index = 0
     hazard_rng_index = 0
     compute_i = 0
@@ -1061,6 +1083,9 @@ def reconstruct_coverages(compute_info,
     #  - store data for later processing (hazard cdf index, etc.)
     for ap_i in range(Nhaz_arr_this_event):
         ap_ind = ap_inds[ap_i]
+        # A hazard rng row is only consumed when the hazard intensity is non-deterministic
+        # (more than one intensity bin for this areaperil) and we are running full Monte Carlo.
+        ap_needs_haz_rng = (not compute_info['effective_damageability']) and (haz_arr_ptr[ap_i + 1] - haz_arr_ptr[ap_i] > 1)
         vuln_start = item_map_ja_offsets[ap_ind]
         vuln_end = item_map_ja_offsets[ap_ind + 1]
 
@@ -1074,7 +1099,7 @@ def reconstruct_coverages(compute_info,
                 # and that only 1 event_id is processed at a time.
                 # Use sequential index for array-based lookup instead of Dict
                 group_seq_id = items[item_idx]['group_seq_id']
-                if group_seq_rng_index[group_seq_id] == -1:
+                if group_seq_rng_index[group_seq_id] == NO_RNG_INDEX:
                     group_seq_rng_index[group_seq_id] = rng_index
                     vuln_seeds[rng_index] = generate_hash(items[item_idx]['group_id'], compute_info['event_id'])
                     this_rng_index = rng_index
@@ -1082,14 +1107,19 @@ def reconstruct_coverages(compute_info,
                 else:
                     this_rng_index = group_seq_rng_index[group_seq_id]
 
-                hazard_group_seq_id = items[item_idx]['hazard_group_seq_id']
-                if hazard_group_seq_rng_index[hazard_group_seq_id] == -1:
-                    hazard_group_seq_rng_index[hazard_group_seq_id] = hazard_rng_index
-                    haz_seeds[hazard_rng_index] = generate_hash_hazard(items[item_idx]['hazard_group_id'], compute_info['event_id'])
-                    this_hazard_rng_index = hazard_rng_index
-                    hazard_rng_index += 1
+                if ap_needs_haz_rng:
+                    hazard_group_seq_id = items[item_idx]['hazard_group_seq_id']
+                    if hazard_group_seq_rng_index[hazard_group_seq_id] == NO_RNG_INDEX:
+                        hazard_group_seq_rng_index[hazard_group_seq_id] = hazard_rng_index
+                        haz_seeds[hazard_rng_index] = generate_hash_hazard(items[item_idx]['hazard_group_id'], compute_info['event_id'])
+                        this_hazard_rng_index = hazard_rng_index
+                        hazard_rng_index += 1
+                    else:
+                        this_hazard_rng_index = hazard_group_seq_rng_index[hazard_group_seq_id]
                 else:
-                    this_hazard_rng_index = hazard_group_seq_rng_index[hazard_group_seq_id]
+                    # deterministic hazard (or effective damageability): no hazard rng row exists.
+                    # The NO_RNG_INDEX sentinel is never used as an index (guarded at consumption).
+                    this_hazard_rng_index = NO_RNG_INDEX
 
                 coverage_id = items[item_idx]['coverage_id']
                 coverage = coverages[coverage_id]
@@ -1147,7 +1177,7 @@ if __name__ == '__main__':
         'data_server': False,
         'max_cached_vuln_cdf_size_MB': 200,
         'peril_filter': None,
-        'random_generator': 1,
+        'random_generator': 2,
         'run_dir': '.',
         'model_df_engine': 'oasis_data_manager.df_reader.reader.OasisPandasReader',
         'dynamic_footprint': False}

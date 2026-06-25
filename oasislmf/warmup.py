@@ -24,6 +24,7 @@ Disable (when using NUMBA_DISABLE_JIT):
     NUMBA_DISABLE_JIT=1 oasislmf warmup
 """
 
+import contextlib
 import functools
 import os
 import shutil
@@ -101,10 +102,37 @@ def _compile_fmpy():
             ).run()
 
 
-def _compile_modelpy_gulpy_gulmc():
-    """modelpy + gulpy + gulmc via subprocess pipelines.
+def _run_stage(cmd, stdin_path=None, stdout_path=None, cwd=None, timeout=300):
+    """Run a single subprocess stage, reading/writing via files rather than pipes.
 
-    Runs sequentially to avoid Numba cache races on shared modelpy JIT functions.
+    Using files instead of shell pipes (cmd1 | cmd2) means each process runs to
+    completion — and commits all Numba .nbi cache writes — before the next stage
+    starts. Shell pipes run all stages concurrently, causing races on the shared
+    .nbi index that silently drop type variants from the cache.
+    """
+    with contextlib.ExitStack() as stack:
+        stdin_fh = stack.enter_context(open(stdin_path, 'rb')) if stdin_path else subprocess.DEVNULL
+        stdout_fh = stack.enter_context(open(stdout_path, 'wb')) if stdout_path else subprocess.DEVNULL
+        result = subprocess.run(
+            cmd, stdin=stdin_fh, stdout=stdout_fh,
+            stderr=subprocess.PIPE, cwd=str(cwd) if cwd is not None else None, timeout=timeout,
+        )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{cmd[0]} failed (rc={result.returncode}):\n"
+            f"stderr: {result.stderr.decode()}"
+        )
+
+
+def _compile_modelpy_gulpy_gulmc():
+    """modelpy + gulpy + gulmc — each stage run sequentially via temp files.
+
+    Shell pipes (evepy | modelpy | gulpy) run all three processes concurrently.
+    modelpy and gulpy both JIT-compile shared functions (e.g. mv_read) and race
+    to update the same .nbi cache index, silently dropping type variants.
+    Running each stage sequentially via _run_stage eliminates the race: every
+    process finishes and flushes its cache writes before the next one starts.
+    modelpy output is captured once and reused for both gulpy and gulmc.
     """
     with TemporaryDirectory() as tmpdir:
         workspace = Path(tmpdir) / "workspace"
@@ -113,37 +141,27 @@ def _compile_modelpy_gulpy_gulmc():
         for rel_path in needed_files:
             _copy_rel_path((_DATA_DIR / rel_path), workspace / rel_path)
 
-        # gulpy pipeline
-        out_file = Path(tmpdir) / "gulpy_out.bin"
-        cmd = (
-            f"evepy 1 1 | modelpy | gulpy -a1 -S1 -L0 "
-            f"--random-generator=1 > '{out_file}'"
-        )
-        result = subprocess.run(
-            cmd, cwd=str(workspace), shell=True,
-            capture_output=True, timeout=300
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"gulpy pipeline failed (rc={result.returncode}):\n"
-                f"stderr: {result.stderr.decode()}"
-            )
+        evepy_out = Path(tmpdir) / "evepy_out.bin"
+        modelpy_out = Path(tmpdir) / "modelpy_out.bin"
 
-        # gulmc pipeline (sequential — shares modelpy JIT with gulpy)
-        out_file = Path(tmpdir) / "gulmc_out.bin"
-        cmd = (
-            f"evepy 1 1 | modelpy | gulmc -a1 -S1 -L0 "
-            f"--ignore-correlation --random-generator=1 > '{out_file}'"
+        # Stage 1: generate events
+        _run_stage(["evepy", "1", "1"], stdout_path=evepy_out, cwd=workspace)
+
+        # Stage 2: modelpy — fully complete before gulpy/gulmc start so the
+        # modelpy JIT cache is stable when the next stage also uses it
+        _run_stage(["modelpy"], stdin_path=evepy_out, stdout_path=modelpy_out, cwd=workspace)
+
+        # Stage 3a: gulpy — reads the captured modelpy output from file
+        _run_stage(
+            ["gulpy", "-a1", "-S1", "-L0", "--random-generator=2"],
+            stdin_path=modelpy_out, cwd=workspace,
         )
-        result = subprocess.run(
-            cmd, cwd=str(workspace), shell=True,
-            capture_output=True, timeout=300
+
+        # Stage 3b: gulmc — sequential after gulpy, reuses same modelpy output
+        _run_stage(
+            ["gulmc", "-a1", "-S1", "-L0", "--ignore-correlation", "--random-generator=2"],
+            stdin_path=modelpy_out, cwd=workspace,
         )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"gulmc pipeline failed (rc={result.returncode}):\n"
-                f"stderr: {result.stderr.decode()}"
-            )
 
 
 def _compile_summarypy():

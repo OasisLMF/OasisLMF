@@ -36,13 +36,17 @@ def logging_reset_handlers(logger_name):
         logger.setLevel(logging.NOTSET)
 
 
-def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
+def redirect_logging(exec_name, log_dir='./log'):
     """
     Decorator that redirects logging output to a file.
 
     Apply to the main run function of a python exec from the pytools directory.
     Only errors will be send to STDERR, all other logging is stored in a file named:
        "<log_dir>/<exec_name>_<PID>.log"
+
+    The log level is determined in the following priority:
+        - OASIS_PYTOOLS_LOG_LEVEL environment variable
+        - wrapped function kwargs `logging_level`
 
     Each log file is timestamped with start / finish times
         ❯ cat log/fmpy_112820.log
@@ -52,7 +56,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
     Args:
         exec_name (str): The name of the script or function being executed. This will be used as part of the log file name.
         log_dir (str, optional): The path to the directory where log files will be stored. Defaults to './log'.
-        log_level (int or str, optional): The logging level to use. Can be an integer or a string. Defaults to logging.INFO.
+        log_level (int or str, optional): The logging level to use. Can be an integer or a string. See docstring for order of priority of log level set. If no log levels set, then defaults to WARNING.
 
     Returns:
         function: The decorated function.
@@ -68,12 +72,23 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             _tmp_dir = tempfile.mkdtemp(prefix=f'oasis_{exec_name}_', dir=os.environ.get('OASIS_TMPDIR')) \
                 if os.environ.get('OASIS_PYTEST_REDIRECT_LOGS') else None
             _log_dir = _tmp_dir or log_dir
-            if not os.path.isdir(_log_dir):
-                os.makedirs(_log_dir)
+            os.makedirs(_log_dir, exist_ok=True)
             logging_config = logging.root.manager.loggerDict.keys()
             logging.captureWarnings(True)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
+
+            log_level = os.environ.get('OASIS_PYTOOLS_LOG_LEVEL', None)
+            log_level = kwargs.get('logging_level', None) if log_level is None else log_level
+            # convert to int representation
+            if isinstance(log_level, str):
+                if log_level.isdigit():
+                    log_level = int(log_level)
+                else:
+                    log_level = logging.getLevelName(log_level)
+                    log_level = log_level if isinstance(log_level, int) else None
+
+            log_level = logging.WARNING if log_level is None else log_level
 
             childFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
             childFileHandler.setLevel(log_level)
@@ -92,7 +107,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             logger.setLevel(logging.INFO)
             logger.addHandler(rootFileHandler)
 
-            # Set warning log handler
+            # Set warning log handler if not in debug
             warn_logger = logging.getLogger('py.warnings')
             warn_logger.addHandler(rootFileHandler)
 

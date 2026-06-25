@@ -318,6 +318,25 @@ class Genbash_LoadBalancer_and_gulpy(GenbashBase):
         cls.num_fm_per_lb = 2
         cls.gulmc = False
 
+    def test_gulpy_pipeline_renders(self):
+        """gulmc=False must render the modelpy|gulpy pipeline without error.
+
+        Regression test: the gulpy branch of get_getmodel_cmd passed conflicting
+        arguments to get_gulcmd, raising a TypeError during bash generation and
+        breaking every gulpy run. Note this class sets cls.gulmc=False, but the
+        genbash() helper resolves ``gulmc or self.gulmc`` so gulmc=False must be
+        passed explicitly to actually exercise the gulpy path (otherwise the
+        True default wins and gulmc is rendered instead).
+        """
+        name = "gul_summarycalc_1_output"
+        self.genbash(name, 1, gulmc=False)
+        with open(self._get_output_filename(name, 1), encoding='utf-8') as f:
+            script = f.read()
+        # gulpy command rendered (bare 'gulmc'/'gulpy' also appear in proc_list,
+        # so key on the actual invocation with its --random-generator flag).
+        self.assertIn("gulpy --random-generator", script)
+        self.assertNotIn("gulmc --random-generator", script)
+
 
 # Special case: Custom gulcalc tests
 class Genbash_CustomGulcalc(GenbashBase):

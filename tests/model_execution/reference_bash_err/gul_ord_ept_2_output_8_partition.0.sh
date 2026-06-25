@@ -20,6 +20,7 @@ exit_handler(){
    trap - QUIT HUP INT KILL TERM ERR EXIT
 
    kill -9 $pid0 2> /dev/null
+   [ -n "${spid:-}" ] && kill -9 "$spid" 2>/dev/null || true
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
        echo 'Kernel execution error - exitcode='$exit_code
@@ -32,7 +33,7 @@ exit_handler(){
 " $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
 
        ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
-       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *startup.sh$ | sort -n -r)
+       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v \.log$  | egrep -v startup.sh$ | sort -n -r)
        echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
        exit $exit_code
@@ -121,7 +122,7 @@ check_fifos \
     /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P1 \
     /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P1.idx
 
-( ( evepy 1 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  | plapy -F 0.1 > /tmp/%FIFO_DIR%/fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err ) &  pid5=$!
+( ( evepy 1 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  | plapy -F 0.1 > /tmp/%FIFO_DIR%/fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err ) &  pid5=$!
 
 exec_wait $pid1 $pid2 $pid3 $pid4 $pid5
 

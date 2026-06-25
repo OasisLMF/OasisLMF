@@ -26,8 +26,9 @@ parser.add_argument('--peril-filter', help='Id of the peril to keep, if empty ta
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
 parser.add_argument('--random-generator',
-                    help='random number generator\n0: numpy default (MT19937), 1: Latin Hypercube. Default: 1.',
-                    default=1, type=int)
+                    help='random number generator\n0: numpy default (MT19937), 1: Latin Hypercube, '
+                         '2: Latin Hypercube on Philox4x32-7 (counter-based, faster). Default: 2.',
+                    default=2, type=int)
 parser.add_argument('--run-dir', help='path to the run directory', default='.')
 parser.add_argument('--logging-level',
                     help='logging level (debug:10, info:20, warning:30, error:40, critical:50). Default: 30.',

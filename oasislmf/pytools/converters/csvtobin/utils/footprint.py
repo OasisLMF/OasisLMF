@@ -202,12 +202,12 @@ def footprint_tobin(
 
     # Validation carry state (dummy initial values; first_chunk=True prevents their use)
     prev_sort_event = np.int32(0)
-    prev_sort_areaperil = np.uint32(0)
+    prev_sort_areaperil = dtype['areaperil_id'].type(0)
     prev_prob_event = np.int32(0)
-    prev_prob_areaperil = np.uint32(0)
+    prev_prob_areaperil = dtype['areaperil_id'].type(0)
     running_sum = np.float64(0.0)
     prev_dup_event = np.int32(0)
-    prev_dup_areaperil = np.uint32(0)
+    prev_dup_areaperil = dtype['areaperil_id'].type(0)
     prev_dup_intensity = np.int32(0)
 
     # Partial-event buffer for events that span chunk boundaries

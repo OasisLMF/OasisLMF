@@ -20,6 +20,7 @@ exit_handler(){
    trap - QUIT HUP INT KILL TERM ERR EXIT
 
    kill -9 $pid0 2> /dev/null
+   [ -n "${spid:-}" ] && kill -9 "$spid" 2>/dev/null || true
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
        echo 'Kernel execution error - exitcode='$exit_code
@@ -32,7 +33,7 @@ exit_handler(){
 " $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
 
        ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
-       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *startup.sh$ | sort -n -r)
+       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v \.log$  | egrep -v startup.sh$ | sort -n -r)
        echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
        exit $exit_code
@@ -406,14 +407,14 @@ check_fifos \
     /tmp/%FIFO_DIR%/fifo/il_S1_elt_ord_P8 \
     /tmp/%FIFO_DIR%/fifo/il_S1_selt_ord_P8
 
-( ( evepy 1 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P1 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid81=$!
-( ( evepy 2 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P2 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P2  ) 2>> $LOG_DIR/stderror.err ) & pid82=$!
-( ( evepy 3 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P3 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P3  ) 2>> $LOG_DIR/stderror.err ) & pid83=$!
-( ( evepy 4 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P4 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P4  ) 2>> $LOG_DIR/stderror.err ) & pid84=$!
-( ( evepy 5 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P5 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P5  ) 2>> $LOG_DIR/stderror.err ) & pid85=$!
-( ( evepy 6 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P6 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P6  ) 2>> $LOG_DIR/stderror.err ) & pid86=$!
-( ( evepy 7 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P7 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P7  ) 2>> $LOG_DIR/stderror.err ) & pid87=$!
-( ( evepy 8 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P8 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P8  ) 2>> $LOG_DIR/stderror.err ) & pid88=$!
+( ( evepy 1 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P1 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid81=$!
+( ( evepy 2 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P2 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P2  ) 2>> $LOG_DIR/stderror.err ) & pid82=$!
+( ( evepy 3 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P3 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P3  ) 2>> $LOG_DIR/stderror.err ) & pid83=$!
+( ( evepy 4 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P4 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P4  ) 2>> $LOG_DIR/stderror.err ) & pid84=$!
+( ( evepy 5 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P5 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P5  ) 2>> $LOG_DIR/stderror.err ) & pid85=$!
+( ( evepy 6 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P6 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P6  ) 2>> $LOG_DIR/stderror.err ) & pid86=$!
+( ( evepy 7 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P7 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P7  ) 2>> $LOG_DIR/stderror.err ) & pid87=$!
+( ( evepy 8 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P8 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P8  ) 2>> $LOG_DIR/stderror.err ) & pid88=$!
 
 exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60 $pid61 $pid62 $pid63 $pid64 $pid65 $pid66 $pid67 $pid68 $pid69 $pid70 $pid71 $pid72 $pid73 $pid74 $pid75 $pid76 $pid77 $pid78 $pid79 $pid80 $pid81 $pid82 $pid83 $pid84 $pid85 $pid86 $pid87 $pid88
 

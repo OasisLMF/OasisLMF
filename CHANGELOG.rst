@@ -1,6 +1,30 @@
 OasisLMF Changelog
 ==================
 
+`2.5.5`_
+ ---------
+* [#1978](https://github.com/OasisLMF/OasisLMF/pull/1978) - Fix/logging pytools
+* [#1996](https://github.com/OasisLMF/OasisLMF/pull/1996) - Relocate socket sevrer trap
+* [#2001](https://github.com/OasisLMF/OasisLMF/pull/2001) - Fixes for warm up code
+* [#2003](https://github.com/OasisLMF/OasisLMF/pull/2003) - Fix for ELT sdloss incorrectly reporting 0 for sparse loss distributions
+* [#2005](https://github.com/OasisLMF/OasisLMF/pull/2005) - gulmc/gulpy: Philox Latin Hypercube RNG (new default random_generator) + deterministic-hazard RNG skip
+* [#2006](https://github.com/OasisLMF/OasisLMF/pull/2006) - fix(#1845): map OED InuringPriority to RI output levels
+* [#2007](https://github.com/OasisLMF/OasisLMF/pull/2007) - Clear cache
+* [#2009](https://github.com/OasisLMF/OasisLMF/pull/2009) - Replace CI MDK checks with OasisModels
+* [#2012](https://github.com/OasisLMF/OasisLMF/pull/2012) - fix(hashmap): hash all record fields, not just the last
+* [#2014](https://github.com/OasisLMF/OasisLMF/pull/2014) - feature/aal_lec_idx_files
+* [#2016](https://github.com/OasisLMF/OasisLMF/pull/2016) - perf(pytools): speed up stream read_buffer with a packed structured-dtype view
+* [#2018](https://github.com/OasisLMF/OasisLMF/pull/2018) - Fix gulmc crash when no dynamic_model_adjustment step (item_adjustments.csv absent)
+* [#2021](https://github.com/OasisLMF/OasisLMF/pull/2021) - Fix CI unittest flags on Pytest 9.1
+* [#2023](https://github.com/OasisLMF/OasisLMF/pull/2023) - fix(lookup): assume EPSG:4326 when geometry file has no CRS metadata
+* [#2024](https://github.com/OasisLMF/OasisLMF/pull/2024) - fix(ri): always use net retained output for RI layer losses (#1877)
+* [#2027](https://github.com/OasisLMF/OasisLMF/pull/2027) - FIX: Use areaperil_int type for footprint carry-state scalars
+* [#2029](https://github.com/OasisLMF/OasisLMF/pull/2029) - fix(il): NaN acc_idx crash when an FM level has terms but none apply to keys perils (#1989)
+* [#2033](https://github.com/OasisLMF/OasisLMF/pull/2033) - enhance/occurrence_structure
+* [#2035](https://github.com/OasisLMF/OasisLMF/pull/2035) - enhance/pytools_parquet_output
+* [#2038](https://github.com/OasisLMF/OasisLMF/pull/2038) - update ODM branch
+.. _`2.5.5`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.4...2.5.5
+
 `2.5.4`_
  ---------
 * [#1940](https://github.com/OasisLMF/OasisLMF/pull/1940) - enhancement/profile check script

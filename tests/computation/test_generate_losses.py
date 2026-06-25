@@ -11,6 +11,7 @@ from hypothesis import strategies as st
 
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.manager import OasisManager
+from oasislmf.utils.log import LoggingContext
 from .data.common import (
     EXPECTED_SUMMARY_INFO_CSV, MIN_RUN_SETTINGS, MIN_LOC, MIN_ACC, MIN_INF, MIN_SCP, MIN_KEYS, MIN_KEYS_ERR, IL_RUN_SETTINGS, RI_RUN_SETTINGS,
     RI_ALL_OUTPUT_SETTINGS, ALL_EXPECTED_SCRIPT, FAKE_MODEL_RUNNER, FAKE_MODEL_RUNNER__OLD, INVALID_RUN_SETTINGS, RI_AAL_SETTINGS,
@@ -238,7 +239,8 @@ class TestGenLosses(ComputationChecker):
                 'summarypy': summary_type == 'summarypy',
                 'summarypy_low_memory': True,
             }
-            with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}):
+            with (patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}),
+                  LoggingContext(logging.getLogger("oasislmf"), logging.DEBUG)):
                 self.manager.generate_losses(**call_args)
 
             # Check bash script vs reference

@@ -644,10 +644,9 @@ def run(
                     with open(final_out_file_path, "w") as csv_out_file:
                         csv_out_file.write(",".join(headers) + "\n")
                 if bin_to_parquet:
-                    empty = np.empty(0, dtype=dtype)
-                    arrays = [pa.array(empty[name]) for name in dtype.names]
-                    schema = pa.schema([(name, arr.type) for name, arr in zip(dtype.names, arrays)])
-                    pq.write_table(pa.Table.from_arrays(arrays, schema=schema), final_out_file_path)
+                    schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
+                    empty_arrays = [pa.array([], type=schema.field(name).type) for name in dtype.names]
+                    pq.write_table(pa.Table.from_arrays(empty_arrays, schema=schema), final_out_file_path)
             else:
                 data = np.memmap(out_file, dtype=dtype)
                 num_rows = data.shape[0]
@@ -662,20 +661,13 @@ def run(
                         write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
                     csv_out_file.close()
                 if bin_to_parquet:
+                    schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
                     parquet_writer = None
                     buffer_size = DEFAULT_BUFFER_SIZE
                     for start in range(0, num_rows, buffer_size):
                         end = min(start + buffer_size, num_rows)
                         buffer_data = data[start:end]
-
-                        arrays = []
-                        fields = []
-                        for name in buffer_data.dtype.names:
-                            array = pa.array(buffer_data[name])
-                            arrays.append(array)
-                            fields.append((name, array.type))
-
-                        schema = pa.schema(fields)
+                        arrays = [pa.array(buffer_data[name]) for name in dtype.names]
                         table = pa.Table.from_arrays(arrays, schema=schema)
                         if parquet_writer is None:
                             parquet_writer = pq.ParquetWriter(final_out_file_path, schema)

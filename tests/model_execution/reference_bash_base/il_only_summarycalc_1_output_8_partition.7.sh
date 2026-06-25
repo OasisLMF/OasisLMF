@@ -54,7 +54,7 @@ check_fifos \
     fifo/il_P8 \
     fifo/il_S1_summary_P8
 
-( evepy 8 8 | gulmc --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P8  ) & pid2=$!
+( evepy 8 8 | gulmc --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P8  ) & pid2=$!
 
 exec_wait $pid1 $pid2
 

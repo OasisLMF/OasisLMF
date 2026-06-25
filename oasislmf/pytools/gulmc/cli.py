@@ -46,8 +46,12 @@ parser.add_argument('--vuln-cache-size', help='Size in MB of the in-memory cache
 parser.add_argument('--peril-filter', help='Id of the peril to keep, if empty take all perils',
                     nargs='+', dest='peril_filter')
 parser.add_argument('--random-generator',
-                    help='random number generator\n0: numpy default (MT19937), 1: Latin Hypercube. Default: 1',
-                    default=1, type=int, dest='random_generator')
+                    help='random number generator\n'
+                         '0: numpy default (MT19937)\n'
+                         '1: Latin Hypercube\n'
+                         '2: Latin Hypercube on Philox4x32-7 (counter-based, faster)\n'
+                         'Default: 2',
+                    default=2, type=int, dest='random_generator')
 parser.add_argument('--run-dir', help='path to the run directory. Default: "."', default='.')
 parser.add_argument('--model-df-engine', help='The engine to use when loading model dataframes',
                     default='oasis_data_manager.df_reader.reader.OasisPandasReader')
@@ -73,7 +77,7 @@ def main():
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-    logging_level = kwargs.pop('logging_level')
+    logging_level = kwargs.get('logging_level')
     logger.setLevel(logging_level)
 
     if kwargs.pop('create_structures'):

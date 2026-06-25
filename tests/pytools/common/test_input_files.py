@@ -7,12 +7,14 @@ from oasislmf.pytools.common.data import (
     oasis_int, oasis_float, coverages_dtype, correlations_dtype, periods_dtype,
     quantile_interval_dtype, returnperiods_dtype
 )
+from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as OCC_IDX_NOT_FOUND
 from oasislmf.pytools.common.input_files import (
     read_amplifications,
     read_coverages,
     read_correlations,
     read_event_rates,
     read_occurrence,
+    read_occurrence_bin,
     read_periods,
     read_quantile,
     read_returnperiods,
@@ -183,27 +185,41 @@ def test_read_quantile_get_intervals():
 
 
 def test_read_occurrence():
-    """Tests read_occurrence non granular
-    """
+    """Tests read_occurrence non-granular: correct metadata and CSR structure."""
     run_dir = Path(TESTS_ASSETS_DIR, "input")
     filename = "occurrence.bin"
 
-    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(run_dir, filename)
+    occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(run_dir, filename)
     assert date_algorithm == True
     assert granular_date == False
     assert no_of_periods == 9
 
+    occ_arr, _, _, _ = read_occurrence_bin(run_dir, filename)
+    for event_id in np.unique(occ_arr["event_id"]):
+        i = id_index_get_idx(occ_csr.event_id_index, np.int32(event_id))
+        assert i != OCC_IDX_NOT_FOUND, f"event_id {event_id} not found in id_index"
+        csr_slice = occ_csr.occ_flat[occ_csr.occ_offsets[i]:occ_csr.occ_offsets[i + 1]]
+        expected = occ_arr[occ_arr["event_id"] == event_id]["period_no"]
+        np.testing.assert_array_equal(np.sort(csr_slice["period_no"]), np.sort(expected))
+
 
 def test_read_occurrence_granular():
-    """Tests read_occurrence granular
-    """
+    """Tests read_occurrence granular: correct metadata and CSR structure."""
     run_dir = Path(TESTS_ASSETS_DIR, "input")
     filename = "occurrence_gran.bin"
 
-    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(run_dir, filename)
+    occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(run_dir, filename)
     assert date_algorithm == True
     assert granular_date == True
     assert no_of_periods == 9
+
+    occ_arr, _, _, _ = read_occurrence_bin(run_dir, filename)
+    for event_id in np.unique(occ_arr["event_id"]):
+        i = id_index_get_idx(occ_csr.event_id_index, np.int32(event_id))
+        assert i != OCC_IDX_NOT_FOUND, f"event_id {event_id} not found in id_index"
+        csr_slice = occ_csr.occ_flat[occ_csr.occ_offsets[i]:occ_csr.occ_offsets[i + 1]]
+        expected = occ_arr[occ_arr["event_id"] == event_id]["period_no"]
+        np.testing.assert_array_equal(np.sort(csr_slice["period_no"]), np.sort(expected))
 
 
 def test_read_periods():
