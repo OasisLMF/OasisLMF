@@ -214,6 +214,7 @@ exit_handler(){
    trap - QUIT HUP INT KILL TERM ERR EXIT
 
    kill -9 $pid0 2> /dev/null
+   [ -n "${spid:-}" ] && kill -9 "$spid" 2>/dev/null || true
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
        echo 'Kernel execution error - exitcode='$exit_code
@@ -2688,7 +2689,6 @@ def create_bash_analysis(
     if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
         port_arg = f" {kwargs['socket_server_port']}" if kwargs.get("socket_server_port") is not None else ""
         print_command(filename, f"socket-server {kwargs['socket_server_size']}{port_arg} > /dev/null & spid=$!")
-        print_command(filename, "trap 'kill -TERM -\"$spid\" 2>/dev/null' INT TERM")
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
     # for gul_id in range(1, num_gul_output + 1):
@@ -2874,7 +2874,7 @@ def create_bash_analysis(
     do_pwaits(filename, process_counter)
     if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
         # Ensure killed if server doesnt end
-        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill -9 "$spid"')
+        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>dev>null')
 
 
 def create_bash_outputs(

@@ -20,6 +20,7 @@ exit_handler(){
    trap - QUIT HUP INT KILL TERM ERR EXIT
 
    kill -9 $pid0 2> /dev/null
+   [ -n "${spid:-}" ] && kill -9 "$spid" 2>/dev/null || true
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
        echo 'Kernel execution error - exitcode='$exit_code

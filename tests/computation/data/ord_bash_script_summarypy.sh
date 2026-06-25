@@ -20,6 +20,7 @@ exit_handler(){
    trap - QUIT HUP INT KILL TERM ERR EXIT
 
    kill -9 $pid0 2> /dev/null
+   [ -n "${spid:-}" ] && kill -9 "$spid" 2>/dev/null || true
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
        echo 'Kernel execution error - exitcode='$exit_code
@@ -197,7 +198,6 @@ tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summary_palt/P2.idx work/gul_S1_sum
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 ) 2>> $LOG_DIR/stderror.err  &
 
 socket-server 2 10006 > /dev/null & spid=$!
-trap 'kill -TERM -"$spid" 2>/dev/null' INT TERM
 
 # --- Verify FIFO pipes ---
 check_fifos \
@@ -243,7 +243,7 @@ check_fifos \
 
 exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
 
-kill -0 "$spid" 2>/dev/null && kill -9 "$spid"
+kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>dev>null
 
 # --- Do reinsurance loss kats ---
 
