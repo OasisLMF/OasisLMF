@@ -99,7 +99,7 @@ def _read_footprint_zips(stack, file_in, idx_file_in):
     else:
         footprint = np.memmap(footprint_file, dtype="u1", mode='r')
 
-    footprint_header = np.frombuffer(footprint[:FootprintHeader.size].tobytes(), dtype=FootprintHeader)
+    footprint_header = np.frombuffer(footprint[:FootprintHeader.itemsize].tobytes(), dtype=FootprintHeader)
 
     uncompressedMask = 1 << 1
     uncompressed_size = int(footprint_header['has_intensity_uncertainty'].item() & uncompressedMask)
@@ -169,7 +169,7 @@ def footprint_tocsv(stack, file_in, file_out, file_type, noheader, idx_file_in, 
 
 def _footprint_tocsv_bin(footprint, sorted_index, file_out, dtype, headers, fmt):
     """Non-zip path: batch events through a JIT inner loop; one write per ~_BATCH_ROWS rows."""
-    header_size = FootprintHeader.size
+    header_size = FootprintHeader.itemsize
     item_size = Event_dtype.itemsize
 
     # View footprint data (past header) as Event records — zero-copy

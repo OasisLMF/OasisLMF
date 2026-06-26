@@ -33,7 +33,7 @@ from oasislmf.pytools.common.data import (
     oasis_float, oasis_float_size,
     oasis_int, oasis_int_size,
     damagebin_dtype, items_dtype,
-    vulnerability_dtype
+    vulnerability_dtype, vulnerability_bin_header_type,
 )
 from oasislmf.pytools.common.id_index import (
     build as id_index_build,
