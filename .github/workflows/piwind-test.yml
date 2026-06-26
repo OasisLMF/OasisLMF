@@ -50,7 +50,7 @@ jobs:
 
   ods_tools:
     if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}
-    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@main
+    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@stable/4.0.x
     secrets: inherit
     with:
       ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/4.0.x' ||  inputs.ods_branch }}
