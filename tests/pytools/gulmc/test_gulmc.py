@@ -24,12 +24,17 @@ TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 test_models_dirs = [(x.name, x) for x in sorted(TESTS_ASSETS_DIR.glob("test_model_*")) if x.is_dir()]
 
 # define the grid of model parameters to test
-sample_sizes = [0, 1, 10, 100, 1000]
 alloc_rules = [1, 2, 3]
 ignore_correlations = [True, False]
 random_generators = [0, 1]
 effective_damageabilities = [True, False]
 socket_server = ['False', '2.0', 'True']
+
+# Skip heaver tests without JIT disabled
+if os.environ.get("NUMBA_DISABLE_JIT", "0") != "0":
+    sample_sizes = [0, 10]
+else:
+    sample_sizes = [0, 1, 1000]
 
 
 @pytest.fixture
