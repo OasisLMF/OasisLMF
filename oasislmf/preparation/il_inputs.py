@@ -846,6 +846,10 @@ def get_il_input_items(
                     profile_id_offset = level_df.loc[~has_step, 'profile_id'].max() if (~has_step).any() else profile_id_offset
                 else:
                     level_df['calcrule_id'] = get_calc_rule_ids(level_df, calc_rule_type='base')
+                    # Sort by layer_id before factorize so that profile_id assignment is
+                    # deterministic regardless of accounts CSV row order (issue #2040).
+                    if 'layer_id' in level_df.columns:
+                        level_df = level_df.sort_values('layer_id', kind='stable')
                     level_df['profile_id'] = get_profile_ids(level_df) + profile_id_offset
                     profile_id_offset = level_df['profile_id'].max() if not level_df.empty else profile_id_offset
 
@@ -878,14 +882,20 @@ def get_il_input_items(
                 if not is_policy_layer_level and level_id not in cross_layer_level:
                     non_layered_inputs_df['layered_id'] = (non_layered_inputs_df['layer_id']
                                                            .where(non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
+                    # Include layer_id in the dedup key so that distinct policy layers sharing the same
+                    # CondTag financial profile (profile_id) are all preserved.  Without layer_id, the
+                    # surviving row is the first in accounts CSV order — an arbitrary choice that causes
+                    # different LayerParticipation to be applied depending on row ordering (issue #2040).
                     non_layered_inputs_df = (non_layered_inputs_df
-                                             .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id'])
+                                             .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id', 'layer_id'])
                                              .drop(columns=['layered_id']))
 
                 gul_inputs_df = pd.concat(df for df in [layered_inputs_df, non_layered_inputs_df] if not df.empty)
 
                 gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype(layer_id[DTYPE_IDX])
-                gul_inputs_df.sort_values(by=['gul_input_id', 'layer_id'])
+                # Sort so that subsequent factorize_ndarray calls assign agg_id values
+                # deterministically regardless of the accounts CSV row order (issue #2040).
+                gul_inputs_df = gul_inputs_df.sort_values(by=['gul_input_id', 'layer_id'])
                 gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype(profile_id[DTYPE_IDX])
 
                 # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
@@ -928,9 +938,15 @@ def get_il_input_items(
         default_pol_agg_key = [v['field'] for v in fm_aggregation_profile[SUPPORTED_FM_LEVELS['policy layer']['id']]['FMAggKey'].values()]
         no_polnumber_df = gul_inputs_df.loc[gul_inputs_df['PolNumber'].isna(), default_pol_agg_key + ['output_id']]
         if not no_polnumber_df.empty:  # empty polnumber, we use accounts_df to set PolNumber based on policy layer agg_key
-            gul_inputs_df.loc[gul_inputs_df['PolNumber'].isna(), 'PolNumber'] = no_polnumber_df.merge(
-                accounts_df[default_pol_agg_key + ['PolNumber']].drop_duplicates(subset=default_pol_agg_key)
-            ).set_index(no_polnumber_df['output_id'] - 1)['PolNumber']
+            # Use reset_index() to capture the actual DataFrame indices before merging,
+            # then set_index('index') to restore them so the assignment aligns correctly
+            # even when gul_inputs_df has a non-contiguous index from CondTag row-expansion.
+            polnumber_lookup = no_polnumber_df.reset_index().merge(
+                accounts_df[default_pol_agg_key + ['PolNumber']].drop_duplicates(subset=default_pol_agg_key),
+                how='left',
+                on=default_pol_agg_key,
+            ).set_index('index')['PolNumber']
+            gul_inputs_df.loc[polnumber_lookup.index, 'PolNumber'] = polnumber_lookup
 
         # write fm_xref
         (gul_inputs_df
