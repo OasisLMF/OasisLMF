@@ -255,7 +255,6 @@ def get_gul_input_items(
             'returnperiod': 'return_period'
         },
         inplace=True,
-        copy=False  # Pandas copies column data by default on rename
     )
 
     # If the keys file relates to a complex/custom model then look for a

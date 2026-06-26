@@ -701,7 +701,7 @@ def get_il_input_items(
                         else:
                             group_df.rename(columns={ProfileElementName: term}, inplace=True)
                     level_df_list.append(group_df)
-                level_df = pd.concat(level_df_list, copy=True, ignore_index=True)
+                level_df = pd.concat(level_df_list, ignore_index=True)
 
                 for term, default in valid_term_default.items():
                     level_df[term] = level_df[term].fillna(default)
@@ -750,8 +750,14 @@ def get_il_input_items(
                 level_df = prepare_ded_and_limit(level_df)
 
                 agg_id_merge_col = list(set(agg_id_merge_col).intersection(level_df.columns))
-                gul_inputs_df = gul_inputs_df.merge(
-                    level_df[agg_id_merge_col + agg_id_merge_col_extra].drop_duplicates(), how='left', validate='many_to_one')
+                _right_cols = agg_id_merge_col + agg_id_merge_col_extra
+                _right_df = level_df[_right_cols].drop_duplicates()
+                # need_tiv must be True for a merge key if any row for that key needs TIV;
+                # deduplicate after propagating the any() so validate='many_to_one' passes
+                _need_tiv_key = [c for c in _right_cols if c != 'need_tiv']
+                _right_df['need_tiv'] = _right_df.groupby(_need_tiv_key, sort=False)['need_tiv'].transform('any')
+                _right_df = _right_df.drop_duplicates()
+                gul_inputs_df = gul_inputs_df.merge(_right_df, how='left', validate='many_to_one')
                 if is_policy_layer_level:  # we merge all on account at this level even if there is no policy
                     gul_inputs_df["FMTermGroupID"] = gul_inputs_df["FMTermGroupID"].fillna(-1).astype('i4')
                 else:
@@ -785,7 +791,7 @@ def get_il_input_items(
                 # Apply rule to convert type 2 deductibles and limits to TIV shares
                 if 'deductible' in level_df.columns and 'ded_type' in level_df.columns:
                     level_df['deductible'] = level_df['deductible'].fillna(0.)
-                    level_df['ded_type'] = level_df['ded_type'].infer_objects(copy=False).fillna(0.).astype('i4')
+                    level_df['ded_type'] = level_df['ded_type'].infer_objects().fillna(0.).astype('i4')
                     level_df['deductible'] = np.where(
                         level_df['ded_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
                         level_df['deductible'] * level_df['agg_tiv'],
@@ -799,7 +805,7 @@ def get_il_input_items(
 
                 if 'limit' in level_df.columns and 'lim_type' in level_df.columns:
                     level_df['limit'] = level_df['limit'].fillna(0.)
-                    level_df['lim_type'] = level_df['lim_type'].infer_objects(copy=False).fillna(0.).astype('i4')
+                    level_df['lim_type'] = level_df['lim_type'].infer_objects().fillna(0.).astype('i4')
                     level_df['limit'] = np.where(
                         level_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
                         level_df['limit'] * level_df['agg_tiv'],
