@@ -30,7 +30,7 @@ random_generators = [0, 1]
 effective_damageabilities = [True, False]
 socket_server = ['False', '2.0', 'True']
 
-# Skip heaver tests without JIT disabled 
+# Skip heaver tests without JIT disabled
 if os.environ.get("NUMBA_DISABLE_JIT", "0") != "0":
     sample_sizes = [0, 10]
 else:
