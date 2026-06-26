@@ -73,6 +73,9 @@ VulnerabilityRow_dtype = np.dtype([
     ('probability', oasis_float)
 ])
 VulnerabilityRow = nb.from_dtype(VulnerabilityRow_dtype)
+VulnerabilityBinHeaderType = np.dtype([
+    ('max_damage_bin_idx', np.int32),
+    ])
 
 vuln_offset = 4
 
@@ -566,7 +569,7 @@ def get_vulns(
             if "vulnerability.idx" in input_files and 'idx' not in ignore_file_type:
                 logger.debug(f"loading {storage.get_storage_url('vulnerability.idx', encode_params=False)[1]}")
                 with storage.open("vulnerability.bin") as f:
-                    vulns_bin = np.memmap(f, dtype=VulnerabilityRow, offset=4, mode='r')
+                    vulns_bin = np.memmap(f, dtype=VulnerabilityRow, offset=VulnerabilityBinHeaderType.itemsize, mode='r')
 
                 with storage.open("vulnerability.idx") as f:
                     vulns_idx_bin = np.memmap(f, dtype=VulnerabilityIndex, mode='r')
@@ -579,7 +582,7 @@ def get_vulns(
                                                                     num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize)
             else:
                 with storage.with_fileno("vulnerability.bin") as f:
-                    vulns_bin = np.memmap(f, dtype=vulnerability_dtype, offset=4, mode='r')
+                    vulns_bin = np.memmap(f, dtype=vulnerability_dtype, offset=VulnerabilityBinHeaderType.itemsize, mode='r')
                 if vuln_adj is not None and len(vuln_adj) > 0:
                     vuln_array, valid_vuln_ids = load_vulns_bin_adjusted(
                         vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins, vuln_adj)
