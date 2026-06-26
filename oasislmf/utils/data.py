@@ -827,6 +827,11 @@ def prepare_account_df(accounts_df):
         accounts_df['StepNumber'] = accounts_df['StepNumber'].fillna(0)
     if 'layer_id' not in accounts_df.columns:
         id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
+        # Sort before cumcount so layer_id is deterministic regardless of input row order.
+        # Without sorting, cumcount() assigns IDs based on first-occurrence position,
+        # meaning reordered account rows produce different PolNumber→layer_id mappings
+        # and therefore different financial terms per layer (issue #2040).
+        id_df = id_df.sort_values(layers_cols + ['PolNumber', 'LayerNumber'])
         id_df['layer_id'] = get_ids(id_df,
                                     layers_cols + ['PolNumber', 'LayerNumber'], group_by=layers_cols,
                                     ).astype('uint32')
