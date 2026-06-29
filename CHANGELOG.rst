@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`2.3.21`_
+ ---------
+* [#1927](https://github.com/OasisLMF/OasisLMF/pull/1927) - Ci/automate release branch
+* [#1997](https://github.com/OasisLMF/OasisLMF/pull/1997) - Fix for ci error
+* [#2042](https://github.com/OasisLMF/OasisLMF/pull/2042) - Fix/ci errors 2.3
+* [#2046](https://github.com/OasisLMF/OasisLMF/pull/2046) - set ktools 3.12.5
+.. _`2.3.21`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.20...2.3.21
+
 `2.3.20`_
  ---------
 * [#1824](https://github.com/OasisLMF/OasisLMF/pull/1825) - Wrong insured loss with type 2 terms and disaggregation
