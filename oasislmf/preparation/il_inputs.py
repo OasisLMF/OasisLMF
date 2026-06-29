@@ -272,6 +272,7 @@ def get_cond_info(locations_df, accounts_df):
                         cond_level_start = max(cond_level_start, i + 1)
                         break
             cond_info['cond_level_start'] = cond_level_start
+            cond_peril = cond_info.get('CondPeril') or 'AA1'
             for layer_id, exclusion_conds in account_layer_exclusion[acc_id].items():
                 if layer_id not in cond_info['layers']:
                     PolNumber, LayerNumber, acc_idx = pol_info[(acc_id, layer_id)]
@@ -286,7 +287,7 @@ def get_cond_info(locations_df, accounts_df):
                             'CondNumber': 'FullFilter',
                             'CondDed6All': 1,
                             'CondDedType6All': 1,
-                            'CondPeril': 'AA1',
+                            'CondPeril': cond_peril,
                         })
                     else:
                         extra_accounts.append({
@@ -297,7 +298,7 @@ def get_cond_info(locations_df, accounts_df):
                             'CondTag': cond_tag,
                             'layer_id': layer_id,
                             'CondNumber': '',
-                            'CondPeril': 'AA1',
+                            'CondPeril': cond_peril,
                         })
             level_conds.setdefault(cond_level_start, set()).add(cond_key)
     return level_conds, extra_accounts
@@ -749,8 +750,16 @@ def get_il_input_items(
                 level_df = prepare_ded_and_limit(level_df)
 
                 agg_id_merge_col = list(set(agg_id_merge_col).intersection(level_df.columns))
-                gul_inputs_df = gul_inputs_df.merge(
-                    level_df[agg_id_merge_col + agg_id_merge_col_extra].drop_duplicates(), how='left', validate='many_to_one')
+                _right_df = level_df[agg_id_merge_col + agg_id_merge_col_extra].drop_duplicates()
+                # Policies can share a condition (same CondTag) but differ in term types,
+                # causing non-join columns (e.g. need_tiv) to conflict on the same join key.
+                # Resolve by taking max over the actual join key so need_tiv=True wins.
+                _join_key = [c for c in _right_df.columns if c in gul_inputs_df.columns]
+                _non_join = [c for c in _right_df.columns if c not in gul_inputs_df.columns]
+                if _non_join and _right_df[_join_key].duplicated().any():
+                    _right_df = (_right_df.groupby(_join_key, as_index=False, dropna=False)
+                                 .agg({c: 'max' for c in _non_join}))
+                gul_inputs_df = gul_inputs_df.merge(_right_df, how='left', validate='many_to_one')
                 if is_policy_layer_level:  # we merge all on account at this level even if there is no policy
                     gul_inputs_df["FMTermGroupID"] = gul_inputs_df["FMTermGroupID"].fillna(-1).astype('i4')
                 else:
