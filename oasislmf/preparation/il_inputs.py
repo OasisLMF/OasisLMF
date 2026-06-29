@@ -847,7 +847,7 @@ def get_il_input_items(
                 else:
                     level_df['calcrule_id'] = get_calc_rule_ids(level_df, calc_rule_type='base')
                     # Sort by layer_id before factorize so that profile_id assignment is
-                    # deterministic regardless of accounts CSV row order (issue #2040).
+                    # deterministic regardless of accounts CSV row order (issue #2040)
                     if 'layer_id' in level_df.columns:
                         level_df = level_df.sort_values('layer_id', kind='stable')
                     level_df['profile_id'] = get_profile_ids(level_df) + profile_id_offset
