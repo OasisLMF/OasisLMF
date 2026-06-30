@@ -6,35 +6,32 @@ Background
 Clients reported that two OED exposure files identical except for row order
 produced wildly different insured losses (GUL AALs were identical).
 
-Root causes in release/2.4.13 (the bug also persists in 2.5.4)
---------------------------------------------------------------
-1. ``prepare_account_df`` assigned layer_id via ``cumcount()`` on unsorted rows,
-   so reordering account.csv changed which PolNumber got layer_id=1, 2, …
-   Fix: sort before cumcount.
+Root cause in release/2.4.13 (the bug also persists in 2.5.4)
+-------------------------------------------------------------
+The "drop premature layering" dedup in ``get_il_input_items`` collapsed policy
+layers that carried genuinely DIFFERENT financial terms (e.g. layer-specific
+CondLimits).  At the condition level no agg is yet "layered", so ``layered_id``
+became 0 for every row and distinct layers were merged into one, dropping layers
+and applying the wrong LayerParticipation.  Because the surviving row depended on
+accounts.csv order, reordering the file changed the result — and once that was
+otherwise stabilised the collapsed result was simply wrong (some locations even
+dropped to zero IL).
 
-2. The "drop premature layering" dedup in ``get_il_input_items`` collapsed
-   layers that carried genuinely DIFFERENT financial terms (e.g. layer-specific
-   CondLimits): at the condition level no agg is yet "layered" so ``layered_id``
-   became 0 for every row and distinct policy layers were merged, dropping
-   layers and applying the wrong LayerParticipation.  Making the order
-   deterministic alone only made the wrong answer stable.
-   Fix: keep a row per layer when a (gul_input, agg) has more than one distinct
-   profile_id across its layers; collapse only when every layer shares the same
-   profile (so the FM structure stays canonical for ordinary accounts).
+Fix (oasislmf/preparation/il_inputs.py)
+---------------------------------------
+1. Premature-layering dedup: keep a row per layer when a (gul_input, agg) has
+   more than one distinct profile_id across its layers (layer-specific terms),
+   and collapse only when every layer shares the same profile.  This preserves
+   every policy layer for layer-specific accounts (correct, order-independent
+   losses) while leaving ordinary accounts untouched — so the FM structure stays
+   canonical and the existing FM acceptance tests are unaffected.
 
-3. A no-op ``sort_values`` (result not assigned back) after the layer concat
-   left the DataFrame in accounts.csv row order, making subsequent
-   ``factorize_ndarray`` calls for agg_id order-dependent.
-   Fix: assign the sort result.
+2. PolNumber backfill: use reset_index/set_index('index') so the assignment
+   aligns when gul_inputs_df has a non-contiguous index from CondTag expansion.
 
-4. The PolNumber backfill used ``set_index(output_id - 1)`` which misaligned
-   when gul_inputs_df had a non-contiguous index.
-   Fix: use reset_index/set_index('index').
-
-5. A preserved policy layer can carry a non-canonical PolNumber, so the
-   term-based acc_idx merge can leave gaps.
-   Fix: fill any remaining acc_idx from the (acc_id, layer_id[, CondTag])
-   relationship that fully determines the source account row.
+3. acc_idx: a preserved policy layer can carry a non-canonical PolNumber, so the
+   term-based merge can leave gaps; fill any remaining acc_idx from the
+   (acc_id, layer_id[, CondTag]) relationship that determines the account row.
 """
 import os
 import tempfile
