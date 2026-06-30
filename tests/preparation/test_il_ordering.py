@@ -6,19 +6,21 @@ Background
 Clients reported that two OED exposure files identical except for row order
 produced wildly different insured losses (GUL AALs were identical).
 
-Root causes in release/2.4.13
-------------------------------
+Root causes in release/2.4.13 (the bug also persists in 2.5.4)
+--------------------------------------------------------------
 1. ``prepare_account_df`` assigned layer_id via ``cumcount()`` on unsorted rows,
    so reordering account.csv changed which PolNumber got layer_id=1, 2, …
    Fix: sort before cumcount.
 
-2. The "drop premature layering" dedup in ``get_il_input_items`` keyed on
-   ``['gul_input_id', 'agg_id', 'profile_id', 'layered_id']`` — omitting
-   ``layer_id``.  When several PolNumbers share the same CondTag financial
-   profile the dedup arbitrarily kept whichever row appeared first in
-   accounts.csv order, discarding the others.  The surviving layer_id then
-   determined the LayerParticipation applied at the policy-layer level.
-   Fix: add 'layer_id' to the dedup key.
+2. The "drop premature layering" dedup in ``get_il_input_items`` collapsed
+   layers that carried genuinely DIFFERENT financial terms (e.g. layer-specific
+   CondLimits): at the condition level no agg is yet "layered" so ``layered_id``
+   became 0 for every row and distinct policy layers were merged, dropping
+   layers and applying the wrong LayerParticipation.  Making the order
+   deterministic alone only made the wrong answer stable.
+   Fix: keep a row per layer when a (gul_input, agg) has more than one distinct
+   profile_id across its layers; collapse only when every layer shares the same
+   profile (so the FM structure stays canonical for ordinary accounts).
 
 3. A no-op ``sort_values`` (result not assigned back) after the layer concat
    left the DataFrame in accounts.csv row order, making subsequent
@@ -27,7 +29,12 @@ Root causes in release/2.4.13
 
 4. The PolNumber backfill used ``set_index(output_id - 1)`` which misaligned
    when gul_inputs_df had a non-contiguous index.
-   Fix (from 2.5.4 commit da563b813): use reset_index/set_index('index').
+   Fix: use reset_index/set_index('index').
+
+5. A preserved policy layer can carry a non-canonical PolNumber, so the
+   term-based acc_idx merge can leave gaps.
+   Fix: fill any remaining acc_idx from the (acc_id, layer_id[, CondTag])
+   relationship that fully determines the source account row.
 """
 import os
 import tempfile
@@ -201,9 +208,10 @@ def test_fm_xref_is_order_independent():
 def test_fm_xref_contains_all_policy_layers():
     """
     Every GUL item must appear in fm_xref for ALL four policy layers.
-    Before the fix, the 'drop premature layering' dedup discarded layers
-    sharing the same CondTag financial profile, leaving each GUL item with
-    only two of the four layers.
+    In this scenario each layer applies a different CondLimit per CondTag, so
+    the layers are genuinely distinct and must all be preserved.  Before the
+    fix, the 'drop premature layering' dedup collapsed layers, leaving each GUL
+    item with only two of the four layers (and the wrong LayerParticipation).
     """
     orig = _generate_fm_files(LOC_CSV, ACC_CSV_ORIG)
     xref = orig["fm_xref.csv"]
@@ -313,6 +321,16 @@ def test_il_losses_are_order_independent():
             df_r[[sort_col, loss_col]],
             check_like=False,
             obj="per-location IL losses (orig vs reversed account order)",
+        )
+
+        # Absolute magnitude guard: each of the four layers must participate.
+        # Hand calculation Σ_layer[LayerParticipation × Σ_loc min(TIV, CondLimit)]
+        # = 737,501; the buggy layer-collapse under-counted to ~166,942 (some
+        # locations zeroed out). This catches a regression that is still
+        # order-independent but numerically wrong.
+        assert abs(df_o[loss_col].sum() - 737500.66) < 1.0, (
+            f"Total IL {df_o[loss_col].sum():,.2f} != expected 737,500.66 — "
+            "policy layers are being dropped/mis-applied (premature-layering collapse)."
         )
     finally:
         shutil.rmtree(tmpdir_o, ignore_errors=True)

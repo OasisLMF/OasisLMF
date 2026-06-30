@@ -880,14 +880,20 @@ def get_il_input_items(
                 layered_inputs_df = gul_inputs_df[gul_inputs_df['layer_id'] > 0].merge(level_df, how='left')
                 # drop premature layering (no difference of policy between layers)
                 if not is_policy_layer_level and level_id not in cross_layer_level:
+                    # Preserve a row per layer when a (gul_input, agg) carries genuinely different
+                    # financial terms (profile_id) across its layers — e.g. layer-specific CondLimits.
+                    # Collapsing those (keying the dedup only on 'layered_id') dropped layers and
+                    # applied the wrong LayerParticipation, making IL order-dependent and, after the
+                    # ordering was made deterministic, simply incorrect (issue #2040). Where all of a
+                    # (gul_input, agg)'s layers share the same profile the rows are still collapsed,
+                    # so the FM structure stays canonical (layers only where terms actually differ).
+                    layer_specific = (non_layered_inputs_df
+                                      .groupby(['gul_input_id', 'agg_id'])['profile_id'].transform('nunique') > 1)
                     non_layered_inputs_df['layered_id'] = (non_layered_inputs_df['layer_id']
-                                                           .where(non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
-                    # Include layer_id in the dedup key so that distinct policy layers sharing the same
-                    # CondTag financial profile (profile_id) are all preserved.  Without layer_id, the
-                    # surviving row is the first in accounts CSV order — an arbitrary choice that causes
-                    # different LayerParticipation to be applied depending on row ordering (issue #2040).
+                                                           .where(layer_specific
+                                                                  | non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
                     non_layered_inputs_df = (non_layered_inputs_df
-                                             .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id', 'layer_id'])
+                                             .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id'])
                                              .drop(columns=['layered_id']))
 
                 gul_inputs_df = pd.concat(df for df in [layered_inputs_df, non_layered_inputs_df] if not df.empty)
@@ -972,6 +978,21 @@ def get_il_input_items(
                 gul_inputs_df
                 .merge(accounts_df[acc_idx_col + ['acc_idx']].drop_duplicates(subset=acc_idx_col),
                        how='left', validate='many_to_one'))
+
+        # Layer-aware fallback (issue #2040): a preserved policy layer can carry a non-canonical
+        # PolNumber, leaving acc_idx unmatched by the term-based merges above. acc_idx identifies
+        # the source account row, which is fully determined by (acc_id, layer_id[, CondTag]); fill
+        # any remaining gaps from that relationship so summary mapping resolves for every row.
+        for fb_keys in (['acc_id', 'layer_id', 'CondTag'], ['acc_id', 'layer_id']):
+            na_mask = gul_inputs_df['acc_idx'].isna()
+            fb_keys = [c for c in fb_keys if c in gul_inputs_df.columns and c in accounts_df.columns]
+            if not fb_keys or not na_mask.any():
+                continue
+            fb = accounts_df[fb_keys + ['acc_idx']].drop_duplicates(subset=fb_keys)
+            gul_inputs_df.loc[na_mask, 'acc_idx'] = (
+                gul_inputs_df.loc[na_mask, fb_keys].reset_index()
+                .merge(fb, how='left', on=fb_keys, validate='many_to_one')
+                .set_index('index')['acc_idx'])
 
         return gul_inputs_df
 
