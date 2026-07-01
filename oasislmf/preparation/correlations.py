@@ -6,6 +6,8 @@ from typing import Optional
 
 import pandas as pd
 
+from oasislmf.utils.exceptions import OasisException
+
 
 def map_data(data: Optional[dict], logger) -> Optional[pd.DataFrame]:
     """
@@ -42,3 +44,45 @@ def map_data(data: Optional[dict], logger) -> Optional[pd.DataFrame]:
         if len(supported_perils_df) > 0 and len(correlation_settings_df) > 0:
             mapped_data = pd.merge(supported_perils_df, correlation_settings_df, on="peril_correlation_group")
             return mapped_data
+
+
+def get_coverage_dependency_settings(data: Optional[dict], logger) -> list:
+    """Extract coverage dependency pairs from the model settings.
+
+    Reads ``model_settings.coverage_dependency_settings``. Each entry links a source
+    coverage type to a dependent coverage type; in gulmc the dependent coverage's hazard
+    sampling is then driven by the source coverage's per-sample damage ratio.
+
+    Args:
+        data (dict): the model settings dictionary (may be None).
+        logger: logger.
+
+    Returns:
+        list[tuple[int, int]]: list of (source_coverage_type, dependent_coverage_type) pairs.
+
+    Raises:
+        OasisException: if an entry is malformed, is a self-reference, or lists a dependent
+            coverage type more than once (each dependent must have exactly one source).
+    """
+    if not data:
+        return []
+    settings = data.get("model_settings", {}).get("coverage_dependency_settings", [])
+
+    pairs = []
+    seen_dependents = set()
+    for entry in settings:
+        try:
+            source_cov_type = int(entry["source_coverage_type"])
+            dependent_cov_type = int(entry["dependent_coverage_type"])
+        except (KeyError, TypeError, ValueError) as e:
+            raise OasisException(f"Invalid coverage_dependency_settings entry {entry}: {e}")
+        if source_cov_type == dependent_cov_type:
+            raise OasisException(
+                f"Invalid coverage_dependency_settings entry {entry}: a coverage type cannot depend on itself.")
+        if dependent_cov_type in seen_dependents:
+            raise OasisException(
+                f"Invalid coverage_dependency_settings: coverage type {dependent_cov_type} is listed as a dependent "
+                "more than once; each dependent coverage type must have exactly one source.")
+        seen_dependents.add(dependent_cov_type)
+        pairs.append((source_cov_type, dependent_cov_type))
+    return pairs

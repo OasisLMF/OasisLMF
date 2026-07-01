@@ -218,6 +218,12 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 
     dynamic_footprint = True  # truthy, enables dynamic footprint path
 
+    # coverage dependency is inactive in these tests: depth 0 (all roots), empty stacks
+    compute_depth = np.zeros(len(coverage_ids), dtype=np.int32)
+    source_damage_ratio_stack = np.zeros((1, 1, max(sample_size, 1)), dtype=np.float64)
+    source_eff_damage_cdf_stack = np.zeros((1, 1, Ndamage_bins), dtype=oasis_float)
+    source_eff_damage_cdf_len_stack = np.zeros((1, 1), dtype=np.int64)
+
     args = (
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
@@ -227,6 +233,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
+        compute_depth, source_damage_ratio_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
     )
     return args, losses
 
@@ -508,6 +515,12 @@ def test_rp_protection_only_affects_protected_items():
     intensity_bins = np.zeros((1, int(HAZ_INTENSITY) + 1), dtype=np.int32)
     intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
 
+    # coverage dependency inactive (do_coverage_dependency defaults to 0): depth 0, empty stacks
+    compute_depth = np.zeros(len(coverage_ids), dtype=np.int32)
+    source_damage_ratio_stack = np.zeros((1, 1, max(sample_size, 1)), dtype=np.float64)
+    source_eff_damage_cdf_stack = np.zeros((1, 1, Ndamage_bins), dtype=oasis_float)
+    source_eff_damage_cdf_len_stack = np.zeros((1, 1), dtype=np.int64)
+
     compute_event_losses(
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
@@ -517,6 +530,7 @@ def test_rp_protection_only_affects_protected_items():
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
+        compute_depth, source_damage_ratio_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
     )
 
     # Item 0 (RP-protected): all losses must be zero

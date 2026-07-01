@@ -15,6 +15,7 @@ import numpy.lib.recfunctions as rfn
 import numba as nb
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import areaperil_int, load_as_ndarray, oasis_int
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
@@ -30,7 +31,10 @@ from oasislmf.pytools.gulmc.aggregate import (
     process_aggregate_vulnerability, process_vulnerability_weights,
     read_aggregate_vulnerability, read_vulnerability_weights,
 )
-from oasislmf.pytools.gulmc.common import NormInversionParameters, coverage_type
+from oasislmf.pytools.gulmc.common import (
+    NormInversionParameters, coverage_type,
+    DAMAGE_TYPE_DEFAULT, DAMAGE_TYPE_ABSOLUTE, DAMAGE_TYPE_DURATION,
+)
 from oasislmf.pytools.gulmc.items import (
     read_items, generate_item_map,
     build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id,
@@ -62,7 +66,107 @@ ARRAY_FILES = [
     'norm_inv_parameters',
     'intensity_bin_peril_ids',
     'intensity_bins',
+    'coverage_source_id',
+    'coverage_dependents_ja_offsets',
+    'coverage_dependents_ja_data',
 ]
+
+
+def _validate_acyclic_coverage_dependency(coverage_source_id):
+    """Ensure the coverage dependency graph is acyclic.
+
+    Each coverage has a single parent (``coverage_source_id``), so a cycle is a coverage
+    reachable from itself by following parents. Only dependent coverages (source > 0) can
+    take part in a cycle, so we walk up from each of those.
+
+    Args:
+        coverage_source_id (np.ndarray): parent coverage_id per coverage_id (0 = root).
+
+    Raises:
+        OasisException: if a cyclic dependency is configured.
+    """
+    # 0 = unvisited, 1 = on the current path, 2 = known acyclic
+    state = np.zeros(len(coverage_source_id), dtype=np.int8)
+    for start in np.nonzero(coverage_source_id > 0)[0]:
+        if state[start] == 2:
+            continue
+        path = []
+        node = int(start)
+        while node != 0 and state[node] == 0:
+            state[node] = 1
+            path.append(node)
+            node = int(coverage_source_id[node])
+        if node != 0 and state[node] == 1:
+            raise OasisException(
+                f"Cyclic coverage dependency detected involving coverage_id {node}; "
+                "coverage_dependency_settings must form a directed acyclic graph."
+            )
+        for nd in path:
+            state[nd] = 2
+
+
+def damage_bins_are_relative(damage_bins):
+    """Return whether the model's damage bins express damage as a [0, 1] fraction of TIV.
+
+    Coverage dependency drives a dependent coverage's hazard from its source coverage's
+    damage ratio, which is only a meaningful [0, 1] severity for relative vulnerabilities.
+    Absolute and duration damage types (and default-typed bins whose values exceed 1) are
+    not fractions and cannot be used as a dependency source.
+
+    Args:
+        damage_bins (np.ndarray): the model damage bin dictionary (has 'damage_type', 'bin_to').
+
+    Returns:
+        bool: True if the damage bins are relative (or default fractions in [0, 1]).
+    """
+    damage_types = damage_bins['damage_type']
+    if np.any((damage_types == DAMAGE_TYPE_ABSOLUTE) | (damage_types == DAMAGE_TYPE_DURATION)):
+        return False
+    # default-typed bins behave as relative only when the bins are fractions of TIV ([0, 1])
+    if np.any(damage_types == DAMAGE_TYPE_DEFAULT) and float(damage_bins['bin_to'].max()) > 1.0:
+        return False
+    return True
+
+
+def build_coverage_dependency_forest(items, n_coverages):
+    """Build the coverage dependency forest from per-item ``source_coverage_id``.
+
+    Produces ``coverage_source_id`` (indexed by coverage_id, 0 = independent/root) and the
+    parent -> dependents jagged array (``coverage_dependents_ja_offsets`` /
+    ``coverage_dependents_ja_data``) used by the gulmc DFS push. All items of a coverage
+    carry the same source, so a scatter suffices.
+
+    Args:
+        items (np.ndarray): items table containing 'coverage_id' and 'source_coverage_id'.
+        n_coverages (int): number of coverage slots (coverages.shape[0] == max coverage_id + 1).
+
+    Returns:
+        tuple(np.ndarray, np.ndarray, np.ndarray):
+        coverage_source_id (len n_coverages),
+        coverage_dependents_ja_offsets (len n_coverages + 1),
+        coverage_dependents_ja_data (len = number of dependent coverages).
+    """
+    # coverage ids are unsigned; reuse the input dtype so the forest matches the items table
+    id_dtype = items['source_coverage_id'].dtype
+    coverage_source_id = np.zeros(n_coverages, dtype=id_dtype)
+    coverage_source_id[items['coverage_id']] = items['source_coverage_id']
+
+    # a source pointing outside the coverage range, or a self-reference, is treated as
+    # independent (defensive; should not occur for validly generated inputs)
+    coverage_source_id[coverage_source_id >= n_coverages] = 0
+    coverage_source_id[coverage_source_id == np.arange(n_coverages)] = 0
+
+    _validate_acyclic_coverage_dependency(coverage_source_id)
+
+    # invert to a parent -> dependents jagged array: dependents grouped by ascending parent
+    coverage_dependents_ja_data = np.nonzero(coverage_source_id > 0)[0].astype(id_dtype)
+    parents = coverage_source_id[coverage_dependents_ja_data]
+    order = np.argsort(parents, kind='stable')
+    coverage_dependents_ja_data = coverage_dependents_ja_data[order]
+    coverage_dependents_ja_offsets = np.zeros(n_coverages + 1, dtype=oasis_int)
+    coverage_dependents_ja_offsets[1:] = np.cumsum(np.bincount(parents, minlength=n_coverages))
+
+    return coverage_source_id, coverage_dependents_ja_offsets, coverage_dependents_ja_data
 
 
 def _structure_path(run_dir):
@@ -153,7 +257,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         defaults={'peril_correlation_group': 0,
                   'damage_correlation_value': 0.,
                   'hazard_group_id': 0,
-                  'hazard_correlation_value': 0.}
+                  'hazard_correlation_value': 0.,
+                  'source_coverage_id': 0}
     )
     if valid_areaperil_id is not None:
         items = items[np.isin(items['areaperil_id'], valid_areaperil_id)]
@@ -223,6 +328,20 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # --- peril correlation groups ----------------------------------------------
     unique_peril_correlation_groups = np.unique(items['peril_correlation_group'])
 
+    # --- coverage dependency forest --------------------------------------------
+    coverage_source_id, coverage_dependents_ja_offsets, coverage_dependents_ja_data = \
+        build_coverage_dependency_forest(items, coverages.shape[0])
+
+    # coverage dependency drives a dependent's hazard from its source's damage ratio, which
+    # is only meaningful for relative (fractional) damage. Reject absolute/duration models.
+    if coverage_dependents_ja_data.shape[0] > 0 and not damage_bins_are_relative(damage_bins):
+        raise OasisException(
+            "coverage_dependency_settings is configured but the model's damage_bin_dict uses "
+            "absolute/duration damage. A coverage dependency source must use relative "
+            "(fractional, [0, 1]) damage, so its damage ratio can drive the dependent's hazard. "
+            "Remove coverage_dependency_settings or use a relative-damage model."
+        )
+
     # --- footprint (temporary open to get num_intensity_bins) ------------------
     # FootprintParquetDynamic.__enter__ reads input/sections.csv and input/keys.csv
     # via relative paths, so cwd must be the run directory.
@@ -277,6 +396,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'norm_inv_parameters': norm_inv_parameters,
         'intensity_bin_peril_ids': intensity_bin_peril_ids,
         'intensity_bins': intensity_bins,
+        'coverage_source_id': coverage_source_id,
+        'coverage_dependents_ja_offsets': coverage_dependents_ja_offsets,
+        'coverage_dependents_ja_data': coverage_dependents_ja_data,
         # scalars
         'n_cdf_groups': n_cdf_groups,
         'n_unique_groups': n_unique_groups,
