@@ -4,7 +4,7 @@ This file contains the utilities for generating random numbers in gulpy.
 """
 
 import logging
-from math import sqrt
+from math import floor, sqrt
 
 import numpy as np
 from numba import njit
@@ -147,11 +147,6 @@ def compute_norm_cdf_lookup(x_min, x_max, N):
 
 
 @njit(cache=True, fastmath=True)
-def get_norm_cdf_cell_nb(x, x_min, x_max, N):
-    return int((x - x_min) * (N - 1) // (x_max - x_min))
-
-
-@njit(cache=True, fastmath=True)
 def _interpolate_lookup(value, range_start, factor, table, N):
     """Linear interpolation lookup into a precomputed table.
 
@@ -160,12 +155,12 @@ def _interpolate_lookup(value, range_start, factor, table, N):
     reducing lookup error in the distribution tails
     """
     pos = (value - range_start) * factor
-    index_lower = int(pos)
+    index_lower = int(floor(pos))
+    frac = pos - index_lower
     if index_lower < 0:
         index_lower = 0
     elif index_lower > N - 2:
         index_lower = N - 2
-    frac = pos - index_lower
     return table[index_lower] + frac * (table[index_lower + 1] - table[index_lower])
 
 
