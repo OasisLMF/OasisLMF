@@ -51,6 +51,18 @@ def generate_output_metadata(output):
     return result
 
 
+def def_to_type_and_size(definition):
+    '''Convert a single type definition tuple to output dtype and size.
+    Args:
+        type_definition (tuple(str, Any, str)): Type definition in format Tuple({name: str}, {type: Any}, {format: str})
+    Returns:
+        dtype (np.dtype): Type definition as `np.dtype`
+        size (int): Number of bytes of type
+    '''
+    dtype = np.dtype([(definition[0], definition[1])])
+    return dtype, dtype.itemsize
+
+
 # single type definition index
 DTYPE_IDX = 1
 NAME_DTYPE_SLICE = slice(2)

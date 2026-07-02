@@ -2,9 +2,9 @@
 import logging
 import numba as nb
 import numpy as np
-from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size,
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, def_to_type_and_size, oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size,
                                           write_ndarray_to_fmt_csv)
-from oasislmf.pytools.common.data import event_id as event_id_dtype, item_id as item_id_dtype
+from oasislmf.pytools.common.data import event_id as event_id_def, item_id as item_id_def
 from oasislmf.pytools.common.event_stream import (
     FM_STREAM_ID, GUL_STREAM_ID, LOSS_STREAM_ID, EventReader, init_streams_in, mv_read
 )
@@ -12,9 +12,8 @@ from oasislmf.pytools.converters.data import TOOL_INFO
 
 logger = logging.getLogger(__name__)
 
-event_id_dtype = np.dtype(event_id_dtype[1])
-item_id_dtype = np.dtype(item_id_dtype[1])
-
+event_id_dtype, event_id_dtype_size = def_to_type_and_size(event_id_def)
+item_id_dtype, item_id_dtype_size = def_to_type_and_size(item_id_def)
 
 class FMReader(EventReader):
     def __init__(self, len_sample, data_dtype):
@@ -52,16 +51,16 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
     while cursor < valid_buff:
         if not state["reading_losses"]:
             # Read summary header
-            if valid_buff - cursor >= event_id_dtype.itemsize + item_id_dtype.itemsize:
+            if valid_buff - cursor >= event_id_dtype_size + item_id_dtype_size:
                 event_id_new, cursor = mv_read(byte_mv, cursor, event_id_dtype,
-                                               event_id_dtype.itemsize)
+                                               event_id_dtype_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
                     idx = idxs[0]
-                    return cursor - event_id_dtype.itemsize, last_event_id, item_id, 1
+                    return cursor - event_id_dtype_size, last_event_id, item_id, 1
                 event_id = event_id_new
                 item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype,
-                                          item_id_dtype.itemsize)
+                                          item_id_dtype_size)
                 state["reading_losses"] = True
             else:
                 break  # Not enough for whole summary header
