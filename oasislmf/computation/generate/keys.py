@@ -166,6 +166,8 @@ class GenerateKeysDeterministic(KeyComputationStep):
          'help': 'List of peril covered by the model'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
          'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
+        {'name': 'disable_oed_version_update', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'Flag to disable automatic conversion of exposure data to the latest compatible OED version.'},
     ]
 
     def _get_output_dir(self):
