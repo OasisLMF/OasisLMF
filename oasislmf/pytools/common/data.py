@@ -59,7 +59,7 @@ def def_to_type_and_size(definition):
         dtype (np.dtype): Type definition as `np.dtype`
         size (int): Number of bytes of type
     '''
-    dtype = np.dtype([(definition[0], definition[1])])
+    dtype = np.dtype(definition[1])
     return dtype, dtype.itemsize
 
 

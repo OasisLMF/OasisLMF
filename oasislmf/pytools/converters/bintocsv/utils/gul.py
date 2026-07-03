@@ -51,14 +51,14 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
     while cursor < valid_buff:
         if not state["reading_losses"]:
             # Read summary header
-            if valid_buff - cursor >= 2 * oasis_int_size:
-                event_id_new, cursor = mv_read(byte_mv, cursor, event_id_def, event_id_dtype_size)
+            if valid_buff - cursor >= event_id_dtype_size + item_id_dtype_size:
+                event_id_new, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
                     idxs[0] = idx
                     return cursor - oasis_int_size, last_event_id, item_id, 1
                 event_id = event_id_new
-                item_id, cursor = mv_read(byte_mv, cursor, item_id_def, item_id_dtype_size)
+                item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
                 state["reading_losses"] = True
             else:
                 break  # Not enough for whole summary header

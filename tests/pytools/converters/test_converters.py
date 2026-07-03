@@ -5,6 +5,8 @@ import pytest
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
+from unittest import mock
+import os
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
@@ -56,32 +58,41 @@ def case_runner(converter, file_type, sub_dir, filename=None, abnormal_dtype=Fal
         converter(**converter_args)
 
         try:
-            if out_ext == ".csv":
-                expected_outfile_data = np.genfromtxt(expected_outfile, delimiter=',', skip_header=1)
-                actual_outfile_data = np.genfromtxt(actual_outfile, delimiter=',', skip_header=1)
-                if expected_outfile_data.shape != actual_outfile_data.shape:
-                    raise AssertionError(
-                        f"Shape mismatch: {expected_outfile} has shape {expected_outfile_data.shape}, {actual_outfile} has shape {actual_outfile_data.shape}"
-                    )
-                np.testing.assert_allclose(expected_outfile_data, actual_outfile_data, rtol=1e-5, atol=1e-8)
-            if out_ext == ".bin":
-                if abnormal_dtype:  # This is if the binary file has headers or does not have a simple dtype, then compare raw bytes
-                    custom_dtype = "u1"
-                else:
-                    custom_dtype = TOOL_INFO[file_type]["dtype"]
-                expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype=custom_dtype))
-                actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype=custom_dtype))
-                pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
-            if out_ext == ".parquet":
-                expected_outfile_data = pd.read_parquet(expected_outfile)
-                actual_outfile_data = pd.read_parquet(actual_outfile)
-                pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
+            compare_conversion_outputs(expected_outfile, actual_outfile, file_type, out_ext, abnormal_dtype)
         except Exception as e:
             error_path = Path(TESTS_ASSETS_DIR, sub_dir, "error_files")
             error_path.mkdir(exist_ok=True)
             shutil.copyfile(actual_outfile, Path(error_path, outfile_name))
             arg_str = ' '.join([f"{k}={v}" for k, v in converter_args.items()])
             raise Exception(f"running '{converter} {arg_str}' led to diff, see files at {error_path}") from e
+
+
+def compare_conversion_outputs(expected_outfile, actual_outfile, file_type, out_ext, abnormal_dtype=False,
+                               dtype=None):
+    if out_ext == ".csv":
+        expected_outfile_data = np.genfromtxt(expected_outfile, delimiter=',', skip_header=1)
+        actual_outfile_data = np.genfromtxt(actual_outfile, delimiter=',', skip_header=1)
+        if expected_outfile_data.shape != actual_outfile_data.shape:
+            raise AssertionError(
+                f"Shape mismatch: {expected_outfile} has shape {expected_outfile_data.shape}, {actual_outfile} has shape {actual_outfile_data.shape}"
+            )
+        np.testing.assert_allclose(expected_outfile_data, actual_outfile_data, rtol=1e-5, atol=1e-8)
+    if out_ext == ".bin":
+        if abnormal_dtype:  # This is if the binary file has headers or does not have a simple dtype, then compare raw bytes
+            custom_dtype = "u1"
+        elif dtype:
+            custom_dtype = dtype
+        else: # Default dtype
+            custom_dtype = TOOL_INFO[file_type]["dtype"]
+        expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype=custom_dtype))
+        actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype=custom_dtype))
+        pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
+    if out_ext == ".parquet":
+        expected_outfile_data = pd.read_parquet(expected_outfile)
+        actual_outfile_data = pd.read_parquet(actual_outfile)
+        pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
+    return
+
 
 
 def case_runner_tocsv_with_zip_and_idx(file_type, sub_dir, filename, **kwargs):
