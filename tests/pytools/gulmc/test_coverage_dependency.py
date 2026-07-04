@@ -137,13 +137,14 @@ def _setup(tmp, dependent_to_source):
     return run_dir
 
 
-def _run(run_dir, effective_damageability):
+def _run(run_dir, effective_damageability, coverage_dependency_mode='percentile'):
     out = run_dir / 'out.bin'
     run_gulmc(run_dir=run_dir, ignore_file_type=set(),
               file_in=run_dir / 'input' / 'events.bin', file_out=out,
               sample_size=2000, loss_threshold=0., alloc_rule=1, debug=0,
               random_generator=0, ignore_correlation=False,
-              effective_damageability=effective_damageability)
+              effective_damageability=effective_damageability,
+              coverage_dependency_mode=coverage_dependency_mode)
     bintocsv(out, run_dir / 'out.csv', 'gul')
     return pd.read_csv(run_dir / 'out.csv')
 
@@ -187,3 +188,40 @@ def test_dependency_chain_runs():
         # coverage 2 (item 3) and coverage 3 (item 5) are both dependents and must change
         assert not np.allclose(_samples(base, 3), _samples(dep, 3))
         assert not np.allclose(_samples(base, 5), _samples(dep, 5))
+
+
+# --------------------------------------------------------------------------------------
+# conditional mode
+# --------------------------------------------------------------------------------------
+def test_conditional_mode_requires_damage_bin_indexed_vuln():
+    """Conditional mode requires each dependent vulnerability to be authored with one intensity
+    bin per damage bin. test_model_1's dependent vuln is a normal hazard-indexed curve, so
+    conditional mode must fail loud (this also confirms the mode flag reaches the engine).
+    Percentile mode on the same model is unaffected.
+    """
+    with tempfile.TemporaryDirectory() as t_pct, tempfile.TemporaryDirectory() as t_cond:
+        # percentile mode works on any hazard-indexed vuln
+        _run(_setup(t_pct, {2: 1}), effective_damageability=False, coverage_dependency_mode='percentile')
+        # conditional mode rejects a vuln that is not 1:1 with the damage bins
+        with pytest.raises(OasisException):
+            _run(_setup(t_cond, {2: 1}), effective_damageability=False, coverage_dependency_mode='conditional')
+
+
+def test_conditional_convolution_reference():
+    """The conditional eff-dam kernel reuses `calc_eff_damage_cdf(dependent_vuln, source_pmf)`.
+    Lock that convolution against a hand-computed reference (the walked-through example)."""
+    from oasislmf.pytools.gulmc.manager import calc_eff_damage_cdf
+
+    # source damage pmf and a dependent conditional vuln (rows = source damage bin, cols = dep bin)
+    source_pmf = np.array([0.10, 0.20, 0.30, 0.20, 0.10, 0.10], dtype='f8')
+    dependent_vuln = np.array([
+        [0.9, 0.1, 0.0, 0.0, 0.0, 0.0],
+        [0.3, 0.5, 0.2, 0.0, 0.0, 0.0],
+        [0.1, 0.2, 0.4, 0.2, 0.1, 0.0],
+        [0.0, 0.1, 0.2, 0.4, 0.2, 0.1],
+        [0.0, 0.0, 0.1, 0.2, 0.5, 0.2],
+        [0.0, 0.0, 0.0, 0.0, 0.1, 0.9],
+    ], dtype='f8')
+    eff_cdf = calc_eff_damage_cdf(dependent_vuln, source_pmf, np.zeros(dependent_vuln.shape[1], dtype='f8'))
+    eff_pmf = np.diff(np.concatenate(([0.0], eff_cdf)))
+    np.testing.assert_allclose(eff_pmf, [0.18, 0.19, 0.21, 0.16, 0.13, 0.13], atol=1e-9)

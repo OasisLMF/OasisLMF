@@ -86,3 +86,25 @@ def get_coverage_dependency_settings(data: Optional[dict], logger) -> list:
         seen_dependents.add(dependent_cov_type)
         pairs.append((source_cov_type, dependent_cov_type))
     return pairs
+
+
+def get_coverage_dependency_mode(data: Optional[dict], logger) -> str:
+    """Return the coverage dependency mode from the model settings.
+
+    Args:
+        data (dict): the model settings dictionary (may be None).
+        logger: logger.
+
+    Returns:
+        str: 'percentile' (default) or 'conditional'.
+
+    Raises:
+        OasisException: if the configured mode is not one of the accepted values.
+    """
+    if not data:
+        return 'percentile'
+    mode = data.get("model_settings", {}).get("coverage_dependency_mode", 'percentile')
+    if mode not in ('percentile', 'conditional'):
+        raise OasisException(
+            f"Invalid coverage_dependency_mode '{mode}'; expected 'percentile' or 'conditional'.")
+    return mode

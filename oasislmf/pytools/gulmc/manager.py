@@ -49,6 +49,7 @@ from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FO
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.ping import oasis_ping
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
+from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,7 @@ def run(run_dir,
         max_cached_vuln_cdf_size_MB=200,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         dynamic_footprint=False,
+        coverage_dependency_mode='percentile',
         **kwargs):
     """Execute the main gulmc workflow.
 
@@ -174,7 +176,26 @@ def run(run_dir,
         # otherwise the forest is empty and gulmc behaves exactly as before.
         do_coverage_dependency = bool(coverage_dependents_ja_data.shape[0] > 0)
         if do_coverage_dependency:
-            logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
+            logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages), "
+                        f"mode={coverage_dependency_mode}.")
+            if coverage_dependency_mode == 'conditional':
+                # conditional mode drives a dependent's vulnerability directly by the source
+                # damage bin, so each dependent vulnerability must be authored with exactly one
+                # intensity bin per damage bin (1:1 with the damage bins, ids 1..N_damage_bins).
+                # NB this is per dependent vuln, not global: the source coverage keeps a normal
+                # hazard-indexed vuln whose intensity resolution is unrelated to the damage bins.
+                n_damage_bins = damage_bins.shape[0]
+                dep_item_mask = (coverage_source_id[items['coverage_id']] > 0) & (items['areaperil_agg_vuln_idx'] < 0)
+                for dep_vuln_idx in np.unique(items['vulnerability_idx'][dep_item_mask]):
+                    used_intensity_bins = np.flatnonzero(vuln_array[dep_vuln_idx].sum(axis=0) > 0)
+                    # the used intensity bins must be exactly {1..N_damage_bins} (0-indexed 0..N-1)
+                    if used_intensity_bins.shape[0] != n_damage_bins or used_intensity_bins[-1] != n_damage_bins - 1:
+                        raise OasisException(
+                            f"conditional coverage dependency requires each dependent vulnerability to be defined over "
+                            f"exactly {n_damage_bins} intensity bins (one per damage bin, ids 1..{n_damage_bins}); "
+                            f"vulnerability index {int(dep_vuln_idx)} uses {used_intensity_bins.shape[0]} intensity bins. "
+                            "Author the dependent vulnerability with intensity bins matching the damage bins."
+                        )
 
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
@@ -331,6 +352,7 @@ def run(run_dir,
         compute_info['effective_damageability'] = effective_damageability
         compute_info['debug'] = debug
         compute_info['do_coverage_dependency'] = do_coverage_dependency
+        compute_info['dependency_mode'] = 1 if coverage_dependency_mode == 'conditional' else 0
 
         # default random values array for sample_size==0 case
         haz_rndms_base = np.empty((1, sample_size), dtype='float64')
@@ -759,6 +781,12 @@ def compute_event_losses(compute_info,
     haz_i_to_Ndamage_bins_empty = np.empty(vuln_array.shape[2], dtype=oasis_int)
     haz_i_to_vuln_cdf_empty = np.empty((vuln_array.shape[2], compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
     dependent_haz_pdf_empty = np.empty(vuln_array.shape[2], dtype=oasis_float)
+    # conditional dependency: the dependent's "intensity bins" are the source's damage bins,
+    # so its vuln is assembled over intensity ids equal to the damage-bin ids (1..N_damage_bins),
+    # and the source's damage pmf plays the role of the hazard pdf.
+    n_damage_bins_total = damage_bins.shape[0]
+    damage_bin_intensity_ids = np.arange(1, n_damage_bins_total + 1).astype(np.int32)
+    source_damage_pmf_empty = np.empty(n_damage_bins_total, dtype=oasis_float)
 
     # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
     compute_info['cursor'] = 0
@@ -840,14 +868,33 @@ def compute_event_losses(compute_info,
             haz_cdf_prob = pdf_to_cdf(haz_pdf_prob, haz_cdf_empty)
             Nhaz_bins = haz_cdf_prob.shape[0]
 
-            # a dependent coverage under effective damageability needs a combined CDF built
+            # conditional dependency: replace this dependent's hazard bins with the source's
+            # damage bins and its hazard pdf with the source's damage pmf, so the dependent's
+            # vulnerability (authored over damage-bin-indexed intensities) is driven directly
+            # by the source's damage. The downstream assembly / CDF / sampling is reused.
+            is_conditional_dep = is_dependent and compute_info['dependency_mode'] == 1
+            if is_conditional_dep:
+                Nhaz_bins = n_damage_bins_total
+                haz_bin_id = damage_bin_intensity_ids
+                parent_eff_cdf = source_eff_damage_cdf_stack[depth - 1, item_j, :source_eff_damage_cdf_len_stack[depth - 1, item_j]]
+                haz_pdf_prob = source_damage_pmf_empty
+                prev_cdf = 0.0
+                for damage_bin_k in range(Nhaz_bins):
+                    if damage_bin_k < parent_eff_cdf.shape[0]:
+                        haz_pdf_prob[damage_bin_k] = parent_eff_cdf[damage_bin_k] - prev_cdf
+                        prev_cdf = parent_eff_cdf[damage_bin_k]
+                    else:
+                        haz_pdf_prob[damage_bin_k] = 0.0
+
+            # a percentile dependent under effective damageability needs a combined CDF built
             # from its source's effective-damage CDF; this is event-specific so it bypasses
             # the (event-independent) CDF cache and is always recomputed.
-            force_dependent_eff_cdf = is_dependent and compute_info['effective_damageability'] == 1
+            force_dependent_eff_cdf = is_dependent and compute_info['dependency_mode'] == 0 and compute_info['effective_damageability'] == 1
 
             # determine if the CDFs for this CDF group are cached
             stored = cdf_cache_tag[cdf_group]
-            do_calc_vuln_ptf = force_dependent_eff_cdf or (stored < 0) or (compute_info['cdf_cache_ctr'] - stored >= cdf_cache_size)
+            do_calc_vuln_ptf = force_dependent_eff_cdf or is_conditional_dep or (
+                stored < 0) or (compute_info['cdf_cache_ctr'] - stored >= cdf_cache_size)
 
             if do_calc_vuln_ptf:  # cache miss — compute and cache CDFs
                 # we get the vuln_pdf, needed for effcdf and each cdf
@@ -896,25 +943,30 @@ def compute_event_losses(compute_info,
                     dependent_haz_pdf = build_dependent_haz_pdf(parent_eff_cdf, damage_bins, haz_cdf_prob, Nhaz_bins, dependent_haz_pdf_empty)
                     eff_damage_cdf = calc_eff_damage_cdf(vuln_pdf, dependent_haz_pdf, eff_damage_cdf_empty)
                 else:
-                    # calculate and cache all CDFs as a contiguous block
+                    # conditional dependency uses the source damage pmf as haz_pdf_prob; the
+                    # normal convolution then yields the conditional effective-damage CDF.
                     eff_damage_cdf = calc_eff_damage_cdf(vuln_pdf, haz_pdf_prob, eff_damage_cdf_empty)
-                    cdf_cache_tag[cdf_group] = compute_info['cdf_cache_ctr']
-                    # slot 0: effective damage CDF
-                    cache_idx = compute_info['cdf_cache_ctr'] & cdf_cache_mask
-                    cached_vuln_cdfs[cache_idx, :eff_damage_cdf.shape[0]] = eff_damage_cdf
-                    cdf_cache_nbins[cache_idx] = nb_int32(eff_damage_cdf.shape[0])
-                    compute_info['cdf_cache_ctr'] += 1
+                    if not is_conditional_dep:
+                        # calculate and cache all CDFs as a contiguous block (event-independent).
+                        # conditional CDFs are event-specific, so they are not cached.
+                        cdf_cache_tag[cdf_group] = compute_info['cdf_cache_ctr']
+                        # slot 0: effective damage CDF
+                        cache_idx = compute_info['cdf_cache_ctr'] & cdf_cache_mask
+                        cached_vuln_cdfs[cache_idx, :eff_damage_cdf.shape[0]] = eff_damage_cdf
+                        cdf_cache_nbins[cache_idx] = nb_int32(eff_damage_cdf.shape[0])
+                        compute_info['cdf_cache_ctr'] += 1
 
-                if (not compute_info['effective_damageability']) and (not force_dependent_eff_cdf):  # also cache per-bin vuln CDFs
+                if (not compute_info['effective_damageability']) and (not force_dependent_eff_cdf):  # build (and, for normal items, cache) per-bin vuln CDFs
                     haz_i_to_Ndamage_bins = haz_i_to_Ndamage_bins_empty[:Nhaz_bins]
                     haz_i_to_vuln_cdf = haz_i_to_vuln_cdf_empty[:Nhaz_bins]
                     for haz_i in range(Nhaz_bins):
                         haz_i_to_Ndamage_bins[haz_i] = pdf_to_cdf(vuln_pdf[haz_i], haz_i_to_vuln_cdf[haz_i]).shape[0]
-                        cache_idx = compute_info['cdf_cache_ctr'] & cdf_cache_mask
-                        ndamage_bins = haz_i_to_Ndamage_bins[haz_i]
-                        cached_vuln_cdfs[cache_idx, :ndamage_bins] = haz_i_to_vuln_cdf[haz_i][:ndamage_bins]
-                        cdf_cache_nbins[cache_idx] = nb_int32(ndamage_bins)
-                        compute_info['cdf_cache_ctr'] += 1
+                        if not is_conditional_dep:  # conditional per-bin CDFs are event-specific, not cached
+                            cache_idx = compute_info['cdf_cache_ctr'] & cdf_cache_mask
+                            ndamage_bins = haz_i_to_Ndamage_bins[haz_i]
+                            cached_vuln_cdfs[cache_idx, :ndamage_bins] = haz_i_to_vuln_cdf[haz_i][:ndamage_bins]
+                            cdf_cache_nbins[cache_idx] = nb_int32(ndamage_bins)
+                            compute_info['cdf_cache_ctr'] += 1
 
             else:  # cache hit — read CDFs from cache
                 block_start = cdf_cache_tag[cdf_group]
@@ -963,11 +1015,12 @@ def compute_event_losses(compute_info,
             if sample_size > 0:  # compute random losses
                 # hazard random values only exist (hazard_rng_index >= 0) when this areaperil's
                 # hazard intensity is non-deterministic and we are running full Monte Carlo.
-                if is_dependent and compute_info['effective_damageability'] == 0:
-                    # coverage dependency (full Monte Carlo): the hazard intensity draw is
+                if is_dependent and compute_info['dependency_mode'] == 0 and compute_info['effective_damageability'] == 0:
+                    # percentile dependency (full Monte Carlo): the hazard intensity draw is
                     # replaced by the source coverage's per-sample damage ratio, so the
                     # dependent's intensity is pinned to how badly the source was damaged.
                     # This overrides any hazard correlation for the dependent.
+                    # (Conditional mode instead selects the source's damage bin directly below.)
                     parent_damage_ratio = source_damage_ratio_stack[depth - 1, item_j]
                     for sample_idx in range(sample_size):
                         haz_z_unif[sample_idx] = parent_damage_ratio[sample_idx]
@@ -1019,6 +1072,16 @@ def compute_event_losses(compute_info,
                         for sample_idx in range(1, sample_size + 1):
                             losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
                                                                                Ndamage_bins, damage_bins, damage_bin_scaling)
+                    elif is_conditional_dep:
+                        # conditional dependency: the dependent's "hazard bin" is the source's
+                        # sampled damage bin, recovered from the stored source damage ratio.
+                        parent_damage_ratio = source_damage_ratio_stack[depth - 1, item_j]
+                        for sample_idx in range(1, sample_size + 1):
+                            haz_bin_idx = binary_search(parent_damage_ratio[sample_idx - 1], damage_bins['bin_to'], Nhaz_bins - 1)
+                            Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
+                            vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
+                            losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                                               Ndamage_bins, damage_bins, damage_bin_scaling)
                     else:
                         for sample_idx in range(1, sample_size + 1):
                             # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
@@ -1042,14 +1105,15 @@ def compute_event_losses(compute_info,
 
             # coverage dependency: record this item's result at this (depth, item_j) so a
             # dependent coverage below it (processed next in the DFS order) can drive its
-            # matching peril item. Full MC stores the per-sample damage ratio; effective
-            # damageability stores the effective-damage CDF (a distribution).
+            # matching peril item. We store both the effective-damage CDF (used as a
+            # distribution: percentile eff-dam pushforward, or conditional pmf/marginal) and
+            # the per-sample damage ratio (used to drive the dependent's hazard in full MC,
+            # or to recover the source damage bin in conditional mode).
             if compute_info['do_coverage_dependency'] == 1:
-                if compute_info['effective_damageability'] == 1:
-                    num_damage_bins = eff_damage_cdf.shape[0]
-                    source_eff_damage_cdf_stack[depth, item_j, :num_damage_bins] = eff_damage_cdf
-                    source_eff_damage_cdf_len_stack[depth, item_j] = num_damage_bins
-                elif sample_size > 0:
+                num_damage_bins = eff_damage_cdf.shape[0]
+                source_eff_damage_cdf_stack[depth, item_j, :num_damage_bins] = eff_damage_cdf
+                source_eff_damage_cdf_len_stack[depth, item_j] = num_damage_bins
+                if sample_size > 0 and compute_info['effective_damageability'] == 0:
                     for sample_idx in range(sample_size):
                         damage_ratio = losses[sample_idx + 1, item_j] / damage_bin_scaling if damage_bin_scaling > 0 else 0.0
                         if damage_ratio < 0.0:
