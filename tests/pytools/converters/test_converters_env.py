@@ -11,6 +11,8 @@ import json
 from oasislmf.pytools.converters.data import TOOL_INFO
 from tests.pytools.converters.test_converters import compare_conversion_outputs, TESTS_ASSETS_DIR
 
+_DTYPE_FILE = "dtype.json"
+
 def copy_working_files(source_dir, work_dir, file_in, kwarg_file=None):
     source_dir = Path(source_dir)
     work_dir = Path(work_dir)
@@ -20,6 +22,7 @@ def copy_working_files(source_dir, work_dir, file_in, kwarg_file=None):
 
 
 def generate_conversion_script(work_dir, file_in, file_out, file_type,
+                               converter="csvtobin",
                                kwarg_file=None):
     # Generate script string
     out_string = dedent(f"""\
@@ -27,6 +30,7 @@ def generate_conversion_script(work_dir, file_in, file_out, file_type,
             import json
 
             from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+            from oasislmf.pytools.converters.bintocsv.manager import bintocsv
             from oasislmf.pytools.converters.data import TOOL_INFO
 
             work_dir = Path(\"{work_dir}\")
@@ -37,7 +41,7 @@ def generate_conversion_script(work_dir, file_in, file_out, file_type,
             else:
                 kwargs = {{}}
 
-            csvtobin(
+                {converter}(
                 file_in = work_dir / \"{file_in}\",
                 file_out = work_dir / \"{file_out}\",
                 file_type = \"{file_type}\",
@@ -45,36 +49,52 @@ def generate_conversion_script(work_dir, file_in, file_out, file_type,
             )
 
             # Serialise dtype
-            with open(work_dir / "dt.json", "w") as f:
+            with open(work_dir / \"{_DTYPE_FILE}\", "w") as f:
                 json.dump(TOOL_INFO[\"{file_type}\"][\"dtype\"].descr, f)
             """)
 
     return out_string
 
-def test_coverages_conversion():
-    file_in = "coverages.csv"
-    file_out = "coverages.bin"
-    file_type = "coverages"
-    sub_dir = "envdtype"
-    oasis_float = "f8"
+def case_runner(converter, file_type, sub_dir, env_vars, filename=None, kwarg_file=None):
+    if converter == "bintocsv":
+        in_ext = ".bin"
+        out_ext = ".csv"
+    elif converter == "csvtobin":
+        in_ext = ".csv"
+        out_ext = ".bin"
+    else:
+        raise RuntimeError(f"Unknown test type {converter}, {file_type}")
+
+    if filename is None:
+        filename = file_type
+
+    file_in = f"{filename}{in_ext}"
+    file_out = f"{filename}{out_ext}"
+
+    valid_env_vars = ['OASIS_FLOAT', 'OASIS_INT', 'OASIS_AREAPERIL_INT']
+
     with TemporaryDirectory() as tmp_dir:
-        print("Copying working files...")
-        copy_working_files(Path(TESTS_ASSETS_DIR, sub_dir), tmp_dir, file_in)
-        print("Generating conversion script...")
+        copy_working_files(Path(TESTS_ASSETS_DIR, sub_dir), tmp_dir, file_in,
+                           kwarg_file=kwarg_file)
         script = generate_conversion_script(tmp_dir, file_in, file_out,
-                                            file_type)
+                                            file_type, kwarg_file=kwarg_file,
+                                            converter=converter)
 
         tmp_path = Path(tmp_dir)
         script_path = tmp_path / "script.py"
         with open(script_path, "w") as f:
             f.write(script)
 
-        print("Running script")
-        env = {**os.environ} # set script environment variables
-        if oasis_float is None:
-            env.pop("OASIS_FLOAT", None)
-        else:
-            env["OASIS_FLOAT"] = oasis_float
+        # set script env variables
+        env = {**os.environ}
+        for env_key, env_value in env_vars.items():
+            if env_key not in valid_env_vars:
+                continue
+
+            if env_value is None:
+                env.pop(env_key, None)
+            else:
+                env[env_key] = env_value
 
         result = subprocess.run(
                 [sys.executable, str(script_path)],
@@ -89,14 +109,10 @@ def test_coverages_conversion():
             f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )
 
-        print("Ran process...")
-
         assert file_out in os.listdir(tmp_dir), f"Output file {file_out} not generated."
 
-        with open(tmp_path / "dt.json", "r") as f:
+        with open(tmp_path / _DTYPE_FILE, "r") as f:
             dtype = np.dtype([tuple(_d) for _d in json.load(f)])
-
-        print(f"Loaded dtype: {dtype}")
 
         expected_outfile = Path(TESTS_ASSETS_DIR, sub_dir, file_out)
         actual_outfile = Path(tmp_dir, file_out)
@@ -104,6 +120,19 @@ def test_coverages_conversion():
         compare_conversion_outputs(expected_outfile, actual_outfile, file_type, ".bin",
                                    dtype=dtype)
 
-        print("Compared outfiles and passed")
+def test_coverages_conversion():
+    case_runner(converter="csvtobin",
+                file_type="coverages",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_FLOAT": "f8"
+                    }
+                )
 
-    print("Done...")
+    case_runner(converter="bintocsv",
+                file_type="coverages",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_FLOAT": "f8"
+                    }
+                )
