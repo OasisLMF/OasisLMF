@@ -827,6 +827,7 @@ def prepare_account_df(accounts_df):
         accounts_df['StepNumber'] = accounts_df['StepNumber'].fillna(0)
     if 'layer_id' not in accounts_df.columns:
         id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
+        id_df = id_df.sort_values(layers_cols + ['PolNumber', 'LayerNumber'])
         id_df['layer_id'] = get_ids(id_df,
                                     layers_cols + ['PolNumber', 'LayerNumber'], group_by=layers_cols,
                                     ).astype('uint32')
