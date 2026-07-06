@@ -41,7 +41,7 @@ def generate_conversion_script(work_dir, file_in, file_out, file_type,
             else:
                 kwargs = {{}}
 
-                {converter}(
+            {converter}(
                 file_in = work_dir / \"{file_in}\",
                 file_out = work_dir / \"{file_out}\",
                 file_type = \"{file_type}\",
@@ -71,7 +71,7 @@ def case_runner(converter, file_type, sub_dir, env_vars, filename=None, kwarg_fi
     file_in = f"{filename}{in_ext}"
     file_out = f"{filename}{out_ext}"
 
-    valid_env_vars = ['OASIS_FLOAT', 'OASIS_INT', 'OASIS_AREAPERIL_INT']
+    valid_env_vars = ['OASIS_FLOAT', 'OASIS_INT', 'OASIS_AREAPERIL_TYPE']
 
     with TemporaryDirectory() as tmp_dir:
         copy_working_files(Path(TESTS_ASSETS_DIR, sub_dir), tmp_dir, file_in,
@@ -117,10 +117,10 @@ def case_runner(converter, file_type, sub_dir, env_vars, filename=None, kwarg_fi
         expected_outfile = Path(TESTS_ASSETS_DIR, sub_dir, file_out)
         actual_outfile = Path(tmp_dir, file_out)
 
-        compare_conversion_outputs(expected_outfile, actual_outfile, file_type, ".bin",
+        compare_conversion_outputs(expected_outfile, actual_outfile, file_type, out_ext,
                                    dtype=dtype)
 
-def test_coverages_conversion():
+def test_coverages():
     case_runner(converter="csvtobin",
                 file_type="coverages",
                 sub_dir="envdtype",
@@ -134,5 +134,79 @@ def test_coverages_conversion():
                 sub_dir="envdtype",
                 env_vars={
                     "OASIS_FLOAT": "f8"
+                    },
+                )
+
+def test_damagebin():
+    case_runner(converter="csvtobin",
+                file_type="damagebin",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_FLOAT": "f8"
+                    },
+                kwarg_file="damagebin_args.json"
+                )
+
+    case_runner(converter="bintocsv",
+                file_type="damagebin",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_FLOAT": "f8"
+                    },
+                )
+
+def test_items():
+    case_runner(converter="csvtobin",
+                file_type="items",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_AREAPERIL_TYPE": "u8"
                     }
+                )
+
+    case_runner(converter="bintocsv",
+                file_type="items",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_AREAPERIL_TYPE": "u8"
+                    },
+                )
+
+def test_vulnerability():
+    # only testing noidx route
+    case_runner(converter="csvtobin",
+                file_type="vulnerability",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_FLOAT": "f8"
+                    },
+                kwarg_file="vulnerability_csvtobin_args.json",
+                )
+
+    case_runner(converter="bintocsv",
+                file_type="vulnerability",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_FLOAT": "f8"
+                    },
+                kwarg_file="vulnerability_bintocsv_args.json",
+                )
+
+def test_weights():
+    case_runner(converter="csvtobin",
+                file_type="weights",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_AREAPERIL_TYPE": "u8",
+                    "OASIS_FLOAT": "f8"
+                    },
+                )
+
+    case_runner(converter="bintocsv",
+                file_type="weights",
+                sub_dir="envdtype",
+                env_vars={
+                    "OASIS_AREAPERIL_TYPE": "u8",
+                    "OASIS_FLOAT": "f8"
+                    },
                 )
