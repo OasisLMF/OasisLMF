@@ -895,7 +895,7 @@ def get_il_input_items(
                 gul_inputs_df = pd.concat(df for df in [layered_inputs_df, non_layered_inputs_df] if not df.empty)
 
                 gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype(layer_id[DTYPE_IDX])
-                gul_inputs_df = gul_inputs_df.sort_values(by=['gul_input_id', 'layer_id'])
+                # gul_inputs_df = gul_inputs_df.sort_values(by=['gul_input_id', 'layer_id'])
                 gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype(profile_id[DTYPE_IDX])
 
                 # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
