@@ -173,14 +173,29 @@ class MultiConversionTest(TestCase):
                 file_type="weights",
                 sub_dir="envdtype",
                 ),
+
+            dict(converter="csvtobin",
+                 file_type="fm_profile",
+                 sub_dir="envdtype"),
+            dict(converter="bintocsv",
+                 file_type="fm_profile",
+                 sub_dir="envdtype"),
+
+            dict(converter="csvtobin",
+                 file_type="fm_profile_step",
+                 sub_dir="envdtype"),
+            dict(converter="bintocsv",
+                 file_type="fm_profile_step",
+                 sub_dir="envdtype")
             ]
 
-        env_args = { "OASIS_FLOAT": "f8", "OASIS_AREAPERIL_TYPE": "u8" }
+        env_args = { "OASIS_FLOAT": "f8", "OASIS_INT": "i8",
+                    "OASIS_AREAPERIL_TYPE": "u8" }
 
         cases_runner(self.case_args, tmp_dir=self.tmp_dir, env_vars=env_args)
 
 
-    def _run_general_case(self, file_type):
+    def _run_general_case(self, file_type, abnormal_dtype=False):
         case_args = [ca for ca in self.case_args if ca['file_type'] == file_type]
 
         for args in case_args:
@@ -197,7 +212,7 @@ class MultiConversionTest(TestCase):
             actual_outfile = Path(self.tmp_dir, file_out)
 
             compare_conversion_outputs(expected_outfile, actual_outfile, file_type, out_ext,
-                                       dtype=dtype)
+                                       dtype=dtype, abnormal_dtype=abnormal_dtype)
 
 
     def test_coverages(self):
@@ -215,4 +230,8 @@ class MultiConversionTest(TestCase):
     def test_weights(self):
         self._run_general_case(file_type="weights")
 
+    def test_fm_profile(self):
+        self._run_general_case(file_type="fm_profile")
 
+    def test_fm_profile_step(self):
+        self._run_general_case(file_type="fm_profile_step")
