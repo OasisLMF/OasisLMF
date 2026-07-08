@@ -82,7 +82,7 @@ def compare_conversion_outputs(expected_outfile, actual_outfile, file_type, out_
             custom_dtype = "u1"
         elif dtype:
             custom_dtype = dtype
-        else: # Default dtype
+        else:  # Default dtype
             custom_dtype = TOOL_INFO[file_type]["dtype"]
         expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype=custom_dtype))
         actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype=custom_dtype))
@@ -92,7 +92,6 @@ def compare_conversion_outputs(expected_outfile, actual_outfile, file_type, out_
         actual_outfile_data = pd.read_parquet(actual_outfile)
         pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
     return
-
 
 
 def case_runner_tocsv_with_zip_and_idx(file_type, sub_dir, filename, **kwargs):

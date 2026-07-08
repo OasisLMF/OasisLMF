@@ -139,7 +139,7 @@ vulnerability_weight = ("weight", oasis_float, "%f")
 # custom header type definitions
 vulnerability_bin_header_type = np.dtype([
     ('max_damage_bin_idx', np.int32),
-    ])
+])
 
 # Types
 aggregatevulnerability_output = [

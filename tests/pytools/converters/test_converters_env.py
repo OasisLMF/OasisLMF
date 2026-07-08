@@ -14,6 +14,7 @@ from tests.pytools.converters.test_converters import compare_conversion_outputs,
 
 _DTYPE_EXT = "dtype.json"
 
+
 def copy_working_files(source_dir, work_dir, file_in, kwarg_file=None):
     source_dir = Path(source_dir)
     work_dir = Path(work_dir)
@@ -47,6 +48,7 @@ def generate_conversion_fragment(work_dir, file_in, file_out, file_type, convert
 
             """)
     return output
+
 
 def generate_header_fragment():
     out_string = dedent("""\
@@ -101,13 +103,13 @@ def cases_runner(case_args, tmp_dir, env_vars=None):
     script = generate_header_fragment()
     for case_arg in case_args:
         script += generate_conversion_fragment(
-                            work_dir=tmp_dir,
-                            file_in=case_arg['file_in'],
-                            file_out=case_arg['file_out'],
-                            file_type=case_arg['file_type'],
-                            converter=case_arg['converter'],
-                            kwarg_file=case_arg.get('kwarg_file', None)
-                )
+            work_dir=tmp_dir,
+            file_in=case_arg['file_in'],
+            file_out=case_arg['file_out'],
+            file_type=case_arg['file_type'],
+            converter=case_arg['converter'],
+            kwarg_file=case_arg.get('kwarg_file', None)
+        )
 
     script_path = Path(tmp_dir) / "script.py"
     with open(script_path, 'w') as f:
@@ -125,17 +127,18 @@ def cases_runner(case_args, tmp_dir, env_vars=None):
             env[env_key] = env_value
 
     result = subprocess.run(
-            [sys.executable, str(script_path)],
-            env = env,
-            capture_output=True,
-            text=True,
-            timeout=300,
-            )
+        [sys.executable, str(script_path)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
 
     assert result.returncode == 0, (
         f"conversion subprocess failed ({result.returncode}):\n"
         f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     )
+
 
 class MultiConversionTest(TestCase):
     @classmethod
@@ -164,16 +167,16 @@ class MultiConversionTest(TestCase):
             dict(converter="bintocsv", file_type="vulnerability",
                  sub_dir="envdtype",
                  kwarg_file="vulnerability_bintocsv_args.json",
-                ),
+                 ),
 
             dict(converter="csvtobin",
-                file_type="weights",
-                sub_dir="envdtype",
-                ),
+                 file_type="weights",
+                 sub_dir="envdtype",
+                 ),
             dict(converter="bintocsv",
-                file_type="weights",
-                sub_dir="envdtype",
-                ),
+                 file_type="weights",
+                 sub_dir="envdtype",
+                 ),
 
             dict(converter="csvtobin",
                  file_type="fm_profile",
@@ -188,15 +191,14 @@ class MultiConversionTest(TestCase):
             dict(converter="bintocsv",
                  file_type="fm_profile_step",
                  sub_dir="envdtype")
-            ]
+        ]
 
-        env_args = { "OASIS_FLOAT": "f8", "OASIS_INT": "i8",
-                    "OASIS_AREAPERIL_TYPE": "u8" }
+        env_args = {"OASIS_FLOAT": "f8", "OASIS_INT": "i8",
+                    "OASIS_AREAPERIL_TYPE": "u8"}
 
         cases_runner(cls.case_args, tmp_dir=cls.tmp_dir.name, env_vars=env_args)
 
         super().setUpClass()
-
 
     @staticmethod
     def _run_general_case(case_args, tmp_dir, file_type, abnormal_dtype=False):
@@ -217,7 +219,6 @@ class MultiConversionTest(TestCase):
 
             compare_conversion_outputs(expected_outfile, actual_outfile, file_type, out_ext,
                                        dtype=dtype, abnormal_dtype=abnormal_dtype)
-
 
     def test_coverages(self):
         self._run_general_case(self.case_args, self.tmp_dir.name, file_type="coverages")

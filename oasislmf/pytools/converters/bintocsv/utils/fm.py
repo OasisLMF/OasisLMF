@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 event_id_dtype, event_id_dtype_size = def_to_type_and_size(event_id_def)
 item_id_dtype, item_id_dtype_size = def_to_type_and_size(item_id_def)
 
+
 class FMReader(EventReader):
     def __init__(self, len_sample, data_dtype):
         self.logger = logger
