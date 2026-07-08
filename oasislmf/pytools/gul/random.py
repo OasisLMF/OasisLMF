@@ -44,6 +44,7 @@ cdf_min = -20
 cdf_max = 20.
 inv_factor = (norm_inv_N - 1) / (x_max - x_min)
 norm_factor = (norm_inv_N - 1) / (cdf_max - cdf_min)
+epsilon = 0.025
 
 
 @njit(cache=True, fastmath=True)
@@ -165,6 +166,17 @@ def _interpolate_lookup(value, range_start, factor, table, N):
 
 
 @njit(cache=True, fastmath=True)
+def _fast_lookup(value, range_start, factor, table, N):
+    """Fast table lookup using simple truncation (no interpolation)."""
+    index = int((value - range_start) * factor)
+    if index < 0:
+        index = 0
+    elif index > N - 1:
+        index = N - 1
+    return table[index]
+
+
+@njit(cache=True, fastmath=True)
 def get_corr_rval(x_unif, y_unif, rho, x_min, x_max, N, norm_inv_cdf, cdf_min,
                   cdf_max, norm_cdf, Nsamples, z_unif):
     sqrt_rho = sqrt(rho)
@@ -184,17 +196,31 @@ def get_corr_rval(x_unif, y_unif, rho, x_min, x_max, N, norm_inv_cdf, cdf_min,
 def get_corr_rval_float(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
                         norm_cdf, norm_factor, Nsamples, z_unif):
     """
-    this calculate the new correlated values like in get_corr_rval but with precomputed inv_factor and norm_factor
+    This calculate the new correlated values like in get_corr_rval but with precomputed inv_factor and norm_factor
     inv_factor = (N - 1) / (x_max - x_min)
     norm_factor = (N - 1) / (cdf_max - cdf_min)
+    Also uses fast lookup for the middle values and interpolation for the tail values
     """
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
     N = len(norm_inv_cdf)
+    eps = epsilon
+    upper = 1.0 - eps
 
     for i in range(Nsamples):
-        x_norm = _interpolate_lookup(x_unif[i], x_min, inv_factor, norm_inv_cdf, N)
-        y_norm = _interpolate_lookup(y_unif[i], x_min, inv_factor, norm_inv_cdf, N)
+        x_i = x_unif[i]
+        y_i = y_unif[i]
+
+        if x_i < eps or x_i > upper:
+            x_norm = _interpolate_lookup(x_i, x_min, inv_factor, norm_inv_cdf, N)
+        else:
+            x_norm = _fast_lookup(x_i, x_min, inv_factor, norm_inv_cdf, N)
+
+        if y_i < eps or y_i > upper:
+            y_norm = _interpolate_lookup(y_i, x_min, inv_factor, norm_inv_cdf, N)
+        else:
+            y_norm = _fast_lookup(y_i, x_min, inv_factor, norm_inv_cdf, N)
+
         z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
 
         z_unif[i] = _interpolate_lookup(z_norm, cdf_min, norm_factor, norm_cdf, N)
