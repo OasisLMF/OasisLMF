@@ -2,7 +2,7 @@
 import logging
 import numba as nb
 import numpy as np
-from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, def_to_type_and_size, oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size,
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, def_to_type_and_size, oasis_int, loss_pair_dtype, loss_pair_size,
                                           write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.data import event_id as event_id_def, item_id as item_id_def
 from oasislmf.pytools.common.event_stream import (
