@@ -138,11 +138,12 @@ def cases_runner(case_args, tmp_dir, env_vars=None):
     )
 
 class MultiConversionTest(TestCase):
-    def setUp(self) -> None:
-        super().setUp()
-        self.tmp_dir = self.enterContext(TemporaryDirectory())
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp_dir = TemporaryDirectory()
+        cls.addClassCleanup(cls.tmp_dir.cleanup)
 
-        self.case_args = [
+        cls.case_args = [
             dict(converter="csvtobin", file_type="coverages",
                  sub_dir="envdtype",),
             dict(converter="bintocsv", file_type="coverages",
@@ -192,46 +193,49 @@ class MultiConversionTest(TestCase):
         env_args = { "OASIS_FLOAT": "f8", "OASIS_INT": "i8",
                     "OASIS_AREAPERIL_TYPE": "u8" }
 
-        cases_runner(self.case_args, tmp_dir=self.tmp_dir, env_vars=env_args)
+        cases_runner(cls.case_args, tmp_dir=cls.tmp_dir.name, env_vars=env_args)
+
+        super().setUpClass()
 
 
-    def _run_general_case(self, file_type, abnormal_dtype=False):
-        case_args = [ca for ca in self.case_args if ca['file_type'] == file_type]
+    @staticmethod
+    def _run_general_case(case_args, tmp_dir, file_type, abnormal_dtype=False):
+        case_args = [ca for ca in case_args if ca['file_type'] == file_type]
 
         for args in case_args:
             file_out = args['file_out']
             expected_file_out = args['expected_file_out']
             out_ext = args['out_ext']
             sub_dir = args['sub_dir']
-            assert file_out in os.listdir(self.tmp_dir), f"Output file {file_out} not generated."
+            assert file_out in os.listdir(tmp_dir), f"Output file {file_out} not generated."
 
-            with open(Path(self.tmp_dir, f"{file_type}_{_DTYPE_EXT}"), "r") as f:
+            with open(Path(tmp_dir, f"{file_type}_{_DTYPE_EXT}"), "r") as f:
                 dtype = np.dtype([tuple(_d) for _d in json.load(f)])
 
             expected_outfile = Path(TESTS_ASSETS_DIR, sub_dir, expected_file_out)
-            actual_outfile = Path(self.tmp_dir, file_out)
+            actual_outfile = Path(tmp_dir, file_out)
 
             compare_conversion_outputs(expected_outfile, actual_outfile, file_type, out_ext,
                                        dtype=dtype, abnormal_dtype=abnormal_dtype)
 
 
     def test_coverages(self):
-        self._run_general_case(file_type="coverages")
+        self._run_general_case(self.case_args, self.tmp_dir.name, file_type="coverages")
 
     def test_damagebin(self):
-        self._run_general_case(file_type="damagebin")
+        self._run_general_case(self.case_args, self.tmp_dir.name, file_type="damagebin")
 
     def test_items(self):
-        self._run_general_case(file_type="items")
+        self._run_general_case(self.case_args, self.tmp_dir.name, file_type="items")
 
     def test_vulnerability(self):
-        self._run_general_case(file_type="vulnerability")
+        self._run_general_case(self.case_args, self.tmp_dir.name, file_type="vulnerability")
 
     def test_weights(self):
-        self._run_general_case(file_type="weights")
+        self._run_general_case(self.case_args, self.tmp_dir.name, file_type="weights")
 
     def test_fm_profile(self):
-        self._run_general_case(file_type="fm_profile")
+        self._run_general_case(self.case_args, self.tmp_dir.name, file_type="fm_profile")
 
     def test_fm_profile_step(self):
-        self._run_general_case(file_type="fm_profile_step")
+        self._run_general_case(self.case_args, self.tmp_dir.name, file_type="fm_profile_step")
