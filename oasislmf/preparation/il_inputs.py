@@ -1138,8 +1138,14 @@ def get_il_input_items(
                     # inputs (meaning there's a reason to keep layers separate), else set to 0.
                     # Then dedup on (gul_input_id, agg_id, profile_id, layered_id).
                     if not is_policy_layer_level and level_id not in cross_layer_level:
+                        # Keep rows per layer when the (gul_input_id, agg_id) group spans more than
+                        # one profile_id: those layers carry genuinely different terms, so collapsing
+                        # them would drop layers and make the survivor depend on account row order.
+                        layer_specific = (non_layered_inputs_df
+                                          .groupby(['gul_input_id', 'agg_id'])['profile_id'].transform('nunique') > 1)
                         non_layered_inputs_df['layered_id'] = (non_layered_inputs_df['layer_id']
-                                                               .where(non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
+                                                               .where(layer_specific
+                                                                      | non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
                         non_layered_inputs_df = (non_layered_inputs_df
                                                  .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id'])
                                                  .drop(columns=['layered_id']))
@@ -1164,10 +1170,17 @@ def get_il_input_items(
                     else:
                         gul_inputs_df = gul_inputs_df.rename(columns={'PolNumber_temp': 'PolNumber'})
 
-                    # Drop premature layering (no difference of policy between layers)
-                    # Since no initial layered rows, layered_id would be 0 for all, so dedup on base columns
+                    # Drop premature layering (no difference of policy between layers).
+                    # Keep one row per layer when the (gul_input_id, agg_id) group spans more than one
+                    # profile_id (see the layered path above): otherwise layers sharing a profile_id
+                    # collapse to a single row whose identity depends on account row order (issue #2040).
                     if not is_policy_layer_level and level_id not in cross_layer_level:
-                        gul_inputs_df = gul_inputs_df.drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id'])
+                        layer_specific = (gul_inputs_df
+                                          .groupby(['gul_input_id', 'agg_id'])['profile_id'].transform('nunique') > 1)
+                        gul_inputs_df['layered_id'] = gul_inputs_df['layer_id'].where(layer_specific, 0)
+                        gul_inputs_df = (gul_inputs_df
+                                         .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id'])
+                                         .drop(columns=['layered_id']))
 
                 gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype(layer_id[DTYPE_IDX])
                 gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype(profile_id[DTYPE_IDX])
