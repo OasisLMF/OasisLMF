@@ -176,6 +176,13 @@ def run(run_dir,
         do_coverage_dependency = bool(coverage_dependents_ja_data.shape[0] > 0)
         if do_coverage_dependency:
             logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
+            # Dependency is opt-in per location via the keys: a coverage is a dependent only when
+            # the key server returns its source coverage type at the same areaperil (resolved in
+            # gul_inputs; a mismatched/absent source demotes the coverage to independent). So the
+            # forest here already reflects the per-location choice, and the guards below only
+            # apply to coverages that are actually linked.
+            n_intensity_bins = vuln_array.shape[2]
+
             # a dependent's vulnerability is driven directly by the source damage bin, so each
             # dependent vulnerability must be authored with exactly one intensity bin per damage
             # bin (1:1 with the damage bins, ids 1..N_damage_bins). NB this is per dependent vuln,
@@ -192,6 +199,23 @@ def run(run_dir,
                         f"exactly {n_damage_bins} intensity bins (one per damage bin, ids 1..{n_damage_bins}); "
                         f"vulnerability index {int(dep_vuln_idx)} uses {used_intensity_bins.shape[0]} intensity bins. "
                         "Author the dependent vulnerability with intensity bins matching the damage bins."
+                    )
+
+            # a source must keep a normal hazard-indexed vulnerability so the footprint hazard bins
+            # at the shared areaperil fit its curve and yield a damage bin to drive the dependent.
+            # A source whose vulnerability is itself damage-bin-authored (the 1:1 dependent shape,
+            # so it never spans the model's wider intensity resolution) cannot consume the hazard.
+            source_coverage_ids = np.unique(coverage_source_id[coverage_source_id > 0])
+            src_item_mask = np.isin(items['coverage_id'], source_coverage_ids) & (items['areaperil_agg_vuln_idx'] < 0)
+            for src_vuln_idx in np.unique(items['vulnerability_idx'][src_item_mask]):
+                used_intensity_bins = np.flatnonzero(vuln_array[src_vuln_idx].sum(axis=0) > 0)
+                if n_intensity_bins > n_damage_bins and used_intensity_bins.shape[0] == n_damage_bins \
+                        and used_intensity_bins[-1] == n_damage_bins - 1:
+                    raise OasisException(
+                        f"coverage dependency requires each source vulnerability to be hazard-indexed so the "
+                        f"footprint hazard bins fit its curve; source vulnerability index {int(src_vuln_idx)} "
+                        f"is confined to the {n_damage_bins} damage bins (the dependent shape) and cannot consume "
+                        "the hazard. Give the source a normal hazard-indexed vulnerability."
                     )
 
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
@@ -936,6 +960,14 @@ def compute_event_losses(compute_info,
                 # for absolute vulnerability functions, gul are absolute values
                 damage_bin_scaling = tiv if damage_bins[Neff_damage_bins - 1]['bin_to'] <= 1 else 1.0
 
+            # driver-only source (a retained zero-TIV dependency source): it emits no insured
+            # loss, but its damage bin must still drive its dependents. tiv == 0 would zero the
+            # relative/duration scaling and collapse the stored driving ratio to 0, so use unit
+            # scaling — the ratio then holds the damage fraction (hazard x vulnerability), which is
+            # what conditions the dependent, independent of the (zero) TIV.
+            if tiv == 0.0:
+                damage_bin_scaling = 1.0
+
             # compute mean loss values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
                 damage_bin_scaling,
@@ -1053,17 +1085,20 @@ def compute_event_losses(compute_info,
                             damage_ratio = 1.0
                         source_damage_ratio_stack[depth, item_j, sample_idx] = damage_ratio
 
-        # write the losses to the output memoryview
-        compute_info['cursor'] = write_losses(
-            compute_info['event_id'],
-            sample_size,
-            compute_info['loss_threshold'],
-            losses[:, :Nitems],
-            items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
-            compute_info['alloc_rule'],
-            tiv,
-            byte_mv,
-            compute_info['cursor'])
+        # write the losses to the output memoryview. A driver-only source (tiv == 0) is computed
+        # only to drive its dependents (its result is already stored on the stacks above) and
+        # carries no insured value, so it emits no output records.
+        if tiv != 0.0:
+            compute_info['cursor'] = write_losses(
+                compute_info['event_id'],
+                sample_size,
+                compute_info['loss_threshold'],
+                losses[:, :Nitems],
+                items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
+                compute_info['alloc_rule'],
+                tiv,
+                byte_mv,
+                compute_info['cursor'])
 
         # register that another `coverage_id` has been processed
         compute_info['coverage_i'] += 1

@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from ods_tools.oed import OedExposure
+
 from oasislmf.pytools.common.data import correlations_dtype
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
@@ -22,6 +24,8 @@ from oasislmf.pytools.gulmc.structure import (
     build_coverage_dependency_forest, _validate_acyclic_coverage_dependency,
 )
 from oasislmf.preparation.correlations import get_coverage_dependency_settings
+from oasislmf.preparation.gul_inputs import get_gul_input_items
+from oasislmf.utils.data import prepare_oed_exposure
 from oasislmf.utils.exceptions import OasisException
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets")
@@ -57,6 +61,81 @@ def test_get_coverage_dependency_settings():
     for bad in bad_settings:
         with pytest.raises(OasisException):
             get_coverage_dependency_settings({"model_settings": {"coverage_dependency_settings": bad}}, logger)
+
+
+# --------------------------------------------------------------------------------------
+# preparation: zero-TIV driver retention & per-location activation by keys
+# --------------------------------------------------------------------------------------
+def _gul_inputs_for_keys(keys_rows):
+    """Build gul_inputs with 3 locations (building type 1, contents type 3) from keys rows.
+
+    loc 1: building TIV 0 (uninsured), contents insured -> building must be retained driver-only.
+    loc 2: both insured. loc 3: both insured (used to test per-location ap_id activation).
+
+    Args:
+        keys_rows (list[dict]): keys with loc_id, coverage_type_id, area_peril_id.
+
+    Returns:
+        pd.DataFrame: gul_inputs_df with a coverage_dependency_settings of {source 1 -> dep 3}.
+    """
+    loc_df = pd.DataFrame({
+        'PortNumber': ['1', '1', '1'], 'AccNumber': ['1', '2', '3'], 'LocNumber': ['1', '2', '3'],
+        'CountryCode': ['GB', 'GB', 'GB'], 'LocCurrency': ['GBP', 'GBP', 'GBP'],
+        'LocPerilsCovered': ['WTC', 'WTC', 'WTC'],
+        'BuildingTIV': [0.0, 5000.0, 3000.0], 'ContentsTIV': [1000.0, 2000.0, 1500.0],
+        'OtherTIV': [0.0, 0.0, 0.0], 'BITIV': [0.0, 0.0, 0.0],
+    })
+    exposure = OedExposure(location=loc_df, use_field=True)
+    prepare_oed_exposure(exposure)
+    loc_df = exposure.location.dataframe
+
+    keys_df = pd.DataFrame([
+        {'peril_id': 'WTC', 'vulnerability_id': 1, 'status': 'success', 'message': '', **r} for r in keys_rows
+    ])
+    return get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'],
+                               coverage_dependency_settings=[(1, 3)])
+
+
+def test_zero_tiv_source_retained_as_driver():
+    """A zero-TIV source (building) at a location with an insured dependent (contents) is kept
+    as a driver-only coverage, and its dependent links to it — so an uninsured structure can
+    still drive its contents."""
+    # every location: building (1) and contents (3) at the same areaperil -> dependency active
+    keys = []
+    for loc in (1, 2, 3):
+        keys.append({'loc_id': loc, 'coverage_type_id': 1, 'areaperil_id': 1})
+        keys.append({'loc_id': loc, 'coverage_type_id': 3, 'areaperil_id': 1})
+    gul = _gul_inputs_for_keys(keys)
+
+    building = gul[gul['coverage_type_id'] == 1]
+    contents = gul[gul['coverage_type_id'] == 3]
+
+    # loc 1 building is uninsured (tiv 0) but retained as driver-only; loc 2/3 buildings insured
+    loc1_building = building[building['loc_id'] == 1]
+    assert (loc1_building['tiv'] == 0).all() and loc1_building['driver_only'].all()
+    assert not building[building['loc_id'].isin([2, 3])]['driver_only'].any()
+
+    # every contents links to its building (same location, same areaperil)
+    for loc in (1, 2, 3):
+        src = int(building[building['loc_id'] == loc]['coverage_id'].iloc[0])
+        assert (contents[contents['loc_id'] == loc]['source_coverage_id'] == src).all()
+
+
+def test_per_location_activation_by_areaperil():
+    """Dependency is active only where the key server returns the source at the same areaperil as
+    the dependent. Where contents' areaperil differs from building's, the dependent is independent."""
+    keys = []
+    for loc in (1, 2, 3):
+        keys.append({'loc_id': loc, 'coverage_type_id': 1, 'areaperil_id': 1})
+        # loc 3 contents is geocoded to a different areaperil -> must be independent
+        keys.append({'loc_id': loc, 'coverage_type_id': 3, 'areaperil_id': 2 if loc == 3 else 1})
+    gul = _gul_inputs_for_keys(keys)
+    contents = gul[gul['coverage_type_id'] == 3]
+
+    assert (contents[contents['loc_id'].isin([1, 2])]['source_coverage_id'] > 0).all(), \
+        "matching areaperil -> dependent"
+    assert (contents[contents['loc_id'] == 3]['source_coverage_id'] == 0).all(), \
+        "different areaperil -> independent"
 
 
 # --------------------------------------------------------------------------------------
