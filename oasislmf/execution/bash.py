@@ -356,13 +356,11 @@ def get_modelcmd(server=False, peril_filter=[]) -> str:
     return py_cmd
 
 
-def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False, coverage_dependency_mode='percentile'):
+def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False):
     """Get the ground-up loss calculation command.
 
     Args:
         gulmc (bool): if True, return the combined (model+ground up) command name, else use 'modelpy | gulpy' .
-        coverage_dependency_mode (str): 'percentile' (default) or 'conditional'. Only emitted when
-            not the default, so existing commands are unchanged.
 
     Returns:
         str: the ground-up loss calculation command
@@ -375,9 +373,6 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
 
         if gulmc_effective_damageability:
             cmd += " --effective-damageability"
-
-        if coverage_dependency_mode and coverage_dependency_mode != 'percentile':
-            cmd += f" --coverage-dependency-mode {coverage_dependency_mode}"
 
         if gulmc_vuln_cache_size:
             cmd += f" --vuln-cache-size {gulmc_vuln_cache_size}"
@@ -1633,7 +1628,6 @@ def get_getmodel_cmd(
         gulmc_vuln_cache_size=200,
         model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         dynamic_footprint=False,
-        coverage_dependency_mode='percentile',
         **kwargs):
     """
     Gets the GUL pipeline command (gulpy/gulmc) for a single process
@@ -1661,7 +1655,7 @@ def get_getmodel_cmd(
         gulcmd = get_gulcmd(
             gulmc, gul_random_generator, gulmc_effective_damageability,
             gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
-            dynamic_footprint=dynamic_footprint, coverage_dependency_mode=coverage_dependency_mode
+            dynamic_footprint=dynamic_footprint
         )
         cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
@@ -2033,7 +2027,6 @@ def bash_params(
     gulmc=True,
     gul_random_generator=2,
     gulmc_effective_damageability=False,
-    coverage_dependency_mode='percentile',
     gulmc_vuln_cache_size=200,
 
     # new options
@@ -2117,7 +2110,6 @@ def bash_params(
     bash_params['gulmc'] = gulmc
     bash_params['gul_random_generator'] = gul_random_generator
     bash_params['gulmc_effective_damageability'] = gulmc_effective_damageability
-    bash_params['coverage_dependency_mode'] = coverage_dependency_mode
     bash_params['gulmc_vuln_cache_size'] = gulmc_vuln_cache_size
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -2400,7 +2392,6 @@ def create_bash_analysis(
     gulmc,
     gul_random_generator,
     gulmc_effective_damageability,
-    coverage_dependency_mode,
     gulmc_vuln_cache_size,
     model_py_server,
     peril_filter,
@@ -2714,7 +2705,6 @@ def create_bash_analysis(
             'gulmc': gulmc,
             'gul_random_generator': gul_random_generator,
             'gulmc_effective_damageability': gulmc_effective_damageability,
-            'coverage_dependency_mode': coverage_dependency_mode,
             'gulmc_vuln_cache_size': gulmc_vuln_cache_size,
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
@@ -3131,7 +3121,6 @@ def genbash(
     gulmc=True,
     gul_random_generator=2,
     gulmc_effective_damageability=False,
-    coverage_dependency_mode='percentile',
     gulmc_vuln_cache_size=200,
     model_py_server=False,
     peril_filter=[],
@@ -3214,7 +3203,6 @@ def genbash(
         gulmc=gulmc,
         gul_random_generator=gul_random_generator,
         gulmc_effective_damageability=gulmc_effective_damageability,
-        coverage_dependency_mode=coverage_dependency_mode,
         gulmc_vuln_cache_size=gulmc_vuln_cache_size,
         model_py_server=model_py_server,
         peril_filter=peril_filter,

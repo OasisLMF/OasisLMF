@@ -37,7 +37,6 @@ from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_L
 from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set,
                               set_hazard_case_set)
-from ...preparation.correlations import get_coverage_dependency_mode
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...pytools.fm.manager import run as fmpy_run
@@ -494,7 +493,6 @@ class GenerateLossesPartial(GenerateLossesDir):
             gulmc=(self.gulmc and not self.model_custom_gulcalc),
             gul_random_generator=self.gul_random_generator,
             gulmc_effective_damageability=self.gulmc_effective_damageability,
-            coverage_dependency_mode=get_coverage_dependency_mode(self.settings, self.logger),
             gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,

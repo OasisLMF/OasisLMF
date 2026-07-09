@@ -115,5 +115,4 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     ('effective_damageability', np.int8),
     ('debug', np.int8),
     ('do_coverage_dependency', np.int8),
-    ('dependency_mode', np.int8),  # 0 = percentile (default), 1 = conditional
 ]))

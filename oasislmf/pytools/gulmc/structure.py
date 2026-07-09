@@ -33,7 +33,6 @@ from oasislmf.pytools.gulmc.aggregate import (
 )
 from oasislmf.pytools.gulmc.common import (
     NormInversionParameters, coverage_type,
-    DAMAGE_TYPE_DEFAULT, DAMAGE_TYPE_ABSOLUTE, DAMAGE_TYPE_DURATION,
 )
 from oasislmf.pytools.gulmc.items import (
     read_items, generate_item_map,
@@ -103,29 +102,6 @@ def _validate_acyclic_coverage_dependency(coverage_source_id):
             )
         for nd in path:
             state[nd] = 2
-
-
-def damage_bins_are_relative(damage_bins):
-    """Return whether the model's damage bins express damage as a [0, 1] fraction of TIV.
-
-    Coverage dependency drives a dependent coverage's hazard from its source coverage's
-    damage ratio, which is only a meaningful [0, 1] severity for relative vulnerabilities.
-    Absolute and duration damage types (and default-typed bins whose values exceed 1) are
-    not fractions and cannot be used as a dependency source.
-
-    Args:
-        damage_bins (np.ndarray): the model damage bin dictionary (has 'damage_type', 'bin_to').
-
-    Returns:
-        bool: True if the damage bins are relative (or default fractions in [0, 1]).
-    """
-    damage_types = damage_bins['damage_type']
-    if np.any((damage_types == DAMAGE_TYPE_ABSOLUTE) | (damage_types == DAMAGE_TYPE_DURATION)):
-        return False
-    # default-typed bins behave as relative only when the bins are fractions of TIV ([0, 1])
-    if np.any(damage_types == DAMAGE_TYPE_DEFAULT) and float(damage_bins['bin_to'].max()) > 1.0:
-        return False
-    return True
 
 
 def build_coverage_dependency_forest(items, n_coverages):
@@ -329,18 +305,10 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     unique_peril_correlation_groups = np.unique(items['peril_correlation_group'])
 
     # --- coverage dependency forest --------------------------------------------
+    # NB the dependent-vulnerability guard (each dependent vuln must have one intensity bin per
+    # damage bin) is applied per vulnerability in the gulmc manager, where the vuln array is loaded.
     coverage_source_id, coverage_dependents_ja_offsets, coverage_dependents_ja_data = \
         build_coverage_dependency_forest(items, coverages.shape[0])
-
-    # coverage dependency drives a dependent's hazard from its source's damage ratio, which
-    # is only meaningful for relative (fractional) damage. Reject absolute/duration models.
-    if coverage_dependents_ja_data.shape[0] > 0 and not damage_bins_are_relative(damage_bins):
-        raise OasisException(
-            "coverage_dependency_settings is configured but the model's damage_bin_dict uses "
-            "absolute/duration damage. A coverage dependency source must use relative "
-            "(fractional, [0, 1]) damage, so its damage ratio can drive the dependent's hazard. "
-            "Remove coverage_dependency_settings or use a relative-damage model."
-        )
 
     # --- footprint (temporary open to get num_intensity_bins) ------------------
     # FootprintParquetDynamic.__enter__ reads input/sections.csv and input/keys.csv
