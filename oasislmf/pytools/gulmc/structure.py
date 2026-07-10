@@ -204,15 +204,17 @@ def get_conditional_vulns(storage, num_damage_bins, ignore_file_type=set()):
         conditional_vuln_array[id_to_idx[int(r['vulnerability_id'])],
                                int(r['damage_bin_id']) - 1, int(r['intensity_bin_id']) - 1] = r['probability']
 
-    # each source damage bin that appears must map to a distribution (its column sums to 1)
+    # EVERY source damage bin (1..num_damage_bins) must map to a full distribution (its column
+    # sums to 1). An undefined source bin would leave an all-zero column, silently giving the
+    # dependent no loss whenever its source lands in that bin — so require complete coverage.
     col_sums = conditional_vuln_array.sum(axis=1)  # [n_cond, source_damage_bin]
-    bad = (col_sums > 1e-6) & (np.abs(col_sums - 1.0) > 1e-3)
+    bad = np.abs(col_sums - 1.0) > 1e-3
     if np.any(bad):
         c, s = (int(x) for x in np.argwhere(bad)[0])
         raise OasisException(
             f"conditional_vulnerability: vulnerability_id {int(cond_vuln_ids[c])} source damage bin {s + 1} "
-            f"probabilities sum to {col_sums[c, s]:.4f}, expected 1.0 (each source damage bin must map to a "
-            "full distribution over dependent damage bins)."
+            f"probabilities sum to {col_sums[c, s]:.4f}, expected 1.0 (every source damage bin 1..{num_damage_bins} "
+            "must map to a full distribution over dependent damage bins)."
         )
 
     return conditional_vuln_array, cond_vuln_ids.astype(np.int32)
@@ -410,12 +412,13 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # conditional_vuln_array is compact (one row per conditional vuln); vuln_idx_to_cond_idx maps a
     # vuln's dense index (as carried on items' vulnerability_idx) to its conditional row, or -1 for
     # a normal hazard-indexed vulnerability.
-    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=oasis_int)
+    # signed dtype: the -1 "not conditional" sentinel must survive an unsigned oasis_int override
+    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=np.int64)
     if cond_vuln_ids.shape[0] > 0:
         present = np.isin(items['vulnerability_id'], cond_vuln_ids)
         # cond_vuln_ids is ascending (np.unique), so searchsorted gives the conditional row
         vuln_idx_to_cond_idx[items['vulnerability_idx'][present]] = \
-            np.searchsorted(cond_vuln_ids, items['vulnerability_id'][present]).astype(oasis_int)
+            np.searchsorted(cond_vuln_ids, items['vulnerability_id'][present]).astype(np.int64)
 
     # --- Gaussian lookup tables (deterministic constants) ----------------------
     norm_inv_parameters = np.array(

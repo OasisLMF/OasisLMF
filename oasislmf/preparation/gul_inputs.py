@@ -455,11 +455,12 @@ def get_gul_input_items(
             source_cov, on=['loc_id', 'building_id'], how='left')
         gul_inputs_df.loc[dep_mask, 'source_coverage_id'] = merged['_src_cov_id'].fillna(0).to_numpy().astype('uint32')
 
-    # A dependency is only valid if the dependent coverage spans the same areaperils as its
-    # source, so each dependent item's peril has a matching source item (gulmc drives the
-    # dependent per peril by index-aligned position). Demote any dependent coverage whose
-    # areaperil set differs from its source to independent, and log it. This keeps mixed
-    # independent/dependent coverages working within one model.
+    # A dependency is only valid if the dependent coverage's items line up one-to-one with its
+    # source's, because gulmc drives the dependent per item by index-aligned position. That
+    # requires the same multiset of areaperils (same areaperils AND the same item count per
+    # areaperil) — not merely the same set: a source with two vulnerabilities at one areaperil
+    # would otherwise silently misalign against a single-item dependent. Compare the sorted
+    # areaperil sequence (with multiplicity) and demote any mismatch to independent, with a log.
     linked_mask = gul_inputs_df['source_coverage_id'] > 0
     if linked_mask.any():
         involved = pd.unique(pd.concat([
@@ -468,7 +469,7 @@ def get_gul_input_items(
         ]))
         areaperils_by_coverage = (
             gul_inputs_df[gul_inputs_df['coverage_id'].isin(involved)]
-            .groupby('coverage_id')['areaperil_id'].agg(frozenset)
+            .groupby('coverage_id')['areaperil_id'].agg(lambda s: tuple(sorted(s)))
         ).to_dict()
         links = gul_inputs_df.loc[linked_mask, ['coverage_id', 'source_coverage_id']].drop_duplicates()
         demoted = [int(coverage) for coverage, source in links.itertuples(index=False)
@@ -477,7 +478,7 @@ def get_gul_input_items(
             gul_inputs_df.loc[gul_inputs_df['coverage_id'].isin(demoted), 'source_coverage_id'] = 0
             logger.warning(
                 "coverage dependency: %d dependent coverage(s) demoted to independent because their "
-                "areaperils differ from their source coverage (e.g. coverage_ids %s)",
+                "areaperils do not line up one-to-one with their source coverage (e.g. coverage_ids %s)",
                 len(demoted), sorted(demoted)[:10])
 
     # group_id and hazard_group_id: Correlation groups for damage/hazard sampling

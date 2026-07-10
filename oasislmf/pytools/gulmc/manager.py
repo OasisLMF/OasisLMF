@@ -36,6 +36,7 @@ from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, genera
                                          generate_hash_hazard, get_corr_rval_float, get_random_generator)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
+                                           DAMAGE_TYPE_DEFAULT,
                                            DAMAGE_TYPE_DURATION,
                                            DAMAGE_TYPE_RELATIVE,
                                            NP_BASE_ARRAY_SIZE,
@@ -56,6 +57,87 @@ logger = logging.getLogger(__name__)
 
 CDF_CACHE_EMPTY = nb_int64(-1)
 NO_RNG_INDEX = nb_int64(-1)
+
+
+def validate_coverage_dependency(items, coverage_source_id, vuln_array, vuln_idx_to_cond_idx, damage_bins):
+    """Validate a coverage-dependency configuration against the loaded model data (fail-loud).
+
+    A dependent coverage (``coverage_source_id[coverage] > 0``) is driven by its source's sampled
+    damage bin through a conditional (damage-transition) vulnerability. This checks the four
+    invariants the gulmc kernel relies on, raising a clear error rather than silently producing
+    wrong losses:
+
+    1. a dependent must not use an aggregate vulnerability (the aggregate assembly path is not
+       wired for the damage-bin-indexed conditional matrix);
+    2. a dependent must use a conditional vulnerability (present in conditional_vulnerability, i.e.
+       ``vuln_idx_to_cond_idx[vulnerability_idx] >= 0``);
+    3. an independent coverage must NOT use a conditional vulnerability (it has no source to drive
+       it and a conditional vuln cannot be sampled by the footprint hazard);
+    4. a source coverage must use RELATIVE damage, so its per-sample damage ratio (clamped to
+       [0, 1] and mapped back via ``damage_bins['bin_to']``) recovers the correct source bin.
+
+    Args:
+        items (np.ndarray): items table (coverage_id, vulnerability_id, vulnerability_idx,
+            areaperil_agg_vuln_idx).
+        coverage_source_id (np.ndarray): parent coverage_id per coverage_id (0 = independent).
+        vuln_array (np.ndarray): hazard-indexed vulnerabilities [n_vuln, n_damage, n_intensity].
+        vuln_idx_to_cond_idx (np.ndarray): dense vuln idx -> conditional row, or -1 if not conditional.
+        damage_bins (np.ndarray): damage bin dictionary (uses 'damage_type', 'bin_to').
+
+    Raises:
+        OasisException: if any of the four invariants is violated.
+    """
+    non_agg = items['areaperil_agg_vuln_idx'] < 0
+    is_dependent_item = coverage_source_id[items['coverage_id']] > 0
+
+    dependent_aggregate = is_dependent_item & ~non_agg
+    if np.any(dependent_aggregate):
+        bad = np.unique(items['coverage_id'][dependent_aggregate])
+        raise OasisException(
+            f"coverage dependency: dependent coverage id(s) {bad.tolist()} use an aggregate vulnerability, "
+            "which is not supported for a dependent coverage. Use a single conditional vulnerability."
+        )
+
+    # membership only makes sense for non-aggregate items (aggregate items carry no single
+    # vulnerability_idx): a dependent must use a conditional vuln, an independent a normal one.
+    item_is_conditional = np.zeros(len(items), dtype=bool)
+    item_is_conditional[non_agg] = vuln_idx_to_cond_idx[items['vulnerability_idx'][non_agg]] >= 0
+
+    dependent_without_conditional = is_dependent_item & non_agg & ~item_is_conditional
+    if np.any(dependent_without_conditional):
+        bad = np.unique(items['vulnerability_id'][dependent_without_conditional])
+        raise OasisException(
+            f"coverage dependency: dependent coverage(s) use vulnerability id(s) {bad.tolist()} that are "
+            "not in the conditional_vulnerability file; a dependent coverage must use a conditional "
+            "(damage-transition) vulnerability. Add it to conditional_vulnerability, or remove the dependency."
+        )
+
+    independent_with_conditional = ~is_dependent_item & non_agg & item_is_conditional
+    if np.any(independent_with_conditional):
+        bad = np.unique(items['vulnerability_id'][independent_with_conditional])
+        raise OasisException(
+            f"coverage dependency: coverage(s) with conditional vulnerability id(s) {bad.tolist()} have no "
+            "source at the same areaperil, so they are independent, but a conditional vulnerability cannot be "
+            "sampled by the footprint hazard. Provide a matching source (same areaperil) or use a "
+            "hazard-indexed vulnerability."
+        )
+
+    source_coverage_ids = np.unique(coverage_source_id[coverage_source_id > 0])
+    src_mask = np.isin(items['coverage_id'], source_coverage_ids) & non_agg
+    damage_types = damage_bins['damage_type']
+    for src_vuln_idx in np.unique(items['vulnerability_idx'][src_mask]):
+        used = np.flatnonzero(vuln_array[src_vuln_idx].sum(axis=1) > 0)
+        if not used.size:
+            continue
+        used_types = damage_types[used]
+        not_relative = bool(np.any((used_types == DAMAGE_TYPE_ABSOLUTE) | (used_types == DAMAGE_TYPE_DURATION))) or (
+            bool(np.any(used_types == DAMAGE_TYPE_DEFAULT)) and float(damage_bins['bin_to'][used].max()) > 1.0)
+        if not_relative:
+            raise OasisException(
+                f"coverage dependency: source vulnerability index {int(src_vuln_idx)} uses non-relative "
+                "(absolute/duration) damage; a coverage-dependency source must use relative damage so its "
+                "[0, 1] damage ratio recovers the source damage bin. Use a relative-damage source coverage."
+            )
 
 
 @redirect_logging(exec_name='gulmc')
@@ -186,27 +268,7 @@ def run(run_dir,
         if do_coverage_dependency or conditional_vuln_array.shape[0] > 0:
             if do_coverage_dependency:
                 logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
-            is_dependent_item = coverage_source_id[items['coverage_id']] > 0
-            item_is_conditional = vuln_idx_to_cond_idx[items['vulnerability_idx']] >= 0
-
-            dependent_without_conditional = is_dependent_item & ~item_is_conditional
-            if np.any(dependent_without_conditional):
-                bad = np.unique(items['vulnerability_id'][dependent_without_conditional])
-                raise OasisException(
-                    f"coverage dependency: dependent coverage(s) use vulnerability id(s) {bad.tolist()} that are "
-                    "not in the conditional_vulnerability file; a dependent coverage must use a conditional "
-                    "(damage-transition) vulnerability. Add it to conditional_vulnerability, or remove the dependency."
-                )
-
-            independent_with_conditional = ~is_dependent_item & item_is_conditional
-            if np.any(independent_with_conditional):
-                bad = np.unique(items['vulnerability_id'][independent_with_conditional])
-                raise OasisException(
-                    f"coverage dependency: coverage(s) with conditional vulnerability id(s) {bad.tolist()} have no "
-                    "source at the same areaperil, so they are independent, but a conditional vulnerability cannot be "
-                    "sampled by the footprint hazard. Provide a matching source (same areaperil) or use a "
-                    "hazard-indexed vulnerability."
-                )
+            validate_coverage_dependency(items, coverage_source_id, vuln_array, vuln_idx_to_cond_idx, damage_bins)
 
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
@@ -1396,16 +1458,16 @@ def reconstruct_coverages(compute_info,
             if subtree_item_count > max_subtree_items:
                 max_subtree_items = subtree_item_count
         if write_index != num_present_coverages:
-            # safety: a present coverage was not reachable from a present root (should not
-            # happen when source and dependent share an areaperil). Fall back to independent
-            # processing for this event so no coverage is dropped.
-            compute[:num_present_coverages] = compute_footprint_order[:num_present_coverages]
-            for position in range(num_present_coverages):
-                compute_depth[position] = 0
-            max_subtree_items = int(np.max(coverages['cur_items']))
-            compute_i = num_present_coverages
-        else:
-            compute_i = write_index
+            # A present dependent coverage was not reachable from a present source this event.
+            # This should never happen: source and dependent share areaperils, so they co-occur,
+            # and the input preparation demotes any dependent that does not line up with its
+            # source. Falling back to "independent" would silently give a conditional dependent
+            # zero loss (its vulnerability is not in the hazard-indexed array), so fail loud.
+            raise RuntimeError(
+                "coverage dependency: a present dependent coverage was not reachable from a "
+                "present source coverage in this event; aborting rather than producing wrong losses."
+            )
+        compute_i = write_index
     else:
         for position in range(compute_i):
             compute_depth[position] = 0

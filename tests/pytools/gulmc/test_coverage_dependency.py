@@ -112,6 +112,78 @@ def test_get_conditional_vulns_requires_distribution():
             get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
 
 
+def test_get_conditional_vulns_requires_all_source_bins():
+    """Every source damage bin 1..N must be defined; an undefined bin would silently give the
+    dependent no loss when its source lands there, so it must fail loud."""
+    from oasislmf.pytools.gulmc.structure import get_conditional_vulns
+    from oasis_data_manager.filestore.backends.local import LocalStorage
+    with tempfile.TemporaryDirectory() as d:
+        # source bins 1 and 2 defined, source bin 3 missing (num_damage_bins=3)
+        _write_conditional_vuln_csv(d, [(7, 1, 1, 1.0), (7, 2, 2, 1.0)])
+        with pytest.raises(OasisException):
+            get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
+
+
+# --------------------------------------------------------------------------------------
+# validation guards (validate_coverage_dependency contract)
+# --------------------------------------------------------------------------------------
+def _dependency_arrays():
+    """A minimal valid coverage-dependency setup: source coverage 1 (relative, hazard-indexed),
+    dependent coverage 2 (conditional). Returns the args for validate_coverage_dependency, which
+    individual tests perturb to trip one guard."""
+    items = np.zeros(2, dtype=[('coverage_id', 'i4'), ('vulnerability_id', 'i4'),
+                               ('vulnerability_idx', 'i4'), ('areaperil_agg_vuln_idx', 'i4')])
+    items['coverage_id'] = [1, 2]
+    items['vulnerability_id'] = [10, 20]
+    items['vulnerability_idx'] = [0, 1]
+    items['areaperil_agg_vuln_idx'] = [-1, -1]          # both non-aggregate
+    coverage_source_id = np.array([0, 0, 1], dtype='u4')  # indexed by coverage_id; cov 2 -> source 1
+    vuln_array = np.zeros((2, 3, 4), dtype='f4')
+    vuln_array[0, 0, 0] = vuln_array[0, 1, 0] = 0.5      # source uses damage bins 0,1
+    vuln_idx_to_cond_idx = np.array([-1, 0], dtype='i8')  # vuln 0 normal, vuln 1 conditional
+    damage_bins = np.zeros(3, dtype=[('bin_to', 'f4'), ('damage_type', 'i4')])
+    damage_bins['bin_to'] = [0.0, 0.5, 1.0]
+    damage_bins['damage_type'] = 1                        # relative
+    return items, coverage_source_id, vuln_array, vuln_idx_to_cond_idx, damage_bins
+
+
+def test_validate_coverage_dependency_accepts_valid_setup():
+    from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
+    validate_coverage_dependency(*_dependency_arrays())  # must not raise
+
+
+def test_validate_rejects_aggregate_dependent():
+    from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
+    items, csid, va, v2c, db = _dependency_arrays()
+    items['areaperil_agg_vuln_idx'][1] = 0  # dependent uses an aggregate vulnerability
+    with pytest.raises(OasisException):
+        validate_coverage_dependency(items, csid, va, v2c, db)
+
+
+def test_validate_rejects_non_relative_source():
+    from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
+    items, csid, va, v2c, db = _dependency_arrays()
+    db['damage_type'] = 2  # absolute source damage -> [0,1] ratio can't recover the source bin
+    with pytest.raises(OasisException):
+        validate_coverage_dependency(items, csid, va, v2c, db)
+
+
+def test_validate_rejects_dependent_without_conditional_vuln():
+    from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
+    items, csid, va, v2c, db = _dependency_arrays()
+    v2c[1] = -1  # dependent's vuln is not in the conditional file
+    with pytest.raises(OasisException):
+        validate_coverage_dependency(items, csid, va, v2c, db)
+
+
+def test_validate_rejects_independent_with_conditional_vuln():
+    from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
+    items, csid, va, v2c, db = _dependency_arrays()
+    csid[2] = 0  # coverage 2 has no source (independent) but still carries a conditional vuln
+    with pytest.raises(OasisException):
+        validate_coverage_dependency(items, csid, va, v2c, db)
+
+
 # --------------------------------------------------------------------------------------
 # preparation: zero-TIV driver retention & per-location activation by keys
 # --------------------------------------------------------------------------------------
@@ -185,6 +257,32 @@ def test_per_location_activation_by_areaperil():
         "matching areaperil -> dependent"
     assert (contents[contents['loc_id'] == 3]['source_coverage_id'] == 0).all(), \
         "different areaperil -> independent"
+
+
+def test_source_multiplicity_demotes_dependent():
+    """A dependent must line up one-to-one with its source. Here the source (building) has two
+    items at one areaperil (two perils geocoded to the same cell) while the dependent (contents)
+    has one — same areaperil SET but different multiset — so the dependent must be demoted to
+    independent (a set-only check would have missed this and silently misaligned)."""
+    loc_df = pd.DataFrame({
+        'PortNumber': ['1'], 'AccNumber': ['1'], 'LocNumber': ['1'],
+        'CountryCode': ['GB'], 'LocCurrency': ['GBP'], 'LocPerilsCovered': ['WTC;WSS'],
+        'BuildingTIV': [5000.0], 'ContentsTIV': [2000.0], 'OtherTIV': [0.0], 'BITIV': [0.0],
+    })
+    exposure = OedExposure(location=loc_df, use_field=True)
+    prepare_oed_exposure(exposure)
+    loc_df = exposure.location.dataframe
+    keys_df = pd.DataFrame([
+        {'loc_id': 1, 'peril_id': 'WTC', 'coverage_type_id': 1, 'areaperil_id': 1, 'vulnerability_id': 1, 'status': 'success', 'message': ''},
+        {'loc_id': 1, 'peril_id': 'WSS', 'coverage_type_id': 1, 'areaperil_id': 1, 'vulnerability_id': 1, 'status': 'success', 'message': ''},
+        {'loc_id': 1, 'peril_id': 'WTC', 'coverage_type_id': 3, 'areaperil_id': 1, 'vulnerability_id': 1, 'status': 'success', 'message': ''},
+    ])
+    gul = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'],
+                              coverage_dependency_settings=[(1, 3)])
+    building = gul[gul['coverage_type_id'] == 1]
+    contents = gul[gul['coverage_type_id'] == 3]
+    assert len(building) == 2 and len(contents) == 1, "source should have 2 items, dependent 1"
+    assert (contents['source_coverage_id'] == 0).all(), "multiplicity mismatch -> demoted to independent"
 
 
 # --------------------------------------------------------------------------------------
