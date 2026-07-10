@@ -28,7 +28,10 @@ from oasislmf.computation.run.model import RunModel, GenerateComputationSettings
 from oasislmf.computation.run.platform import (PlatformDelete, PlatformGet,
                                                PlatformList, PlatformRun,
                                                PlatformRunInputs,
-                                               PlatformRunLosses)
+                                               PlatformRunLosses,
+                                               PlatformValidate, PlatformExposureRun,
+                                               PlatformExposureTransform, PlatformCombine,
+                                               PlatformCancel, PlatformSubTasks)
 from oasislmf.utils.log import oasis_log
 
 
@@ -64,6 +67,12 @@ class OasisManager(object):
         PlatformRunLosses,
         PlatformDelete,
         PlatformGet,
+        PlatformValidate,
+        PlatformExposureRun,
+        PlatformExposureTransform,
+        PlatformCombine,
+        PlatformCancel,
+        PlatformSubTasks,
         HelperTabComplete,
     ]
     computations_params = {}

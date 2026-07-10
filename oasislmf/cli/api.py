@@ -50,6 +50,54 @@ class GetApiCmd(OasisComputationCommand):
     computation_name = 'PlatformGet'
 
 
+class ValidateApiCmd(OasisComputationCommand):
+    """
+    Validate (or fetch the validation status of) a portfolio's OED exposure files
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformValidate'
+
+
+class ExposureRunApiCmd(OasisComputationCommand):
+    """
+    Run `oasislmf exposure run` on the server against a portfolio's exposure files
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformExposureRun'
+
+
+class ExposureTransformApiCmd(OasisComputationCommand):
+    """
+    Convert a portfolio's exposure data between OED and AIR
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformExposureTransform'
+
+
+class CombineApiCmd(OasisComputationCommand):
+    """
+    Combine the ORD output of multiple RUN_COMPLETED analyses
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformCombine'
+
+
+class CancelApiCmd(OasisComputationCommand):
+    """
+    Cancel a running analysis (input generation or execution)
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformCancel'
+
+
+class SubTasksApiCmd(OasisComputationCommand):
+    """
+    List the sub-tasks of an analysis run
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformSubTasks'
+
+
 class ApiCmd(OasisBaseCommand):
     sub_commands = {
         'list': ListApiCmd,
@@ -58,4 +106,10 @@ class ApiCmd(OasisBaseCommand):
         'generate-losses': RunLossApiCmd,
         'delete': DeleteApiCmd,
         'get': GetApiCmd,
+        'validate': ValidateApiCmd,
+        'exposure_run': ExposureRunApiCmd,
+        'exposure-transform': ExposureTransformApiCmd,
+        'combine': CombineApiCmd,
+        'cancel': CancelApiCmd,
+        'sub-tasks': SubTasksApiCmd,
     }

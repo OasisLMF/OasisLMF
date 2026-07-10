@@ -4,6 +4,12 @@ __all__ = [
     'PlatformGet',
     'PlatformRun',
     'PlatformDelete',
+    'PlatformValidate',
+    'PlatformExposureRun',
+    'PlatformExposureTransform',
+    'PlatformCombine',
+    'PlatformCancel',
+    'PlatformSubTasks',
 ]
 
 
@@ -20,6 +26,7 @@ from requests.exceptions import HTTPError
 from ...platform_api.client import APIClient
 from ...utils.exceptions import OasisException
 from ...utils.defaults import API_EXAMPLE_AUTH
+from ...utils.inputs import str2bool
 
 from ..base import ComputationStep
 
@@ -505,3 +512,140 @@ class PlatformGet(PlatformBase):
             self.download('portfolios', portfolio_files)
         if analyses_files:
             self.download('analyses', analyses_files)
+
+
+class PlatformValidate(PlatformBase):
+    """ Validate (or fetch the status of) a portfolio's OED exposure files via the Oasis Platform API
+    """
+    step_params = PlatformBase.step_params + [
+        {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to validate'},
+        {'name': 'run_validation', 'action': 'store_true',
+            'help': 'Trigger a new OED validation run instead of fetching the current validation status'},
+    ]
+
+    def run(self):
+        if self.run_validation:
+            rsp = self.server.portfolios.validate.post(self.portfolio_id, {})
+        else:
+            rsp = self.server.portfolios.validate.get(self.portfolio_id)
+        data = rsp.json()
+        self.logger.info(json.dumps(data, indent=4, sort_keys=True))
+        return data
+
+
+class PlatformExposureRun(PlatformBase):
+    """ Run `oasislmf exposure run` on the server against a portfolio's exposure files,
+    or fetch the result of the last run
+    """
+    step_params = PlatformBase.step_params + [
+        {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to run exposure calculations against'},
+        {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True, 'default': './',
+            'help': 'Output data directory to download the resulting report to'},
+        {'name': 'fetch', 'action': 'store_true', 'help': 'Fetch the result of the last exposure run instead of starting a new one'},
+        {'name': 'kernel_alloc_rule_il', 'flag': '-a', 'type': int, 'default': 2,
+            'help': 'Set the fmcalc allocation rule used in direct insured loss'},
+        {'name': 'kernel_alloc_rule_ri', 'flag': '-A', 'type': int, 'default': 3,
+            'help': 'Set the fmcalc allocation rule used in reinsurance'},
+        {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'], 'help': 'List of perils covered by the model'},
+        {'name': 'loss_factor', 'flag': '-l', 'type': float, 'nargs': '+', 'default': [1.0], 'help': 'Loss factor(s) to apply'},
+        {'name': 'supported_oed_coverage_types', 'type': int, 'nargs': '+', 'default': [0],
+            'help': '1-15 for coverage types to support: [0] gives None'},
+        {'name': 'extra_summary_cols', 'nargs': '+', 'default': [], 'help': 'Extra columns to include in the summary'},
+        {'name': 'fmpy_low_memory', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+            'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy_sort_output', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'order fmpy output by item_id'},
+        {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
+            'help': 'if True run the oasis disaggregation'},
+    ]
+
+    def run(self):
+        params = {
+            'kernel_alloc_rule_il': self.kernel_alloc_rule_il,
+            'kernel_alloc_rule_ri': self.kernel_alloc_rule_ri,
+            'model_perils_covered': self.model_perils_covered,
+            'loss_factor': self.loss_factor,
+            'supported_oed_coverage_types': self.supported_oed_coverage_types,
+            'extra_summary_cols': self.extra_summary_cols,
+            'fmpy_low_memory': self.fmpy_low_memory,
+            'fmpy_sort_output': self.fmpy_sort_output,
+            'check_oed': self.check_oed,
+            'do_disaggregation': self.do_disaggregation,
+        }
+
+        if self.fetch:
+            rsp = self.server.portfolios.exposure_run.get(self.portfolio_id)
+        else:
+            rsp = self.server.portfolios.exposure_run.post(self.portfolio_id, params)
+
+        content_type = rsp.headers.get('content-type', '').partition(';')[0].strip()
+        ext = guess_extension(content_type) or '.bin'
+        filename = os.path.join(self.output_dir, 'portfolio_{}_exposure_run{}'.format(self.portfolio_id, ext))
+        with io.open(filename, 'wb') as f:
+            f.write(rsp.content)
+        self.logger.info('Exposure run result saved to: {}'.format(filename))
+        return filename
+
+
+class PlatformExposureTransform(PlatformBase):
+    """ Convert a portfolio's exposure data between OED and AIR via the Oasis Platform API
+    """
+    step_params = PlatformBase.step_params + [
+        {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to transform'},
+        {'name': 'file_type', 'choices': ['location', 'accounts', 'ri_info', 'ri_scope'], 'required': True,
+            'help': 'OED file type to transform'},
+        {'name': 'mapping_file', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Path to the mapping file'},
+        {'name': 'transform_file', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Path to the transform file'},
+    ]
+
+    def run(self):
+        rsp = self.server.portfolios.exposure_transform.post(
+            self.portfolio_id, self.file_type, self.mapping_file, self.transform_file)
+        data = rsp.json()
+        self.logger.info(json.dumps(data, indent=4, sort_keys=True))
+        return data
+
+
+class PlatformCombine(PlatformBase):
+    """ Combine the ORD output of multiple RUN_COMPLETED analyses via the Oasis Platform API
+    """
+    step_params = PlatformBase.step_params + [
+        {'name': 'analysis_ids', 'type': int, 'nargs': '+', 'required': True, 'help': 'List of RUN_COMPLETED analyses ids to combine'},
+        {'name': 'combine_settings_json', 'is_path': True, 'pre_exist': True, 'required': True,
+            'help': 'Path to a JSON file containing the combine ORD config (e.g. group_number_of_periods)'},
+        {'name': 'combine_name', 'default': 'combine-analysis', 'help': 'Name for the combined analysis result'},
+    ]
+
+    def run(self):
+        with io.open(self.combine_settings_json, encoding='utf-8') as f:
+            config = json.load(f)
+        rsp = self.server.analyses.combine(self.analysis_ids, config, self.combine_name)
+        data = rsp.json()
+        self.logger.info(json.dumps(data, indent=4, sort_keys=True))
+        return data
+
+
+class PlatformCancel(PlatformBase):
+    """ Cancel a running analysis (input generation or execution) via the Oasis Platform API
+    """
+    step_params = PlatformBase.step_params + [
+        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to cancel'},
+    ]
+
+    def run(self):
+        self.server.analyses.cancel(self.analysis_id)
+        self.logger.info('Cancelled analysis (id={})'.format(self.analysis_id))
+
+
+class PlatformSubTasks(PlatformBase):
+    """ List the sub-tasks of an analysis run via the Oasis Platform API
+    """
+    step_params = PlatformBase.step_params + [
+        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to list sub-tasks for'},
+    ]
+
+    def run(self):
+        rsp = self.server.analyses.sub_task_list(self.analysis_id)
+        data = rsp.json()
+        self.logger.info(json.dumps(data, indent=4, sort_keys=True))
+        return data
