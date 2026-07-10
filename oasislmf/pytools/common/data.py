@@ -62,6 +62,18 @@ def def_to_type_and_size(definition):
     dtype = np.dtype(definition[1])
     return dtype, dtype.itemsize
 
+def def_to_type_and_size_str(def_str):
+    definition = globals().get(def_str, None)
+
+    if not isinstance(definition, tuple) or len(definition) != 3:
+        definition = None
+
+    if definition is None:
+        raise OasisException(f'Could not find dtype for variable: {def_str}')
+
+    dtype = np.dtype(definition[1])
+    return dtype, dtype.itemsize
+
 
 # single type definition index
 DTYPE_IDX = 1
@@ -379,6 +391,9 @@ vulnerability_weight_headers, vulnerability_weight_dtype, vulnerability_weight_f
 
 loss_pair_dtype = np.dtype([('sidx', sidx[1]), ('loss', loss[1])], align=False)
 loss_pair_size = loss_pair_dtype.itemsize
+
+item_header_dtype = np.dtype([('event_id', event_id[1]), ('item_id', item_id[1])])
+item_header_size = item_header_dtype.itemsize
 
 summary_stream_index_dtype = np.dtype([('summary_id', summary_id[1]), ('offset', np.int64)])
 summary_stream_index_size = summary_stream_index_dtype.itemsize
