@@ -1,6 +1,7 @@
 from unittest.mock import patch, Mock, call
 
 import os
+import json
 
 import logging
 
@@ -946,3 +947,121 @@ class TestPlatformGet(ComputationChecker):
             for expected_content, filepath in downloaded_files:
                 self.assertTrue(os.path.isfile(filepath))
                 self.assertEqual(self.read_file(filepath), expected_content)
+
+
+class TestPlatformPost(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v2'
+        self.min_args = {'server_url': self.api_url}
+
+    def test_post__no_input_given__exception_raised(self):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            with self.assertRaises(OasisException) as context:
+                self.manager.platform_post(**self.min_args)
+            self.assertIn('Select at least one file to upload', str(context.exception))
+
+    def test_post__portfolio_created__location_file_uploaded(self):
+        tmp_files = self.create_tmp_files(['location_csv'])
+        self.write_str(tmp_files['location_csv'], 'loc,data')
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/portfolios/', json={'id': 9})
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/portfolios/9/location_file/', json={'file': 'ok'})
+
+            result = self.manager.platform_post(
+                **self.min_args,
+                portfolio_name='My Portfolio',
+                oed_location_csv=tmp_files['location_csv'].name,
+            )
+            self.assertEqual(result['portfolio']['id'], 9)
+
+    def test_post__portfolio_updated__multiple_files_uploaded(self):
+        tmp_files = self.create_tmp_files(['location_csv', 'accounts_csv'])
+        self.write_str(tmp_files['location_csv'], 'loc,data')
+        self.write_str(tmp_files['accounts_csv'], 'acc,data')
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.put(url=f'{self.api_url}/{self.api_ver}/portfolios/4/', json={'id': 4})
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/portfolios/4/location_file/', json={'file': 'ok'})
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/portfolios/4/accounts_file/', json={'file': 'ok'})
+
+            result = self.manager.platform_post(
+                **self.min_args,
+                portfolio_id=4,
+                oed_location_csv=tmp_files['location_csv'].name,
+                oed_accounts_csv=tmp_files['accounts_csv'].name,
+            )
+            self.assertEqual(result['portfolio']['id'], 4)
+
+    def test_post__analyses_settings__missing_id__exception_raised(self):
+        tmp_files = self.create_tmp_files(['settings_json'])
+        self.write_json(tmp_files['settings_json'], {'k': 'v'})
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            with self.assertRaises(OasisException) as context:
+                self.manager.platform_post(**self.min_args, analyses_settings_json=tmp_files['settings_json'].name)
+            self.assertIn('--analyses-id is required', str(context.exception))
+
+    def test_post__analyses_settings__uploaded(self):
+        tmp_files = self.create_tmp_files(['settings_json'])
+        settings = {'model_settings': 'options'}
+        self.write_json(tmp_files['settings_json'], settings)
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/analyses/7/settings/')
+
+            result = self.manager.platform_post(
+                **self.min_args, analyses_id=7, analyses_settings_json=tmp_files['settings_json'].name)
+            self.assertEqual(result['analyses_id'], 7)
+
+            request = rsps.calls[-1].request
+            self.assertEqual(json.loads(request.body), settings)
+
+    def test_post__model_settings__missing_id__exception_raised(self):
+        tmp_files = self.create_tmp_files(['settings_json'])
+        self.write_json(tmp_files['settings_json'], {'k': 'v'})
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            with self.assertRaises(OasisException) as context:
+                self.manager.platform_post(**self.min_args, model_settings_json=tmp_files['settings_json'].name)
+            self.assertIn('--model-id is required', str(context.exception))
+
+    def test_post__model_settings__uploaded(self):
+        tmp_files = self.create_tmp_files(['settings_json'])
+        settings = {'accuracy': 'high'}
+        self.write_json(tmp_files['settings_json'], settings)
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/models/2/settings/')
+
+            result = self.manager.platform_post(
+                **self.min_args, model_id=2, model_settings_json=tmp_files['settings_json'].name)
+            self.assertEqual(result['model_id'], 2)
+
+            request = rsps.calls[-1].request
+            self.assertEqual(json.loads(request.body), settings)

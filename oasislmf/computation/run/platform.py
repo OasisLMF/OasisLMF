@@ -2,6 +2,7 @@ __all__ = [
     'PlatformBase',
     'PlatformList',
     'PlatformGet',
+    'PlatformPost',
     'PlatformRun',
     'PlatformDelete',
     'PlatformValidate',
@@ -563,6 +564,79 @@ class PlatformGet(PlatformBase):
             self.download('analyses', analyses_files)
         if subtask_files:
             self.download('task_status', subtask_files)
+
+
+class PlatformPost(PlatformBase):
+    """ Upload file(s) to the api
+
+    Portfolio files are uploaded to a single portfolio per invocation - give
+    `--portfolio-id` to update an existing portfolio, or omit it (optionally
+    with `--portfolio-name`) to create a new one.
+    """
+    step_params = PlatformBase.step_params + [
+        # Portfolio
+        {'name': 'portfolio_id', 'type': int, 'help': 'API `id` of an existing portfolio to update. Omit to create a new portfolio'},
+        {'name': 'portfolio_name', 'help': 'Name for a newly created portfolio (ignored if --portfolio-id is given)'},
+        {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
+        {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
+        {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
+        {'name': 'oed_scope_csv', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
+        {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
+        {'name': 'reporting_currency', 'type': str, 'help': 'currency to use in the results reported'},
+        # Analyses
+        {'name': 'analyses_id', 'type': int, 'help': 'API `id` of an analysis to upload settings to'},
+        {'name': 'analyses_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True,
+            'help': 'Analyses settings JSON file path to upload (requires --analyses-id)'},
+        # Models
+        {'name': 'model_id', 'type': int, 'help': 'API `id` of a model to upload settings to'},
+        {'name': 'model_settings_json', 'is_path': True, 'pre_exist': True,
+            'help': 'Model settings JSON file path to upload (requires --model-id)'},
+    ]
+
+    def run(self):
+        result = {}
+
+        portfolio_files_given = any([
+            self.oed_location_csv, self.oed_accounts_csv, self.oed_info_csv,
+            self.oed_scope_csv, self.currency_conversion_json, self.reporting_currency,
+        ])
+        if portfolio_files_given:
+            portfolio = self.server.upload_inputs(
+                portfolio_name=self.portfolio_name,
+                portfolio_id=self.portfolio_id,
+                location_fp=self.oed_location_csv,
+                accounts_fp=self.oed_accounts_csv,
+                ri_info_fp=self.oed_info_csv,
+                ri_scope_fp=self.oed_scope_csv,
+                currency_conversion_fp=self.currency_conversion_json,
+                reporting_currency=self.reporting_currency,
+            )
+            self.logger.info('Portfolio uploaded (id={})'.format(portfolio['id']))
+            result['portfolio'] = portfolio
+
+        if self.analyses_settings_json:
+            if not self.analyses_id:
+                raise OasisException('--analyses-id is required when uploading --analyses-settings-json')
+            self.server.upload_settings(self.analyses_id, self.analyses_settings_json)
+            self.logger.info('Analyses settings uploaded (id={})'.format(self.analyses_id))
+            result['analyses_id'] = self.analyses_id
+
+        if self.model_settings_json:
+            if not self.model_id:
+                raise OasisException('--model-id is required when uploading --model-settings-json')
+            with io.open(self.model_settings_json, encoding='utf-8') as f:
+                settings = json.load(f)
+            self.server.models.settings.post(self.model_id, settings)
+            self.logger.info('Model settings uploaded (id={})'.format(self.model_id))
+            result['model_id'] = self.model_id
+
+        if not result:
+            raise OasisException(
+                'Select at least one file to upload e.g. "--oed-location-csv <path>", '
+                '"--analyses-settings-json <path> --analyses-id <id>", or '
+                '"--model-settings-json <path> --model-id <id>"'
+            )
+        return result
 
 
 class PlatformValidate(PlatformBase):

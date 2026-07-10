@@ -50,6 +50,14 @@ class GetApiCmd(OasisComputationCommand):
     computation_name = 'PlatformGet'
 
 
+class PostApiCmd(OasisComputationCommand):
+    """
+    Upload file(s) to the Platform API
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformPost'
+
+
 class ValidateApiCmd(OasisComputationCommand):
     """
     Validate (or fetch the validation status of) a portfolio's OED exposure files
@@ -106,6 +114,7 @@ class ApiCmd(OasisBaseCommand):
         'generate-losses': RunLossApiCmd,
         'delete': DeleteApiCmd,
         'get': GetApiCmd,
+        'post': PostApiCmd,
         'validate': ValidateApiCmd,
         'exposure-run': ExposureRunApiCmd,
         'exposure-transform': ExposureTransformApiCmd,
