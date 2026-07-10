@@ -36,9 +36,13 @@ from oasislmf.platform_api.client import (
     API_portfolios,
     API_datafiles,
     API_analyses,
+    API_task_status,
     APIClient,
     SettingTemplatesBaseEndpoint,
     SettingTemplatesEndpoint,
+    ExposureRunEndpoint,
+    ExposureTransformEndpoint,
+    TarExtractEndpoint,
 )
 
 
@@ -816,6 +820,7 @@ class APIModelsTests(unittest.TestCase):
             'resource_file',
             'settings',
             'versions',
+            'storage_links',
             'chunking_configuration',
             'scaling_configuration',
         ]
@@ -930,6 +935,8 @@ class APIPortfoliosTests(unittest.TestCase):
             'reinsurance_info_file',
             'reinsurance_scope_file',
             'storage_links',
+            'errors_file',
+            'validate',
         ]
         for endpoint in endpoint_list:
             OasisAPI_obj = getattr(self.api, endpoint)
@@ -940,6 +947,96 @@ class APIPortfoliosTests(unittest.TestCase):
                 FileEndpoint,
                 JsonEndpoint
             )))
+
+        # exposure_run / exposure_transform are custom endpoint classes
+        self.assertTrue(isinstance(self.api.exposure_run, ExposureRunEndpoint))
+        self.assertEqual(self.api.exposure_run.url_resource, 'exposure_run/')
+        self.assertEqual(self.api.exposure_run.url_endpoint, self.url_endpoint)
+
+        self.assertTrue(isinstance(self.api.exposure_transform, ExposureTransformEndpoint))
+        self.assertEqual(self.api.exposure_transform.url_endpoint, self.url_endpoint)
+
+    @given(st.integers(min_value=1))
+    def test_validate__get(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/validate/'
+        json_rsp = {
+            "location_validated": "OK",
+            "accounts_validated": None,
+            "reinsurance_info_validated": None,
+            "reinsurance_scope_validated": None,
+        }
+        responses.get(url=expected_url, json=json_rsp)
+        result = self.api.validate.get(ID)
+        self.assertEqual(result.json(), json_rsp)
+
+    @given(st.integers(min_value=1))
+    def test_validate__post(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/validate/'
+        responses.post(url=expected_url, json={"location_validated": "OK"})
+        result = self.api.validate.post(ID, {})
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_errors_file(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/errors_file/'
+        responses.get(url=expected_url, body=b'some errors')
+        result = self.api.errors_file.get(ID)
+        self.assertEqual(result.content, b'some errors')
+
+    @given(st.integers(min_value=1))
+    def test_exposure_run__get(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/exposure_run/'
+        responses.get(url=expected_url, body=b'exposure run result')
+        result = self.api.exposure_run.get(ID)
+        self.assertEqual(result.content, b'exposure run result')
+
+    @given(st.integers(min_value=1))
+    def test_exposure_run__post(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/exposure_run/'
+        params = {'kernel_alloc_rule_il': 2, 'loss_factor': [1.0]}
+        responses.post(url=expected_url, body=b'exposure run result')
+
+        result = self.api.exposure_run.post(ID, params)
+        self.assertEqual(result.content, b'exposure run result')
+
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), {'params': params})
+
+    @given(st.integers(min_value=1))
+    def test_exposure_run__post_default_params(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/exposure_run/'
+        responses.post(url=expected_url, body=b'exposure run result')
+
+        self.api.exposure_run.post(ID)
+
+        request = responses.calls[-1].request
+        self.assertEqual(json.loads(request.body), {'params': {}})
+
+    def test_exposure_transform(self):
+        ID = 7
+        expected_url = f'{self.url_endpoint}{ID}/exposure_transform/'
+        json_rsp = {
+            "file_type": "location",
+            "mapping_file": "http://example.com/mapping.json",
+            "transform_file": "http://example.com/transform.json",
+        }
+        responses.post(url=expected_url, json=json_rsp)
+
+        with TemporaryDirectory() as d:
+            mapping_fp = os.path.join(d, 'mapping.json')
+            transform_fp = os.path.join(d, 'transform.json')
+            for fp in (mapping_fp, transform_fp):
+                with open(fp, 'w') as f:
+                    json.dump({}, f)
+
+            result = self.api.exposure_transform.post(ID, 'location', mapping_fp, transform_fp)
+            self.assertEqual(result.json(), json_rsp)
+
+            request = responses.calls[-1].request
+            self.assertTrue(isinstance(request.body, MultipartEncoder))
+            self.assertEqual(request.url, expected_url)
+            self.assertEqual(request.body.fields['file_type'], 'location')
 
     @given(st.text())
     def test_create(self, name):
@@ -1016,6 +1113,11 @@ class APIAnalysesTests(unittest.TestCase):
             'run_log_file',
             'settings_file',
             'settings',
+            'run_progress',
+            'input_file_tar_list',
+            'output_file_tar_list',
+            'input_file_tar_extract',
+            'output_file_tar_extract',
         ]
         for endpoint in endpoint_list:
             OasisAPI_obj = getattr(self.api, endpoint)
@@ -1026,6 +1128,9 @@ class APIAnalysesTests(unittest.TestCase):
                 FileEndpoint,
                 JsonEndpoint
             )))
+
+        self.assertTrue(isinstance(self.api.input_file_tar_extract, TarExtractEndpoint))
+        self.assertTrue(isinstance(self.api.output_file_tar_extract, TarExtractEndpoint))
 
     @given(st.text(), st.integers(min_value=1), st.integers(min_value=1), st.lists(st.integers() | st.text(), min_size=0, max_size=10))
     def test_create(self, name, portfolio_id, model_id, data_files):
@@ -1160,6 +1265,113 @@ class APIAnalysesTests(unittest.TestCase):
         result = self.api.sub_task_list(ID)
         self.assertTrue(result.ok)
 
+    @given(st.integers(min_value=1))
+    def test_run_progress(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/run_progress/'
+        json_rsp = {"num_events_total": 10, "num_events_complete": 4}
+        responses.get(url=expected_url, json=json_rsp)
+        result = self.api.run_progress.get(ID)
+        self.assertEqual(result.json(), json_rsp)
+
+    @given(st.integers(min_value=1))
+    def test_input_file_tar_list(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/input_file_tar_list/'
+        json_rsp = {"files": ["gulcalc.csv", "fmcalc.csv"]}
+        responses.get(url=expected_url, json=json_rsp)
+        result = self.api.input_file_tar_list.get(ID)
+        self.assertEqual(result.json(), json_rsp)
+
+    @given(st.integers(min_value=1))
+    def test_output_file_tar_list(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/output_file_tar_list/'
+        json_rsp = {"files": ["gul_S1_summary-info.csv"]}
+        responses.get(url=expected_url, json=json_rsp)
+        result = self.api.output_file_tar_list.get(ID)
+        self.assertEqual(result.json(), json_rsp)
+
+    @given(st.integers(min_value=1))
+    def test_input_file_tar_extract(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/input_file_tar_extract/'
+        responses.get(url=expected_url, body=b'extracted file content')
+        result = self.api.input_file_tar_extract.get(ID, 'gulcalc.csv')
+        self.assertEqual(result.content, b'extracted file content')
+
+        request = responses.calls[-1].request
+        self.assertEqual(request.url, f'{expected_url}?filename=gulcalc.csv')
+
+    @given(st.integers(min_value=1))
+    def test_output_file_tar_extract__download(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/output_file_tar_extract/'
+        responses.get(url=expected_url, body=b'extracted output content')
+
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, 'gul_S1_summary-info.csv'))
+            result = self.api.output_file_tar_extract.download(ID, 'gul_S1_summary-info.csv', abs_fp)
+
+            with open(abs_fp, 'rb') as f:
+                saved_data = f.read()
+
+            self.assertEqual(saved_data, b'extracted output content')
+            self.assertTrue(result.ok)
+
+    @given(
+        analysis_ids=st.lists(st.integers(min_value=1), min_size=1, max_size=5),
+        name=st.text(min_size=1),
+        group_number_of_periods=st.integers(min_value=1),
+    )
+    def test_combine(self, analysis_ids, name, group_number_of_periods):
+        expected_url = f'{self.url_endpoint}combine/'
+        config = {"group_number_of_periods": group_number_of_periods}
+        expected_data = {"analysis_ids": analysis_ids, "config": config, "name": name}
+        json_rsp = {"id": 1, "name": name, "status": "NEW"}
+
+        responses.post(url=expected_url, json=json_rsp)
+        result = self.api.combine(analysis_ids, config, name)
+        self.assertEqual(result.json(), json_rsp)
+
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+
+class APITaskStatusTests(unittest.TestCase):
+    def setUp(self):
+        assert responses, 'responses package required to run'
+        self.session = create_api_session('http://example.com/api')
+        self.url_endpoint = urljoin(self.session.url_base, 'analysis-task-statuses/')
+        self.api = API_task_status(self.session, self.url_endpoint)
+        responses.start()
+
+    def tearDown(self):
+        responses.stop()
+        responses.reset()
+
+    def test_endpoint_setup(self):
+        endpoint_list = [
+            'output_log',
+            'error_log',
+            'retry_log',
+        ]
+        for endpoint in endpoint_list:
+            OasisAPI_obj = getattr(self.api, endpoint)
+            self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
+            self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
+            self.assertTrue(isinstance(OasisAPI_obj, FileEndpoint))
+
+    @given(st.integers(min_value=1))
+    def test_retry_log(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/retry_log/'
+        responses.get(url=expected_url, body=b'retry log content')
+        result = self.api.retry_log.get(ID)
+        self.assertEqual(result.content, b'retry log content')
+
+    @given(st.integers(min_value=1))
+    def test_retry_log__delete(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/retry_log/'
+        responses.delete(url=expected_url)
+        result = self.api.retry_log.delete(ID)
+        self.assertTrue(result.ok)
+
 
 class APIClientTests(unittest.TestCase):
 
@@ -1224,6 +1436,27 @@ class APIClientTests(unittest.TestCase):
         responses.get(url=expected_url)
         result = self.client.healthcheck()
         self.assertTrue(result.ok)
+
+    def test_healthcheck_connections(self):
+        expected_url = '{}/healthcheck_connections/'.format(self.api_url)
+        responses.get(url=expected_url, json={"status": "OK"})
+        result = self.client.healthcheck_connections()
+        self.assertTrue(result.ok)
+
+    def test_queue(self):
+        expected_url = '{}/{}/queue/'.format(self.api_url, self.api_ver)
+        json_rsp = [{"name": "default", "pending_count": 0, "queued_count": 0,
+                     "running_count": 0, "queue_message_count": 0, "worker_count": 1, "models": []}]
+        responses.get(url=expected_url, json=json_rsp)
+        result = self.client.queue()
+        self.assertEqual(result.json(), json_rsp)
+
+    def test_queue_status(self):
+        expected_url = '{}/{}/queue-status/'.format(self.api_url, self.api_ver)
+        json_rsp = [{"time": "2024-01-01", "type": "status", "status": "OK", "content": []}]
+        responses.get(url=expected_url, json=json_rsp)
+        result = self.client.queue_status()
+        self.assertEqual(result.json(), json_rsp)
 
     def test_upload_inputs__create_portfolio(self):
         ID = 3
