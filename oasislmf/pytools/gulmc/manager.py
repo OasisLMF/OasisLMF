@@ -158,6 +158,8 @@ def run(run_dir,
         damage_bins = structures['damage_bins']
         vuln_adj = structures['vuln_adj']
         vuln_array = structures['vuln_array']
+        conditional_vuln_array = structures['conditional_vuln_array']
+        vuln_idx_to_cond_idx = structures['vuln_idx_to_cond_idx']
         unique_peril_correlation_groups = structures['unique_peril_correlation_groups']
         norm_inv_cdf = structures['norm_inv_cdf']
         norm_cdf = structures['norm_cdf']
@@ -174,49 +176,37 @@ def run(run_dir,
         # coverage dependency is active only when at least one dependent coverage exists;
         # otherwise the forest is empty and gulmc behaves exactly as before.
         do_coverage_dependency = bool(coverage_dependents_ja_data.shape[0] > 0)
-        if do_coverage_dependency:
-            logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
-            # Dependency is opt-in per location via the keys: a coverage is a dependent only when
-            # the key server returns its source coverage type at the same areaperil (resolved in
-            # gul_inputs; a mismatched/absent source demotes the coverage to independent). So the
-            # forest here already reflects the per-location choice, and the guards below only
-            # apply to coverages that are actually linked.
-            n_intensity_bins = vuln_array.shape[2]
 
-            # a dependent's vulnerability is driven directly by the source damage bin, so each
-            # dependent vulnerability must be authored with exactly one intensity bin per damage
-            # bin (1:1 with the damage bins, ids 1..N_damage_bins). NB this is per dependent vuln,
-            # not global: the source coverage keeps a normal hazard-indexed vuln whose intensity
-            # resolution is unrelated to the damage bins.
-            n_damage_bins = damage_bins.shape[0]
-            dep_item_mask = (coverage_source_id[items['coverage_id']] > 0) & (items['areaperil_agg_vuln_idx'] < 0)
-            for dep_vuln_idx in np.unique(items['vulnerability_idx'][dep_item_mask]):
-                used_intensity_bins = np.flatnonzero(vuln_array[dep_vuln_idx].sum(axis=0) > 0)
-                # the used intensity bins must be exactly {1..N_damage_bins} (0-indexed 0..N-1)
-                if used_intensity_bins.shape[0] != n_damage_bins or used_intensity_bins[-1] != n_damage_bins - 1:
-                    raise OasisException(
-                        f"coverage dependency requires each dependent vulnerability to be defined over "
-                        f"exactly {n_damage_bins} intensity bins (one per damage bin, ids 1..{n_damage_bins}); "
-                        f"vulnerability index {int(dep_vuln_idx)} uses {used_intensity_bins.shape[0]} intensity bins. "
-                        "Author the dependent vulnerability with intensity bins matching the damage bins."
-                    )
+        # Dependency is opt-in per location via the keys: a coverage is a dependent only when the
+        # key server returns its source coverage type at the same areaperil (resolved in
+        # gul_inputs; a mismatched/absent source demotes the coverage to independent). A dependent
+        # coverage must use a conditional (damage-transition) vulnerability from the
+        # conditional_vulnerability file; an independent coverage must use a normal hazard-indexed
+        # one. `vuln_idx_to_cond_idx[vulnerability_idx] >= 0` iff the vulnerability is conditional.
+        if do_coverage_dependency or conditional_vuln_array.shape[0] > 0:
+            if do_coverage_dependency:
+                logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
+            is_dependent_item = coverage_source_id[items['coverage_id']] > 0
+            item_is_conditional = vuln_idx_to_cond_idx[items['vulnerability_idx']] >= 0
 
-            # a source must keep a normal hazard-indexed vulnerability so the footprint hazard bins
-            # at the shared areaperil fit its curve and yield a damage bin to drive the dependent.
-            # A source whose vulnerability is itself damage-bin-authored (the 1:1 dependent shape,
-            # so it never spans the model's wider intensity resolution) cannot consume the hazard.
-            source_coverage_ids = np.unique(coverage_source_id[coverage_source_id > 0])
-            src_item_mask = np.isin(items['coverage_id'], source_coverage_ids) & (items['areaperil_agg_vuln_idx'] < 0)
-            for src_vuln_idx in np.unique(items['vulnerability_idx'][src_item_mask]):
-                used_intensity_bins = np.flatnonzero(vuln_array[src_vuln_idx].sum(axis=0) > 0)
-                if n_intensity_bins > n_damage_bins and used_intensity_bins.shape[0] == n_damage_bins \
-                        and used_intensity_bins[-1] == n_damage_bins - 1:
-                    raise OasisException(
-                        f"coverage dependency requires each source vulnerability to be hazard-indexed so the "
-                        f"footprint hazard bins fit its curve; source vulnerability index {int(src_vuln_idx)} "
-                        f"is confined to the {n_damage_bins} damage bins (the dependent shape) and cannot consume "
-                        "the hazard. Give the source a normal hazard-indexed vulnerability."
-                    )
+            dependent_without_conditional = is_dependent_item & ~item_is_conditional
+            if np.any(dependent_without_conditional):
+                bad = np.unique(items['vulnerability_id'][dependent_without_conditional])
+                raise OasisException(
+                    f"coverage dependency: dependent coverage(s) use vulnerability id(s) {bad.tolist()} that are "
+                    "not in the conditional_vulnerability file; a dependent coverage must use a conditional "
+                    "(damage-transition) vulnerability. Add it to conditional_vulnerability, or remove the dependency."
+                )
+
+            independent_with_conditional = ~is_dependent_item & item_is_conditional
+            if np.any(independent_with_conditional):
+                bad = np.unique(items['vulnerability_id'][independent_with_conditional])
+                raise OasisException(
+                    f"coverage dependency: coverage(s) with conditional vulnerability id(s) {bad.tolist()} have no "
+                    "source at the same areaperil, so they are independent, but a conditional vulnerability cannot be "
+                    "sampled by the footprint hazard. Provide a matching source (same areaperil) or use a "
+                    "hazard-indexed vulnerability."
+                )
 
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
@@ -489,6 +479,8 @@ def run(run_dir,
                             haz_pdf,
                             fp_haz_arr_ptr,
                             vuln_array,
+                            conditional_vuln_array,
+                            vuln_idx_to_cond_idx,
                             damage_bins,
                             cdf_cache_tag,
                             cdf_cache_nbins,
@@ -664,6 +656,8 @@ def compute_event_losses(compute_info,
                          haz_pdf,
                          haz_arr_ptr,
                          vuln_array,
+                         conditional_vuln_array,
+                         vuln_idx_to_cond_idx,
                          damage_bins,
                          cdf_cache_tag,
                          cdf_cache_nbins,
@@ -751,16 +745,17 @@ def compute_event_losses(compute_info,
           the caller should flush and call again.
     """
     cdf_cache_size = nb_int64(cdf_cache_mask + 1)
-    haz_cdf_empty = np.empty(vuln_array.shape[2], dtype=oasis_float)
-    vuln_pdf_empty = np.empty((vuln_array.shape[2], compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
-    eff_damage_cdf_empty = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
-    haz_i_to_Ndamage_bins_empty = np.empty(vuln_array.shape[2], dtype=oasis_int)
-    haz_i_to_vuln_cdf_empty = np.empty((vuln_array.shape[2], compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
-    # coverage dependency: the dependent's "intensity bins" are the source's damage bins,
-    # so its vuln is assembled over intensity ids equal to the damage-bin ids (1..N_damage_bins),
-    # and the source's damage pmf plays the role of the hazard pdf.
+    # coverage dependency: a dependent's "hazard bins" are the source's damage bins, so its number
+    # of hazard bins is num_damage_bins rather than the footprint's num_intensity_bins. The
+    # per-hazard-bin scratch buffers must therefore be sized to the larger of the two.
     n_damage_bins_total = damage_bins.shape[0]
-    damage_bin_intensity_ids = np.arange(1, n_damage_bins_total + 1).astype(np.int32)
+    max_haz_bins = max(vuln_array.shape[2], n_damage_bins_total)
+    haz_cdf_empty = np.empty(max_haz_bins, dtype=oasis_float)
+    vuln_pdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
+    eff_damage_cdf_empty = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
+    haz_i_to_Ndamage_bins_empty = np.empty(max_haz_bins, dtype=oasis_int)
+    haz_i_to_vuln_cdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
+    # the source's damage pmf plays the role of the hazard pdf for a dependent
     source_damage_pmf_empty = np.empty(n_damage_bins_total, dtype=oasis_float)
 
     # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
@@ -848,8 +843,10 @@ def compute_event_losses(compute_info,
             # vulnerability (authored over damage-bin-indexed intensities) is driven directly
             # by the source's damage. The downstream assembly / CDF / sampling is reused.
             if is_dependent:
+                # the dependent's "hazard bins" are the source's damage bins; its vulnerability is
+                # the conditional matrix (assembled below), and its hazard pdf is the source's
+                # damage pmf (derived here from the source's stored effective-damage CDF).
                 Nhaz_bins = n_damage_bins_total
-                haz_bin_id = damage_bin_intensity_ids
                 parent_eff_cdf = source_eff_damage_cdf_stack[depth - 1, item_j, :source_eff_damage_cdf_len_stack[depth - 1, item_j]]
                 haz_pdf_prob = source_damage_pmf_empty
                 prev_cdf = 0.0
@@ -902,6 +899,13 @@ def compute_event_losses(compute_info,
                             for haz_i in range(Nhaz_bins):
                                 vuln_pdf[haz_i] += vuln_array[vuln_i, :, haz_bin_id[haz_i] - 1]
                         vuln_pdf /= n_sub
+                elif is_dependent:
+                    # assemble from the conditional (damage-transition) matrix: column haz_i is the
+                    # dependent's damage pmf given the source landed in damage bin haz_i. Correctly
+                    # sized num_damage_bins x num_damage_bins, distinct from the hazard-indexed vuln.
+                    cond_idx = vuln_idx_to_cond_idx[item['vulnerability_idx']]
+                    for haz_i in range(Nhaz_bins):
+                        vuln_pdf[haz_i] = conditional_vuln_array[cond_idx, :, haz_i]
                 else:
                     for haz_i in range(Nhaz_bins):
                         vuln_pdf[haz_i] = vuln_array[item['vulnerability_idx'], :, haz_bin_id[haz_i] - 1]

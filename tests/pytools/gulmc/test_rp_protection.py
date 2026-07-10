@@ -168,6 +168,9 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     # All probability in damage bin 1 (index 1) → always max damage
     vuln_array = np.zeros((1, Ndamage_bins, Nintensity_bins), dtype=oasis_float)
     vuln_array[0, 1, 0] = 1.0  # P(damage bin index 1) = 1.0 at intensity bin 0
+    # no coverage dependency in these tests: empty conditional array, all vulns normal (-1)
+    conditional_vuln_array = np.zeros((0, Ndamage_bins, Ndamage_bins), dtype=oasis_float)
+    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=np.int32)
 
     # --- damage_bins ---
     damage_bins = np.zeros(Ndamage_bins, dtype=damagebin_dtype)
@@ -226,7 +229,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 
     args = (
         compute_info, coverages, coverage_ids, items_event_data, items,
-        sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
+        sample_size, haz_pdf, haz_arr_ptr, vuln_array, conditional_vuln_array, vuln_idx_to_cond_idx, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
@@ -483,6 +486,8 @@ def test_rp_protection_only_affects_protected_items():
 
     vuln_array = np.zeros((1, Ndamage_bins, Nintensity_bins), dtype=oasis_float)
     vuln_array[0, 1, 0] = 1.0
+    conditional_vuln_array = np.zeros((0, Ndamage_bins, Ndamage_bins), dtype=oasis_float)
+    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=np.int32)
 
     damage_bins = np.zeros(Ndamage_bins, dtype=damagebin_dtype)
     damage_bins[0] = (0, 0.0, 0.5, 0.25, 0)
@@ -523,7 +528,7 @@ def test_rp_protection_only_affects_protected_items():
 
     compute_event_losses(
         compute_info, coverages, coverage_ids, items_event_data, items,
-        sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
+        sample_size, haz_pdf, haz_arr_ptr, vuln_array, conditional_vuln_array, vuln_idx_to_cond_idx, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,

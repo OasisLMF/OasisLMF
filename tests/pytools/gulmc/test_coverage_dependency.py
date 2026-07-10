@@ -64,6 +64,57 @@ def test_get_coverage_dependency_settings():
 
 
 # --------------------------------------------------------------------------------------
+# conditional vulnerability file (damage-transition matrix)
+# --------------------------------------------------------------------------------------
+def _write_conditional_vuln_csv(dir_path, rows):
+    # columns match vulnerability_dtype order: vulnerability_id, intensity_bin_id (= source damage
+    # bin), damage_bin_id (= dependent damage bin), probability
+    path = Path(dir_path) / 'conditional_vulnerability.csv'
+    with open(path, 'w') as f:
+        f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
+        for r in rows:
+            f.write('{},{},{},{}\n'.format(*r))
+
+
+def test_get_conditional_vulns():
+    """The conditional vulnerability file loads into an [n_cond, ndmg, ndmg] transition matrix,
+    indexed [cond, dependent_damage_bin-1, source_damage_bin-1]."""
+    from oasislmf.pytools.gulmc.structure import get_conditional_vulns
+    from oasis_data_manager.filestore.backends.local import LocalStorage
+    with tempfile.TemporaryDirectory() as d:
+        _write_conditional_vuln_csv(d, [
+            (7, 1, 1, 0.8), (7, 1, 2, 0.2),   # source bin 1 -> dependent {1:0.8, 2:0.2}
+            (7, 2, 2, 0.5), (7, 2, 3, 0.5),   # source bin 2 -> dependent {2:0.5, 3:0.5}
+            (7, 3, 3, 1.0),                   # source bin 3 -> dependent {3:1.0}
+        ])
+        arr, ids = get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
+    assert arr.shape == (1, 3, 3)
+    assert ids.tolist() == [7]
+    # [dependent-1, source-1]
+    np.testing.assert_allclose(arr[0, :, 0], [0.8, 0.2, 0.0])  # source bin 1
+    np.testing.assert_allclose(arr[0, :, 1], [0.0, 0.5, 0.5])  # source bin 2
+    np.testing.assert_allclose(arr[0, :, 2], [0.0, 0.0, 1.0])  # source bin 3
+
+
+def test_get_conditional_vulns_absent_is_empty():
+    from oasislmf.pytools.gulmc.structure import get_conditional_vulns
+    from oasis_data_manager.filestore.backends.local import LocalStorage
+    with tempfile.TemporaryDirectory() as d:
+        arr, ids = get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
+    assert arr.shape == (0, 3, 3) and ids.shape == (0,)
+
+
+def test_get_conditional_vulns_requires_distribution():
+    """Each source damage bin present must map to a full distribution (sum to 1)."""
+    from oasislmf.pytools.gulmc.structure import get_conditional_vulns
+    from oasis_data_manager.filestore.backends.local import LocalStorage
+    with tempfile.TemporaryDirectory() as d:
+        _write_conditional_vuln_csv(d, [(7, 1, 1, 0.8), (7, 1, 2, 0.1)])  # sums to 0.9
+        with pytest.raises(OasisException):
+            get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
+
+
+# --------------------------------------------------------------------------------------
 # preparation: zero-TIV driver retention & per-location activation by keys
 # --------------------------------------------------------------------------------------
 def _gul_inputs_for_keys(keys_rows):
@@ -221,6 +272,51 @@ def test_dependency_requires_damage_bin_indexed_vuln():
     with tempfile.TemporaryDirectory() as t_cond:
         with pytest.raises(OasisException):
             _run(_setup(t_cond, {2: 1}), effective_damageability=False)
+
+
+def test_conditional_dependency_end_to_end():
+    """End-to-end: coverage 2 depends on coverage 1 via a conditional_vulnerability file. With an
+    identity transition matrix (source damage bin k -> dependent damage bin k), the dependent must
+    land in the SAME damage bin as its source on every sample."""
+    with tempfile.TemporaryDirectory() as t:
+        run_dir = Path(t) / 'assets'
+        shutil.copytree(SRC_MODEL, run_dir)
+        shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
+
+        # give dependent coverage 2 its own conditional vulnerability ids (per areaperil)
+        items = pd.read_csv(run_dir / 'input' / 'items.csv')
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 154), 'vulnerability_id'] = 101
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 54), 'vulnerability_id'] = 102
+        items.to_csv(run_dir / 'input' / 'items.csv', index=False)
+        (run_dir / 'input' / 'items.bin').unlink()  # force the edited csv to be read
+
+        n_damage_bins = pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv').shape[0]
+        with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
+            f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
+            for vid in (101, 102):  # identity: source bin k -> dependent bin k
+                for k in range(1, n_damage_bins + 1):
+                    f.write(f'{vid},{k},{k},1.0\n')
+
+        _write_correlations(run_dir, {2: 1})
+        df = _run(run_dir, effective_damageability=False)
+
+        cov_tiv = pd.read_csv(run_dir / 'input' / 'coverages.csv').set_index('coverage_id')['tiv']
+        bin_to = pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv')['bin_to'].to_numpy()
+
+        def sampled_bins(item_id, coverage_id):
+            d = df[(df['item_id'] == item_id) & (df['sidx'] > 0)].sort_values(['event_id', 'sidx'])
+            frac = d['loss'].to_numpy() / cov_tiv[coverage_id]
+            return np.searchsorted(bin_to, frac, side='left')  # damage-bin index per sample
+
+        # item 1 = source (coverage 1, areaperil 154); item 3 = dependent (coverage 2, areaperil 154)
+        src_bins, dep_bins = sampled_bins(1, 1), sampled_bins(3, 2)
+        n = min(len(src_bins), len(dep_bins))
+        diff = np.abs(src_bins[:n].astype(int) - dep_bins[:n].astype(int))
+        # dependent tracks the source's damage bin: (near-)exact match, with rare off-by-one at bin
+        # boundaries (the kernel recovers the source bin from a continuous ratio). Independent
+        # sampling over 12 bins would give a mean difference of several bins.
+        assert n > 0 and (diff == 0).mean() > 0.9 and diff.mean() < 0.15, \
+            f"identity conditional => dependent damage bin should follow source's (exact {(diff == 0).mean():.3f}, mean|d| {diff.mean():.3f})"
 
 
 def test_conditional_convolution_reference():

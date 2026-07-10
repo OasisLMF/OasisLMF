@@ -14,7 +14,7 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import numba as nb
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import areaperil_int, load_as_ndarray, oasis_int
+from oasislmf.pytools.common.data import areaperil_int, load_as_ndarray, oasis_int, oasis_float, vulnerability_dtype
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import read_coverages, read_correlations
@@ -59,6 +59,8 @@ ARRAY_FILES = [
     'damage_bins',
     'vuln_adj',
     'vuln_array',
+    'conditional_vuln_array',
+    'vuln_idx_to_cond_idx',
     'unique_peril_correlation_groups',
     'norm_inv_cdf',
     'norm_cdf',
@@ -143,6 +145,77 @@ def build_coverage_dependency_forest(items, n_coverages):
     coverage_dependents_ja_offsets[1:] = np.cumsum(np.bincount(parents, minlength=n_coverages))
 
     return coverage_source_id, coverage_dependents_ja_offsets, coverage_dependents_ja_data
+
+
+def get_conditional_vulns(storage, num_damage_bins, ignore_file_type=set()):
+    """Load the conditional (dependent) vulnerability transition matrices.
+
+    A conditional vulnerability is a damage-transition matrix ``P(dependent damage bin | source
+    damage bin)``: it drives a dependent coverage from its source coverage's sampled damage bin
+    instead of from the footprint hazard. It is a distinct model input from ``vulnerability`` and
+    is correctly sized ``num_damage_bins x num_damage_bins`` (independent of the footprint's
+    intensity resolution). The file reuses the vulnerability schema, with ``intensity_bin_id``
+    read as the *source damage bin* (1..num_damage_bins). The file is optional; when absent, no
+    coverage may be a (conditional) dependent.
+
+    Args:
+        storage (BaseStorage): storage connector for the model static data.
+        num_damage_bins (int): number of damage bins (from the damage_bin_dict).
+        ignore_file_type (set[str]): file extensions to ignore.
+
+    Returns:
+        tuple(np.ndarray, np.ndarray):
+        conditional_vuln_array of shape ``(n_cond, num_damage_bins, num_damage_bins)`` indexed
+        ``[cond_idx, dependent_damage_bin - 1, source_damage_bin - 1]``, and cond_vuln_ids
+        (the vulnerability ids, ascending, aligned with cond_idx). Both empty when no file exists.
+
+    Raises:
+        OasisException: if a bin id is out of range, or a source damage bin's probabilities do
+            not form a distribution (sum to 1).
+    """
+    input_files = set(storage.listdir())
+    recs = None
+    if "conditional_vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
+        with storage.open("conditional_vulnerability.bin", 'rb') as f:
+            f.read(4)  # header: num_damage_bins (we size from the damage_bin_dict instead)
+            recs = np.frombuffer(f.read(), dtype=vulnerability_dtype)
+    elif "conditional_vulnerability.csv" in input_files and 'csv' not in ignore_file_type:
+        with storage.open("conditional_vulnerability.csv") as f:
+            recs = np.loadtxt(f, dtype=vulnerability_dtype, skiprows=1, delimiter=',', ndmin=1)
+
+    if recs is None or recs.shape[0] == 0:
+        return (np.zeros((0, num_damage_bins, num_damage_bins), dtype=oasis_float),
+                np.zeros(0, dtype=np.int32))
+
+    source_bin = recs['intensity_bin_id']  # the intensity axis is reused as the source damage bin
+    damage_bin = recs['damage_bin_id']
+    if source_bin.min() < 1 or source_bin.max() > num_damage_bins \
+            or damage_bin.min() < 1 or damage_bin.max() > num_damage_bins:
+        raise OasisException(
+            f"conditional_vulnerability bins must be in 1..{num_damage_bins}: source damage bin "
+            f"(intensity_bin_id) range [{int(source_bin.min())}, {int(source_bin.max())}], damage bin "
+            f"range [{int(damage_bin.min())}, {int(damage_bin.max())}]."
+        )
+
+    cond_vuln_ids = np.unique(recs['vulnerability_id'])
+    id_to_idx = {int(v): i for i, v in enumerate(cond_vuln_ids)}
+    conditional_vuln_array = np.zeros((cond_vuln_ids.shape[0], num_damage_bins, num_damage_bins), dtype=oasis_float)
+    for r in recs:
+        conditional_vuln_array[id_to_idx[int(r['vulnerability_id'])],
+                               int(r['damage_bin_id']) - 1, int(r['intensity_bin_id']) - 1] = r['probability']
+
+    # each source damage bin that appears must map to a distribution (its column sums to 1)
+    col_sums = conditional_vuln_array.sum(axis=1)  # [n_cond, source_damage_bin]
+    bad = (col_sums > 1e-6) & (np.abs(col_sums - 1.0) > 1e-3)
+    if np.any(bad):
+        c, s = (int(x) for x in np.argwhere(bad)[0])
+        raise OasisException(
+            f"conditional_vulnerability: vulnerability_id {int(cond_vuln_ids[c])} source damage bin {s + 1} "
+            f"probabilities sum to {col_sums[c, s]:.4f}, expected 1.0 (each source damage bin must map to a "
+            "full distribution over dependent damage bins)."
+        )
+
+    return conditional_vuln_array, cond_vuln_ids.astype(np.int32)
 
 
 def _structure_path(run_dir):
@@ -322,8 +395,27 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # --- vulnerabilities -------------------------------------------------------
     logger.debug('import vulnerabilities')
     vuln_adj = get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys)
+    # --- conditional (dependent) vulnerabilities -------------------------------
+    # A dependent coverage is driven by its source's damage bin via a separate damage-transition
+    # matrix P(dependent damage bin | source damage bin), correctly sized num_damage_bins^2 (not
+    # the footprint intensity resolution). Loaded before the hazard-indexed vulnerabilities so its
+    # ids can be excluded from get_vulns' presence check (they are absent from vulnerability.bin).
+    conditional_vuln_array, cond_vuln_ids = get_conditional_vulns(
+        model_storage, damage_bins.shape[0], ignore_file_type)
+
     vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_map, vuln_map_keys,
-                                 num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
+                                 num_intensity_bins, ignore_file_type, df_engine=model_df_engine,
+                                 allow_missing_vuln_ids=cond_vuln_ids)
+
+    # conditional_vuln_array is compact (one row per conditional vuln); vuln_idx_to_cond_idx maps a
+    # vuln's dense index (as carried on items' vulnerability_idx) to its conditional row, or -1 for
+    # a normal hazard-indexed vulnerability.
+    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=oasis_int)
+    if cond_vuln_ids.shape[0] > 0:
+        present = np.isin(items['vulnerability_id'], cond_vuln_ids)
+        # cond_vuln_ids is ascending (np.unique), so searchsorted gives the conditional row
+        vuln_idx_to_cond_idx[items['vulnerability_idx'][present]] = \
+            np.searchsorted(cond_vuln_ids, items['vulnerability_id'][present]).astype(oasis_int)
 
     # --- Gaussian lookup tables (deterministic constants) ----------------------
     norm_inv_parameters = np.array(
@@ -358,6 +450,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'damage_bins': damage_bins,
         'vuln_adj': vuln_adj,
         'vuln_array': vuln_array,
+        'conditional_vuln_array': conditional_vuln_array,
+        'vuln_idx_to_cond_idx': vuln_idx_to_cond_idx,
         'unique_peril_correlation_groups': unique_peril_correlation_groups,
         'norm_inv_cdf': norm_inv_cdf,
         'norm_cdf': norm_cdf,

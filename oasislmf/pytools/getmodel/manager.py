@@ -504,7 +504,8 @@ def update_vuln_array_with_adj_data(vuln_array, vuln_map, vuln_map_keys, adj_vul
 
 def get_vulns(
         storage: BaseStorage, run_dir, vuln_map, vuln_map_keys, num_intensity_bins,
-        ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
+        ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+        allow_missing_vuln_ids=None):
     """
     Loads the vulnerabilities from the file.
 
@@ -521,6 +522,9 @@ def get_vulns(
     n_vulns = len(vuln_map_keys)
     input_files = set(storage.listdir())
     vuln_ids_set = set(vuln_map_keys)
+    # ids that are allowed to be absent here because they live in a separate file (e.g. the
+    # conditional_vulnerability transition matrices, whose ids are not in vulnerability.bin).
+    allowed_missing = set() if allow_missing_vuln_ids is None else {int(v) for v in allow_missing_vuln_ids}
     vuln_adj = get_vulnerability_replacements(run_dir, vuln_ids_set)
 
     if vulnerability_dataset in input_files and "parquet" not in ignore_file_type:
@@ -538,7 +542,7 @@ def get_vulns(
                                                                             num_damage_bins,
                                                                             num_intensity_bins)
         parquet_vuln_ids = df['vulnerability_id'].to_numpy()
-        missing_vuln_ids = vuln_ids_set.difference(parquet_vuln_ids)
+        missing_vuln_ids = {v for v in vuln_ids_set.difference(parquet_vuln_ids) if int(v) not in allowed_missing}
         if missing_vuln_ids:
             raise Exception(f"Vulnerability_ids {missing_vuln_ids} are missing"
                             f" from {source_url}")
@@ -598,7 +602,7 @@ def get_vulns(
                 vuln_array, valid_vuln_ids = load_vulns_bin(vuln_csv, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins)
         else:
             raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', encode_params=False)[1]}")
-        missing_vuln_ids = vuln_ids_set.difference(valid_vuln_ids)
+        missing_vuln_ids = {v for v in vuln_ids_set.difference(valid_vuln_ids) if int(v) not in allowed_missing}
         if missing_vuln_ids:
             raise Exception(f"Vulnerability_ids {missing_vuln_ids} are missing"
                             f" from {source_url}")
