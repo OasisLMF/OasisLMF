@@ -272,6 +272,7 @@ def get_cond_info(locations_df, accounts_df):
                         cond_level_start = max(cond_level_start, i + 1)
                         break
             cond_info['cond_level_start'] = cond_level_start
+            cond_peril = cond_info.get('CondPeril') or 'AA1'
             for layer_id, exclusion_conds in account_layer_exclusion[acc_id].items():
                 if layer_id not in cond_info['layers']:
                     PolNumber, LayerNumber, acc_idx = pol_info[(acc_id, layer_id)]
@@ -286,7 +287,7 @@ def get_cond_info(locations_df, accounts_df):
                             'CondNumber': 'FullFilter',
                             'CondDed6All': 1,
                             'CondDedType6All': 1,
-                            'CondPeril': 'AA1',
+                            'CondPeril': cond_peril,
                         })
                     else:
                         extra_accounts.append({
@@ -297,7 +298,7 @@ def get_cond_info(locations_df, accounts_df):
                             'CondTag': cond_tag,
                             'layer_id': layer_id,
                             'CondNumber': '',
-                            'CondPeril': 'AA1',
+                            'CondPeril': cond_peril,
                         })
             level_conds.setdefault(cond_level_start, set()).add(cond_key)
     return level_conds, extra_accounts
@@ -749,8 +750,16 @@ def get_il_input_items(
                 level_df = prepare_ded_and_limit(level_df)
 
                 agg_id_merge_col = list(set(agg_id_merge_col).intersection(level_df.columns))
-                gul_inputs_df = gul_inputs_df.merge(
-                    level_df[agg_id_merge_col + agg_id_merge_col_extra].drop_duplicates(), how='left', validate='many_to_one')
+                _right_df = level_df[agg_id_merge_col + agg_id_merge_col_extra].drop_duplicates()
+                # Policies can share a condition (same CondTag) but differ in term types,
+                # causing non-join columns (e.g. need_tiv) to conflict on the same join key.
+                # Resolve by taking max over the actual join key so need_tiv=True wins.
+                _join_key = [c for c in _right_df.columns if c in gul_inputs_df.columns]
+                _non_join = [c for c in _right_df.columns if c not in gul_inputs_df.columns]
+                if _non_join and _right_df[_join_key].duplicated().any():
+                    _right_df = (_right_df.groupby(_join_key, as_index=False, dropna=False)
+                                 .agg({c: 'max' for c in _non_join}))
+                gul_inputs_df = gul_inputs_df.merge(_right_df, how='left', validate='many_to_one')
                 if is_policy_layer_level:  # we merge all on account at this level even if there is no policy
                     gul_inputs_df["FMTermGroupID"] = gul_inputs_df["FMTermGroupID"].fillna(-1).astype('i4')
                 else:
@@ -875,8 +884,18 @@ def get_il_input_items(
                 layered_inputs_df = gul_inputs_df[gul_inputs_df['layer_id'] > 0].merge(level_df, how='left')
                 # drop premature layering (no difference of policy between layers)
                 if not is_policy_layer_level and level_id not in cross_layer_level:
+                    # Preserve a row per layer when a (gul_input, agg) carries genuinely different
+                    # financial terms (profile_id) across its layers — e.g. layer-specific CondLimits.
+                    # Collapsing those (keying the dedup only on 'layered_id') dropped layers and
+                    # applied the wrong LayerParticipation, making IL order-dependent and, after the
+                    # ordering was made deterministic, simply incorrect (issue #2040). Where all of a
+                    # (gul_input, agg)'s layers share the same profile the rows are still collapsed,
+                    # so the FM structure stays canonical (layers only where terms actually differ).
+                    layer_specific = (non_layered_inputs_df
+                                      .groupby(['gul_input_id', 'agg_id'])['profile_id'].transform('nunique') > 1)
                     non_layered_inputs_df['layered_id'] = (non_layered_inputs_df['layer_id']
-                                                           .where(non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
+                                                           .where(layer_specific
+                                                                  | non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
                     non_layered_inputs_df = (non_layered_inputs_df
                                              .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id'])
                                              .drop(columns=['layered_id']))
@@ -884,7 +903,7 @@ def get_il_input_items(
                 gul_inputs_df = pd.concat(df for df in [layered_inputs_df, non_layered_inputs_df] if not df.empty)
 
                 gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype(layer_id[DTYPE_IDX])
-                gul_inputs_df.sort_values(by=['gul_input_id', 'layer_id'])
+                # gul_inputs_df = gul_inputs_df.sort_values(by=['gul_input_id', 'layer_id'])
                 gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype(profile_id[DTYPE_IDX])
 
                 # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
@@ -927,9 +946,15 @@ def get_il_input_items(
         default_pol_agg_key = [v['field'] for v in fm_aggregation_profile[SUPPORTED_FM_LEVELS['policy layer']['id']]['FMAggKey'].values()]
         no_polnumber_df = gul_inputs_df.loc[gul_inputs_df['PolNumber'].isna(), default_pol_agg_key + ['output_id']]
         if not no_polnumber_df.empty:  # empty polnumber, we use accounts_df to set PolNumber based on policy layer agg_key
-            gul_inputs_df.loc[gul_inputs_df['PolNumber'].isna(), 'PolNumber'] = no_polnumber_df.merge(
-                accounts_df[default_pol_agg_key + ['PolNumber']].drop_duplicates(subset=default_pol_agg_key)
-            ).set_index(no_polnumber_df['output_id'] - 1)['PolNumber']
+            # Use reset_index() to capture the actual DataFrame indices before merging,
+            # then set_index('index') to restore them so the assignment aligns correctly
+            # even when gul_inputs_df has a non-contiguous index from CondTag row-expansion.
+            polnumber_lookup = no_polnumber_df.reset_index().merge(
+                accounts_df[default_pol_agg_key + ['PolNumber']].drop_duplicates(subset=default_pol_agg_key),
+                how='left',
+                on=default_pol_agg_key,
+            ).set_index('index')['PolNumber']
+            gul_inputs_df.loc[polnumber_lookup.index, 'PolNumber'] = polnumber_lookup
 
         # write fm_xref
         (gul_inputs_df
@@ -955,6 +980,21 @@ def get_il_input_items(
                 gul_inputs_df
                 .merge(accounts_df[acc_idx_col + ['acc_idx']].drop_duplicates(subset=acc_idx_col),
                        how='left', validate='many_to_one'))
+
+        # Layer-aware fallback (issue #2040): a preserved policy layer can carry a non-canonical
+        # PolNumber, leaving acc_idx unmatched by the term-based merges above. acc_idx identifies
+        # the source account row, which is fully determined by (acc_id, layer_id[, CondTag]); fill
+        # any remaining gaps from that relationship so summary mapping resolves for every row.
+        for fb_keys in (['acc_id', 'layer_id', 'CondTag'], ['acc_id', 'layer_id']):
+            na_mask = gul_inputs_df['acc_idx'].isna()
+            fb_keys = [c for c in fb_keys if c in gul_inputs_df.columns and c in accounts_df.columns]
+            if not fb_keys or not na_mask.any():
+                continue
+            fb = accounts_df[fb_keys + ['acc_idx']].drop_duplicates(subset=fb_keys)
+            gul_inputs_df.loc[na_mask, 'acc_idx'] = (
+                gul_inputs_df.loc[na_mask, fb_keys].reset_index()
+                .merge(fb, how='left', on=fb_keys, validate='many_to_one')
+                .set_index('index')['acc_idx'])
 
         return gul_inputs_df
 

@@ -1,6 +1,19 @@
 OasisLMF Changelog
 ==================
 
+`2.4.13`_
+ ---------
+* [#1924](https://github.com/OasisLMF/OasisLMF/pull/1924) - fix: in special condition remove necessity for dummy layer with multiple cond peril
+* [#1927](https://github.com/OasisLMF/OasisLMF/pull/1927) - Ci/automate release branch
+* [#1997](https://github.com/OasisLMF/OasisLMF/pull/1997) - Fix for ci error
+* [#2032](https://github.com/OasisLMF/OasisLMF/pull/2032) - backport/2018-gulmc-missing-item-adjustments-2015
+* [#2041](https://github.com/OasisLMF/OasisLMF/pull/2041) - CI fixes and numpy pin
+* [#2043](https://github.com/OasisLMF/OasisLMF/pull/2043) - 2.4/fix numpy2 error
+* [#2044](https://github.com/OasisLMF/OasisLMF/pull/2044) - fix: IL outputs are non-deterministic when accounts CSV rows are reordered
+* [#2045](https://github.com/OasisLMF/OasisLMF/pull/2045) - 2.4/fix failing  FM acceptance tests
+* [#2046](https://github.com/OasisLMF/OasisLMF/pull/2046) - set ktools 3.12.5
+.. _`2.4.13`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.12...2.4.13
+
 `2.4.12`_
  ---------
 * [#1824](https://github.com/OasisLMF/OasisLMF/pull/1825) - Wrong insured loss with type 2 terms and disaggregation
