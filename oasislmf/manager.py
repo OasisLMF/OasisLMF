@@ -32,7 +32,8 @@ from oasislmf.computation.run.platform import (PlatformDelete, PlatformGet,
                                                PlatformRunLosses,
                                                PlatformValidate, PlatformExposureRun,
                                                PlatformExposureTransform, PlatformCombine,
-                                               PlatformCancel, PlatformSubTasks)
+                                               PlatformCancel, PlatformSubTasks,
+                                               PlatformReconnect)
 from oasislmf.utils.log import oasis_log
 
 
@@ -75,6 +76,7 @@ class OasisManager(object):
         PlatformCombine,
         PlatformCancel,
         PlatformSubTasks,
+        PlatformReconnect,
         HelperTabComplete,
     ]
     computations_params = {}

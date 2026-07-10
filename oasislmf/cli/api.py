@@ -98,6 +98,14 @@ class CancelApiCmd(OasisComputationCommand):
     computation_name = 'PlatformCancel'
 
 
+class ReconnectApiCmd(OasisComputationCommand):
+    """
+    Reconnect to an in-progress (or finished) analysis and resume polling for status
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformReconnect'
+
+
 class SubTasksApiCmd(OasisComputationCommand):
     """
     List the sub-tasks of an analysis run
@@ -121,4 +129,5 @@ class ApiCmd(OasisBaseCommand):
         'combine': CombineApiCmd,
         'cancel': CancelApiCmd,
         'sub-tasks': SubTasksApiCmd,
+        'reconnect': ReconnectApiCmd,
     }

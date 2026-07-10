@@ -454,6 +454,20 @@ class PlatformRun(PlatformBase):
         PlatformRunLosses(**self.kwargs).run()
 
 
+class PlatformReconnect(PlatformBase):
+    """ Reconnect to an in-progress (or finished) analysis and resume polling for status,
+    without re-triggering input generation or the run itself.
+    """
+    step_params = PlatformBase.step_params + [
+        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to reconnect to'},
+        {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
+            'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
+    ]
+
+    def run(self):
+        self.server.reconnect(self.analysis_id, self.output_dir)
+
+
 class PlatformDelete(PlatformBase):
     """ Delete either a 'model', 'portfolio' or an 'analysis' from the API's Database
     """

@@ -698,11 +698,21 @@ class APIClient(object):
         `INPUTS_GENERATION_CANCELLED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`.
         """
-
         try:
-            r = self.analyses.generate(analysis_id)
-            analysis = r.json()
-            self.logger.info('Inputs Generation: Starting (id={})'.format(analysis_id))
+            analysis = self.analyses.generate(analysis_id).json()
+        except HTTPError as e:
+            self.api.unrecoverable_error(e, 'run_generate: failed')
+            return
+        self.logger.info('Inputs Generation: Starting (id={})'.format(analysis_id))
+        return self._poll_generate_until_complete(analysis_id, analysis, poll_interval)
+
+    def _poll_generate_until_complete(self, analysis_id, analysis, poll_interval):
+        """
+        Polls an in-progress or already-complete input generation to completion,
+        without triggering it. `analysis` is the last known analysis dict/status,
+        as returned by `self.analyses.get(analysis_id).json()`.
+        """
+        try:
             logged_queued = None
             logged_running = None
 
@@ -836,6 +846,36 @@ class APIClient(object):
                 elif 'COMPLETED' in analysis['status']:
                     pbar.update(pbar.total - pbar.n)
                     break
+
+    def reconnect(self, analysis_id, output_dir=None, poll_interval=5):
+        """
+        Reconnects to an analysis that is still generating inputs or running,
+        and resumes polling from its current status - without re-triggering
+        input generation or the run itself. If the run has already completed,
+        downloads the output (when `output_dir` is given).
+        """
+        analysis = self.analyses.get(analysis_id).json()
+        status = analysis['status']
+
+        if status in ['INPUTS_GENERATION_QUEUED', 'INPUTS_GENERATION_STARTED']:
+            self.logger.info(f'Reconnecting: Inputs Generation in progress (id={analysis_id})')
+            if not self._poll_generate_until_complete(analysis_id, analysis, poll_interval):
+                return False
+            status = self.analyses.status(analysis_id)
+
+        if status in ['RUN_QUEUED', 'RUN_STARTED']:
+            self.logger.info(f'Reconnecting: Analysis Run in progress (id={analysis_id})')
+            if not self._poll_analysis_until_complete(analysis_id, poll_interval):
+                return False
+            status = self.analyses.status(analysis_id)
+
+        if status == 'RUN_COMPLETED':
+            if output_dir is not None:
+                self.download_output(analysis_id, output_dir)
+            return True
+
+        self.logger.info(f'Reconnect: Analysis (id={analysis_id}) status={status} - nothing left to poll')
+        return False
 
     def download_output(self, analysis_id, download_path='', filename=None, clean_up=False, overwrite=True):
         if not filename:
