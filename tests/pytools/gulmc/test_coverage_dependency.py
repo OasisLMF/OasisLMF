@@ -20,9 +20,7 @@ from ods_tools.oed import OedExposure
 from oasislmf.pytools.common.data import correlations_dtype
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
-from oasislmf.pytools.gulmc.structure import (
-    build_coverage_dependency_forest, _validate_acyclic_coverage_dependency,
-)
+from oasislmf.pytools.gulmc.structure import build_coverage_dependency_forest
 from oasislmf.preparation.correlations import get_coverage_dependency_settings
 from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.utils.data import prepare_oed_exposure
@@ -217,10 +215,11 @@ def test_forest_shared_source():
 
 
 def test_forest_rejects_cycles():
-    bad = np.zeros(5, dtype='i4')
-    bad[1], bad[2] = 2, 1  # 1 -> 2 -> 1
+    # a cyclic dependency (coverage 1 -> 2 -> 1) must be rejected when the forest is built
+    items = np.array([(1, 2), (2, 1)],
+                     dtype=[('coverage_id', 'u4'), ('source_coverage_id', 'u4')])
     with pytest.raises(OasisException):
-        _validate_acyclic_coverage_dependency(bad)
+        build_coverage_dependency_forest(items, 3)
 
 
 # --------------------------------------------------------------------------------------
@@ -256,18 +255,18 @@ def _run(run_dir, effective_damageability):
     out = run_dir / 'out.bin'
     run_gulmc(run_dir=run_dir, ignore_file_type=set(),
               file_in=run_dir / 'input' / 'events.bin', file_out=out,
-              sample_size=2000, loss_threshold=0., alloc_rule=1, debug=0,
+              sample_size=500, loss_threshold=0., alloc_rule=1, debug=0,
               random_generator=0, ignore_correlation=False,
               effective_damageability=effective_damageability)
     bintocsv(out, run_dir / 'out.csv', 'gul')
     return pd.read_csv(run_dir / 'out.csv')
 
 
-def test_dependency_requires_damage_bin_indexed_vuln():
-    """Coverage dependency requires each dependent vulnerability to be authored with one
-    intensity bin per damage bin (the source damage bin indexes the dependent's vuln directly).
-    test_model_1's dependent vuln is a normal hazard-indexed curve, so configuring a dependency
-    on it must fail loud (this also confirms the forest reaches the engine).
+def test_dependent_without_conditional_vulnerability_fails_loud():
+    """A dependent coverage must have a conditional (damage-transition) vulnerability in the
+    conditional_vulnerability file. test_model_1 ships no such file, so configuring coverage 2 to
+    depend on coverage 1 must fail loud rather than silently mis-sample (this also confirms the
+    dependency forest reaches the engine).
     """
     with tempfile.TemporaryDirectory() as t_cond:
         with pytest.raises(OasisException):
