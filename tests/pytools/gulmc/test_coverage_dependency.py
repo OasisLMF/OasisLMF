@@ -128,9 +128,9 @@ def test_get_conditional_vulns_requires_all_source_bins():
 # validation guards (validate_coverage_dependency contract)
 # --------------------------------------------------------------------------------------
 def _dependency_arrays():
-    """A minimal valid coverage-dependency setup: source coverage 1 (relative, hazard-indexed),
-    dependent coverage 2 (conditional). Returns the args for validate_coverage_dependency, which
-    individual tests perturb to trip one guard."""
+    """A minimal valid coverage-dependency setup: source coverage 1 (hazard-indexed), dependent
+    coverage 2 (conditional). Returns the args for validate_coverage_dependency, which individual
+    tests perturb to trip one guard."""
     items = np.zeros(2, dtype=[('coverage_id', 'i4'), ('vulnerability_id', 'i4'),
                                ('vulnerability_idx', 'i4'), ('areaperil_agg_vuln_idx', 'i4')])
     items['coverage_id'] = [1, 2]
@@ -138,13 +138,8 @@ def _dependency_arrays():
     items['vulnerability_idx'] = [0, 1]
     items['areaperil_agg_vuln_idx'] = [-1, -1]          # both non-aggregate
     coverage_source_id = np.array([0, 0, 1], dtype='u4')  # indexed by coverage_id; cov 2 -> source 1
-    vuln_array = np.zeros((2, 3, 4), dtype='f4')
-    vuln_array[0, 0, 0] = vuln_array[0, 1, 0] = 0.5      # source uses damage bins 0,1
     vuln_idx_to_cond_idx = np.array([-1, 0], dtype='i8')  # vuln 0 normal, vuln 1 conditional
-    damage_bins = np.zeros(3, dtype=[('bin_to', 'f4'), ('damage_type', 'i4')])
-    damage_bins['bin_to'] = [0.0, 0.5, 1.0]
-    damage_bins['damage_type'] = 1                        # relative
-    return items, coverage_source_id, vuln_array, vuln_idx_to_cond_idx, damage_bins
+    return items, coverage_source_id, vuln_idx_to_cond_idx
 
 
 def test_validate_coverage_dependency_accepts_valid_setup():
@@ -154,34 +149,26 @@ def test_validate_coverage_dependency_accepts_valid_setup():
 
 def test_validate_rejects_aggregate_dependent():
     from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
-    items, csid, va, v2c, db = _dependency_arrays()
+    items, csid, v2c = _dependency_arrays()
     items['areaperil_agg_vuln_idx'][1] = 0  # dependent uses an aggregate vulnerability
     with pytest.raises(OasisException):
-        validate_coverage_dependency(items, csid, va, v2c, db)
-
-
-def test_validate_rejects_non_relative_source():
-    from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
-    items, csid, va, v2c, db = _dependency_arrays()
-    db['damage_type'] = 2  # absolute source damage -> [0,1] ratio can't recover the source bin
-    with pytest.raises(OasisException):
-        validate_coverage_dependency(items, csid, va, v2c, db)
+        validate_coverage_dependency(items, csid, v2c)
 
 
 def test_validate_rejects_dependent_without_conditional_vuln():
     from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
-    items, csid, va, v2c, db = _dependency_arrays()
+    items, csid, v2c = _dependency_arrays()
     v2c[1] = -1  # dependent's vuln is not in the conditional file
     with pytest.raises(OasisException):
-        validate_coverage_dependency(items, csid, va, v2c, db)
+        validate_coverage_dependency(items, csid, v2c)
 
 
 def test_validate_rejects_independent_with_conditional_vuln():
     from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
-    items, csid, va, v2c, db = _dependency_arrays()
+    items, csid, v2c = _dependency_arrays()
     csid[2] = 0  # coverage 2 has no source (independent) but still carries a conditional vuln
     with pytest.raises(OasisException):
-        validate_coverage_dependency(items, csid, va, v2c, db)
+        validate_coverage_dependency(items, csid, v2c)
 
 
 # --------------------------------------------------------------------------------------

@@ -36,7 +36,6 @@ from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, genera
                                          generate_hash_hazard, get_corr_rval_float, get_random_generator)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
-                                           DAMAGE_TYPE_DEFAULT,
                                            DAMAGE_TYPE_DURATION,
                                            DAMAGE_TYPE_RELATIVE,
                                            NP_BASE_ARRAY_SIZE,
@@ -59,7 +58,7 @@ CDF_CACHE_EMPTY = nb_int64(-1)
 NO_RNG_INDEX = nb_int64(-1)
 
 
-def validate_coverage_dependency(items, coverage_source_id, vuln_array, vuln_idx_to_cond_idx, damage_bins):
+def validate_coverage_dependency(items, coverage_source_id, vuln_idx_to_cond_idx):
     """Validate a coverage-dependency configuration against the loaded model data (fail-loud).
 
     A dependent coverage (``coverage_source_id[coverage] > 0``) is driven by its source's sampled
@@ -72,20 +71,19 @@ def validate_coverage_dependency(items, coverage_source_id, vuln_array, vuln_idx
     2. a dependent must use a conditional vulnerability (present in conditional_vulnerability, i.e.
        ``vuln_idx_to_cond_idx[vulnerability_idx] >= 0``);
     3. an independent coverage must NOT use a conditional vulnerability (it has no source to drive
-       it and a conditional vuln cannot be sampled by the footprint hazard);
-    4. a source coverage must use RELATIVE damage, so its per-sample damage ratio (clamped to
-       [0, 1] and mapped back via ``damage_bins['bin_to']``) recovers the correct source bin.
+       it and a conditional vuln cannot be sampled by the footprint hazard).
+
+    The source's sampled damage bin is captured directly during sampling (not re-derived from a
+    ratio), so a source coverage may use any damage type (relative / absolute / duration).
 
     Args:
         items (np.ndarray): items table (coverage_id, vulnerability_id, vulnerability_idx,
             areaperil_agg_vuln_idx).
         coverage_source_id (np.ndarray): parent coverage_id per coverage_id (0 = independent).
-        vuln_array (np.ndarray): hazard-indexed vulnerabilities [n_vuln, n_damage, n_intensity].
         vuln_idx_to_cond_idx (np.ndarray): dense vuln idx -> conditional row, or -1 if not conditional.
-        damage_bins (np.ndarray): damage bin dictionary (uses 'damage_type', 'bin_to').
 
     Raises:
-        OasisException: if any of the four invariants is violated.
+        OasisException: if any of the three invariants is violated.
     """
     non_agg = items['areaperil_agg_vuln_idx'] < 0
     is_dependent_item = coverage_source_id[items['coverage_id']] > 0
@@ -121,23 +119,6 @@ def validate_coverage_dependency(items, coverage_source_id, vuln_array, vuln_idx
             "sampled by the footprint hazard. Provide a matching source (same areaperil) or use a "
             "hazard-indexed vulnerability."
         )
-
-    source_coverage_ids = np.unique(coverage_source_id[coverage_source_id > 0])
-    src_mask = np.isin(items['coverage_id'], source_coverage_ids) & non_agg
-    damage_types = damage_bins['damage_type']
-    for src_vuln_idx in np.unique(items['vulnerability_idx'][src_mask]):
-        used = np.flatnonzero(vuln_array[src_vuln_idx].sum(axis=1) > 0)
-        if not used.size:
-            continue
-        used_types = damage_types[used]
-        not_relative = bool(np.any((used_types == DAMAGE_TYPE_ABSOLUTE) | (used_types == DAMAGE_TYPE_DURATION))) or (
-            bool(np.any(used_types == DAMAGE_TYPE_DEFAULT)) and float(damage_bins['bin_to'][used].max()) > 1.0)
-        if not_relative:
-            raise OasisException(
-                f"coverage dependency: source vulnerability index {int(src_vuln_idx)} uses non-relative "
-                "(absolute/duration) damage; a coverage-dependency source must use relative damage so its "
-                "[0, 1] damage ratio recovers the source damage bin. Use a relative-damage source coverage."
-            )
 
 
 @redirect_logging(exec_name='gulmc')
@@ -268,7 +249,7 @@ def run(run_dir,
         if do_coverage_dependency or conditional_vuln_array.shape[0] > 0:
             if do_coverage_dependency:
                 logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
-            validate_coverage_dependency(items, coverage_source_id, vuln_array, vuln_idx_to_cond_idx, damage_bins)
+            validate_coverage_dependency(items, coverage_source_id, vuln_idx_to_cond_idx)
 
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
@@ -288,10 +269,10 @@ def run(run_dir,
         # per-depth, per-item stacks holding the source coverage's result while its subtree is
         # computed. Indexed [depth, item_j] so a dependent item reads its source's matching peril
         # (same item column, since source and dependent span the same areaperils in the same order).
-        # Full MC stores the per-sample damage ratio; effective damageability stores the eff-damage CDF.
+        # Full MC stores the per-sample sampled damage bin; effective damageability stores the eff-damage CDF.
         max_items_per_coverage = int(np.max(coverages[1:]['max_items']))
-        source_damage_ratio_stack = np.zeros(
-            (max_dependency_depth + 1, max_items_per_coverage, sample_size if sample_size > 0 else 1), dtype='float64')
+        source_damage_bin_stack = np.zeros(
+            (max_dependency_depth + 1, max_items_per_coverage, sample_size if sample_size > 0 else 1), dtype=np.int32)
         source_eff_damage_cdf_stack = np.zeros(
             (max_dependency_depth + 1, max_items_per_coverage, Ndamage_bins_max), dtype=oasis_float)
         source_eff_damage_cdf_len_stack = np.zeros((max_dependency_depth + 1, max_items_per_coverage), dtype=np.int64)
@@ -566,7 +547,7 @@ def run(run_dir,
                             intensity_bin_peril_ids,
                             intensity_bins,
                             compute_depth,
-                            source_damage_ratio_stack,
+                            source_damage_bin_stack,
                             source_eff_damage_cdf_stack,
                             source_eff_damage_cdf_len_stack
                         )
@@ -696,8 +677,9 @@ def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_sc
     # find the damage cdf bin in which the random value `vuln_rval` falls into
     vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins - 1)
 
-    # compute ground-up losses
-    return get_gul(
+    # compute ground-up losses; also return the sampled damage bin index (needed as the driving
+    # signal for coverage dependency — captured here rather than re-derived from the loss).
+    gul = get_gul(
         damage_bins['bin_from'][vuln_bin_idx],
         damage_bins['bin_to'][vuln_bin_idx],
         damage_bins['interpolation'][vuln_bin_idx],
@@ -706,6 +688,7 @@ def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_sc
         vuln_rval,
         bin_scaling,
     )
+    return gul, vuln_bin_idx
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -743,7 +726,7 @@ def compute_event_losses(compute_info,
                          intensity_bin_peril_ids,
                          intensity_bins,
                          compute_depth,
-                         source_damage_ratio_stack,
+                         source_damage_bin_stack,
                          source_eff_damage_cdf_stack,
                          source_eff_damage_cdf_len_stack
                          ):
@@ -835,7 +818,7 @@ def compute_event_losses(compute_info,
         exposureValue = tiv / Nitems
 
         # A root and its dependent subtree are written as one atomic unit so the source's
-        # per-sample damage ratio (held on source_damage_ratio_stack, indexed by depth) stays
+        # per-sample damage bin (held on source_damage_bin_stack, indexed by depth) stays
         # valid across the whole subtree. We therefore only check the buffer at subtree roots,
         # estimating the bytes for the entire subtree (conservatively assuming all samples are
         # printed).
@@ -1026,14 +1009,6 @@ def compute_event_losses(compute_info,
                 # for absolute vulnerability functions, gul are absolute values
                 damage_bin_scaling = tiv if damage_bins[Neff_damage_bins - 1]['bin_to'] <= 1 else 1.0
 
-            # driver-only source (a retained zero-TIV dependency source): it emits no insured
-            # loss, but its damage bin must still drive its dependents. tiv == 0 would zero the
-            # relative/duration scaling and collapse the stored driving ratio to 0, so use unit
-            # scaling — the ratio then holds the damage fraction (hazard x vulnerability), which is
-            # what conditions the dependent, independent of the (zero) TIV.
-            if tiv == 0.0:
-                damage_bin_scaling = 1.0
-
             # compute mean loss values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
                 damage_bin_scaling,
@@ -1092,26 +1067,37 @@ def compute_event_losses(compute_info,
                     losses[1:, item_j] = vuln_z_unif[:]
 
                 else:  # calculate gul
+                    # for coverage dependency (full Monte Carlo) we record each coverage's per-sample
+                    # sampled damage bin so a dependent below it in the DFS can index its conditional
+                    # vulnerability directly. Captured from the draw (not re-derived from the loss),
+                    # so it is exact and independent of the source's damage type / TIV scaling.
+                    store_source_bin = compute_info['do_coverage_dependency'] == 1 and not compute_info['effective_damageability']
                     if compute_info['effective_damageability']:
                         for sample_idx in range(1, sample_size + 1):
-                            losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
-                                                                               Neff_damage_bins, damage_bins, damage_bin_scaling)
+                            losses[sample_idx, item_j], _ = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
+                                                                                  Neff_damage_bins, damage_bins, damage_bin_scaling)
                     elif Nhaz_bins == 1:  # only one hazard possible
                         Ndamage_bins = haz_i_to_Ndamage_bins[0]
                         vuln_cdf = haz_i_to_vuln_cdf[0][:Ndamage_bins]
                         for sample_idx in range(1, sample_size + 1):
-                            losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                               Ndamage_bins, damage_bins, damage_bin_scaling)
+                            losses[sample_idx, item_j], src_bin = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                                                        Ndamage_bins, damage_bins, damage_bin_scaling)
+                            if store_source_bin:
+                                source_damage_bin_stack[depth, item_j, sample_idx - 1] = src_bin
                     elif is_dependent:
-                        # coverage dependency: the dependent's "hazard bin" is the source's
-                        # sampled damage bin, recovered from the stored source damage ratio.
-                        parent_damage_ratio = source_damage_ratio_stack[depth - 1, item_j]
+                        # coverage dependency: the dependent's "hazard bin" is the source's sampled
+                        # damage bin, read straight from the stack (no ratio round-trip, so a source
+                        # of any damage type works). This coverage may itself be a source (chain), so
+                        # its own sampled bin is recorded too.
+                        parent_damage_bin = source_damage_bin_stack[depth - 1, item_j]
                         for sample_idx in range(1, sample_size + 1):
-                            haz_bin_idx = binary_search(parent_damage_ratio[sample_idx - 1], damage_bins['bin_to'], Nhaz_bins - 1)
+                            haz_bin_idx = parent_damage_bin[sample_idx - 1]
                             Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
                             vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
-                            losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                               Ndamage_bins, damage_bins, damage_bin_scaling)
+                            losses[sample_idx, item_j], src_bin = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                                                        Ndamage_bins, damage_bins, damage_bin_scaling)
+                            if store_source_bin:
+                                source_damage_bin_stack[depth, item_j, sample_idx - 1] = src_bin
                     else:
                         for sample_idx in range(1, sample_size + 1):
                             # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
@@ -1124,32 +1110,26 @@ def compute_event_losses(compute_info,
                             if dynamic_footprint is not None and item_event_data['return_period'] > 0 \
                                     and item_event_data['event_rp'] < item_event_data['return_period']:
                                 losses[sample_idx, item_j] = 0
+                                if store_source_bin:  # protected sample -> no damage -> bin 0
+                                    source_damage_bin_stack[depth, item_j, sample_idx - 1] = 0
                                 continue
 
                             # get the individual vulnerability cdf
                             Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
                             vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
 
-                            losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                               Ndamage_bins, damage_bins, damage_bin_scaling)
+                            losses[sample_idx, item_j], src_bin = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                                                        Ndamage_bins, damage_bins, damage_bin_scaling)
+                            if store_source_bin:
+                                source_damage_bin_stack[depth, item_j, sample_idx - 1] = src_bin
 
-            # coverage dependency: record this item's result at this (depth, item_j) so a
-            # dependent coverage below it (processed next in the DFS order) can drive its
-            # matching peril item. We store the effective-damage CDF (its damage pmf drives the
-            # dependent's vulnerability under effective damageability) and the per-sample damage
-            # ratio (from which the source's sampled damage bin is recovered in full Monte Carlo).
+            # coverage dependency (effective damageability): record this coverage's effective-damage
+            # CDF at (depth, item_j) so a dependent below it in the DFS order can build its damage pmf
+            # from it. (Full Monte Carlo instead uses the per-sample damage bin captured above.)
             if compute_info['do_coverage_dependency'] == 1:
                 num_damage_bins = eff_damage_cdf.shape[0]
                 source_eff_damage_cdf_stack[depth, item_j, :num_damage_bins] = eff_damage_cdf
                 source_eff_damage_cdf_len_stack[depth, item_j] = num_damage_bins
-                if sample_size > 0 and compute_info['effective_damageability'] == 0:
-                    for sample_idx in range(sample_size):
-                        damage_ratio = losses[sample_idx + 1, item_j] / damage_bin_scaling if damage_bin_scaling > 0 else 0.0
-                        if damage_ratio < 0.0:
-                            damage_ratio = 0.0
-                        elif damage_ratio > 1.0:
-                            damage_ratio = 1.0
-                        source_damage_ratio_stack[depth, item_j, sample_idx] = damage_ratio
 
         # write the losses to the output memoryview. A driver-only source (tiv == 0) is computed
         # only to drive its dependents (its result is already stored on the stacks above) and

@@ -223,7 +223,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 
     # coverage dependency is inactive in these tests: depth 0 (all roots), empty stacks
     compute_depth = np.zeros(len(coverage_ids), dtype=np.int32)
-    source_damage_ratio_stack = np.zeros((1, 1, max(sample_size, 1)), dtype=np.float64)
+    source_damage_bin_stack = np.zeros((1, 1, max(sample_size, 1)), dtype=np.int32)
     source_eff_damage_cdf_stack = np.zeros((1, 1, Ndamage_bins), dtype=oasis_float)
     source_eff_damage_cdf_len_stack = np.zeros((1, 1), dtype=np.int64)
 
@@ -236,7 +236,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
-        compute_depth, source_damage_ratio_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
+        compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
     )
     return args, losses
 
@@ -522,7 +522,7 @@ def test_rp_protection_only_affects_protected_items():
 
     # coverage dependency inactive (do_coverage_dependency defaults to 0): depth 0, empty stacks
     compute_depth = np.zeros(len(coverage_ids), dtype=np.int32)
-    source_damage_ratio_stack = np.zeros((1, 1, max(sample_size, 1)), dtype=np.float64)
+    source_damage_bin_stack = np.zeros((1, 1, max(sample_size, 1)), dtype=np.int32)
     source_eff_damage_cdf_stack = np.zeros((1, 1, Ndamage_bins), dtype=oasis_float)
     source_eff_damage_cdf_len_stack = np.zeros((1, 1), dtype=np.int64)
 
@@ -535,7 +535,7 @@ def test_rp_protection_only_affects_protected_items():
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
-        compute_depth, source_damage_ratio_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
+        compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
     )
 
     # Item 0 (RP-protected): all losses must be zero
