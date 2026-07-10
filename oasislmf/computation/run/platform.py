@@ -17,6 +17,7 @@ import getpass
 import io
 import os
 import json
+import time
 
 from tabulate import tabulate
 from mimetypes import guess_extension
@@ -247,6 +248,39 @@ class PlatformBase(ComputationStep):
             else:
                 break
         return int(value)
+
+    # Portfolio.{validation,exposure,exposure_transform}_status_choices on the
+    # server: NONE, INSUFFICIENT_DATA, STARTED, ERROR, RUN_COMPLETED.
+    # STARTED is the only in-flight state; NONE means it has never been run.
+    pending_states = ['NONE', 'STARTED']
+
+    def poll_portfolio_field(self, portfolio_id, status_field, poll_interval, action_name):
+        """
+        Poll a portfolio's async status field (e.g. `validation_status`,
+        `exposure_status`) until it settles on a terminal value.
+
+        A re-triggered run can end up back at the same terminal status it
+        started at (e.g. RUN_COMPLETED -> STARTED -> RUN_COMPLETED), so
+        completion can't be detected by a status change alone - it must have
+        passed through a pending state at least once since this run was
+        triggered.
+        """
+        seen_pending = False
+        logged_pending = False
+        while True:
+            portfolio = self.server.portfolios.get(portfolio_id).json()
+            status = portfolio[status_field]
+            if status in self.pending_states:
+                seen_pending = True
+            elif seen_pending:
+                break
+            if not logged_pending:
+                logged_pending = True
+                self.logger.info('{}: Pending (id={})'.format(action_name, portfolio_id))
+            time.sleep(poll_interval)
+
+        self.logger.info('{}: Complete (id={}, status={})'.format(action_name, portfolio_id, status))
+        return status
 
 
 class PlatformList(PlatformBase):
@@ -532,20 +566,27 @@ class PlatformGet(PlatformBase):
 
 
 class PlatformValidate(PlatformBase):
-    """ Validate (or fetch the status of) a portfolio's OED exposure files via the Oasis Platform API
+    """ Validate a portfolio's OED exposure files via the Oasis Platform API
     """
     step_params = PlatformBase.step_params + [
         {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to validate'},
-        {'name': 'run_validation', 'action': 'store_true',
-            'help': 'Trigger a new OED validation run instead of fetching the current validation status'},
+        {'name': 'get_status', 'action': 'store_true',
+            'help': 'Fetch the current validation status instead of triggering a new OED validation run'},
+        {'name': 'poll_interval', 'type': int, 'default': 5, 'help': 'Polling interval in seconds while waiting for validation to complete'},
     ]
 
     def run(self):
-        if self.run_validation:
-            rsp = self.server.portfolios.validate.post(self.portfolio_id, {})
-        else:
+        if self.get_status:
             rsp = self.server.portfolios.validate.get(self.portfolio_id)
-        data = rsp.json()
+            data = rsp.json()
+            self.logger.info(json.dumps(data, indent=4, sort_keys=True))
+            return data
+
+        self.server.portfolios.validate.post(self.portfolio_id, {})
+        self.logger.info('Portfolio validation: Starting (id={})'.format(self.portfolio_id))
+        self.poll_portfolio_field(self.portfolio_id, 'validation_status', self.poll_interval, 'Portfolio validation')
+
+        data = self.server.portfolios.validate.get(self.portfolio_id).json()
         self.logger.info(json.dumps(data, indent=4, sort_keys=True))
         return data
 
@@ -574,6 +615,7 @@ class PlatformExposureRun(PlatformBase):
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
             'help': 'if True run the oasis disaggregation'},
+        {'name': 'poll_interval', 'type': int, 'default': 5, 'help': 'Polling interval in seconds while waiting for the exposure run to complete'},
     ]
 
     def run(self):
@@ -593,7 +635,10 @@ class PlatformExposureRun(PlatformBase):
         if self.fetch:
             rsp = self.server.portfolios.exposure_run.get(self.portfolio_id)
         else:
-            rsp = self.server.portfolios.exposure_run.post(self.portfolio_id, params)
+            self.server.portfolios.exposure_run.post(self.portfolio_id, params)
+            self.logger.info('Exposure run: Starting (id={})'.format(self.portfolio_id))
+            self.poll_portfolio_field(self.portfolio_id, 'exposure_status', self.poll_interval, 'Exposure run')
+            rsp = self.server.portfolios.exposure_run.get(self.portfolio_id)
 
         content_type = rsp.headers.get('content-type', '').partition(';')[0].strip()
         ext = guess_extension(content_type) or '.bin'
@@ -613,12 +658,16 @@ class PlatformExposureTransform(PlatformBase):
             'help': 'OED file type to transform'},
         {'name': 'mapping_file', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Path to the mapping file'},
         {'name': 'transform_file', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Path to the transform file'},
+        {'name': 'poll_interval', 'type': int, 'default': 5, 'help': 'Polling interval in seconds while waiting for the transform to complete'},
     ]
 
     def run(self):
-        rsp = self.server.portfolios.exposure_transform.post(
+        self.server.portfolios.exposure_transform.post(
             self.portfolio_id, self.file_type, self.mapping_file, self.transform_file)
-        data = rsp.json()
+        self.logger.info('Exposure transform: Starting (id={})'.format(self.portfolio_id))
+        self.poll_portfolio_field(self.portfolio_id, 'exposure_transform_status', self.poll_interval, 'Exposure transform')
+
+        data = self.server.portfolios.get(self.portfolio_id).json()
         self.logger.info(json.dumps(data, indent=4, sort_keys=True))
         return data
 

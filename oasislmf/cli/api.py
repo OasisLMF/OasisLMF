@@ -107,7 +107,7 @@ class ApiCmd(OasisBaseCommand):
         'delete': DeleteApiCmd,
         'get': GetApiCmd,
         'validate': ValidateApiCmd,
-        'exposure_run': ExposureRunApiCmd,
+        'exposure-run': ExposureRunApiCmd,
         'exposure-transform': ExposureTransformApiCmd,
         'combine': CombineApiCmd,
         'cancel': CancelApiCmd,
