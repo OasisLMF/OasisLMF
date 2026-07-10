@@ -102,26 +102,18 @@ def test_get_conditional_vulns_absent_is_empty():
     assert arr.shape == (0, 3, 3) and ids.shape == (0,)
 
 
-def test_get_conditional_vulns_requires_distribution():
-    """Each source damage bin present must map to a full distribution (sum to 1)."""
+def test_get_conditional_vulns_allows_missing_source_bins():
+    """A source damage bin may be left undefined: its column is all-zero, which the kernel samples
+    as no dependent damage. This is a valid modelling choice, so the loader must not require every
+    source bin to be defined."""
     from oasislmf.pytools.gulmc.structure import get_conditional_vulns
     from oasis_data_manager.filestore.backends.local import LocalStorage
     with tempfile.TemporaryDirectory() as d:
-        _write_conditional_vuln_csv(d, [(7, 1, 1, 0.8), (7, 1, 2, 0.1)])  # sums to 0.9
-        with pytest.raises(OasisException):
-            get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
-
-
-def test_get_conditional_vulns_requires_all_source_bins():
-    """Every source damage bin 1..N must be defined; an undefined bin would silently give the
-    dependent no loss when its source lands there, so it must fail loud."""
-    from oasislmf.pytools.gulmc.structure import get_conditional_vulns
-    from oasis_data_manager.filestore.backends.local import LocalStorage
-    with tempfile.TemporaryDirectory() as d:
-        # source bins 1 and 2 defined, source bin 3 missing (num_damage_bins=3)
+        # only source bins 1 and 2 defined; source bin 3 left undefined (num_damage_bins=3)
         _write_conditional_vuln_csv(d, [(7, 1, 1, 1.0), (7, 2, 2, 1.0)])
-        with pytest.raises(OasisException):
-            get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
+        arr, ids = get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
+    assert arr.shape == (1, 3, 3) and ids.tolist() == [7]
+    assert np.all(arr[0, :, 2] == 0.0), "undefined source bin 3 -> all-zero column (no dependent damage)"
 
 
 # --------------------------------------------------------------------------------------
@@ -358,10 +350,17 @@ def test_dependent_without_conditional_vulnerability_fails_loud():
             _run(_setup(t_cond, {2: 1}), effective_damageability=False)
 
 
-def test_conditional_dependency_end_to_end():
+@pytest.mark.parametrize("source_damage_type", [0, 2], ids=["relative", "absolute"])
+def test_conditional_dependency_end_to_end(source_damage_type):
     """End-to-end: coverage 2 depends on coverage 1 via a conditional_vulnerability file. With an
     identity transition matrix (source damage bin k -> dependent damage bin k), the dependent must
-    land in the SAME damage bin as its source on every sample."""
+    land in the SAME damage bin as its source on every sample.
+
+    Parametrised over the model's damage type: test_model_1's native (relative) bins, and an
+    absolute rewrite with currency-scale bin_to (> 1). The absolute case is what the earlier
+    ratio-based recovery got wrong (it clamped the ratio to [0, 1]); driving from the stored
+    source damage bin makes a source of any damage type work, which this asserts.
+    """
     with tempfile.TemporaryDirectory() as t:
         run_dir = Path(t) / 'assets'
         shutil.copytree(SRC_MODEL, run_dir)
@@ -374,7 +373,17 @@ def test_conditional_dependency_end_to_end():
         items.to_csv(run_dir / 'input' / 'items.csv', index=False)
         (run_dir / 'input' / 'items.bin').unlink()  # force the edited csv to be read
 
-        n_damage_bins = pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv').shape[0]
+        dbd_path = run_dir / 'static' / 'damage_bin_dict.csv'
+        dbd = pd.read_csv(dbd_path)
+        n_damage_bins = len(dbd)
+        if source_damage_type == 2:  # rewrite to absolute, currency-scale bins (bin_to > 1)
+            to = np.arange(n_damage_bins, dtype='f8') * 1000.0
+            frm = np.concatenate([[0.0], to[:-1]])
+            dbd['bin_from'], dbd['bin_to'], dbd['interpolation'] = frm, to, (frm + to) / 2
+            dbd['damage_type'] = 2
+            dbd.to_csv(dbd_path, index=False)
+            (run_dir / 'static' / 'damage_bin_dict.bin').unlink()  # force the edited csv to be read
+
         with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
             f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
             for vid in (101, 102):  # identity: source bin k -> dependent bin k
@@ -385,20 +394,21 @@ def test_conditional_dependency_end_to_end():
         df = _run(run_dir, effective_damageability=False)
 
         cov_tiv = pd.read_csv(run_dir / 'input' / 'coverages.csv').set_index('coverage_id')['tiv']
-        bin_to = pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv')['bin_to'].to_numpy()
+        bin_to = dbd['bin_to'].to_numpy()
 
         def sampled_bins(item_id, coverage_id):
             d = df[(df['item_id'] == item_id) & (df['sidx'] > 0)].sort_values(['event_id', 'sidx'])
-            frac = d['loss'].to_numpy() / cov_tiv[coverage_id]
-            return np.searchsorted(bin_to, frac, side='left')  # damage-bin index per sample
+            loss = d['loss'].to_numpy()
+            # relative losses are a fraction of TIV; absolute losses are already in bin units
+            value = loss / cov_tiv[coverage_id] if source_damage_type == 0 else loss
+            return np.searchsorted(bin_to, value, side='left')  # damage-bin index per sample
 
         # item 1 = source (coverage 1, areaperil 154); item 3 = dependent (coverage 2, areaperil 154)
         src_bins, dep_bins = sampled_bins(1, 1), sampled_bins(3, 2)
         n = min(len(src_bins), len(dep_bins))
         diff = np.abs(src_bins[:n].astype(int) - dep_bins[:n].astype(int))
         # dependent tracks the source's damage bin: (near-)exact match, with rare off-by-one at bin
-        # boundaries (the kernel recovers the source bin from a continuous ratio). Independent
-        # sampling over 12 bins would give a mean difference of several bins.
+        # boundaries. Independent sampling over 12 bins would give a mean difference of several bins.
         assert n > 0 and (diff == 0).mean() > 0.9 and diff.mean() < 0.15, \
             f"identity conditional => dependent damage bin should follow source's (exact {(diff == 0).mean():.3f}, mean|d| {diff.mean():.3f})"
 

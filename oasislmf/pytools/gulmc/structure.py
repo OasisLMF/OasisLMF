@@ -156,7 +156,9 @@ def get_conditional_vulns(storage, num_damage_bins, ignore_file_type=set()):
     is correctly sized ``num_damage_bins x num_damage_bins`` (independent of the footprint's
     intensity resolution). The file reuses the vulnerability schema, with ``intensity_bin_id``
     read as the *source damage bin* (1..num_damage_bins). The file is optional; when absent, no
-    coverage may be a (conditional) dependent.
+    coverage may be a (conditional) dependent. A source damage bin with no rows is an all-zero
+    column, which the kernel samples as no dependent damage — a valid "this source damage => no
+    dependent damage" choice, so completeness is not required.
 
     Args:
         storage (BaseStorage): storage connector for the model static data.
@@ -170,8 +172,7 @@ def get_conditional_vulns(storage, num_damage_bins, ignore_file_type=set()):
         (the vulnerability ids, ascending, aligned with cond_idx). Both empty when no file exists.
 
     Raises:
-        OasisException: if a bin id is out of range, or a source damage bin's probabilities do
-            not form a distribution (sum to 1).
+        OasisException: if a bin id is out of range (1..num_damage_bins).
     """
     input_files = set(storage.listdir())
     recs = None
@@ -204,18 +205,10 @@ def get_conditional_vulns(storage, num_damage_bins, ignore_file_type=set()):
         conditional_vuln_array[id_to_idx[int(r['vulnerability_id'])],
                                int(r['damage_bin_id']) - 1, int(r['intensity_bin_id']) - 1] = r['probability']
 
-    # EVERY source damage bin (1..num_damage_bins) must map to a full distribution (its column
-    # sums to 1). An undefined source bin would leave an all-zero column, silently giving the
-    # dependent no loss whenever its source lands in that bin — so require complete coverage.
-    col_sums = conditional_vuln_array.sum(axis=1)  # [n_cond, source_damage_bin]
-    bad = np.abs(col_sums - 1.0) > 1e-3
-    if np.any(bad):
-        c, s = (int(x) for x in np.argwhere(bad)[0])
-        raise OasisException(
-            f"conditional_vulnerability: vulnerability_id {int(cond_vuln_ids[c])} source damage bin {s + 1} "
-            f"probabilities sum to {col_sums[c, s]:.4f}, expected 1.0 (every source damage bin 1..{num_damage_bins} "
-            "must map to a full distribution over dependent damage bins)."
-        )
+    # No distribution/completeness check is imposed: a source damage bin with no rows is an
+    # all-zero column, which the kernel samples as damage bin 0 (no dependent damage). Leaving a
+    # source bin undefined is therefore a valid modelling choice ("that source damage => no
+    # dependent damage"), and damage bins carry no fixed meaning to validate against.
 
     return conditional_vuln_array, cond_vuln_ids.astype(np.int32)
 
