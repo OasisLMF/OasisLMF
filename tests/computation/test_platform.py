@@ -155,6 +155,32 @@ class TestPlatformList(ComputationChecker):
                 self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
                 self.assertIn('{"error": "analysis not found"}', "\n".join(self._caplog.messages))
 
+    def test_list_subtask__success(self):
+        called_args = self.combine_args([self.min_args, {'subtask': [1, 2]}])
+        url_1 = f'{self.api_url}/{self.api_ver}/analysis-task-statuses/1/'
+        url_2 = f'{self.api_url}/{self.api_ver}/analysis-task-statuses/2/'
+
+        with self._caplog.at_level(logging.INFO):
+            with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+                self.add_connection_startup(rsps)
+                rsps.get(url_1, json={'id': 1, 'status': 'COMPLETED'})
+                rsps.get(url_2, json={'id': 2, 'status': 'ERROR'})
+                self.manager.platform_list(**called_args)
+                self.assertIn('Task status (id=1):', "\n".join(self._caplog.messages))
+                self.assertIn('Task status (id=2):', "\n".join(self._caplog.messages))
+
+    def test_list_subtask__logs_error(self):
+        called_args = self.combine_args([self.min_args, {'subtask': [1]}])
+        url_1 = f'{self.api_url}/{self.api_ver}/analysis-task-statuses/1/'
+
+        with self._caplog.at_level(logging.INFO):
+            with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+                self.add_connection_startup(rsps)
+                rsps.get(url_1, json={'error': 'task status not found'}, status=404)
+                self.manager.platform_list(**called_args)
+                self.assertIn('Task status (id=1):', "\n".join(self._caplog.messages))
+                self.assertIn('{"error": "task status not found"}', "\n".join(self._caplog.messages))
+
 
 class TestPlatformRunInputs(ComputationChecker):
     @classmethod
@@ -888,6 +914,34 @@ class TestPlatformGet(ComputationChecker):
                 (expected_content_acc, os.path.join(self.min_args['output_dir'], '4_portfolios_accounts_file.csv')),
                 (expected_content_settings, os.path.join(self.min_args['output_dir'], '1_models_settings.json')),
                 (expected_content_version, os.path.join(self.min_args['output_dir'], '1_models_versions.json')),
+            ]
+            for expected_content, filepath in downloaded_files:
+                self.assertTrue(os.path.isfile(filepath))
+                self.assertEqual(self.read_file(filepath), expected_content)
+
+    def test_get__subtask_logs__success(self):
+        subtask_id = [3]
+
+        expected_content_output = b'output log content'
+        expected_content_error = b'error log content'
+        expected_content_retry = b'retry log content'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analysis-task-statuses/3/output_log/', body=expected_content_output, content_type='text/csv')
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analysis-task-statuses/3/error_log/', body=expected_content_error, content_type='text/csv')
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analysis-task-statuses/3/retry_log/', body=expected_content_retry, content_type='text/csv')
+            self.manager.platform_get(
+                **self.min_args,
+                subtask_output_log=subtask_id,
+                subtask_error_log=subtask_id,
+                subtask_retry_log=subtask_id,
+            )
+
+            downloaded_files = [
+                (expected_content_output, os.path.join(self.min_args['output_dir'], '3_task_status_output_log.csv')),
+                (expected_content_error, os.path.join(self.min_args['output_dir'], '3_task_status_error_log.csv')),
+                (expected_content_retry, os.path.join(self.min_args['output_dir'], '3_task_status_retry_log.csv')),
             ]
             for expected_content, filepath in downloaded_files:
                 self.assertTrue(os.path.isfile(filepath))

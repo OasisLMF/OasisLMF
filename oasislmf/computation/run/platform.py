@@ -256,11 +256,12 @@ class PlatformList(PlatformBase):
         {'name': 'models', 'flag': '-m', 'type': int, 'nargs': '+', 'help': 'List of model ids to print in detail'},
         {'name': 'portfolios', 'flag': '-p', 'type': int, 'nargs': '+', 'help': 'List of portfolio ids to print in detail'},
         {'name': 'analyses', 'flag': '-a', 'type': int, 'nargs': '+', 'help': 'List of analyses ids to print in detail'},
+        {'name': 'subtask', 'flag': '-t', 'type': int, 'nargs': '+', 'help': 'List of task status ids to print in detail'},
     ]
 
     def run(self):
         # Default to printing summary of API status
-        if not any([self.models, self.portfolios, self.analyses]):
+        if not any([self.models, self.portfolios, self.analyses, self.subtask]):
             self.print_endpoint('models', ['id', 'supplier_id', 'model_id', 'version_id'])
             self.print_endpoint('portfolios', ['id', 'name', 'location_file', 'accounts_file', 'reinsurance_info_file', 'reinsurance_scope_file'])
             self.print_endpoint('analyses', ['id', 'name', 'model', 'portfolio', 'status', 'input_file', 'output_file', 'run_log_file'])
@@ -279,6 +280,15 @@ class PlatformList(PlatformBase):
                 msg = f'Portfolio (id={Id}): \n'
                 try:
                     rsp = self.server.portfolios.get(Id)
+                    self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
+                except HTTPError as e:
+                    self.logger.info(msg + e.response.text)
+
+        if self.subtask:
+            for Id in self.subtask:
+                msg = f'Task status (id={Id}): \n'
+                try:
+                    rsp = self.server.task_status.get(Id)
                     self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
                 except HTTPError as e:
                     self.logger.info(msg + e.response.text)
@@ -474,6 +484,10 @@ class PlatformGet(PlatformBase):
         {'name': 'analyses_lookup_validation_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download exposure summary'},
         {'name': 'analyses_lookup_success_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download successful lookups'},
         {'name': 'analyses_lookup_errors_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download summary of failed lookups'},
+        # Files from a task status (analysis sub-task)
+        {'name': 'subtask_output_log', 'type': int, 'nargs': '+', 'help': 'Task status ids to download output_log for'},
+        {'name': 'subtask_error_log', 'type': int, 'nargs': '+', 'help': 'Task status ids to download error_log for'},
+        {'name': 'subtask_retry_log', 'type': int, 'nargs': '+', 'help': 'Task status ids to download retry_log for'},
     ]
 
     def extract_args(self, param_suffix):
@@ -501,9 +515,10 @@ class PlatformGet(PlatformBase):
         model_files = self.extract_args('model_')
         portfolio_files = self.extract_args('portfolio_')
         analyses_files = self.extract_args('analyses_')
+        subtask_files = self.extract_args('subtask_')
 
         # Check that at least one option is given
-        if not any([model_files, portfolio_files, analyses_files]):
+        if not any([model_files, portfolio_files, analyses_files, subtask_files]):
             raise OasisException('Select file for download e.g. "--analyses_output <id_1> .. <id_n>"')
 
         if model_files:
@@ -512,6 +527,8 @@ class PlatformGet(PlatformBase):
             self.download('portfolios', portfolio_files)
         if analyses_files:
             self.download('analyses', analyses_files)
+        if subtask_files:
+            self.download('task_status', subtask_files)
 
 
 class PlatformValidate(PlatformBase):
