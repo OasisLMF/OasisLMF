@@ -827,6 +827,37 @@ class PlatformPlot(PlatformBase):
     }
     STATUS_ORDER = ['COMPLETED', 'STARTED', 'QUEUED', 'PENDING', 'ERROR', 'CANCELLED']
 
+    LEGACY_OUTPUT_LABELS = {
+        'summarycalc': 'Summary calc',
+        'eltcalc': 'ELT',
+        'aalcalc': 'AAL',
+        'aalcalcmeanonly': 'AAL (mean only)',
+        'pltcalc': 'PLT',
+        'lec_output': 'LEC',
+    }
+
+    ORD_OUTPUT_LABELS = {
+        'elt_sample': 'SELT',
+        'elt_quantile': 'QELT',
+        'elt_moment': 'MELT',
+        'plt_sample': 'SPLT',
+        'plt_quantile': 'QPLT',
+        'plt_moment': 'MPLT',
+        'alt_period': 'PALT',
+        'alt_meanonly': 'ALT (mean only)',
+        'alct_convergence': 'ALCT',
+        'ept_full_uncertainty_aep': 'EPT full unc. AEP',
+        'ept_full_uncertainty_oep': 'EPT full unc. OEP',
+        'ept_mean_sample_aep': 'EPT mean sample AEP',
+        'ept_mean_sample_oep': 'EPT mean sample OEP',
+        'ept_per_sample_mean_aep': 'EPT per-sample mean AEP',
+        'ept_per_sample_mean_oep': 'EPT per-sample mean OEP',
+        'psept_aep': 'PSEPT AEP',
+        'psept_oep': 'PSEPT OEP',
+        'return_period_file': 'RP file',
+        'parquet_format': 'Parquet',
+    }
+
     def run(self):
         try:
             import matplotlib
@@ -873,12 +904,21 @@ class PlatformPlot(PlatformBase):
             return "Queued: n/a"
         return f"Queued before execution: {self._fmt_duration(task_started - min(pending_times))}"
 
+    def _enabled_outputs(self, summary):
+        labels = [label for key, label in self.LEGACY_OUTPUT_LABELS.items() if summary.get(key)]
+        ord_output = summary.get('ord_output') or {}
+        labels += [label for key, label in self.ORD_OUTPUT_LABELS.items() if ord_output.get(key)]
+        return labels
+
     def _describe_summaries(self, summaries):
         parts = []
         for s in summaries:
             fields = s.get('oed_fields') or []
             group = ', '.join(fields) if fields else 'all'
-            parts.append(f"#{s.get('id')} (by: {group})")
+            part = f"#{s.get('id')} (by: {group})"
+            outputs = self._enabled_outputs(s)
+            part += f" [{', '.join(outputs)}]" if outputs else " [no outputs selected]"
+            parts.append(part)
         return '; '.join(parts) or '—'
 
     def _settings_rows(self, settings):
@@ -894,6 +934,8 @@ class PlatformPlot(PlatformBase):
             summaries = settings.get(f'{perspective}_summaries') or []
             if settings.get(f'{perspective}_output') and summaries:
                 rows.append((f'{label} summaries', self._describe_summaries(summaries)))
+            else:
+                rows.append((f'{label} summaries', 'Disabled'))
 
         return rows
 
@@ -1015,6 +1057,8 @@ class PlatformPlot(PlatformBase):
                 if row == 0:
                     cell.set_facecolor("#f0efec")
                     cell.set_text_props(fontweight="bold")
+                elif row > 0 and settings_rows[row - 1][1] == 'Disabled':
+                    cell.set_text_props(color="#898781", style="italic")
 
         max_label_chars = max((len(n) for n in names), default=0)
         left_margin = min(0.35, 0.03 + max_label_chars * 0.0047)
