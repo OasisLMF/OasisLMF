@@ -842,9 +842,13 @@ class PlatformPlot(PlatformBase):
 
         analysis = self.server.analyses.get(self.analysis_id).json()
         sub_tasks = self.server.analyses.sub_task_list(self.analysis_id).json()
+        try:
+            settings = self.server.analyses.settings.get(self.analysis_id).json()
+        except HTTPError:
+            settings = None
         output_file = self.output_file or f'analysis-{self.analysis_id}-gantt.png'
 
-        self._plot(sub_tasks, analysis, output_file, plt, mdates, Patch)
+        self._plot(sub_tasks, analysis, settings, output_file, plt, mdates, Patch)
         self.logger.info(f'Wrote {output_file}')
         return output_file
 
@@ -869,7 +873,31 @@ class PlatformPlot(PlatformBase):
             return "Queued: n/a"
         return f"Queued before execution: {self._fmt_duration(task_started - min(pending_times))}"
 
-    def _plot(self, sub_tasks, analysis, output_file, plt, mdates, Patch):
+    def _describe_summaries(self, summaries):
+        parts = []
+        for s in summaries:
+            fields = s.get('oed_fields') or []
+            group = ', '.join(fields) if fields else 'all'
+            parts.append(f"#{s.get('id')} (by: {group})")
+        return '; '.join(parts) or '—'
+
+    def _settings_rows(self, settings):
+        if not settings:
+            return []
+        rows = [('Samples', str(settings.get('number_of_samples', '—')))]
+
+        model_settings = settings.get('model_settings') or {}
+        rows.append(('Event set', str(model_settings.get('event_set', '—'))))
+        rows.append(('Event occurrence set', str(model_settings.get('event_occurrence_id', '—'))))
+
+        for perspective, label in [('gul', 'GUL'), ('il', 'IL'), ('ri', 'RI'), ('rl', 'RL')]:
+            summaries = settings.get(f'{perspective}_summaries') or []
+            if settings.get(f'{perspective}_output') and summaries:
+                rows.append((f'{label} summaries', self._describe_summaries(summaries)))
+
+        return rows
+
+    def _plot(self, sub_tasks, analysis, settings, output_file, plt, mdates, Patch):
         sub_tasks = sorted(sub_tasks, key=lambda t: t["id"])
 
         starts, ends, statuses, names = [], [], [], []
@@ -886,12 +914,27 @@ class PlatformPlot(PlatformBase):
             names.append(f"{t['id']}: {t['name']}")
 
         has_summary = analysis is not None
-        fig, axes = plt.subplots(
-            2 if has_summary else 1, 1,
-            figsize=(13, 0.35 * len(sub_tasks) + (3.5 if has_summary else 1.5)),
-            gridspec_kw={"height_ratios": [1, 4]} if has_summary else None,
-        )
-        ax_summary, ax_gantt = (axes[0], axes[1]) if has_summary else (None, axes)
+        settings_rows = self._settings_rows(settings)
+        has_settings = bool(settings_rows)
+
+        summary_h = 1.7
+        settings_h = 0.38 * (len(settings_rows) + 1) + 0.25 if has_settings else 0
+        gantt_h = 0.32 * len(sub_tasks) + 1.0
+
+        if has_summary:
+            height_ratios = [summary_h] + ([settings_h] if has_settings else []) + [gantt_h]
+            fig, axes = plt.subplots(
+                len(height_ratios), 1,
+                figsize=(13, sum(height_ratios)),
+                gridspec_kw={"height_ratios": height_ratios, "hspace": 0.08},
+            )
+            ax_summary = axes[0]
+            ax_settings = axes[1] if has_settings else None
+            ax_gantt = axes[-1]
+        else:
+            fig, ax_gantt = plt.subplots(1, 1, figsize=(13, 0.35 * len(sub_tasks) + 1.5))
+            ax_summary = None
+            ax_settings = None
 
         y = range(len(sub_tasks))
         for i, (s, e, status) in enumerate(zip(starts, ends, statuses)):
@@ -954,6 +997,27 @@ class PlatformPlot(PlatformBase):
             ax_summary.text(0.0, 0.25, queued_line, fontsize=9, va="top", color="#52514e")
             ax_summary.text(0.0, 0.1, sub_task_line, fontsize=9, va="top", color="#52514e")
 
-        fig.tight_layout()
+        if has_settings:
+            ax_settings.axis("off")
+            table = ax_settings.table(
+                cellText=settings_rows,
+                colLabels=["Run setting", "Value"],
+                cellLoc="left",
+                colLoc="left",
+                loc="upper left",
+                colWidths=[0.25, 0.7],
+            )
+            table.auto_set_font_size(False)
+            table.set_fontsize(9)
+            table.scale(1, 1.4)
+            for (row, col), cell in table.get_celld().items():
+                cell.set_edgecolor("#e1e0d9")
+                if row == 0:
+                    cell.set_facecolor("#f0efec")
+                    cell.set_text_props(fontweight="bold")
+
+        max_label_chars = max((len(n) for n in names), default=0)
+        left_margin = min(0.35, 0.03 + max_label_chars * 0.0047)
+        fig.subplots_adjust(left=left_margin, right=0.97, top=0.98, bottom=0.05, hspace=0.12)
         fig.savefig(output_file, dpi=150)
         plt.close(fig)
