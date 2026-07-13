@@ -50,8 +50,9 @@ def get_coverage_dependency_settings(data: Optional[dict], logger) -> list:
     """Extract coverage dependency pairs from the model settings.
 
     Reads ``model_settings.coverage_dependency_settings``. Each entry links a source
-    coverage type to a dependent coverage type; in gulmc the dependent coverage's hazard
-    sampling is then driven by the source coverage's per-sample damage ratio.
+    coverage type to a dependent coverage type; in gulmc the dependent coverage's damage is
+    then driven by the source coverage's per-sample sampled damage bin, through the dependent's
+    conditional (damage-transition) vulnerability.
 
     Args:
         data (dict): the model settings dictionary (may be None).

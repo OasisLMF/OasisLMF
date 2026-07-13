@@ -376,16 +376,16 @@ def get_gul_input_items(
         mask = gul_inputs_df['coverage_type_id'] == cov_type
         gul_inputs_df.loc[mask, 'tiv'] = gul_inputs_df.loc[mask, tiv_col['tiv_col']]
 
-    # coverage dependency: retain zero-TIV coverages that are dependency SOURCES for an insured
-    # dependent at the same location, as "driver-only" coverages. They carry no insured value
-    # (tiv == 0, and are excluded from IL/FM/summaries downstream) but still produce a damage bin
-    # that drives their dependent in gulmc — a source's damage is physical (hazard x vulnerability),
-    # independent of whether the source coverage itself is insured. Computed at loc_id level here
-    # (building_id is assigned at disaggregation below; disaggregation replicates uniformly).
-    gul_inputs_df['driver_only'] = False
+    # coverage dependency: keep zero-TIV coverages that are dependency SOURCES for an insured
+    # dependent at the same location, so an uninsured source (e.g. an uninsured building) can still
+    # drive its dependent (contents) in gulmc — a source's damage is physical (hazard x
+    # vulnerability), independent of whether the source coverage is insured. Such a source is not
+    # special-cased downstream: it simply flows as an ordinary zero-TIV, zero-loss coverage.
+    # Computed at loc_id level (building_id is assigned at disaggregation below, which replicates
+    # uniformly).
+    keep_zero_tiv_source = pd.Series(False, index=gul_inputs_df.index)
     if coverage_dependency_settings:
         tiv_positive = gul_inputs_df['tiv'] > 0
-        keep_zero_tiv_source = pd.Series(False, index=gul_inputs_df.index)
         for source_cov_type, dependent_cov_type in coverage_dependency_settings:
             insured_dependent_locs = gul_inputs_df.loc[
                 tiv_positive & (gul_inputs_df['coverage_type_id'] == dependent_cov_type), 'loc_id'].unique()
@@ -396,10 +396,9 @@ def get_gul_input_items(
                 & (~tiv_positive)
                 & gul_inputs_df['loc_id'].isin(insured_dependent_locs)
             )
-        gul_inputs_df.loc[keep_zero_tiv_source, 'driver_only'] = True
 
-    # Filter out rows with zero TIV, except retained driver-only sources
-    gul_inputs_df = gul_inputs_df[(gul_inputs_df['tiv'] > 0) | gul_inputs_df['driver_only']]
+    # Filter out rows with zero TIV, except retained dependency sources
+    gul_inputs_df = gul_inputs_df[(gul_inputs_df['tiv'] > 0) | keep_zero_tiv_source]
 
     if gul_inputs_df.empty:
         raise OasisException('Empty gul_inputs_df dataframe after dropping rows with zero tiv: please check the exposure input files')
@@ -524,7 +523,7 @@ def get_gul_input_items(
         ['group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] +
         tiv_cols +
         ["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value",
-         "source_coverage_id", "driver_only"]
+         "source_coverage_id"]
     )
 
     usecols = [col for col in usecols if col in gul_inputs_df]

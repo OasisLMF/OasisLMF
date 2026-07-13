@@ -369,15 +369,7 @@ class GenerateFiles(ComputationStep):
             chunksize=self.write_chunksize,
             intermediary_csv=self.intermediary_csv
         )
-        # Driver-only coverages (retained zero-TIV dependency sources) belong in the GUL item
-        # set — gulmc computes their damage bin to drive their dependents — but carry no insured
-        # value, so they are excluded from the summary map, gulsummaryxref and the IL/FM build.
-        if 'driver_only' in gul_inputs_df:
-            insured_inputs_df = gul_inputs_df[~gul_inputs_df['driver_only']]
-        else:
-            insured_inputs_df = gul_inputs_df
-
-        gul_summary_mapping = get_summary_mapping(insured_inputs_df, oed_hierarchy)
+        gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
         del gul_summary_mapping
         # If no source accounts file path has been provided assume that IL
@@ -389,7 +381,7 @@ class GenerateFiles(ComputationStep):
 
         # Get the IL input items and Write the IL/FM input files
         il_inputs_df, il_input_files = get_il_input_items(
-            gul_inputs_df=insured_inputs_df.copy(),
+            gul_inputs_df=gul_inputs_df.copy(),
             exposure_data=exposure_data,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,

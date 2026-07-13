@@ -1131,20 +1131,19 @@ def compute_event_losses(compute_info,
                 source_eff_damage_cdf_stack[depth, item_j, :num_damage_bins] = eff_damage_cdf
                 source_eff_damage_cdf_len_stack[depth, item_j] = num_damage_bins
 
-        # write the losses to the output memoryview. A driver-only source (tiv == 0) is computed
-        # only to drive its dependents (its result is already stored on the stacks above) and
-        # carries no insured value, so it emits no output records.
-        if tiv != 0.0:
-            compute_info['cursor'] = write_losses(
-                compute_info['event_id'],
-                sample_size,
-                compute_info['loss_threshold'],
-                losses[:, :Nitems],
-                items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
-                compute_info['alloc_rule'],
-                tiv,
-                byte_mv,
-                compute_info['cursor'])
+        # write the losses to the output memoryview. A zero-TIV coverage (e.g. an uninsured
+        # dependency source, retained only to drive its dependents) yields zero losses and is
+        # written like any other coverage — it is not special-cased.
+        compute_info['cursor'] = write_losses(
+            compute_info['event_id'],
+            sample_size,
+            compute_info['loss_threshold'],
+            losses[:, :Nitems],
+            items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
+            compute_info['alloc_rule'],
+            tiv,
+            byte_mv,
+            compute_info['cursor'])
 
         # register that another `coverage_id` has been processed
         compute_info['coverage_i'] += 1

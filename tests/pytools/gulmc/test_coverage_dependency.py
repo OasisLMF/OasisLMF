@@ -198,8 +198,9 @@ def _gul_inputs_for_keys(keys_rows):
 
 def test_zero_tiv_source_retained_as_driver():
     """A zero-TIV source (building) at a location with an insured dependent (contents) is kept
-    as a driver-only coverage, and its dependent links to it — so an uninsured structure can
-    still drive its contents."""
+    (rather than dropped as an empty coverage) so an uninsured structure can still drive its
+    contents; its dependent links to it. It is not special-cased — it stays an ordinary
+    zero-TIV coverage."""
     # every location: building (1) and contents (3) at the same areaperil -> dependency active
     keys = []
     for loc in (1, 2, 3):
@@ -210,10 +211,10 @@ def test_zero_tiv_source_retained_as_driver():
     building = gul[gul['coverage_type_id'] == 1]
     contents = gul[gul['coverage_type_id'] == 3]
 
-    # loc 1 building is uninsured (tiv 0) but retained as driver-only; loc 2/3 buildings insured
-    loc1_building = building[building['loc_id'] == 1]
-    assert (loc1_building['tiv'] == 0).all() and loc1_building['driver_only'].all()
-    assert not building[building['loc_id'].isin([2, 3])]['driver_only'].any()
+    # loc 1 building is uninsured (tiv 0) but retained as a driver; loc 2/3 buildings insured.
+    # All three buildings are present (the zero-TIV loc-1 source was not dropped).
+    assert set(building['loc_id']) == {1, 2, 3}
+    assert (building[building['loc_id'] == 1]['tiv'] == 0).all()
 
     # every contents links to its building (same location, same areaperil)
     for loc in (1, 2, 3):
