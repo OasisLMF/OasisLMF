@@ -2,9 +2,8 @@
 import logging
 import numba as nb
 import numpy as np
-from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, def_to_type_and_size, oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size,
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, def_to_type_and_size, def_to_type_and_size_str, oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size,
                                           write_ndarray_to_fmt_csv)
-from oasislmf.pytools.common.data import event_id as event_id_def, item_id as item_id_def
 from oasislmf.pytools.common.event_stream import (
     GUL_STREAM_ID, LOSS_STREAM_ID, EventReader, init_streams_in, mv_read
 )
@@ -12,8 +11,8 @@ from oasislmf.pytools.converters.data import TOOL_INFO
 
 logger = logging.getLogger(__name__)
 
-event_id_dtype, event_id_dtype_size = def_to_type_and_size(event_id_def)
-item_id_dtype, item_id_dtype_size = def_to_type_and_size(item_id_def)
+event_id_dtype, event_id_dtype_size = def_to_type_and_size_str("event_id")
+item_id_dtype, item_id_dtype_size = def_to_type_and_size_str("item_id")
 
 
 class GulReader(EventReader):
@@ -59,7 +58,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
                     idxs[0] = idx
-                    return cursor - oasis_int_size, last_event_id, item_id, 1
+                    return cursor - event_id_dtype_size, last_event_id, item_id, 1
                 event_id = event_id_new
                 item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
                 print(f'Found event_id {event_id_new}, item_id {item_id}')

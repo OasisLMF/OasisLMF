@@ -54,5 +54,5 @@ def gul_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index
         )
         buf[:cursor].tofile(file_out)
 
-    if prev_event_id != np.int32(-1):
+    if prev_event_id != event_id_dtype.type(-1):
         np.array([0, 0], dtype=np.int32).tofile(file_out)
