@@ -114,6 +114,14 @@ class SubTasksApiCmd(OasisComputationCommand):
     computation_name = 'PlatformSubTasks'
 
 
+class PlotApiCmd(OasisComputationCommand):
+    """
+    Plot a Gantt chart of an analysis's sub-tasks, with a status summary
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformPlot'
+
+
 class ApiCmd(OasisBaseCommand):
     sub_commands = {
         'list': ListApiCmd,
@@ -129,5 +137,6 @@ class ApiCmd(OasisBaseCommand):
         'combine': CombineApiCmd,
         'cancel': CancelApiCmd,
         'sub-tasks': SubTasksApiCmd,
+        'plot': PlotApiCmd,
         'reconnect': ReconnectApiCmd,
     }

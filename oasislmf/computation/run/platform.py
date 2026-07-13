@@ -11,6 +11,7 @@ __all__ = [
     'PlatformCombine',
     'PlatformCancel',
     'PlatformSubTasks',
+    'PlatformPlot',
 ]
 
 
@@ -19,6 +20,8 @@ import io
 import os
 import json
 import time
+
+from datetime import datetime
 
 from tabulate import tabulate
 from mimetypes import guess_extension
@@ -803,3 +806,134 @@ class PlatformSubTasks(PlatformBase):
         data = rsp.json()
         self.logger.info(json.dumps(data, indent=4, sort_keys=True))
         return data
+
+
+class PlatformPlot(PlatformBase):
+    """ Plot a Gantt chart of an analysis's sub-tasks, with a status summary, via the Oasis Platform API
+    """
+    step_params = PlatformBase.step_params + [
+        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to plot'},
+        {'name': 'output_file', 'flag': '-o', 'is_path': True, 'pre_exist': False,
+            'help': 'Path to write the plot PNG to, default is "./analysis-<id>-gantt.png"'},
+    ]
+
+    STATUS_COLORS = {
+        "COMPLETED": "#1baf7a",
+        "STARTED": "#eda100",
+        "QUEUED": "#898781",
+        "PENDING": "#c3c2b7",
+        "ERROR": "#e34948",
+        "CANCELLED": "#4a4a48",
+    }
+    STATUS_ORDER = ['COMPLETED', 'STARTED', 'QUEUED', 'PENDING', 'ERROR', 'CANCELLED']
+
+    def run(self):
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            import matplotlib.dates as mdates
+            from matplotlib.patches import Patch
+        except ImportError:
+            raise OasisException(
+                "matplotlib is required for 'oasislmf api plot' but is not installed. "
+                "Install with: pip install oasislmf[extra]"
+            )
+
+        analysis = self.server.analyses.get(self.analysis_id).json()
+        sub_tasks = self.server.analyses.sub_task_list(self.analysis_id).json()
+        output_file = self.output_file or f'analysis-{self.analysis_id}-gantt.png'
+
+        self._plot(sub_tasks, analysis, output_file, plt, mdates, Patch)
+        self.logger.info(f'Wrote {output_file}')
+        return output_file
+
+    def _parse_ts(self, s):
+        if not s:
+            return None
+        return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S.%fZ")
+
+    def _plot(self, sub_tasks, analysis, output_file, plt, mdates, Patch):
+        sub_tasks = sorted(sub_tasks, key=lambda t: t["id"])
+
+        starts, ends, statuses, names = [], [], [], []
+        now = max(
+            (self._parse_ts(t["end_time"]) for t in sub_tasks if t.get("end_time")),
+            default=datetime.utcnow(),
+        )
+        for t in sub_tasks:
+            s = self._parse_ts(t["start_time"]) or self._parse_ts(t["queue_time"]) or self._parse_ts(t["pending_time"])
+            e = self._parse_ts(t["end_time"]) or (now if t["status"] in ("STARTED",) else s)
+            starts.append(s)
+            ends.append(e)
+            statuses.append(t["status"])
+            names.append(f"{t['id']}: {t['name']}")
+
+        has_summary = analysis is not None
+        fig, axes = plt.subplots(
+            2 if has_summary else 1, 1,
+            figsize=(13, 0.35 * len(sub_tasks) + (3.5 if has_summary else 1.5)),
+            gridspec_kw={"height_ratios": [1, 4]} if has_summary else None,
+        )
+        ax_summary, ax_gantt = (axes[0], axes[1]) if has_summary else (None, axes)
+
+        y = range(len(sub_tasks))
+        for i, (s, e, status) in enumerate(zip(starts, ends, statuses)):
+            color = self.STATUS_COLORS.get(status, "#000000")
+            width = e - s
+            ax_gantt.barh(i, width, left=s, height=0.6, color=color, edgecolor="none")
+            dur_s = width.total_seconds()
+            label = status if dur_s == 0 else f"{int(dur_s // 60)}m {int(dur_s % 60)}s"
+            ax_gantt.text(e, i, f"  {label}", va="center", ha="left", fontsize=8, color="#52514e")
+
+        ax_gantt.set_yticks(list(y))
+        ax_gantt.set_yticklabels(names, fontsize=8)
+        ax_gantt.invert_yaxis()
+        ax_gantt.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+        ax_gantt.set_xlabel("Time (UTC)")
+        ax_gantt.set_title("Sub-task timeline")
+        ax_gantt.grid(True, axis="x", alpha=0.3)
+
+        legend_handles = [
+            Patch(color=c, label=s) for s, c in self.STATUS_COLORS.items()
+            if s in statuses
+        ]
+        ax_gantt.legend(handles=legend_handles, loc="lower right", fontsize=8)
+
+        if has_summary:
+            ax_summary.axis("off")
+            sc = analysis.get("status_count", {})
+            order = self.STATUS_ORDER
+            counts = [sc.get(k, 0) for k in order if sc.get(k, 0) or k in statuses]
+            labels = [k for k in order if sc.get(k, 0) or k in statuses]
+            colors = [self.STATUS_COLORS[k] for k in labels]
+
+            left = 0.0
+            total = sum(counts) or 1
+            bar_ax = ax_summary.inset_axes([0.0, 0.55, 1.0, 0.3])
+            for label, count, color in zip(labels, counts, colors):
+                frac = count / total
+                bar_ax.barh(0, frac, left=left, color=color, height=1.0)
+                if frac > 0.03:
+                    bar_ax.text(left + frac / 2, 0, str(count), ha="center", va="center",
+                                fontsize=9, color="white", fontweight="bold")
+                left += frac
+            bar_ax.set_xlim(0, 1)
+            bar_ax.axis("off")
+
+            title = (
+                f"Analysis {analysis.get('id')} — {analysis.get('name', '')}   "
+                f"status: {analysis.get('status')}"
+            )
+            events = (
+                f"Events: {analysis.get('num_events_complete', 0):,} / "
+                f"{analysis.get('num_events_total', 0):,}"
+            )
+            sub_task_line = "  ".join(f"{lb}: {c}" for lb, c in zip(labels, counts))
+            ax_summary.text(0.0, 0.95, title, fontsize=12, fontweight="bold", va="top")
+            ax_summary.text(0.0, 0.4, events, fontsize=9, va="top", color="#52514e")
+            ax_summary.text(0.0, 0.15, sub_task_line, fontsize=9, va="top", color="#52514e")
+
+        fig.tight_layout()
+        fig.savefig(output_file, dpi=150)
+        plt.close(fig)
