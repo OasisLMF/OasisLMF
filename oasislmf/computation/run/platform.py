@@ -853,6 +853,22 @@ class PlatformPlot(PlatformBase):
             return None
         return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S.%fZ")
 
+    def _fmt_duration(self, td):
+        total_s = int(td.total_seconds())
+        h, rem = divmod(total_s, 3600)
+        m, s = divmod(rem, 60)
+        if h:
+            return f"{h}h {m}m {s}s"
+        return f"{m}m {s}s"
+
+    def _queued_duration_line(self, analysis, sub_tasks):
+        task_started = self._parse_ts(analysis.get('task_started'))
+        pending_times = [self._parse_ts(t.get('pending_time')) for t in sub_tasks]
+        pending_times = [t for t in pending_times if t is not None]
+        if not pending_times or not task_started:
+            return "Queued: n/a"
+        return f"Queued before execution: {self._fmt_duration(task_started - min(pending_times))}"
+
     def _plot(self, sub_tasks, analysis, output_file, plt, mdates, Patch):
         sub_tasks = sorted(sub_tasks, key=lambda t: t["id"])
 
@@ -929,10 +945,14 @@ class PlatformPlot(PlatformBase):
                 f"Events: {analysis.get('num_events_complete', 0):,} / "
                 f"{analysis.get('num_events_total', 0):,}"
             )
+            queued_line = self._queued_duration_line(analysis, sub_tasks)
             sub_task_line = "  ".join(f"{lb}: {c}" for lb, c in zip(labels, counts))
+            generated_line = f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
             ax_summary.text(0.0, 0.95, title, fontsize=12, fontweight="bold", va="top")
+            ax_summary.text(1.0, 0.95, generated_line, fontsize=8, va="top", ha="right", color="#898781")
             ax_summary.text(0.0, 0.4, events, fontsize=9, va="top", color="#52514e")
-            ax_summary.text(0.0, 0.15, sub_task_line, fontsize=9, va="top", color="#52514e")
+            ax_summary.text(0.0, 0.25, queued_line, fontsize=9, va="top", color="#52514e")
+            ax_summary.text(0.0, 0.1, sub_task_line, fontsize=9, va="top", color="#52514e")
 
         fig.tight_layout()
         fig.savefig(output_file, dpi=150)
