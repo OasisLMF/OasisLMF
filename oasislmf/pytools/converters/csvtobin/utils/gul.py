@@ -10,17 +10,18 @@ from oasislmf.pytools.common.data import loss_pair_dtype, item_header_dtype, oas
 _CHUNK_OUT_SIZE = DEFAULT_BUFFER_SIZE * (item_header_dtype.itemsize + loss_pair_dtype.itemsize + oasis_int.itemsize * 2)
 
 event_id_dtype, event_id_size = def_to_type_and_size_str('event_id')
+item_id_dtype, item_id_size = def_to_type_and_size_str('item_id')
 
 
 @nb.njit(cache=True, error_model="numpy")
 def _fill_gul_chunk(event_ids, item_ids, sidxs, losses,
                     max_sample_index, out, cursor,
-                    prev_event_id, prev_item_id):
+                    prev_event_id, prev_item_id, event_id_dtype,
+                    ):
     for i in range(len(event_ids)):
         if event_ids[i] != prev_event_id or item_ids[i] != prev_item_id:
             if prev_event_id != event_id_dtype.type(-1):
-                cursor = mv_write(out, cursor, oasis_int, oasis_int_size, 0)
-                cursor = mv_write(out, cursor, oasis_float, oasis_float_size, 0)
+                cursor = mv_write_sidx_loss(out, cursor, 0, 0.) # delimiter
             cursor = mv_write_item_header(out, cursor, event_ids[i], item_ids[i])
             prev_event_id = event_ids[i]
             prev_item_id = item_ids[i]
@@ -38,8 +39,8 @@ def gul_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index
     np.array([max_sample_index], dtype="i4").tofile(file_out)
 
     buf = np.empty(_CHUNK_OUT_SIZE, dtype='b')
-    prev_event_id = np.int32(-1)
-    prev_item_id = np.int32(-1)
+    prev_event_id = event_id_dtype.type(-1)
+    prev_item_id = item_id_dtype.type(-1)
 
     for chunk in iter_csv_as_ndarray(stack, file_in, dtype):
         event_ids = np.ascontiguousarray(chunk["event_id"])
@@ -50,9 +51,9 @@ def gul_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index
         cursor, prev_event_id, prev_item_id = _fill_gul_chunk(
             event_ids, item_ids, sidxs, losses,
             max_sample_index, buf, np.int64(0),
-            prev_event_id, prev_item_id,
+            prev_event_id, prev_item_id, event_id_dtype,
         )
         buf[:cursor].tofile(file_out)
 
     if prev_event_id != event_id_dtype.type(-1):
-        np.array([0, 0], dtype=np.int32).tofile(file_out)
+        np.array([0], dtype=loss_pair_dtype).tofile(file_out) # final delimiter
