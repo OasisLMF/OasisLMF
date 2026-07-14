@@ -62,6 +62,7 @@ def def_to_type_and_size(definition):
     dtype = np.dtype(definition[1])
     return dtype, dtype.itemsize
 
+
 def def_to_type_and_size_str(def_str):
     definition = globals().get(def_str, None)
 
