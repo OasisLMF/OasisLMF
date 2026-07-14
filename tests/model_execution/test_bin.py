@@ -354,8 +354,8 @@ class CheckInputsDirectory(TestCase):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_1"))
             for p in INPUT_FILES.values():
-                Path(f=os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
-                Path(f=os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
+                Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+                Path(os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_2"))
             for p in INPUT_FILES.values():
                 Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
