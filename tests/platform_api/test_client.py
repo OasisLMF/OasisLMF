@@ -628,6 +628,52 @@ class FileEndpointTests(unittest.TestCase):
         pd.testing.assert_frame_equal(result_df, expected_df)
 
 
+class FileEndpointMockedSessionTests(unittest.TestCase):
+    """
+    Uses a MagicMock session (rather than `responses`) to directly assert on
+    the arguments passed to `session.upload` / `session.upload_byte` / `session.post`.
+    This sidesteps the `responses` library's multipart-body parsing, which is
+    incompatible with newer `responses` releases (see DISABLE_DATA_CHECKS above),
+    while still exercising the content-type detection and dataframe upload logic.
+    """
+
+    def setUp(self):
+        self.session = MagicMock()
+        self.url_endpoint = 'http://example.com/api'
+        self.url_resource = 'resource'
+        self.api = FileEndpoint(self.session, self.url_endpoint, self.url_resource)
+
+    def test_upload__content_type_detected(self):
+        self.api.upload(1, 'somefile.csv')
+        self.session.upload.assert_called_once_with(
+            self.api._build_url(1), 'somefile.csv', 'text/csv')
+
+    def test_upload__content_type_given(self):
+        self.api.upload(1, 'somefile.csv', content_type='application/json')
+        self.session.upload.assert_called_once_with(
+            self.api._build_url(1), 'somefile.csv', 'application/json')
+
+    def test_upload_byte__content_type_detected(self):
+        self.api.upload_byte(1, b'some-bytes', 'somefile.parquet')
+        self.session.upload_byte.assert_called_once_with(
+            self.api._build_url(1), b'some-bytes', 'somefile.parquet', 'application/octet-stream')
+
+    def test_upload_byte__content_type_given(self):
+        self.api.upload_byte(1, b'some-bytes', 'somefile.parquet', content_type='application/zip')
+        self.session.upload_byte.assert_called_once_with(
+            self.api._build_url(1), b'some-bytes', 'somefile.parquet', 'application/zip')
+
+    def test_post_dataframe__builds_multipart_csv_request(self):
+        df = pd.DataFrame({'a': [1, 2, 3]})
+        self.api.post_dataframe(1, df)
+
+        self.session.post.assert_called_once()
+        args, kwargs = self.session.post.call_args
+        self.assertEqual(args[0], self.api._build_url(1))
+        self.assertTrue(isinstance(kwargs['data'], MultipartEncoder))
+        self.assertEqual(kwargs['headers']['Content-Type'], kwargs['data'].content_type)
+
+
 class APIDatafilesTests(unittest.TestCase):
 
     def setUp(self):
@@ -694,6 +740,28 @@ class APIDatafilesTests(unittest.TestCase):
 
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+    @given(st.text())
+    def test_create__no_category(self, file_description):
+        expected_url = self.url_endpoint
+        expected_data = {"file_description": file_description}
+
+        responses.post(url=expected_url, json={"id": 1})
+        self.api.create(file_description)
+
+        request = responses.calls[-1].request
+        self.assertEqual(json.loads(request.body), expected_data)
+
+    @given(st.integers(min_value=1), st.text())
+    def test_update__no_category(self, ID, file_description):
+        expected_url = f'{self.url_endpoint}{ID}/'
+        expected_data = {"file_description": file_description}
+
+        responses.put(url=expected_url)
+        self.api.update(ID, file_description)
+
+        request = responses.calls[-1].request
         self.assertEqual(json.loads(request.body), expected_data)
 
 
@@ -779,6 +847,26 @@ class SettingTemplatesBaseEndpointTest(unittest.TestCase):
         responses.delete(url=expected_url, headers=self.headers)
 
         rsp = self.api.delete(model_pk, ID)
+        self.assertEqual(rsp.url, expected_url)
+
+    @given(model_pk=st.integers(min_value=1), ID=st.integers(min_value=1), data=st.dictionaries(keys=st.text(), values=st.text()))
+    def test_put(self, model_pk, ID, data):
+        expected_url = '{}/{}/{}/{}/{}'.format(self.url_endpoint, model_pk,
+                                               'setting_templates', ID,
+                                               self.url_resource)
+        responses.put(url=expected_url, headers=self.headers)
+
+        rsp = self.api.put(model_pk, ID, data)
+        self.assertEqual(rsp.url, expected_url)
+
+    @given(model_pk=st.integers(min_value=1), ID=st.integers(min_value=1), data=st.dictionaries(keys=st.text(), values=st.text()))
+    def test_patch(self, model_pk, ID, data):
+        expected_url = '{}/{}/{}/{}/{}'.format(self.url_endpoint, model_pk,
+                                               'setting_templates', ID,
+                                               self.url_resource)
+        responses.patch(url=expected_url, headers=self.headers)
+
+        rsp = self.api.patch(model_pk, ID, data)
         self.assertEqual(rsp.url, expected_url)
 
 
@@ -1217,6 +1305,13 @@ class APIAnalysesTests(unittest.TestCase):
         self.assertTrue(result.ok)
 
     @given(st.integers(min_value=1))
+    def test_generate_and_run(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/generate_and_run/'
+        responses.post(url=expected_url)
+        result = self.api.generate_and_run(ID)
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
     def test_cancel_analysis_run(self, ID):
         expected_url = f'{self.url_endpoint}{ID}/cancel_analysis_run/'
         responses.post(url=expected_url)
@@ -1313,6 +1408,35 @@ class APIAnalysesTests(unittest.TestCase):
 
             self.assertEqual(saved_data, b'extracted output content')
             self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_output_file_tar_extract__download_subdir_is_created(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/output_file_tar_extract/'
+        responses.get(url=expected_url, body=b'extracted output content')
+
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, 'sub-dir', 'gul_S1_summary-info.csv'))
+            result = self.api.output_file_tar_extract.download(ID, 'gul_S1_summary-info.csv', abs_fp)
+
+            with open(abs_fp, 'rb') as f:
+                saved_data = f.read()
+
+            self.assertEqual(saved_data, b'extracted output content')
+            self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_output_file_tar_extract__download_file_exists_exception_raised(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/output_file_tar_extract/'
+        responses.get(url=expected_url, body=b'extracted output content')
+
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, 'gul_S1_summary-info.csv'))
+            pathlib.Path(abs_fp).touch()
+
+            with self.assertRaises(IOError) as context:
+                self.api.output_file_tar_extract.download(ID, 'gul_S1_summary-info.csv', abs_fp, overwrite=False)
+            exception = context.exception
+            self.assertEqual(str(exception), f'Local file alreday exists: {abs_fp}')
 
     @given(
         analysis_ids=st.lists(st.integers(min_value=1), min_size=1, max_size=5),
@@ -1965,3 +2089,277 @@ class APIClientTests(unittest.TestCase):
         assert pathlib.Path(args[1]).resolve() == CURRENCY_CONVERSION_LIST.resolve()
         assert len(args) == 2
         assert kwargs == {'content_type': ""}
+
+    def test_upload_portfolio_file__byte_stream(self):
+        self.client.portfolios.location_file = MagicMock()
+        upload_data = {'bytes': b'some binary data', 'name': 'location.csv'}
+        self.client.upload_portfolio_file(42, 'location_file', upload_data)
+        self.client.portfolios.location_file.upload_byte.assert_called_once_with(
+            42, upload_data['bytes'], upload_data['name'])
+        self.logger.info.assert_any_call('File uploaded: {}'.format(upload_data['name']))
+
+    def test_upload_portfolio_reporting_currency(self):
+        self.client.portfolios.reporting_currency = MagicMock()
+        self.client.upload_portfolio_reporting_currency(42, 'USD')
+        self.client.portfolios.reporting_currency.post.assert_called_once_with(
+            42, {'reporting_currency': 'USD'})
+        self.logger.info.assert_any_call('Reporting currency uploaded: %s', 'USD')
+
+    def test_upload_inputs__no_files_given(self):
+        ID = 3
+        portfolio_name = 'Portfolio_01012021-120000'
+        responses.post(url=self.client.portfolios.url_endpoint, json={'id': ID})
+
+        result = self.client.upload_inputs(portfolio_name=portfolio_name)
+        self.assertEqual(result, {'id': ID})
+
+    def test_upload_inputs__with_currency_conversion(self):
+        ID = 3
+        responses.post(url=self.client.portfolios.url_endpoint, json={'id': ID})
+        self.client.portfolios.currency_conversion_json = MagicMock()
+
+        result = self.client.upload_inputs(currency_conversion_fp=str(CURRENCY_CONVERSION_JSON))
+        self.assertEqual(result, {'id': ID})
+        self.client.portfolios.currency_conversion_json.upload.assert_called_once()
+
+    def test_upload_inputs__with_reporting_currency(self):
+        ID = 3
+        responses.post(url=self.client.portfolios.url_endpoint, json={'id': ID})
+        self.client.portfolios.reporting_currency = MagicMock()
+
+        result = self.client.upload_inputs(reporting_currency='USD')
+        self.assertEqual(result, {'id': ID})
+        self.client.portfolios.reporting_currency.post.assert_called_once_with(ID, {'reporting_currency': 'USD'})
+
+    def test_get_currency_conversion_returns_absolute_path(self):
+        with TemporaryDirectory() as d:
+            abs_csv_path = os.path.realpath(os.path.join(d, 'somewhere', 'currency.csv'))
+            settings_fp = os.path.join(d, 'currency_conversion.json')
+            with open(settings_fp, 'w') as f:
+                json.dump({'file_path': abs_csv_path}, f)
+
+            path = self.client.get_currency_conversion(settings_fp)
+            self.assertEqual(path, abs_csv_path)
+
+    def test_create_analysis__no_settings_fp(self):
+        responses.post(url=self.client.analyses.url_endpoint, json={'id': 70})
+        result = self.client.create_analysis(portfolio_id=42, model_id=5, analysis_name='my_analysis')
+        self.assertEqual(result, {'id': 70})
+        request = responses.calls[-1].request
+        self.assertEqual(request.url, self.client.analyses.url_endpoint)
+
+    def test_run_generate__generate_call_http_error(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"error": "bad request"}, status=400)
+            with self.assertRaises(OasisException):
+                self.client.run_generate(analysis_id=ID, poll_interval=0.1)
+
+    def test_run_generate__queued_logged_once_only(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "READY"})
+            result = self.client.run_generate(analysis_id=ID, poll_interval=0.01)
+
+            self.assertTrue(result)
+            queued_logs = [
+                c for c in self.logger.info.call_args_list
+                if c.args and c.args[0] == f'Input Generation: Queued (id={ID})'
+            ]
+            self.assertEqual(len(queued_logs), 1)
+
+    def test_run_generate__with_subtasks_continue_polling(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={
+                "id": ID,
+                "status": "INPUTS_GENERATION_QUEUED",
+                "run_mode": "V2",
+                "status_count": {"COMPLETED": 0, "TOTAL": 10},
+            })
+            rsps.get(expected_url, json={
+                "id": ID,
+                "status": "INPUTS_GENERATION_STARTED",
+                "run_mode": "V2",
+                "status_count": {"COMPLETED": 0, "TOTAL": 10},
+            })
+            rsps.get(expected_url, json={
+                "id": ID,
+                "status": "INPUTS_GENERATION_STARTED",
+                "run_mode": "V2",
+                "status_count": {"COMPLETED": 5, "TOTAL": 10},
+            })
+            rsps.get(expected_url, json={"id": ID, "status": "READY"})
+            result = self.client.run_generate(analysis_id=ID, poll_interval=0.01)
+            self.assertTrue(result)
+
+    def test_run_analysis__queued_logged_once_only(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.01)
+
+            self.assertTrue(result)
+            queued_logs = [
+                c for c in self.logger.info.call_args_list
+                if c.args and c.args[0] == f'Analysis Run: Queued (id={ID})'
+            ]
+            self.assertEqual(len(queued_logs), 1)
+
+    def test_run_analysis__unknown_status_immediate(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "WEIRD_STATUS"})
+
+            with self.assertRaises(OasisException):
+                self.client.run_analysis(analysis_id=ID, poll_interval=0.01)
+
+    def test_run_analysis__with_events_progress(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={
+                "id": ID, "status": "RUN_STARTED", "num_events_total": 100, "num_events_complete": 0})
+            rsps.get(expected_url, json={
+                "id": ID, "status": "RUN_STARTED", "num_events_total": 100, "num_events_complete": 50})
+            rsps.get(expected_url, json={
+                "id": ID, "status": "RUN_COMPLETED", "num_events_total": 100, "num_events_complete": 100})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.01)
+            self.assertTrue(result)
+
+    def test_run_analysis__already_completed_with_events(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={
+                "id": ID, "status": "RUN_COMPLETED", "num_events_total": 100, "num_events_complete": 100})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.01)
+            self.assertTrue(result)
+
+    def test_run_analysis__with_events_cancelled_mid_run(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={
+                "id": ID, "status": "RUN_STARTED", "num_events_total": 100, "num_events_complete": 0})
+            rsps.get(expected_url, json={
+                "id": ID, "status": "RUN_STARTED", "num_events_total": 100, "num_events_complete": 20})
+            rsps.get(expected_url, json={
+                "id": ID, "status": "RUN_STARTED", "num_events_total": 100, "num_events_complete": 40})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.01)
+            self.assertFalse(result)
+
+    def test_download_output__no_cleanup(self):
+        ID = 34
+        tar_fp = os.path.join(os.path.dirname(__file__), 'data', 'analysis_1_output.tar')
+        with open(tar_fp, mode='rb') as file:
+            tar_data = file.read()
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            expected_url_get = f'{self.client.analyses.url_endpoint}{ID}/output_file/'
+            rsps.get(expected_url_get, body=tar_data, content_type=CONTENT_MAP['gz'], stream=True)
+
+            with TemporaryDirectory() as d:
+                self.client.download_output(ID, download_path=d)
+                self.assertTrue(os.path.isfile(os.path.join(d, f'analysis_{ID}_output.tar.gz')))
+
+    def test_reconnect__generation_completes_then_run_already_complete(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "READY"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
+
+            tar_fp = os.path.join(os.path.dirname(__file__), 'data', 'analysis_1_output.tar')
+            with open(tar_fp, mode='rb') as file:
+                tar_data = file.read()
+            output_url = f'{expected_url}output_file/'
+            rsps.get(output_url, body=tar_data, content_type=CONTENT_MAP['gz'], stream=True)
+
+            with TemporaryDirectory() as d:
+                result = self.client.reconnect(ID, output_dir=d, poll_interval=0.01)
+                self.assertTrue(result)
+                self.assertTrue(os.path.isfile(os.path.join(d, f'analysis_{ID}_output.tar.gz')))
+
+    def test_reconnect__generation_cancelled_returns_false(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_CANCELLED"})
+
+            result = self.client.reconnect(ID, poll_interval=0.01)
+            self.assertFalse(result)
+
+    def test_reconnect__run_completes_no_output_dir(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
+
+            result = self.client.reconnect(ID, poll_interval=0.01)
+            self.assertTrue(result)
+
+    def test_reconnect__run_cancelled_returns_false(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
+
+            result = self.client.reconnect(ID, poll_interval=0.01)
+            self.assertFalse(result)
+
+    def test_reconnect__nothing_left_to_poll(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.get(expected_url, json={"id": ID, "status": "NEW"})
+
+            result = self.client.reconnect(ID, poll_interval=0.01)
+            self.assertFalse(result)
+            self.logger.info.assert_any_call(f'Reconnect: Analysis (id={ID}) status=NEW - nothing left to poll')

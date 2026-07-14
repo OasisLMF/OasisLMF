@@ -9,6 +9,8 @@ import oasislmf
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.manager import OasisManager
 
+from oasislmf.computation.run.platform import PlatformPlot
+
 from .data.platform_returns import (
     RETURN_PORT, RETURN_ANALYSIS, RETURN_MODELS, MODELS_TABLE, ANAL_TABLE, PORT_TABLE
 )
@@ -1065,3 +1067,645 @@ class TestPlatformPost(ComputationChecker):
 
             request = rsps.calls[-1].request
             self.assertEqual(json.loads(request.body), settings)
+
+
+class TestPlatformValidate(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+        cls.default_args = cls.manager._params_platform_validate()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v2'
+        self.min_args = {'server_url': self.api_url}
+
+    def test_validate__get_status(self):
+        portfolio_id = 5
+        url = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/validate/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url, json={'validation_status': 'RUN_COMPLETED'})
+            result = self.manager.platform_validate(
+                **self.min_args, portfolio_id=portfolio_id, get_status=True)
+            self.assertEqual(result, {'validation_status': 'RUN_COMPLETED'})
+
+    def test_validate__trigger_and_poll_until_complete(self):
+        portfolio_id = 5
+        url_validate = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/validate/'
+        url_portfolio = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.post(url_validate, json={})
+            rsps.get(url_portfolio, json={'validation_status': 'STARTED'})
+            rsps.get(url_portfolio, json={'validation_status': 'RUN_COMPLETED'})
+            rsps.get(url_validate, json={'validation_status': 'RUN_COMPLETED'})
+
+            result = self.manager.platform_validate(
+                **self.min_args, portfolio_id=portfolio_id, poll_interval=0)
+            self.assertEqual(result, {'validation_status': 'RUN_COMPLETED'})
+
+
+class TestPlatformExposureRun(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+        cls.default_args = cls.manager._params_platform_exposure_run()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v2'
+        self.tmp_dirs = self.create_tmp_dirs(['output_dir'])
+        self.min_args = {'server_url': self.api_url, 'output_dir': self.tmp_dirs['output_dir'].name}
+
+    def test_exposure_run__fetch_existing_result(self):
+        portfolio_id = 3
+        url = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url, body=b'{"result": "ok"}', content_type='application/json')
+
+            filename = self.manager.platform_exposure_run(
+                **self.min_args, portfolio_id=portfolio_id, fetch=True)
+
+            self.assertTrue(filename.endswith('.json'))
+            self.assertTrue(os.path.isfile(filename))
+            self.assertEqual(self.read_file(filename), b'{"result": "ok"}')
+
+    def test_exposure_run__trigger_and_poll_until_complete(self):
+        portfolio_id = 3
+        url_run = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
+        url_portfolio = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.post(url_run, json={})
+            rsps.get(url_portfolio, json={'exposure_status': 'STARTED'})
+            rsps.get(url_portfolio, json={'exposure_status': 'RUN_COMPLETED'})
+            rsps.get(url_run, body=b'loc,acc\n1,2', content_type='text/csv')
+
+            filename = self.manager.platform_exposure_run(
+                **self.min_args, portfolio_id=portfolio_id, poll_interval=0)
+
+            self.assertTrue(filename.endswith('.csv'))
+            self.assertEqual(self.read_file(filename), b'loc,acc\n1,2')
+
+    def test_exposure_run__unknown_content_type__falls_back_to_bin_extension(self):
+        portfolio_id = 3
+        url = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url, body=b'raw-bytes', content_type='application/x-not-a-real-type')
+
+            filename = self.manager.platform_exposure_run(
+                **self.min_args, portfolio_id=portfolio_id, fetch=True)
+            self.assertTrue(filename.endswith('.bin'))
+
+
+class TestPlatformExposureTransform(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+        cls.default_args = cls.manager._params_platform_exposure_transform()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v2'
+        self.min_args = {'server_url': self.api_url}
+        self.tmp_files = self.create_tmp_files(['mapping_file', 'transform_file'])
+        self.write_str(self.tmp_files['mapping_file'], 'mapping,data')
+        self.write_str(self.tmp_files['transform_file'], 'transform,data')
+
+    def test_exposure_transform__trigger_and_poll_until_complete(self):
+        portfolio_id = 2
+        url_transform = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_transform/'
+        url_portfolio = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.post(url_transform, json={})
+            rsps.get(url_portfolio, json={'exposure_transform_status': 'STARTED'})
+            rsps.get(url_portfolio, json={'exposure_transform_status': 'RUN_COMPLETED'})
+            rsps.get(url_portfolio, json={'id': portfolio_id, 'exposure_transform_status': 'RUN_COMPLETED'})
+
+            result = self.manager.platform_exposure_transform(
+                **self.min_args,
+                portfolio_id=portfolio_id,
+                file_type='location',
+                mapping_file=self.tmp_files['mapping_file'].name,
+                transform_file=self.tmp_files['transform_file'].name,
+                poll_interval=0,
+            )
+            self.assertEqual(result, {'id': portfolio_id, 'exposure_transform_status': 'RUN_COMPLETED'})
+
+
+class TestPlatformCombine(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+        cls.default_args = cls.manager._params_platform_combine()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v2'
+        self.min_args = {'server_url': self.api_url}
+        self.tmp_files = self.create_tmp_files(['combine_settings_json'])
+        self.write_json(self.tmp_files['combine_settings_json'], {'group_number_of_periods': 5})
+
+    def test_combine__success(self):
+        url = f'{self.api_url}/{self.api_ver}/analyses/combine/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.post(url, json={'id': 10, 'name': 'combo'})
+
+            result = self.manager.platform_combine(
+                **self.min_args,
+                analysis_ids=[1, 2],
+                combine_settings_json=self.tmp_files['combine_settings_json'].name,
+                combine_name='combo',
+            )
+            self.assertEqual(result, {'id': 10, 'name': 'combo'})
+
+            request = rsps.calls[-1].request
+            self.assertEqual(json.loads(request.body), {
+                'analysis_ids': [1, 2],
+                'config': {'group_number_of_periods': 5},
+                'name': 'combo',
+            })
+
+
+class TestPlatformCancel(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+        cls.default_args = cls.manager._params_platform_cancel()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v2'
+        self.min_args = {'server_url': self.api_url}
+
+    def test_cancel__success(self):
+        analysis_id = 5
+        url = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/cancel/'
+
+        with self._caplog.at_level(logging.INFO):
+            with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+                self.add_connection_startup(rsps)
+                rsps.post(url, json={})
+                self.manager.platform_cancel(**self.min_args, analysis_id=analysis_id)
+                self.assertIn(f'Cancelled analysis (id={analysis_id})', "\n".join(self._caplog.messages))
+
+
+class TestPlatformSubTasks(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+        cls.default_args = cls.manager._params_platform_sub_tasks()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v2'
+        self.min_args = {'server_url': self.api_url}
+
+    def test_sub_tasks__success(self):
+        analysis_id = 5
+        url = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/sub_task_list/'
+        sub_tasks = [{'id': 1, 'name': 'lookup', 'status': 'COMPLETED'}]
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url, json=sub_tasks)
+            result = self.manager.platform_sub_tasks(**self.min_args, analysis_id=analysis_id)
+            self.assertEqual(result, sub_tasks)
+
+
+SUB_TASKS = [
+    {
+        'id': 1, 'name': 'lookup', 'status': 'COMPLETED',
+        'queue_time': '2023-01-01T00:00:00.000000Z',
+        'pending_time': '2022-12-31T23:59:00.000000Z',
+        'start_time': '2023-01-01T00:00:00.000000Z',
+        'end_time': '2023-01-01T00:01:00.000000Z',
+    },
+    {
+        'id': 2, 'name': 'run', 'status': 'STARTED',
+        'queue_time': '2023-01-01T00:00:30.000000Z',
+        'pending_time': '2022-12-31T23:59:30.000000Z',
+        'start_time': '2023-01-01T00:01:00.000000Z',
+        'end_time': None,
+    },
+    {
+        'id': 3, 'name': 'output', 'status': 'ERROR',
+        'queue_time': None,
+        'pending_time': None,
+        'start_time': '2023-01-01T00:02:00.000000Z',
+        'end_time': '2023-01-01T00:02:30.000000Z',
+    },
+    {
+        'id': 4, 'name': 'cleanup', 'status': 'CANCELLED',
+        'queue_time': '2023-01-01T00:03:00.000000Z',
+        'pending_time': '2023-01-01T00:02:50.000000Z',
+        'start_time': None,
+        'end_time': None,
+    },
+]
+
+ANALYSIS = {
+    'id': 42,
+    'name': 'Test analysis',
+    'status': 'RUN_COMPLETED',
+    'task_started': '2023-01-01T00:00:00.000000Z',
+    'num_events_complete': 100,
+    'num_events_total': 100,
+    'status_count': {'COMPLETED': 2, 'STARTED': 1, 'ERROR': 1, 'CANCELLED': 1},
+}
+
+SETTINGS = {
+    'number_of_samples': 10,
+    'model_settings': {'event_set': 'P', 'event_occurrence_id': 'LT'},
+    'gul_output': True,
+    'gul_summaries': [
+        {'id': 1, 'oed_fields': [], 'summarycalc': True, 'eltcalc': True, 'ord_output': {'elt_sample': True}},
+    ],
+    'il_output': True,
+    'il_summaries': [
+        {'id': 2, 'oed_fields': ['CountryCode', 'Peril'], 'ord_output': {}},
+    ],
+    'ri_output': False,
+    'ri_summaries': [],
+    'rl_output': True,
+    'rl_summaries': [
+        {'id': 3, 'oed_fields': [], 'ord_output': {}},
+    ],
+}
+
+
+class TestPlatformPlot(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+        cls.default_args = cls.manager._params_platform_plot()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v2'
+        self.min_args = {'server_url': self.api_url}
+        self.tmp_dirs = self.create_tmp_dirs(['output_dir'])
+        self.output_file = os.path.join(self.tmp_dirs['output_dir'].name, 'gantt.png')
+
+    def test_plot__with_settings__writes_png(self):
+        analysis_id = 42
+        url_analysis = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/'
+        url_sub_tasks = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/sub_task_list/'
+        url_settings = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/settings/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url_analysis, json=ANALYSIS)
+            rsps.get(url_sub_tasks, json=SUB_TASKS)
+            rsps.get(url_settings, json=SETTINGS)
+
+            result = self.manager.platform_plot(
+                **self.min_args, analysis_id=analysis_id, output_file=self.output_file)
+            self.assertEqual(result, self.output_file)
+            self.assertTrue(os.path.isfile(self.output_file))
+
+    def test_plot__settings_404__settings_is_none(self):
+        analysis_id = 42
+        url_analysis = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/'
+        url_sub_tasks = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/sub_task_list/'
+        url_settings = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/settings/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url_analysis, json=ANALYSIS)
+            rsps.get(url_sub_tasks, json=SUB_TASKS)
+            rsps.get(url_settings, json={'error': 'not found'}, status=404)
+
+            result = self.manager.platform_plot(
+                **self.min_args, analysis_id=analysis_id, output_file=self.output_file)
+            self.assertEqual(result, self.output_file)
+            self.assertTrue(os.path.isfile(self.output_file))
+
+    def test_plot__no_analysis_summary__no_settings(self):
+        # analysis endpoint returns null -> has_summary=False path in _plot,
+        # and no settings -> has_settings=False path too, so only the plain
+        # gantt chart axes are built.
+        analysis_id = 42
+        url_analysis = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/'
+        url_sub_tasks = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/sub_task_list/'
+        url_settings = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/settings/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url_analysis, body='null', content_type='application/json')
+            rsps.get(url_sub_tasks, json=SUB_TASKS)
+            rsps.get(url_settings, json={'error': 'not found'}, status=404)
+
+            result = self.manager.platform_plot(
+                **self.min_args, analysis_id=analysis_id, output_file=self.output_file)
+            self.assertEqual(result, self.output_file)
+            self.assertTrue(os.path.isfile(self.output_file))
+
+    def test_plot__default_output_file(self):
+        analysis_id = 42
+        url_analysis = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/'
+        url_sub_tasks = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/sub_task_list/'
+        url_settings = f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/settings/'
+        expected_output_file = f'analysis-{analysis_id}-gantt.png'
+
+        try:
+            with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+                self.add_connection_startup(rsps)
+                rsps.get(url_analysis, json=ANALYSIS)
+                rsps.get(url_sub_tasks, json=SUB_TASKS)
+                rsps.get(url_settings, json={'error': 'not found'}, status=404)
+
+                result = self.manager.platform_plot(**self.min_args, analysis_id=analysis_id)
+                self.assertEqual(result, expected_output_file)
+                self.assertTrue(os.path.isfile(expected_output_file))
+        finally:
+            if os.path.isfile(expected_output_file):
+                os.remove(expected_output_file)
+
+    # --- Direct unit tests of the pure helper methods (no server connection required) ---
+
+    def _plot_instance(self):
+        return PlatformPlot.__new__(PlatformPlot)
+
+    def test_parse_ts__empty_returns_none(self):
+        plot = self._plot_instance()
+        self.assertIsNone(plot._parse_ts(None))
+        self.assertIsNone(plot._parse_ts(''))
+
+    def test_fmt_duration__with_hours(self):
+        from datetime import timedelta
+        plot = self._plot_instance()
+        self.assertEqual(plot._fmt_duration(timedelta(hours=1, minutes=2, seconds=3)), '1h 2m 3s')
+        self.assertEqual(plot._fmt_duration(timedelta(minutes=2, seconds=3)), '2m 3s')
+
+    def test_queued_duration_line__no_pending_times_or_no_task_started(self):
+        plot = self._plot_instance()
+        self.assertEqual(plot._queued_duration_line({}, []), 'Queued: n/a')
+        self.assertEqual(
+            plot._queued_duration_line({'task_started': None}, SUB_TASKS), 'Queued: n/a')
+
+    def test_queued_duration_line__computed(self):
+        plot = self._plot_instance()
+        line = plot._queued_duration_line(ANALYSIS, SUB_TASKS)
+        self.assertTrue(line.startswith('Queued before execution:'))
+
+    def test_enabled_outputs__legacy_and_ord(self):
+        plot = self._plot_instance()
+        outputs = plot._enabled_outputs(SETTINGS['gul_summaries'][0])
+        self.assertIn('Summary calc', outputs)
+        self.assertIn('ELT', outputs)
+        self.assertIn('SELT', outputs)
+
+    def test_enabled_outputs__none_selected(self):
+        plot = self._plot_instance()
+        outputs = plot._enabled_outputs({'ord_output': {}})
+        self.assertEqual(outputs, [])
+
+    def test_describe_summaries__empty_list(self):
+        plot = self._plot_instance()
+        self.assertEqual(plot._describe_summaries([]), '—')
+
+    def test_describe_summaries__group_all_and_field_list_and_no_outputs(self):
+        plot = self._plot_instance()
+        described = plot._describe_summaries(SETTINGS['gul_summaries'] + SETTINGS['il_summaries'] + SETTINGS['rl_summaries'])
+        self.assertIn('by: all', described)
+        self.assertIn('by: CountryCode, Peril', described)
+        self.assertIn('no outputs selected', described)
+
+    def test_settings_rows__none_settings_returns_empty(self):
+        plot = self._plot_instance()
+        self.assertEqual(plot._settings_rows(None), [])
+        self.assertEqual(plot._settings_rows({}), [])
+
+    def test_settings_rows__mixed_enabled_disabled_perspectives(self):
+        plot = self._plot_instance()
+        rows = dict(plot._settings_rows(SETTINGS))
+        self.assertEqual(rows['RI summaries'], 'Disabled')
+        self.assertIn('by: all', rows['GUL summaries'])
+        self.assertIn('by: CountryCode, Peril', rows['IL summaries'])
+        self.assertIn('no outputs selected', rows['RL summaries'])
+
+
+class TestPlatformBaseAuth(ComputationChecker):
+    """ Extra coverage for PlatformBase credential handling that isn't already
+    exercised via TestPlatformRunInputs (interactive auth-type menu, oidc/m2m
+    prompts, the 'flow is disabled' try_connection branch, and the oidc/m2m
+    kwargs helper).
+
+    Each failed connection attempt in `open_connection` opens a brand new
+    APISession (its own healthcheck/server_info call), so - following the
+    pattern used in TestPlatformRunInputs - a single healthcheck mock is
+    registered and reused for every attempt, and `server_info` is left
+    unmocked (APISession swallows that failure internally).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v2'
+        self.min_args = {'server_url': self.api_url}
+        responses.start()
+
+    def tearDown(self):
+        super().tearDown()
+        responses.stop()
+        responses.reset()
+
+    @patch('builtins.input', side_effect=['', '9', '1', 'AzureDiamond'])
+    @patch('getpass.getpass', return_value='hunter2')
+    def test_auth_type_prompt__invalid_entries_are_reprompted(self, mock_password, mock_input):
+        analysis_id = 1
+        responses.get(url=f'{self.api_url}/healthcheck/', json={"status": "OK"})
+        responses.post(url=f'{self.api_url}/access_token/', json={'error': 'unauthorized'}, status=401)
+        responses.post(url=f'{self.api_url}/access_token/', json={'error': 'unauthorized'}, status=401)
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"},
+            match=[json_params_matcher({"username": "AzureDiamond", "password": "hunter2"})])
+        responses.post(url=f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/cancel/', json={})
+
+        self.manager.platform_cancel(**self.min_args, analysis_id=analysis_id)
+
+        mock_input.assert_has_calls([
+            call('Auth type — simple JWT [1], OIDC via platform [2], M2M direct to IdP [3]: '),
+            call('Auth type — simple JWT [1], OIDC via platform [2], M2M direct to IdP [3]: '),
+            call('Auth type — simple JWT [1], OIDC via platform [2], M2M direct to IdP [3]: '),
+            call('Username: '),
+        ])
+        self.assertEqual(mock_input.call_count, 4)
+
+    @patch('builtins.input', side_effect=['2', 'myclientid'])
+    @patch('getpass.getpass', return_value='mysecret')
+    def test_load_credentials__oidc_prompt(self, mock_password, mock_input):
+        analysis_id = 1
+        responses.get(url=f'{self.api_url}/healthcheck/', json={"status": "OK"})
+        responses.post(url=f'{self.api_url}/access_token/', json={'error': 'unauthorized'}, status=401)
+        responses.post(url=f'{self.api_url}/access_token/', json={'error': 'unauthorized'}, status=401)
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"},
+            match=[json_params_matcher({"client_id": "myclientid", "client_secret": "mysecret"})])
+        responses.post(url=f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/cancel/', json={})
+
+        self.manager.platform_cancel(**self.min_args, analysis_id=analysis_id)
+
+        mock_input.assert_has_calls([
+            call('Auth type — simple JWT [1], OIDC via platform [2], M2M direct to IdP [3]: '),
+            call('Client ID: '),
+        ])
+        mock_password.assert_called_once_with('Client Secret: ')
+
+    @patch('builtins.input', side_effect=['3', 'myclientid', 'http://idp.example.com/token', 'myscope'])
+    @patch('getpass.getpass', return_value='mysecret')
+    def test_load_credentials__m2m_prompt(self, mock_password, mock_input):
+        analysis_id = 1
+        token_url = 'http://idp.example.com/token'
+        responses.get(url=f'{self.api_url}/healthcheck/', json={"status": "OK"})
+        responses.post(url=f'{self.api_url}/access_token/', json={'error': 'unauthorized'}, status=401)
+        responses.post(url=token_url, json={"access_token": "acc_tkn"})
+        responses.post(url=f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/cancel/', json={})
+
+        self.manager.platform_cancel(**self.min_args, analysis_id=analysis_id)
+
+        mock_input.assert_has_calls([
+            call('Auth type — simple JWT [1], OIDC via platform [2], M2M direct to IdP [3]: '),
+            call('Client ID: '),
+            call('Token URL: '),
+            call('Scope (leave blank to omit): '),
+        ])
+
+    def test_try_connection__flow_disabled_returns_none_and_falls_through(self):
+        analysis_id = 1
+        responses.get(url=f'{self.api_url}/healthcheck/', json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={'error': 'Simple JWT flow is disabled'}, status=400)
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+        responses.post(url=f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/cancel/', json={})
+
+        self.manager.platform_cancel(**self.min_args, analysis_id=analysis_id)
+
+    def test_oidc_m2m_kwargs__example_creds_with_explicit_m2m_auth_type(self):
+        analysis_id = 1
+        token_url = 'http://idp.example.com/token'
+        responses.get(url=f'{self.api_url}/healthcheck/', json={"status": "OK"})
+        responses.post(url=token_url, json={"access_token": "acc_tkn"})
+        responses.post(url=f'{self.api_url}/{self.api_ver}/analyses/{analysis_id}/cancel/', json={})
+
+        self.manager.platform_cancel(
+            **self.min_args, analysis_id=analysis_id,
+            auth_type='m2m', oidc_token_url=token_url, oidc_scope='myscope')
+
+        m2m_request = next(c.request for c in responses.calls if c.request.url == token_url)
+        self.assertIn('scope=myscope', m2m_request.body)
