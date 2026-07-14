@@ -880,8 +880,6 @@ def compute_event_losses(compute_info,
             haz_pdf_prob = haz_pdf_record['probability']
 
             cdf_group = nb_int64(item_event_data['eff_cdf_id'])
-            haz_cdf_prob = pdf_to_cdf(haz_pdf_prob, haz_cdf_empty)
-            Nhaz_bins = haz_cdf_prob.shape[0]
 
             # coverage dependency: replace this dependent's hazard bins with the source's
             # damage bins and its hazard pdf with the source's damage pmf, so the dependent's
@@ -890,8 +888,11 @@ def compute_event_losses(compute_info,
             if is_dependent:
                 # the dependent's "hazard bins" are the source's damage bins; its vulnerability is
                 # the conditional matrix (assembled below), and its hazard pdf is the source's
-                # damage pmf (derived here from the source's stored effective-damage CDF).
+                # damage pmf (derived here from the source's stored effective-damage CDF). The
+                # footprint hazard CDF is unused for a dependent, so it is not computed; the name
+                # is kept defined (as an empty view) only so numba sees it on all paths.
                 Nhaz_bins = n_damage_bins_total
+                haz_cdf_prob = haz_cdf_empty[:0]
                 parent_eff_cdf = source_eff_damage_cdf_stack[depth - 1, item_j, :source_eff_damage_cdf_len_stack[depth - 1, item_j]]
                 haz_pdf_prob = source_damage_pmf_empty
                 prev_cdf = 0.0
@@ -901,6 +902,9 @@ def compute_event_losses(compute_info,
                         prev_cdf = parent_eff_cdf[damage_bin_k]
                     else:
                         haz_pdf_prob[damage_bin_k] = 0.0
+            else:
+                haz_cdf_prob = pdf_to_cdf(haz_pdf_prob, haz_cdf_empty)
+                Nhaz_bins = haz_cdf_prob.shape[0]
 
             # determine if the CDFs for this CDF group are cached. Dependent CDFs are
             # event-specific (they depend on the source's damage this event), so they always
