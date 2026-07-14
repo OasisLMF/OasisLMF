@@ -75,7 +75,8 @@ def test_missing_summary_col():
             "output": csv_actual,
         }
 
-        with pytest.raises(ValueError, match="\'SummaryId\' is not in list"):
+        # Python 3.14 changed the list.index() error message wording
+        with pytest.raises(ValueError, match="SummaryId.*not in list|list.index.*not in list"):
             main(**kwargs)
 
 
