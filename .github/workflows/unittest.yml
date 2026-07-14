@@ -33,6 +33,7 @@ jobs:
           - { python-version: "3.11", pkg-version: "", upload-cov: false }
           - { python-version: "3.12", pkg-version: "", upload-cov: true }
           - { python-version: "3.13", pkg-version: "", upload-cov: false }
+          - { python-version: "3.14", pkg-version: "", upload-cov: false }
 
     steps:
       - uses: actions/checkout@v4
