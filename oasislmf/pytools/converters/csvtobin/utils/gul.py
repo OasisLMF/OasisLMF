@@ -4,10 +4,10 @@ from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE
 from oasislmf.pytools.common.event_stream import mv_write_item_header, mv_write_sidx_loss
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
-from oasislmf.pytools.common.data import loss_pair_dtype, item_header_dtype, def_to_type_and_size_str
+from oasislmf.pytools.common.data import loss_pair_dtype, item_header_dtype, def_to_type_and_size_str, oasis_int
 
 # Worst case: every input row opens a new group (2 header + 2 data + 2 termination = 6 int32s)
-_CHUNK_OUT_SIZE = DEFAULT_BUFFER_SIZE * (item_header_dtype.itemsize + loss_pair_dtype.itemsize + oasis_int.itemsize * 2)
+_CHUNK_OUT_SIZE = DEFAULT_BUFFER_SIZE * (item_header_dtype.itemsize + loss_pair_dtype.itemsize * 2)
 
 event_id_dtype, event_id_size = def_to_type_and_size_str('event_id')
 item_id_dtype, item_id_size = def_to_type_and_size_str('item_id')
