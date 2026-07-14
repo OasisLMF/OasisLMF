@@ -116,6 +116,28 @@ def test_get_conditional_vulns_allows_missing_source_bins():
     assert np.all(arr[0, :, 2] == 0.0), "undefined source bin 3 -> all-zero column (no dependent damage)"
 
 
+def test_get_conditional_vulns_bin_matches_csv():
+    """The binary loader (fixed 4-byte int32 header, then vulnerability_dtype records) yields the
+    same transition matrix as the CSV loader."""
+    from oasislmf.pytools.gulmc.structure import get_conditional_vulns
+    from oasislmf.pytools.common.data import vulnerability_dtype
+    from oasis_data_manager.filestore.backends.local import LocalStorage
+    # (vulnerability_id, source damage bin = intensity_bin_id, dependent damage bin, probability)
+    rows = [(7, 1, 1, 0.8), (7, 1, 2, 0.2), (7, 2, 2, 0.5), (7, 2, 3, 0.5), (7, 3, 3, 1.0)]
+    with tempfile.TemporaryDirectory() as d_csv, tempfile.TemporaryDirectory() as d_bin:
+        _write_conditional_vuln_csv(d_csv, rows)
+        arr_csv, ids_csv = get_conditional_vulns(LocalStorage(d_csv), num_damage_bins=3)
+
+        recs = np.array(rows, dtype=vulnerability_dtype)
+        with open(Path(d_bin) / 'conditional_vulnerability.bin', 'wb') as f:
+            np.array([3], dtype=np.int32).tofile(f)  # 4-byte header: num_damage_bins
+            recs.tofile(f)
+        arr_bin, ids_bin = get_conditional_vulns(LocalStorage(d_bin), num_damage_bins=3)
+
+    np.testing.assert_array_equal(ids_bin, ids_csv)
+    np.testing.assert_allclose(arr_bin, arr_csv)
+
+
 # --------------------------------------------------------------------------------------
 # validation guards (validate_coverage_dependency contract)
 # --------------------------------------------------------------------------------------
@@ -429,6 +451,68 @@ def test_conditional_dependency_end_to_end(source_damage_type):
         # boundaries. Independent sampling over 12 bins would give a mean difference of several bins.
         assert n > 0 and (diff == 0).mean() > 0.9 and diff.mean() < 0.15, \
             f"identity conditional => dependent damage bin should follow source's (exact {(diff == 0).mean():.3f}, mean|d| {diff.mean():.3f})"
+
+
+def test_conditional_dependency_eff_dam_marginal():
+    """Effective damageability supports dependents, but marginal-only. With an identity transition
+    matrix the dependent's eff-damage distribution equals the source's, so their sampled-bin
+    DISTRIBUTIONS match — yet the per-sample comonotonic tie that full Monte Carlo produces is
+    absent. Contrast the two modes on the same setup: full MC follows the source's bin per sample
+    (>0.9 exact), eff-dam does not.
+    """
+    with tempfile.TemporaryDirectory() as t:
+        run_dir = Path(t) / 'assets'
+        shutil.copytree(SRC_MODEL, run_dir)
+        shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
+
+        # give dependent coverage 2 its own conditional vulnerability ids (per areaperil)
+        items = pd.read_csv(run_dir / 'input' / 'items.csv')
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 154), 'vulnerability_id'] = 101
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 54), 'vulnerability_id'] = 102
+        items.to_csv(run_dir / 'input' / 'items.csv', index=False)
+        (run_dir / 'input' / 'items.bin').unlink()  # force the edited csv to be read
+
+        dbd = pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv')
+        n_damage_bins = len(dbd)
+        with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
+            f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
+            for vid in (101, 102):  # identity: source bin k -> dependent bin k
+                for k in range(1, n_damage_bins + 1):
+                    f.write(f'{vid},{k},{k},1.0\n')
+        _write_correlations(run_dir, {2: 1})
+
+        cov_tiv = pd.read_csv(run_dir / 'input' / 'coverages.csv').set_index('coverage_id')['tiv']
+        bin_to = dbd['bin_to'].to_numpy()
+
+        def sampled_bins(df, item_id, coverage_id):
+            d = df[(df['item_id'] == item_id) & (df['sidx'] > 0)].sort_values(['event_id', 'sidx'])
+            return np.searchsorted(bin_to, d['loss'].to_numpy() / cov_tiv[coverage_id], side='left').astype(int)
+
+        def source_and_dependent_bins(effective_damageability):
+            df = _run(run_dir, effective_damageability=effective_damageability)
+            # item 1 = source (coverage 1, areaperil 154); item 3 = dependent (coverage 2, areaperil 154)
+            src, dep = sampled_bins(df, 1, 1), sampled_bins(df, 3, 2)
+            n = min(len(src), len(dep))
+            return src[:n], dep[:n]
+
+        src_e, dep_e = source_and_dependent_bins(True)   # effective damageability
+        src_f, dep_f = source_and_dependent_bins(False)  # full Monte Carlo
+        assert len(src_e) > 0 and len(src_f) > 0
+
+        # eff-dam dependent is correct at the MARGINAL level: identity matrix => the dependent's
+        # damage distribution equals the source's, so sorted samples (order statistics) coincide
+        # even though the per-sample pairing does not.
+        order_stat_diff = np.abs(np.sort(src_e) - np.sort(dep_e)).mean()
+        assert order_stat_diff < 0.3, \
+            f"eff-dam dependent marginal should equal the source's (order-stat |d| {order_stat_diff:.3f})"
+
+        # full MC is comonotonic (dependent follows the source's bin per sample); eff-dam is
+        # marginal-only (independent per sample), so its per-sample match rate is markedly lower.
+        match_full = float((src_f == dep_f).mean())
+        match_eff = float((src_e == dep_e).mean())
+        assert match_full > 0.9, f"full MC dependency should be comonotonic per sample (match {match_full:.3f})"
+        assert match_full - match_eff > 0.3, \
+            f"eff-dam should NOT be comonotonic per sample (full {match_full:.3f} vs eff-dam {match_eff:.3f})"
 
 
 def test_conditional_convolution_reference():
