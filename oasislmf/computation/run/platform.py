@@ -617,7 +617,7 @@ class PlatformPost(PlatformBase):
             self.oed_location_csv, self.oed_accounts_csv, self.oed_info_csv,
             self.oed_scope_csv, self.currency_conversion_json, self.reporting_currency,
         ])
-        if portfolio_files_given:
+        if portfolio_files_given and (self.portfolio_name or self.portfolio_id):
             portfolio = self.server.upload_inputs(
                 portfolio_name=self.portfolio_name,
                 portfolio_id=self.portfolio_id,
@@ -631,16 +631,12 @@ class PlatformPost(PlatformBase):
             self.logger.info('Portfolio uploaded (id={})'.format(portfolio['id']))
             result['portfolio'] = portfolio
 
-        if self.analyses_settings_json:
-            if not self.analyses_id:
-                raise OasisException('--analyses-id is required when uploading --analyses-settings-json')
+        if self.analyses_settings_json and self.analyses_id:
             self.server.upload_settings(self.analyses_id, self.analyses_settings_json)
             self.logger.info('Analyses settings uploaded (id={})'.format(self.analyses_id))
             result['analyses_id'] = self.analyses_id
 
-        if self.model_settings_json:
-            if not self.model_id:
-                raise OasisException('--model-id is required when uploading --model-settings-json')
+        if self.model_settings_json and self.model_id:
             with io.open(self.model_settings_json, encoding='utf-8') as f:
                 settings = json.load(f)
             self.server.models.settings.post(self.model_id, settings)
