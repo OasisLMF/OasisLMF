@@ -300,6 +300,23 @@ def test_forest_rejects_cycles():
         build_coverage_dependency_forest(items, 3)
 
 
+def test_forest_rejects_out_of_range_source():
+    # a source id beyond the coverage range is malformed/stale input -> fail loud, not silently
+    # demote the dependent to independent
+    items = np.array([(1, 0), (2, 99)],
+                     dtype=[('coverage_id', 'u4'), ('source_coverage_id', 'u4')])
+    with pytest.raises(AssertionError, match="out of range"):
+        build_coverage_dependency_forest(items, 3)
+
+
+def test_forest_rejects_self_reference():
+    # a coverage listing itself as its own source is malformed input -> fail loud
+    items = np.array([(1, 0), (2, 2)],
+                     dtype=[('coverage_id', 'u4'), ('source_coverage_id', 'u4')])
+    with pytest.raises(AssertionError, match="itself"):
+        build_coverage_dependency_forest(items, 3)
+
+
 # --------------------------------------------------------------------------------------
 # end-to-end behaviour
 # --------------------------------------------------------------------------------------

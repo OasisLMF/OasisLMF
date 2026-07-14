@@ -129,10 +129,19 @@ def build_coverage_dependency_forest(items, n_coverages):
     coverage_source_id = np.zeros(n_coverages, dtype=id_dtype)
     coverage_source_id[items['coverage_id']] = items['source_coverage_id']
 
-    # a source pointing outside the coverage range, or a self-reference, is treated as
-    # independent (defensive; should not occur for validly generated inputs)
-    coverage_source_id[coverage_source_id >= n_coverages] = 0
-    coverage_source_id[coverage_source_id == np.arange(n_coverages)] = 0
+    # A source pointing outside the coverage range, or a coverage referencing itself, can only
+    # come from malformed/stale input (a valid source is always an in-range coverage_id of a
+    # different coverage at the same location). Fail loudly rather than silently demoting the
+    # dependent to independent, which would change losses with no signal. (source == 0 means
+    # independent and is excluded from both checks.)
+    out_of_range = np.nonzero(coverage_source_id >= n_coverages)[0]
+    assert out_of_range.size == 0, (
+        f"coverage dependency: source_coverage_id out of range for coverage_id(s) "
+        f"{out_of_range.tolist()} (n_coverages={n_coverages}); malformed correlations input.")
+    self_ref = np.nonzero((coverage_source_id == np.arange(n_coverages)) & (coverage_source_id != 0))[0]
+    assert self_ref.size == 0, (
+        f"coverage dependency: coverage_id(s) {self_ref.tolist()} reference themselves as their "
+        "own source; a coverage cannot depend on itself.")
 
     _validate_acyclic_coverage_dependency(coverage_source_id)
 
@@ -177,8 +186,12 @@ def get_conditional_vulns(storage, num_damage_bins, ignore_file_type=set()):
     input_files = set(storage.listdir())
     recs = None
     if "conditional_vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
+        # flat (non-indexed, uncompressed) vulnerability layout: a fixed 4-byte int32 header
+        # (num_damage_bins, matching vulnerability.bin's max_damage_bin header — NOT oasis_int-
+        # sized) followed by vulnerability_dtype records. We size from the damage_bin_dict, so the
+        # header value is skipped. An .idx/compressed conditional file is not supported.
         with storage.open("conditional_vulnerability.bin", 'rb') as f:
-            f.read(4)  # header: num_damage_bins (we size from the damage_bin_dict instead)
+            f.read(4)
             recs = np.frombuffer(f.read(), dtype=vulnerability_dtype)
     elif "conditional_vulnerability.csv" in input_files and 'csv' not in ignore_file_type:
         with storage.open("conditional_vulnerability.csv") as f:
