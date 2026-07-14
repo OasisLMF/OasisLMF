@@ -49,6 +49,8 @@ class GenerateOasisFiles(ComputationStep):
             'base_df_engine': self.base_df_engine,
             'exposure_df_engine': self.exposure_df_engine or self.base_df_engine,
             'backend_dtype': self.oed_backend_dtype,
+            'supported_oed_versions': self.settings.get('data_settings', {}).get('supported_oed_versions'),
+            'disable_oed_version_update': self.disable_oed_version_update,
         }
 
     def run(self):

@@ -59,6 +59,8 @@ class RunModel(ComputationStep):
             'check_oed': self.check_oed,
             'use_field': True,
             'backend_dtype': self.oed_backend_dtype,
+            'supported_oed_versions': self.settings.get('data_settings', {}).get('supported_oed_versions'),
+            'disable_oed_version_update': self.disable_oed_version_update,
         }
 
     def run(self):

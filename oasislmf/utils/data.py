@@ -908,6 +908,8 @@ def get_exposure_data(computation_step, add_internal_col=False):
                     use_field=True,
                     additional_fields=DEFAULT_ADDITIONAL_FIELDS,
                     backend_dtype=getattr(computation_step, 'oed_backend_dtype', None),
+                    supported_oed_versions=getattr(computation_step, 'settings', {}).get('data_settings', {}).get('supported_oed_versions'),
+                    disable_oed_version_update=getattr(computation_step, 'disable_oed_version_update', False),
                 )
 
             if add_internal_col:
