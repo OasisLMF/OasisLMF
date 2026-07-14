@@ -1895,10 +1895,9 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
                 custom_gulcalc_cmd,
                 process_id,
                 max_process_id,
-                os.path.abspath("analysis_settings.json"),
+                os.path.abspath(os.path.join("input", "analysis_settings.json")),
                 "input")
-            if item_output != '':
-                cmd = '{} -i {}'.format(cmd, item_output)
+            cmd = '{} -i -{}'.format(cmd, item_output)
             if stderr_guard:
                 cmd = '({}) 2>> $LOG_DIR/gul_stderror.err'.format(cmd)
 
