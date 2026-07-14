@@ -214,6 +214,7 @@ def mv_write_item_header_cached(byte_mv, cursor, event_id, item_id,
     cursor = mv_write(byte_mv, cursor, item_id_type, item_id_size, item_id)
     return cursor
 
+
 def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
     """
     write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
@@ -229,6 +230,7 @@ def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
     return mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss,
                                      sidx_type=sidx_type, sidx_size=sidx_size,
                                      loss_type=loss_type, loss_size=loss_size)
+
 
 @nb.jit(nopython=True, cache=True)
 def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,

@@ -21,7 +21,7 @@ def _fill_fm_chunk(event_ids, item_ids, sidxs, losses,
     for i in range(len(event_ids)):
         if event_ids[i] != prev_event_id or item_ids[i] != prev_item_id:
             if prev_event_id != event_id_dtype.type(-1):
-                cursor = mv_write_sidx_loss(out, cursor, 0, 0.) # delimiter
+                cursor = mv_write_sidx_loss(out, cursor, 0, 0.)  # delimiter
             cursor = mv_write_item_header(out, cursor, event_ids[i], item_ids[i])
             prev_event_id = event_ids[i]
             prev_item_id = item_ids[i]
@@ -56,4 +56,4 @@ def fm_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index)
         buf[:pos].tofile(file_out)
 
     if prev_event_id != event_id_dtype.type(-1):
-        np.array([0], dtype=loss_pair_dtype).tofile(file_out) # final delimiter
+        np.array([0], dtype=loss_pair_dtype).tofile(file_out)  # final delimiter
