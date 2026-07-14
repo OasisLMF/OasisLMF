@@ -2,6 +2,14 @@ from argparse import RawDescriptionHelpFormatter
 from .command import OasisBaseCommand, OasisComputationCommand
 
 
+class ServerInfoApiCmd(OasisComputationCommand):
+    """
+    Print version/info details of the connected Oasis Platform API server
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformServerInfo'
+
+
 class ListApiCmd(OasisComputationCommand):
     """
     Issue API GET requests via the command line
@@ -124,6 +132,7 @@ class PlotApiCmd(OasisComputationCommand):
 
 class ApiCmd(OasisBaseCommand):
     sub_commands = {
+        'server-info': ServerInfoApiCmd,
         'list': ListApiCmd,
         'run': RunApiCmd,
         'generate-oasis-files': RunInputApiCmd,

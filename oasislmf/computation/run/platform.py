@@ -12,6 +12,7 @@ __all__ = [
     'PlatformCancel',
     'PlatformSubTasks',
     'PlatformPlot',
+    'PlatformServerInfo',
 ]
 
 
@@ -285,6 +286,17 @@ class PlatformBase(ComputationStep):
 
         self.logger.info('{}: Complete (id={}, status={})'.format(action_name, portfolio_id, status))
         return status
+
+
+class PlatformServerInfo(PlatformBase):
+    """ Print version/info details of the connected Oasis Platform API server
+    """
+
+    def run(self):
+        rsp = self.server.server_info()
+        data = rsp.json()
+        self.logger.info(json.dumps(data, indent=4, sort_keys=True))
+        return data
 
 
 class PlatformList(PlatformBase):
