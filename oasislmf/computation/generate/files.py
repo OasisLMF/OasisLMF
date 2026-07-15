@@ -30,7 +30,7 @@ from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
                                                             RandomFile,
                                                             VulnerabilityFile)
 from oasislmf.computation.generate.keys import GenerateKeys
-from oasislmf.preparation.correlations import map_data
+from oasislmf.preparation.correlations import map_data, get_coverage_dependency_settings
 from oasislmf.preparation.dir_inputs import (create_target_directory,
                                              prepare_input_files_directory)
 from oasislmf.preparation.gul_inputs import (get_gul_input_items,
@@ -337,7 +337,8 @@ class GenerateFiles(ComputationStep):
             exposure_profile=location_profile,
             damage_group_id_cols=damage_group_id_cols,
             hazard_group_id_cols=hazard_group_id_cols,
-            do_disaggregation=self.do_disaggregation
+            do_disaggregation=self.do_disaggregation,
+            coverage_dependency_settings=get_coverage_dependency_settings(data=model_settings, logger=self.logger)
         )
 
         # If not in det. loss gen. scenario, write exposure summary file

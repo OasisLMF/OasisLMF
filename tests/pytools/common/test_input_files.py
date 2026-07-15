@@ -95,13 +95,19 @@ def test_read_correlations():
     run_dir = Path(TESTS_ASSETS_DIR, "input")
     filename = "correlations.csv"
 
+    # legacy correlations.csv (no source_coverage_id column) is upgraded on read, defaulting
+    # source_coverage_id to 0
     correlations_expected = np.array([
-        (1, 1, 0.700000, 123451, 0.000000),
-        (2, 2, 0.500000, 123451, 0.300000),
-        (3, 1, 0.700000, 123452, 0.000000),
-        (4, 2, 0.500000, 123452, 0.300000),
+        (1, 1, 0.700000, 123451, 0.000000, 0),
+        (2, 2, 0.500000, 123451, 0.300000, 0),
+        (3, 1, 0.700000, 123452, 0.000000, 0),
+        (4, 2, 0.500000, 123452, 0.300000, 0),
     ], dtype=correlations_dtype)
     correlations_actual = read_correlations(run_dir, filename=filename)
+
+    source_coverage_id_expected = correlations_expected["source_coverage_id"]
+    source_coverage_id_actual = correlations_actual["source_coverage_id"]
+    np.testing.assert_array_equal(source_coverage_id_expected, source_coverage_id_actual)
 
     item_id_expected = correlations_expected["item_id"]
     peril_correlation_group_expected = correlations_expected["peril_correlation_group"]

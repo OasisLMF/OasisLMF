@@ -2,6 +2,7 @@ __all__ = [
     'get_gul_input_items',
     'write_gul_input_files',
 ]
+import logging
 import os
 import warnings
 from collections import OrderedDict
@@ -30,6 +31,8 @@ from oasislmf.utils.profiles import get_grouped_fm_profile_by_level_and_term_gro
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
+logger = logging.getLogger(__name__)
 
 VALID_OASIS_GROUP_COLS = [
     'item_id',
@@ -129,7 +132,8 @@ def get_gul_input_items(
     exposure_profile=get_default_exposure_profile(),
     damage_group_id_cols=None,
     hazard_group_id_cols=None,
-    do_disaggregation=True
+    do_disaggregation=True,
+    coverage_dependency_settings=None
 ):
     """
     Generates GUL (Ground-Up Loss) input items by combining location and keys data.
@@ -372,8 +376,29 @@ def get_gul_input_items(
         mask = gul_inputs_df['coverage_type_id'] == cov_type
         gul_inputs_df.loc[mask, 'tiv'] = gul_inputs_df.loc[mask, tiv_col['tiv_col']]
 
-    # Filter out rows with zero TIV
-    gul_inputs_df = gul_inputs_df[gul_inputs_df['tiv'] > 0]
+    # coverage dependency: keep zero-TIV coverages that are dependency SOURCES for an insured
+    # dependent at the same location, so an uninsured source (e.g. an uninsured building) can still
+    # drive its dependent (contents) in gulmc — a source's damage is physical (hazard x
+    # vulnerability), independent of whether the source coverage is insured. Such a source is not
+    # special-cased downstream: it simply flows as an ordinary zero-TIV, zero-loss coverage.
+    # Computed at loc_id level (building_id is assigned at disaggregation below, which replicates
+    # uniformly).
+    keep_zero_tiv_source = pd.Series(False, index=gul_inputs_df.index)
+    if coverage_dependency_settings:
+        tiv_positive = gul_inputs_df['tiv'] > 0
+        for source_cov_type, dependent_cov_type in coverage_dependency_settings:
+            insured_dependent_locs = gul_inputs_df.loc[
+                tiv_positive & (gul_inputs_df['coverage_type_id'] == dependent_cov_type), 'loc_id'].unique()
+            if len(insured_dependent_locs) == 0:
+                continue
+            keep_zero_tiv_source |= (
+                (gul_inputs_df['coverage_type_id'] == source_cov_type)
+                & (~tiv_positive)
+                & gul_inputs_df['loc_id'].isin(insured_dependent_locs)
+            )
+
+    # Filter out rows with zero TIV, except retained dependency sources
+    gul_inputs_df = gul_inputs_df[(gul_inputs_df['tiv'] > 0) | keep_zero_tiv_source]
 
     if gul_inputs_df.empty:
         raise OasisException('Empty gul_inputs_df dataframe after dropping rows with zero tiv: please check the exposure input files')
@@ -407,6 +432,53 @@ def get_gul_input_items(
     # coverage_id: Groups items by (location, building, coverage_type) - ignores peril
     gul_inputs_df['coverage_id'] = gul_inputs_df.groupby(
         ['loc_id', 'building_id', 'coverage_type_id'], sort=False, observed=True).ngroup().astype('int32') + 1
+
+    # coverage dependency: link each dependent coverage to its source coverage at the same
+    # (loc_id, building_id) with the configured source coverage_type. 0 = independent.
+    # This per-item value rides on the correlations file and is inverted into a dependency
+    # forest in gulmc. Each configured pair maps a source coverage_type to a dependent one.
+    gul_inputs_df['source_coverage_id'] = np.zeros(len(gul_inputs_df), dtype='uint32')
+    for source_cov_type, dependent_cov_type in (coverage_dependency_settings or []):
+        source_cov = (
+            gul_inputs_df.loc[gul_inputs_df['coverage_type_id'] == source_cov_type,
+                              ['loc_id', 'building_id', 'coverage_id']]
+            .drop_duplicates(['loc_id', 'building_id'])
+            .rename(columns={'coverage_id': '_src_cov_id'})
+        )
+        dep_mask = gul_inputs_df['coverage_type_id'] == dependent_cov_type
+        if source_cov.empty or not dep_mask.any():
+            continue
+        # left merge preserves the order of the dependent rows, so the result aligns
+        # positionally with gul_inputs_df.loc[dep_mask]
+        merged = gul_inputs_df.loc[dep_mask, ['loc_id', 'building_id']].merge(
+            source_cov, on=['loc_id', 'building_id'], how='left')
+        gul_inputs_df.loc[dep_mask, 'source_coverage_id'] = merged['_src_cov_id'].fillna(0).to_numpy().astype('uint32')
+
+    # A dependency is only valid if the dependent coverage's items line up one-to-one with its
+    # source's, because gulmc drives the dependent per item by index-aligned position. That
+    # requires the same multiset of areaperils (same areaperils AND the same item count per
+    # areaperil) — not merely the same set: a source with two vulnerabilities at one areaperil
+    # would otherwise silently misalign against a single-item dependent. Compare the sorted
+    # areaperil sequence (with multiplicity) and demote any mismatch to independent, with a log.
+    linked_mask = gul_inputs_df['source_coverage_id'] > 0
+    if linked_mask.any():
+        involved = pd.unique(pd.concat([
+            gul_inputs_df.loc[linked_mask, 'coverage_id'],
+            gul_inputs_df.loc[linked_mask, 'source_coverage_id'],
+        ]))
+        areaperils_by_coverage = (
+            gul_inputs_df[gul_inputs_df['coverage_id'].isin(involved)]
+            .groupby('coverage_id')['areaperil_id'].agg(lambda s: tuple(sorted(s)))
+        ).to_dict()
+        links = gul_inputs_df.loc[linked_mask, ['coverage_id', 'source_coverage_id']].drop_duplicates()
+        demoted = [int(coverage) for coverage, source in links.itertuples(index=False)
+                   if areaperils_by_coverage.get(coverage) != areaperils_by_coverage.get(source)]
+        if demoted:
+            gul_inputs_df.loc[gul_inputs_df['coverage_id'].isin(demoted), 'source_coverage_id'] = 0
+            logger.warning(
+                "coverage dependency: %d dependent coverage(s) demoted to independent because their "
+                "areaperils do not line up one-to-one with their source coverage (e.g. coverage_ids %s)",
+                len(demoted), sorted(demoted)[:10])
 
     # group_id and hazard_group_id: Correlation groups for damage/hazard sampling
     # If the group id is set according to the correlation group field then map this field
@@ -450,7 +522,8 @@ def get_gul_input_items(
         # disagg_id is needed for fm_summary_map
         ['group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] +
         tiv_cols +
-        ["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"]
+        ["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value",
+         "source_coverage_id"]
     )
 
     usecols = [col for col in usecols if col in gul_inputs_df]

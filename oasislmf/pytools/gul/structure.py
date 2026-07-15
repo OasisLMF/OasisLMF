@@ -118,7 +118,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
 
     if do_correlation:
         corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=correlations_dtype)
-        corr_data_by_item_id[0] = (0, 0., 0., 0, 0.)
+        corr_data_by_item_id[0] = (0, 0., 0., 0, 0., 0)
         corr_data_by_item_id[1:]['peril_correlation_group'] = data['peril_correlation_group']
         corr_data_by_item_id[1:]['damage_correlation_value'] = data['damage_correlation_value']
         unique_peril_correlation_groups = np.unique(

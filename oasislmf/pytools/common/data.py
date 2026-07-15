@@ -114,6 +114,7 @@ share1 = ("share1", oasis_float, "%f")
 share2 = ("share2", oasis_float, "%f")
 share3 = ("share3", oasis_float, "%f")
 sidx = ("sidx", 'i4', "%d")
+source_coverage_id = ("source_coverage_id", 'u4', "%u")
 step_id = ("step_id", 'i4', "%d")
 summary_id = ("summary_id", 'i4', "%d")
 summaryset_id = ("summaryset_id", 'i4', "%d")
@@ -162,6 +163,7 @@ correlations_output = [
     damage_correlation_value,
     hazard_group_id,
     hazard_correlation_value,
+    source_coverage_id,
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
 

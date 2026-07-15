@@ -168,6 +168,9 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     # All probability in damage bin 1 (index 1) → always max damage
     vuln_array = np.zeros((1, Ndamage_bins, Nintensity_bins), dtype=oasis_float)
     vuln_array[0, 1, 0] = 1.0  # P(damage bin index 1) = 1.0 at intensity bin 0
+    # no coverage dependency in these tests: empty conditional array, all vulns normal (-1)
+    conditional_vuln_array = np.zeros((0, Ndamage_bins, Ndamage_bins), dtype=oasis_float)
+    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=np.int32)
 
     # --- damage_bins ---
     damage_bins = np.zeros(Ndamage_bins, dtype=damagebin_dtype)
@@ -218,15 +221,22 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 
     dynamic_footprint = True  # truthy, enables dynamic footprint path
 
+    # coverage dependency is inactive in these tests: depth 0 (all roots), empty stacks
+    compute_depth = np.zeros(len(coverage_ids), dtype=np.int32)
+    source_damage_bin_stack = np.zeros((1, 1, max(sample_size, 1)), dtype=np.int32)
+    source_eff_damage_cdf_stack = np.zeros((1, 1, Ndamage_bins), dtype=oasis_float)
+    source_eff_damage_cdf_len_stack = np.zeros((1, 1), dtype=np.int64)
+
     args = (
         compute_info, coverages, coverage_ids, items_event_data, items,
-        sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
+        sample_size, haz_pdf, haz_arr_ptr, vuln_array, conditional_vuln_array, vuln_idx_to_cond_idx, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
+        compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
     )
     return args, losses
 
@@ -476,6 +486,8 @@ def test_rp_protection_only_affects_protected_items():
 
     vuln_array = np.zeros((1, Ndamage_bins, Nintensity_bins), dtype=oasis_float)
     vuln_array[0, 1, 0] = 1.0
+    conditional_vuln_array = np.zeros((0, Ndamage_bins, Ndamage_bins), dtype=oasis_float)
+    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=np.int32)
 
     damage_bins = np.zeros(Ndamage_bins, dtype=damagebin_dtype)
     damage_bins[0] = (0, 0.0, 0.5, 0.25, 0)
@@ -508,15 +520,22 @@ def test_rp_protection_only_affects_protected_items():
     intensity_bins = np.zeros((1, int(HAZ_INTENSITY) + 1), dtype=np.int32)
     intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
 
+    # coverage dependency inactive (do_coverage_dependency defaults to 0): depth 0, empty stacks
+    compute_depth = np.zeros(len(coverage_ids), dtype=np.int32)
+    source_damage_bin_stack = np.zeros((1, 1, max(sample_size, 1)), dtype=np.int32)
+    source_eff_damage_cdf_stack = np.zeros((1, 1, Ndamage_bins), dtype=oasis_float)
+    source_eff_damage_cdf_len_stack = np.zeros((1, 1), dtype=np.int64)
+
     compute_event_losses(
         compute_info, coverages, coverage_ids, items_event_data, items,
-        sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
+        sample_size, haz_pdf, haz_arr_ptr, vuln_array, conditional_vuln_array, vuln_idx_to_cond_idx, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
+        compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
     )
 
     # Item 0 (RP-protected): all losses must be zero

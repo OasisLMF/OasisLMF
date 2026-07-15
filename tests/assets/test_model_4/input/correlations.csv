@@ -1,2 +1,2 @@
-item_id,peril_correlation_group,hazard_group_id,damage_correlation_value,hazard_correlation_value
-1,1,0.7,123456,0.1
+item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value,source_coverage_id
+1,1,0.700000,123456,0.100000,0
