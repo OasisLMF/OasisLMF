@@ -168,7 +168,7 @@ def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_valu
     return cursor
 
 
-@nb.njit(nopython=True)
+@nb.jit(nopython=True)
 def mv_write_item_header(byte_mv, cursor, event_id, item_id) -> int:
     """
     wrapper function for cached mv_write_item_header. writes an item header to the numpy byte view,
@@ -216,7 +216,7 @@ def mv_write_item_header_cached(byte_mv, cursor, event_id, item_id,
     return cursor
 
 
-@nb.njit(nopython=True)
+@nb.jit(nopython=True)
 def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
     """
     write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object

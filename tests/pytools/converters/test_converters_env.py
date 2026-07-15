@@ -190,7 +190,31 @@ class MultiConversionTest(TestCase):
                  sub_dir="envdtype"),
             dict(converter="bintocsv",
                  file_type="fm_profile_step",
-                 sub_dir="envdtype")
+                 sub_dir="envdtype"),
+
+            dict(converter="csvtobin",
+                 file_type="fm",
+                 filename="raw_ils",
+                 sub_dir="envdtype",
+                 kwarg_file="gul_fm_args.json",
+                 ),
+            dict(converter="bintocsv",
+                 file_type="fm",
+                 filename="raw_ils",
+                 sub_dir="envdtype",
+                 ),
+
+            dict(converter="csvtobin",
+                 file_type="gul",
+                 filename="raw_guls",
+                 sub_dir="envdtype",
+                 kwarg_file="gul_fm_args.json",
+                 ),
+            dict(converter="bintocsv",
+                 filename="raw_guls",
+                 file_type="gul",
+                 sub_dir="envdtype",
+                 ),
         ]
 
         env_args = {"OASIS_FLOAT": "f8", "OASIS_INT": "i8",
