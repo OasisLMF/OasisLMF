@@ -1,15 +1,14 @@
 import numpy as np
 from numpy.testing import assert_allclose
-from oasislmf.pytools.common.data import def_to_type_and_size
+from oasislmf.pytools.common.data import def_to_type_and_size, loss_pair_dtype, item_header_dtype
 from .common import EXTRA_SIDX_COUNT
 from .financial_structure import load_static
 
 loss_type, _ = def_to_type_and_size('loss')
 
-# Define dtypes for reading binary stream format
-event_agg_dtype = np.dtype([('event_id', 'i4'), ('item_id', 'i4')])
-sidx_loss_dtype = np.dtype([('sidx', 'i4'), ('loss', loss_type)])
-# sidx_loss_dtype = loss_pair_dtype
+# redefine dtypes for reading binary stream format
+event_agg_dtype = item_header_dtype
+sidx_loss_dtype = loss_pair_dtype
 
 
 def stream_to_dict_array(stream_obj):
@@ -53,14 +52,6 @@ def stream_to_dict_array(stream_obj):
 def round_dict_array(dict_array, precision):
     for key, values in dict_array.items():
         values.round(decimals=precision, out=values)
-
-
-def dict_array_to_np_array(dict_array, len_sample):
-    res_dtype = np.dtype([('event_id', 'i4'), ('agg_id', 'i4'), ('loss', oasis_float, (len_sample + EXTRA_SIDX_COUNT))])
-    res = np.empty(len(dict_array), dtype=res_dtype)
-    for i, (event_id, agg_id) in enumerate(sorted(dict_array)):
-        res[i] = event_id, agg_id, dict_array[(event_id, agg_id)]
-    return res
 
 
 def compare_streams(gul_stream, fm_stream_obj1, fm_stream_obj2, precision):

@@ -48,11 +48,9 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
     last_event_id = event_id
     idx = idxs[0]
 
-    print('Inside read buffer')
     while cursor < valid_buff:
         if not state["reading_losses"]:
             # Read summary header
-            print('Reading summary header')
             if valid_buff - cursor >= event_id_dtype_size + item_id_dtype_size:
                 event_id_new, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
@@ -61,21 +59,17 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
                     return cursor - event_id_dtype_size, last_event_id, item_id, 1
                 event_id = event_id_new
                 item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
-                print(f'Found event_id {event_id_new}, item_id {item_id}')
                 state["reading_losses"] = True
             else:
-                print("Not enough for summary header")
                 break  # Not enough for whole summary header
 
         if state["reading_losses"]:
             # View the whole remaining (sidx, loss) payload once as a packed
             # structured array instead of two mv_read slice+casts per pair.
-            print('Reading losses')
             n_pairs = (valid_buff - cursor) // loss_pair_size
             if n_pairs == 0:
                 break  # Not enough for whole record
 
-            print(loss_pair_dtype)
             sidx_loss_view = byte_mv[cursor:cursor + n_pairs * loss_pair_size].view(loss_pair_dtype)
             for k in range(n_pairs):
                 sidx = sidx_loss_view[k]["sidx"]
@@ -91,14 +85,11 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
                 data[idx]["loss"] = sidx_loss_view[k]["loss"]
                 idx += 1
                 if idx >= data.shape[0]:
-                    print("Output array is full")
-#                    breakpoint()
                     # Output array is full
                     cursor += (k + 1) * loss_pair_size
                     idxs[0] = idx
                     return cursor, event_id, item_id, 1
             else:
-                print("Incrementing cursor in else")
                 cursor += n_pairs * loss_pair_size
         else:
             pass  # Should never reach here
@@ -125,12 +116,9 @@ def gul_tocsv(stack, file_in, file_out, file_type, noheader):
 
     gul_reader = GulReader(len_sample=len_sample, data_dtype=dtype)
 
-    print("Reading gul reader streams")
     for event_id in gul_reader.read_streams(streams_in):
-        print(event_id)
         idx = gul_reader.idx
         data = gul_reader.data[:idx[0]]
-        print(data)
         write_ndarray_to_fmt_csv(
             file_out,
             data,
