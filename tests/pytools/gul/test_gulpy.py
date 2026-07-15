@@ -151,13 +151,19 @@ def test_gulpy_periodic_ping():
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
         os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
         stream = tmp_result_dir.joinpath("getmodel_stream.bin")
-        # capture a real getmodel stream (evepy | modelpy) so gulpy processes events
-        with open(stream, 'wb') as fout:
-            subprocess.run("evepy 1 1 | modelpy", cwd=test_model_dir, shell=True, check=True, stdout=fout)
-        with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
-              patch('oasislmf.pytools.gul.manager.SERVER_UPDATE_TIME', -1)):
-            gulpy_run(run_dir=tmp_result_dir, ignore_file_type=set(), sample_size=10, loss_threshold=0.,
-                      alloc_rule=1, debug=False, random_generator=1,
-                      file_in=str(stream), file_out=str(tmp_result_dir.joinpath("out.bin")),
-                      socket_server='True')
-        assert mock_ping.call_count > 1
+        out_bin = tmp_result_dir.joinpath("out.bin")
+        try:
+            # capture a real getmodel stream (evepy | modelpy) so gulpy processes events
+            with open(stream, 'wb') as fout:
+                subprocess.run("evepy 1 1 | modelpy", cwd=test_model_dir, shell=True, check=True, stdout=fout)
+            with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
+                  patch('oasislmf.pytools.gul.manager.SERVER_UPDATE_TIME', -1)):
+                gulpy_run(run_dir=tmp_result_dir, ignore_file_type=set(), sample_size=10, loss_threshold=0.,
+                          alloc_rule=1, debug=False, random_generator=1,
+                          file_in=str(stream), file_out=str(out_bin),
+                          socket_server='True')
+            assert mock_ping.call_count > 1
+        finally:
+            for scratch in (stream, out_bin):
+                if scratch.exists():
+                    scratch.unlink()

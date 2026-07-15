@@ -177,29 +177,15 @@ def _fast_lookup(value, range_start, factor, table, N):
 
 
 @njit(cache=True, fastmath=True)
-def get_corr_rval(x_unif, y_unif, rho, x_min, x_max, N, norm_inv_cdf, cdf_min,
-                  cdf_max, norm_cdf, Nsamples, z_unif):
-    sqrt_rho = sqrt(rho)
-    sqrt_1_minus_rho = sqrt(1. - rho)
-    inv_factor = (N - 1) / (x_max - x_min)
-    norm_factor = (N - 1) / (cdf_max - cdf_min)
-
-    for i in range(Nsamples):
-        x_norm = _interpolate_lookup(x_unif[i], x_min, inv_factor, norm_inv_cdf, N)
-        y_norm = _interpolate_lookup(y_unif[i], x_min, inv_factor, norm_inv_cdf, N)
-        z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
-
-        z_unif[i] = _interpolate_lookup(z_norm, cdf_min, norm_factor, norm_cdf, N)
-
-
-@njit(cache=True, fastmath=True)
-def get_corr_rval_float(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
-                        norm_cdf, norm_factor, Nsamples, z_unif):
+def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
+                  norm_cdf, norm_factor, Nsamples, z_unif):
     """
-    This calculate the new correlated values like in get_corr_rval but with precomputed inv_factor and norm_factor
+    Calculates the correlated random values with precomputed inv_factor and norm_factor
     inv_factor = (N - 1) / (x_max - x_min)
     norm_factor = (N - 1) / (cdf_max - cdf_min)
-    Also uses fast lookup for the middle values and interpolation for the tail values
+    Uses fast lookup for the middle values and interpolation for the tail values.
+
+    Previously `get_corr_rval_float` used by GulMC, now shared by both GULs
     """
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
@@ -239,9 +225,9 @@ def random_MersenneTwister(seeds, n, skip_seeds=0):
           Default is 0, i.e. no seeds are skipped.
 
     Returns:
-        rndms (array[float]): 2-d array of shape (number of seeds, n) 
+        rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the
           row in rndms that stores the corresponding random values.
     """
     Nseeds = len(seeds)
@@ -266,9 +252,9 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
         n (int): number of random samples to generate for each seed.
 
     Returns:
-        rndms (array[float]): 2-d array of shape (number of seeds, n) 
+        rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the
           row in rndms that stores the corresponding random values.
         skip_seeds (int): number of seeds to skip starting from the beginning
           of the `seeds` array. For skipped seeds no random numbers are generated

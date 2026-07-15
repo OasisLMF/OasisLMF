@@ -4,7 +4,6 @@ This file tests gulmc functionality
 import filecmp
 import os
 import shutil
-import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Tuple
@@ -365,28 +364,33 @@ def test_gulmc_socket_server_ping(socket_server, ping_expected, port_expected):
           patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping):
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
         os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
-        run_gulmc(
-            run_dir=tmp_result_dir,
-            ignore_file_type=set(),
-            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-            file_out=tmp_result_dir.joinpath('tmp.bin'),
-            sample_size=10,
-            loss_threshold=0.,
-            alloc_rule=1,
-            debug=0,
-            random_generator=1,
-            ignore_correlation=False,
-            effective_damageability=False,
-            socket_server=socket_server,
-        )
-        if ping_expected:
-            mock_ping.assert_called()
-            ping_payloads = [c.args[0] for c in mock_ping.call_args_list]
-            assert all(('port_override' in p) == (port_expected is not None) for p in ping_payloads)
-            if port_expected is not None:
-                assert all(p['port_override'] == port_expected for p in ping_payloads)
-        else:
-            mock_ping.assert_not_called()
+        file_out = tmp_result_dir.joinpath('tmp.bin')
+        try:
+            run_gulmc(
+                run_dir=tmp_result_dir,
+                ignore_file_type=set(),
+                file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                file_out=file_out,
+                sample_size=10,
+                loss_threshold=0.,
+                alloc_rule=1,
+                debug=0,
+                random_generator=1,
+                ignore_correlation=False,
+                effective_damageability=False,
+                socket_server=socket_server,
+            )
+            if ping_expected:
+                mock_ping.assert_called()
+                ping_payloads = [c.args[0] for c in mock_ping.call_args_list]
+                assert all(('port_override' in p) == (port_expected is not None) for p in ping_payloads)
+                if port_expected is not None:
+                    assert all(p['port_override'] == port_expected for p in ping_payloads)
+            else:
+                mock_ping.assert_not_called()
+        finally:
+            if file_out.exists():
+                file_out.unlink()
 
 
 def test_gulmc_socket_server_periodic_ping():
@@ -401,22 +405,27 @@ def test_gulmc_socket_server_periodic_ping():
           patch('oasislmf.pytools.gulmc.manager.SERVER_UPDATE_TIME', -1)):
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
         os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
-        run_gulmc(
-            run_dir=tmp_result_dir,
-            ignore_file_type=set(),
-            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-            file_out=tmp_result_dir.joinpath('tmp.bin'),
-            sample_size=10,
-            loss_threshold=0.,
-            alloc_rule=1,
-            debug=0,
-            random_generator=1,
-            ignore_correlation=False,
-            effective_damageability=False,
-            socket_server='True',
-        )
-        # periodic ping (per event, threshold forced negative) + end-of-run ping -> >1 call
-        assert mock_ping.call_count > 1
+        file_out = tmp_result_dir.joinpath('tmp.bin')
+        try:
+            run_gulmc(
+                run_dir=tmp_result_dir,
+                ignore_file_type=set(),
+                file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                file_out=file_out,
+                sample_size=10,
+                loss_threshold=0.,
+                alloc_rule=1,
+                debug=0,
+                random_generator=1,
+                ignore_correlation=False,
+                effective_damageability=False,
+                socket_server='True',
+            )
+            # periodic ping (per event, threshold forced negative) + end-of-run ping -> >1 call
+            assert mock_ping.call_count > 1
+        finally:
+            if file_out.exists():
+                file_out.unlink()
 
 
 def test_get_dynamic_footprint_adjustments_without_item_adjustments_bin_only():
