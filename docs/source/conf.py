@@ -67,11 +67,14 @@ extensions = [
 # package and never pulls in the heavy runtime dependencies. Historically this
 # was pointed at the whole package (``['../../oasislmf']``), producing ~500
 # unstructured pages and a ~4 minute build. For this proof-of-concept it is
-# scoped to the Financial Module so the API reference sits directly beside its
-# explanation pages and the build is fast. The consolidation plan is to widen
-# this per-subsystem as each adopts the reference/explanation pattern -- not to
-# go back to a single whole-package dump. See ``DOCS_STRATEGY.md``.
-autoapi_dirs = ['../../oasislmf/pytools/fm']
+# scoped per-subsystem (currently FM + gulmc) so the API reference sits directly
+# beside its explanation pages and the build stays fast. The consolidation plan is
+# to widen this per-subsystem as each adopts the reference/explanation pattern --
+# not to go back to a single whole-package dump. See ``DOCS_STRATEGY.md``.
+autoapi_dirs = [
+    '../../oasislmf/pytools/fm',
+    '../../oasislmf/pytools/gulmc',
+]
 autoapi_root = 'reference/api'
 autoapi_add_toctree_entry = False   # placed under the Reference section by hand
 autoapi_options = [

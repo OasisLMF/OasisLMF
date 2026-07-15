@@ -19,16 +19,17 @@ The API reference is generated directly from the source docstrings with
 never imports the package).
 
 ```{note}
-For this proof-of-concept the API reference is **scoped to the Financial
-Module** (`oasislmf.pytools.fm`) so it sits directly beside its
-{doc}`../explanation/financial-module` and {doc}`../explanation/fm-architecture`
-pages, and so the build is fast (seconds rather than ~4 minutes for the previous
-whole-package dump). The plan is to widen this per-subsystem — see
-`DOCS_STRATEGY.md`.
+The API reference is **scoped per-subsystem** — currently the Financial Module
+(`oasislmf.pytools.fm`) and the ground-up Monte-Carlo engine
+(`oasislmf.pytools.gulmc`) — so it sits directly beside the matching explanation
+pages and the build stays fast (seconds rather than the ~4 minutes of the previous
+whole-package dump). The plan is to widen this per-subsystem as each module is
+migrated — see `DOCS_STRATEGY.md` / `MIGRATION_PLAN.md`.
 ```
 
 ```{toctree}
 :maxdepth: 2
 
 api/oasislmf/pytools/fm/index
+api/oasislmf/pytools/gulmc/index
 ```

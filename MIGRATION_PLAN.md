@@ -98,7 +98,20 @@ largely stable; CLI/usage/workflows must be rewritten against the pytools implem
 |---|---|
 | `OED.rst`, `ODS.rst` (GenerateDocs, hand-written, duplicate the spec) | **SYNTHESISE→ODS**: stand up ODS_OpenExposureData as its own Sphinx site (narrative `Docs/*.rst` already exist); **generate** field-reference tables from `oed.json`/CSV rather than hand-maintaining. GenerateDocs keeps only a stub + intersphinx link. |
 | Oasis-specific OED bits (how FM implements OED terms; `OED_validation_guidelines.md`, `OED_currency_support.md` already in OasisLMF) | **Keep in OasisLMF**, cross-link to ODS |
-| `ODTF.rst`, `ODS-tools.rst` | **MOVE to ODS_Tools** (pending its inventory) or keep as orchestrator ref — **decision** |
+| `ODTF.rst`, `ODS-tools.rst` (GenerateDocs) | **MOVE to ODS_Tools** — it owns ODTF (`ods_tools/odtf/`) + the OED loader/validator + CLI (convert/check/transform/combine/generate), and **bundles the `model_settings`/`analysis_settings` schemas** (`ods_tools/data/*.json`) that redoc renders. Good docstrings → autoapi. | **MOVE** |
+
+**Standards repos need a Sphinx setup + generated reference.** None of ODS_OpenExposureData,
+ODS_OpenResultsData, or ODS_Tools currently has a `conf.py`. For each: stand up the
+OasisLMF-style Diátaxis Sphinx setup, publish independently, and pull into the aggregated
+site via intersphinx.
+- **ODS_OpenExposureData** already generates `oed.json` from its CSV dictionary — reuse it to
+  generate the OED field reference (don't hand-maintain the prose).
+- **ODS_OpenResultsData (ORD)** is dormant (last commit 2022); spec lives in `Schema/*.csv`
+  + `Docs/ORD_Data_Spec.xlsx` + **9 Excel worked examples** (SELT→SPLT, EPT variants, TVAR…).
+  Add an `ord.json` generator (mirroring `oed.json`) and convert the worked examples to
+  notebooks.
+- **ODS_Tools** owns the **settings-schema reference** (`model_settings`/`analysis_settings`)
+  — so that reference is single-sourced here, not in OasisLMF.
 
 ### 3.5 DROP
 
@@ -155,8 +168,10 @@ pinned example-data fetch, and a CI job that **executes** the notebooks.
    Inventory in progress (cloned + Explore agent running), same as ODS_OpenResultsData.
 3. ⬜ **`ordleccalc`** — confirm its pytools home (likely folded into `pytools/lec`) so its
    docs have a target.
-4. ⬜ **Publishing/versioning** — GitHub Actions + version selector vs Read the Docs (see
-   the write-up handed to the team); affects how the orchestrator aggregates.
+4. ✅ **RESOLVED — Publishing:** **GitHub Actions + a version selector** (tag-triggered
+   builds + version dropdown + PR previews). Chosen over Read the Docs because the target is
+   a bespoke multi-repo orchestrated build (pinned tags + redoc + intersphinx), which fits a
+   scriptable Actions build better than RTD's single-repo model.
 5. ⬜ **Redoc version pinning** — replace hardcoded `PLAT_VER='2.5.4'` with a per-release
    pin/manifest.
 
@@ -191,6 +206,13 @@ Replicate the OasisLMF POC baseline in OasisPlatform and ODS:
 ---
 
 ## 8. Phasing
+
+**Working method (agreed):** create a `docs/migration` branch in each repo and do the work
+**locally**; push and open PRs across **all** repos together once the whole migration is
+ready, so cross-repo intersphinx links resolve at review time. OasisLMF's foundation is
+already committed on `docs/restructure-poc`; `docs/migration` branches exist in the other
+repos (GenerateDocs, OasisPlatform, ktools, ODS_OpenExposureData, ODS_OpenResultsData,
+ODS_Tools).
 
 | Wave | Work | Depends on |
 |---|---|---|
@@ -242,3 +264,25 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
 3. **Start Wave 1** on OasisLMF with **gulmc** (adjacent to FM; absorbs correlation/
    disaggregation + your just-finished coverage-dependency feature) and the **ktools drain**.
 4. Optionally kick off **Wave 3 (ODS)** in parallel — it's independent.
+
+---
+
+## 12. Progress log
+
+- **Foundation** (OasisLMF, branch `docs/migration`, commit `7b9643178`): Diátaxis
+  structure, FM worked example, scoped autoapi, DOCS_STRATEGY + MIGRATION_PLAN + authoring
+  prompt.
+- **Wave 1 (gulmc) — increment 1:** migrated `modelling-methodology`,
+  `sampling-methodology`, `correlation`, `disaggregation` from GenerateDocs into
+  `explanation/` (images + paths fixed, dead `pytools`/`gulmc-pytools` links repointed to the
+  reference); authored `coverage-dependency.md` for the new feature; widened autoapi to
+  `pytools/gulmc`; wired reference + explanation nav. Build green (~25s), **renders clean**.
+  - *Residual, deferred to the UPDATE pass* (~30 inherited docutils warnings in the
+    bulk-copied rst; none affect rendering): 19 `----` transitions, 2 duplicate labels
+    (`features_by_version`, `available_1.27`), 8 blank-line-before-list, 1 short title
+    underline; plus pre-existing fm/gulmc docstring formatting.
+  - *Note:* the coverage-dependency **API** will appear in the reference once
+    `feature/gulmc-coverage-dependency` merges to main (this docs branch is off main).
+- **Wave 1 — still to do:** results/ORD outputs, keys-service, MDK/model-dev pages; the
+  ktools drain into `reference/`; a gulmc how-to; convert the ktools `examples/*.py` to
+  notebooks.
