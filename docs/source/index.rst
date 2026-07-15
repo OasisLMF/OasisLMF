@@ -34,6 +34,7 @@ in this process. It includes:
    logging-configuration
    options_config_file
    environment-variables
+   explanation/coverage-dependency
 
 Indices and tables
 ==================
