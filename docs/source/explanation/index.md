@@ -36,6 +36,17 @@ disaggregation
 coverage-dependency
 ```
 
+## Models
+
+What an Oasis model is made of — its components and structure:
+
+```{toctree}
+:maxdepth: 1
+:caption: Models
+
+Oasis-models
+```
+
 ## Keys & lookup
 
 How exposure is matched to model data (areaperil and vulnerability IDs) via the

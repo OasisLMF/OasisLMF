@@ -12,6 +12,19 @@ Information-oriented material: dry, look-it-up facts. Most of this section is
 ../environment-variables
 ```
 
+## Model data & package
+
+File formats for model and Oasis input/output data, and the `oasislmf` Python
+package reference:
+
+```{toctree}
+:maxdepth: 1
+
+OasisLMF-package
+Oasis-model-data-formats
+Oasis-file-formats
+```
+
 ## Python API
 
 The API reference is generated directly from the source docstrings with

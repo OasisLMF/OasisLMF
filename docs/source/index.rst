@@ -61,6 +61,8 @@ Start where you fit
    installation
    building-and-running-models
    logging-configuration
+   how-to/model-development-kit
+   how-to/api-client
    how-to/ground-up-losses
    how-to/mdk-builtin-lookup
 

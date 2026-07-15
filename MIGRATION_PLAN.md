@@ -319,5 +319,15 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   Diátaxis set** (explanation + how-to + reference). Build green, renders clean, no broken
   refs. `keys-service.rst` inherited docutils + code-highlighting warnings (its
   `<model_id>` placeholder snippets in json/python blocks) deferred to the UPDATE pass.
-- **Wave 1 — still to do:** MDK/model-dev pages; convert the ktools `examples/*.py` to
-  notebooks.
+- **Wave 1 — increment 6 (MDK / model-dev):** migrated the model-developer set from
+  GenerateDocs across Diátaxis — `Oasis-models` → explanation; `model-development-kit`,
+  `api-client` → how-to; `OasisLMF-package`, `Oasis-model-data-formats`, `Oasis-file-formats`
+  → reference (new "Model data & package" section). Cross-refs converted to **absolute**
+  `:doc:` paths; 3 out-of-set refs (vulnerability-adjustments, rest_api, releases) softened;
+  14 figures migrated. Build green, renders clean, no broken refs. Inherited docutils
+  warnings deferred to UPDATE pass.
+- **Wave 1 — still to do:** remaining methodology/adjustment pages
+  (`vulnerability-adjustments`, `absolute-damage`, `post-loss-amplification`,
+  `pre-analysis-adjustments`, `currency_conversion`), `geocoding`, `Oasis-evaluation`, the
+  settings-schema pages; convert the ktools `examples/*.py` to notebooks (first executable
+  docs).
