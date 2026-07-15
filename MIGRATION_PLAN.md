@@ -299,5 +299,10 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
     (`gulcalc -S100 …`, shell pipes) — rewrite for the pytools CLI; resolve `ordleccalc`'s
     pytools home; reconcile `ORDOutputComponents` against the ORD standard in
     `ODS_OpenResultsData`.
-- **Wave 1 — still to do:** results/ORD outputs, keys-service, MDK/model-dev pages; a gulmc
-  how-to; convert the ktools `examples/*.py` to notebooks.
+- **Wave 1 — increment 3 (gulmc how-to):** added `how-to/ground-up-losses.md` — task
+  recipes for running gulmc (engine selection, sample count, RNG choice, correlation,
+  disaggregation, coverage dependency, performance tuning, and the low-level kernel-pipeline
+  invocation), wired into the How-to guides toctree. Build green, page + links warning-free.
+  **The gulmc module now has the full Diátaxis set** (explanation + reference + how-to).
+- **Wave 1 — still to do:** results/ORD outputs, keys-service, MDK/model-dev pages; convert
+  the ktools `examples/*.py` to notebooks.

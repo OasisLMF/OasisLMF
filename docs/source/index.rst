@@ -61,6 +61,7 @@ Start where you fit
    installation
    building-and-running-models
    logging-configuration
+   how-to/ground-up-losses
 
 .. toctree::
    :caption: Reference
