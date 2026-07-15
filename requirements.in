@@ -14,5 +14,7 @@ sphinx-autoapi
 sphinx-copybutton
 sphinx-design
 myst-parser
+myst-nb
+ipykernel
 tox
 responses<=0.25.3

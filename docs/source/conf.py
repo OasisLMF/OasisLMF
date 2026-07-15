@@ -56,7 +56,7 @@ extensions = [
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',   # Google-style docstrings (per project style guide)
     'autoapi.extension',
-    'myst_parser',           # Markdown (MyST) authoring alongside reStructuredText
+    'myst_nb',               # Markdown (MyST) + executable notebooks (bundles myst_parser)
     'sphinx_design',         # Grids / cards for the Diataxis + audience landing page
     'sphinx_copybutton',     # Copy button on code blocks
 ]
@@ -115,7 +115,8 @@ suppress_warnings = [
 # existing .rst is migrated incrementally rather than in a big bang.
 source_suffix = {
     '.rst': 'restructuredtext',
-    '.md': 'markdown',
+    '.md': 'myst-nb',
+    '.ipynb': 'myst-nb',
 }
 
 # -- MyST (Markdown) configuration ------------------------------------------
@@ -126,6 +127,14 @@ myst_enable_extensions = [
     'tasklist',
 ]
 myst_heading_anchors = 6
+
+# -- Executable notebooks (myst-nb) -----------------------------------------
+# Notebooks are executed at build time; a cell error FAILS the build, so the docs
+# build doubles as a notebook smoke test ("does this example still run against the
+# current code"). For output-assertion/regression testing use nbmake in CI.
+nb_execution_mode = "cache"          # execute, cache results between builds
+nb_execution_raise_on_error = True   # fail the build if any notebook errors
+nb_execution_timeout = 180
 
 # The master toctree document.
 master_doc = 'index'

@@ -339,3 +339,16 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   Remaining OasisLMF work: **notebooks** (convert ktools `examples/*.py` — first executable
   docs) and the **UPDATE pass** (clear inherited docutils/anchor warnings; rewrite ktools
   C++ CLI → pytools). Then Waves 2 (OasisPlatform) and 3 (ODS standards repos).
+- **Wave 1 — increment 9 (executable notebooks):** stood up `myst-nb` (swapped
+  `myst_parser`→`myst_nb`; `source_suffix` `.md`/`.ipynb`→`myst-nb`; `nb_execution_mode=cache`,
+  **`nb_execution_raise_on_error=True`** so a notebook error fails the build). Authored the
+  first executable notebook `tutorials/explore-model-data.md` (MyST-Markdown) — loads in-repo
+  example model data (`test_model_1` CSVs under `tutorials/data/example_model/`) and explores
+  footprint / vulnerability / damage-bins / exposure with pandas + a matplotlib plot;
+  **executes at build**, outputs verified (16 tables + 1 plot rendered). First build ~1m13s
+  (executes the notebook; cached thereafter).
+  - **`myst-nb` execution = a smoke test** ("does the example still run against current
+    code"), NOT output assertion. For CI output/regression testing add **`nbmake`**
+    (`pytest --nbmake`) or `nbval`. The docs-build job is the smoke test.
+- **Notebooks still to author:** convert the ktools `examples/*.py` (aal/elt/plt/lec/gulandfm)
+  and the rest of the 10-notebook plan (§4); wire example-data plumbing per repo.

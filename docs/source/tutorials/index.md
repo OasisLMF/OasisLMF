@@ -8,6 +8,7 @@ favour a working result over completeness.
 :maxdepth: 1
 
 first-analysis
+explore-model-data
 ```
 
 ```{admonition} Proof-of-concept placeholder
