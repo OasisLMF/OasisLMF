@@ -32,6 +32,23 @@ migrated — see `DOCS_STRATEGY.md` / `MIGRATION_PLAN.md`.
 
 api/oasislmf/pytools/fm/index
 api/oasislmf/pytools/gulmc/index
+api/oasislmf/pytools/elt/index
+api/oasislmf/pytools/lec/index
+api/oasislmf/pytools/plt/index
+api/oasislmf/pytools/aal/index
+api/oasislmf/pytools/summary/index
+api/oasislmf/pytools/pla/index
+```
+
+## Outputs & results
+
+The Oasis loss outputs (standard and ORD result tables), their formats and
+file-naming conventions.
+
+```{toctree}
+:maxdepth: 1
+
+outputs/index
 ```
 
 ## Calculation kernel

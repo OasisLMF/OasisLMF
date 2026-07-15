@@ -304,5 +304,14 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   disaggregation, coverage dependency, performance tuning, and the low-level kernel-pipeline
   invocation), wired into the How-to guides toctree. Build green, page + links warning-free.
   **The gulmc module now has the full Diátaxis set** (explanation + reference + how-to).
-- **Wave 1 — still to do:** results/ORD outputs, keys-service, MDK/model-dev pages; convert
-  the ktools `examples/*.py` to notebooks.
+- **Wave 1 — increment 4 (results/ORD outputs):** migrated `results.rst` into
+  `reference/outputs/` (repointed the dead ODS `:doc:` and the ktools link; added a banner
+  clarifying the ORD-standard boundary); widened scoped autoapi to the output modules
+  (`elt`, `lec`, `plt`, `aal`, `summary`, `pla`); added an "Outputs & results" reference
+  section. Build green (~52s), renders clean, authored content + all `:doc:` repoints
+  warning-free. `results.rst` inherited docutils warnings (transitions, 2 short underlines,
+  blank-line-before-list) deferred to the UPDATE pass. The ORD **standard** single-sourcing
+  is Wave 3 (`ODS_OpenResultsData`); the ORD-emitting kernel pages are already in
+  `reference/kernel/`.
+- **Wave 1 — still to do:** keys-service, MDK/model-dev pages; convert the ktools
+  `examples/*.py` to notebooks.

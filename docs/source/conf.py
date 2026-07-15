@@ -74,6 +74,13 @@ extensions = [
 autoapi_dirs = [
     '../../oasislmf/pytools/fm',
     '../../oasislmf/pytools/gulmc',
+    # output modules (results / ORD outputs)
+    '../../oasislmf/pytools/elt',
+    '../../oasislmf/pytools/lec',
+    '../../oasislmf/pytools/plt',
+    '../../oasislmf/pytools/aal',
+    '../../oasislmf/pytools/summary',
+    '../../oasislmf/pytools/pla',
 ]
 autoapi_root = 'reference/api'
 autoapi_add_toctree_entry = False   # placed under the Reference section by hand
