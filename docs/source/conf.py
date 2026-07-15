@@ -81,6 +81,8 @@ autoapi_dirs = [
     '../../oasislmf/pytools/aal',
     '../../oasislmf/pytools/summary',
     '../../oasislmf/pytools/pla',
+    # keys / lookup framework
+    '../../oasislmf/lookup',
 ]
 autoapi_root = 'reference/api'
 autoapi_add_toctree_entry = False   # placed under the Reference section by hand

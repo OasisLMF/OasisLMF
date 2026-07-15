@@ -313,5 +313,11 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   blank-line-before-list) deferred to the UPDATE pass. The ORD **standard** single-sourcing
   is Wave 3 (`ODS_OpenResultsData`); the ORD-emitting kernel pages are already in
   `reference/kernel/`.
-- **Wave 1 — still to do:** keys-service, MDK/model-dev pages; convert the ktools
-  `examples/*.py` to notebooks.
+- **Wave 1 — increment 5 (keys-service):** migrated `keys-service.rst` → `explanation/`
+  and the previously-orphaned in-repo `mdk-builtin-lookup.rst` → `how-to/` (co-located,
+  images fixed); widened scoped autoapi to `oasislmf/lookup`. **Keys/lookup now has the full
+  Diátaxis set** (explanation + how-to + reference). Build green, renders clean, no broken
+  refs. `keys-service.rst` inherited docutils + code-highlighting warnings (its
+  `<model_id>` placeholder snippets in json/python blocks) deferred to the UPDATE pass.
+- **Wave 1 — still to do:** MDK/model-dev pages; convert the ktools `examples/*.py` to
+  notebooks.

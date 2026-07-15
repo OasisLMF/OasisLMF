@@ -62,6 +62,7 @@ Start where you fit
    building-and-running-models
    logging-configuration
    how-to/ground-up-losses
+   how-to/mdk-builtin-lookup
 
 .. toctree::
    :caption: Reference

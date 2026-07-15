@@ -36,6 +36,18 @@ disaggregation
 coverage-dependency
 ```
 
-The corresponding **API reference** for both subsystems is generated directly from
+## Keys & lookup
+
+How exposure is matched to model data (areaperil and vulnerability IDs) via the
+keys / lookup service (`oasislmf/lookup`):
+
+```{toctree}
+:maxdepth: 1
+:caption: Keys & lookup
+
+keys-service
+```
+
+The corresponding **API reference** for these subsystems is generated directly from
 the source in {doc}`../reference/index`, so explanation and reference sit side by
 side.

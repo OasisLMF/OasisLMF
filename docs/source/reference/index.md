@@ -38,6 +38,7 @@ api/oasislmf/pytools/plt/index
 api/oasislmf/pytools/aal/index
 api/oasislmf/pytools/summary/index
 api/oasislmf/pytools/pla/index
+api/oasislmf/lookup/index
 ```
 
 ## Outputs & results
