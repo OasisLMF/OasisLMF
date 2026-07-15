@@ -36,6 +36,23 @@ disaggregation
 coverage-dependency
 ```
 
+## Adjustments & methodology
+
+Adjustments applied around the core loss calculation — vulnerability and damage
+adjustments, post-loss amplification, pre-analysis exposure adjustments, and
+currency conversion:
+
+```{toctree}
+:maxdepth: 1
+:caption: Adjustments & methodology
+
+vulnerability-adjustments
+absolute-damage
+post-loss-amplification
+pre-analysis-adjustments
+currency_conversion
+```
+
 ## Models
 
 What an Oasis model is made of — its components and structure:

@@ -326,8 +326,12 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   `:doc:` paths; 3 out-of-set refs (vulnerability-adjustments, rest_api, releases) softened;
   14 figures migrated. Build green, renders clean, no broken refs. Inherited docutils
   warnings deferred to UPDATE pass.
-- **Wave 1 — still to do:** remaining methodology/adjustment pages
-  (`vulnerability-adjustments`, `absolute-damage`, `post-loss-amplification`,
-  `pre-analysis-adjustments`, `currency_conversion`), `geocoding`, `Oasis-evaluation`, the
-  settings-schema pages; convert the ktools `examples/*.py` to notebooks (first executable
-  docs).
+- **Wave 1 — increment 7 (methodology/adjustments):** migrated the remaining
+  adjustment/methodology pages into `explanation/` (new "Adjustments & methodology"
+  section): `vulnerability-adjustments`, `absolute-damage`, `post-loss-amplification`
+  (4 figures), `pre-analysis-adjustments`, `currency_conversion`. Disaggregation `:doc:`
+  repointed; geocoding ref softened (page not yet migrated). Build green, renders clean, no
+  broken refs. Inherited docutils warnings deferred to the UPDATE pass.
+- **Wave 1 — nearly complete.** Remaining GenerateDocs→OasisLMF pages: `geocoding`,
+  `Oasis-evaluation`, the settings-schema pages. Then notebooks (convert the ktools
+  `examples/*.py` — first executable docs).
