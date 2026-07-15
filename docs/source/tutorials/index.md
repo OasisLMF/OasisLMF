@@ -9,6 +9,7 @@ favour a working result over completeness.
 
 first-analysis
 explore-model-data
+analyse-ord-results
 ```
 
 ```{admonition} Proof-of-concept placeholder

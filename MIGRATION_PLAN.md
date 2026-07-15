@@ -350,5 +350,11 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   - **`myst-nb` execution = a smoke test** ("does the example still run against current
     code"), NOT output assertion. For CI output/regression testing add **`nbmake`**
     (`pytest --nbmake`) or `nbval`. The docs-build job is the smoke test.
+- **Wave 1 — increment 10 (ORD outputs notebook):** added executable
+  `tutorials/analyse-ord-results.md` — builds an ELT, simulates a year loss table, and
+  derives + plots an OEP/AEP exceedance-probability curve (self-contained, synthetic data,
+  seeded). Executes at build; EP-curve plot + tables verified. **Two executable notebooks
+  now** (explore-model-data, analyse-ord-results).
 - **Notebooks still to author:** convert the ktools `examples/*.py` (aal/elt/plt/lec/gulandfm)
-  and the rest of the 10-notebook plan (§4); wire example-data plumbing per repo.
+  into pytools-pipeline notebooks (need example-data + pipeline plumbing), and the rest of
+  the 10-notebook plan (§4).
