@@ -168,20 +168,15 @@ def test_gulmc(test_model: Tuple[str, str],
                 df_ref = pd.read_csv(ref_out_bin_fname.with_suffix('.csv'))
                 df_test = pd.read_csv(test_out_bin_fname.with_suffix('.csv'))
 
-                # the files differ, therefore `assert_allclose` will surely throw an AssertionError, which we catch
-                # to clean up temporary csv files before raising the final AssertionError
-                try:
-                    # compare the `loss` columns
-                    assert_allclose(df_ref['loss'], df_test['loss'], rtol=gul_rtol, atol=gul_atol, x_name='expected', y_name='test')
-                except AssertionError as e:
-                    # remove temporary files
-                    ref_out_bin_fname.with_suffix('.csv').unlink()
-                    test_out_bin_fname.with_suffix('.csv').unlink()
-                    raise AssertionError(e)
+                # compare the `loss` columns
+                assert_allclose(df_ref['loss'], df_test['loss'], rtol=gul_rtol, atol=gul_atol, x_name='expected', y_name='test')
 
             finally:
-                # remove temporary files
+                # remove temporary files; the csv files exist only if the bitwise comparison
+                # failed, and are written through the symlink into the real assets dir
                 file_out.unlink()
+                ref_out_bin_fname.with_suffix('.csv').unlink(missing_ok=True)
+                test_out_bin_fname.with_suffix('.csv').unlink(missing_ok=True)
 
 
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")

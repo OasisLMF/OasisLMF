@@ -100,13 +100,12 @@ def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
             # compare the `loss` columns
             assert_allclose(df_ref['loss'], df_test['loss'], rtol=gul_rtol, atol=gul_atol, x_name='expected', y_name='test')
 
-            # remove temporary files
-            ref_out_bin_fname.with_suffix('.csv').unlink()
-            test_out_bin_fname.with_suffix('.csv').unlink()
-
         finally:
-            # remove temporary files
+            # remove temporary files; the csv files exist only if the bitwise comparison
+            # failed, and are written through the symlink into the real assets dir
             test_out_bin_fname.with_suffix('.bin').unlink()
+            ref_out_bin_fname.with_suffix('.csv').unlink(missing_ok=True)
+            test_out_bin_fname.with_suffix('.csv').unlink(missing_ok=True)
 
 
 @pytest.mark.parametrize("socket_server,ping_expected,port_expected", [
