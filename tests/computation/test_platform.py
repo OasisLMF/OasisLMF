@@ -1024,7 +1024,7 @@ class TestPlatformPost(ComputationChecker):
             self.add_connection_startup(rsps)
             with self.assertRaises(OasisException) as context:
                 self.manager.platform_post(**self.min_args, analyses_settings_json=tmp_files['settings_json'].name)
-            self.assertIn('--analyses-id is required', str(context.exception))
+            self.assertIn('Select at least one file to upload', str(context.exception))
 
     def test_post__analyses_settings__uploaded(self):
         tmp_files = self.create_tmp_files(['settings_json'])
@@ -1050,7 +1050,7 @@ class TestPlatformPost(ComputationChecker):
             self.add_connection_startup(rsps)
             with self.assertRaises(OasisException) as context:
                 self.manager.platform_post(**self.min_args, model_settings_json=tmp_files['settings_json'].name)
-            self.assertIn('--model-id is required', str(context.exception))
+            self.assertIn('Select at least one file to upload', str(context.exception))
 
     def test_post__model_settings__uploaded(self):
         tmp_files = self.create_tmp_files(['settings_json'])
