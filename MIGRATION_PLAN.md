@@ -283,6 +283,21 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
     underline; plus pre-existing fm/gulmc docstring formatting.
   - *Note:* the coverage-dependency **API** will appear in the reference once
     `feature/gulmc-coverage-dependency` merges to main (this docs branch is off main).
-- **Wave 1 — still to do:** results/ORD outputs, keys-service, MDK/model-dev pages; the
-  ktools drain into `reference/`; a gulmc how-to; convert the ktools `examples/*.py` to
-  notebooks.
+- **Wave 1 — increment 2 (ktools drain → reference):** drained the whole ktools `docs/md`
+  kernel set (15 pages + 21 figures) into `reference/kernel/` (already Markdown → builds
+  under MyST). Skipped `FinancialModule.md` (duplicate — links repointed to
+  `explanation/financial-module`); fixed the dead `InputConversionComponents.md` link;
+  repointed the 3 external ktools links in `financial-module.rst` to the in-repo kernel
+  pages; added a section banner (migrated-from-ktools, being updated to pytools) + toctree.
+  Build green (~33s), **renders clean**, authored/edited content warning-free.
+  - *Residual, deferred to the UPDATE pass* (all in drained content): `myst.header`
+    non-consecutive-heading warnings **suppressed** in `conf.py` (ktools uses H1→H3 skips);
+    ~86 `myst.xref_missing` from ktools' HTML `<a name>` in-page anchors (convert to MyST
+    `(target)=` anchors or link to heading slugs); ~62 `----` transitions; plus the
+    methodology-page residual from increment 1. None affect page rendering.
+  - *Real UPDATE work still needed:* the kernel pages describe the **legacy C++ CLI**
+    (`gulcalc -S100 …`, shell pipes) — rewrite for the pytools CLI; resolve `ordleccalc`'s
+    pytools home; reconcile `ORDOutputComponents` against the ORD standard in
+    `ODS_OpenResultsData`.
+- **Wave 1 — still to do:** results/ORD outputs, keys-service, MDK/model-dev pages; a gulmc
+  how-to; convert the ktools `examples/*.py` to notebooks.

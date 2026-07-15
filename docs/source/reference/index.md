@@ -33,3 +33,15 @@ migrated — see `DOCS_STRATEGY.md` / `MIGRATION_PLAN.md`.
 api/oasislmf/pytools/fm/index
 api/oasislmf/pytools/gulmc/index
 ```
+
+## Calculation kernel
+
+Component, stream-format, converter, validation and calc-rule reference for the
+Oasis calculation kernel, migrated from ktools and being updated to the pytools
+implementation.
+
+```{toctree}
+:maxdepth: 1
+
+kernel/index
+```

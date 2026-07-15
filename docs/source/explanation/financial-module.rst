@@ -187,9 +187,9 @@ Financial Module:
 This section explains the design of the Financial Module which has been implemented in the **fmcalc** component.
 
 * Runtime parameters and usage instructions for fmcalc are covered in the
-  `ktools CoreComponents documentation <https://github.com/OasisLMF/ktools/blob/master/docs/md/CoreComponents.md>`_.
+  :doc:`the kernel core-components reference <../reference/kernel/CoreComponents>`.
 * The formats of the input files are covered in the
-  `ktools DataConversionComponents documentation <https://github.com/OasisLMF/ktools/blob/master/docs/md/DataConversionComponents.md>`_.
+  :doc:`the kernel data-conversion reference <../reference/kernel/DataConversionComponents>`.
 
 In addition, there is a separate github repository `ktest <https://github.com/OasisLMF/ktest>`_ which is an extended
 test suite for ktools and contains a library of financial module worked examples provided by Oasis Members with a
@@ -231,7 +231,7 @@ described below.
 
 **Supported Profiles**
 
-See the `ktools fmprofiles documentation <https://github.com/OasisLMF/ktools/blob/master/docs/md/fmprofiles.md>`_
+See :doc:`the kernel FM calc-rules reference <../reference/kernel/fmprofiles>`
 for more details on FM profiles.
 
 Design

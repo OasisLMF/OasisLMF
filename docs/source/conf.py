@@ -89,7 +89,12 @@ autoapi_keep_files = False
 # When autoapi is scoped to a subpackage, its AST resolver cannot see sibling
 # packages (e.g. ``oasislmf.pytools.common``), which is harmless but noisy. Once
 # autoapi is widened per the strategy these resolve naturally.
-suppress_warnings = ['autoapi.python_import_resolution']
+suppress_warnings = [
+    'autoapi.python_import_resolution',
+    # ktools Markdown (drained into reference/kernel) uses non-consecutive heading
+    # levels (e.g. H1 -> H3); inherited and cosmetic. Revisit in the UPDATE pass.
+    'myst.header',
+]
 
 # Add any paths that contain templates here, relative to this directory.
 # templates_path = ['_templates']
@@ -111,7 +116,7 @@ myst_enable_extensions = [
     'substitution',
     'tasklist',
 ]
-myst_heading_anchors = 3
+myst_heading_anchors = 6
 
 # The master toctree document.
 master_doc = 'index'
