@@ -54,12 +54,26 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
+    'sphinx.ext.napoleon',   # Google-style docstrings (per project style guide)
     'autoapi.extension',
+    'myst_parser',           # Markdown (MyST) authoring alongside reStructuredText
+    'sphinx_design',         # Grids / cards for the Diataxis + audience landing page
+    'sphinx_copybutton',     # Copy button on code blocks
 ]
 
 
-# API Generation
-autoapi_dirs = ['../../oasislmf']
+# -- Auto-generated API reference (sphinx-autoapi) ---------------------------
+# NOTE (docs restructure POC): autoapi is AST-based, so it never imports the
+# package and never pulls in the heavy runtime dependencies. Historically this
+# was pointed at the whole package (``['../../oasislmf']``), producing ~500
+# unstructured pages and a ~4 minute build. For this proof-of-concept it is
+# scoped to the Financial Module so the API reference sits directly beside its
+# explanation pages and the build is fast. The consolidation plan is to widen
+# this per-subsystem as each adopts the reference/explanation pattern -- not to
+# go back to a single whole-package dump. See ``DOCS_STRATEGY.md``.
+autoapi_dirs = ['../../oasislmf/pytools/fm']
+autoapi_root = 'reference/api'
+autoapi_add_toctree_entry = False   # placed under the Reference section by hand
 autoapi_options = [
     "members",
     # "inherited-members",  # errors
@@ -69,14 +83,32 @@ autoapi_options = [
 ]
 autoapi_keep_files = False
 
+# When autoapi is scoped to a subpackage, its AST resolver cannot see sibling
+# packages (e.g. ``oasislmf.pytools.common``), which is harmless but noisy. Once
+# autoapi is widened per the strategy these resolve naturally.
+suppress_warnings = ['autoapi.python_import_resolution']
+
 # Add any paths that contain templates here, relative to this directory.
 # templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+# Accept both reStructuredText and Markdown (MyST). New pages prefer Markdown;
+# existing .rst is migrated incrementally rather than in a big bang.
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
+}
+
+# -- MyST (Markdown) configuration ------------------------------------------
+myst_enable_extensions = [
+    'colon_fence',   # ::: fenced directives (used by the landing-page cards)
+    'deflist',
+    'substitution',
+    'tasklist',
+]
+myst_heading_anchors = 3
 
 # The master toctree document.
 master_doc = 'index'
@@ -155,7 +187,15 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-# html_static_path = ['_static']
+html_static_path = ['_static']
+
+# -- Link checking -----------------------------------------------------------
+# ``make linkcheck`` catches dead external links (e.g. the historic
+# simplitium/oed link). Anchor checks on GitHub blobs are noisy, so ignore them.
+linkcheck_ignore = [
+    r'https://github\.com/.*#.*',
+]
+linkcheck_timeout = 15
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.

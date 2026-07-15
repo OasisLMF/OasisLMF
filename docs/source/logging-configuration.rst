@@ -6,9 +6,9 @@ Enhanced logging configuration system for OasisLMF CLI and console output.
 .. versionadded:: 2.4.6
    Configurable logging levels and enhanced formatting support.
 
-.. contents:: Table of Contents
-   :local:
-   :depth: 2
+.. Furo renders an "On this page" table of contents in the right sidebar
+   automatically, and rejects the docutils ``.. contents::`` directive with a
+   hard error, so no in-page contents directive is used here.
 
 Overview
 --------

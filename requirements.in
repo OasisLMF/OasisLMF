@@ -11,5 +11,8 @@ pytest
 pytest-cov
 pytest-ignore-flaky
 sphinx-autoapi
+sphinx-copybutton
+sphinx-design
+myst-parser
 tox
 responses<=0.25.3
