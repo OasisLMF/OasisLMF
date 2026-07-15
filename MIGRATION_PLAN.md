@@ -25,8 +25,16 @@ Grounded in a full inventory of the feeding repos cloned under `/home/sstruzik/`
 > This refines `DOCS_STRATEGY.md` §4 by adding the standards repos —
 > **ODS_OpenExposureData** (OED), **ODS_OpenResultsData** (ORD), and **ODS_Tools** —
 > as owning repos, on the single-source-of-truth principle. Owning-docs repos total
-> five: OasisLMF, OasisPlatform, ODS_OpenExposureData, ODS_OpenResultsData, ODS_Tools;
-> ktools is drained; GenerateDocs orchestrates.
+> six: OasisLMF, OasisPlatform, ODS_OpenExposureData, ODS_OpenResultsData, ODS_Tools,
+> and **OasisModels** (example models — hosts cross-repo/model worked-example
+> notebooks, kept fresh by its own model-run CI); ktools is drained; GenerateDocs
+> orchestrates.
+>
+> **Placement rule for worked examples/notebooks:** an *executable* example that runs
+> the engine on a model lives in the **model repo** (OasisModels) — co-located with the
+> data and its model-run CI keeps outputs honest; the orchestrator has no engine CI to
+> do that. Single-repo API/how-to notebooks live in their owning repo. GenerateDocs may
+> hold *non-executable* cross-repo narrative that links to the executable examples.
 
 ---
 
@@ -355,6 +363,15 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   derives + plots an OEP/AEP exceedance-probability curve (self-contained, synthetic data,
   seeded). Executes at build; EP-curve plot + tables verified. **Two executable notebooks
   now** (explore-model-data, analyse-ord-results).
-- **Notebooks still to author:** convert the ktools `examples/*.py` (aal/elt/plt/lec/gulandfm)
-  into pytools-pipeline notebooks (need example-data + pipeline plumbing), and the rest of
-  the 10-notebook plan (§4).
+- **Wave 1 — increment 11 (cross-repo e2e notebook, in OasisModels):** stood up an
+  executable docs project in **OasisModels** (Furo + myst-nb) and added the high-level
+  `tutorials/run-piwind-analysis.md` — shows `oasislmf model run -C config` (the current
+  default is a **full pytools** pipeline: modelpy→gulmc→fmpy→summarypy→eltpy/pltpy/lecpy/aalpy,
+  **no ktools binaries**) and analyses the ORD outputs (SELT, OEP/AEP EP curves for GUL & IL,
+  losses at return periods) from a committed sample of a real PiWind run (`losses-20260715142725`).
+  Engine shown as a command, not executed at build; analysis cells execute + verified by
+  render. Committed on OasisModels `docs/migration` (`cb310bd`). Placement per the rule above.
+  *(Corrected ORD semantics from ODS_OpenResultsData: EPType 1=OEP, 2=OEP TVaR, 3=AEP, 4=AEP TVaR;
+  EPCalc 2=FullUncertainty.)*
+- **Still to author:** the **step-by-step** companion in OasisModels (decompose `run_kernel.sh`
+  stage by stage with intermediary bin/csv), plus the rest of the 10-notebook plan (§4).
