@@ -10,7 +10,7 @@ import sys
 import numpy as np
 import numba as nb
 
-from .data import def_to_type_and_size_str, oasis_int, oasis_int_size, oasis_float, oasis_float_size
+from .data import def_to_type_and_size, oasis_int, oasis_int_size, oasis_float, oasis_float_size
 
 # streams
 PIPE_CAPACITY = 65536  # bytes
@@ -37,10 +37,10 @@ MAX_LOSS_IDX = -5
 
 
 # Load type info
-event_id_type, event_id_size = def_to_type_and_size_str("event_id")
-item_id_type, item_id_size = def_to_type_and_size_str("item_id")
-sidx_type, sidx_size = def_to_type_and_size_str("sidx")
-loss_type, loss_size = def_to_type_and_size_str("loss")
+event_id_type, event_id_size = def_to_type_and_size("event_id")
+item_id_type, item_id_size = def_to_type_and_size("item_id")
+sidx_type, sidx_size = def_to_type_and_size("sidx")
+loss_type, loss_size = def_to_type_and_size("loss")
 
 
 def stream_info_to_bytes(stream_source_type, stream_agg_type):

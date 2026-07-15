@@ -51,19 +51,7 @@ def generate_output_metadata(output):
     return result
 
 
-def def_to_type_and_size(definition):
-    '''Convert a single type definition tuple to output dtype and size.
-    Args:
-        type_definition (tuple(str, Any, str)): Type definition in format Tuple({name: str}, {type: Any}, {format: str})
-    Returns:
-        dtype (np.dtype): Type definition as `np.dtype`
-        size (int): Number of bytes of type
-    '''
-    dtype = np.dtype(definition[1])
-    return dtype, dtype.itemsize
-
-
-def def_to_type_and_size_str(def_str):
+def def_to_type_and_size(def_str):
     definition = globals().get(def_str, None)
 
     if not isinstance(definition, tuple) or len(definition) != 3:

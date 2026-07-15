@@ -1,10 +1,10 @@
 import numpy as np
 from numpy.testing import assert_allclose
-from oasislmf.pytools.common.data import def_to_type_and_size, loss
+from oasislmf.pytools.common.data import def_to_type_and_size
 from .common import EXTRA_SIDX_COUNT
 from .financial_structure import load_static
 
-loss_type, _ = def_to_type_and_size(loss)
+loss_type, _ = def_to_type_and_size('loss')
 
 # Define dtypes for reading binary stream format
 event_agg_dtype = np.dtype([('event_id', 'i4'), ('item_id', 'i4')])
