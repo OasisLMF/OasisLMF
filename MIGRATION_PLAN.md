@@ -332,6 +332,10 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   (4 figures), `pre-analysis-adjustments`, `currency_conversion`. Disaggregation `:doc:`
   repointed; geocoding ref softened (page not yet migrated). Build green, renders clean, no
   broken refs. Inherited docutils warnings deferred to the UPDATE pass.
-- **Wave 1 — nearly complete.** Remaining GenerateDocs→OasisLMF pages: `geocoding`,
-  `Oasis-evaluation`, the settings-schema pages. Then notebooks (convert the ktools
-  `examples/*.py` — first executable docs).
+- **Wave 1 — increment 8 (geocoding + evaluation):** migrated `geocoding` → explanation
+  (Keys & lookup) and `Oasis-evaluation` → how-to. Build green, renders clean, no broken refs.
+- **Wave 1 OasisLMF MOVE essentially complete.** The `model_settings`/`analysis_settings`
+  redoc stubs are NOT an OasisLMF item — those schemas are owned by **ODS_Tools** (Wave 3).
+  Remaining OasisLMF work: **notebooks** (convert ktools `examples/*.py` — first executable
+  docs) and the **UPDATE pass** (clear inherited docutils/anchor warnings; rewrite ktools
+  C++ CLI → pytools). Then Waves 2 (OasisPlatform) and 3 (ODS standards repos).

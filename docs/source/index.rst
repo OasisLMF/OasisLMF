@@ -65,6 +65,7 @@ Start where you fit
    how-to/api-client
    how-to/ground-up-losses
    how-to/mdk-builtin-lookup
+   how-to/Oasis-evaluation
 
 .. toctree::
    :caption: Reference

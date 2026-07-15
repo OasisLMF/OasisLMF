@@ -74,6 +74,7 @@ keys / lookup service (`oasislmf/lookup`):
 :caption: Keys & lookup
 
 keys-service
+geocoding
 ```
 
 The corresponding **API reference** for these subsystems is generated directly from
