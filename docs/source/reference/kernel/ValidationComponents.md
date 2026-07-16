@@ -1,143 +1,73 @@
-![alt text](/_static/images/kernel/banner.jpg "banner")
-# 4.6 Validation components <a id="validationcomponents"></a>
+# Validation
 
-The following components run validity checks on csv format files:
+Oasis validates two kinds of data: the **model static data** (damage bin dictionary,
+footprint, vulnerability) and the **exposure / analysis inputs** (OED). There are no
+standalone `validate*` binaries in pytools — validation is built into the tools that
+read the data.
 
-**Model data files**
-* **[validatedamagebin](#validatedamagebin)** checks damage bin dictionary for validity.
-* **[validatefootprint](#validatefootprint)** checks event footprint for validity.
-* **[validatevulnerability](#validatevulnerability)** checks vulnerability data for validity.
-* **[crossvalidation](#crossvalidation)** performs validation checks across damage bin dictionary, event footprint and vulnerability data.
+## Model-data validation
 
-**Oasis input files**
-* **[validateoasisfiles](#validateoasisfiles)** performs validation checks across coverages, items, fm policytc, fm programme and fm profile data.
+### Inline, during CSV → binary conversion (`csvtobin`)
 
-## Model data files
+`csvtobin` validates the model data **by default** as it converts it; pass `-N,
+--no_validation` to skip. The checks (implemented in
+`oasislmf/pytools/converters/csvtobin/utils/`) are:
 
-<a id="validatedamagebin"></a>
-### validatedamagebin
-The following checks are performed on the damage bin dictionary:
+- **`csvtobin damagebin`** — the first `bin_index` is 1; bin indices are contiguous; each
+  interpolation (mean) damage lies within its bin range. *(Warning if the lower limit of
+  the first bin is not 0.)*
+- **`csvtobin footprint`** — the probabilities for each `(event_id, areaperil_id)` group
+  sum to 1; rows are sorted by `event_id` then `areaperil_id` ascending.
+- **`csvtobin vulnerability`** — `vulnerability_id`s are ascending; the probabilities for
+  each `(vulnerability_id, intensity_bin_id)` group sum to 1; damage bins are contiguous.
 
-* Each line contains 4 or 5 values.
-* First bin index is 1.
-* Bin indices are contiguous.
-* Interpolation lies inside range.
-
-In addition, warnings are issued in the following cases:
-
-* Lower limit of first bin is not 0.
-* Upper limit of last bin is not 1.
-* Deprecated `interval_type` column included.
-* Interpolation lies within range but not in the bin centre.
-
-The checks can be performed on `damage_bin_dict.csv` from the command line:
-
-```
-$ validatedamagebin < damage_bin_dict.csv
+```bash
+csvtobin footprint -i footprint.csv -o footprint.bin        # validates by default
+csvtobin footprint -N -i footprint.csv -o footprint.bin     # skip validation
 ```
 
-The checks are also performed by default when converting damage bin dictionary files from csv to binary format:
+### Standalone model-data check
 
-```
-$ damagebintobin < damage_bin_dict.csv > damage_bin_dict.bin
+`oasislmf.validation.model_data.csv_validity_test(model_data_dir)` runs the per-file
+checks plus **cross-checks** across the three files:
 
-# Suppress vaidation checks with -N argument
-$ damagebintobin -N < damage_bin_dict.csv > damage_bin_dict.bin
-```
+- damage-bin ids used in the vulnerability data are a subset of the damage bin
+  dictionary;
+- intensity-bin ids in the footprint are a subset of those in the vulnerability data.
 
-<a id="validatefootprint"></a>
-### validatefootprint
-The following checks are performed on the event footprint:
-
-* Each line contains 4 values.
-* Total probability for each event-areaperil combination is 1.
-* Event IDs listed in ascending order.
-* For each event ID, areaperils IDs listed in ascending order.
-* No duplicate intensity bin IDs for each event-areaperil combination.
-
-Should all checks pass, the maximum value of `intensity_bin_index` is given, which is a required input for `footprinttobin`.
-
-The checks can be performed on `footprint.csv` from the command line:
-
-```
-$ validatefootprint < footprint.csv
+```{note}
+This helper currently shells out to the legacy ktools binaries
+(`validatedamagebin` / `validatefootprint` / `validatevulnerability` / `crossvalidation`)
+via subprocess — a remaining ktools dependency pending a pytools cutover. The equivalent
+per-file checks already run inline in `csvtobin` (above); the cross-file checks are the
+piece still provided only by the ktools `crossvalidation`.
 ```
 
-The checks are also performed by default when converting footprint files from csv to binary format:
+## Exposure / OED validation
 
-```
-$ footprinttobin -i {number of intensity bins} < footprint.csv
+OED exposure files are validated by **`ods_tools`** against the OED standard (required and
+conditionally-required fields, valid code lists, peril codes, …). Use it directly
+(`OedExposure(..., check_oed=True)` or `OedExposure.check(...)`), via the CLI
+(`ods_tools check`), or as part of a model run with the `--check-oed` option
+(`check_oed`). See the *load & validate OED* worked example in the ODS Tools docs.
 
-# Suppress validation checks with -N argument
-$ footprinttobin -i {number of intensity bins} -N < footprint.csv
-```
+## Analysis input checks
 
-<a id="validatevulnerability"></a>
-### validatevulnerability
-The following checks are performed on the vulnerability data:
+- **`--check-oed`** (`check_oed`) — validate the input OED files during a run.
+- **`--check-missing-inputs`** (`check_missing_inputs`) — fail the run if IL/RI output is
+  requested without the required generated input files.
 
-* Each line contains 4 values.
-* Total probability for each vulnerability-intensity bin combination is 1.
-* Vulnerability IDs listed in ascending order.
-* For each vulnerability ID, all intensity bin IDs are present and listed in ascending order.
-* For each vulnerability-intensity bin combination, damage bin IDs are contiguous and start at bin index 1.
+## Mapping from the legacy ktools validators
 
-Should all checks pass, the maximum value of `damage_bin_id` is given, which is a required input for `vulnerabilitytobin`.
+| ktools validator (deprecated) | now |
+|-------------------------------|-----|
+| `validatedamagebin` | inline in `csvtobin damagebin` (and the legacy `csv_validity_test`) |
+| `validatefootprint` | inline in `csvtobin footprint` |
+| `validatevulnerability` | inline in `csvtobin vulnerability` |
+| `crossvalidation` | `csv_validity_test` cross-checks (still ktools; pytools cutover pending) |
+| `validateoasisfiles` | OED validation via `ods_tools` + the `--check-oed` / `--check-missing-inputs` run options |
 
-The checks can be performed on `vulnerability.csv` from the command line:
+---
 
-```
-$ validatevulnerability < vulnerability.csv
-```
-
-The checks are also performed by default when converting vulnerability files from csv to binary format:
-
-```
-$ vulnerabilitytobin -d {number of damage bins} < vulnerability.csv > vulnerability.bin
-
-# Suppress validation checks with -N argument
-$ vulnerabilitytobin -d {number of damage bins} -N < vulnerability.csv > vulnerability.bin
-```
-
-<a id="crossvalidation"></a>
-### crossvalidation
-The following checks are performed across the damage bin dictionary, event footprint and vulnerability data:
-
-* Damage bin IDs in the vulnerabilty data are subset of those in the damage bin dictionary.
-* Intensity bin IDs in the event footprint are subset of those in the vulnerability data.
-
-The checks can be performed on `damage_bin_dict.csv`, `footprint.csv` and `vulnerability.csv` from the command line:
-
-```
-$ crossvalidation -d damage_bin_dict.csv -f footprint.csv -s vulnerability.csv
-```
-
-## Input oasis files
-
-<a id="validateoasisfiles"></a>
-### validateoasisfiles
-The following checks are performed across the coverages, items, fm policytc, fm programme and fm profile data:
-
-* 1-to-1 relationship between `agg_id` in `fm_programme.csv` and `item_id` in `items.csv` when `level_id = 1`.
-* `coverage_id` in `items.csv` matches those in `coverages.csv`.
-* `policytc_id` in `fm_policytc.csv` matches those in `fm_profile.csv`.
-* (`level_id`, `agg_id`) pairs in `fm_policytc.csv` are present as (`level_id`, `to_agg_id`) pairs in `fm_programme.csv`.
-* When `level_id = n > 1`, `from_agg_id` corresponds to a `to_agg_id` from `level_id = n - 1`.
-
-The checks can be performed on `coverages.csv`, `items.csv`, `fm_policytc.csv`, `fm_programme.csv` and `fm_profile.csv` from the command line, specifying the directory these files are located in:
-
-```
-$ validateoasisfiles -d path/to/output/directory
-```
-
-The Ground Up Losses (GUL) flag `g` can be specified to only perform checks on `items.csv` and `coverages.csv`:
-
-```
-$ validateoasisfiles -g -d /path/to/output/directory
-```
-
-[Return to top](#validationcomponents)
-
-[Go to 5. Financial Module](../../explanation/financial-module.rst)
-
-[Back to Contents](Contents.md)
+See also: {doc}`DataConversionComponents` (the converters) ·
+{doc}`../../explanation/financial-module`.
