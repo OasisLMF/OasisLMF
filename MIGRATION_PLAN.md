@@ -398,8 +398,9 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   `7bae01d8d`; xref_missing 80→73, warnings 338→325). and the converter pages
   `StreamConversionComponents` (full rewrite → `bintocsv`/`csvtobin`) + `DataConversionComponents`
   (intro→`csvtobin`/`bintocsv` mapping table; format tables kept) (`e3de070ca`; xref_missing
-  73→44, warnings 325→291). **Remaining kernel pages to update:** `ORDOutputComponents`,
-  `ValidationComponents`, `Workflows` (pipelines → pytools), and light passes on
+  73→44, warnings 325→291). and `Workflows` (all example pipelines → pytools;
+  `7d0c0d045`; zero legacy tool names; xref_missing 44→38, warnings 291→285). **Remaining
+  kernel pages to update:** `ORDOutputComponents`, `ValidationComponents`, and light passes on
   `Specification`/`fmprofiles` (formats/rules stable) and the conceptual pages
   (`Introduction`/`Overview`/`ReferenceModelOverview`/`MultiPeril`/`RandomNumbers`).
   *(Note: DataConversion's per-section command examples still show legacy binary names,
