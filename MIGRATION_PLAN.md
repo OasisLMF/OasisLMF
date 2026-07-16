@@ -429,5 +429,9 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
     3-day-CI-artifact problem; API viewer render verified. *(Follow-up: a CI step should
     regenerate + commit the schemas from drf-spectacular on release; the generated schema has
     redoc lint warnings — missing `type`s — a platform-code quality note.)*
-  - **Wave 2 remaining:** remove the old flat `docs/` (alabaster + committed build output);
-    a Platform-API notebook; deeper integration of the k8s/Helm docs into the toctree.
+  - **Wave 2 — old flat docs removed (OasisPlatform `bf696e3b`):** deleted the superseded
+    alabaster `docs/` source + committed build output (53 files, ~18.3k lines); kept
+    `docs/source/`, `requirements.txt`, the `analysis_settings.json/.xsd` examples, and
+    pointed `docs/Makefile` at `source/`. Build unchanged (16 pages, redoc intact).
+  - **Wave 2 remaining:** a Platform-API notebook; deeper integration of the k8s/Helm docs
+    into the toctree.
