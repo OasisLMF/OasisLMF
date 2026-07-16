@@ -389,3 +389,15 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   ODS_Tools `docs/migration` (`c0e626f`).
 - **Notebooks still to author:** CEDE→OED via ODTF and currency conversion (ODS_Tools),
   keys/lookup and platform-API examples (their repos) — the rest of the §4 plan.
+- **UPDATE pass — kernel pages (C++ → pytools), started (`da836e066`):** rewrote
+  `reference/kernel/CoreComponents.md` for pytools — tool mapping (eve→evepy, getmodel→
+  modelpy, gulcalc→gulpy/gulmc, fmcalc→fmpy, summarycalc→summarypy), pytools CLI/usage/
+  examples grounded in the real `--help`, concepts kept; dropped the HTML `<a id>`/"Return
+  to top" anchors (xref_missing 86→80, warnings 347→338). **Remaining kernel pages to
+  update:** `OutputComponents` (eltcalc/leccalc/pltcalc/aalcalc/kat → eltpy/lecpy/pltpy/
+  aalpy), `ORDOutputComponents`, `DataConversionComponents` + `StreamConversionComponents`
+  (converters → `csvtobin`/`bintocsv`), `ValidationComponents`, `Workflows` (pipelines →
+  pytools), and light passes on `Specification`/`fmprofiles` (formats/rules stable) and the
+  conceptual pages (`Introduction`/`Overview`/`ReferenceModelOverview`/`MultiPeril`/
+  `RandomNumbers`). Also drop remaining HTML anchors as each is rewritten (clears the rest
+  of the ~80 xref_missing).
