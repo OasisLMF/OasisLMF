@@ -1,4 +1,3 @@
-![alt text](/_static/images/kernel/banner.jpg "banner")
 # Table of Contents
 
 ### 1. [Introduction](Introduction.md)

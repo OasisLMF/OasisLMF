@@ -1,29 +1,28 @@
-![alt text](/_static/images/kernel/banner.jpg "banner")
-# 3. Specification <a id="specification"></a>
+# 3. Specification
 
 ### Introduction
 
 This section specifies the data stream structures and core components in the in-memory kernel.
 
 The data stream structures are;
-* **[cdf stream](#cdf)**
-* gulcalc stream(deprecated)
-* **[loss stream](#loss)**
-* **[summary stream](#summary)**
+* **cdf stream**
+* gulmc stream(deprecated)
+* **loss stream**
+* **summary stream**
 
 The stream data structures have been designed to minimise the volume flowing through the pipeline, using data packet 'headers' to remove redundant data. For example, indexes which are common to a block of data are defined as a header record and then only the variable data records that are relevant to the header key are part of the data stream. The names of the data fields given below are unimportant, only their position in the data stream is important in order to perform the calculations defined in the program.
 
 The components are;
 
-* **[eve](#eve)**
-* **[getmodel](#getmodel)**
-* **[gulcalc](#gulcalc)**
-* **[fmcalc](#fmcalc)**
-* **[summarycalc](#summarycalc)**
-* **[outputcalc](#outputcalc)**
+* **evepy**
+* **modelpy**
+* **gulmc**
+* **fmpy**
+* **summarypy**
+* **outputcalc**
 
 
-The components have a standard input (stdin) and/or output (stdout) data stream structure. eve is the stream-initiating component which only has a standard output stream, whereas "outputcalc" (a generic name representing an extendible family of output calculation components) is a stream-terminating component with only a standard input stream.
+The components have a standard input (stdin) and/or output (stdout) data stream structure. evepy is the stream-initiating component which only has a standard output stream, whereas "outputcalc" (a generic name representing an extendible family of output calculation components) is a stream-terminating component with only a standard input stream.
 
 An implementation of each of the above components is provided in the [Reference Model](ReferenceModelOverview.md), where usage instructions and command line parameters are provided. A functional overview is given below.
 
@@ -40,7 +39,7 @@ Higher byte;
 | Byte 1 |  Stream name  		|
 |:-------|:---------------------|
 |    0   | cdf          		|
-|    1   | gulcalc (deprecated) |
+|    1   | gulmc (deprecated) |
 |    2   | loss          		|
 |    3   | summary       		|
 
@@ -49,8 +48,8 @@ Reserved stream_ids;
 | Byte 1   | Bytes 2-4    |  Description                                                             		         
 |:---------|--------------|:---------------------------------------------------------------------------------|
 |    0     |     1        |  cdf - Oasis format effective damageability CDF output                           |
-|	 1     |     1        |  gulcalc - Oasis format item level ground up loss sample output (deprecated)     |
-|    1     |     2        |  gulcalc - Oasis format coverage level ground up loss sample output (deprecated) |
+|	 1     |     1        |  gulmc - Oasis format item level ground up loss sample output (deprecated)     |
+|    1     |     2        |  gulmc - Oasis format coverage level ground up loss sample output (deprecated) |
 |    2     |     1        |  loss -  Oasis format loss sample output (any loss perspective)                  |
 |    3     |     1        |  summary - Oasis format summary level loss sample output                         |
 
@@ -58,16 +57,16 @@ The supported standard input and output streams of the reference model component
 
 | Component    | Standard input                        |  Standard output                      | Stream option parameters          			|
 |:-------------|:--------------------------------------|:--------------------------------------|:-------------------------------------------|
-| getmodel     | none                                  | 0/1 cdf                               | none                              			|
-| gulcalc      | 0/1 cdf                               | 2/1 loss                              | -i -a{}                           			|
-| fmcalc       | 2/1 loss                              | 2/1 loss                              | none                              			|
-| summarycalc  | 2/1 loss                              | 3/1 summary                           | -i input from gulcalc, -f input from fmcalc| 
+| modelpy     | none                                  | 0/1 cdf                               | none                              			|
+| gulmc      | 0/1 cdf                               | 2/1 loss                              | -i -a{}                           			|
+| fmpy       | 2/1 loss                              | 2/1 loss                              | none                              			|
+| summarypy  | 2/1 loss                              | 3/1 summary                           | -i input from gulmc, -f input from fmpy| 
 | outputcalc   | 3/1 summary                           | none                                  | none                              			| 
 
 
 ## Stream structure
 
-<a id="cdf"></a>
+
 ### cdf stream
 
 Stream header packet structure
@@ -92,9 +91,8 @@ Data packet structure (record repeated no_of_bin times)
 | prob_to           | float  |    4   | The cumulative probability at the upper damage bin threshold        |     0.765   |
 | bin_mean          | float  |    4   | The conditional mean of the damage bin                              |     0.45    |
 
-[Return to top](#specification)
 
-<a id="loss"></a>
+
 ### loss stream
 
 Stream header packet structure
@@ -109,7 +107,7 @@ Data header packet structure
 | Name               | Type   |  Bytes | Description                                              | Example     |
 |:-------------------|--------|--------| :--------------------------------------------------------|------------:|
 | event_id           | int    |    4   | Oasis event_id                                           |   4545      |
-| item_id /output_id | int    |    4   | Oasis item_id (gulcalc) or output_id (fmcalc)            |    300      |
+| item_id /output_id | int    |    4   | Oasis item_id (gulmc) or output_id (fmpy)            |    300      |
 
 Data packet structure
 
@@ -132,9 +130,8 @@ There are five values of sidx with special meaning as follows;
 
 sidx -5 to -1 must come at the beginning of the data packet before the other samples in ascending order (-5 to -1).  
 
-[Return to top](#specification)
 
-### summary stream <a id="summary"></a>
+### summary stream
 
 Stream header packet structure
 
@@ -168,53 +165,51 @@ The sidx -1 mean loss may be present (if non-zero)
 |   -1   | numerical integration mean loss               |   optional         |
 
 
-[Return to top](#specification)
 
 ## Components 
 
-<a id="eve"></a>
-### eve 
 
-eve is an 'event emitter' and its job is to read a list of events from file and send out a subset of events as a binary data stream. It has no standard input and emits a list of event_ids, which are 4 byte integers.
+### evepy 
 
-eve is used to partition lists of events such that a workflow can be distributed across multiple processes.
+evepy is an 'event emitter' and its job is to read a list of events from file and send out a subset of events as a binary data stream. It has no standard input and emits a list of event_ids, which are 4 byte integers.
 
-<a id="getmodel"></a>
-### getmodel 
-
-getmodel is the component which generates a stream of effective damageability cdfs for a given set of event_ids and the impacted exposed items on the basis of their areaperil_ids (location) and vulnerability_ids (damage function). 
-
-<a id="gulcalc"></a>
-### gulcalc 
-
-gulcalc is the component which calculates ground up loss. It takes the getmodel output as standard input and based on the sampling parameters specified, performs Monte Carlo sampling and numerical integration. The output is a stream of ground up loss samples in Oasis kernel format with random samples identified by positive sample indexes (sidx 1 and greater), and special meaning samples assigned to negative sample indexes.
-
-gulcalc also supports the combining and back-allocation of losses arising from multiple subperils impacting the same coverage with some options.
-
-<a id="fmcalc"></a>
-### fmcalc 
-
-fmcalc is the component which takes the loss stream as standard input and output and applies the policy terms and conditions to produce insured loss samples. fmcalc can be called recursively to perform multiple sequential applications of financial terms (e.g for inuring reinsurance following direct insurance). The output is a table of loss samples in Oasis kernel format, including the (re)insured loss for the numerical integration mean (sidx=-1), and the impacted exposure (sidx=-3). 
-
-<a id="summarycalc"></a>
-### summarycalc
-summarycalc is a component which sums the sampled losses from either gulcalc or fmcalc to the users required level(s) for reporting results.  This is a simple sum of the loss value by event_id, sidx and summary_id, where summary_id is a grouping of coverage_id or item_id for gulcalc or output_id for fmcalc defined in the user's input files.  
+evepy is used to partition lists of events such that a workflow can be distributed across multiple processes.
 
 
-<a id="outputcalc"></a>
+### modelpy 
+
+modelpy is the component which generates a stream of effective damageability cdfs for a given set of event_ids and the impacted exposed items on the basis of their areaperil_ids (location) and vulnerability_ids (damage function). 
+
+
+### gulmc 
+
+gulmc is the component which calculates ground up loss. It takes the modelpy output as standard input and based on the sampling parameters specified, performs Monte Carlo sampling and numerical integration. The output is a stream of ground up loss samples in Oasis kernel format with random samples identified by positive sample indexes (sidx 1 and greater), and special meaning samples assigned to negative sample indexes.
+
+gulmc also supports the combining and back-allocation of losses arising from multiple subperils impacting the same coverage with some options.
+
+
+### fmpy 
+
+fmpy is the component which takes the loss stream as standard input and output and applies the policy terms and conditions to produce insured loss samples. fmpy can be called recursively to perform multiple sequential applications of financial terms (e.g for inuring reinsurance following direct insurance). The output is a table of loss samples in Oasis kernel format, including the (re)insured loss for the numerical integration mean (sidx=-1), and the impacted exposure (sidx=-3). 
+
+
+### summarypy
+summarypy is a component which sums the sampled losses from either gulmc or fmpy to the users required level(s) for reporting results.  This is a simple sum of the loss value by event_id, sidx and summary_id, where summary_id is a grouping of coverage_id or item_id for gulmc or output_id for fmpy defined in the user's input files.  
+
+
+
 ### outputcalc 
 
 Outputcalc is a general term for an end-of-pipeline component which represents one of a potentially unlimited set of output components. Some examples are provided in the Reference Model. These are; 
 
-* eltcalc
-* leccalc
-* aalcalc
-* pltcalc
+* eltpy
+* lecpy
+* aalpy
+* pltpy
 * ordleccalc
 
-The output components generate results such as an event loss table or loss exceedance curve from the sampled output from summarycalc.  The output is a results table in csv format or parquet format. 
+The output components generate results such as an event loss table or loss exceedance curve from the sampled output from summarypy.  The output is a results table in csv format or parquet format. 
 
-[Return to top](#specification)
 
 [Go to 4. Reference model](ReferenceModelOverview.md)
 

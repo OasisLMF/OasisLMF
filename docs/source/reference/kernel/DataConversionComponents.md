@@ -45,9 +45,8 @@ also exist (there is no converter for it — it is not needed for calculation).
 
 ## Static data
 
- <a id="aggregatevulnerability"></a>
+
 ### aggregate vulnerability
-***
 The aggregate vulnerability file is  required for the gulmc component. It contains the conditional distributions of damage for each intensity bin and for each vulnerability_id. This file must have the following location and filename;
 
 * static/aggregate_vulnerability.bin
@@ -74,11 +73,9 @@ $ aggregatevulnerabilitytobin < aggregate_vulnerability.csv > aggregate_vulnerab
 $ aggregatevulnerabilitytocsv < aggregate_vulnerability.bin > aggregate_vulnerability.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
- <a id="damagebins"></a>
+
 ### damage bin dictionary
-***
 The damage bin dictionary is a reference table in Oasis which defines how the effective damageability cdfs are discretized on a relative damage scale (normally between 0 and 1). It is required by getmodel and gulcalc and must have the following location and filename;
 
 * static/damage_bin_dict.bin
@@ -121,9 +118,8 @@ The deprecated interval_type field can be sent to the output using the -i argume
 $ damagebintocsv -i < damage_bin_dict.bin > damage_bin_dict.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
- <a id="intensitybins"></a>
+
 #### intensity bin dictionary
 
 The intensity bin dictionary defines the meaning of the bins of the hazard intensity measure. The hazard intensity measure could be flood depth, windspeed, peak ground acceleration etc, depending on the type of peril. The range of hazard intensity values in the model is discretized into bins, each with a unique and contiguous bin_index listed in the intensity bin dictionary. The bin_index is used as a reference in the footprint file (field intensity_bin_index) to specify the hazard intensity for each event and areaperil.
@@ -142,11 +138,9 @@ The csv file should contain the following fields and include a header row.
 
 The data should be ordered by bin_index ascending and not contain nulls. The bin_index should be a contiguous sequence of integers starting from 1.
 
-[Return to top](#dataconversioncomponents)
 
-<a id="footprint"></a>
+
 ### footprint
-***
 The event footprint is required for the getmodel component, as well as an index file containing the starting positions of each event block. These must have the following location and filenames;
 
 * static/footprint.bin
@@ -218,11 +212,9 @@ Footprint binary files that contain compressed data require the -z argument to b
 $ footprinttocsv -z > footprint.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
-<a id="lossfactors"></a>
+
 ### Loss Factors
-***
 The lossfactors binary maps the event_id/amplification_id pairs with post loss amplification factors, and is supplied by the model providers. The first 4 bytes are preserved for future use and the data format is as follows. It is required by Post Loss Amplification (PLA) workflow must have the following location and filename;
 
 * static/lossfactors.bin
@@ -249,11 +241,9 @@ $ lossfactorstobin < lossfactors.csv > lossfactors.bin
 $ lossfactorstocsv < lossfactors.bin > lossfactors.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
-<a id="rand"></a>
+
 ### Random numbers 
-***
 A random number file may be provided for the gulcalc component as an option (using gulcalc -r parameter) The random number binary contains a list of random numbers used for ground up loss sampling in the kernel calculation. It must have the following location and filename;
 
 * static/random.bin
@@ -290,11 +280,9 @@ $ randtocsv -g 1000000 -S 1234 > random.csv
 ```
 The -S {seed value} option produces repeatable random numbers, whereas usage of -g alone will generate a different set every time.
 
-[Return to top](#dataconversioncomponents)
 
-<a id="vulnerability"></a>
+
 ### vulnerability
-***
 The vulnerability file is  required for the getmodel component. It contains the conditional distributions of damage for each intensity bin and for each vulnerability_id. This file must have the following location and filename;
 
 * static/vulnerability.bin
@@ -346,11 +334,9 @@ $ vulnerabilitytocsv < vulnerability.bin > vulnerability.csv
 $ vulnerabilitytocsv -i > vulnerability.csv
 $ vulnerabilitytocsv -z > vulnerability.csv
 ```
-[Return to top](#dataconversioncomponents)
 
-<a id="weights"></a>
+
 ### Weights
-***
 The vulnerability weights binary contains the the weighting of each vulnerability function in all areaperil IDs. The data format is as follows. It is required by gulmc with the aggregate_vulnerability file and must have the following location and filename;
 
 * static/weights.bin
@@ -376,13 +362,11 @@ $ weightstobin < weights.csv > weights.bin
 $ weightstocsv < weights.bin > weights.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
 ## Input data
 
-<a id="amplifications"></a>
+
 ### Amplifications
-***
 The amplifications binary contains the list of item IDs mapped to amplification IDs. The data format is as follows. It is required by Post Loss Amplification (PLA) workflow must have the following location and filename;
 
 * input/amplifications.bin
@@ -407,11 +391,9 @@ $ amplificationtobin < amplifications.csv > amplifications.bin
 $ amplificationtocsv < amplifications.bin > amplifications.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
-<a id="coverages"></a>
+
 ### Coverages
-***
 The coverages binary contains the list of coverages and the coverage TIVs. The data format is as follows. It is required by gulcalc and fmcalc and must have the following location and filename;
 
 * input/coverages.bin
@@ -436,11 +418,9 @@ $ coveragetobin < coverages.csv > coverages.bin
 $ coveragetocsv < coverages.bin > coverages.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
-<a id="ensemble"></a>
+
 ### ensemble
-***
 The ensemble file is used for ensemble modelling (multiple views) which maps sample IDs to particular ensemble ID groups. It is an optional file for use with AAL and LEC. It must have the following location and filename;
 * input/ensemble.bin
 
@@ -461,11 +441,9 @@ $ ensembletobin < ensemble.csv > ensemble.bin
 ```
 $ ensembletocsv < ensemble.bin > ensemble.csv
 ```
-[Return to top](#dataconversioncomponents)
 
-<a id="events"></a>
+
 ### events
-***
 One or more event binaries are required by eve. It must have the following location and filename;
 * input/events.bin
 
@@ -485,11 +463,9 @@ $ evetobin < events.csv > events.bin
 ```
 $ evetocsv < events.bin > events.csv
 ```
-[Return to top](#dataconversioncomponents)
 
-<a id="items"></a>
+
 ### items
-***
 The items binary contains the list of exposure items for which ground up loss will be sampled in the kernel calculations. The data format is as follows. It is required by gulcalc and outputcalc and must have the following location and filename;
 
 * input/items.bin
@@ -518,11 +494,9 @@ $ itemtobin < items.csv > items.bin
 $ itemtocsv < items.bin > items.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
-<a id="gulsummaryxref"></a>
+
 ### gul summary xref
-***
 The gulsummaryxref binary is a cross reference file which determines how item or coverage losses from gulcalc output are summed together into at various summary levels in summarycalc. It is required by summarycalc and must have the following location and filename;
 
 * input/gulsummaryxref.bin
@@ -589,11 +563,9 @@ $ gulsummaryxreftobin < gulsummaryxref.csv > gulsummaryxref.bin
 $ gulsummaryxreftocsv < gulsummaryxref.bin > gulsummaryxref.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
-<a id="fmprogramme"></a>
+
 ### fm programme 
-***
 The fm programme binary file contains the level heirarchy and defines aggregations of losses required to perform a loss calculation, and is required for fmcalc only. 
 
 This must have the following location and filename;
@@ -624,11 +596,9 @@ $ fmprogrammetobin < fm_programme.csv > fm_programme.bin
 $ fmprogrammetocsv < fm_programme.bin > fm_programme.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
-<a id="fmprofile"></a>
+
 ### fm profile
-***
 The fmprofile binary file contains the list of calculation rules with profile values (policytc_ids) that appear in the policytc file. This is required for fmcalc only. 
 
 There are two versions of this file and either one or the other can be used at a time.
@@ -696,11 +666,9 @@ $ fmprofiletobin -S < fm_profile_step.csv > fm_profile_step.bin
 $ fmprofiletocsv < fm_profile.bin > fm_profile.csv
 $ fmprofiletocsv -S < fm_profile_step.bin > fm_profile_step.csv
 ```
-[Return to top](#dataconversioncomponents)
 
-<a id="fmpolicytc"></a>
+
 ### fm policytc
-***
 The fm policytc binary file contains the cross reference between the aggregations of losses defined in the fm programme file at a particular level and the calculation rule that should be applied as defined in the fm profile file. This file is required for fmcalc only. 
 
 This  must have the following location and filename;
@@ -732,11 +700,9 @@ $ fmpolicytctobin < fm_policytc.csv > fm_policytc.bin
 $ fmpolicytctocsv < fm_policytc.bin > fm_policytc.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
-<a id="fmsummaryxref"></a>
+
 ### fm summary xref
-***
 The fm summary xref binary is a cross reference file which determines how losses from fmcalc output are summed together at various summary levels by summarycalc. It is required by summarycalc and must have the following location and filename;
 
 * input/fmsummaryxref.bin
@@ -786,11 +752,9 @@ $ fmsummaryxreftobin < fmsummaryxref.csv > fmsummaryxref.bin
 $ fmsummaryxreftocsv < fmsummaryxref.bin > fmsummaryxref.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
-<a id="fmxref"></a>
+
 ### fm xref 
-***
 The fmxref binary file contains cross reference data specifying the output_id in the fmcalc as a combination of agg_id and layer_id, and is required by fmcalc. 
 
 This must be in the following location with filename format;
@@ -845,11 +809,9 @@ $ fmxreftobin < fm_xref.csv > fm_xref.bin
 $ fmxreftocsv < fm_xref.bin > fm_xref.csv
 ``` 
 
-[Return to top](#dataconversioncomponents)
 
-<a id="occurrence"></a>
+
 ### occurrence
-***
 The occurrence file is required for certain output components which, in the reference model, are leccalc, pltcalc and aalcalc.  In general, some form of event occurence file is required for any output which involves the calculation of loss metrics over a period of time.  The occurrence file assigns occurrences of the event_ids to numbered periods. A period can represent any length of time, such as a year, or 2 years for instance. The output metrics such as mean, standard deviation or loss exceedance probabilities are with respect to the chosen period length.  Most commonly in catastrophe modelling, the period of interest is a year.
 
 The occurrence file also includes date fields.  
@@ -894,11 +856,9 @@ $ occurrencetobin -P10000 -H < occurrence.csv > occurrence.bin
 ```
 $ occurrencetocsv < occurrence.bin > occurrence.csv
 ```
-[Return to top](#dataconversioncomponents)
 
-<a id="returnperiod"></a>
+
 ### return period 
-***
 The returnperiods binary file is a list of return periods that the user requires to be included in loss exceedance curve (leccalc) results.
 
 This must be in the following location with filename format;
@@ -923,11 +883,9 @@ $ returnperiodtobin < returnperiods.csv > returnperiods.bin
 $ returnperiodtocsv < returnperiods.bin > returnperiods.csv
 ``` 
 
-[Return to top](#dataconversioncomponents)
 
-<a id="periods"></a>
+
 ### periods
-***
 The periods binary file is a list of all the periods that are in the model and is optional for weighting the periods in the calculation. The file is used in the calculation of the loss exceedance curve (leccalc) and aalcalc results.
 
 This must be in the following location with filename format;
@@ -954,11 +912,9 @@ $ periodstobin < periods.csv > periods.bin
 $ periodstocsv < periods.bin > periods.csv
 ``` 
 
-[Return to top](#dataconversioncomponents)
 
-<a id="quantile"></a>
+
 ### Quantile
-***
 The quantile binary file contains a list of user specified quantile floats. The data format is as follows. It is optionally used by the Quantile Event/Period Loss tables and must have the following location and filename;
 
 * input/quantile.bin
@@ -982,7 +938,6 @@ $ quantiletobin < quantile.csv > quantile.bin
 $ quantiletocsv < quantile.bin > quantile.csv
 ```
 
-[Return to top](#dataconversioncomponents)
 
 [Go to 4.5 Stream conversion components section](StreamConversionComponents.md)
 

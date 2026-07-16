@@ -1,8 +1,11 @@
-![alt text](/_static/images/kernel/banner.jpg "banner")
 # 1. Introduction
-The in-memory solution for the Oasis Kernel is called the kernel tools or “ktools”. ktools is an independent “specification” of a set of processes which means that it defines the processing architecture and data structures. The framework is implemented as a set of components called the “reference model” which can then be adapted for particular model or business needs. 
+The Oasis calculation **kernel** is a “specification” of a set of streaming processes —
+it defines the processing architecture and binary data structures — implemented as a set
+of components (the “reference model”) that can be adapted for particular model or business
+needs. The kernel is now implemented in Python (**pytools**); it was historically the C++
+toolkit “ktools”, which is being decommissioned.
 
-The code can be compiled in Linux, POSIX-compliant Windows and native Windows. The installation instructions can be found in [README.md](../../README.md).
+Installation instructions can be found in {doc}`the installation guide </installation>`.
 
 ### Background
 The Kernel performs the core Oasis calculations of computing effective damageability distributions, Monte-Carlo sampling of ground up loss, the financial module calculations, which apply insurance policy terms and conditions to the sampled losses, and finally some common catastrophe model outputs.
@@ -36,10 +39,10 @@ The components in the Reference Model can be summarized as follows;
  
 ### Usage
 
-Standard piping syntax can be used to invoke the components at the command line. It is the same syntax in Windows DOS, Linux terminal or Cygwin (a Linux emulator for Windows). For example the following command invokes eve, getmodel, gulcalc, fmcalc, summarycalc and eltcalc, and exports an event loss table output to a csv file.
+Standard piping syntax can be used to invoke the components at the command line. It is the same syntax in Windows DOS, Linux terminal or Cygwin (a Linux emulator for Windows). For example the following command invokes evepy, modelpy, gulmc, fmpy, summarypy and eltpy, and exports an event loss table output to a csv file.
 
 ``` sh
-$ eve 1 1 | getmodel | gulcalc -r –S100 -a1 –i - | fmcalc | summarycalc -f -1 - | eltcalc > elt.csv
+$ evepy 1 1 | modelpy | gulmc -r –S100 -a1 –i - | fmpy | summarypy -f -1 - | eltpy > elt.csv
 ```
 
 Example python scripts are provided along with a binary data package in the /examples folder to demonstrate usage of the toolkit. For more guidance on how to use the toolkit, see [Workflows](Workflows.md).

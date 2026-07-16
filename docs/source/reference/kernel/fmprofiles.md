@@ -1,5 +1,4 @@
-![alt text](/_static/images/kernel/banner.jpg "banner")
-# Appendix B: FM Profiles <a id="fmprofiles"></a>
+# Appendix B: FM Profiles
 
 This section specifies the attributes and rules for the following list of Financial module profiles.
 
@@ -110,7 +109,7 @@ The fields with an x are those which are required by the profile. The full names
 |     sc1    |     scale_1         |
 |     sc2    |     scale_2         |
 
-An allocation rule can be assigned to each call of fmcalc, which determines whether calculated losses should be back-allocated to the contributing items, and if so how. This is specified via the command line parameter -a. 
+An allocation rule can be assigned to each call of fmpy, which determines whether calculated losses should be back-allocated to the contributing items, and if so how. This is specified via the command line parameter -a. 
 
 The choices are as follows;
 
@@ -374,7 +373,6 @@ loss = x.loss * limit_1;
 loss = x.loss - (x.loss * deductible_1);
 if (loss < 0) loss = 0;
 ```
-[Return to top](#fmprofiles)
 
 [Go to Appendix C Multi-peril model support](MultiPeril.md)
 

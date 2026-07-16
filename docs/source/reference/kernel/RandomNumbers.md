@@ -1,7 +1,6 @@
-![alt text](/_static/images/kernel/banner.jpg "banner")
-# Appendix A: Random numbers <a id="randomnumbers"></a>
+# Appendix A: Random numbers
 
-Simple uniform random numbers are assigned to each event, group and sample number to sample ground up loss in the gulcalc process. A group is a collection of items which share the same group_id, and is the method of supporting spatial correlation in ground up loss sampling in Oasis and ktools.
+Simple uniform random numbers are assigned to each event, group and sample number to sample ground up loss in the gulmc process. A group is a collection of items which share the same group_id, and is the method of supporting spatial correlation in ground up loss sampling in Oasis and ktools.
 
 #### Correlation
 
@@ -11,9 +10,13 @@ The item_id, group_id data is provided by the user in the items input file (item
 
 ### Methodology
 
-The method of assigning random numbers in gulcalc uses an random number index (ridx), an integer which is used as a position reference into a list of random numbers.  S random numbers corresponding to the runtime number of samples are drawn from the list starting at the ridx position.
+The method of assigning random numbers in gulmc uses an random number index (ridx), an integer which is used as a position reference into a list of random numbers.  S random numbers corresponding to the runtime number of samples are drawn from the list starting at the ridx position.
 
-There are three options in ktools for choosing random numbers to apply in the sampling process.
+In pytools the random-number generator is selected with `--random-generator`: `0`
+Mersenne-Twister, `1` Latin Hypercube, `2` Latin Hypercube on Philox4x32-7 (the default).
+The seeding and correlation methodology described here still applies; historically ktools
+offered three ways to source random numbers (below), now selected via `--random-generator`
+rather than the legacy `-R`/`-r`/`-s` flags.
 
 #### 1. Generate dynamically during the calculation
 
@@ -22,12 +25,12 @@ Use -R{number of random numbers} as a parameter. Optionally you may use -s{seed}
 
 ##### Example
 ```
-$ gulcalc -S00 -R1000000 -i -
+$ gulmc -S00 -R1000000 -i -
 ```
 This will run 100 samples drawing from 1 million dynamically generated random numbers. They are simple uniform random numbers.
 
 ```
-$ gulcalc -S00 -s123 -R1000000 -i -
+$ gulmc -S00 -s123 -R1000000 -i -
 ```
 This will run 100 samples drawing from 1 million seeded random numbers (repeatable)
 
@@ -53,12 +56,12 @@ Use -r as a parameter
 
 ##### Example
 ```
-$ gulcalc -S100 -r -i -
+$ gulmc -S100 -r -i -
 ```
 This will run 100 samples using random numbers from file random.bin in the static sub-directory.
 
 ##### Method
-The random number file(s) is read into memory at the start of the gulcalc process. 
+The random number file(s) is read into memory at the start of the gulmc process. 
 
 The ridx is generated from the sample index (sidx), event_id and group_id using the following modulus function;
 
@@ -77,7 +80,7 @@ Default option
 
 ##### Example
 ```
-$ gulcalc -S100 -i -
+$ gulmc -S100 -i -
 ```
 This option will produce repeatable random numbers seeded from a combination of the event_id and group_id. The difference between this option and method 1 with the fixed seed is that there is no limit on the number of random numbers generated, and you do not need to make a decision on the buffer size. This will impact performance for large analyses.
 
@@ -89,7 +92,6 @@ s1 = mod(group_id * 1543270363, 2147483648);
 s2 = mod(event_id * 1943272559, 2147483648);
 seed = mod(s1 + s2 , 2147483648)
 
-[Return to top](#randomnumbers)
 
 [Go to Appendix B FM Profiles](fmprofiles.md)
 

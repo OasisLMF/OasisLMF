@@ -1,4 +1,3 @@
-![alt text](/_static/images/kernel/banner.jpg "banner")
 # 2. Data Streaming Framework Overview
 
 This is the general data streaming framework showing the core components of the toolkit.
@@ -14,9 +13,9 @@ The architecture consists of;
 
 The conversion of input data to binary format is shown in the diagram as occurring outside of the compute server, but this could be performed within the compute server. ktools provides a full set of binary conversion tools from csv input files which can be deployed elsewhere.
 
-The in-memory data streams are initiated by the process 'eve' (meaning 'event emitter') and shown by solid arrows. The read/write data flows are shown as dashed arrows. 
+The in-memory data streams are initiated by the process 'evepy' (meaning 'event emitter') and shown by solid arrows. The read/write data flows are shown as dashed arrows. 
 
-The calculation components are *getmodel*, *gulcalc*, *fmcalc*, *summarycalc* and *outputcalc*. The streamed data passes through the components in memory one event at a time and are written out to a results file on the compute server.  The user can then retrieve the results (csvs) and consume them in their BI system.
+The calculation components are *modelpy*, *gulmc*, *fmpy*, *summarypy* and *outputcalc*. The streamed data passes through the components in memory one event at a time and are written out to a results file on the compute server.  The user can then retrieve the results (csvs) and consume them in their BI system.
 
 The reference model demonstrates an implementation of the core calculation components, along with the data conversion components which convert binary files to csv files. 
 
