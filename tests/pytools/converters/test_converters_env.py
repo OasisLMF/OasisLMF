@@ -71,7 +71,7 @@ def converter_to_ext(converter):
         in_ext = ".csv"
         out_ext = ".bin"
     else:
-        raise RuntimeError(f"Unknown test type {converter}, {file_type}")
+        raise RuntimeError(f"Unknown test type {converter}")
     return in_ext, out_ext
 
 
@@ -264,3 +264,9 @@ class MultiConversionTest(TestCase):
 
     def test_fm_profile_step(self):
         self._run_general_case(self.case_args, self.tmp_dir.name, file_type="fm_profile_step")
+
+    def test_gul(self):
+        self._run_general_case(self.case_args, self.tmp_dir.name, file_type="gul", abnormal_dtype=True)
+
+    def test_fm(self):
+        self._run_general_case(self.case_args, self.tmp_dir.name, file_type="fm", abnormal_dtype=True)

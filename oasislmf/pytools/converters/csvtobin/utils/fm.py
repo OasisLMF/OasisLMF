@@ -48,12 +48,12 @@ def fm_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index)
         sidxs = np.ascontiguousarray(chunk["sidx"])
         losses = np.ascontiguousarray(chunk["loss"])
 
-        pos, prev_event_id, prev_item_id = _fill_fm_chunk(
+        cursor, prev_event_id, prev_item_id = _fill_fm_chunk(
             event_ids, item_ids, sidxs, losses,
             max_sample_index, buf, np.int64(0),
             prev_event_id, prev_item_id, event_id_dtype,
         )
-        buf[:pos].tofile(file_out)
+        buf[:cursor].tofile(file_out)
 
     if prev_event_id != event_id_dtype.type(-1):
         np.array([0], dtype=loss_pair_dtype).tofile(file_out)  # final delimiter
