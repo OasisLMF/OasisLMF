@@ -422,6 +422,12 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   `kubernetes/charts` Helm docs); reference: rest_api, API. 16 images migrated; within-set
   `:doc:` absolute, out-of-set softened. Build green, renders clean; 64 residual warnings are
   inherited docutils formatting in the migrated rst.
-  - **Wave 2 remaining:** persist the drf-spectacular **OpenAPI v1/v2 schemas** in-repo + render
-    with redoc (fix the 3-day-artifact problem); remove the old flat `docs/` (alabaster +
-    committed build output); a Platform-API notebook; deeper integration of the k8s/Helm docs.
+  - **Wave 2 — OpenAPI schemas persisted + redoc (OasisPlatform `a4be74e4`):** committed the
+    Platform v1/v2 OpenAPI schemas in-repo (`docs/source/_static/schemas/`) and rendered them
+    as interactive redoc pages (`reference/platform_v1`/`platform_v2`), using the redoc.js
+    bundled with sphinxcontrib-redoc (no CDN → self-contained, offline build). Fixes the
+    3-day-CI-artifact problem; API viewer render verified. *(Follow-up: a CI step should
+    regenerate + commit the schemas from drf-spectacular on release; the generated schema has
+    redoc lint warnings — missing `type`s — a platform-code quality note.)*
+  - **Wave 2 remaining:** remove the old flat `docs/` (alabaster + committed build output);
+    a Platform-API notebook; deeper integration of the k8s/Helm docs into the toctree.
