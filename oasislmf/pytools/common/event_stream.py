@@ -253,8 +253,8 @@ def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
         end of object index
     """
     # print('    ', sidx, loss)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, sidx)
-    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, loss)
+    cursor = mv_write(byte_mv, cursor, sidx_type, sidx_size, sidx)
+    cursor = mv_write(byte_mv, cursor, loss_type, loss_size, loss)
     return cursor
 
 
