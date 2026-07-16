@@ -373,5 +373,12 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   render. Committed on OasisModels `docs/migration` (`cb310bd`). Placement per the rule above.
   *(Corrected ORD semantics from ODS_OpenResultsData: EPType 1=OEP, 2=OEP TVaR, 3=AEP, 4=AEP TVaR;
   EPCalc 2=FullUncertainty.)*
-- **Still to author:** the **step-by-step** companion in OasisModels (decompose `run_kernel.sh`
-  stage by stage with intermediary bin/csv), plus the rest of the 10-notebook plan (§4).
+- **Wave 1 — increment 12 (step-by-step pipeline notebook, in OasisModels):** added
+  `tutorials/pipeline-step-by-step.md` decomposing the generated `run_kernel.sh` stage by
+  stage — `evepy → gulmc → fmpy → summarypy → eltpy/pltpy/lecpy/aalpy` — with each tool's
+  real command and the **intermediary stream data** (events; GUL item-level losses incl. the
+  `sidx` statistics -1..-5; FM insured losses), produced by running each pytools tool once on
+  a single event and converted with `bintocsv`. Engine shown as commands, not executed at
+  build; sample-loading cells execute (render-verified). OasisModels `docs/migration` (`4ff029f`).
+- **Notebooks still to author:** the rest of the 10-notebook plan (§4) — OED load/validate &
+  CEDE→OED (ODS_Tools), keys/lookup, platform API, etc.
