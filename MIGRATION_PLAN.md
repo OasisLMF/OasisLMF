@@ -395,10 +395,13 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   examples grounded in the real `--help`, concepts kept; dropped the HTML `<a id>`/"Return
   to top" anchors (xref_missing 86→80, warnings 347→338); and `OutputComponents.md`
   (eltcalc→eltpy, pltcalc→pltpy, leccalc→lecpy, aalcalc→aalpy, kat→katpy; ORD-native;
-  `7bae01d8d`; xref_missing 80→73, warnings 338→325). **Remaining kernel pages to
-  update:** `ORDOutputComponents`, `DataConversionComponents` + `StreamConversionComponents`
-  (converters → `csvtobin`/`bintocsv`), `ValidationComponents`, `Workflows` (pipelines →
-  pytools), and light passes on `Specification`/`fmprofiles` (formats/rules stable) and the
-  conceptual pages (`Introduction`/`Overview`/`ReferenceModelOverview`/`MultiPeril`/
-  `RandomNumbers`). Also drop remaining HTML anchors as each is rewritten (clears the rest
+  `7bae01d8d`; xref_missing 80→73, warnings 338→325). and the converter pages
+  `StreamConversionComponents` (full rewrite → `bintocsv`/`csvtobin`) + `DataConversionComponents`
+  (intro→`csvtobin`/`bintocsv` mapping table; format tables kept) (`e3de070ca`; xref_missing
+  73→44, warnings 325→291). **Remaining kernel pages to update:** `ORDOutputComponents`,
+  `ValidationComponents`, `Workflows` (pipelines → pytools), and light passes on
+  `Specification`/`fmprofiles` (formats/rules stable) and the conceptual pages
+  (`Introduction`/`Overview`/`ReferenceModelOverview`/`MultiPeril`/`RandomNumbers`).
+  *(Note: DataConversion's per-section command examples still show legacy binary names,
+  covered by its mapping-table banner — a deeper per-section pass is optional follow-up.)* Also drop remaining HTML anchors as each is rewritten (clears the rest
   of the ~80 xref_missing).
