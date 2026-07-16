@@ -1,67 +1,47 @@
-![alt text](/_static/images/kernel/banner.jpg "banner")
-# 4.4 Data conversion components <a id="dataconversioncomponents"></a>
+# Data conversion components
 
-The following components convert input data in csv format to the binary format required by the calculation components in the reference model;
+The Oasis calculation data — model static data and analysis inputs — is stored in binary
+format. In pytools, CSV↔binary conversion is done by two multi-purpose tools, one
+sub-command per file type, replacing the many individual ktools `*tobin`/`*tocsv` binaries:
 
-**Static data**
-* **[aggregatevulnerabilitytobin](#aggregatevulnerability)** converts the aggregate vulnerability data. 
-* **[damagebintobin](#damagebins)** converts the damage bin dictionary. 
-* **[footprinttobin](#footprint)** converts the event footprint.
-* **[lossfactorstobin](#lossfactors)** converts the lossfactors data. 
-* **[randtobin](#rand)** converts a list of random numbers. 
-* **[vulnerabilitytobin](#vulnerability)** converts the vulnerability data.
-* **[weightstobin](#weights)** converts the weights data.
+- **`csvtobin <type> -i data.csv -o data.bin`** — CSV → binary
+- **`bintocsv <type> -i data.bin -o data.csv`** — binary → CSV
 
-A reference [intensity bin dictionary](#intensitybins) csv should also exist, although there is no conversion component for this file because it is not needed for calculation purposes. 
+```{note}
+The per-file **format tables in the sections below are unchanged** (the binary formats are
+stable). Command examples in those sections may still show the legacy ktools binary names
+(e.g. `footprinttobin`); substitute the pytools tool + sub-command from the table below —
+note some names differ (`rand`→`random`, `item`→`items`, singular→plural).
+```
 
-**Input data**
-* **[amplificationtobin](#amplifications)** converts the amplifications data.
-* **[coveragetobin](#coverages)** converts the coverages data.
-* **[ensembletobin](#ensemble)** converts the ensemble data.
-* **[evetobin](#events)** converts a list of event_ids.
-* **[itemtobin](#items)** converts the items data.
-* **[gulsummaryxreftobin](#gulsummaryxref)** converts the gul summary xref data.
-* **[fmpolicytctobin](#fmpolicytc)** converts the fm policytc data.
-* **[fmprogrammetobin](#fmprogramme)** converts the fm programme data.
-* **[fmprofiletobin](#fmprofile)** converts the fm profile data.
-* **[fmsummaryxreftobin](#fmsummaryxref)** converts the fm summary xref data.
-* **[fmxreftobin](#fmxref)** converts the fm xref data.
-* **[occurrencetobin](#occurrence)** converts the event occurrence data.
-* **[returnperiodtobin](#returnperiod)** converts a list of return periods.
-* **[periodstobin](#periods)** converts a list of weighted periods (optional).
-* **[quantiletobin](#quantile)** converts a list of quantiles (optional).
+**Sub-command per file type** (used with both `csvtobin` and `bintocsv`):
 
-These components are intended to allow users to generate the required input binaries from csv independently of the original data store and technical environment. All that needs to be done is first generate the csv files from the data store (SQL Server database, etc).
+| Data file | sub-command |
+|-----------|-------------|
+| aggregate vulnerability | `aggregatevulnerability` |
+| damage bin dictionary | `damagebin` |
+| footprint | `footprint` |
+| loss factors | `lossfactors` |
+| random numbers | `random` |
+| vulnerability | `vulnerability` |
+| weights | `weights` |
+| amplifications | `amplifications` |
+| coverages | `coverages` |
+| events | `eve` |
+| items | `items` |
+| gul summary xref | `gul_summary_xref` |
+| fm policytc | `fm_policytc` |
+| fm programme | `fm_programme` |
+| fm profile (/ step) | `fm_profile` (`fm_profile_step`) |
+| fm summary xref | `fm_summary_xref` |
+| fm xref | `fm_xref` |
+| occurrence | `occurrence` |
+| return periods | `returnperiods` |
+| periods | `periods` |
+| quantile | `quantile` |
 
-The following components convert the binary input data required by the calculation components in the reference model into csv format;
-
-**Static data**
-* **[aggregatevulnerabilitytocsv](#aggregatevulnerability)** converts the aggregate vulnerability data. 
-* **[damagebintocsv](#damagebins)** converts the damage bin dictionary. 
-* **[footprinttocsv](#footprint)** converts the event footprint.
-* **[lossfactorstocsv](#lossfactors)** converts the lossfactors data. 
-* **[randtocsv](#rand)** converts a list of random numbers. 
-* **[vulnerabilitytocsv](#vulnerability)** converts the vulnerability data.
-* **[weightstocsv](#weights)** converts the weights data.
-
-**Input data**
-* **[amplificationtocsv](#amplifications)** converts the amplifications data.
-* **[coveragetocsv](#coverages)** converts the coverages data.
-* **[ensembletocsv](#ensemble)** converts the ensemble data.
-* **[evetocsv](#events)** converts a list of event_ids.
-* **[itemtocsv](#items)** converts the items data.
-* **[gulsummaryxreftocsv](#gulsummaryxref)** converts the gul summary xref data.
-* **[fmpolicytctocsv](#fmpolicytc)** converts the fm policytc data.
-* **[fmprogrammetocsv](#fmprogramme)** converts the fm programme data.
-* **[fmprofiletocsv](#fmprofile)** converts the fm profile data.
-* **[fmsummaryxreftocsv](#fmsummaryxref)** converts the fm summary xref data.
-* **[fmxreftocsv](#fmxref)** converts the fm xref data.
-* **[occurrencetocsv](#occurrence)** converts the event occurrence data.
-* **[returnperiodtocsv](#returnperiod)** converts a list of return periods.
-* **[periodstocsv](#returnperiod)** converts a list of weighted periods (optional).
-* **[quantiletocsv](#quantile)** converts a list of quantiles (optional).
-
-These components are provided for the convenience of viewing the data and debugging.
+Parquet input is handled by `parquettobin`. A reference intensity bin dictionary CSV may
+also exist (there is no converter for it — it is not needed for calculation).
 
 ## Static data
 
