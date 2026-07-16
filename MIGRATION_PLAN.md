@@ -414,3 +414,14 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   still show legacy binary names, covered by its mapping-table banner — optional deeper
   follow-up. The residual ~220 warnings are inherited docutils issues in the explanation
   methodology pages, not the kernel.)*
+- **Wave 2 — OasisPlatform docs foundation (OasisPlatform `b23d5aa6`):** stood up a Furo+MyST
+  Diátaxis project in `OasisPlatform/docs/source/` (replacing the old flat alabaster `docs/`)
+  and migrated the platform pages from GenerateDocs — explanation: overview,
+  platform_architecture, Oasis-UI; how-to: first-steps, deployment, container_configuration,
+  distributed_execution, distributed_configuration (+ pointer to the in-repo
+  `kubernetes/charts` Helm docs); reference: rest_api, API. 16 images migrated; within-set
+  `:doc:` absolute, out-of-set softened. Build green, renders clean; 64 residual warnings are
+  inherited docutils formatting in the migrated rst.
+  - **Wave 2 remaining:** persist the drf-spectacular **OpenAPI v1/v2 schemas** in-repo + render
+    with redoc (fix the 3-day-artifact problem); remove the old flat `docs/` (alabaster +
+    committed build output); a Platform-API notebook; deeper integration of the k8s/Helm docs.
