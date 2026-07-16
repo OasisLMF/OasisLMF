@@ -1,29 +1,35 @@
 import numpy as np
 from numpy.testing import assert_allclose
-from oasislmf.pytools.common.data import oasis_float
+from oasislmf.pytools.common.data import def_to_type_and_size, loss_pair_dtype, item_header_dtype
 from .common import EXTRA_SIDX_COUNT
 from .financial_structure import load_static
 
-# Define dtypes for reading binary stream format
-event_agg_dtype = np.dtype([('event_id', 'i4'), ('item_id', 'i4')])
-sidx_loss_dtype = np.dtype([('sidx', 'i4'), ('loss', 'f4')])
+loss_type, _ = def_to_type_and_size('loss')
+
+# redefine dtypes for reading binary stream format
+event_agg_dtype = item_header_dtype
+sidx_loss_dtype = loss_pair_dtype
 
 
 def stream_to_dict_array(stream_obj):
     stream_type = stream_obj.read(4)
     len_sample = np.frombuffer(stream_obj.read(4), dtype=np.int32)[0]
 
-    buf = bytearray(8)
-    mv = memoryview(buf)
+    event_agg_buf = bytearray(event_agg_dtype.itemsize)
+    event_agg_mv = memoryview(event_agg_buf)
 
-    event_agg = np.ndarray(1, buffer=mv, dtype=event_agg_dtype)
-    sidx_loss = np.ndarray(1, buffer=mv, dtype=sidx_loss_dtype)
+    sidx_loss_buf = bytearray(sidx_loss_dtype.itemsize)
+    sidx_loss_mv = memoryview(sidx_loss_buf)
 
-    event_id_last = 0
+    event_agg = np.ndarray(1, buffer=event_agg_mv, dtype=event_agg_dtype)
+    sidx_loss = np.ndarray(1, buffer=sidx_loss_mv, dtype=sidx_loss_dtype)
+
     event_id, agg_id = 0, 0
     dict_array = {}
-    while stream_obj.readinto(mv):
+    while True:
         if agg_id:
+            if stream_obj.readinto(sidx_loss_mv) < sidx_loss_dtype.itemsize:
+                break
             sidx, loss = sidx_loss[0]
             if sidx == -3:
                 sidx = 0
@@ -34,12 +40,9 @@ def stream_to_dict_array(stream_obj):
                 continue
             cur_array[sidx] = 0 if np.isnan(loss) else loss
         else:
+            if stream_obj.readinto(event_agg_mv) < event_agg_dtype.itemsize:
+                break
             event_id, agg_id = event_agg[0]
-            # if event_id_last != event_id:
-            #     if event_id_last:
-            #         break
-            #     else:
-            #         event_id_last = event_id
             cur_array = np.zeros(len_sample + EXTRA_SIDX_COUNT, dtype=oasis_float)
             dict_array[(event_id, agg_id)] = cur_array
 
@@ -49,13 +52,6 @@ def stream_to_dict_array(stream_obj):
 def round_dict_array(dict_array, precision):
     for key, values in dict_array.items():
         values.round(decimals=precision, out=values)
-
-
-def dict_array_to_np_array(dict_array, len_sample):
-    res = np.empty(len(dict_array), dtype=np.dtype(f"i4, i4, ({len_sample + EXTRA_SIDX_COUNT})f4"))
-    for i, (event_id, agg_id) in enumerate(sorted(dict_array)):
-        res[i] = event_id, agg_id, dict_array[(event_id, agg_id)]
-    return res
 
 
 def compare_streams(gul_stream, fm_stream_obj1, fm_stream_obj2, precision):

@@ -10,7 +10,7 @@ import sys
 import numpy as np
 import numba as nb
 
-from .data import oasis_int, oasis_int_size, oasis_float, oasis_float_size
+from .data import def_to_type_and_size, oasis_int, oasis_int_size, oasis_float, oasis_float_size
 
 # streams
 PIPE_CAPACITY = 65536  # bytes
@@ -34,6 +34,13 @@ STD_DEV_IDX = -2
 TIV_IDX = -3
 CHANCE_OF_LOSS_IDX = NUMBER_OF_AFFECTED_RISK_IDX = -4
 MAX_LOSS_IDX = -5
+
+
+# Load type info
+event_id_type, event_id_size = def_to_type_and_size("event_id")
+item_id_type, item_id_size = def_to_type_and_size("item_id")
+sidx_type, sidx_size = def_to_type_and_size("sidx")
+loss_type, loss_size = def_to_type_and_size("loss")
 
 
 def stream_info_to_bytes(stream_source_type, stream_agg_type):
@@ -161,10 +168,12 @@ def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_valu
     return cursor
 
 
-@nb.jit(nopython=True, cache=True)
+@nb.jit(nopython=True)
 def mv_write_item_header(byte_mv, cursor, event_id, item_id) -> int:
     """
-    write a item header to the numpy byte view at index cursor, return the index of the end of the object
+    wrapper function for cached mv_write_item_header. writes an item header to the numpy byte view,
+    return index of the end of the object
+
     Args:
         byte_mv: numpy byte view
         cursor: index of where the object start
@@ -174,13 +183,40 @@ def mv_write_item_header(byte_mv, cursor, event_id, item_id) -> int:
     Returns:
         end of object index
     """
-    # print(event_id, item_id)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, event_id)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, item_id)
-    return cursor
+    # pass in type info so caching is correct
+    return mv_write_item_header_cached(byte_mv, cursor, event_id, item_id,
+                                       event_id_type=event_id_type,
+                                       item_id_type=item_id_type,
+                                       event_id_size=event_id_size,
+                                       item_id_size=item_id_size)
 
 
 @nb.jit(nopython=True, cache=True)
+def mv_write_item_header_cached(byte_mv, cursor, event_id, item_id,
+                                event_id_type, event_id_size,
+                                item_id_type, item_id_size) -> int:
+    """
+    write a item header to the numpy byte view at index cursor, return the index of the end of the object
+    Args:
+        byte_mv: numpy byte view
+        cursor: index of where the object start
+        event_id: event id
+        item_id: item id
+        event_id_type: type info for event id
+        item_id_type: type info for item id
+        event_id_size: size of event id in bytes
+        item_id_size: size of item id
+
+    Returns:
+        end of object index
+    """
+    # print(event_id, item_id)
+    cursor = mv_write(byte_mv, cursor, event_id_type, event_id_size, event_id)
+    cursor = mv_write(byte_mv, cursor, item_id_type, item_id_size, item_id)
+    return cursor
+
+
+@nb.jit(nopython=True)
 def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
     """
     write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
@@ -193,9 +229,32 @@ def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
     Returns:
         end of object index
     """
+    return mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss,
+                                     sidx_type=sidx_type, sidx_size=sidx_size,
+                                     loss_type=loss_type, loss_size=loss_size)
+
+
+@nb.jit(nopython=True, cache=True)
+def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
+                              loss_type, sidx_size, loss_size) -> int:
+    """
+    cached write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
+    Args:
+        byte_mv: numpy byte view
+        cursor: index of where the object start
+        sidx: sample id
+        loss: loss
+        sidx_type: sample id type info
+        loss_type: loss type info
+        sidx_size: sample id size in bytes
+        loss_size: loss size in bytes
+
+    Returns:
+        end of object index
+    """
     # print('    ', sidx, loss)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, sidx)
-    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, loss)
+    cursor = mv_write(byte_mv, cursor, sidx_type, sidx_size, sidx)
+    cursor = mv_write(byte_mv, cursor, loss_type, loss_size, loss)
     return cursor
 
 

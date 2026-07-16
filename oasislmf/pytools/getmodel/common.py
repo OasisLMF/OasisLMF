@@ -27,10 +27,10 @@ event_defintion_filename = 'event_definition.parquet'
 hazard_case_filename = 'hazard_case.parquet'
 
 
-FootprintHeader = nb.from_dtype(np.dtype([('num_intensity_bins', np.int32),
-                                          ('has_intensity_uncertainty',
-                                           np.int32)
-                                          ]))
+FootprintHeader = np.dtype([('num_intensity_bins', np.int32),
+                            ('has_intensity_uncertainty',
+                             np.int32)
+                            ])
 
 Event_dtype = np.dtype([
     ('areaperil_id', areaperil_int),
