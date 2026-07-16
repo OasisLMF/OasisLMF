@@ -433,5 +433,12 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
     alabaster `docs/` source + committed build output (53 files, ~18.3k lines); kept
     `docs/source/`, `requirements.txt`, the `analysis_settings.json/.xsd` examples, and
     pointed `docs/Makefile` at `source/`. Build unchanged (16 pages, redoc intact).
-  - **Wave 2 remaining:** a Platform-API notebook; deeper integration of the k8s/Helm docs
-    into the toctree.
+  - **Wave 2 — Platform-API how-to (OasisPlatform `1bb0922d`):** added
+    `how-to/run-analysis-via-api.md` documenting the full `APIClient` workflow (connect →
+    register model → upload OED → create analysis → generate_inputs → run → download ORD
+    outputs) + CLI equivalent. Execution-off (a live run needs the full platform stack).
+    Grounded in the real client code; **every endpoint validated against the persisted
+    `platform-2.json` OpenAPI schema.** *(Live Docker validation not possible in the sandbox
+    — no docker-group access + sudo needs a password; the workflow was schema-validated
+    instead. A maintainer can run it against a `docker compose up` platform.)*
+  - **Wave 2 remaining:** deeper integration of the k8s/Helm docs into the toctree (optional).
