@@ -393,9 +393,10 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   `reference/kernel/CoreComponents.md` for pytools — tool mapping (eve→evepy, getmodel→
   modelpy, gulcalc→gulpy/gulmc, fmcalc→fmpy, summarycalc→summarypy), pytools CLI/usage/
   examples grounded in the real `--help`, concepts kept; dropped the HTML `<a id>`/"Return
-  to top" anchors (xref_missing 86→80, warnings 347→338). **Remaining kernel pages to
-  update:** `OutputComponents` (eltcalc/leccalc/pltcalc/aalcalc/kat → eltpy/lecpy/pltpy/
-  aalpy), `ORDOutputComponents`, `DataConversionComponents` + `StreamConversionComponents`
+  to top" anchors (xref_missing 86→80, warnings 347→338); and `OutputComponents.md`
+  (eltcalc→eltpy, pltcalc→pltpy, leccalc→lecpy, aalcalc→aalpy, kat→katpy; ORD-native;
+  `7bae01d8d`; xref_missing 80→73, warnings 338→325). **Remaining kernel pages to
+  update:** `ORDOutputComponents`, `DataConversionComponents` + `StreamConversionComponents`
   (converters → `csvtobin`/`bintocsv`), `ValidationComponents`, `Workflows` (pipelines →
   pytools), and light passes on `Specification`/`fmprofiles` (formats/rules stable) and the
   conceptual pages (`Introduction`/`Overview`/`ReferenceModelOverview`/`MultiPeril`/
