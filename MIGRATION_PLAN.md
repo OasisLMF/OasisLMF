@@ -380,5 +380,12 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   `sidx` statistics -1..-5; FM insured losses), produced by running each pytools tool once on
   a single event and converted with `bintocsv`. Engine shown as commands, not executed at
   build; sample-loading cells execute (render-verified). OasisModels `docs/migration` (`4ff029f`).
-- **Notebooks still to author:** the rest of the 10-notebook plan (§4) — OED load/validate &
-  CEDE→OED (ODS_Tools), keys/lookup, platform API, etc.
+- **Wave 1 — increment 13 (OED load/validate notebook, in ODS_Tools):** stood up an
+  executable docs project in **ODS_Tools** (Furo + myst-nb) and added
+  `tutorials/load-validate-oed.md` — loads an OED location file with `ods_tools.oed`
+  (typed DataFrame), runs the OED validation rules in `return` mode (catches a missing
+  conditionally-required `LocPeril`), fixes it and re-validates (0 findings). Exercises the
+  `ods_tools` **library** (light), so it **executes at docs-build** (render-verified).
+  ODS_Tools `docs/migration` (`c0e626f`).
+- **Notebooks still to author:** CEDE→OED via ODTF and currency conversion (ODS_Tools),
+  keys/lookup and platform-API examples (their repos) — the rest of the §4 plan.
