@@ -403,10 +403,14 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
   tables↔tools↔`ord_output`-flags mapping; column specs deferred to the ORD standard;
   `061c1a960`; xref_missing 38→34, warnings 285→276). and `ValidationComponents` (rewritten
   from the actual code — `csvtobin` inline validation + `csv_validity_test` still-ktools
-  cross-checks + `ods_tools` OED validation; `bb44c0544`). **Remaining kernel pages:** light
-  passes on
-  `Specification`/`fmprofiles` (formats/rules stable) and the conceptual pages
-  (`Introduction`/`Overview`/`ReferenceModelOverview`/`MultiPeril`/`RandomNumbers`).
-  *(Note: DataConversion's per-section command examples still show legacy binary names,
-  covered by its mapping-table banner — a deeper per-section pass is optional follow-up.)* Also drop remaining HTML anchors as each is rewritten (clears the rest
-  of the ~80 xref_missing).
+  cross-checks + `ods_tools` OED validation; `bb44c0544`); and the **light conceptual
+  passes** (`Specification`, `fmprofiles`, `Introduction`, `Overview`, `ReferenceModelOverview`,
+  `MultiPeril`, `RandomNumbers`, `Contents` + DataConversion residuals) — dropped banners /
+  HTML anchors / return-to-top, modernised prose tool names, RandomNumbers `--random-generator`
+  note, Introduction ktools→kernel reframe, Specification de-linked contents lists (`b252c7380`).
+
+  **✅ Kernel UPDATE pass COMPLETE — the kernel section is warning-clean; overall
+  `xref_missing` 86→0, warnings 347→220.** *(DataConversion's per-section command examples
+  still show legacy binary names, covered by its mapping-table banner — optional deeper
+  follow-up. The residual ~220 warnings are inherited docutils issues in the explanation
+  methodology pages, not the kernel.)*
