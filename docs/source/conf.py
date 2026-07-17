@@ -54,12 +54,38 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
+    'sphinx.ext.napoleon',   # Google-style docstrings (per project style guide)
     'autoapi.extension',
+    'myst_nb',               # Markdown (MyST) + executable notebooks (bundles myst_parser)
+    'sphinx_design',         # Grids / cards for the Diataxis + audience landing page
+    'sphinx_copybutton',     # Copy button on code blocks
 ]
 
 
-# API Generation
-autoapi_dirs = ['../../oasislmf']
+# -- Auto-generated API reference (sphinx-autoapi) ---------------------------
+# NOTE (docs restructure POC): autoapi is AST-based, so it never imports the
+# package and never pulls in the heavy runtime dependencies. Historically this
+# was pointed at the whole package (``['../../oasislmf']``), producing ~500
+# unstructured pages and a ~4 minute build. For this proof-of-concept it is
+# scoped per-subsystem (currently FM + gulmc) so the API reference sits directly
+# beside its explanation pages and the build stays fast. The consolidation plan is
+# to widen this per-subsystem as each adopts the reference/explanation pattern --
+# not to go back to a single whole-package dump. See ``DOCS_STRATEGY.md``.
+autoapi_dirs = [
+    '../../oasislmf/pytools/fm',
+    '../../oasislmf/pytools/gulmc',
+    # output modules (results / ORD outputs)
+    '../../oasislmf/pytools/elt',
+    '../../oasislmf/pytools/lec',
+    '../../oasislmf/pytools/plt',
+    '../../oasislmf/pytools/aal',
+    '../../oasislmf/pytools/summary',
+    '../../oasislmf/pytools/pla',
+    # keys / lookup framework
+    '../../oasislmf/lookup',
+]
+autoapi_root = 'reference/api'
+autoapi_add_toctree_entry = False   # placed under the Reference section by hand
 autoapi_options = [
     "members",
     # "inherited-members",  # errors
@@ -69,14 +95,46 @@ autoapi_options = [
 ]
 autoapi_keep_files = False
 
+# When autoapi is scoped to a subpackage, its AST resolver cannot see sibling
+# packages (e.g. ``oasislmf.pytools.common``), which is harmless but noisy. Once
+# autoapi is widened per the strategy these resolve naturally.
+suppress_warnings = [
+    'autoapi.python_import_resolution',
+    # ktools Markdown (drained into reference/kernel) uses non-consecutive heading
+    # levels (e.g. H1 -> H3); inherited and cosmetic. Revisit in the UPDATE pass.
+    'myst.header',
+]
+
 # Add any paths that contain templates here, relative to this directory.
 # templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+# Accept both reStructuredText and Markdown (MyST). New pages prefer Markdown;
+# existing .rst is migrated incrementally rather than in a big bang.
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'myst-nb',
+    '.ipynb': 'myst-nb',
+}
+
+# -- MyST (Markdown) configuration ------------------------------------------
+myst_enable_extensions = [
+    'colon_fence',   # ::: fenced directives (used by the landing-page cards)
+    'deflist',
+    'substitution',
+    'tasklist',
+]
+myst_heading_anchors = 6
+
+# -- Executable notebooks (myst-nb) -----------------------------------------
+# Notebooks are executed at build time; a cell error FAILS the build, so the docs
+# build doubles as a notebook smoke test ("does this example still run against the
+# current code"). For output-assertion/regression testing use nbmake in CI.
+nb_execution_mode = "cache"          # execute, cache results between builds
+nb_execution_raise_on_error = True   # fail the build if any notebook errors
+nb_execution_timeout = 180
 
 # The master toctree document.
 master_doc = 'index'
@@ -155,7 +213,15 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-# html_static_path = ['_static']
+html_static_path = ['_static']
+
+# -- Link checking -----------------------------------------------------------
+# ``make linkcheck`` catches dead external links (e.g. the historic
+# simplitium/oed link). Anchor checks on GitHub blobs are noisy, so ignore them.
+linkcheck_ignore = [
+    r'https://github\.com/.*#.*',
+]
+linkcheck_timeout = 15
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -353,3 +419,45 @@ class CliDocumenter(autodoc.ClassDocumenter):
 def setup(app):
     app.add_autodocumenter(CliDocumenter)
     list_options()
+
+
+# -- Cross-component links (intersphinx, aggregated site) --------------------
+# The GenerateDocs orchestrator sets OASIS_INTERSPHINX_MAP (JSON) to point cross-references at
+# the other components' built inventories; standalone builds add nothing. Use explicit roles,
+# e.g. {external+ord:doc}`reference/tables` or :external+oed:ref:`some-label`.
+import json as _ix_json, os as _ix_os
+if "sphinx.ext.intersphinx" not in extensions:
+    extensions = list(extensions) + ["sphinx.ext.intersphinx"]
+try:
+    intersphinx_mapping
+except NameError:
+    intersphinx_mapping = {}
+intersphinx_mapping.update({
+    _k: (_v[0], _v[1])
+    for _k, _v in _ix_json.loads(_ix_os.environ.get("OASIS_INTERSPHINX_MAP", "{}")).items()
+})
+# -- Oasis shared branding (logo, palette, home link) -----------------------
+import os as _os_brand
+if globals().get("html_theme") == "furo":
+    if "_static" not in (globals().get("html_static_path") or []):
+        html_static_path = list(globals().get("html_static_path") or []) + ["_static"]
+    try:
+        html_theme_options
+    except NameError:
+        html_theme_options = {}
+    html_theme_options.setdefault("light_logo", "OASIS_LMF_COLOUR.png")
+    html_theme_options.setdefault("dark_logo", "OASIS_LMF_WHITE.png")
+    _lcv = html_theme_options.setdefault("light_css_variables", {})
+    _lcv.setdefault("color-brand-primary", "#862633")
+    _lcv.setdefault("color-brand-content", "#d22630")
+    _lcv.setdefault("font-stack", "Raleway, sans-serif")
+    _dcv = html_theme_options.setdefault("dark_css_variables", {})
+    _dcv.setdefault("color-brand-primary", "#e2919b")
+    _dcv.setdefault("color-brand-content", "#ef8b93")
+    _home = _os_brand.environ.get("OASIS_DOCS_HOME", "https://oasislmf.github.io/index.html")
+    html_theme_options.setdefault(
+        "announcement",
+        '<a href="' + _home + '" style="color:inherit;font-weight:600;text-decoration:none">'
+        '&#8962; Oasis documentation home</a>')
+    if "https://fonts.googleapis.com/css?family=Raleway" not in (globals().get("html_css_files") or []):
+        html_css_files = list(globals().get("html_css_files") or []) + ["https://fonts.googleapis.com/css?family=Raleway"]
