@@ -438,7 +438,64 @@ Waves 1/2/3 are largely parallel across repos. Each is independently shippable.
     register model → upload OED → create analysis → generate_inputs → run → download ORD
     outputs) + CLI equivalent. Execution-off (a live run needs the full platform stack).
     Grounded in the real client code; **every endpoint validated against the persisted
-    `platform-2.json` OpenAPI schema.** *(Live Docker validation not possible in the sandbox
-    — no docker-group access + sudo needs a password; the workflow was schema-validated
-    instead. A maintainer can run it against a `docker compose up` platform.)*
+    `platform-2.json` OpenAPI schema.**
+  - **Wave 2 — Platform-API how-to VALIDATED LIVE (later):** brought up a full v2 platform on
+    local Docker (built version-matched `api_server:dev` + `model_worker:dev`) and drove the
+    whole workflow end to end — register → upload OED → generate_inputs → run → download →
+    plot the EP curve — against PiWind (real ORD outputs). Notebook corrected from the live
+    run (`api_url` needs `/api/`, `auth_type="simple"`, `run_mode` step), a real download
+    artifact + a validated EP-curve plot cell added, and a `docs/RUNBOOK.md` written. Docker
+    was fixed on the host (disabled a confined snap daemon in favour of apt `docker-ce`).
   - **Wave 2 remaining:** deeper integration of the k8s/Helm docs into the toctree (optional).
+
+- **Wave 3 — ODS standards reference sites (ORD + OED):** stood up standalone Furo+MyST Sphinx
+  sites in `ODS_OpenResultsData/docs` and `ODS_OpenExposureData/docs` (both on `docs/migration`),
+  with the **field/table reference generated at build time from the spec** (single source of
+  truth) via a small local Sphinx extension:
+  - **ORD** (`_ext/gen_ord_reference.py`) reads `Schema/ORD_Tables.csv` + `ORD_List_of_Fields.csv`
+    → tables catalogue (22 tables) + field reference (117 fields); plus explanation (perspectives,
+    table families, EPType/EPCalc, special sidx, summary levels) and worked-examples links.
+    Clean build, 9 pages, 0 warnings.
+  - **OED** (`_ext/gen_oed_reference.py`) reads `oed.json` → field reference grouped by input
+    file Loc/Acc/ReinsInfo/ReinsScope (565 fields) + coded values (932: perils, occupancy,
+    construction, country, coverage); explanation overview (four files, exposure hierarchy) plus
+    the migrated spec chapters (rationale, import format, asset details, geography & perils,
+    financial primary + policy conditions, reinsurance). Clean build, 14 pages, 0 warnings.
+  - `_generated/` is git-ignored (rebuilt from spec each build). Both sites: `make html`.
+  - **ODS_Tools settings-schema reference (`ODS_Tools/docs`, `docs/migration`):** added a
+    `reference/` section generated from `ods_tools/data/{model,analysis,combine}_settings_schema.json`
+    via `_ext/gen_settings_reference.py` — a recursive JSON-Schema walker that expands nested
+    objects (e.g. `gul_summaries.ord_output`) into their own subsections. model_settings 301
+    fields, analysis_settings 202, combine_settings 17. Wired into the existing Furo/MyST site
+    beside the OED load/validate notebook. Clean build, 0 warnings.
+  - **Wave 3 complete.**
+
+- **GenerateDocs slimmed into a version-pinned orchestrator (`GenerateDocs`, `docs/migration`):**
+  drained the monolithic duplicated content (`src/sections/` ~45 files, `src/schema`,
+  `src/releases`, `update-redoc.py`, `redoc/` — all now owned by the component repos) and
+  replaced the build with a manifest-driven orchestrator:
+  - **`modules.json`** — the pinned manifest: each component's `repo`, `ref` (pin to a release
+    tag for a released site; currently `docs/migration`), `docs_source`, publish `path`, title.
+  - **`orchestrate.py`** — builds each component's own self-contained docs from its repo (at the
+    pinned ref via `--clone`, or from local checkouts via `--use-local`) and assembles them under
+    `output/site/<path>/` with the slim landing at the root. Builds each with CWD = the repo's
+    `docs/` dir so per-repo generators/hooks (autoapi, `gen_*_reference`, OasisLMF's
+    `generated_options.rst`) resolve. Publishes `modules.json` beside the site for a version selector.
+  - **`src/`** slimmed to a landing only (Furo+MyST, no per-repo extensions): a rewritten
+    `index.rst` with a component-cards grid linking to `/<path>/`, plus the aggregator-level
+    `home/` + `use_cases/` (their `sections/` links repointed to the component sites). `build.sh`
+    is now a thin wrapper (`./build.sh` = clone+build; `./build.sh --local` = local).
+  - Verified end to end (`--use-local`): all six component sites + landing assemble under
+    `output/site/` (each with `index.html` + `objects.inv`); landing 0 warnings. Per-repo warning
+    counts are inherited content debt (oasislmf 220, platform 64), not orchestrator issues.
+  - **Cross-component intersphinx wired.** Each repo's `conf.py` carries a uniform, idempotent,
+    env-driven block: it adds `sphinx.ext.intersphinx` if missing and merges
+    `OASIS_INTERSPHINX_MAP` (JSON, set by the orchestrator) into `intersphinx_mapping` — so
+    standalone builds are unaffected. The orchestrator now builds in **two passes**: pass 1
+    produces every module's `objects.inv`; pass 2 rebuilds each module with the *others'*
+    inventories, link targets set to `site_base_url + <path>/` (from `modules.json`) so links are
+    correct at any page depth. Demonstrated: ODS_Tools `analysis-settings` →
+    `{external+ord:doc}` resolves to `https://oasislmf.github.io/ord/reference/tables.html`.
+    `--single-pass` skips the xref pass for speed.
+  - **Remaining across the migration:** pin `ref`s to release tags for a released build, add more
+    cross-component references as useful, then the coordinated push + PR across all repos.

@@ -419,3 +419,20 @@ class CliDocumenter(autodoc.ClassDocumenter):
 def setup(app):
     app.add_autodocumenter(CliDocumenter)
     list_options()
+
+
+# -- Cross-component links (intersphinx, aggregated site) --------------------
+# The GenerateDocs orchestrator sets OASIS_INTERSPHINX_MAP (JSON) to point cross-references at
+# the other components' built inventories; standalone builds add nothing. Use explicit roles,
+# e.g. {external+ord:doc}`reference/tables` or :external+oed:ref:`some-label`.
+import json as _ix_json, os as _ix_os
+if "sphinx.ext.intersphinx" not in extensions:
+    extensions = list(extensions) + ["sphinx.ext.intersphinx"]
+try:
+    intersphinx_mapping
+except NameError:
+    intersphinx_mapping = {}
+intersphinx_mapping.update({
+    _k: (_v[0], _v[1])
+    for _k, _v in _ix_json.loads(_ix_os.environ.get("OASIS_INTERSPHINX_MAP", "{}")).items()
+})
