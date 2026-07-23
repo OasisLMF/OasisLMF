@@ -9,7 +9,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
-                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
+                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv, loss_pair_dtype, loss_pair_size, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import read_event_rates, read_quantile
@@ -18,6 +18,12 @@ from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
+
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
+summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
+sidx_dtype, sidx_dtype_size = def_to_type_and_size("sidx")
+loss_dtype, loss_dtype_size = def_to_type_and_size("loss")
 
 class ELTReader(EventReader):
     def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals):
@@ -200,31 +206,31 @@ def read_buffer(
     while cursor < valid_buff:
         if not state["reading_losses"]:
             # Read summary header
-            if valid_buff - cursor >= 3 * oasis_int_size + oasis_float_size:
+            if valid_buff - cursor >= 2 * oasis_int_size + event_id_dtype_size + oasis_float_size:
                 # Need to read summary_set_id from summary info first
                 if not state["read_summary_set_id"]:
                     _, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                     state["read_summary_set_id"] = True
-                event_id_new, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+                event_id_new, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
                     _update_idxs()
                     return cursor - oasis_int_size, last_event_id, item_id, 1
                 event_id = event_id_new
-                state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+                state["summary_id"], cursor = mv_read(byte_mv, cursor, summary_id_dtype, summary_id_dtype_size)
                 state["impacted_exposure"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                 state["reading_losses"] = True
             else:
                 break  # Not enough for whole summary header
 
         if state["reading_losses"]:
-            if valid_buff - cursor < oasis_int_size + oasis_float_size:
+            if valid_buff - cursor < loss_pair_size:
                 break  # Not enough for whole record
 
             # Read sidx
-            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            sidx, cursor = mv_read(byte_mv, cursor, sidx_dtype, sidx_dtype_size)
             if sidx == 0:  # sidx == 0, end of record
-                cursor += oasis_float_size  # Read extra 0 for end of record
+                cursor += loss_dtype_size  # Read extra 0 for end of record
                 if state["compute_melt"]:
                     # Compute MELT statistics and store them
                     if state["impacted_exposure"] > 0:
@@ -313,7 +319,7 @@ def read_buffer(
                 continue
 
             # Read loss
-            loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+            loss, cursor = mv_read(byte_mv, cursor, loss_dtype, loss_dtype_size)
             if sidx == MAX_LOSS_IDX:
                 state["max_loss"] = loss
             else:  # Normal data record
@@ -358,7 +364,7 @@ def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
-    unique_event_ids = np.array([], dtype=oasis_int)
+    unique_event_ids = np.array([], dtype=event_id_dtype)
     event_rates = np.array([], dtype=oasis_float)
     include_event_rate = False
     if compute_melt:

@@ -39,6 +39,7 @@ MAX_LOSS_IDX = -5
 # Load type info
 event_id_type, event_id_size = def_to_type_and_size("event_id")
 item_id_type, item_id_size = def_to_type_and_size("item_id")
+summary_id_dtype, summary_id_size = def_to_type_and_size("summary_id")
 sidx_type, sidx_size = def_to_type_and_size("sidx")
 loss_type, loss_size = def_to_type_and_size("loss")
 
@@ -147,10 +148,10 @@ def mv_write(byte_mv, cursor, _dtype, itemsize, value) -> int:
     return cursor + itemsize
 
 
-@nb.jit(nopython=True, cache=True)
+@nb.jit(nopython=True)
 def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_value) -> int:
     """
-    write a summary header to the numpy byte view at index cursor, return the index of the end of the object
+    wrapper for cached write a summary header to the numpy byte view at index cursor, return the index of the end of the object
     Args:
         byte_mv: numpy byte view
         cursor: index of where the object start
@@ -162,10 +163,38 @@ def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_valu
         end of object index
     """
     # print(event_id, summary_id, exposure_value)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, event_id)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, summary_id)
-    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, exposure_value)
+    return mv_write_summary_header_cached(byte_mv, cursor, event_id, summary_id, exposure_value,
+                                          event_id_type, event_id_size, summary_id_dtype, summary_id_size,
+                                          loss_type, loss_size)
+
+@nb.jit(nopython=True, cache=True)
+def mv_write_summary_header_cached(byte_mv, cursor, event_id, summary_id, exposure_value,
+                                event_id_type, event_id_size,
+                                summary_id_dtype, summary_id_size,
+                                exposure_value_dtype, exposure_value_size) -> int:
+    """
+    cached write a summary header to the numpy byte view at index cursor, return the index of the end of the object
+    Args:
+        byte_mv: numpy byte view
+        cursor: index of where the object start
+        event_id: event id
+        summary_id: summary id
+        exposure_value: exposure value
+        event_id_type: type info for event id
+        summary_id_type: type info for summary id
+        exposure_value_type: type info for exposure value
+        event_id_size: size of event id in bytes
+        summary_id_size: size of summary id
+        exposure_value_size: size of exposure value
+
+    Returns:
+        end of object index
+    """
+    cursor = mv_write(byte_mv, cursor, event_id_type, event_id_size, event_id)
+    cursor = mv_write(byte_mv, cursor, summary_id_dtype, summary_id_size, summary_id)
+    cursor = mv_write(byte_mv, cursor, exposure_value_dtype, exposure_value_size, exposure_value)
     return cursor
+
 
 
 @nb.jit(nopython=True)

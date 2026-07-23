@@ -290,7 +290,7 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
             else:
                 return cursor, loss_summary_index, sidx, summary_index_cursor
 
-        cursor = mv_write_delimiter(byte_mv, cursor)
+        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
         # set the correct offset for idx file and update summary_sets_cursor
         summary_byte_len = cursor - summary_stream_index[summary_index_cursor]['offset']
         summary_stream_index[summary_index_cursor]['offset'] = summary_sets_cursor[summary_set_index]
