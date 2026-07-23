@@ -150,7 +150,7 @@ jobs:
       - name: Install test deps
         run: |
           python -m pip install --upgrade "pip<23.3"
-          pip install pip-tools
+          pip install pip-tools typing-extensions
           wget $BASE_URL/$PIWIND_BRANCH/tests/requirements.in
           pip-compile requirements.in -o requirements.txt
           pip install -r requirements.txt

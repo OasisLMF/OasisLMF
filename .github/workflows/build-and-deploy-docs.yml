@@ -33,7 +33,7 @@ jobs:
       - name: Compile package requirements.txt
         run: |
            python -m pip install --upgrade "pip<23.3"
-           pip install pip-tools
+           pip install pip-tools typing-extensions
            pip-compile requirements.in
       - name: Install required packages
         run: |

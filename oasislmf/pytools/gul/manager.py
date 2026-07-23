@@ -32,8 +32,9 @@ from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss,
                                        split_tiv_classic,
                                        split_tiv_multiplicative)
 from oasislmf.pytools.gul.io import read_getmodel_stream
-from oasislmf.pytools.gul.random import (generate_correlated_hash_vector,
-                                         get_corr_rval, get_random_generator)
+from oasislmf.pytools.gul.random import (cdf_min, generate_correlated_hash_vector,
+                                         get_corr_rval, get_random_generator,
+                                         inv_factor, norm_factor, x_min)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
@@ -247,8 +248,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             corr_seeds = np.zeros(np.max(unique_peril_correlation_groups) + 1, dtype='int64')
 
-            arr_min, arr_max, arr_N = 1e-16, 1 - 1e-16, 1000000
-            arr_min_cdf, arr_max_cdf = -20., 20.
+            arr_min, arr_min_cdf = x_min, cdf_min
+            arr_inv_factor, arr_norm_factor = inv_factor, norm_factor
 
             # buffer to be re-used to store all the correlated random values
             z_unif = np.zeros(sample_size, dtype='float64')
@@ -260,8 +261,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             # create dummy data structures with proper dtypes to allow correct numba compilation
             corr_seeds = np.zeros(1, dtype='int64')
             corr_data_by_item_id = np.ndarray(1, dtype=correlations_dtype)
-            arr_min, arr_max, arr_N = 0, 0, 0
-            arr_min_cdf, arr_max_cdf = 0, 0
+            arr_min, arr_min_cdf = 0., 0.
+            arr_inv_factor, arr_norm_factor = 0., 0.
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
             z_unif = np.zeros(1, dtype='float64')
 
@@ -306,7 +307,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
-                    arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, norm_cdf, z_unif, debug,
+                    arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
                     max_bytes_per_item, byte_mv, cursor
                 )
 
@@ -340,7 +341,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
                          loss_threshold, losses, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
-                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, norm_cdf,
+                         arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
                          z_unif, debug, max_bytes_per_item, byte_mv, cursor):
     """Compute losses for an event.
 
@@ -413,8 +414,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     item_corr_data = corr_data_by_item_id[item['item_id']]
                     get_corr_rval(
                         eps_ij[item_corr_data['peril_correlation_group']], rndms_base[rng_index],
-                        item_corr_data['damage_correlation_value'], arr_min, arr_max, arr_N, norm_inv_cdf,
-                        arr_min_cdf, arr_max_cdf, norm_cdf, sample_size, z_unif
+                        item_corr_data['damage_correlation_value'], arr_min, norm_inv_cdf, arr_inv_factor,
+                        arr_min_cdf, norm_cdf, arr_norm_factor, sample_size, z_unif
                     )
                     rndms = z_unif
                 else:
