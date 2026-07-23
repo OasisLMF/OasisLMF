@@ -75,7 +75,7 @@ cd OasisLMF
 python3 -m venv .venv
 source .venv/bin/activate
 
-pip install pip-tools
+pip install "pip-tools!=7.6.0"
 pip-compile requirements.in -o requirements.txt
 pip install -r requirements.txt
 pip install -e .
