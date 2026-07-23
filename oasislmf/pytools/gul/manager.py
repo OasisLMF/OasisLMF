@@ -519,6 +519,6 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
                 cursor = mv_write_sidx_loss(byte_mv, cursor, sample_idx, losses[sample_idx, item_j])
 
         # write terminator for the samples for this item
-        cursor = mv_write_delimiter(byte_mv, cursor)
+        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
 
     return cursor
