@@ -26,6 +26,8 @@ jobs:
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-22.04
     needs: [ods_tools]
+    env:
+      NUMBA_CACHE_DIR: ${{ github.workspace }}/.numba_cache
     strategy:
       matrix:
         cfg:
@@ -41,10 +43,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.cfg.python-version }}
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.in
+            requirements-package.in
+            optional-package.in
+            pyproject.toml
+
+      - name: Cache Numba JIT
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.numba_cache
+          key: numba-${{ matrix.cfg.python-version }}-${{ hashFiles('oasislmf/pytools/**/*.py') }}
 
       - name: Install pip-tools
         run: |
-          python -m pip install --upgrade pip pip-tools
+          python -m pip install --upgrade pip 'pip-tools!=7.6.0'
 
       - name: Pip Compile
         run: |
