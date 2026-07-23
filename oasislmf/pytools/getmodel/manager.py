@@ -848,7 +848,7 @@ def doCdf(event_id,
     yield cursor * oasis_int_size
 
 
-@nb.njit()
+@nb.njit(cache=True)
 def convert_vuln_id_to_index(vuln_map, vuln_map_keys, areaperil_to_vulns):
     hm_info, hm_lookup, hm_index = hm_unpack(vuln_map)
     for i in range(areaperil_to_vulns.shape[0]):

@@ -154,10 +154,10 @@ class ComputationStep:
         """
         try:
             # Create keyword params (without default values)
-            params = ["{}=None".format(p.get('name')) for p in cls.get_params() if not p.get('default')]
+            params = ["{}=None".format(p.get('name')) for p in cls.get_params() if 'default' not in p]
 
             # Create keyword params (with default values)
-            for p in [p for p in cls.get_params() if p.get('default')]:
+            for p in [p for p in cls.get_params() if 'default' in p]:
                 if isinstance(p.get('default'), str):
                     params.append("{}='{}'".format(p.get('name'), p.get('default')))
                 elif isinstance(p.get('default'), dict):

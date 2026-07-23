@@ -28,7 +28,7 @@ from oasislmf.pytools.common.data import (fm_policytc_headers, fm_policytc_dtype
 from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
 from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import get_ids, DEFAULT_LOC_FIELD_TYPES
+from oasislmf.utils.data import assign_risk_ids, get_ids, structured_dtype_to_pandas, DEFAULT_LOC_FIELD_TYPES
 from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
                                      get_default_accounts_profile, get_default_exposure_profile,
                                      get_default_fm_aggregation_profile, SOURCE_IDX)
@@ -48,11 +48,11 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 # convertion from np dtype to pandas dtype
-fm_policytc_pd_dtype = {col: dtype for col, (dtype, _) in fm_policytc_dtype.fields.items()}
-fm_profile_pd_dtype = {col: dtype for col, (dtype, _) in fm_profile_dtype.fields.items()}
-fm_profile_step_pd_dtype = {col: dtype for col, (dtype, _) in fm_profile_step_dtype.fields.items()}
-fm_programme_pd_dtype = {col: dtype for col, (dtype, _) in fm_programme_dtype.fields.items()}
-fm_xref_pd_dtype = {col: dtype for col, (dtype, _) in fm_xref_dtype.fields.items()}
+fm_policytc_pd_dtype = structured_dtype_to_pandas(fm_policytc_dtype)
+fm_profile_pd_dtype = structured_dtype_to_pandas(fm_profile_dtype)
+fm_profile_step_pd_dtype = structured_dtype_to_pandas(fm_profile_step_dtype)
+fm_programme_pd_dtype = structured_dtype_to_pandas(fm_programme_dtype)
+fm_xref_pd_dtype = structured_dtype_to_pandas(fm_xref_dtype)
 
 
 # Define a list of all supported OED coverage types in the exposure
@@ -731,10 +731,7 @@ def get_il_input_items(
                              - {'profile_id', 'item_id', 'output_id'}, key=str.lower)
         gul_inputs_df = gul_inputs_df.rename(columns={'item_id': 'gul_input_id'})
         # adjust tiv columns and name them as their coverage id
-        gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
-        gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, 'risk_id'] = 1
-        gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, 'NumberOfRisks'] = 1
-        gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
+        gul_inputs_df = assign_risk_ids(gul_inputs_df)
 
         # initialization
         agg_keys = set()

@@ -30,6 +30,8 @@ __all__ = [
     'validate_vuln_csv_contents',
     'validate_vulnerability_replacements',
     'validate_analysis_oed_fields',
+    'structured_dtype_to_pandas',
+    'assign_risk_ids',
 ]
 
 import builtins
@@ -1158,3 +1160,35 @@ def fill_na_with_categoricals(df, fill_value):
     # related to fillna and categorical dtypes. This bug should be fixed in >1.1.2.
     # https://github.com/pandas-dev/pandas/issues/35731
     df.fillna(value=fill_value, inplace=True)
+
+
+def structured_dtype_to_pandas(np_dtype):
+    """Map a numpy structured dtype to a ``{column: dtype}`` dict for pandas.
+
+    Args:
+        np_dtype (np.dtype): a structured numpy dtype (i.e. one with named fields).
+
+    Returns:
+        dict: mapping of each field name to its numpy dtype.
+    """
+    return {col: dtype for col, (dtype, _) in np_dtype.fields.items()}
+
+
+def assign_risk_ids(df):
+    """Derive ``risk_id`` / ``NumberOfRisks`` from building counts, with aggregate fixups.
+
+    ``risk_id`` and ``NumberOfRisks`` default to ``building_id`` and ``NumberOfBuildings``;
+    non-aggregate rows (``IsAggregate == 0``) collapse to a single risk; a zero
+    ``NumberOfRisks`` is treated as 1. The frame is modified in place.
+
+    Args:
+        df (pd.DataFrame): a GUL inputs frame carrying ``building_id``,
+            ``NumberOfBuildings`` and ``IsAggregate`` columns.
+
+    Returns:
+        pd.DataFrame: the same frame, with ``risk_id`` / ``NumberOfRisks`` assigned.
+    """
+    df[['risk_id', 'NumberOfRisks']] = df[['building_id', 'NumberOfBuildings']]
+    df.loc[df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
+    df.loc[df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
+    return df
