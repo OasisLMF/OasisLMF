@@ -2185,9 +2185,9 @@ def test_assign_risk_ids_matches_previous_implementations():
     """assign_risk_ids must reproduce, exactly, the two former inline blocks in
     gul_inputs and il_inputs across aggregate / non-aggregate / zero-count rows."""
     base = pd.DataFrame({
-        'building_id':       [3, 5, 7, 2, 0],
+        'building_id': [3, 5, 7, 2, 0],
         'NumberOfBuildings': [3, 0, 7, 0, 4],
-        'IsAggregate':       [1, 1, 0, 0, 1],
+        'IsAggregate': [1, 1, 0, 0, 1],
     })
 
     # Former gul_inputs block (single combined .loc assignment)
