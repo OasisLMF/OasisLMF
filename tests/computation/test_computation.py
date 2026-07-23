@@ -10,6 +10,8 @@ import unittest
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 import pytest
 
+from oasislmf.computation.generate.files import GenerateFiles
+
 
 class ComputationChecker(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -57,3 +59,21 @@ class ComputationChecker(unittest.TestCase):
     @pytest.fixture(autouse=True)
     def logging_fixtures(self, caplog):
         self._caplog = caplog
+
+
+def test_get_signature_preserves_falsy_defaults():
+    """Params whose default is falsy (False / 0 / '') must keep that default instead of None """
+    sig = GenerateFiles.get_signature()
+    assert sig is not None
+    params = sig.parameters
+
+    # boolean flags that default to False must report False, not None
+    for name in ("verbose", "intermediary_csv", "disable_summarise_exposure", "write_ri_tree"):
+        assert params[name].default is False, \
+            f"{name} default should be False, got {params[name].default!r}"
+
+    # a param with a genuine string default is still populated correctly
+    assert isinstance(params["base_df_engine"].default, str)
+
+    # a param with no default at all keeps the None placeholder
+    assert params["oasis_files_dir"].default is None

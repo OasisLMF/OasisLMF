@@ -23,7 +23,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config, LocalSt
 UNKNOWN_ID = -1
 
 
-''' Basic abstract classes that facilitate the implementation of KeyLookupInterface  
+''' Basic abstract classes that facilitate the implementation of KeyLookupInterface
 '''
 
 
@@ -72,7 +72,7 @@ class MultiprocLookupMixin:
         elif isinstance(result, pd.DataFrame):
             return result
         else:
-            raise OasisException("Unrecognised type for results: {type(results)}. expected ")
+            raise OasisException(f"Unrecognised type for results: {type(result)}. expected ")
 
 
 class OasisBaseLookup(AbstractBasicKeyLookup, MultiprocLookupMixin):

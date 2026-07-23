@@ -577,7 +577,7 @@ class BasicKeyServer:
                     yield results_part
                     results_part = pd.DataFrame.from_records(results, nrows=self.max_bloc_size)
             else:
-                raise OasisException("Unrecognised type for results: {type(results)}. expected ")
+                raise OasisException(f"Unrecognised type for results: {type(results)}. expected ")
 
         return self.write_keys_file(gen_results(key_results),
                                     successes_fp=successes_fp,
