@@ -342,7 +342,7 @@ def load_event(byte_mv, event_id, nodes_array,
 
                 while cursor < PIPE_CAPACITY - SIDX_LOSS_WRITE_SIZE:
                     if val_i == node_val_count:
-                        cursor = mv_write_delimiter(byte_mv, cursor)
+                        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
                         val_i = -1
                         layer_i = 0
                         break
