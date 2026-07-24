@@ -26,8 +26,6 @@ jobs:
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-22.04
     needs: [ods_tools]
-    env:
-      NUMBA_CACHE_DIR: ${{ github.workspace }}/.numba_cache
     strategy:
       matrix:
         cfg:
@@ -49,12 +47,6 @@ jobs:
             requirements-package.in
             optional-package.in
             pyproject.toml
-
-      - name: Cache Numba JIT
-        uses: actions/cache@v4
-        with:
-          path: ${{ github.workspace }}/.numba_cache
-          key: numba-${{ matrix.cfg.python-version }}-${{ hashFiles('oasislmf/pytools/**/*.py') }}
 
       - name: Install pip-tools
         run: |

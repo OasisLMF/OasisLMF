@@ -167,8 +167,9 @@ class ComputationStep:
                 else:
                     params.append("{}={}".format(p.get('name'), p.get('default')))
 
-            exec('def func_sig({}): pass'.format(", ".join(params)))
-            return inspect.signature(locals()['func_sig'])
+            namespace = {}
+            exec('def func_sig({}): pass'.format(", ".join(params)), namespace)
+            return inspect.signature(namespace['func_sig'])
         except Exception:
             # ignore any errors in signature creation and return blank
             return None
