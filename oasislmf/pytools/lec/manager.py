@@ -10,7 +10,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_float, oasis_int_size, oasis_float_size,
-                                          summary_stream_index_dtype)
+                                          summary_stream_index_dtype, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_get, read_occurrence, read_periods, read_returnperiods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
@@ -23,6 +23,11 @@ from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
+summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
+sidx_dtype, sidx_size = def_to_type_and_size('sidx')
+loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
 
 def read_input_files(
     run_dir,
@@ -86,19 +91,20 @@ def get_max_summary_id(file_handles):
     """
     max_summary_id = 0
     for fin in file_handles:
-        cursor = oasis_int_size * 3
+        cursor = 8 + oasis_int_size
 
         valid_buff = len(fin)
         while cursor < valid_buff:
-            _, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-            summary_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-            _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+            # header (event_id, summary_id, exposure_value)
+            _, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
+            summary_id, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)
+            _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
 
             max_summary_id = max(max_summary_id, summary_id)
 
             while cursor < valid_buff:
-                sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-                _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+                sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
+                _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
                 if sidx == 0:
                     break
     return max_summary_id
@@ -240,25 +246,25 @@ def process_input_file(
         max_summary_id (int): Max summary ID
     """
     # Set cursor to end of stream header (stream_type, sample_size, summary_set_id)
-    cursor = oasis_int_size * 3
+    cursor = 8 + oasis_int_size
 
     valid_buff = len(fin)
     while cursor < valid_buff:
-        event_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-        summary_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-        expval, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+        event_id, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
+        summary_id, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)
+        expval, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
 
         filtered_occ_map = occ_get(occ_csr, event_id)
         if len(filtered_occ_map) == 0:
             while cursor < valid_buff:
-                sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-                _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+                sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
+                _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
                 if sidx == 0:
                     break
             continue
         while cursor < valid_buff:
-            sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-            loss, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+            sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
+            loss, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
             if sidx == 0:
                 break
             if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:

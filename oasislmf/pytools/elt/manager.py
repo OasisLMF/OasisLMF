@@ -48,7 +48,7 @@ class ELTReader(EventReader):
             ('compute_selt', np.bool_),
             ('compute_melt', np.bool_),
             ('compute_qelt', np.bool_),
-            ('summary_id', oasis_int),
+            ('summary_id', summary_id_dtype),
             ('impacted_exposure', oasis_float),
             ('non_zero_samples', oasis_int),
             ('max_loss', oasis_float),

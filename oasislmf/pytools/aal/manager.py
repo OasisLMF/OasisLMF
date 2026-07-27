@@ -153,7 +153,7 @@ def process_idx_file(
         summary_id = idx_data[idx_cursor]['summary_id']
         offset = idx_data[idx_cursor]['offset']
 
-        event_id, _ = mv_read(fbin, offset, oasis_int, oasis_int_size)
+        event_id, _ = mv_read(fbin, offset, event_id_dtype, event_id_dtype_size)
 
         occ_rows = occ_get(occ_csr, event_id)
         if len(occ_rows) == 0:
