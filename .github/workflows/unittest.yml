@@ -50,7 +50,7 @@ jobs:
         run: |
           rm -f requirements.txt
           if [ -z "${{ matrix.cfg.pkg-version }}" ]; then
-            uv pip compile requirements.in > requirements.txt
+            uv pip compile requirements.in --output-file requirements.txt
           else
             uv pip compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in > requirements.txt
           fi

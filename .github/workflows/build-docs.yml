@@ -24,7 +24,7 @@ jobs:
         run: |
              python -m pip install --upgrade "pip<23.3"
              pip install uv
-             uv pip compile requirements.in > requirements.txt
+             uv pip compile requirements.in --output-file requirements.txt
       - name: Install required packages
         run: |
             uv pip install --system -r requirements.txt

@@ -152,7 +152,7 @@ jobs:
           python -m pip install --upgrade "pip<23.3"
           pip install uv
           wget $BASE_URL/$PIWIND_BRANCH/tests/requirements.in
-          uv pip compile requirements.in > requirements.txt
+          uv pip compile requirements.in --output-file requirements.txt
           uv pip install --system -r requirements.txt
         env:
           BASE_URL: 'https://raw.githubusercontent.com/OasisLMF/OasisPiWind'
