@@ -153,14 +153,14 @@ jobs:
           pip install uv
           wget $BASE_URL/$PIWIND_BRANCH/tests/requirements.in
           uv pip compile requirements.in > requirements.txt
-          uv pip install -r requirements.txt
+          uv pip install --system -r requirements.txt
         env:
           BASE_URL: 'https://raw.githubusercontent.com/OasisLMF/OasisPiWind'
 
       - name: Reinstall oasislmf from branch
         run: |
-          uv pip uninstall oasislmf -y
-          uv pip install -v "git+https://git@github.com/OasisLMF/OasisLMF.git@${{ github.ref }}#egg=oasislmf[extra]"
+          pip uninstall oasislmf -y
+          pip install -v "git+https://git@github.com/OasisLMF/OasisLMF.git@${{ github.ref }}#egg=oasislmf[extra]"
 
       - name: Run Checks
         run: pytest -v --use-running-containers --docker-compose=./docker/plat2-v2.docker-compose.yml -k all_outputs

@@ -54,10 +54,10 @@ jobs:
           else
             uv pip compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in > requirements.txt
           fi
-          uv pip install -r requirements.txt
+          uv pip install --system -r requirements.txt
 
       - name: Install oasislmf
-        run: uv pip install -e .
+        run: pip install -e .
 
       - name: download ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
@@ -69,8 +69,8 @@ jobs:
       - name: install ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
         run: |
-          uv pip uninstall ods_tools -y
-          uv pip install ${{ needs.ods_tools.outputs.whl_filename }}
+          pip uninstall ods_tools -y
+          pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
       - name: Warmup Numba JIT cache
         if: matrix.cfg.upload-cov != true
