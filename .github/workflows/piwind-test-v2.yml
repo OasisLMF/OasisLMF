@@ -150,17 +150,17 @@ jobs:
       - name: Install test deps
         run: |
           python -m pip install --upgrade "pip<23.3"
-          pip install pip-tools
+          pip install uv
           wget $BASE_URL/$PIWIND_BRANCH/tests/requirements.in
-          pip-compile requirements.in -o requirements.txt
-          pip install -r requirements.txt
+          uv pip compile requirements.in -o requirements.txt
+          uv pip install -r requirements.txt
         env:
           BASE_URL: 'https://raw.githubusercontent.com/OasisLMF/OasisPiWind'
 
       - name: Reinstall oasislmf from branch
         run: |
-          pip uninstall oasislmf -y
-          pip install -v "git+https://git@github.com/OasisLMF/OasisLMF.git@${{ github.ref }}#egg=oasislmf[extra]"
+          uv pip uninstall oasislmf -y
+          uv pip install -v "git+https://git@github.com/OasisLMF/OasisLMF.git@${{ github.ref }}#egg=oasislmf[extra]"
 
       - name: Run Checks
         run: pytest -v --use-running-containers --docker-compose=./docker/plat2-v2.docker-compose.yml -k all_outputs
