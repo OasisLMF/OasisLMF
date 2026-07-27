@@ -6,6 +6,7 @@ import numpy as np
 import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
+from oasislmf.pytools.summary.manager import SUMMARY_META_SIZE
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -91,7 +92,7 @@ def get_max_summary_id(file_handles):
     """
     max_summary_id = 0
     for fin in file_handles:
-        cursor = 8 + oasis_int_size
+        cursor = SUMMARY_META_SIZE
 
         valid_buff = len(fin)
         while cursor < valid_buff:
@@ -245,8 +246,8 @@ def process_input_file(
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
     """
-    # Set cursor to end of stream header (stream_type, sample_size, summary_set_id)
-    cursor = 8 + oasis_int_size
+    # Set cursor to end of stream meta data header
+    cursor = SUMMARY_META_SIZE
 
     valid_buff = len(fin)
     while cursor < valid_buff:

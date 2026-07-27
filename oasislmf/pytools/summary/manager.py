@@ -48,9 +48,12 @@ logger = logging.getLogger(__name__)
 
 event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
 item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
+loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
 
 SPECIAL_SIDX_COUNT = 6  # 0 is included as a special sidx
-SUMMARY_HEADER_SIZE = event_id_dtype_size + item_id_dtype_size + oasis_float_size + SPECIAL_SIDX_COUNT * (loss_pair_size)
+SUMMARY_HEADER_SIZE = event_id_dtype_size + item_id_dtype_size + loss_dtype_size + SPECIAL_SIDX_COUNT * (loss_pair_size)
+SUMMARY_META_SIZE = 4 + 4 + summaryset_id_dtype_size # (stream_type, sample size , summary_set_id)
 SIDX_LOSS_WRITE_SIZE = 2 * (loss_pair_size)
 
 
@@ -442,7 +445,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
             summary_pipe = summary_sets_pipe[summary_set_id]
             summary_sets_cursor[summary_set_index] += summary_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
             summary_sets_cursor[summary_set_index] += summary_pipe.write(len_sample.tobytes())
-            summary_sets_cursor[summary_set_index] += summary_pipe.write(nb_oasis_int(summary_set_id).tobytes())
+            summary_sets_cursor[summary_set_index] += summary_pipe.write(summaryset_id_dtype.type(summary_set_id).tobytes())
 
         try:
             for event_id in summary_reader.read_streams(streams_in):

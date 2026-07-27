@@ -1,9 +1,11 @@
 import numba as nb
 import numpy as np
-from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, def_to_type_and_size
 from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
+
+summaryset_id_dtype, _ = def_to_type_and_size('summaryset_id')
 
 _CHUNK_OUT_SIZE = DEFAULT_BUFFER_SIZE * 7 + 5
 
@@ -40,7 +42,7 @@ def summarycalc_tobin(stack, file_in, file_out, file_type, max_sample_index, sum
     stream_info = (SUMMARY_STREAM_ID << 24 | stream_agg_type)
     np.array([stream_info], dtype="i4").tofile(file_out)
     np.array([max_sample_index], dtype="i4").tofile(file_out)
-    np.array([summary_set_id], dtype="i4").tofile(file_out)
+    np.array([summary_set_id], dtype=summaryset_id_dtype).tofile(file_out)
 
     buf = np.empty(_CHUNK_OUT_SIZE, dtype=np.int32)
     prev_event_id = np.int32(-1)

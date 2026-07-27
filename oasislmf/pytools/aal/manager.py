@@ -6,6 +6,7 @@ import numba as nb
 import os
 from contextlib import ExitStack
 from pathlib import Path
+from oasislmf.pytools.summary.manager import SUMMARY_META_SIZE
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
 item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
 summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
+_, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
 sidx_dtype, sidx_size = def_to_type_and_size('sidx')
 loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
 
@@ -295,7 +297,7 @@ def get_summaries_data(
                     break
         else:
             # TODO: remove hardcoding and infer from types
-            offset = 8 + oasis_int_size  # Summary stream header size
+            offset = SUMMARY_META_SIZE  # Summary stream header size
             while True:
                 summaries_idx, resize_flag, offset = process_bin_file(
                     fbin, offset, occ_csr, summaries_data, summaries_idx, file_index,

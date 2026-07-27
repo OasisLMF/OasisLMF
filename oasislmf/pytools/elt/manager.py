@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
 item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
 summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
+summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
 sidx_dtype, sidx_dtype_size = def_to_type_and_size("sidx")
 loss_dtype, loss_dtype_size = def_to_type_and_size("loss")
 
@@ -206,10 +207,10 @@ def read_buffer(
     while cursor < valid_buff:
         if not state["reading_losses"]:
             # Read summary header
-            if valid_buff - cursor >= 2 * oasis_int_size + event_id_dtype_size + oasis_float_size:
+            if valid_buff - cursor >= summaryset_id_dtype_size + event_id_dtype_size + summaryset_id_dtype_size + loss_dtype_size:
                 # Need to read summary_set_id from summary info first
                 if not state["read_summary_set_id"]:
-                    _, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+                    _, cursor = mv_read(byte_mv, cursor, summaryset_id_dtype, summaryset_id_dtype_size)
                     state["read_summary_set_id"] = True
                 event_id_new, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
@@ -218,7 +219,7 @@ def read_buffer(
                     return cursor - oasis_int_size, last_event_id, item_id, 1
                 event_id = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, summary_id_dtype, summary_id_dtype_size)
-                state["impacted_exposure"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+                state["impacted_exposure"], cursor = mv_read(byte_mv, cursor, loss_dtype, loss_dtype_size)
                 state["reading_losses"] = True
             else:
                 break  # Not enough for whole summary header
