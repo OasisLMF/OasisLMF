@@ -34,11 +34,6 @@ jobs:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
 
     steps:
-      - name: Checkout oasislmf
-        uses: actions/checkout@v4
-        with:
-          path: oasislmf
-
       - name: Clone OasisModels
         uses: actions/checkout@v4
         with:
@@ -50,8 +45,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install oasislmf from source
-        run: pip install "./oasislmf[extra]"
+      - name: Install oasislmf (git branch)
+        run: pip install "oasislmf[extra] @ git+https://github.com/OasisLMF/OasisLMF.git@${{ inputs.oasislmf_branch || github.event.pull_request.head.sha || github.ref }}"
 
       - name: Install ODS_Tools (git branch)
         run: pip uninstall ods-tools -y && pip install "git+https://github.com/OasisLMF/ODS_Tools.git@${{ inputs.ods_branch || 'main' }}"
