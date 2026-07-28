@@ -44,17 +44,17 @@ jobs:
 
       - name: Install pip-tools
         run: |
-          python -m pip install --upgrade pip pip-tools
+          python -m pip install --upgrade uv
 
       - name: Pip Compile
         run: |
           rm -f requirements.txt
           if [ -z "${{ matrix.cfg.pkg-version }}" ]; then
-            pip-compile requirements.in -o requirements.txt
+            uv pip compile requirements.in --output-file requirements.txt
           else
-            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt
+            uv pip compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in > requirements.txt
           fi
-          pip install -r requirements.txt
+          uv pip install --system -r requirements.txt
 
       - name: Install oasislmf
         run: pip install -e .
