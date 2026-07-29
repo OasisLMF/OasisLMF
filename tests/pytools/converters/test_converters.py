@@ -5,8 +5,6 @@ import pytest
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
-from unittest import mock
-import os
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
