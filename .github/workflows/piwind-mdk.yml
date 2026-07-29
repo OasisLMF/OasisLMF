@@ -55,6 +55,8 @@ jobs:
 
       - name: Install ODS_Tools (git branch)
         run: pip uninstall ods-tools -y && pip install "git+https://github.com/OasisLMF/ODS_Tools.git@${{ inputs.ods_branch || 'main' }}"
+        env: 
+          GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
 
       - name: Install oasis-data-manager (git branch)
         run: pip uninstall oasis-data-manager -y && pip install "git+https://github.com/OasisLMF/OasisDataManager.git@${{ inputs.oasis_data_manager_branch || 'main' }}"
