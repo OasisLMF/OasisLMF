@@ -9,7 +9,6 @@ import numpy as np
 import json
 from unittest import TestCase
 
-from oasislmf.pytools.converters.data import TOOL_INFO
 from tests.pytools.converters.test_converters import compare_conversion_outputs, TESTS_ASSETS_DIR
 
 _DTYPE_EXT = "dtype.json"

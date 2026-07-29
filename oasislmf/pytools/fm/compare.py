@@ -43,7 +43,7 @@ def stream_to_dict_array(stream_obj):
             if stream_obj.readinto(event_agg_mv) < event_agg_dtype.itemsize:
                 break
             event_id, agg_id = event_agg[0]
-            cur_array = np.zeros(len_sample + EXTRA_SIDX_COUNT, dtype=oasis_float)
+            cur_array = np.zeros(len_sample + EXTRA_SIDX_COUNT, dtype=loss_type)
             dict_array[(event_id, agg_id)] = cur_array
 
     return stream_type, len_sample, dict_array
