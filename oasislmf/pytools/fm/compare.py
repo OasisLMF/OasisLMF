@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.testing import assert_allclose
-from oasislmf.pytools.common.data import def_to_type_and_size, loss_pair_dtype, item_header_dtype, oasis_float
+from oasislmf.pytools.common.data import def_to_type_and_size, loss_pair_dtype, item_header_dtype
 from .common import EXTRA_SIDX_COUNT
 from .financial_structure import load_static
 
@@ -43,7 +43,7 @@ def stream_to_dict_array(stream_obj):
             if stream_obj.readinto(event_agg_mv) < event_agg_dtype.itemsize:
                 break
             event_id, agg_id = event_agg[0]
-            cur_array = np.zeros(len_sample + EXTRA_SIDX_COUNT, dtype=oasis_float)
+            cur_array = np.zeros(len_sample + EXTRA_SIDX_COUNT, dtype=loss_type)
             dict_array[(event_id, agg_id)] = cur_array
 
     return stream_type, len_sample, dict_array
