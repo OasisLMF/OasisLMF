@@ -196,7 +196,6 @@ def mv_write_summary_header_cached(byte_mv, cursor, event_id, summary_id, exposu
     return cursor
 
 
-
 @nb.jit(nopython=True)
 def mv_write_item_header(byte_mv, cursor, event_id, item_id) -> int:
     """
