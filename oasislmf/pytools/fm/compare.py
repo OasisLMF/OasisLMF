@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.testing import assert_allclose
-from oasislmf.pytools.common.data import def_to_type_and_size, loss_pair_dtype, item_header_dtype
+from oasislmf.pytools.common.data import def_to_type_and_size, loss_pair_dtype, item_header_dtype, oasis_float
 from .common import EXTRA_SIDX_COUNT
 from .financial_structure import load_static
 
