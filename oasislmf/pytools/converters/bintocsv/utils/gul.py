@@ -74,7 +74,6 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
             for k in range(n_pairs):
                 sidx = sidx_loss_view[k]["sidx"]
                 if sidx == 0:  # sidx == 0, end of record (loss field is the trailing 0)
-                    #                    breakpoint()
                     cursor += (k + 1) * loss_pair_size
                     state["reading_losses"] = False
                     break
