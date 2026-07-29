@@ -378,10 +378,7 @@ class GenerateFiles(ComputationStep):
             self.logger.info('\nOasis files generated: {}'.format(json.dumps(gul_input_files, indent=4)))
             return gul_input_files
 
-        # Get the IL input items and Write the IL/FM input files.
-        # gul_inputs_df is not used again in this method, so we hand it over directly instead of
-        # copying it — get_il_input_items may mutate it, but duplicating the largest frame here
-        # just to discard it inflates peak memory on big portfolios.
+        # Get the IL input items and Write the IL/FM input files
         il_inputs_df, il_input_files = get_il_input_items(
             gul_inputs_df=gul_inputs_df,
             exposure_data=exposure_data,

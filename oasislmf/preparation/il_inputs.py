@@ -627,6 +627,7 @@ def prepare_il_source_dataframes(gul_inputs_df, exposure_data):
     return gul_inputs_df, locations_df, accounts_df, acc_id_map
 
 
+@oasis_log
 def build_level_column_mapper(profile):
     """Build the per-level column -> term-info mapping used to extract terms from source files.
 
@@ -653,6 +654,7 @@ def build_level_column_mapper(profile):
     return level_column_mapper
 
 
+@oasis_log
 def configure_step_policies(accounts_df, gul_inputs_df, level_column_mapper, oasis_files_prefixes):
     """Detect step policies and, if present, wire the step terms into the policy-all level.
 
@@ -711,6 +713,7 @@ def configure_step_policies(accounts_df, gul_inputs_df, level_column_mapper, oas
     return gul_inputs_df, extra_fm_col, step_policies_present, fm_profile_cols, profile_bin_name
 
 
+@oasis_log
 def build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_fm_col,
                          useful_cols, gul_inputs_columns, oed_schema, do_disaggregation):
     """Build the level_df of financial terms for one FM level from its source rows.
@@ -791,6 +794,7 @@ def build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_
     return level_df
 
 
+@oasis_log
 def apply_percent_tiv_terms(gul_inputs_df, level_df, fm_group_tiv, agg_id_merge_col):
     """Compute aggregate TIV per agg_id and convert percentage-of-TIV terms to absolute values.
 
@@ -860,6 +864,7 @@ def apply_percent_tiv_terms(gul_inputs_df, level_df, fm_group_tiv, agg_id_merge_
     return gul_inputs_df, level_df
 
 
+@oasis_log
 def merge_level_terms_into_gul(gul_inputs_df, level_df, is_policy_layer_level, level_id):
     """Merge a level's terms (with profile_id) into gul_inputs_df, handling layered rows.
 
@@ -915,8 +920,14 @@ def merge_level_terms_into_gul(gul_inputs_df, level_df, is_policy_layer_level, l
         # inputs (meaning there's a reason to keep layers separate), else set to 0.
         # Then dedup on (gul_input_id, agg_id, profile_id, layered_id).
         if not is_policy_layer_level and level_id not in cross_layer_level:
+            # Keep rows per layer when the (gul_input_id, agg_id) group spans more than
+            # one profile_id: those layers carry genuinely different terms, so collapsing
+            # them would drop layers and make the survivor depend on account row order (issue #2040).
+            layer_specific = (non_layered_inputs_df
+                              .groupby(['gul_input_id', 'agg_id'])['profile_id'].transform('nunique') > 1)
             non_layered_inputs_df['layered_id'] = (non_layered_inputs_df['layer_id']
-                                                   .where(non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
+                                                   .where(layer_specific
+                                                          | non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
             non_layered_inputs_df = (non_layered_inputs_df
                                      .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id'])
                                      .drop(columns=['layered_id']))
@@ -941,10 +952,17 @@ def merge_level_terms_into_gul(gul_inputs_df, level_df, is_policy_layer_level, l
         else:
             gul_inputs_df = gul_inputs_df.rename(columns={'PolNumber_temp': 'PolNumber'})
 
-        # Drop premature layering (no difference of policy between layers)
-        # Since no initial layered rows, layered_id would be 0 for all, so dedup on base columns
+        # Drop premature layering (no difference of policy between layers).
+        # Keep one row per layer when the (gul_input_id, agg_id) group spans more than one
+        # profile_id (see the layered path above): otherwise layers sharing a profile_id
+        # collapse to a single row whose identity depends on account row order (issue #2040).
         if not is_policy_layer_level and level_id not in cross_layer_level:
-            gul_inputs_df = gul_inputs_df.drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id'])
+            layer_specific = (gul_inputs_df
+                              .groupby(['gul_input_id', 'agg_id'])['profile_id'].transform('nunique') > 1)
+            gul_inputs_df['layered_id'] = gul_inputs_df['layer_id'].where(layer_specific, 0)
+            gul_inputs_df = (gul_inputs_df
+                             .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id'])
+                             .drop(columns=['layered_id']))
 
     gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype(layer_id[DTYPE_IDX])
     gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype(profile_id[DTYPE_IDX])
@@ -952,6 +970,7 @@ def merge_level_terms_into_gul(gul_inputs_df, level_df, is_policy_layer_level, l
     return gul_inputs_df
 
 
+@oasis_log
 def write_level_policytc_and_programme(gul_inputs_df, level_id, fm_policytc_bin, fm_policytc_csv,
                                        fm_programme_bin, fm_programme_csv, chunksize):
     """Write the fm_policytc and fm_programme records for the current level.
@@ -996,6 +1015,7 @@ def write_level_policytc_and_programme(gul_inputs_df, level_id, fm_policytc_bin,
                                                                header=False, chunksize=chunksize)
 
 
+@oasis_log
 def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, profile_id_offset):
     """Assign calcrule_id and profile_id to a level's terms.
 
@@ -1055,6 +1075,7 @@ def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, pro
     return level_df, profile_id_offset
 
 
+@oasis_log
 def finalize_il_inputs(gul_inputs_df, fm_aggregation_profile, accounts_df, fm_xref_bin, fm_xref_csv, chunksize):
     """Assign output ids, backfill PolNumber, write fm_xref, and merge acc_idx back on.
 
@@ -1117,6 +1138,7 @@ def finalize_il_inputs(gul_inputs_df, fm_aggregation_profile, accounts_df, fm_xr
     return gul_inputs_df
 
 
+@oasis_log
 def get_il_input_items(
         gul_inputs_df,
         exposure_data,
