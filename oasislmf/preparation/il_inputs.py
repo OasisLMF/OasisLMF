@@ -196,7 +196,6 @@ def __split_fm_terms_by_risk(df):
 
 
 def get_cond_info(locations_df, accounts_df):
-    pol_info = {}
     level_conds = {}
     extra_accounts = []
     default_cond_tag = '0'
@@ -221,9 +220,6 @@ def get_cond_info(locations_df, accounts_df):
     if acc_condkey_df.shape[0]:
         if 'CondTag' not in locations_df.columns:
             locations_df['CondTag'] = default_cond_tag
-        # we get information about cond from accounts_df
-        cond_tags = {}  # information about each cond tag
-        account_layer_exclusion = {}  # for each account and layer, store info about cond class exclusion
         if 'CondPriority' in accounts_df.columns:
             fill_empty(accounts_df, 'CondPriority', 1)
         else:
@@ -232,83 +228,66 @@ def get_cond_info(locations_df, accounts_df):
             fill_empty(accounts_df, 'CondPeril', '')
         else:
             accounts_df['CondPeril'] = ''
-        for acc_rec in accounts_df.to_dict(orient="records"):
-            cond_tag_key = (acc_rec['acc_id'], acc_rec['CondTag'])
-            cond_number_key = (acc_rec['acc_id'], acc_rec['CondTag'], acc_rec['CondNumber'])
-            cond_tag = cond_tags.setdefault(cond_tag_key, {'CondPriority': acc_rec['CondPriority'] or 1, 'CondPeril': acc_rec['CondPeril']})
-            cond_tag.setdefault('layers', {})[acc_rec['layer_id']] = {'CondNumber': cond_number_key}
-            exclusion_cond_tags = account_layer_exclusion.setdefault(acc_rec['acc_id'], {}).setdefault(acc_rec['layer_id'],
-                                                                                                       set())
-            pol_info[(acc_rec['acc_id'], acc_rec['layer_id'])] = [acc_rec['PolNumber'], acc_rec['LayerNumber'], acc_rec['acc_idx']]
-            if acc_rec.get('CondClass') == 1:
-                exclusion_cond_tags.add(acc_rec['CondTag'])
 
-        # we get the list of loc for each cond_tag
-        loc_conds = {}
-        KEY_INDEX = 0
-        PRIORITY_INDEX = 1
-        for loc_rec in locations_df.to_dict(orient="records"):
-            loc_key = loc_rec['loc_id']
-            cond_key = (loc_rec['acc_id'], loc_rec.get('CondTag', default_cond_tag))
-            if cond_key in cond_tags:
-                cond_tag = cond_tags[cond_key]
+        # --- per (acc_id, CondTag) attributes taken from the first account row (0/blank priority -> 1) ---
+        tag_first = accounts_df.groupby(['acc_id', 'CondTag'], sort=False, observed=True).agg(
+            CondPriority=('CondPriority', 'first'),
+            CondPeril=('CondPeril', 'first'),
+        ).reset_index()
+        prio = pd.to_numeric(tag_first['CondPriority'], errors='coerce').fillna(1)
+        tag_first['priority'] = prio.mask(prio == 0, 1)
+        peril = tag_first['CondPeril'].astype('object').fillna('')
+        tag_first['cond_peril'] = peril.mask(peril == '', 'AA1')
+        peril_map = {(r.acc_id, r.CondTag): r.cond_peril for r in tag_first.itertuples()}
+
+        # layers each cond_tag already appears in, and per (acc_id, layer_id) policy info + exclusion flag
+        layers_present = set(map(tuple, accounts_df[['acc_id', 'CondTag', 'layer_id']].drop_duplicates().to_numpy()))
+        account_layers = accounts_df.groupby(['acc_id', 'layer_id'], sort=False, observed=True).agg(
+            PolNumber=('PolNumber', 'last'),
+            LayerNumber=('LayerNumber', 'last'),
+            acc_idx=('acc_idx', 'last'),
+            has_excl=('CondClass', lambda s: bool((s == 1).any())) if 'CondClass' in accounts_df.columns else ('acc_id', lambda s: False),
+        ).reset_index()
+
+        # --- resolve each location's cond priority, detect same-priority conflicts, rank within the location ---
+        loc = locations_df[['loc_id', 'acc_id', 'CondTag']].drop_duplicates()
+        loc = loc.merge(tag_first[['acc_id', 'CondTag', 'priority']], on=['acc_id', 'CondTag'], how='left')
+        loc['priority'] = loc['priority'].fillna(1)  # loc tags absent from accounts (e.g. default '0') -> priority 1
+
+        distinct_per_prio = loc.groupby(['loc_id', 'priority'], observed=True)[['acc_id', 'CondTag']].nunique()
+        conflict = distinct_per_prio[(distinct_per_prio > 1).any(axis=1)]
+        if conflict.shape[0]:
+            loc_key, prio_val = conflict.index[0]
+            keys = [tuple(x) for x in loc.loc[(loc['loc_id'] == loc_key) & (loc['priority'] == prio_val),
+                                              ['acc_id', 'CondTag']].drop_duplicates().to_numpy()]
+            raise OasisException(f"{keys[0]} and {keys[1]} have same priority in {loc_key}")
+
+        # cond_level_start = max over a cond_tag's locations of its 1-based rank (priorities are distinct within a location)
+        loc['pos'] = loc.groupby('loc_id', observed=True)['priority'].rank(method='dense').astype(int)
+        level_map = {(r.acc_id, r.CondTag): int(r.pos)
+                     for r in loc.groupby(['acc_id', 'CondTag'], observed=True)['pos'].max().reset_index().itertuples()}
+
+        # every cond_tag key to emit results for: those defined on accounts plus those referenced by
+        # locations (the latter adds default-'0' tags, which are synthetic priority-1 conds)
+        all_cond_keys = pd.concat([accounts_df[['acc_id', 'CondTag']], loc[['acc_id', 'CondTag']]]).drop_duplicates()
+        for r in all_cond_keys.itertuples():
+            cond_key = (int(r.acc_id), r.CondTag)
+            level_conds.setdefault(level_map.get((r.acc_id, r.CondTag), 1), set()).add(cond_key)
+
+        # extra 'filler' account rows for every (cond_tag, layer) the cond_tag does not already cover
+        for r in all_cond_keys.merge(account_layers, on='acc_id', how='inner').itertuples():
+            if (r.acc_id, r.CondTag, r.layer_id) in layers_present:
+                continue
+            extra = {
+                'acc_idx': r.acc_idx, 'acc_id': int(r.acc_id), 'PolNumber': r.PolNumber,
+                'LayerNumber': r.LayerNumber, 'CondTag': r.CondTag, 'layer_id': r.layer_id,
+            }
+            if r.has_excl:
+                extra.update({'CondNumber': 'FullFilter', 'CondDed6All': 1, 'CondDedType6All': 1})
             else:
-                cond_tag = {'CondPriority': 1, 'layers': {}}
-                cond_tags[cond_key] = cond_tag
-
-            cond_location = cond_tag.setdefault('locations', set())
-            cond_location.add(loc_key)
-            cond_tag_priority = cond_tag['CondPriority']
-            conds = loc_conds.setdefault(loc_key, [])
-
-            for i, cond in enumerate(conds):
-                if cond_tag_priority < cond[PRIORITY_INDEX]:
-                    conds.insert(i, (cond_key, cond_tag_priority))
-                    break
-                elif cond_tag_priority == cond[PRIORITY_INDEX] and cond_key != cond[KEY_INDEX]:
-                    raise OasisException(f"{cond_key} and {cond[KEY_INDEX]} have same priority in {loc_key}")
-            else:
-                conds.append((cond_key, cond_tag_priority))
-
-        # at first we just want condtag for each level
-        for cond_key, cond_info in cond_tags.items():
-            acc_id, cond_tag = cond_key
-            cond_level_start = 1
-            for loc_key in cond_info.get('locations', set()):
-                for i, (cond_key_i, _) in enumerate(loc_conds[loc_key]):
-                    if cond_key_i == cond_key:
-                        cond_level_start = max(cond_level_start, i + 1)
-                        break
-            cond_info['cond_level_start'] = cond_level_start
-            cond_peril = cond_info.get('CondPeril') or 'AA1'
-            for layer_id, exclusion_conds in account_layer_exclusion[acc_id].items():
-                if layer_id not in cond_info['layers']:
-                    PolNumber, LayerNumber, acc_idx = pol_info[(acc_id, layer_id)]
-                    if exclusion_conds:
-                        extra_accounts.append({
-                            'acc_idx': acc_idx,
-                            'acc_id': acc_id,
-                            'PolNumber': PolNumber,
-                            'LayerNumber': LayerNumber,
-                            'CondTag': cond_tag,
-                            'layer_id': layer_id,
-                            'CondNumber': 'FullFilter',
-                            'CondDed6All': 1,
-                            'CondDedType6All': 1,
-                            'CondPeril': cond_peril,
-                        })
-                    else:
-                        extra_accounts.append({
-                            'acc_idx': acc_idx,
-                            'acc_id': acc_id,
-                            'PolNumber': PolNumber,
-                            'LayerNumber': LayerNumber,
-                            'CondTag': cond_tag,
-                            'layer_id': layer_id,
-                            'CondNumber': '',
-                            'CondPeril': cond_peril,
-                        })
-            level_conds.setdefault(cond_level_start, set()).add(cond_key)
+                extra['CondNumber'] = ''
+            extra['CondPeril'] = peril_map.get((r.acc_id, r.CondTag), 'AA1')
+            extra_accounts.append(extra)
     return level_conds, extra_accounts
 
 
