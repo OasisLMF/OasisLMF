@@ -465,7 +465,7 @@ def run(run_dir,
     return 0
 
 
-@nb.njit(fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def get_last_non_empty(cdf, bin_i):
     """
     remove empty bucket from the end
@@ -482,7 +482,7 @@ def get_last_non_empty(cdf, bin_i):
     return bin_i
 
 
-@nb.njit(fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def pdf_to_cdf(pdf, empty_cdf):
     """
     return the cumulative distribution from the probality distribution
@@ -504,7 +504,7 @@ def pdf_to_cdf(pdf, empty_cdf):
     return empty_cdf[: i + 1]
 
 
-@nb.njit(fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
     """
     calculate the covoluted cumulative distribution between vulnerability damage and hazard probability distribution

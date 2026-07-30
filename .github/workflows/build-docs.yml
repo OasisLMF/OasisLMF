@@ -2,7 +2,7 @@ name: Build Docs
 on:
   pull_request:
     # build docs for all PRs targeting main
-    branches:    
+    branches:
       - main
 
 permissions:
