@@ -46,7 +46,7 @@ def has_number_in_range(areaperil_ids, min_areaperil_id, max_areaperil_id):
 
 
 def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
-    """
+    """Convert a pandas DataFrame to a numpy structured array.
 
     Args:
         dataframe: DataFrame to convert to numpy

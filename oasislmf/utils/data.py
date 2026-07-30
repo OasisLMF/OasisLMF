@@ -564,12 +564,9 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
 
     Args:
         df (pandas.DataFrame): Input dataframe
-        usecols: The column subset
-        usecols: list
-        group_by: A subset of the column subset to use a subgroup key
-        group_by: list
-        sort_keys: Sort keys by value before assigning ids
-        sort_keys: Boolean
+        usecols (list): The column subset
+        group_by (list): A subset of the column subset to use a subgroup key
+        sort_keys (bool): Sort keys by value before assigning ids
 
             Example if sort_keys=True:
             -----------------

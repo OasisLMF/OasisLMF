@@ -386,21 +386,22 @@ def prepare_profile_stepped(profile, tiv):
 
 @njit(cache=True)
 def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages):
-    """
+    """Build the in-memory financial structure arrays from the raw fm input files.
 
     Args:
-        allocation_rule: option to indicate out the loss are allocated to the output
+        allocation_rule: option to indicate how the losses are allocated to the output
         fm_programme: structure of the levels
         fm_policytc: structure of the layers and policy_id to apply
         fm_profile: definition of the policy_id
         fm_xref: mapping between the output of the allocation and output item_id
 
     Returns:
-        compute_infos:
-            nodes_array:
-            node_parents_array:
-            node_profiles_array:
-            output_array:
+        compute_infos: array describing the steps of the computation to perform
+        nodes_array: array of the nodes of the financial structure
+        node_parents_array: array mapping each node to its parent nodes
+        node_profiles_array: array mapping each node to its profiles
+        output_array: array mapping each output to its node
+        fm_profile: the fm_profile array used by the computation
     """
     ##### profile_id_to_profile_index ####
     # policies may have multiple step, create a mapping between profile_id and the start and end index in fm_profile file
@@ -844,20 +845,15 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
 
 def create_financial_structure(allocation_rule, static_path):
-    """
+    """Compute the financial structure and save it as .npy files in ``static_path``.
 
     Args:
-        allocation_rule: int
-            back-allocation rule
-        static_path: string
-            path to the static files
+        allocation_rule (int): back-allocation rule
+        static_path (str): path to the static files
 
-    Returns:
-        compute_queue : the step of the computation to perform on each event
-            node_indexes : map node to index of item in result array
-            index_dependencies : map node to its dependent indexes
-            node_profile : map node to profile
-            output_item_index : list of item_id, index to put in the output
+    The extracted structure (``compute_info``, ``nodes_array``,
+    ``node_parents_array``, ``node_profiles_array``, ``output_array`` and
+    ``fm_profile``) is written to ``static_path``; the function returns nothing.
     """
 
     if allocation_rule not in allowed_allocation_rule:

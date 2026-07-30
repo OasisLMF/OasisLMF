@@ -884,7 +884,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return geo_grid_lookup
 
     def build_geotiff(self, file_path, band_info):
-        """
+        """Build a lookup function that assigns geotiff band values to each lat/lon.
 
         Args:
             file_path: path to the geotiff file

@@ -363,7 +363,7 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
 
 
 def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
-    """
+    """Run the summary calculation, writing a summary output stream for each summary set.
 
     Args:
         files_in: list of file path to read event from
@@ -371,7 +371,8 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         static_path: path to the static files
         low_memory: if true output summary index file
         output_zeros: if true output 0 loss
-        **kwargs:
+        **kwargs: additional options, including ``summary_sets_output``, a list of
+            ``-summary_set_id summary_set_path`` pairs
     """
     summary_sets_path = {}
     error_msg = (f"summary_sets_output expected format is a list of -summary_set_id summary_set_path (ex: -1 S1.bin -2 S2.bin')"

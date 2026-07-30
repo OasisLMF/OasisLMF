@@ -7,7 +7,7 @@ class BaseJsonToMarkdownGenerator(ABC):
     """Base JSON to Markdown Generator class"""
 
     def __init__(self, full_schema, data_path, doc_out_dir, markdown_generator=None):
-        """
+        """Initialise the generator.
 
         Args:
             full_schema (Dict): Full schema file as dictionary

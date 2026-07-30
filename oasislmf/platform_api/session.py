@@ -193,6 +193,8 @@ class APISession(Session):
         elif isinstance(error, HTTPError):
             http_err_code = error.response.status_code
             self.logger.debug(f"Recoverable error [{error}] from {request} {url}")
+            if getattr(error.response, 'text', None):
+                self.logger.debug(f"Server response: {error.response.text}")
 
             if http_err_code in [502, 503, 504]:
                 error = "HTTP {}".format(http_err_code)

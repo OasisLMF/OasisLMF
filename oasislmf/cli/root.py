@@ -49,6 +49,9 @@ class RootCmd(OasisBaseCommand):
             else:
                 self.logger.error(str(e))
             return 1
+        except KeyboardInterrupt:
+            self.logger.error('Aborted (Ctrl-C)')
+            return 130
 
 
 def main():

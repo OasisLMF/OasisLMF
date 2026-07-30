@@ -11,7 +11,7 @@ import logging
 
 class GulProgressServer:
     def __init__(self, total, host=None, port=None):
-        """
+        """Initialise the progress server.
 
         Args:
             total (int): How many events the server has

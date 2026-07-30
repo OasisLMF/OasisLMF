@@ -191,7 +191,13 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
         accounts_df (pandas.DataFrame): DataFrame loaded from accounts.csv
 
     Returns:
-        list  summary_ids[0] is an int list 1..n  array([1, 2, 1, 2, 1, 2, 1, 2, 1, 2, ... ]) summary_ids[1] is an array of values used to factorize  `array(['Layer1', 'Layer2'], dtype=object)`: subset of columns from exposure_df to merge
+        tuple: a 3-tuple ``(summary_ids, summary_id_values, summary_tiv)``:
+
+        - summary_ids (numpy.ndarray): integer summary id (1..n) for each row,
+          e.g. ``array([1, 2, 1, 2, 1, 2, 1, 2, 1, 2, ...])``
+        - summary_id_values (numpy.ndarray): distinct values used to factorize the
+          rows into summaries, e.g. ``array(['Layer1', 'Layer2'], dtype=object)``
+        - summary_tiv (pandas.DataFrame): total TIV aggregated per summary group
     """
     oed_cols = oed_col_group  # All required columns
     exposure_cols = [c for c in oed_cols if c not in summary_map_df.columns
@@ -459,20 +465,21 @@ def get_summary_xref_df(
     """Create a Dataframe for either gul / il / ri  based on a section
     from the analysis settings
 
-    [{
-        "id": 1,
-        "oed_fields": [],
-          ...
-      },
-
-      ...
-     ]
-
     Args:
         map_df (pandas.DataFrame): Summary Map dataframe (GUL / IL)
         exposure_df (pandas.DataFrame): Location OED data
         accounts_df (pandas.DataFrame): Accounts OED data
-        summaries_info_dict (list): list of dictionary definition for a summary group from the analysis_settings file
+        summaries_info_dict (list): list of dictionary definition for a summary group from the
+            analysis_settings file, e.g.::
+
+                [{
+                    "id": 1,
+                    "oed_fields": [],
+                      ...
+                  },
+
+                  ...
+                 ]
         summaries_type (String): Text label to use as key in summary description either ['gul', 'il', 'ri']
 
     Returns:

@@ -24,7 +24,7 @@ class ConfigUpdateCmd(OasisBaseCommand):
         parser.add_argument('-y', '--no-confirm', default=False, help='No confirmation prompt before file write')
 
     def action(self, args):
-        """
+        """Update and write out the MDK config file, converting any obsolete keys.
 
         Args:
             args (Namespace): The arguments from the command line
