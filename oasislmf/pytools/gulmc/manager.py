@@ -33,7 +33,7 @@ from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_ID
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
-                                         generate_hash_hazard, get_corr_rval_float, get_random_generator)
+                                         generate_hash_hazard, get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
@@ -465,7 +465,7 @@ def run(run_dir,
     return 0
 
 
-@nb.njit(fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def get_last_non_empty(cdf, bin_i):
     """
     remove empty bucket from the end
@@ -482,7 +482,7 @@ def get_last_non_empty(cdf, bin_i):
     return bin_i
 
 
-@nb.njit(fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def pdf_to_cdf(pdf, empty_cdf):
     """
     return the cumulative distribution from the probality distribution
@@ -504,7 +504,7 @@ def pdf_to_cdf(pdf, empty_cdf):
     return empty_cdf[: i + 1]
 
 
-@nb.njit(fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
     """
     calculate the covoluted cumulative distribution between vulnerability damage and hazard probability distribution
@@ -825,7 +825,7 @@ def compute_event_losses(compute_info,
                 if hazard_rng_index >= 0:
                     if compute_info['do_haz_correlation'] and item['hazard_correlation_value'] > 0:
                         # use correlation definitions to draw correlated random values into haz_z_unif
-                        get_corr_rval_float(
+                        get_corr_rval(
                             haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], item['hazard_correlation_value'],
                             norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
                             norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
@@ -836,7 +836,7 @@ def compute_event_losses(compute_info,
 
                 if compute_info['do_correlation'] and item['damage_correlation_value'] > 0:
                     # use correlation definitions to draw correlated random values into vuln_z_unif
-                    get_corr_rval_float(
+                    get_corr_rval(
                         damage_eps_ij[item['peril_correlation_group']], vuln_rndms_base[rng_index], item['damage_correlation_value'],
                         norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
                         norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],

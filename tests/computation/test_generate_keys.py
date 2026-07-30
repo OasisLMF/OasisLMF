@@ -193,8 +193,10 @@ class TestGenKeys(ComputationChecker):
             multiproc_num_partitions=call_args['lookup_num_chunks'],
         )
 
-        # Assertions to ensure `to_version` was called with the correct version
-        mock_get_exposure.return_value.to_version.assert_called_once_with("2.0")
+        # Assert that supported_oed_versions and disable_oed_version_update are forwarded correctly
+        config = mock_get_exposure.call_args[0][0].get_exposure_data_config()
+        assert config['supported_oed_versions'] == ["1.0", "2.0"]
+        assert config['disable_oed_version_update'] is False
 
     @patch('oasislmf.computation.generate.keys.KeyServerFactory.create')
     @patch('oasislmf.computation.generate.keys.get_exposure_data')
@@ -248,8 +250,10 @@ class TestGenKeys(ComputationChecker):
             multiproc_num_partitions=call_args['lookup_num_chunks'],
         )
 
-        # Assert that `to_version` was not called
-        mock_get_exposure.return_value.to_version.assert_not_called()
+        # Assert that disable_oed_version_update is forwarded correctly
+        config = mock_get_exposure.call_args[0][0].get_exposure_data_config()
+        assert config['supported_oed_versions'] == []
+        assert config['disable_oed_version_update'] is True
 
     @patch('oasislmf.computation.generate.keys.KeyServerFactory.create')
     @patch('oasislmf.computation.generate.keys.get_exposure_data')
@@ -302,5 +306,6 @@ class TestGenKeys(ComputationChecker):
             multiproc_num_partitions=call_args['lookup_num_chunks'],
         )
 
-        # Assert that `to_version` was not called
-        mock_get_exposure.return_value.to_version.assert_not_called()
+        # Assert that empty supported_oed_versions is forwarded correctly
+        config = mock_get_exposure.call_args[0][0].get_exposure_data_config()
+        assert config['supported_oed_versions'] == []
