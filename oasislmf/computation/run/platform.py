@@ -334,7 +334,7 @@ class PlatformList(PlatformBase):
         if not any([self.models, self.portfolios, self.analyses, self.subtask]):
             self.print_endpoint('models', ['id', 'supplier_id', 'model_id', 'version_id'])
             self.print_portfolios_summary(['id', 'name', 'location_file', 'accounts_file', 'reinsurance_info_file', 'reinsurance_scope_file',
-                                            'validation_status', 'exposure_status'])
+                                           'validation_status', 'exposure_status'])
             self.print_endpoint('analyses', ['id', 'name', 'model', 'portfolio', 'status', 'input_file', 'output_file', 'run_log_file'])
 
         if self.models:
