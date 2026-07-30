@@ -257,6 +257,16 @@ class PlatformBase(ComputationStep):
         self.logger.info(tabulate(data, headers=items, tablefmt='psql'))
         return data
 
+    def require_api_v2(self, feature_name):
+        """
+        Guard for endpoints only available on the v2 (distributed) Platform API.
+        """
+        if self.server_version.lower() == 'v1':
+            raise OasisException(
+                f"'{feature_name}' requires the v2 Oasis Platform API, "
+                f"but --server-version is set to '{self.server_version}'"
+            )
+
     def select_id(self, msg, valid_ids):
         while True:
             try:
@@ -697,6 +707,8 @@ class PlatformValidate(PlatformBase):
     ]
 
     def run(self):
+        self.require_api_v2('oasislmf api validate')
+
         if self.get_status:
             rsp = self.server.portfolios.validate.get(self.portfolio_id)
             data = rsp.json()
@@ -739,6 +751,8 @@ class PlatformExposureRun(PlatformBase):
     ]
 
     def run(self):
+        self.require_api_v2('oasislmf api exposure-run')
+
         params = {
             'kernel_alloc_rule_il': self.kernel_alloc_rule_il,
             'kernel_alloc_rule_ri': self.kernel_alloc_rule_ri,
@@ -803,6 +817,8 @@ class PlatformCombine(PlatformBase):
     ]
 
     def run(self):
+        self.require_api_v2('oasislmf api combine')
+
         with io.open(self.combine_settings_json, encoding='utf-8') as f:
             config = json.load(f)
         rsp = self.server.analyses.combine(self.analysis_ids, config, self.combine_name)
