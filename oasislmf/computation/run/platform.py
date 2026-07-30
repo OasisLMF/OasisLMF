@@ -210,30 +210,50 @@ class PlatformBase(ComputationStep):
 
         for m in json_data:
             for k in table_data:
+
+                value = m.get(k)
+
                 # will have link+data if dict returned
-                if isinstance(m[k], dict):
+                if isinstance(value, dict):
                     table_data[k].append('Yes')
 
                 # If none then no data
-                elif m[k] is None:
+                elif value is None:
                     table_data[k].append('-')
 
                 # If URL then something linked to field
-                elif isinstance(m[k], str):
-                    if any(v in m[k] for v in ['http://', 'https://']):
+                elif isinstance(value, str):
+                    if any(v in value for v in ['http://', 'https://']):
                         table_data[k].append('Linked')
                     else:
-                        table_data[k].append(m[k])
+                        table_data[k].append(value)
 
                 # Fallback - add value as string
                 else:
-                    table_data[k].append(str(m[k]))
+                    table_data[k].append(str(value))
         return table_data
 
     def print_endpoint(self, attr, items):
         endpoint_obj = getattr(self.server, attr)
         self.logger.info(f'\nAvailable {attr}:')
         data = self.tabulate_json(endpoint_obj.get().json(), items)
+        self.logger.info(tabulate(data, headers=items, tablefmt='psql'))
+        return data
+
+    def print_portfolios_summary(self, items):
+        """
+        The portfolios list endpoint doesn't include `validation_status`/
+        `exposure_status` - those are only present on the per-portfolio
+        detail GET, so fetch each one individually to fill them in.
+        """
+        portfolios = self.server.portfolios.get().json()
+        for p in portfolios:
+            detail = self.server.portfolios.get(p['id']).json()
+            p['validation_status'] = detail.get('validation_status')
+            p['exposure_status'] = detail.get('exposure_status')
+
+        self.logger.info('\nAvailable portfolios:')
+        data = self.tabulate_json(portfolios, items)
         self.logger.info(tabulate(data, headers=items, tablefmt='psql'))
         return data
 
@@ -313,7 +333,8 @@ class PlatformList(PlatformBase):
         # Default to printing summary of API status
         if not any([self.models, self.portfolios, self.analyses, self.subtask]):
             self.print_endpoint('models', ['id', 'supplier_id', 'model_id', 'version_id'])
-            self.print_endpoint('portfolios', ['id', 'name', 'location_file', 'accounts_file', 'reinsurance_info_file', 'reinsurance_scope_file'])
+            self.print_portfolios_summary(['id', 'name', 'location_file', 'accounts_file', 'reinsurance_info_file', 'reinsurance_scope_file',
+                                            'validation_status', 'exposure_status'])
             self.print_endpoint('analyses', ['id', 'name', 'model', 'portfolio', 'status', 'input_file', 'output_file', 'run_log_file'])
 
         if self.models:
