@@ -24,8 +24,7 @@ parser.add_argument('--create-structures',
 
 
 def main() -> None:
-    """
-    Is the entry point for the modelpy command which loads data and constructs a model.
+    """Is the entry point for the modelpy command which loads data and constructs a model.
 
     Returns: None
     """

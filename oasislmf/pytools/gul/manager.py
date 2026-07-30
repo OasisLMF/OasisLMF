@@ -1,7 +1,4 @@
-"""
-This file is the entry point for the gul command for the package.
-
-"""
+"""This file is the entry point for the gul command for the package."""
 import logging
 import os
 import sys
@@ -43,8 +40,8 @@ logger = logging.getLogger(__name__)
 
 @njit(cache=True)
 def adjust_byte_mv_size(byte_mv, max_bytes_per_coverage):
-    """
-    adjust buff size so that the buffer fits the longest coverage
+    """adjust buff size so that the buffer fits the longest coverage
+
     Args:
         byte_mv: numpy byte array
         max_bytes_per_coverage: max size possible to accommodate all the coverage in byte_mv

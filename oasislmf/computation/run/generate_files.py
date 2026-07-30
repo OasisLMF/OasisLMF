@@ -15,9 +15,7 @@ from ...utils.data import get_exposure_data
 
 
 class GenerateOasisFiles(ComputationStep):
-    """
-    Run Oasis file geneartion with optional PreAnalysis hook.
-    """
+    """Run Oasis file geneartion with optional PreAnalysis hook."""
 
     # Override params
     step_params = [

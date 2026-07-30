@@ -67,22 +67,24 @@ profile_entry_dtype = np.dtype([('layer_id', oasis_int),
 
 
 def load_static(static_path):
-    """
-    Load the raw financial data from static_path as numpy ndarray
+    """Load the raw financial data from static_path as numpy ndarray
     first check if .bin file is present then try .cvs
     try loading profile_step before falling back to normal profile,
 
-    :param static_path: str
+    Args:
+        static_path: str
             static_path
-    :return:
+
+    Returns:
         programme : link between nodes
-        policytc : info on layer
-        profile : policy profile can be profile_step or profile
-        xref : node to output_id
-        items : items (item_id and coverage_id mapping)
-        coverages : Tiv value for each coverage id
-    :raise:
-        FileNotFoundError if one of the static is missing
+            policytc : info on layer
+            profile : policy profile can be profile_step or profile
+            xref : node to output_id
+            items : items (item_id and coverage_id mapping)
+            coverages : Tiv value for each coverage id
+
+    Raises:
+        FileNotFoundError: if one of the static is missing
     """
     programme = load_as_ndarray(static_path, 'fm_programme', fm_programme_dtype)
     policytc = load_as_ndarray(static_path, 'fm_policytc', fm_policytc_dtype)
@@ -107,12 +109,14 @@ def load_static(static_path):
 
 @njit(cache=True)
 def does_nothing(profile):
-    """
-    evaluate if the profile is just doing nothing to the loss.
+    """evaluate if the profile is just doing nothing to the loss.
     this allows to save some memory and compulation time and memory during the calculation
-    :param profile: np.array of fm_profile_dtype or fm_profile_step_dtype
+
+    Args:
+        profile: np.array of fm_profile_dtype or fm_profile_step_dtype
             profile
-    :return:
+
+    Returns:
         boolean : True is profile is actually doing nothing
     """
     return ((profile['calcrule_id'] == 100) or
@@ -383,22 +387,20 @@ def prepare_profile_stepped(profile, tiv):
 @njit(cache=True)
 def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages):
     """
-    :param allocation_rule:
-        option to indicate out the loss are allocated to the output
-    :param fm_programme:
-        structure of the levels
-    :param fm_policytc:
-        structure of the layers and policy_id to apply
-    :param fm_profile:
-        definition of the policy_id
-    :param fm_xref:
-        mapping between the output of the allocation and output item_id
-    :return:
+
+    Args:
+        allocation_rule: option to indicate out the loss are allocated to the output
+        fm_programme: structure of the levels
+        fm_policytc: structure of the layers and policy_id to apply
+        fm_profile: definition of the policy_id
+        fm_xref: mapping between the output of the allocation and output item_id
+
+    Returns:
         compute_infos:
-        nodes_array:
-        node_parents_array:
-        node_profiles_array:
-        output_array:
+            nodes_array:
+            node_parents_array:
+            node_profiles_array:
+            output_array:
     """
     ##### profile_id_to_profile_index ####
     # policies may have multiple step, create a mapping between profile_id and the start and end index in fm_profile file
@@ -843,16 +845,19 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
 def create_financial_structure(allocation_rule, static_path):
     """
-    :param allocation_rule: int
+
+    Args:
+        allocation_rule: int
             back-allocation rule
-    :param static_path: string
+        static_path: string
             path to the static files
-    :return:
+
+    Returns:
         compute_queue : the step of the computation to perform on each event
-        node_indexes : map node to index of item in result array
-        index_dependencies : map node to its dependent indexes
-        node_profile : map node to profile
-        output_item_index : list of item_id, index to put in the output
+            node_indexes : map node to index of item in result array
+            index_dependencies : map node to its dependent indexes
+            node_profile : map node to profile
+            output_item_index : list of item_id, index to put in the output
     """
 
     if allocation_rule not in allowed_allocation_rule:

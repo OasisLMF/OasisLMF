@@ -25,9 +25,7 @@ from ..base import ComputationStep
 
 
 class PlatformBase(ComputationStep):
-    """
-    Base platform class to handle opening a client connection
-    """
+    """Base platform class to handle opening a client connection"""
     step_params = [
         {'name': 'server_login_json', 'required': False, 'default': None, 'is_path': True,
             'pre_exist': False, 'help': 'Server login credentials json string'},
@@ -47,8 +45,7 @@ class PlatformBase(ComputationStep):
         self.server = self.open_connection()
 
     def load_credentials(self, login_arg, auth_type=None):
-        """
-        Load credentials from JSON file or prompt interactively.
+        """Load credentials from JSON file or prompt interactively.
 
         Options:
             1.'--server-login ./APIcredentials.json'
@@ -124,8 +121,7 @@ class PlatformBase(ComputationStep):
         return kwargs
 
     def open_connection(self):
-        """
-        Attempts connection in this order:
+        """Attempts connection in this order:
         1. API_EXAMPLE_AUTH username/password  (skipped when auth_type is oidc or m2m)
         2. API_EXAMPLE_AUTH client_id/client_secret  (skipped when auth_type is simple)
         3. Prompt or load credentials
@@ -243,8 +239,7 @@ class PlatformBase(ComputationStep):
 
 
 class PlatformList(PlatformBase):
-    """ Return status and details from an Oasis Platform API server
-    """
+    """Return status and details from an Oasis Platform API server"""
     step_params = PlatformBase.step_params + [
         {'name': 'models', 'flag': '-m', 'type': int, 'nargs': '+', 'help': 'List of model ids to print in detail'},
         {'name': 'portfolios', 'flag': '-p', 'type': int, 'nargs': '+', 'help': 'List of portfolio ids to print in detail'},
@@ -287,8 +282,7 @@ class PlatformList(PlatformBase):
 
 
 class PlatformRunInputs(PlatformBase):
-    """ run generate inputs via the Oasis Platoform API
-    """
+    """run generate inputs via the Oasis Platoform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'model_id', 'type': int, 'help': 'API `id` of a model to run an analysis with'},
         {'name': 'portfolio_id', 'type': int, 'help': 'API `id` of a portfolio to run an analysis with'},
@@ -372,8 +366,7 @@ class PlatformRunInputs(PlatformBase):
 
 
 class PlatformRunLosses(PlatformBase):
-    """ run generate losses via the Oasis Platoform API
-    """
+    """run generate losses via the Oasis Platoform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
@@ -393,8 +386,7 @@ class PlatformRunLosses(PlatformBase):
 
 
 class PlatformRun(PlatformBase):
-    """ End to End - run model via the Oasis Platoform API
-    """
+    """End to End - run model via the Oasis Platoform API"""
     chained_commands = [PlatformRunInputs, PlatformRunLosses]
 
     def run(self):
@@ -403,8 +395,7 @@ class PlatformRun(PlatformBase):
 
 
 class PlatformDelete(PlatformBase):
-    """ Delete either a 'model', 'portfolio' or an 'analysis' from the API's Database
-    """
+    """Delete either a 'model', 'portfolio' or an 'analysis' from the API's Database"""
     step_params = PlatformBase.step_params + [
         {'name': 'models', 'flag': '-m', 'type': int, 'nargs': '+', 'help': 'List of model ids to Delete.'},
         {'name': 'portfolios', 'flag': '-p', 'type': int, 'nargs': '+', 'help': 'List of Portfolio ids to Delete'},
@@ -442,8 +433,7 @@ class PlatformDelete(PlatformBase):
 
 
 class PlatformGet(PlatformBase):
-    """ Download file(s) from the api
-    """
+    """Download file(s) from the api"""
     step_params = PlatformBase.step_params + [
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
             'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},

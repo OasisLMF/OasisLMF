@@ -14,8 +14,7 @@ from oasislmf.pytools.getmodel.footprint import Footprint
 
 
 def convert_bin_to_parquet_event(static_path: str, **kwargs) -> None:
-    """
-    Converts the data from a binary file to a parquet file.
+    """Converts the data from a binary file to a parquet file.
 
     Args:
         static_path: (str) the path to the static file
@@ -56,8 +55,7 @@ def convert_bin_to_parquet_event(static_path: str, **kwargs) -> None:
 
 
 def convert_bin_to_parquet_chunk(static_path, chunk_size, **kwargs) -> None:
-    """
-    Converts the data from a binary file to a parquet file.
+    """Converts the data from a binary file to a parquet file.
 
     Args:
         static_path: (str) the path to the static file

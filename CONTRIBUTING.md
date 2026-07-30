@@ -20,6 +20,28 @@ Please adhere to the following principles when contributing to the code base:
    - all functions must have a docstring describing their purpose, the data type and the content of all input and output variables. Where external results (e.g., specific algorithms) are used, a short note or reference to the external source should be included.
    - the docstrings need to be concise and essential, yet complete.
    - in functions implementing non-trivial logic and/or complex algorithms, the code should be annotated with short and informative comments making clear the logic and the flow, and the reasoning behind non-obvious implementation decisions.
+   - **docstrings must use Google style** (not reStructuredText `:param:`/`:type:`/`:return:` fields, nor NumPy `Parameters`/`----------` sections). Use `Args:`, `Returns:`, `Yields:`, `Raises:` and `Attributes:` sections. Types go in parentheses after the name; optional arguments are marked `optional` with their default noted. A blank line separates the summary, the extended description and each section. For example:
+
+     ```python
+     def as_path(path, label, is_dir=False, preexists=True):
+         """Process the path and return the absolute path.
+
+         If the path does not exist and ``preexists`` is true an
+         ``OasisException`` is raised.
+
+         Args:
+             path (str): The path to process.
+             label (str): Human-readable label of the path (used for error reporting).
+             is_dir (bool): Whether the path is a directory.
+             preexists (bool, optional): Raise an error if the path does not exist. Defaults to True.
+
+         Returns:
+             str: The absolute path of the input path.
+
+         Raises:
+             OasisException: If ``preexists`` is true and the path does not exist.
+         """
+     ```
    
   - format the code to make it **PEP8 compliant**. This is easily done with tools like `autopep8`: see how to use formatters in [VS code](https://code.visualstudio.com/docs/python/editing#_formatting) and [PyCharm](https://www.jetbrains.com/help/pycharm/reformat-and-rearrange-code.html). 
   

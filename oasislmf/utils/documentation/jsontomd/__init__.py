@@ -1,6 +1,4 @@
-"""
-Json to Markdown Utils
-"""
+"""Json to Markdown Utils"""
 __all__ = [
     'BaseJsonToMarkdownGenerator',
     'DefaultJsonToMarkdownGenerator',

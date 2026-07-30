@@ -1,7 +1,4 @@
-"""
-This file contains the utilities for all the I/O necessary in gulpy.
-
-"""
+"""This file contains the utilities for all the I/O necessary in gulpy."""
 from select import select
 
 import numpy as np
@@ -26,7 +23,6 @@ def gen_structs():
     Returns:
         Dict(int,int), List: map of group ids to random seeds,
           list storing the index where a specific cdf record starts in the `rec` numpy array.
-
     """
     group_id_rng_index = Dict.empty(nb_int32, nb_int64)
     rec_idx_ptr = List([0])
@@ -64,7 +60,6 @@ def read_getmodel_stream(stream_in, items,
         to ensure that the stream is always read in the biggest possible chunks,
         which nominally is the largest between the pipe limit and the remaining memory
         to fill the memoryview.
-
     """
     # determine stream type
     stream_source_type, stream_agg_type = bytes_to_stream_types(stream_in.read(4))

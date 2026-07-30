@@ -14,6 +14,7 @@ def get_loss(
     curr_loss
 ):
     """Get loss based on current and next return period
+
     Args:
         next_retperiod (float): Next return period
         last_retperiod (float): Previous return period
@@ -48,6 +49,7 @@ def fill_tvar(
     tvar
 ):
     """Populate the Tail with retperiod and tvar values for summary_id
+
     Args:
         tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
         tail_sizes (ndarray[int64]): Array of current fill size per summary_id
@@ -79,6 +81,7 @@ def fill_tvar_wheatsheaf(
     tvar
 ):
     """Populate the Tail with retperiod and tvar values for (summary_id, sidx) pair
+
     Args:
         tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
         tail_sizes (ndarray[int64]): Array of current fill size per (summary_id, sidx) idx
@@ -122,6 +125,7 @@ def write_return_period_out(
     num_sidxs=-1,
 ):
     """Processes return periods and computes losses for a given summary, updating TVaR and mean map if required.
+
     Args:
         next_returnperiod_idx (int): Index of the next return period to process.
         last_computed_rp (float): Last computed return period
@@ -141,6 +145,7 @@ def write_return_period_out(
         mean_map (ndarray[MEANMAP_dtype], optional): An array mapping used for mean loss calculations per Summary ID. Used for EPT output later. Defaults to None.
         is_wheatsheaf (bool, optional): If True, update the wheatsheaf TVaR structure.
         num_sidxs (int, optional): Number of sidxs to consider. Defaults to -1 if not is_wheatsheaf.
+
     Returns:
         rets (list[EPT_dtype]): Return period and Loss EPT data
         tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
@@ -223,6 +228,7 @@ def write_tvar(
     max_summary_id,
 ):
     """Get TVaR values for EPT output from tail
+
     Args:
         epcalc (int): Type of exceedance probability calculation.
         eptype_tvar (int): Type of Tail Value-at-Risk (TVAR) to calculate (0 = OEP TVAR, 1 = AEP TVAR).
@@ -261,6 +267,7 @@ def write_tvar_wheatsheaf(
     total_idxs,
 ):
     """Get TVaR values for PSEPT output from tail
+
     Args:
         num_sidxs (int): Number of sidxs to consider.
         eptype_tvar (int): Type of Tail Value-at-Risk (TVAR) to calculate (0 = OEP TVAR, 1 = AEP TVAR).
@@ -309,6 +316,7 @@ def write_ept(
     - For Aggregate Loss Exceedance Curves (AEP): The sum of all losses within a period is calculated.
     - For Occurrence Loss Exceedance Curves (OEP): The maximum loss within a period is taken.
     - TVAR (Tail Conditional Expectation): Calculated as the average of losses exceeding a given return period.
+
     Args:
         items (ndarray[LOSSVEC2MAP_dtype]): Array mapping summary_id to loss value (and period_no/period_weighting where applicable)
         items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each summary_id in the items array
@@ -320,6 +328,7 @@ def write_ept(
         returnperiods (ndarray[np.int32]): Return Periods array
         max_summary_id (int): Maximum summary ID
         sample_size (int, optional): Sample Size. Defaults to 1.
+
     Yields:
         buffer (ndarray[EPT_dtype]): Buffered chunks of EPT data
     """
@@ -494,6 +503,7 @@ def write_ept_weighted(
     - For Aggregate Loss Exceedance Curves (AEP): The sum of all losses within a period is calculated.
     - For Occurrence Loss Exceedance Curves (OEP): The maximum loss within a period is taken.
     - TVAR (Tail Conditional Expectation): Calculated as the average of losses exceeding a given return period.
+
     Args:
         items (ndarray[LOSSVEC2MAP_dtype]): Array mapping summary_id to loss value (and period_no/period_weighting where applicable)
         items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each summary_id in the items array
@@ -506,6 +516,7 @@ def write_ept_weighted(
         returnperiods (ndarray[np.int32]): Return Periods array
         max_summary_id (int): Maximum summary ID
         sample_size (int, optional): Sample Size. Defaults to 1.
+
     Yields:
         buffer (ndarray[EPT_dtype]): Buffered chunks of EPT data
     """
@@ -686,6 +697,7 @@ def write_psept(
 ):
     """Generate Per Sample Exceedance Probability Tables (PSEPT) for each individual sample, producing a separate loss
     exceedance curve for each sample, eptype, eptype_tvar.
+
     Args:
         items (ndarray[WHEATKEYITEMS_dtype]): Array mapping (summary_id, sidx) to loss value (and period_no/period_weighting where applicable)
         items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each (summary_id, sidx) pair in the items array
@@ -869,6 +881,7 @@ def write_psept_weighted(
 ):
     """Generate Per Sample Exceedance Probability Tables (PSEPT) for each individual sample, producing a separate loss
     exceedance curve for each sample, eptype, eptype_tvar.
+
     Args:
         items (ndarray[WHEATKEYITEMS_dtype]): Array mapping (summary_id, sidx) to loss value (and period_no/period_weighting where applicable)
         items_start_end (ndarray[np.int32]): An array marking where the start and end idxs are for each (summary_id, sidx) pair in the items array
@@ -882,6 +895,7 @@ def write_psept_weighted(
         num_sidxs (int): Number of sidxs to consider
         sample_size (int): Sample Size. Defaults to 1.
         mean_map (ndarray[MEANMAP_dtype], optional): An array mapping used for mean loss calculations per Summary ID. Used for EPT output later. Defaults to None.
+
     Yields:
         buffer (ndarray[PSEPT_dtype]): Buffered chunks of PSEPT data
     """
@@ -1065,6 +1079,7 @@ def write_wheatsheaf_mean(
 ):
     """Generate Wheatsheaf Mean Exceedance Probability Table (EPT) by averaging losses for each return period
     from a precomputed mean map.
+
     Args:
         mean_map (ndarray[MEANMAP_dtype]): An array mapping used for mean loss calculations per Summary ID.
         epcalc (int): Specifies the calculation method (mean damage loss, full uncertainty, per sample mean, sample mean).

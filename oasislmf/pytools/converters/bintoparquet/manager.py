@@ -34,6 +34,7 @@ def default_toparquet(stack, file_in, file_out, file_type):
 
 def bintoparquet(file_in, file_out, file_type, **kwargs):
     """Convert bin file to parquet file based on file type
+
     Args:
         file_in (str | os.PathLike): Input file path
         file_out (str | os.PathLike): Output file path

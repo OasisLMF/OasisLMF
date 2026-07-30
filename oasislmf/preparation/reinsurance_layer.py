@@ -175,9 +175,9 @@ FM_TERMS_PER_REINS_TYPE = {
 
 
 def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id, logger):
-    """
-    Create new profile id from reinsurance in ri_df corresponding to reins_type.
+    """Create new profile id from reinsurance in ri_df corresponding to reins_type.
     Add them to fm_profile_df and match the profile_ids in ri_df and profile_map_df
+
     Args:
         ri_df: ri info and scope
         profile_map_df: tree structure df representing each ri fm levels
@@ -305,8 +305,7 @@ def check_ri_scope_filter(ri_df, risk_level):
 
 
 def get_xref_df(xref_descriptions_df, risk_level):
-    """
-    Build the cross-reference dataframe, which serves as a representation
+    """Build the cross-reference dataframe, which serves as a representation
     of the insurance programme depending on the reinsurance risk level.
     Dataframes for programme, risk, filter and items levels are created.
     The fields agg_id, level_id and to_agg_id (agg_id_to), which are used
@@ -314,6 +313,7 @@ def get_xref_df(xref_descriptions_df, risk_level):
     aforementioned dataframes are concatenated to form a single dataframe
     called xref_df, which is returned. The returned dataframe features the
     fields necessary for the assignment of profile IDs.
+
     Args:
         xref_descriptions_df: Fm summary mapping enhanced by relevant information from Loc and Account
         risk_level: risk_level
@@ -375,8 +375,7 @@ def _log_dataframe(logger, df_dict, ri_name):
 
 @oasis_log
 def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, output_dir, fm_xref_fp, intermediary_csv, logger):
-    """
-    Create the Oasis structures - FM Programmes, FM Profiles and FM Policy
+    """Create the Oasis structures - FM Programmes, FM Profiles and FM Policy
     TCs - that represent the reinsurance structure.
 
     The cross-reference dataframe, which serves as a representation of the

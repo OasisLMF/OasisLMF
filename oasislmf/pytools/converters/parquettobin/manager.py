@@ -25,6 +25,7 @@ def default_tobin(stack, file_in, file_out, file_type):
 
 def parquettobin(file_in, file_out, file_type, **kwargs):
     """Convert parquet file to bin file based on file type
+
     Args:
         file_in (str | os.PathLike): Input file path
         file_out (str | os.PathLike): Output file path

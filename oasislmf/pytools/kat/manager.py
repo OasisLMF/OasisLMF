@@ -24,8 +24,10 @@ logger = logging.getLogger(__name__)
 
 def check_file_extensions(file_paths):
     """Check file path extensions are all identical
+
     Args:
         file_paths (List[str | os.PathLike]): List of csv file paths.
+
     Returns:
         ext (str): file extension as a str
     """
@@ -41,9 +43,11 @@ def find_csv_with_header(
     file_paths,
 ):
     """Find and check csv files for consistent and present headers
+
     Args:
         stack (ExitStack): Exit Stack.
         file_paths (List[str | os.PathLike]): List of csv file paths.
+
     Returns:
         files_with_header (List[bool]): Bool list of files with header present
         header (str): Header to write
@@ -71,6 +75,7 @@ def find_csv_with_header(
 
 def check_correct_headers(headers, file_type):
     """Checks headers found in csv file matches excpected headers for file type
+
     Args:
         headers (List[str]): Headers
         file_type (int): File type int matching KAT_NAMES index
@@ -89,6 +94,7 @@ def get_header_idxs(
     headers_to_search,
 ):
     """Search for index of headers_to_search in headers of csv file
+
     Args:
         headers (List[str]): Headers
         headers_to_search (List[str]): Headers to search
@@ -112,6 +118,7 @@ def csv_concat_unsorted(
     out_file,
 ):
     """Concats CSV files in order they are passed in.
+
     Args:
         stack (ExitStack): Exit Stack.
         file_paths (List[str | os.PathLike]): List of csv file paths.
@@ -146,6 +153,7 @@ def csv_concat_sort_by_headers(
     **sort_kwargs
 ):
     """Concats CSV files in order determined by the header_idxs and sort_fn
+
     Args:
         stack (ExitStack): Exit Stack.
         file_paths (List[str | os.PathLike]): List of csv file paths.
@@ -200,6 +208,7 @@ def bin_concat_unsorted(
     out_file,
 ):
     """Concats Binary files in order they are passed in.
+
     Args:
         stack (ExitStack): Exit Stack.
         file_paths (List[str | os.PathLike]): List of bin file paths.
@@ -214,6 +223,7 @@ def bin_concat_unsorted(
 @nb.njit(cache=True, error_model="numpy")
 def merge_elt_data(memmaps):
     """Merge sorted chunks using a k-way merge algorithm
+
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
     Yields:
@@ -260,6 +270,7 @@ def merge_elt_data(memmaps):
 @nb.njit(cache=True, error_model="numpy")
 def merge_plt_data(memmaps):
     """Merge sorted chunks using a k-way merge algorithm
+
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
     Yields:
@@ -311,6 +322,7 @@ def bin_concat_sort_by_headers(
     out_file,
 ):
     """Concats Binary files in order determined out_type and their respective merge functions
+
     Args:
         stack (ExitStack): Exit Stack.
         file_paths (List[str | os.PathLike]): List of bin file paths.
@@ -344,6 +356,7 @@ def parquet_concat_unsorted(
     out_file,
 ):
     """Concats Parquet files in order they are passed in.
+
     Args:
         file_paths (List[str | os.PathLike]): List of parquet file paths.
         out_file (str | os.PathLike): Output Concatenated Parquet file.
@@ -367,10 +380,12 @@ def parquet_kway_merge(
     chunk_size=100000,
 ):
     """Merge sorted chunks using a k-way merge algorithm
+
     Args:
         file_paths (List[str | os.PathLike]): List of parquet file paths.
         keys (List[str]): List of keys to sort by
         chunk_size (int): Chunk size for reading parquet files. Defaults to 100000.
+
     Yields:
         buffer (pa.Table): yields sorted pyarrow table from input files
     """
@@ -451,6 +466,7 @@ def parquet_concat_sorted(
     chunk_size=100000,
 ):
     """Concats Parquet files in order determined out_type and their respective merge functions
+
     Args:
         file_paths (List[str | os.PathLike]): List of parquet file paths.
         out_type (str): Out type str between "elt" and "plt"
@@ -489,6 +505,7 @@ def run(
     unsorted=False,
 ):
     """Concatenate output files (optionally sorted)
+
     Args:
         out_file (str | os.PathLike): Output Concatenated file.
         file_type (str, optional): Input file type suffix, if not discernible from input files. Defaults to None.

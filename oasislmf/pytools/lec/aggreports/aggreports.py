@@ -250,6 +250,7 @@ class AggReports():
         """Output Mean Damage Ratio
         Mean Damage Losses - This means do the loss calculation for a year using the event mean
         damage loss computed by numerical integration of the effective damageability distributions.
+
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
@@ -273,6 +274,7 @@ class AggReports():
         """Output Full Uncertainty
         Full Uncertainty – this means do the calculation across all samples (treating the samples
         effectively as repeat years) - this is the most accurate of all the single EP Curves.
+
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
@@ -298,6 +300,7 @@ class AggReports():
         leave it at the sample level of detail, resulting in multiple "curves".
         Wheatsheaf Mean, Per Sample mean EPT – this means average the loss at each return period of
         the Per Sample EPT.
+
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
@@ -338,6 +341,7 @@ class AggReports():
         """Output Sample Mean
         Sample Mean Losses – this means do the loss calculation for a year using the statistical
         sample event mean.
+
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)

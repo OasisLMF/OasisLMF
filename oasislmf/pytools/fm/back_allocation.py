@@ -1,5 +1,4 @@
-"""
-Back Allocation Functions for FM Computation
+"""Back Allocation Functions for FM Computation
 =============================================
 
 This module handles the distribution of computed losses back to the original items
@@ -49,8 +48,7 @@ def back_alloc_extra_a2(base_children_count, temp_children_queue, nodes_array, p
                         node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                         loss_in, loss_out, temp_node_loss, loss_indptr, loss_val,
                         extra, temp_node_extras, extras_indptr, extras_val):
-    """
-    Back-allocate loss AND extras to base children using allocation rule 2 (pro-rata).
+    """Back-allocate loss AND extras to base children using allocation rule 2 (pro-rata).
 
     This function distributes the computed insured loss back to individual items,
     along with their share of deductibles and limits. It handles the complex
@@ -204,8 +202,7 @@ def back_alloc_extra_a2(base_children_count, temp_children_queue, nodes_array, p
 def back_alloc_a2(base_children_count, temp_children_queue, nodes_array, profile_i,
                   node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                   loss_in, loss_out, temp_node_loss, loss_indptr, loss_val):
-    """
-    Back-allocate loss only (no extras) to base children using allocation rule 2.
+    """Back-allocate loss only (no extras) to base children using allocation rule 2.
 
     Simpler version of back_alloc_extra_a2 when extras tracking is not needed.
     Computes a single loss factor = loss_out / loss_in and applies it to all children.
@@ -264,8 +261,7 @@ def back_alloc_a2(base_children_count, temp_children_queue, nodes_array, profile
 def back_alloc_layer(layer_count, node_val_count, node_loss_ptr_i,
                      loss_in, loss_out, loss_indptr, loss_val,
                      temp_node_loss_layer_ba):
-    """
-    Back-allocate cross-layer profile results to individual layers (loss only).
+    """Back-allocate cross-layer profile results to individual layers (loss only).
 
     When a cross-layer profile is applied, it operates on the sum of all layers.
     This function distributes the result back to each layer proportionally:
@@ -306,8 +302,7 @@ def back_alloc_layer_extra(layer_count, node_val_count, node_loss_ptr_i, node_ex
                            extras_indptr, extras_val,
                            temp_node_extras_layer_merge, temp_node_extras_layer_merge_save
                            ):
-    """
-    Back-allocate cross-layer profile results to individual layers (loss AND extras).
+    """Back-allocate cross-layer profile results to individual layers (loss AND extras).
 
     Similar to back_alloc_layer but also handles the extras (deductible, overlimit,
     underlimit) allocation. The extras allocation follows the same rules as

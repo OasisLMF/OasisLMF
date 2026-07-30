@@ -1,5 +1,4 @@
-"""
-Entry point to the run method of summarypy
+"""Entry point to the run method of summarypy
 read an event loss stream and aggregate it into the relevant summary loss stream
 
 using numba latest version 0.59, we are limited is our usage of classes and have to pass each data structure into the different function
@@ -21,7 +20,6 @@ event based intermediary data structure:
     loss_summary : 2D array of losses for each summary
                    loss_summary[loss_index[summary_set_index], sidx] = loss
     is_risk_affected : array to store in if a risk has already been affected or not in this event
-
 """
 import numpy as np
 import numba as nb
@@ -148,8 +146,8 @@ def nb_extract_risk_info(item_id_to_risks_i, summary_map):
 
 
 def extract_risk_info(len_item_id, summary_map):
-    """
-    extract relevant information regarding item and risk mapping from summary_map
+    """extract relevant information regarding item and risk mapping from summary_map
+
     Args:
         len_item_id: number of items
         summary_map: numpy ndarray view of the summary_map
@@ -243,8 +241,7 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
                    output_zeros, has_affected_risk,
                    summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id, loss_summary,
                    summary_index_cursor, summary_sets_cursor, summary_stream_index):
-    """
-        load event summary loss into byte_mv
+    """load event summary loss into byte_mv
 
     Args:
         byte_mv: numpy byte view to write to the stream
@@ -339,9 +336,7 @@ def get_summary_set_id_to_summary_set_index(summary_sets_id):
 
 
 def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summary_set_index):
-    """
-    extract mapping from summary_xref
-    """
+    """extract mapping from summary_xref"""
     summary_set_index_to_loss_ptr = np.zeros(summary_sets_id.shape[0] + 1, oasis_int)
     max_item_id = 0
     for i in range(summary_xref.shape[0]):
@@ -369,6 +364,7 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
 
 def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
     """
+
     Args:
         files_in: list of file path to read event from
         run_type: type of the source that is sending the stream
@@ -376,7 +372,6 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         low_memory: if true output summary index file
         output_zeros: if true output 0 loss
         **kwargs:
-
     """
     summary_sets_path = {}
     error_msg = (f"summary_sets_output expected format is a list of -summary_set_id summary_set_path (ex: -1 S1.bin -2 S2.bin')"

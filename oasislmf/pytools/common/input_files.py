@@ -49,8 +49,7 @@ def _check_amplifications_contiguous(item_ids):
 
 
 def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=False, raw=False):
-    """
-    Get array of amplification IDs from amplifications.bin, where index
+    """Get array of amplification IDs from amplifications.bin, where index
     corresponds to item ID.
 
     amplifications.bin is binary file with layout:
@@ -66,6 +65,7 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
         raw (bool): If True, return the validated flat int32 array (zero-copy memmap for file
             inputs) instead of building the 1-based lookup copy. Intended for sequential
             read paths (e.g. bintocsv) where random access by item_id is not needed.
+
     Returns:
         items_amps (numpy.ndarray): If raw=False (default), a 1-based lookup array of
             amplification IDs where index corresponds to item ID. If raw=True, the flat
@@ -99,6 +99,7 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
 
 def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FILENAME):
     """Load the correlations from the correlations file.
+
     Args:
         run_dir (str): path to correlations file
         ignore_file_type (Set[str]): file extension to ignore when loading.
@@ -144,11 +145,13 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
 
 def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, use_stdin=False):
     """Load the coverages from the coverages file.
+
     Args:
         run_dir (str): path to coverages file
         ignore_file_type (Set[str]): file extension to ignore when loading.
         filename (str | os.PathLike): coverages file name
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
+
     Returns:
         numpy.array[oasis_float]: array with the coverage values for each coverage_id.
     """
@@ -206,6 +209,7 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
 
 def read_event_rates(run_dir, filename=EVENTRATES_FILE):
     """Reads event rates from a CSV file
+
     Args:
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): event rates csv file name
@@ -236,6 +240,7 @@ def read_event_rates(run_dir, filename=EVENTRATES_FILE):
 
 def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=False):
     """Generate a quantile interval Dictionary based on sample size and quantile binary file
+
     Args:
         sample_size (int): Sample size
         run_dir (str | os.PathLike): Path to input files dir
@@ -264,10 +269,12 @@ def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=Fal
 
 def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
     """Read the occurrence binary file and returns an occurrence map
+
     Args:
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): occurrence binary file name
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
+
     Returns:
         occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
     """
@@ -319,8 +326,7 @@ def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
 
 @nb.njit(cache=True, error_model="numpy")
 def _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype):
-    """Reads occurrence file array and returns an occurrence map of event_id to list of (period_no, occ_date_id)
-    """
+    """Reads occurrence file array and returns an occurrence map of event_id to list of (period_no, occ_date_id)"""
     occ_map = nb.typed.Dict.empty(nb_oasis_int, NB_occ_map_valtype)
     occ_map_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
     for row in occ_arr:
@@ -440,6 +446,7 @@ def occ_get_date(occ_date_id, granular_date):
 @nb.njit(cache=True)
 def occ_get_date_id(granular_date, occ_year, occ_month, occ_day, occ_hour=0, occ_minute=0):
     """Returns the occ_date_id from year, month, day, hour, minute and whether it is a granular date
+
     Args:
         granular_date (bool): boolean for whether granular date should be extracted or not
         occ_year (int): Occurrence Year.
@@ -447,6 +454,7 @@ def occ_get_date_id(granular_date, occ_year, occ_month, occ_day, occ_hour=0, occ
         occ_day (int): Occurrence Day.
         occ_hour (int): Occurrence Hour. Defaults to 0.
         occ_minute (int): Occurrence Minute. Defaults to 0.
+
     Returns:
         occ_date_id (np.int64): occurrence file date id (int64 for granular dates)
     """
@@ -463,6 +471,7 @@ def occ_get_date_id(granular_date, occ_year, occ_month, occ_day, occ_hour=0, occ
 
 def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     """Returns an array of period weights for each period between 1 and no_of_periods inclusive (with no gaps).
+
     Args:
         no_of_periods (int): Number of periods
         run_dir (str | os.PathLike): Path to input files dir
@@ -500,6 +509,7 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
 
 def read_returnperiods(use_return_period_file, run_dir, filename=RETURNPERIODS_FILE):
     """Returns an array of return periods decreasing order with no duplicates.
+
     Args:
         use_return_period_file (bool): Bool to use Return Period File
         run_dir (str | os.PathLike): Path to input files dir

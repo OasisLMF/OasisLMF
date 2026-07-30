@@ -35,8 +35,7 @@ def stream_events(events, stream_out):
 
 
 def calculate_events_per_process(n_events, total_processes):
-    """Calculate number of events per process.
-    """
+    """Calculate number of events per process."""
     events_per_process, remainder = divmod(n_events, total_processes)
     return events_per_process + bool(remainder)  # add 1 if remainder
 

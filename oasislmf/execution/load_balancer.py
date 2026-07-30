@@ -34,15 +34,17 @@ class ProducerStopped(RuntimeError):
 
 @njit(cache=True)
 def get_next_event_index(read_buffer, last_event_index, last_event_id, max_cursor):
-    """
-    try to get the index of the end of the event
+    """try to get the index of the end of the event
     if found return the index and 0 to indicate it is found
     if not found return the index of the last item parsed and the last event id
 
-    :param sub: byte array to parse
-    :param last_item_index: last index parsed
-    :param last_event_id: last event idea parsed (0 means no event)
-    :return: last index parsed, last event idea parsed (0 means the chunk sub[:last_item_index] is a full event
+    Args:
+        sub: byte array to parse
+        last_item_index: last index parsed
+        last_event_id: last event idea parsed (0 means no event)
+
+    Returns:
+        last index parsed, last event idea parsed (0 means the chunk sub[:last_item_index] is a full event
     """
     cursor = last_event_index
     while cursor < max_cursor - 4:
@@ -159,18 +161,17 @@ def consumer(out_stream, pipeline, write_size, sentinel, stopper):
 
 
 def balance(pipe_in, pipe_out, read_size, write_size, queue_size):
-    """
-    Load balance events for a list of input fil_path to a list of output fil_path
+    """Load balance events for a list of input fil_path to a list of output fil_path
 
-    :param pipe_in: list of fil_path
-        fil_path to take as input
-    :param pipe_out: list of fil_path
-        fil_path to take as input
-    :param read_size: int
-        size of the maximum amount of Byte read from one input at a time
-    :param queue_size: int
-        maximum size ofthe buffer queue
-
+    Args:
+        pipe_in: list of fil_path
+            fil_path to take as input
+        pipe_out: list of fil_path
+            fil_path to take as input
+        read_size: int
+            size of the maximum amount of Byte read from one input at a time
+        queue_size: int
+            maximum size ofthe buffer queue
     """
     inputs = [open(p, 'rb') for p in pipe_in]
     outputs = [open(p, 'wb') for p in pipe_out]

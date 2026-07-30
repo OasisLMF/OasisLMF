@@ -62,6 +62,7 @@ def default_tocsv(stack, file_in, file_out, file_type, noheader):
 
 def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
     """Convert bin file to csv file based on file type
+
     Args:
         file_in (str | os.PathLike): Input file path
         file_out (str | os.PathLike): Output file path

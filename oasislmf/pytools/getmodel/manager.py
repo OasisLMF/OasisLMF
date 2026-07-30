@@ -1,8 +1,6 @@
-"""
-This file is the entry point for the python get model command for the package
+"""This file is the entry point for the python get model command for the package
 
 TODO: use selector and select for output
-
 """
 import atexit
 import json
@@ -99,8 +97,7 @@ else:
 
 @nb.njit(cache=True)
 def load_items(items):
-    """
-    Processes pre-sorted, pre-filtered items extracting vulnerability metadata.
+    """Processes pre-sorted, pre-filtered items extracting vulnerability metadata.
 
     Items must be sorted by (areaperil_id, vulnerability_id) before calling.
 
@@ -180,8 +177,7 @@ def load_items(items):
 
 
 def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
-    """
-    Loads the items from the items file.
+    """Loads the items from the items file.
 
     Args:
         input_path: (str) the path pointing to the file
@@ -215,8 +211,7 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
 
 
 def get_intensity_bin_dict(input_path):
-    """
-    Loads the intensity bin dictionary file and creates arrays to map intensities to bins.
+    """Loads the intensity bin dictionary file and creates arrays to map intensities to bins.
     Used in the dynamic footprint generation as intensities can be adjusted for defences at runtime.
 
     Args:
@@ -292,8 +287,7 @@ def load_vuln_probability(vuln_array, vuln, vuln_id):
 @nb.njit(cache=True)
 def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_map, vuln_map_keys,
                        num_damage_bins, num_intensity_bins, rowsize):
-    """
-    Loads the vulnerability binary index file.
+    """Loads the vulnerability binary index file.
 
     Args:
         vulns_bin: (List[VulnerabilityRow]) vulnerability data from the vulnerability file
@@ -328,8 +322,7 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_map, vuln_map_keys,
 @nb.njit(cache=True)
 def load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_map, vuln_map_keys,
                                 num_damage_bins, num_intensity_bins, rowsize, adj_vuln_data=None):
-    """
-    Loads the vulnerability binary index file, prioritizing the data in the adjustments file over the data in the
+    """Loads the vulnerability binary index file, prioritizing the data in the adjustments file over the data in the
     vulnerability file.
 
     Args:
@@ -388,8 +381,7 @@ def load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_map, vuln_map_key
 
 @nb.njit(cache=True)
 def load_vulns_bin(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins):
-    """
-    Loads the vulnerability data grouped by the intensity and damage bins.
+    """Loads the vulnerability data grouped by the intensity and damage bins.
 
     Args:
         vulns_bin: (List[Vulnerability]) vulnerability data from the vulnerability file
@@ -425,8 +417,7 @@ def load_vulns_bin(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_inte
 
 @nb.njit(cache=True)
 def load_vulns_bin_adjusted(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins, adj_vuln_data=None):
-    """
-    Loads the vulnerability data grouped by the intensity and damage bins, prioritizing the data
+    """Loads the vulnerability data grouped by the intensity and damage bins, prioritizing the data
     in the adjustments file over the data in the vulnerability file.
 
     Args:
@@ -481,8 +472,7 @@ def load_vulns_bin_adjusted(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins,
 
 @nb.njit(cache=True)
 def update_vuln_array_with_adj_data(vuln_array, vuln_map, vuln_map_keys, adj_vuln_data):
-    """
-    Update the vulnerability array with adjustment data (used for parquet loading).
+    """Update the vulnerability array with adjustment data (used for parquet loading).
 
     Args:
         vuln_array: (3D array) The vulnerability data array.
@@ -505,8 +495,7 @@ def update_vuln_array_with_adj_data(vuln_array, vuln_map, vuln_map_keys, adj_vul
 def get_vulns(
         storage: BaseStorage, run_dir, vuln_map, vuln_map_keys, num_intensity_bins,
         ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
-    """
-    Loads the vulnerabilities from the file.
+    """Loads the vulnerabilities from the file.
 
     Args:
         storage: (str) the storage manager for fetching model data
@@ -608,8 +597,7 @@ def get_vulns(
 
 
 def get_vulnerability_replacements(run_dir, vuln_ids_set):
-    """
-    Loads the vulnerability adjustment file.
+    """Loads the vulnerability adjustment file.
 
     Args:
         run_dir: (str) the path pointing to the run directory
@@ -653,8 +641,7 @@ def get_vulnerability_replacements(run_dir, vuln_ids_set):
 
 
 def get_mean_damage_bins(storage: BaseStorage, ignore_file_type=set()):
-    """
-    Loads the mean damage bins from the damage_bin_dict file, namely, the `interpolation` value for each bin.
+    """Loads the mean damage bins from the damage_bin_dict file, namely, the `interpolation` value for each bin.
 
     Args:
         storage: (BaseStorage) the storage connector for fetching the model data
@@ -666,8 +653,7 @@ def get_mean_damage_bins(storage: BaseStorage, ignore_file_type=set()):
 
 
 def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
-    """
-    Loads the damage bins from the damage_bin_dict file.
+    """Loads the damage bins from the damage_bin_dict file.
 
     Args:
         storage: (BaseStorage) the storage connector for fetching the model data
@@ -691,8 +677,7 @@ def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
 
 @nb.njit(cache=True, fastmath=True)
 def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
-    """
-    Calculate the probability of an event happening and then causing damage.
+    """Calculate the probability of an event happening and then causing damage.
     Note: vulns is a 1-d array containing 1 damage bin of the damage probability distribution as a
     function of hazard intensity.
 
@@ -717,8 +702,7 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
               int32_mv, num_damage_bins,
               intensities_min, intensities_max, intensities,
               event_id, areaperil_id, vuln_i, cursor):
-    """
-    Calculate the result concerning an event ID.
+    """Calculate the result concerning an event ID.
 
     Args:
         vulns_id: (List[int]) list of vulnerability IDs
@@ -767,8 +751,7 @@ def doCdf(event_id,
           areaperil_id_ind, areaperil_to_vulns_idx_array, areaperil_to_vulns,
           vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
           int32_mv, max_result_relative_size):
-    """
-    Calculates the cumulative distribution function (cdf) for an event ID.
+    """Calculates the cumulative distribution function (cdf) for an event ID.
 
     Args:
         event_id: (int) the event ID the the CDF is being calculated to.
@@ -870,8 +853,7 @@ def run(
     df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     analysis_pk=None
 ):
-    """
-    Runs the main process of the getmodel process.
+    """Runs the main process of the getmodel process.
 
     Args:
         run_dir: (str) the directory of where the process is running

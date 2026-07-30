@@ -11,7 +11,7 @@ def get_tools_by_cli(tools_info: dict, cli_command: str) -> list[str]:
 
 
 def build_tool_info():
-    """ Generates the tools information dictionary for conversion tools from the files in TOOL_MODULE_PACKAGE
+    """Generates the tools information dictionary for conversion tools from the files in TOOL_MODULE_PACKAGE
 
     Returns:
         tool_indo (dict): TOOL_INFO dict

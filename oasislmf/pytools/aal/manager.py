@@ -57,6 +57,7 @@ def process_bin_file(
     file_index,
 ):
     """Reads summary<n>.bin file event_ids and summary_ids to populate summaries_data
+
     Args:
         fbin (np.memmap): summary binary memmap
         offset (int): file offset to read from
@@ -136,6 +137,7 @@ def process_idx_file(
         summaries_data (ndarray[_SUMMARIES_DTYPE]): output index buffer
         summaries_idx (int): next free slot in summaries_data
         file_index (int): which .bin file this is (used as file_idx in output)
+
     Returns:
         summaries_idx (int): updated cursor into summaries_data
         resize_flag (bool): True if summaries_data is full and must be flushed before resuming
@@ -173,6 +175,7 @@ def process_idx_file(
 
 def sort_and_save_chunk(summaries_data, temp_file_path):
     """Sort a chunk of summaries data and save it to a temporary file.
+
     Args:
         summaries_data (ndarray[_SUMMARIES_DTYPE]): Indexed summary data
         temp_file_path (str | os.PathLike): Path to temporary file
@@ -185,6 +188,7 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
 
 def _save_chunk(summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id):
     """Flush summaries_data[:summaries_idx] to a numbered temp file.
+
     Returns:
         chunk_index (int): incremented chunk counter
         max_summary_id (int): updated running maximum
@@ -198,8 +202,8 @@ def _save_chunk(summaries_data, summaries_idx, path, chunk_index, temp_files, ma
 
 @nb.njit(cache=True, error_model="numpy")
 def merge_sorted_chunks(memmaps):
-    """
-    Merge sorted chunks using a k-way merge algorithm and yield next smallest row
+    """Merge sorted chunks using a k-way merge algorithm and yield next smallest row
+
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
     Yields:
@@ -317,7 +321,6 @@ def summary_index(path, occ_csr, stack):
     process_idx_file to build the index without scanning sample records. Falls back to
     process_bin_file (full sequential scan) for any .bin without a paired .idx.
 
-
     Args:
         path (os.PathLike): Path to the workspace folder containing summary binaries
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
@@ -372,6 +375,7 @@ def summary_index(path, occ_csr, stack):
 
 def read_input_files(run_dir):
     """Reads all input files and returns a dict of relevant data
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
     Returns:
@@ -394,15 +398,15 @@ def get_num_subsets(alct, sample_size, max_summary_id):
     """Gets the number of subsets required to generates the Sample AAL np map for subset sizes up to sample_size
     Example: sample_size[10], max_summary_id[2] generates following ndarray
     [
-        #   subset_size, mean,  mean_squared, mean_period
-        [0, 0, 0],  # subset_size = 1 , summary_id = 1
-        [0, 0, 0],  # subset_size = 1 , summary_id = 2
-        [0, 0, 0],  # subset_size = 2 , summary_id = 1
-        [0, 0, 0],  # subset_size = 2 , summary_id = 2
-        [0, 0, 0],  # subset_size = 4 , summary_id = 1
-        [0, 0, 0],  # subset_size = 4 , summary_id = 2
-        [0, 0, 0],  # subset_size = 10 , summary_id = 1, subset_size = sample_size
-        [0, 0, 0],  # subset_size = 10 , summary_id = 2, subset_size = sample_size
+    #   subset_size, mean,  mean_squared, mean_period
+    [0, 0, 0],  # subset_size = 1 , summary_id = 1
+    [0, 0, 0],  # subset_size = 1 , summary_id = 2
+    [0, 0, 0],  # subset_size = 2 , summary_id = 1
+    [0, 0, 0],  # subset_size = 2 , summary_id = 2
+    [0, 0, 0],  # subset_size = 4 , summary_id = 1
+    [0, 0, 0],  # subset_size = 4 , summary_id = 2
+    [0, 0, 0],  # subset_size = 10 , summary_id = 1, subset_size = sample_size
+    [0, 0, 0],  # subset_size = 10 , summary_id = 2, subset_size = sample_size
     ]
     Subset_size is implicit based on position in array, grouped by max_summary_id
     So first two arrays are subset_size 2^0 = 1
@@ -411,6 +415,7 @@ def get_num_subsets(alct, sample_size, max_summary_id):
     The last two arrays are subset_size = sample_size = 10
     Doesn't generate one with subset_size 8 as double that is larger than sample_size
     Therefore this function returns 4, and the sample aal array is 4 * 2
+
     Args:
         alct (bool): Boolean for ALCT output
         sample_size (int): Sample size
@@ -433,6 +438,7 @@ def get_weighted_means(
     end_sidx,
 ):
     """Get sum of weighted mean and weighted mean_squared
+
     Args:
         vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
         weighting (float): Weighting value
@@ -466,6 +472,7 @@ def do_calc_end(
     vec_sample_sum_loss,
 ):
     """Updates Analytical and Sample AAL vectors from sample sum losses
+
     Args:
         period_no (int): Period Number
         no_of_periods (int): Number of periods
@@ -550,6 +557,7 @@ def do_calc_end(
 @nb.njit(cache=True, error_model="numpy")
 def read_losses(summary_fin, cursor, vec_sample_sum_loss):
     """Read losses from summary_fin starting at cursor, populate vec_sample_sum_loss
+
     Args:
         summary_fin (np.memmap): summary file memmap
         cursor (int): data offset for reading binary files
@@ -578,6 +586,7 @@ def read_losses(summary_fin, cursor, vec_sample_sum_loss):
 @nb.njit(cache=True, error_model="numpy")
 def skip_losses(summary_fin, cursor):
     """Skip through losses in summary_fin starting at cursor
+
     Args:
         summary_fin (np.memmap): summary file memmap
         cursor (int): data offset for reading binary files
@@ -607,6 +616,7 @@ def run_aal(
     vec_used_summary_id,
 ):
     """Run AAL calculation loop to populate vec data
+
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
         no_of_periods (int): Number of periods
@@ -692,6 +702,7 @@ def calculate_mean_stddev(
     number_of_observations
 ):
     """Compute the mean and standard deviation from the sum and squared sum of an observable
+
     Args:
         observable_sum (ndarray[oasis_float]): Observable sum
         observable_squared_sum (ndarray[oasis_float]): Observable squared sum
@@ -719,6 +730,7 @@ def get_aal_data(
     no_of_periods
 ):
     """Generate AAL csv data
+
     Args:
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
@@ -764,6 +776,7 @@ def get_aal_data_meanonly(
     no_of_periods
 ):
     """Generate AAL csv data
+
     Args:
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
@@ -801,9 +814,11 @@ def get_aal_data_meanonly(
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def calculate_confidence_interval(std_err, confidence_level):
     """Calculate the confidence interval based on standard error and confidence level.
+
     Args:
         std_err (float): The standard error.
         confidence_level (float): The confidence level (e.g., 0.95 for 95%).
+
     Returns:
         confidence interval (float): The confidence interval.
     """
@@ -833,6 +848,7 @@ def get_alct_data(
     confidence,
 ):
     """Generate ALCT csv data
+
     Args:
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
         max_summary_id (int): Max summary_id
@@ -906,6 +922,7 @@ def run(
     output_format="csv",
 ):
     """Runs AAL calculations
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         subfolder (str): Workspace subfolder inside <run_dir>/work/<subfolder>

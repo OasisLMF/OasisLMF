@@ -1,3 +1,1 @@
-"""
-Utils for stuff
-"""
+"""Utils for stuff"""

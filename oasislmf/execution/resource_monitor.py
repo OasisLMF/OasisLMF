@@ -1,5 +1,4 @@
-"""
-Resource monitor for pytools processes during model runs.
+"""Resource monitor for pytools processes during model runs.
 
 Uses ``psutil`` to poll all active pytools processes at a configurable
 interval, capturing CPU%, cumulative CPU time (user + system), RSS,
