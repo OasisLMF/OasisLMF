@@ -70,6 +70,8 @@ class TestPlatformList(ComputationChecker):
                 self.add_connection_startup(rsps)
                 rsps.get(url_models, json=RETURN_MODELS)
                 rsps.get(url_portfolios, json=RETURN_PORT)
+                rsps.get(f'{url_portfolios}1/', json={**RETURN_PORT[0], 'validation_status': 'RUN_COMPLETED', 'exposure_status': 'NONE'})
+                rsps.get(f'{url_portfolios}2/', json={**RETURN_PORT[1], 'validation_status': 'NONE', 'exposure_status': 'NONE'})
                 rsps.get(url_analyses, json=RETURN_ANALYSIS)
                 self.manager.platform_list(**called_args)
 
@@ -1146,20 +1148,21 @@ class TestPlatformExposureRun(ComputationChecker):
         self.tmp_dirs = self.create_tmp_dirs(['output_dir'])
         self.min_args = {'server_url': self.api_url, 'output_dir': self.tmp_dirs['output_dir'].name}
 
-    def test_exposure_run__fetch_existing_result(self):
+    def test_exposure_run__no_download__returns_none(self):
         portfolio_id = 3
-        url = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
+        url_run = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
+        url_portfolio = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/'
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url, body=b'{"result": "ok"}', content_type='application/json')
+            rsps.post(url_run, json={})
+            rsps.get(url_portfolio, json={'exposure_status': 'STARTED'})
+            rsps.get(url_portfolio, json={'exposure_status': 'RUN_COMPLETED'})
 
-            filename = self.manager.platform_exposure_run(
-                **self.min_args, portfolio_id=portfolio_id, fetch=True)
+            result = self.manager.platform_exposure_run(
+                **self.min_args, portfolio_id=portfolio_id, poll_interval=0)
 
-            self.assertTrue(filename.endswith('.json'))
-            self.assertTrue(os.path.isfile(filename))
-            self.assertEqual(self.read_file(filename), b'{"result": "ok"}')
+            self.assertIsNone(result)
 
     def test_exposure_run__trigger_and_poll_until_complete(self):
         portfolio_id = 3
@@ -1174,21 +1177,25 @@ class TestPlatformExposureRun(ComputationChecker):
             rsps.get(url_run, body=b'loc,acc\n1,2', content_type='text/csv')
 
             filename = self.manager.platform_exposure_run(
-                **self.min_args, portfolio_id=portfolio_id, poll_interval=0)
+                **self.min_args, portfolio_id=portfolio_id, poll_interval=0, download=True)
 
             self.assertTrue(filename.endswith('.csv'))
             self.assertEqual(self.read_file(filename), b'loc,acc\n1,2')
 
     def test_exposure_run__unknown_content_type__falls_back_to_bin_extension(self):
         portfolio_id = 3
-        url = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
+        url_run = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
+        url_portfolio = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/'
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url, body=b'raw-bytes', content_type='application/x-not-a-real-type')
+            rsps.post(url_run, json={})
+            rsps.get(url_portfolio, json={'exposure_status': 'STARTED'})
+            rsps.get(url_portfolio, json={'exposure_status': 'RUN_COMPLETED'})
+            rsps.get(url_run, body=b'raw-bytes', content_type='application/x-not-a-real-type')
 
             filename = self.manager.platform_exposure_run(
-                **self.min_args, portfolio_id=portfolio_id, fetch=True)
+                **self.min_args, portfolio_id=portfolio_id, poll_interval=0, download=True)
             self.assertTrue(filename.endswith('.bin'))
 
 
