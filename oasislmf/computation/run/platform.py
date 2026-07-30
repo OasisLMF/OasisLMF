@@ -536,6 +536,7 @@ class PlatformGet(PlatformBase):
         {'name': 'portfolio_accounts_file', 'type': int, 'nargs': '+', 'help': 'Portfolio ids to download Accounts file'},
         {'name': 'portfolio_reinsurance_scope_file', 'type': int, 'nargs': '+', 'help': 'Portfolio ids to download RI scope file.'},
         {'name': 'portfolio_reinsurance_info_file', 'type': int, 'nargs': '+', 'help': 'Portfolio ids to download RI info file.'},
+        {'name': 'portfolio_exposure_run', 'type': int, 'nargs': '+', 'help': 'Portfolio ids to download the exposure run report for'},
         # Files from an analyses
         {'name': 'analyses_settings_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download settings file'},
         {'name': 'analyses_run_traceback_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download traceback logs'},
