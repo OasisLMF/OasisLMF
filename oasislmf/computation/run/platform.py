@@ -986,28 +986,38 @@ class PlatformPlot(PlatformBase):
             ax_summary = None
             ax_settings = None
 
-        y = range(len(sub_tasks))
-        for i, (s, e, status) in enumerate(zip(starts, ends, statuses)):
-            color = self.STATUS_COLORS.get(status, "#000000")
-            width = e - s
-            ax_gantt.barh(i, width, left=s, height=0.6, color=color, edgecolor="none")
-            dur_s = width.total_seconds()
-            label = status if dur_s == 0 else f"{int(dur_s // 60)}m {int(dur_s % 60)}s"
-            ax_gantt.text(e, i, f"  {label}", va="center", ha="left", fontsize=8, color="#52514e")
+        if not sub_tasks:
+            ax_gantt.text(
+                0.5, 0.5, f"No sub-tasks (analysis status: {analysis.get('status')})" if analysis else "No sub-tasks",
+                ha="center", va="center", fontsize=10, color="#898781", transform=ax_gantt.transAxes,
+            )
+            ax_gantt.set_xticks([])
+            ax_gantt.set_yticks([])
+            ax_gantt.set_title("Sub-task timeline")
+        else:
+            y = range(len(sub_tasks))
+            for i, (s, e, status) in enumerate(zip(starts, ends, statuses)):
+                color = self.STATUS_COLORS.get(status, "#000000")
+                width = e - s
+                ax_gantt.barh(i, width, left=s, height=0.6, color=color, edgecolor="none")
+                dur_s = width.total_seconds()
+                label = status if dur_s == 0 else f"{int(dur_s // 60)}m {int(dur_s % 60)}s"
+                ax_gantt.text(e, i, f"  {label}", va="center", ha="left", fontsize=8, color="#52514e")
 
-        ax_gantt.set_yticks(list(y))
-        ax_gantt.set_yticklabels(names, fontsize=8)
-        ax_gantt.invert_yaxis()
-        ax_gantt.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
-        ax_gantt.set_xlabel("Time (UTC)")
-        ax_gantt.set_title("Sub-task timeline")
-        ax_gantt.grid(True, axis="x", alpha=0.3)
+            ax_gantt.set_yticks(list(y))
+            ax_gantt.set_yticklabels(names, fontsize=8)
+            ax_gantt.invert_yaxis()
+            ax_gantt.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+            ax_gantt.set_xlabel("Time (UTC)")
+            ax_gantt.set_title("Sub-task timeline")
+            ax_gantt.grid(True, axis="x", alpha=0.3)
 
-        legend_handles = [
-            Patch(color=c, label=s) for s, c in self.STATUS_COLORS.items()
-            if s in statuses
-        ]
-        ax_gantt.legend(handles=legend_handles, loc="lower right", fontsize=8)
+            legend_handles = [
+                Patch(color=c, label=s) for s, c in self.STATUS_COLORS.items()
+                if s in statuses
+            ]
+            if legend_handles:
+                ax_gantt.legend(handles=legend_handles, loc="lower right", fontsize=8)
 
         if has_summary:
             ax_summary.axis("off")
