@@ -691,14 +691,13 @@ class PlatformValidate(PlatformBase):
 
 
 class PlatformExposureRun(PlatformBase):
-    """ Run `oasislmf exposure run` on the server against a portfolio's exposure files,
-    or fetch the result of the last run
+    """ Run `oasislmf exposure run` on the server against a portfolio's exposure files
     """
     step_params = PlatformBase.step_params + [
         {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to run exposure calculations against'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True, 'default': './',
             'help': 'Output data directory to download the resulting report to'},
-        {'name': 'fetch', 'action': 'store_true', 'help': 'Fetch the result of the last exposure run instead of starting a new one'},
+        {'name': 'download', 'action': 'store_true', 'help': 'Download the resulting report after the exposure run completes'},
         {'name': 'kernel_alloc_rule_il', 'flag': '-a', 'type': int, 'default': 2,
             'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'kernel_alloc_rule_ri', 'flag': '-A', 'type': int, 'default': 3,
@@ -731,14 +730,14 @@ class PlatformExposureRun(PlatformBase):
             'do_disaggregation': self.do_disaggregation,
         }
 
-        if self.fetch:
-            rsp = self.server.portfolios.exposure_run.get(self.portfolio_id)
-        else:
-            self.server.portfolios.exposure_run.post(self.portfolio_id, params)
-            self.logger.info('Exposure run: Starting (id={})'.format(self.portfolio_id))
-            self.poll_portfolio_field(self.portfolio_id, 'exposure_status', self.poll_interval, 'Exposure run')
-            rsp = self.server.portfolios.exposure_run.get(self.portfolio_id)
+        self.server.portfolios.exposure_run.post(self.portfolio_id, params)
+        self.logger.info('Exposure run: Starting (id={})'.format(self.portfolio_id))
+        self.poll_portfolio_field(self.portfolio_id, 'exposure_status', self.poll_interval, 'Exposure run')
 
+        if not self.download:
+            return None
+
+        rsp = self.server.portfolios.exposure_run.get(self.portfolio_id)
         content_type = rsp.headers.get('content-type', '').partition(';')[0].strip()
         ext = guess_extension(content_type) or '.bin'
         filename = os.path.join(self.output_dir, 'portfolio_{}_exposure_run{}'.format(self.portfolio_id, ext))
