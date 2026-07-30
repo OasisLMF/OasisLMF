@@ -4,7 +4,6 @@ __all__ = [
 ]
 
 import os
-from packaging import version
 
 from ..base import ComputationStep
 from ...lookup.factory import KeyServerFactory
@@ -22,6 +21,8 @@ class KeyComputationStep(ComputationStep):
             'check_oed': self.check_oed,
             'use_field': True,
             'backend_dtype': self.oed_backend_dtype,
+            'supported_oed_versions': self.settings.get('data_settings', {}).get('supported_oed_versions'),
+            'disable_oed_version_update': self.disable_oed_version_update,
         }
 
 
@@ -115,25 +116,6 @@ class GenerateKeys(KeyComputationStep):
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
-        if not self.disable_oed_version_update:
-            supported_versions = self.settings.get('data_settings', {}).get('supported_oed_versions', None)
-            if supported_versions:
-                if isinstance(supported_versions, str):
-                    self.logger.info(f"Converting to OED version {supported_versions}")
-                    exposure_data.to_version(supported_versions)
-                elif isinstance(supported_versions, list) and supported_versions:
-                    # If 'supported_oed_versions' is a list and is not empty
-                    # Sort the versions in descending order
-                    supported_versions = sorted(supported_versions, key=version.parse, reverse=True)
-                    self.logger.info(f"Converting to OED version {supported_versions[0]}")
-                    exposure_data.to_version(supported_versions[0])
-                else:
-                    # If 'supported_oed_versions' is neither a string nor a non-empty list
-                    self.logger.warning("Invalid OED version information in model settings.")
-            else:
-                # If 'supported_oed_versions' is missing or empty
-                self.logger.debug("No OED version information in model settings.")
-
         keys_fp = self.keys_data_path or os.path.join(self.oasis_files_dir, f'keys.{output_type}')
         keys_errors_fp = self.keys_errors_path or os.path.join(self.oasis_files_dir, f'keys-errors.{output_type}')
         os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
@@ -184,6 +166,8 @@ class GenerateKeysDeterministic(KeyComputationStep):
          'help': 'List of peril covered by the model'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
          'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
+        {'name': 'disable_oed_version_update', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'Flag to disable automatic conversion of exposure data to the latest compatible OED version.'},
     ]
 
     def _get_output_dir(self):

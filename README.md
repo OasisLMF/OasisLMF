@@ -5,7 +5,8 @@
 
 [![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
 [![Code Quality](https://github.com/OasisLMF/OasisLMF/actions/workflows/code-quality.yml/badge.svg)](https://github.com/OasisLMF/OasisLMF/actions/workflows/code-quality.yml)
-[![PiWind output check](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml)
+[![PiWind check (Platform 1)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test-v1.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test-v1.yml)
+[![PiWind check (Platform 2)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test-v2.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test-v2.yml)
 [![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
 
 

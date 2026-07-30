@@ -16,7 +16,7 @@ from oasislmf.pytools.common.data import (correlations_headers, correlations_dty
                                           DTYPE_IDX)
 from oasislmf.pytools.converters.csvtobin.utils import complex_items_write_bin, amplifications_write_bin
 from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
-from oasislmf.utils.data import merge_dataframes
+from oasislmf.utils.data import assign_risk_ids, merge_dataframes, structured_dtype_to_pandas
 from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
                                      DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
@@ -76,19 +76,19 @@ files_write_info = {
                       "write_bin": complex_items_write_gul_bin,
                       "required_col": {'model_data'}},
 
-    'items': {"csv_dtype": {col: dtype for col, (dtype, _) in items_dtype.fields.items()},
+    'items': {"csv_dtype": structured_dtype_to_pandas(items_dtype),
               "bin_dtype": items_dtype},
-    'coverages': {"csv_dtype": {col: dtype for col, (dtype, _) in coverages_dtype.fields.items()},
+    'coverages': {"csv_dtype": structured_dtype_to_pandas(coverages_dtype),
                   "bin_dtype": coverages_dtype,
                   "write_bin": coverages_write_gul_bin},
-    'amplifications': {"csv_dtype": {col: dtype for col, (dtype, _) in amplifications_dtype.fields.items()},
+    'amplifications': {"csv_dtype": structured_dtype_to_pandas(amplifications_dtype),
                        "bin_dtype": amplifications_dtype,
                        "write_bin": amplifications_write_gul_bin,
                        "required_col": {'amplification_id'}},
     'sections': {"csv_dtype": {'section_id': section_id[DTYPE_IDX]},
                  "prepare_data": prepare_sections_df,
                  "required_col": {'section_id'}},
-    'item_adjustments': {"csv_dtype": {col: dtype for col, (dtype, _) in item_adjustment_dtype.fields.items()},
+    'item_adjustments': {"csv_dtype": structured_dtype_to_pandas(item_adjustment_dtype),
                          "required_col": {'intensity_adjustment'}}
 }
 
@@ -397,9 +397,7 @@ def get_gul_input_items(
     # ID ASSIGNMENT: Compute item_id, coverage_id, group_id, hazard_group_id
     # =========================================================================
     # risk_id/NumberOfRisks: Used for aggregate exposure handling in FM
-    gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
-    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
-    gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
+    gul_inputs_df = assign_risk_ids(gul_inputs_df)
 
     # item_id: Unique per (location, peril, coverage_type, building) - the fundamental GUL unit
     gul_inputs_df['item_id'] = gul_inputs_df.groupby(
