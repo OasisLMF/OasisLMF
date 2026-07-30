@@ -2,7 +2,7 @@ name: Build Docs
 on:
   pull_request:
     # build docs for all PRs targeting main
-    branches:    
+    branches:
       - main
 
 permissions:
@@ -23,13 +23,13 @@ jobs:
       - name: Compile package requirements.txt
         run: |
              python -m pip install --upgrade "pip<23.3"
-             pip install pip-tools typing-extensions
-             pip-compile requirements.in
+             pip install uv
+             uv pip compile requirements.in --output-file requirements.txt
       - name: Install required packages
         run: |
-            pip install -r requirements.txt
-            pip install .
-            pip install furo
+            uv pip install --system -r requirements.txt
+            uv pip install --system .
+            uv pip install --system furo
       - name: Build
         run: ./docs/build.sh
       - name: Upload artifact
