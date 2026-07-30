@@ -384,7 +384,7 @@ class GenerateFiles(ComputationStep):
 
         # Get the IL input items and Write the IL/FM input files
         il_inputs_df, il_input_files = get_il_input_items(
-            gul_inputs_df=gul_inputs_df.copy(),
+            gul_inputs_df=gul_inputs_df,
             exposure_data=exposure_data,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
