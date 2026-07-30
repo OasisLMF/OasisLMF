@@ -48,6 +48,12 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
     last_event_id = event_id
     idx = idxs[0]
 
+    def _reset_state():
+        state["reading_losses"] = False
+
+    def _update_idxs():
+        idxs[0] = idx
+
     while cursor < valid_buff:
         if not state["reading_losses"]:
             # Read summary header
@@ -56,7 +62,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
                                                event_id_dtype_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
-                    idx = idxs[0]
+                    _update_idxs()
                     return cursor - event_id_dtype_size, last_event_id, item_id, 1
                 event_id = event_id_new
                 item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype,
@@ -77,7 +83,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
                 sidx = sidx_loss_view[k]["sidx"]
                 if sidx == 0:  # sidx == 0, end of record (loss field is the trailing 0)
                     cursor += (k + 1) * loss_pair_size
-                    state["reading_losses"] = False
+                    _reset_state()
                     break
 
                 data[idx]["event_id"] = event_id
@@ -88,7 +94,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
                 if idx >= data.shape[0]:
                     # Output array is full
                     cursor += (k + 1) * loss_pair_size
-                    idxs[0] = idx
+                    _update_idxs()
                     return cursor, event_id, item_id, 1
             else:
                 cursor += n_pairs * loss_pair_size
@@ -96,7 +102,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
             pass  # Should never reach here
 
     # Update the indices
-    idxs[0] = idx
+    _update_idxs()
     return cursor, event_id, item_id, 0
 
 
