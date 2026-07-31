@@ -59,13 +59,13 @@ SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
 
 
 def create_summary_object_file(static_path, run_type):
-    """create and write summary object into static path"""
+    """Create and write summary object into static path"""
     summary_objects = get_summary_object(static_path, run_type)
     write_summary_objects(static_path, run_type, *summary_objects)
 
 
 def load_summary_object(static_path, run_type):
-    """load already prepare summary data structure if present otherwise create them"""
+    """Load already prepare summary data structure if present otherwise create them"""
     if os.path.isfile(os.path.join(static_path, run_type, 'summary_info.npy')):
         return read_summary_objects(static_path, run_type)
     else:
@@ -73,8 +73,7 @@ def load_summary_object(static_path, run_type):
 
 
 def get_summary_object(static_path, run_type):
-    """read static files to get summary static data structure"""
-
+    """Read static files to get summary static data structure"""
     # extract item_id to index in the loss summary
     summary_map_dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
     if run_type == RUNTYPE_GROUNDUP_LOSS:
@@ -146,7 +145,7 @@ def nb_extract_risk_info(item_id_to_risks_i, summary_map):
 
 
 def extract_risk_info(len_item_id, summary_map):
-    """extract relevant information regarding item and risk mapping from summary_map
+    """Extract relevant information regarding item and risk mapping from summary_map
 
     Args:
         len_item_id: number of items
@@ -155,7 +154,6 @@ def extract_risk_info(len_item_id, summary_map):
     Returns:
         (number of risk, mapping array item_id => risks_i)
     """
-
     item_id_to_risks_i = np.zeros(len_item_id, oasis_int)
     nb_risk = nb_extract_risk_info(
         item_id_to_risks_i,
@@ -168,7 +166,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                 loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
-    """read valid part of byte_mv and load relevant data for one event"""
+    """Read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
     while True:
         if item_id:
@@ -241,7 +239,7 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
                    output_zeros, has_affected_risk,
                    summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id, loss_summary,
                    summary_index_cursor, summary_sets_cursor, summary_stream_index):
-    """load event summary loss into byte_mv
+    """Load event summary loss into byte_mv
 
     Args:
         byte_mv: numpy byte view to write to the stream
@@ -328,7 +326,7 @@ class SummaryReader(EventReader):
 
 
 def get_summary_set_id_to_summary_set_index(summary_sets_id):
-    """create an array mapping summary_set_id => summary_set_index"""
+    """Create an array mapping summary_set_id => summary_set_index"""
     summary_set_id_to_summary_set_index = np.full(np.max(summary_sets_id) + 1, null_index, 'i4')
     for summary_set_index in range(summary_sets_id.shape[0]):
         summary_set_id_to_summary_set_index[summary_sets_id[summary_set_index]] = summary_set_index
@@ -336,7 +334,7 @@ def get_summary_set_id_to_summary_set_index(summary_sets_id):
 
 
 def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summary_set_index):
-    """extract mapping from summary_xref"""
+    """Extract mapping from summary_xref"""
     summary_set_index_to_loss_ptr = np.zeros(summary_sets_id.shape[0] + 1, oasis_int)
     max_item_id = 0
     for i in range(summary_xref.shape[0]):

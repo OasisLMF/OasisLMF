@@ -68,7 +68,7 @@ def bytes_to_stream_types(stream_header):
 
 
 def read_stream_info(stream_obj):
-    """from open stream object return the information that characterize the stream (stream_source_type, stream_agg_type, len_sample)
+    """From open stream object return the information that characterize the stream (stream_source_type, stream_agg_type, len_sample)
 
     Args:
         stream_obj: open stream
@@ -98,7 +98,7 @@ def get_and_check_header_in(streams_in):
 
 
 def init_streams_in(files_in, stack):
-    """if files_in use stdin as stream in
+    """If files_in use stdin as stream in
     otherwise open each path in files_in, read the header, check that they are the same, and return the streams and their info
 
     Args:
@@ -114,7 +114,7 @@ def init_streams_in(files_in, stack):
 
 @nb.jit(nopython=True, cache=True)
 def mv_read(byte_mv, cursor, _dtype, itemsize):
-    """read a certain dtype from numpy byte view starting at cursor, return the value and the index of the end of the object
+    """Read a certain dtype from numpy byte view starting at cursor, return the value and the index of the end of the object
 
     Args:
         byte_mv: numpy byte view
@@ -130,7 +130,7 @@ def mv_read(byte_mv, cursor, _dtype, itemsize):
 
 @nb.jit(nopython=True, cache=True)
 def mv_write(byte_mv, cursor, _dtype, itemsize, value) -> int:
-    """load an object into the numpy byte view at index cursor, return the index of the end of the object
+    """Load an object into the numpy byte view at index cursor, return the index of the end of the object
 
     Args:
         byte_mv: numpy byte view
@@ -148,7 +148,7 @@ def mv_write(byte_mv, cursor, _dtype, itemsize, value) -> int:
 
 @nb.jit(nopython=True)
 def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_value) -> int:
-    """wrapper for cached write a summary header to the numpy byte view at index cursor, return the index of the end of the object
+    """Wrapper for cached write a summary header to the numpy byte view at index cursor, return the index of the end of the object
 
     Args:
         byte_mv: numpy byte view
@@ -172,7 +172,7 @@ def mv_write_summary_header_cached(byte_mv, cursor, event_id, summary_id, exposu
                                    summary_id_dtype, summary_id_size,
                                    exposure_value_dtype, exposure_value_size) -> int:
     """
-    cached write a summary header to the numpy byte view at index cursor, return the index of the end of the object
+    Cached write a summary header to the numpy byte view at index cursor, return the index of the end of the object
     Args:
         byte_mv: numpy byte view
         cursor: index of where the object start
@@ -197,7 +197,7 @@ def mv_write_summary_header_cached(byte_mv, cursor, event_id, summary_id, exposu
 
 @nb.jit(nopython=True)
 def mv_write_item_header(byte_mv, cursor, event_id, item_id) -> int:
-    """wrapper function for cached mv_write_item_header. writes an item header to the numpy byte view,
+    """Wrapper function for cached mv_write_item_header. writes an item header to the numpy byte view,
     return index of the end of the object
 
     Args:
@@ -221,7 +221,7 @@ def mv_write_item_header(byte_mv, cursor, event_id, item_id) -> int:
 
 @nb.jit(nopython=True)
 def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
-    """write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
+    """Write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
 
     Args:
         byte_mv: numpy byte view
@@ -241,7 +241,7 @@ def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
 def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
                               loss_type, sidx_size, loss_size) -> int:
     """
-    cached write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
+    Cached write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
     Args:
         byte_mv: numpy byte view
         cursor: index of where the object start
@@ -263,7 +263,7 @@ def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
 
 @nb.jit(nopython=True, cache=True)
 def mv_write_delimiter(byte_mv, cursor) -> int:
-    """write the item delimiter (0,0) to the numpy byte view at index cursor, return the index of the end of the object
+    """Write the item delimiter (0,0) to the numpy byte view at index cursor, return the index of the end of the object
 
     Args:
         byte_mv: numpy byte view
@@ -332,7 +332,7 @@ class EventReader:
         return main_selector, stream_data
 
     def read_streams(self, streams_in):
-        """read multiple stream input, yield each event id and load relevant value according to the specific read_buffer implemented in subclass
+        """Read multiple stream input, yield each event id and load relevant value according to the specific read_buffer implemented in subclass
 
         Args:
             streams_in: streams to read
@@ -380,7 +380,7 @@ class EventReader:
             main_selector.close()
 
     def read_event(self, stream_in, main_selector, stream_selector, mv, byte_mv, cursor, valid_buff, file_idx):
-        """read one event from stream_in
+        """Read one event from stream_in
         close and remove the stream from main_selector when all is read
 
         Args:

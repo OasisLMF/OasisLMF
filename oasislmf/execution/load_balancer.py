@@ -34,7 +34,7 @@ class ProducerStopped(RuntimeError):
 
 @njit(cache=True)
 def get_next_event_index(read_buffer, last_event_index, last_event_id, max_cursor):
-    """try to get the index of the end of the event
+    """Try to get the index of the end of the event
     if found return the index and 0 to indicate it is found
     if not found return the index of the last item parsed and the last event id
 

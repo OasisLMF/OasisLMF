@@ -168,7 +168,6 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_join, oed_colum
     Returns:
         pandas.DataFrame: New DataFrame of summary_map_df + exposure_df merged on exposure index
     """
-
     column_set = set(oed_column_info)
     columns_found = [c for c in column_set if c in exposure_df.columns and c not in summary_map_df.columns]
     columns_missing = list(set(column_set) - set(columns_found))
@@ -480,7 +479,7 @@ def get_summary_xref_df(
 
                   ...
                  ]
-        summaries_type (String): Text label to use as key in summary description either ['gul', 'il', 'ri']
+        summaries_type (str): Text label to use as key in summary description either ['gul', 'il', 'ri']
 
     Returns:
         summaryxref_df (pandas.DataFrame): Dataframe containing abstracted summary data for ktools
@@ -563,7 +562,6 @@ def generate_summaryxref_files(
         rl (bool): Boolean to indicate the RL loss level mode - false if the
             source accounts file path not provided to Oasis files gen.
     """
-
     # Boolean checks for summary generation types (gul / il / ri)
     gul_summaries = all([
         analysis_settings.get('gul_output'),
@@ -797,7 +795,6 @@ def get_exposure_totals(df):
     Returns:
         dict: totals section for exposure_summary dictionary
     """
-
     dedupe_cols = ['loc_id', 'coverage_type_id']
 
     within_scope_tiv = df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
@@ -995,7 +992,6 @@ def write_gul_errors_map(
         keys_errors_df (pandas.DataFrame): keys errors dataframe
         exposure_profile (dict): profile defining exposure file
     """
-
     cols = ['loc_id', 'PortNumber', 'AccNumber', 'LocNumber', 'peril_id', 'coverage_type_id', 'tiv', 'status', 'message']
     gul_error_map_fp = os.path.join(target_dir, 'gul_errors_map.csv')
 

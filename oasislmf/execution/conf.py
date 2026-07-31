@@ -39,7 +39,7 @@ def create_analysis_settings_json(directory):
     CSV files in a specified directory.
 
     Args:
-        ``directory`` (string): the directory containing the CSV files.
+        ``directory`` (str): the directory containing the CSV files.
 
     Returns:
         The analysis settings JSON.

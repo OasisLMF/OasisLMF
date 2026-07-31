@@ -109,7 +109,7 @@ def load_static(static_path):
 
 @njit(cache=True)
 def does_nothing(profile):
-    """evaluate if the profile is just doing nothing to the loss.
+    """Evaluate if the profile is just doing nothing to the loss.
     this allows to save some memory and compulation time and memory during the calculation
 
     Args:
@@ -855,7 +855,6 @@ def create_financial_structure(allocation_rule, static_path):
     ``node_parents_array``, ``node_profiles_array``, ``output_array`` and
     ``fm_profile``) is written to ``static_path``; the function returns nothing.
     """
-
     if allocation_rule not in allowed_allocation_rule:
         raise ValueError(f"allocation_rule must be in {allowed_allocation_rule}, found {allocation_rule}")
     if allocation_rule == 3:

@@ -1,4 +1,4 @@
-"""This file defines the functions that maps the supported perils with the correlation settings. This data is usually
+"""Defines the functions that maps the supported perils with the correlation settings. This data is usually
 obtained from the model_settings.
 """
 from typing import Optional

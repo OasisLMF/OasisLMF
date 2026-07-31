@@ -384,7 +384,6 @@ class FootprintBinZ(Footprint):
 
         Returns: (np.array[Event]) the event that was extracted
         """
-
         idx = np.searchsorted(self.footprint_index['event_id'], event_id)
         if idx >= len(self.footprint_index) or self.footprint_index['event_id'][idx] != event_id:
             return None

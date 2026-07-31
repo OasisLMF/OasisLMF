@@ -57,7 +57,6 @@ def get_nearest(src_points, candidates, k_neighbors=1):
 
     The distances returned are Euclidean distances, not distances on a sphere or ellipsoid.
     """
-
     # Create tree from the candidate points
     tree = BallTree(candidates, leaf_size=15, metric='haversine')
 
@@ -328,7 +327,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     interface_version = "1"
 
     def set_step_function(self, step_name, step_config, function_being_set=None):
-        """set the step as a function of the lookup object if it's not already done and return it.
+        """Set the step as a function of the lookup object if it's not already done and return it.
         if the step is composed of several child steps, it will set the child steps recursively.
 
         Args:
@@ -416,7 +415,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return locations
 
     def to_abs_filepath(self, filepath):
-        """replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
+        """Replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
 
         Args:
             filepath (str): filepath with potentially a placeholder
@@ -434,7 +433,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def set_id_columns(df, id_columns):
-        """in Dataframes, only float column can have nan values. So after a left join for example if you have nan values
+        """In Dataframes, only float column can have nan values. So after a left join for example if you have nan values
         that will change the type of the original column into float.
         this function replace the nan value with the OASIS_UNKNOWN_ID and reset the column type to int
         """
@@ -482,7 +481,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_combine(id_columns, strategy, logical_type='or'):
-        """build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
+        """Build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
         for example, finding the correct area_peril_id for a location with one method using (latitude, longitude)
         and one using postcode.
         each strategy will be applied sequentially on the location that steal have OASIS_UNKNOWN_ID in their id_columns after the precedent strategy
@@ -559,7 +558,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_split_loc_perils_covered(model_perils_covered=None):
-        """split the value of LocPerilsCovered into multiple line, taking peril group into account
+        """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
 
         usefull inspirational code:
@@ -669,7 +668,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         nearest_neighbour_min_distance: deprecated alias for nearest_neighbour_max_distance. May be
             removed in a future version.
         """
-
         if nearest_neighbor_min_distance > 0:
             warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
                           "removed in a future version. Please use `nearest_neighbor_max_distance` "
@@ -792,10 +790,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False, lon_first=False):
-        """associate an id to each square of the grid define by the limit of lat and lon
+        """Associate an id to each square of the grid define by the limit of lat and lon
         reverse allow to change the ordering of id from (min to max) to (max to min)
         """
-
         lat_id, lon_id = create_lat_lon_id_functions(
             lat_min, lat_max, lon_min, lon_max, arc_size,
             lat_reverse, lon_reverse
@@ -856,11 +853,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         lat_min, lat_max, lon_min, lon_max, arc_size,
         lat_reverse=False, lon_reverse=False, lon_first=False
     ):
-        """associate an id to each square of the grid defined by z-order indexing.
+        """Associate an id to each square of the grid defined by z-order indexing.
         reverse allow to change the ordering of id from (min to max) to
         (max to min)
         """
-
         lat_id, lon_id = create_lat_lon_id_functions(
             lat_min, lat_max, lon_min, lon_max, arc_size,
             lat_reverse, lon_reverse
@@ -1003,12 +999,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return h3_lookup
 
     def build_merge(self, file_path, id_columns=[], file_type='csv', **kwargs):
-        """this method will merge the locations Dataframe with the Dataframe present in file_path
+        """Merges the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
 
         this is an efficient way to map a combination of column that have a finite scope to an idea.
         """
-
         read_func = getattr(pd, f"read_{file_type}", None)
         if callable(read_func):
             df_to_merge = read_func(self.to_abs_filepath(file_path), **kwargs)
@@ -1024,7 +1019,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_simple_pivot(pivots, remove_pivoted_col=True):
-        """allow to pivot columns of the locations dataframe into multiple rows
+        """Allow to pivot columns of the locations dataframe into multiple rows
         each pivot in the pivot list may define:
         "on": to rename a column into a new one
         "new_cols": to create a new column with a certain values

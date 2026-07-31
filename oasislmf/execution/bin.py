@@ -318,7 +318,7 @@ def _calc_selected(analysis_settings, calc_type_list):
 
 
 def _leccalc_selected(analysis_settings):
-    """return True if either 'leccalc' or 'ordleccalc' is referenced in the analysis settings file"""
+    """Return True if either 'leccalc' or 'ordleccalc' is referenced in the analysis settings file"""
     is_in_gul = False
     is_in_il = False
     is_in_ri = False
@@ -430,8 +430,8 @@ def set_footprint_set(setting_val, run_dir):
     calculation.
 
     Args:
-        setting_val (string): identifier for footprint set
-        run_dir (string): model run directory
+        setting_val (str): identifier for footprint set
+        run_dir (str): model run directory
     """
     priorities = Footprint.get_footprint_fmt_priorities()
     setting_val = str(setting_val)
@@ -466,10 +466,9 @@ def set_vulnerability_set(setting_val, run_dir):
     calculation.
 
     Args:
-        setting_val (string): identifier for vulnerability set
-        run_dir (string): model run directory
+        setting_val (str): identifier for vulnerability set
+        run_dir (str): model run directory
     """
-
     vulnerability_formats = ['bin', 'parquet', 'csv']
     setting_val = str(setting_val)
 
@@ -549,7 +548,7 @@ def check_inputs_directory(directory_to_check, il=False, ri=False, check_binarie
     """Check that all the required files are present in the directory.
 
     Args:
-        directory_to_check (string): directory containing the CSV files
+        directory_to_check (str): directory containing the CSV files
         il (bool): check insuured loss files
         il (bool): check resinsurance sub-folders
         check_binaries (bool): check binary files are not present
@@ -569,7 +568,6 @@ def _check_each_inputs_directory(directory_to_check, il=False, check_binaries=Tr
     When check_binaries is True, raises if both .csv and .bin exist
     for the same file (ambiguous state).
     """
-
     if il:
         input_files = (f['name'] for f in INPUT_FILES.values() if f['type'] != 'optional')
     else:
@@ -590,7 +588,7 @@ def _check_each_inputs_directory(directory_to_check, il=False, check_binaries=Tr
 
 
 def move_bin(src, dst):
-    """select binary files from src and move them to dst folder"""
+    """Select binary files from src and move them to dst folder"""
     def move_single_folder(src, dst):
         os.makedirs(dst, exist_ok=True)
         for input_file in INPUT_FILES.values():

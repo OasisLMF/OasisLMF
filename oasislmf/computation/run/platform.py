@@ -380,7 +380,7 @@ class PlatformList(PlatformBase):
 
 
 class PlatformRunInputs(PlatformBase):
-    """run generate inputs via the Oasis Platoform API"""
+    """run generate inputs via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'model_id', 'type': int, 'help': 'API `id` of a model to run an analysis with'},
         {'name': 'portfolio_id', 'type': int, 'help': 'API `id` of a portfolio to run an analysis with'},
@@ -464,7 +464,7 @@ class PlatformRunInputs(PlatformBase):
 
 
 class PlatformRunLosses(PlatformBase):
-    """run generate losses via the Oasis Platoform API"""
+    """run generate losses via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
@@ -484,7 +484,7 @@ class PlatformRunLosses(PlatformBase):
 
 
 class PlatformRun(PlatformBase):
-    """End to End - run model via the Oasis Platoform API"""
+    """End to End - run model via the Oasis Platform API"""
     chained_commands = [PlatformRunInputs, PlatformRunLosses]
 
     def run(self):

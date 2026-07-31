@@ -440,9 +440,8 @@ def ord_enabled(summary_options, ORD_SWITCHES):
         ORD_SWITCHES (dict): Options from the analysis_settings 'Summaies' section to search
 
     Returns:
-        True is leccalc is enables, False otherwise.
+        True is leccalc is enabled, False otherwise.
     """
-
     ord_options = summary_options.get('ord_output', {})
     for ouput_opt in ord_options:
         if ouput_opt in ORD_SWITCHES and ord_options[ouput_opt]:
@@ -766,7 +765,6 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
             ``leccalc``/``aalcalc`` binaries consume that pipe; ``lecpy``/
             ``aalpy`` only read ``.bin`` work files).
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return []
@@ -813,7 +811,6 @@ def create_workfolders(
         inuring_priority (str or None): Inuring priority label to embed in
             directory names, or None / empty for the final priority.
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -967,7 +964,6 @@ def do_summarycalcs(
             ``aalpy``, ``eltpy``, ``pltpy``) glob ``*.bin`` work files and
             do not read ``.idx`` -- so they don't require this flag.
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -1050,7 +1046,6 @@ def do_tees(
             When False the ``.idx`` companion is skipped to avoid leaving a
             tee blocked on a pipe nothing writes to.
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -1116,7 +1111,6 @@ def do_tees_fc_sumcalc_fmcalc(process_id, filename, correlated_output_stems):
         correlated_output_stems (dict): FIFO path stems returned by
             :func:`get_correlated_output_stems`.
     """
-
     if process_id == 1:
         print_command(filename, '')
 
@@ -1151,7 +1145,6 @@ def get_correlated_output_stems(fifo_dir):
     Returns:
         dict: Mapping of stem names to FIFO path prefixes.
     """
-
     correlated_output_stems = {}
     correlated_output_stems['gulcalc_output'] = '{0}{1}_P'.format(
         fifo_dir, RUNTYPE_GROUNDUP_LOSS
@@ -1196,7 +1189,6 @@ def do_ord(
         inuring_priority (str or None): Inuring priority label for file and
             FIFO names.
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -1330,7 +1322,6 @@ def rl(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-
     for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
         for process_id in process_range(max_process_id, process_number):
             do_ord(
@@ -1393,7 +1384,6 @@ def ri(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-
     for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
 
         for process_id in process_range(max_process_id, process_number):
@@ -1494,7 +1484,6 @@ def do_gul(
         process_number (int or None): If set, restrict to a single process.
         summarypy_low_memory (bool): Enable summarypy ``-m``.
     """
-
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
                process_counter, fifo_dir, work_dir, stderr_guard)
@@ -1541,7 +1530,6 @@ def do_gul_full_correlation(
         stderr_guard: Unused (kept for interface consistency).
         process_number (int or None): If set, restrict to a single process.
     """
-
     for process_id in process_range(max_process_id, process_number):
         do_tees(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
@@ -1660,7 +1648,6 @@ def add_pid_to_shell_command(cmd, process_counter):
     Returns:
         cmd (str): the updated command string.
     """
-
     process_counter["pid_monitor_count"] += 1
     cmd = f'{cmd} pid{process_counter["pid_monitor_count"]}=$!'
 
@@ -1689,7 +1676,7 @@ def get_main_cmd_ri_stream(
     Args:
         cmd (str): either gulcalc command stream or correlated output file
         process_id (int): ID corresponding to thread
-        il_output (Boolean): If insured loss outputs required
+        il_output (bool): If insured loss outputs required
         il_alloc_rule (int): insured loss allocation rule for fmcalc
         ri_alloc_rule (int): reinsurance allocation rule for fmcalc
         num_reinsurance_iterations (int): number of reinsurance iterations
@@ -1754,7 +1741,6 @@ def get_main_cmd_il_stream(
     Returns:
         generated fmcalc command as str
     """
-
     il_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)
 
     if from_file:
@@ -1787,7 +1773,7 @@ def get_main_cmd_gul_stream(
         process_id (int): ID corresponding to thread
         fifo_dir (str): path to fifo directory
         stderr_guard (bool): send stderr output to log file
-        consumer (string): optional name of the consumer of the stream
+        consumer (str): optional name of the consumer of the stream
 
     Returns:
         generated command as str
@@ -1883,7 +1869,6 @@ def do_computes(outputs):
         outputs (list[dict]): Deferred compute descriptors built up by the
             caller (e.g. :func:`create_bash_analysis`).
     """
-
     if len(outputs) == 0:
         return
 
@@ -2059,7 +2044,6 @@ def bash_params(
         OasisException: If no valid output settings are found or an unknown
             event shuffle rule is specified.
     """
-
     bash_params = {}
     bash_params['max_process_id'] = max_process_id if max_process_id > 0 else multiprocessing.cpu_count()
     bash_params['number_of_processes'] = number_of_processes if number_of_processes > 0 else multiprocessing.cpu_count()
@@ -2879,7 +2863,6 @@ def create_bash_outputs(
     All parameters are typically supplied by unpacking the dict returned from
     :func:`bash_params`.
     """
-
     if max_process_id is not None:
         num_gul_per_lb = 0
         num_fm_per_lb = 0
@@ -3101,9 +3084,9 @@ def genbash(
     Args:
         max_process_id (int): The number of processes to create
         analysis_settings (dict): The analysis settings
-        filename (string): The output file name
+        filename (str): The output file name
         num_reinsurance_iterations (int): The number of reinsurance iterations
-        fifo_tmp_dir (boolean): When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
+        fifo_tmp_dir (bool): When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
         gul_alloc_rule (Int): Allocation rule (None or 1) for gulcalc, if not set default to coverage stream
         il_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc
         ri_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc

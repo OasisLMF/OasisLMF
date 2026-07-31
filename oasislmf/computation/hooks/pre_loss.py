@@ -75,7 +75,7 @@ class PreLoss(ComputationStep):
         }
 
     def run(self):
-        """import pre_loss_module and call the run method"""
+        """Import pre_loss_module and call the run method"""
         exposure_data = get_exposure_data(self, add_internal_col=True)
         kwargs = dict()
 

@@ -1,4 +1,4 @@
-"""This file contains general-purpose utilities."""
+"""General-purpose utilities."""
 import logging
 import numpy as np
 import os

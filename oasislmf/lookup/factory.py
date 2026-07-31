@@ -392,7 +392,7 @@ class BasicKeyServer:
             raise OasisException(f"lookup interface version {lookup_interface_version} not implemented")
 
     def get_locations(self, location_fp):
-        """load exposure data from location_fp and return the exposure dataframe"""
+        """Load exposure data from location_fp and return the exposure dataframe"""
         raise NotImplementedError('oasislmf now use ods_tools to pass location to the KeyServer. '
                                   'this method need to be implemented'
                                   'if you want to provide you own loader from filepath')
@@ -646,7 +646,7 @@ class BasicKeyServer:
             location_df=None,
             **kwargs
     ):
-        """generate key files by calling:
+        """Generate key files by calling:
         1. get_locations to get a location object from the location_fp
         2. process_locations or process_locations_multiproc to get results object from the locations object
         3. write_keys_file to writes the relevant files from the results object

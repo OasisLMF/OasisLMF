@@ -37,7 +37,6 @@ def csv_validity_test(model_data_fp):
     Raises:
         OasisException: if one of the tests fail
     """
-
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 

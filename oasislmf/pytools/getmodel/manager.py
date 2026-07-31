@@ -267,7 +267,6 @@ def encode_peril_id(peril_id):
     Returns:
         int: The encoded peril_id.
     """
-
     return sum(ord(c) << (8 * i) for i, c in enumerate(str(peril_id).upper()))
 
 

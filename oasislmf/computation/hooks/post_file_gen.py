@@ -75,7 +75,7 @@ class PostFileGen(ComputationStep):
         }
 
     def run(self):
-        """import post_file_gen_module and call the run method"""
+        """Import post_file_gen_module and call the run method"""
         exposure_data = get_exposure_data(self, add_internal_col=True)
         kwargs = dict()
 

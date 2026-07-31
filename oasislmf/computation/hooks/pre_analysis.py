@@ -85,7 +85,7 @@ class ExposurePreAnalysis(ComputationStep):
         }
 
     def run(self):
-        """import exposure_pre_analysis_module and call the run method"""
+        """Import exposure_pre_analysis_module and call the run method"""
         exposure_data = get_exposure_data(self, add_internal_col=True)
         kwargs = dict()
 

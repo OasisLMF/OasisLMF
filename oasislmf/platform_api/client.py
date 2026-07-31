@@ -620,7 +620,7 @@ class APIClient(object):
         """Gets either the json or csv file referenced in the json and tells the endpoint which is needed
 
         Args:
-            filepath (string): path to json file
+            filepath (str): path to json file
 
         Returns:
             string: path to either same json file or csv file referenced by json file

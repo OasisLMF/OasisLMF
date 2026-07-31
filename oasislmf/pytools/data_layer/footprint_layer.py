@@ -36,7 +36,7 @@ class OperationEnum(Enum):
 
 
 class FootprintLayer:
-    """This class is responsible for accessing the footprint data via TCP ports.
+    """Class to accessing the footprint data via TCP ports.
 
     Attributes:
         static_path (str): path to the static file to load the data
@@ -187,7 +187,7 @@ class FootprintLayer:
 
 
 class FootprintLayerClient:
-    """This class is responsible for connecting to the footprint server via TCP."""
+    """Connects to the footprint server via TCP."""
     @classmethod
     def poll(cls) -> bool:
         """Checks to see if data server is running.

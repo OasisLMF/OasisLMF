@@ -109,7 +109,6 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
         vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
         areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
-
     for ext in ["bin", "csv"]:
         if ext in ignore_file_type:
             continue

@@ -390,7 +390,7 @@ summary_stream_index_size = summary_stream_index_dtype.itemsize
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
-    """load a file as a numpy ndarray
+    """Load a file as a numpy ndarray
     useful for multi-columns files
 
     Args:
@@ -402,7 +402,6 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     Returns:
         numpy ndarray
     """
-
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
         return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
@@ -435,7 +434,7 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
 
 
 def load_as_array(dir_path, name, _dtype, must_exist=True):
-    """load file as a single numpy array,
+    """Load file as a single numpy array,
     useful for files with a binary version with only one type of value where their index correspond to an id.
     For example coverage.bin only contains tiv value for each coverage id
     coverage_id n correspond to index n-1

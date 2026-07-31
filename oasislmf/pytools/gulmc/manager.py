@@ -467,7 +467,7 @@ def run(run_dir,
 
 @nb.njit(cache=True, fastmath=True)
 def get_last_non_empty(cdf, bin_i):
-    """remove empty bucket from the end
+    """Remove empty bucket from the end
 
     Args:
         cdf: cumulative distribution
@@ -484,7 +484,7 @@ def get_last_non_empty(cdf, bin_i):
 
 @nb.njit(cache=True, fastmath=True)
 def pdf_to_cdf(pdf, empty_cdf):
-    """return the cumulative distribution from the probality distribution
+    """Return the cumulative distribution from the probality distribution
 
     Args:
         pdf (np.array[float]): probality distribution
@@ -506,7 +506,7 @@ def pdf_to_cdf(pdf, empty_cdf):
 
 @nb.njit(cache=True, fastmath=True)
 def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
-    """calculate the covoluted cumulative distribution between vulnerability damage and hazard probability distribution
+    """Calculate the covoluted cumulative distribution between vulnerability damage and hazard probability distribution
 
     Args:
         vuln_pdf (np.array[float]) : vulnerability damage probability distribution
@@ -928,7 +928,7 @@ def process_areaperils_in_footprint(event_footprint,
     Args:
         event_footprint (np.array[Event or footprint_event_dtype]): footprint entries.
         areaperil_id_ind (np.array): id_index structure for known areaperil_ids.
-        dynamic_footprint (boolean): true if there is dynamic_footprint.
+        dynamic_footprint (bool): true if there is dynamic_footprint.
         ap_inds (np.array[uint32]): pre-allocated output buffer for dense areaperil indices.
         event_rps (np.array[int32]): pre-allocated output buffer for return periods (dynamic only).
         haz_arr_ptr (np.array[int64]): pre-allocated output buffer for hazard pdf offsets.

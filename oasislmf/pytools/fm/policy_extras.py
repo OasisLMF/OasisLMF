@@ -18,7 +18,7 @@ def min2(a, b):
 
 @njit(cache=True)
 def deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limit, max_deductible):
-    """deductible is over maximum deductible, we reduce the loss, therefore increase the loss up to under_limit
+    """Deductible is over maximum deductible, we reduce the loss, therefore increase the loss up to under_limit
 
     under limit is always the minimum between the limit - loss and  the sub_node under_limit + the applied deductible
     so we are sure that if deductible[i] > max_ded_left, we are sure that under_limit is the good cap
@@ -148,7 +148,6 @@ def calcrule_5(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 @njit(cache=True, fastmath=True)
 def calcrule_7(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """deductible, minimum and maximum deductible, with limit"""
-
     max_ded_left = policy['deductible3'] - policy['deductible1']
     min_ded_left = policy['deductible2'] - policy['deductible1']
 
@@ -177,7 +176,7 @@ def calcrule_7(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_8(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible and minimum deductible, with limit"""
+    """Deductible and minimum deductible, with limit"""
     min_ded_left = policy['deductible2'] - policy['deductible1']
     for i in range(loss_in.shape[0]):
         if deductible[i] < min_ded_left:
@@ -202,7 +201,7 @@ def calcrule_8(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_10(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible and maximum deductible"""
+    """Deductible and maximum deductible"""
     max_ded_left = policy['deductible3'] - policy['deductible1']
 
     for i in range(loss_in.shape[0]):
@@ -221,7 +220,7 @@ def calcrule_10(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_11(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible and minimum deductible"""
+    """Deductible and minimum deductible"""
     min_ded_left = policy['deductible2'] - policy['deductible1']
 
     for i in range(loss_in.shape[0]):
@@ -255,7 +254,6 @@ def calcrule_12(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 @njit(cache=True, fastmath=True)
 def calcrule_13(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """deductible, minimum and maximum deductible"""
-
     max_ded_left = policy['deductible3'] - policy['deductible1']
     min_ded_left = policy['deductible2'] - policy['deductible1']
 
@@ -290,7 +288,7 @@ def calcrule_14(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_15(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible and limit % loss"""
+    """Deductible and limit % loss"""
     effective_limit = policy['deductible1'] / (1 - policy['limit1'])
     for i in range(loss_in.shape[0]):
         if loss_in[i] <= policy['deductible1']:
@@ -310,7 +308,7 @@ def calcrule_15(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_16(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible % loss"""
+    """Deductible % loss"""
     effective_deductible = loss_in * policy['deductible1']
     deductible += effective_deductible
     under_limit += effective_deductible
@@ -319,7 +317,7 @@ def calcrule_16(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_17(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible % loss with attachment, limit and share"""
+    """Deductible % loss with attachment, limit and share"""
     if policy['deductible1'] >= 1:
         loss_out.fill(0)
     else:
@@ -338,11 +336,10 @@ def calcrule_17(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_19(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible % loss with min and/or max deductible
+    """Deductible % loss with min and/or max deductible
 
     TODO: check if we can assume 0 <= policy['deductible1'] <= 1
     """
-
     for i in range(loss_in.shape[0]):
         effective_deductible = loss_in[i] * policy['deductible1']
         if effective_deductible + deductible[i] > policy['deductible3'] > 0:
@@ -362,7 +359,7 @@ def calcrule_19(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_20(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """reverse franchise deductible"""
+    """Reverse franchise deductible"""
     for i in range(loss_in.shape[0]):
         if loss_in[i] > policy['deductible1']:
             loss_out[i] = 0
@@ -372,7 +369,7 @@ def calcrule_20(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_22(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """reinsurance % ceded, limit and % placed"""
+    """Reinsurance % ceded, limit and % placed"""
     if policy['share1'] == 0:
         loss_out.fill(0)
     else:
@@ -388,7 +385,7 @@ def calcrule_22(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_23(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """reinsurance limit and % placed"""
+    """Reinsurance limit and % placed"""
     all_share = policy['share2'] * policy['share3']
     maxi = policy['limit1'] * all_share
     for i in range(loss_in.shape[0]):
@@ -400,7 +397,7 @@ def calcrule_23(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_24(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """reinsurance excess terms"""
+    """Reinsurance excess terms"""
     if policy['share1'] == 0:
         loss_out.fill(0)
     else:
@@ -420,17 +417,16 @@ def calcrule_24(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_25(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """reinsurance proportional terms"""
+    """Reinsurance proportional terms"""
     loss_out[:] = loss_in * (policy['share1'] * policy['share2'] * policy['share3'])
 
 
 @njit(cache=True, fastmath=True)
 def calcrule_26(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible % loss with min and/or max deductible and limit
+    """Deductible % loss with min and/or max deductible and limit
 
     TODO: check if we can assume 0 <= policy['deductible1'] <= 1
     """
-
     for i in range(loss_in.shape[0]):
         effective_deductible = loss_in[i] * policy['deductible1']
         if effective_deductible + deductible[i] > policy['deductible3'] > 0:
@@ -457,7 +453,7 @@ def calcrule_26(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_27(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """step payout with limit"""
+    """Step payout with limit"""
     if policy['step_id'] == 1:
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
@@ -473,13 +469,13 @@ def calcrule_28(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_32(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """monetary amount trigger and % loss step payout with limit"""
+    """Monetary amount trigger and % loss step payout with limit"""
     _calcrule_32(policy, loss_out, loss_in)
 
 
 @njit(cache=True, fastmath=True)
 def calcrule_33(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible % loss with limit"""
+    """Deductible % loss with limit"""
     if policy['deductible1'] >= 1:
         loss_out.fill(0)
         deductible += loss_in
@@ -499,7 +495,7 @@ def calcrule_33(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_34(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible with attachment and share
+    """Deductible with attachment and share
 
     TODO: compare to the cpp, as there is shares, deductible won't be use later on so no need to compute it
     """
@@ -508,11 +504,10 @@ def calcrule_34(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_35(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible % loss with min and/or max deductible and limit % loss
+    """Deductible % loss with min and/or max deductible and limit % loss
 
     TODO: check if we can assume 0 <= policy['deductible1'] <= 1
     """
-
     for i in range(loss_in.shape[0]):
         effective_deductible = loss_in[i] * policy['deductible1']
         if effective_deductible + deductible[i] > policy['deductible3'] > 0:
@@ -539,8 +534,7 @@ def calcrule_35(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """deductible with min and/or max deductible and limit % loss"""
-
+    """Deductible with min and/or max deductible and limit % loss"""
     max_ded_left = policy['deductible3'] - policy['deductible1']
     min_ded_left = policy['deductible2'] - policy['deductible1']
 
@@ -582,7 +576,7 @@ def calcrule_37(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_38(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """conditional coverage"""
+    """Conditional coverage"""
     _calcrule_38(policy, loss_out, loss_in)
 
 

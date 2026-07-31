@@ -94,7 +94,7 @@ files_write_info = {
 
 
 def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups):
-    """cleans out columns that are not valid oasis group columns.
+    """Cleans out columns that are not valid oasis group columns.
 
     Valid group id columns can be either
     1. exist in the location file

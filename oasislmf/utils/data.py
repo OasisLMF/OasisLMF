@@ -321,7 +321,6 @@ def detect_encoding(filepath):
     Returns:
         dict: Example `{'encoding': 'ISO-8859-1', 'confidence': 0.73, 'language': ''}`
     """
-
     detector = UniversalDetector()
     with io.open(filepath, 'rb') as f:
         for line in f:
@@ -537,7 +536,7 @@ def get_dtypes_and_required_cols(get_dtypes, all_dtypes=False):
     """Get OED column data types and required column names from JSON.
 
     Args:
-        all_dtypes (boolean): If true return every dtype field, otherwise only categoricals
+        all_dtypes (bool): If true return every dtype field, otherwise only categoricals
         get_dtypes (function): method to get dict from JSON
     """
     dtypes = get_dtypes()

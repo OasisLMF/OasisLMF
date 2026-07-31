@@ -17,7 +17,6 @@ class ConfigUpdateCmd(OasisBaseCommand):
         Args:
             parser (ArgumentParser): The argument parser object
         """
-
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--output-config', default=None, help='File path to write an updated MDK config file')
@@ -29,7 +28,6 @@ class ConfigUpdateCmd(OasisBaseCommand):
         Args:
             args (Namespace): The arguments from the command line
         """
-
         inputs = InputValues(args, update_keys=False)
 
         if inputs.obsolete_keys:

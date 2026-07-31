@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 @nb.jit(nopython=True, cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
-    """read the gul loss stream, apply the post loss amplification factor and load it into out_byte_mv buffer
+    """Read the gul loss stream, apply the post loss amplification factor and load it into out_byte_mv buffer
     This modified version of the read_buffer template return result when the whole input buffer is read and not when an event is read.
     therefore it cannot be used to read multiple stream at a time because events would be mixed up.
 

@@ -1002,7 +1002,7 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
 
 @njit(cache=True)
 def reset_variable(children, compute_idx, computes):
-    """reset the per event array
+    """Reset the per event array
 
     Args:
         children: array of all the children with loss value for each node

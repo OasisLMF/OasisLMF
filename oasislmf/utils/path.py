@@ -84,7 +84,7 @@ class PathCleaner(object):
 
 
 def import_from_string(name):
-    """return the object or module from the path given
+    """Return the object or module from the path given
 
     >>> import os.path
     >>> mod = import_from_string('os.path')
@@ -104,7 +104,7 @@ def import_from_string(name):
 
 
 def get_custom_module(custom_module_path, label):
-    """return the custom module present at the custom_module_path.
+    """Return the custom module present at the custom_module_path.
     the try loop allow for the custom module to work even if it depends on other module of its package
     by testing recursively for the presence of __init__.py file
 

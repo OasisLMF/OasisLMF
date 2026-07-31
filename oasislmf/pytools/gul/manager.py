@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 @njit(cache=True)
 def adjust_byte_mv_size(byte_mv, max_bytes_per_coverage):
-    """adjust buff size so that the buffer fits the longest coverage
+    """Adjust buff size so that the buffer fits the longest coverage
 
     Args:
         byte_mv: numpy byte array

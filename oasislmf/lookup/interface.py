@@ -40,7 +40,6 @@ class KeyServerInterface(metaclass=abc.ABCMeta):
             output_dir: Path to the analysis output directory, can be use to write additional files that are produce
                 during the keys file generation
         """
-
         raise NotImplementedError
 
     @abc.abstractmethod

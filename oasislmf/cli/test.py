@@ -17,7 +17,6 @@ class ModelValidationCmd(OasisBaseCommand):
         Args:
             parser (ArgumentParser): The argument parser object
         """
-
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
@@ -31,7 +30,6 @@ class ModelValidationCmd(OasisBaseCommand):
         Args:
             args (Namespace): The arguments from the command line
         """
-
         inputs = InputValues(args)
 
         model_data_fp = as_path(

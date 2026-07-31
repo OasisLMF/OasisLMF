@@ -254,7 +254,7 @@ class AggReports():
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
-            outloss_type (string): Which loss to output
+            outloss_type (str): Which loss to output
         """
         if outloss_type not in ("agg_out_loss", "max_out_loss"):
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
@@ -278,7 +278,7 @@ class AggReports():
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
-            outloss_type (string): Which loss to output
+            outloss_type (str): Which loss to output
         """
         if outloss_type not in ("agg_out_loss", "max_out_loss"):
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
@@ -304,7 +304,7 @@ class AggReports():
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
-            outloss_type (string): Which loss to output
+            outloss_type (str): Which loss to output
             output_wheatsheaf (bool): Bool to Output Wheatsheaf
             output_wheatsheaf_mean (bool): Bool to Output Wheatsheaf Mean
         """
@@ -345,7 +345,7 @@ class AggReports():
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
-            outloss_type (string): Which loss to output
+            outloss_type (str): Which loss to output
         """
         if self.config.sample_size == 0:
             logger.warning("aggreports.output_sample_mean, self.sample_size is 0, not outputting any sample mean")

@@ -88,7 +88,7 @@ def calcrule_14(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_15(policy, loss_out, loss_in):
-    """deductible and limit % loss"""
+    """Deductible and limit % loss"""
     effective_limit = policy['deductible1'] / (1 - policy['limit1'])
     for i in range(loss_in.shape[0]):
         if loss_in[i] <= policy['deductible1']:
@@ -101,13 +101,13 @@ def calcrule_15(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_16(policy, loss_out, loss_in):
-    """deductible % loss"""
+    """Deductible % loss"""
     loss_out[:] = loss_in * (1 - policy['deductible1'])
 
 
 @njit(cache=True, fastmath=True)
 def calcrule_17(policy, loss_out, loss_in):
-    """deductible % loss with attachment, limit and share"""
+    """Deductible % loss with attachment, limit and share"""
     if policy['deductible1'] >= 1:
         loss_out.fill(0)
     else:
@@ -125,7 +125,7 @@ def calcrule_17(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_20(policy, loss_out, loss_in):
-    """reverse franchise deductible"""
+    """Reverse franchise deductible"""
     for i in range(loss_in.shape[0]):
         if loss_in[i] > policy['deductible1']:
             loss_out[i] = 0
@@ -135,7 +135,7 @@ def calcrule_20(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_22(policy, loss_out, loss_in):
-    """reinsurance % ceded, limit and % placed"""
+    """Reinsurance % ceded, limit and % placed"""
     if policy['share1'] == 0:
         loss_out.fill(0)
     else:
@@ -151,7 +151,7 @@ def calcrule_22(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_23(policy, loss_out, loss_in):
-    """reinsurance limit and % placed"""
+    """Reinsurance limit and % placed"""
     all_share = policy['share2'] * policy['share3']
     maxi = policy['limit1'] * all_share
     for i in range(loss_in.shape[0]):
@@ -163,7 +163,7 @@ def calcrule_23(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_24(policy, loss_out, loss_in):
-    """reinsurance excess terms"""
+    """Reinsurance excess terms"""
     if policy['share1'] == 0:
         loss_out.fill(0)
     else:
@@ -183,7 +183,7 @@ def calcrule_24(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_25(policy, loss_out, loss_in):
-    """reinsurance proportional terms"""
+    """Reinsurance proportional terms"""
     loss_out[:] = loss_in * (policy['share1'] * policy['share2'] * policy['share3'])
 
 
@@ -202,7 +202,7 @@ def calcrule_28(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_281(policy, loss_out, loss_in):
-    """conditional coverage"""
+    """Conditional coverage"""
     if policy['step_id'] == 1:
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
@@ -212,7 +212,7 @@ def calcrule_281(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_32(policy, loss_out, loss_in):
-    """monetary amount trigger and % loss step payout with limit"""
+    """Monetary amount trigger and % loss step payout with limit"""
     if policy['step_id'] == 1:
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
@@ -223,7 +223,7 @@ def calcrule_32(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_33(policy, loss_out, loss_in):
-    """deductible % loss with limit"""
+    """Deductible % loss with limit"""
     if policy['deductible1'] >= 1:
         loss_out.fill(0)
     else:
@@ -237,7 +237,7 @@ def calcrule_33(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_34(policy, loss_out, loss_in):
-    """deductible with attachment and share
+    """Deductible with attachment and share
 
     TODO: compare to the cpp, as there is shares, deductible won't be use later on so no need to compute it
     """
@@ -262,7 +262,7 @@ def calcrule_37(policy, loss_out, loss_in):
 
 @njit(cache=True, fastmath=True)
 def calcrule_38(policy, loss_out, loss_in):
-    """conditional coverage"""
+    """Conditional coverage"""
     if policy['step_id'] == 1:
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
