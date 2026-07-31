@@ -167,11 +167,12 @@ def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_valu
                                           event_id_type, event_id_size, summary_id_dtype, summary_id_size,
                                           loss_type, loss_size)
 
+
 @nb.jit(nopython=True, cache=True)
 def mv_write_summary_header_cached(byte_mv, cursor, event_id, summary_id, exposure_value,
-                                event_id_type, event_id_size,
-                                summary_id_dtype, summary_id_size,
-                                exposure_value_dtype, exposure_value_size) -> int:
+                                   event_id_type, event_id_size,
+                                   summary_id_dtype, summary_id_size,
+                                   exposure_value_dtype, exposure_value_size) -> int:
     """
     cached write a summary header to the numpy byte view at index cursor, return the index of the end of the object
     Args:
