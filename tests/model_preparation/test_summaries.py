@@ -12,7 +12,7 @@ from ods_tools.oed import OedExposure
 
 from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.preparation.summaries import (convert_col_name, get_exposure_summary,
-                                            write_exposure_summary)
+                                            group_by_oed, write_exposure_summary)
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import prepare_oed_exposure
 from oasislmf.utils.defaults import get_default_exposure_profile
@@ -417,3 +417,55 @@ class TestSummaries(TestCase):
                     location_df,
                     keys_df)
                 self.assertDictAlmostEqual(data, exp_summary)
+
+
+def _account_subject_at_risk_frames():
+    """Frames shaped like an account-based class of business (e.g. cyber), where the
+    subject at risk is the account file: it carries ``loc_id`` and ``acc_idx`` but no
+    ``loc_idx``. The GUL summary map likewise carries ``loc_id`` but neither index col."""
+    exposure_df = pd.DataFrame({
+        'loc_id': [1, 2, 3, 4],
+        'acc_idx': [0, 1, 2, 3],
+        'AccNumber': ['A1', 'A2', 'A3', 'A4'],
+        'CountryCode': ['US', 'US', 'GB', 'GB'],
+    })
+    summary_map_df = pd.DataFrame({
+        'item_id': [1, 2, 3, 4],
+        'coverage_id': [1, 2, 3, 4],
+        'coverage_type_id': [3, 3, 3, 3],
+        'loc_id': [1, 2, 3, 4],
+        'building_id': [1, 1, 1, 1],
+        'tiv': [100.0, 200.0, 300.0, 400.0],
+        'AccNumber': ['A1', 'A2', 'A3', 'A4'],
+    })
+    return exposure_df, summary_map_df
+
+
+def test_group_by_oed__account_subject_at_risk__field_from_exposure():
+    """Regression: grouping by an account-file field (e.g. CountryCode) for an account-based
+    class of business must join on the subject-at-risk id (loc_id), not loc_idx. Previously
+    raised ``KeyError: "['loc_idx'] not in index"`` during loss-stage summary generation."""
+    exposure_df, summary_map_df = _account_subject_at_risk_frames()
+
+    summary_ids, set_values, _ = group_by_oed(
+        ['CountryCode'], summary_map_df, exposure_df, 'item_id', accounts_df=exposure_df)
+
+    # Two countries -> two groups, mapped bijectively to the items
+    assert set(set_values) == {'US', 'GB'}
+    id_by_item = dict(zip(summary_map_df['item_id'], summary_ids))
+    assert id_by_item[1] == id_by_item[2]        # both US
+    assert id_by_item[3] == id_by_item[4]        # both GB
+    assert id_by_item[1] != id_by_item[3]        # US != GB
+
+
+def test_group_by_oed__account_subject_at_risk__field_already_in_map():
+    """Regression for the empty-``exposure_cols`` path (previously reached via the
+    ``exposure_cols is not []`` identity bug): grouping by a field already present in the
+    summary map must not touch the subject-at-risk index at all."""
+    exposure_df, summary_map_df = _account_subject_at_risk_frames()
+
+    summary_ids, set_values, _ = group_by_oed(
+        ['AccNumber'], summary_map_df, exposure_df, 'item_id', accounts_df=exposure_df)
+
+    assert len(set(set_values)) == 4
+    assert len(set(summary_ids)) == 4
