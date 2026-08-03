@@ -2,7 +2,7 @@ import numba as nb
 import numpy as np
 import logging
 
-from oasislmf.pytools.common.data import oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size, def_to_type_and_size
+from oasislmf.pytools.common.data import loss_pair_dtype, loss_pair_size, def_to_type_and_size
 from oasislmf.pytools.common.event_stream import (EventReader, get_and_check_header_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, PIPE_CAPACITY)
 

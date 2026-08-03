@@ -53,8 +53,8 @@ import logging
 
 from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY, EventReader,
                                                   MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, MEAN_IDX,
-                                                  mv_read, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter, write_mv_to_stream)
-from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float_size, loss_pair_dtype, loss_pair_size, def_to_type_and_size
+                                                  mv_read, mv_write_item_header, mv_write_sidx_loss, write_mv_to_stream)
+from oasislmf.pytools.common.data import loss_pair_dtype, loss_pair_size, def_to_type_and_size
 
 logger = logging.getLogger(__name__)
 

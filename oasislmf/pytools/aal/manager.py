@@ -11,9 +11,9 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from oasislmf.pytools.aal.data import AAL_meanonly_dtype, AAL_meanonly_fmt, AAL_meanonly_headers, AAL_dtype, AAL_fmt, AAL_headers, ALCT_dtype, ALCT_fmt, ALCT_headers
-from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, def_to_type_and_size, oasis_int, oasis_float,
-                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv,
-                                          summary_stream_index_dtype, loss_pair_dtype, loss_pair_size)
+from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, def_to_type_and_size,
+                                          write_ndarray_to_fmt_csv,
+                                          summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
 from oasislmf.pytools.common.input_files import occ_get, read_occurrence, read_periods

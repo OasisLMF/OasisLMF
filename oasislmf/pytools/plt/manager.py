@@ -9,7 +9,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
-                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv, def_to_type_and_size)
+                                          write_ndarray_to_fmt_csv, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import occ_get, occ_get_date, read_occurrence, read_periods, read_quantile
