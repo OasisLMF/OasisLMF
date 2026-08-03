@@ -17,7 +17,7 @@ class EnableBashCompleteCmd(OasisComputationCommand):
 
 
 class AdminCmd(OasisBaseCommand):
-    """Admin subcommands::"""
+    """Admin subcommands"""
     sub_commands = {
         'enable-bash-complete': EnableBashCompleteCmd
     }
