@@ -30,6 +30,7 @@ summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
 sidx_dtype, sidx_size = def_to_type_and_size('sidx')
 loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
 
+
 def read_input_files(
     run_dir,
     use_return_period,

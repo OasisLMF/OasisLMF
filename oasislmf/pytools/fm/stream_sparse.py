@@ -70,7 +70,6 @@ ITEM_HEADER_SIZE = event_id_dtype_size + item_id_dtype_size + SPECIAL_SIDX_COUNT
 SIDX_LOSS_WRITE_SIZE = loss_pair_size
 
 
-
 @nb.jit(cache=True, nopython=True)
 def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
     """

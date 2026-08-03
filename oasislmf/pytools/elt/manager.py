@@ -26,6 +26,7 @@ summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset
 sidx_dtype, sidx_dtype_size = def_to_type_and_size("sidx")
 loss_dtype, loss_dtype_size = def_to_type_and_size("loss")
 
+
 class ELTReader(EventReader):
     def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals):
         self.logger = logger

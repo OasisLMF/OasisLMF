@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
 item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
 
+
 @nb.jit(nopython=True, cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
     """
