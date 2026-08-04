@@ -219,7 +219,7 @@ def read_buffer(
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
                     _update_idxs()
-                    return cursor - oasis_int_size, last_event_id, item_id, 1
+                    return cursor - event_id_dtype_size, last_event_id, item_id, 1
                 event_id = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, summary_id_dtype, summary_id_dtype_size)
                 state["impacted_exposure"], cursor = mv_read(byte_mv, cursor, loss_dtype, loss_dtype_size)
@@ -506,6 +506,7 @@ def run(
                 outmap[out_type]["file"] = out_file
 
         # Process summary files
+        logger.warning("processing summary files...")
         for event_id in elt_reader.read_streams(streams_in):
             logger.warning(f"processing {event_id}")
             for out_type in outmap:
