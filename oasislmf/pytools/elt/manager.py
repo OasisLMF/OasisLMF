@@ -101,11 +101,13 @@ class ELTReader(EventReader):
             self.curr_file_idx = file_idx
 
         # Pass state variables to read_buffer
+        self.logger.warning(f"read_buffer event_id={event_id}, item_id={item_id}")
         cursor, event_id, item_id, ret = read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id, self.selt_data, self.selt_idx,
             self.state, self.melt_data, self.melt_idx, self.qelt_data, self.qelt_idx, self.intervals,
             self.unique_event_ids, self.event_rates
         )
+        self.logger.warning(f"    completed read_buffer event_id={event_id}, item_id={item_id}")
         return cursor, event_id, item_id, ret
 
 
@@ -369,11 +371,16 @@ def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
     unique_event_ids = np.array([], dtype=event_id_dtype)
     event_rates = np.array([], dtype=oasis_float)
     include_event_rate = False
+    logger.warning("read_input_files, reading event rates")
     if compute_melt:
         unique_event_ids, event_rates = read_event_rates(Path(run_dir, "input"))
         include_event_rate = unique_event_ids.size > 0
+    logger.warning("    completed read_input_files, reading event rates")
 
+    logger.warning("read_input_files, reading quantile")
     intervals = read_quantile(sample_size, Path(run_dir, "input"), return_empty=not compute_qelt)
+    logger.warning("    completed read_input_files, reading quantile")
+
 
     file_data = {
         "unique_event_ids": unique_event_ids,
@@ -449,16 +456,20 @@ def run(
         if files_in == ["-"]:
             files_in = None  # init_streams checks for None to read from sys.stdin.buffer
 
+        logger.warning("init_streams_in")
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
+        logger.warning("    completed init_streams_in")
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
+        logger.warning("running read_input_files")
         file_data = read_input_files(
             run_dir,
             outmap["melt"]["compute"],
             outmap["qelt"]["compute"],
             len_sample
         )
+        logger.warning("starting elt reader")
         elt_reader = ELTReader(
             len_sample,
             outmap["selt"]["compute"],
@@ -496,13 +507,18 @@ def run(
 
         # Process summary files
         for event_id in elt_reader.read_streams(streams_in):
+            logger.warning(f"processing {event_id}")
             for out_type in outmap:
+                logger.warning("running out_type")
                 if not outmap[out_type]["compute"]:
                     continue
 
+                logger.warning("getting data idx")
                 data_idx = elt_reader.get_data_idx(out_type)
+                logger.warning("getting data")
                 data = elt_reader.get_data(out_type)[:data_idx[0]]
 
+                logger.warning("outputting data")
                 if outmap[out_type]["file"] is not None and data.size > 0:
                     if output_binary:
                         data.tofile(outmap[out_type]["file"])
@@ -517,7 +533,9 @@ def run(
                             outmap[out_type]["headers"],
                             outmap[out_type]["fmt"]
                         )
+                logger.warning("    completed outputting data")
                 data_idx[0] = 0
+            logger.warning(f"    completed processing {event_id}")
 
 
 @redirect_logging(exec_name='eltpy')
