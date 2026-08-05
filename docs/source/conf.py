@@ -322,6 +322,11 @@ epub_exclude_files = ['search.html']
 intersphinx_mapping = {'python': ('https://docs.python.org/', None)}
 
 
+def _rst_escape(text):
+    """Escape reStructuredText inline markup chars in free-text (option help)."""
+    return str(text).replace('\\', '\\\\').replace('*', '\\*').replace('`', '\\`')
+
+
 def list_options():
     # Get params from RunCmd
     cmd_opts = RunCmd().arg_parser._actions
@@ -393,7 +398,7 @@ def list_options():
             f'{param_name}',
             '=' * len(param_name),
             '',
-            f'Description: {cmd_opt["help"]}',
+            f'Description: {_rst_escape(cmd_opt["help"])}',
             '',
             f'Expected type: {cmd_opt["expected_type"]}',
             '',

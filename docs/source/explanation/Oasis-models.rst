@@ -7,8 +7,6 @@ On this page
 * :ref:`intro_models`
 * :ref:`piwind_models`
 
-
-
 |
 
 .. _intro_models:
@@ -172,8 +170,6 @@ This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tr
 
 PiWind - toy model
 ------------------
-
-----
 
 Oasis has developed a toy model, PiWind, available `here <https://github.com/OasisLMF/OasisPiWind>`_. PiWind is a wind storm 
 model for a small area of the UK. The data is mocked up to illustrate the Oasis data formats and functionality, and is not 

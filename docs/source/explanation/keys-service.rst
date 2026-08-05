@@ -16,8 +16,6 @@ On this page
 Introduction
 ************
 
-----
-
 The keys service in the Oasis Loss Modelling Framework is the process which is used to map exposure data (in OED format) 
 into the into the model specific keys required to execute analyses against that model in the core calculation kernel. This 
 document specifies the requirements form the keys service for a typical implementation of an Oasis LMF compliant model. It 
@@ -27,11 +25,8 @@ calculation kernel.
 
 |
 
-
 High Level Overview
 ###################
-
-----
 
 At a high level, a keys service implementation should accept, as input, an OED Location file and return a JSON stream 
 including the oasis keys per location/coverage type/sub-peril, along with reasons for non-mapped 
@@ -40,6 +35,7 @@ location/coverage-type/sub-peril combinations where they are outside of the remi
 .. image:: /_static/images/keys/keys_service.png
    :width: 400
    :align: center
+
 |
 
 However, this is not strictly true anymore. Keys service can return a csv stream **OR** a JSON stream. **The default 
@@ -50,11 +46,9 @@ is to return csv**, as this form is more efficient and practical.
 Return JSON specification
 #########################
 
-----
-
 The return JSON should subscribe to the following definition:
 
-.. code-block:: JSON
+.. code-block:: text
 
     {
     "loc_id": <integer location id from input OED file>,
@@ -71,8 +65,6 @@ The return JSON should subscribe to the following definition:
 Perils Covered
 ##############
 
-----
-
 It is the responsibility of the keys service to identify the exposures in the input location file are to be modelled. 
 Included in this definition is the identification of risks by perils covered. The keys service implementation should use 
 the “LocPerilsCovered” field in the input location OED file to identify and filter out those locations which are covered by 
@@ -84,8 +76,6 @@ not be assigned an areaperil id value.
 
 Coverage Type
 ##############
-
-----
 
 The coverage type field returned in the JSON stream should comply to the Oasislmf standard supported coverage types:
 
@@ -101,8 +91,6 @@ The coverage type field returned in the JSON stream should comply to the Oasislm
 
 Status
 ######
-
-----
 
 The status returned by the keys service should comply with the accepted status values included in the oasislmf package. 
 These accepted statuses are:
@@ -132,8 +120,6 @@ wither successful or not.
 Messages
 ########
 
-----
-
 A free text message can be returned with the keys service return JSON. This message should be used to describe the reason 
 for no oasis key being assigned (e.g. location is outside of model domain) and should be concise while clear enough for a 
 user to understand the issue. Messages only need to be returned with one of the fail statuses.
@@ -142,8 +128,6 @@ user to understand the issue. Messages only need to be returned with one of the 
 
 Best Practice
 #############
-
-----
 
 The following list details the expectations from the keys service implementation:
 
@@ -167,8 +151,6 @@ The following list details the expectations from the keys service implementation
    footprint, then the record should be returned with the “notatrisk” status and not with a dummy areaperil value, say. Not at 
    risk items will be included in exposure counts but will not be entered into the calculation kernel.
 
-
-
 |
 
 .. _interface_keys:
@@ -176,22 +158,18 @@ The following list details the expectations from the keys service implementation
 Interface for Keys lookup
 -------------------------
 
-----
-
 The Keys look up process interface now has a new generic interface in order to reduce the amount of code needed to define 
 and run a keys look up process.
 
 |
 
 Setup
-#####
+*****
 
 |
 
 Basic execution
 ***************
-
-----
 
 This section goes through step by step on how to run a basic model.
 
@@ -217,6 +195,7 @@ have to define the config file. If we look at the config file for this example, 
    "write_chunksize": 200000,
    "lookup_config_json": "keys_data/US_FLOOD/new_key_server.json"
    }
+
 |
 
 What we have is the parameters for the execution of the model which we will explore in the general 
@@ -232,6 +211,7 @@ via the steps below:
 .. image:: /_static/images/keys/key_flow.png
    :width: 400
    :align: center
+
 |
 
 Once the flow above has executed, the class that you have defined that inherits the ``Lookup`` class 
@@ -269,8 +249,8 @@ with the code below:
          locations[name] = one + two
          return locations
       return _internal_function
-|
 
+|
 
 As long as this function is defined in our lookup class that we have defined which inherits the ``Lookup`` class, we can 
 call it in our `lookup config <https://github.com/OasisLMF/OasisLMF/wiki/lookup-config-file>`_ file with the setup below:
@@ -298,8 +278,8 @@ call it in our `lookup config <https://github.com/OasisLMF/OasisLMF/wiki/lookup-
       }
       "strategy": ["simple_add"]
    }
-|
 
+|
 
 This will run our ``simple_add`` function with the parameters defined in the JSON file above. Once the strategy sequence 
 has finished the final result data frame will be passed forward for further processing. Even though we have built our 
@@ -310,14 +290,10 @@ field is not wiped at the end of the process.
 
 |
 
-
-
 .. _built_in_functions_keys:
 
 Built-in functions
 ******************
-
-----
 
 |
 
@@ -349,6 +325,7 @@ Support several simple DataFrame preparation:
    * max: truncate the values in a column to the specified max
    * min: truncate the values in a column to the specified min
    * type: convert the type of the column to the specified numpy dtype
+
 .. note::
    We use the string representation of numpy dtype available at
    https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing.
@@ -369,6 +346,7 @@ Function Factory to associate location to ``area_peril`` based on the rtree meth
    * This file must be a geopandas Dataframe with a valid geometry
    * An example on how to create such dataframe is available in PiWind
    * If you are new to geo data (in python) and want to learn more, you may have a look at this excellent course:
+
    https://automating-gis-processes.github.io/site/index.html
 
 ``file_type``: can be any format readable by geopandas ('file', 'parquet', ...)
@@ -409,8 +387,6 @@ All non match column present in ``id_columns`` will be set to -1
 
 |
 
-
-
 .. _config_keys:
 
 Config
@@ -420,8 +396,6 @@ Config
 
 Lookup config file
 ##################
-
-----
 
 If we are to define a basic config file we can so with the following:
 
@@ -470,12 +444,11 @@ If we are to define a basic config file we can so with the following:
       },
       "strategy": ["split_loc_perils_covered", "peril", "create_coverage_type", "vulnerability"]
    }
+
 |
 
 General config file 
 ###################
-
-----
 
 The general config file has to have to following parameters:
 
@@ -504,8 +477,6 @@ The general config file has to have to following parameters:
 
 Analysis settings config file
 #############################
-
-----
 
 A general analysis settings config file has the following layout:
 
@@ -541,8 +512,6 @@ A general analysis settings config file has the following layout:
 Custom lookup
 *************
 
-----
-
 On top of allowing user to set their own steps to create a lookup, Oasis builtin lookup provide a easy way to add your own 
 custom functions if more complex behaviour are needed.
 
@@ -556,12 +525,13 @@ any name of your choice). In ``lookup_config.json`` change ``builtin_lookup_type
 In ``<module_name>.py`` we create our custom class ``<model_id>KeysLookup`` where ``<model_id>`` is the ``model_id`` in 
 your lookup config.
 
-.. code-block:: python
+.. code-block:: text
 
    from oasislmf.lookup.builtin import Lookup
 
    class <model_id>Lookup(Lookup):
       pass
+
 |
 
 This is done, Oasis will now use your custom lookup in the key server (although for the moment the custom lookup behave 
@@ -584,7 +554,7 @@ the signature ``fct_name(locations)=>locations``.
 For example let's say we want to have a default height if missing based on the number of ``storeys``. With 
 ``numberofstoreys`` between 0 and 100.
 
-.. code-block:: python
+.. code-block:: text
 
    from oasislmf.lookup.builtin import Lookup
    import pandas as pd
@@ -596,6 +566,7 @@ For example let's say we want to have a default height if missing based on the n
          loc_missing = locations[missing_height_with_storeys]
          loc_missing['buildingheight'] = locations['numberofstoreys'].clip(0, 100) * 3 # as a default each storey is 3 meters
          return pd.concat([loc_missing, locations[~missing_height_with_storeys])
+
 |
 
 Then we can call our function by adding it in our strategy in ``lookup_config.json "strategy": ["storey_nb_to_height", ...]``.
@@ -607,7 +578,7 @@ example above and put the min max and storey heigh as parameters.
 
 Then the code will be changed to:
 
-.. code-block:: python
+.. code-block:: text
 
    from oasislmf.lookup.builtin import Lookup
    import pandas as pd
@@ -622,12 +593,13 @@ Then the code will be changed to:
             return pd.concat([loc_missing, locations[~missing_height_with_storeys])
          
          return fct
+
 |
 
 As the function has parameters, on top of adding the step name to strategy we also need to specify the parameter in 
 step_definition:
 
-.. code-block:: python
+.. code-block:: text
 
       "step_definition": {
         "default_height":{
@@ -642,13 +614,14 @@ step_definition:
         ...
       }
       "strategy": ["default_height", ...] # step name and function name can be the same but if different make sure it is the step name in strategy
+
 |
 
 Custom parametric function let you be as flexible as you need and also let you use builtin function. In this example we 
 will use custom function to use two different method of geo-localization depending on the data available. If we have lat 
 lon we use it otherwise we use a mapping file based on the ``locuserdef1`` column.
 
-.. code-block:: python
+.. code-block:: text
 
    from oasislmf.lookup.builtin import Lookup
    import pandas as pd
@@ -670,6 +643,7 @@ lon we use it otherwise we use a mapping file based on the ``locuserdef1`` colum
             return pd.concat([gdf_loc1, null_gdf_loc])
 
          return fct
+
 |
 
 In lookup_config.json, we define the step and its parameters:
@@ -687,4 +661,5 @@ In lookup_config.json, we define the step and its parameters:
          "nearest_neighbor_min_distance": -1
       }
    }
+
 |

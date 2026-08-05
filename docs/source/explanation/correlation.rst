@@ -6,18 +6,17 @@ On this page
 
 * :ref:`intro_correlation`
 * :ref:`sources_of_correlation`
-* :ref:`features_by_version`
+* :ref:`correlation_features_by_version`
 * :ref:`available_1.15_correlation`
 * :ref:`available_1.27_correlation`
 * :ref:`available_1.28_correlation`
 
 |
+
 .. _intro_correlation:
 
 Introduction
 ************
-
-----
 
 This section covers the options in Oasis for modelling correlation in secondary uncertainty, or correlation in the modelled severity of loss given
 an event. 
@@ -33,8 +32,6 @@ The methods of correlating losses can vary by model depending on which of the fe
 Sources of correlation
 **********************
 
-----
-
 In large catastrophes, there is a tendency for losses across multiple locations to be correlated, meaning relatively high losses across locations or low losses across locations tend to occur together. The correlation is stronger the closer together the exposures are located. 
 
 Two main reasons why this would be the case for buildings situated close together are;
@@ -44,15 +41,12 @@ Two main reasons why this would be the case for buildings situated close togethe
 
 Correlation increases the range of potential claims at a portfolio level and particularly for large, rare events, a model can significantly underestimate uncertainty and extreme losses if this correlation is not captured. It is therefore desirable to allow modellers and users the ability to express views on the degree of spatial correlation in Oasis so that the effect on portfolio risk can be explored.
 
-
 |
 
-.. _features_by_version:
+.. _correlation_features_by_version:
 
 Correlation features by version
 *******************************
-
-----
 
 There are several options in Oasis to represent correlation, and more features have been added in the more recent oasislmf package versions.
 
@@ -63,23 +57,24 @@ These can be summarized as follows;
     *   Model specification of correlation groups
     *   User override using CorrelationGroup field in OED
     *   User override using an OED field list parameter
+
 *  1.27 and later
     *   Changes to correlation settings
     *   Peril correlation groups
     *   Partial correlation for damage
+
 *  1.28 and later
     *   Separate hazard and damage sampling
     *   Group correlation for hazard intensity
     *   Partial correlation for hazard intensity
     *   Correlation groups for disaggregated risks
+
 |
 
 .. _available_1.15_correlation:
 
 Available in OasisLMF 1.15
 ##########################
-
-----
 
 **Group correlation for damage**
 
@@ -217,14 +212,11 @@ The OED field list can be specified in the oasislmf settings using the **group_i
 Available in OasisLMF 1.27
 ##########################
 
-----
-
 New correlation features were introduced in OasisLMF 1.27 in 2022.  This meant changes to the **group_fields** parameter of data settings in the model settings json file and the oasislmf **group_id_col** override parameter, and an alternative ground up loss sampling option **gulmc**.  
 
 Although gulmc is introduced in OasisLMF 1.27, production use is recommended from OasisLMF 1.28. See :doc:`the gulmc reference <../reference/index>` for further details. The extra correlation features for separate hazard and damage sampling are explained in :ref:`available_1.28_correlation` below.
 
 The correlation functionality described here is available to use for any standard Oasis model. Complex models that use bespoke correlation methodologies can continue to be used as before, or the new functionality could be incorporated within the complex model wrapper by the model provider. 
-
 
 **Changes to correlation settings**
 
@@ -364,8 +356,6 @@ In this example, each exposure location will receive a unique damage group_id, a
 Available in OasisLMF 1.28
 ##########################
 
-----
-
 **Separate hazard and damage sampling**
 
 Under the effective damageability sampling method, which was the only sampling method until OasisLMF 1.27, the damage distribution represents a combination of hazard intensity uncertainty (when present in the hazard footprint) and conditional damage uncertainty.  
@@ -377,7 +367,6 @@ An alternative methodology 'full Monte Carlo sampling' has been introduced in Oa
 For models which do not have hazard uncertainty in the footprint, there is no difference between the effective damage distribution and the conditional damage distribution contained within the vulnerability files, i.e. all uncertainty is damage uncertainty. Therefore there no benefit in using gulmc and it is recommended to continue using the effective damageability method and the group correlation methods for damage as in previous versions. 
 
 gulmc is recommended for production use in OasisLMF 1.28.  It can continue to be used in effective damageability mode for models with no hazard intensity uncertainty with unchanged damage group and correlation settings.  The oasislmf settings for this use case is as follows.
-
 
 ``oasislmf.json``
 
@@ -406,7 +395,6 @@ For instance, there may be two locations which belong to the same spatial grid (
 
 The modeller can specify how exposure locations can be grouped for full hazard intensity correlation as well as, but separately from, damage using the **hazard_group_fields** parameter in data settings in the model settings json.  The listed fields determine how hazard group_ids are generated across locations for the sampling of hazard intensity in the full Monte Carlo sampling method. Those locations with the same hazard group_id will have the same hazard intensity bin sampled (100% correlation).
 
-
 **Example 1**  
 
 ``Model_settings.json``
@@ -425,7 +413,6 @@ Exposure locations in the same spatial grid, represented here by areaperil_id, w
 |
 
 **Example 2**  
-
 
 ``Model_settings.json``
 
@@ -503,7 +490,6 @@ With the same settings as Example 3 above, we can add a global correlation facto
 **Example 5**
 
 For multi-peril models, peril correlation groups can enable the specification of different global correlation factors per peril.  The different peril group ids by peril type in this example make sampled peril hazard intensity and peril damage independent at each exposure location.  
-
 
 ``Model_settings.json``
 

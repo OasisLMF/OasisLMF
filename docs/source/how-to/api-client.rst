@@ -18,8 +18,6 @@ On this page:
 Why use the API client?
 -----------------------
 
-----
-
 The ``oasislmf model run`` command runs an analysis entirely in-process. The Oasis Platform,
 by contrast, serialises intermediate data to files between stages — for example, writing
 generated input files to shared storage before the losses stage reads them back.
@@ -39,11 +37,10 @@ a worker container before distributing it to users.
 Prerequisites
 -------------
 
-----
-
 * A running Oasis Platform instance accessible over HTTP. The
   `OasisEvaluation <https://github.com/OasisLMF/OasisEvaluation>`_ repository provides a
   Docker Compose configuration that brings up the full stack locally.
+
 * The ``oasislmf`` package installed (``pip install oasislmf``).
 * OED exposure files and an ``analysis_settings.json`` for the model you want to test.
 
@@ -58,8 +55,6 @@ configuration is needed for a local evaluation deployment.
 
 Authentication
 --------------
-
-----
 
 Three authentication modes are supported, selected via ``--auth-type``.
 
@@ -138,8 +133,6 @@ prompts for the auth type and then the required fields.
 
 Commands
 --------
-
-----
 
 All ``api`` subcommands share a common set of connection options:
 
@@ -307,8 +300,6 @@ Deletes models, portfolios, and/or analyses from the server.
 Typical workflow
 ----------------
 
-----
-
 The following walkthrough shows how a model developer would test a new model against a
 local Platform instance.
 
@@ -371,8 +362,6 @@ If the run fails, retrieve the traceback:
 
 Using a config file
 -------------------
-
-----
 
 For repeated runs it is more convenient to store connection and file path settings in an
 ``oasislmf.json`` config file and pass it with ``-C``:

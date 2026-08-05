@@ -1,45 +1,39 @@
 Sampling Methodology
 ====================
 
-
 On this page
 ------------
 
 * :ref:`introduction_sampling`
-* :ref:`features_by_version`
+* :ref:`sampling_features_by_version`
 * :ref:`effective_damageability`
 * :ref:`monte_carlo_sampling`
 * :ref:`numerical_calculations`
 * :ref:`loss_allocation`
-* :ref:`available_1.27`
+* :ref:`available_1.27_sampling`
 * :ref:`latin_hypercube_sampling`
 * :ref:`correlated_random_numbers`
 
-
 |
+
 .. _introduction_sampling:
 
 Introduction
 ************
-
-----
 
 This section explains the full ground up loss calculation, which consists of two main stages;
 
 1) calculation of probability distributions
 2) the sampling method
 
-
 This section cover the inputs to the ground up loss calculation and how they control the random numbers that are drawn, the seeding of random numbers, the algorithms used to draw random numbers and the method of generating partially correlated random numbers more recent releases of Oasis. 
 
 |
 
-.. _features_by_version:
+.. _sampling_features_by_version:
 
 Sampling features by version
 ****************************
-
-----
 
 More features have been added in the more recent oasislmf package versions.
 
@@ -53,13 +47,10 @@ These can be summarized as follows;
 
 |
 
-
 .. _effective_damageability:
 
 Effective damageability method
 ******************************
-
-----
 
 Effective damageability is the name of the method used for the construction of probability distributions.
 
@@ -78,20 +69,16 @@ However it is common in models to have no hazard uncertainty distribution in the
 
 Under the effective damageability method, it is always the effective damage distribution that is sampled, but the sources of uncertainty that are represented may be just damage, or may be a combination of hazard intensity uncertainty and damage uncertainty, depending on the model files.
 
-
 .. _monte_carlo_sampling:
 
 Monte Carlo sampling
 ********************
-
-----
 
 Monte Carlo methods are a broad class of computational algorithms that rely on repeated random sampling to obtain numerical results. 
 
 The Oasis kernel performs a Monte Carlo sampling of ground up loss from effective damage probability distributions by drawing random numbers. 
 
 The probability distribution is provided by the effective damageability calculation described above, and the damage intervals are provided by a third model input file, the damage bin dictionary. 
-
 
 **Exposure inputs**
 
@@ -160,8 +147,6 @@ Each damage factor is multiplied by the total insured value of the exposed asset
 Numerical calculations
 ######################
 
-----
-
 |
 
 .. _loss_allocation:
@@ -169,18 +154,15 @@ Numerical calculations
 Loss allocation
 ###############
 
-----
-
 |
 
-.. _available_1.27:
+.. _available_1.27_sampling:
 
 Available in OasisLMF 1.27
-#########################
-
-----
+##########################
 
 |
+
 .. _latin_hypercube_sampling:
 
 Latin Hypercube sampling

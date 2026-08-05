@@ -15,8 +15,6 @@ On this page
 Introduction
 ************
 
-----
-
 The Oasis modelling platform is designed to model individual buildings with known locations and vulnerability attributes. However, 
 this exposure data can sometimes be aggregated, low resolution or missing key attributes, such as location data – a situation 
 which is particularly true in the developing world. A pre-analysis adjustment step allows the user to overcome the issues that could 
@@ -31,8 +29,6 @@ analyses.
 
 How it works
 ************
-
-----
 
 Currently in the Oasis platform, as of August 2022, exposure must be converted into detailed data before being imported into the 
 platform for analysis. The format for this data is one building per row in the location file. This can be done outside of the 
@@ -49,8 +45,6 @@ augmentation as required by the model. An example pre-analysis ‘hook’ for th
 
 Example models
 **************
-
-----
 
 Oasis currently offers two toy models that demonstrate the possible options for pre-analysis adjustment: 
 :doc:`Disaggregation </explanation/disaggregation>` via `PiWind Postcode 

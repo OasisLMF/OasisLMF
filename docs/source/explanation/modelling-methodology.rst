@@ -7,15 +7,12 @@ On this page
 * :ref:`what_is_a_catastrophe_model_methodology`
 * :ref:`simulation_methodology`
 
-
 |
 
 .. _what_is_a_catastrophe_model_methodology:
 
 What is a catastrophe model
 ***************************
-
-----
 
 Catastrophe models are used extensively in the (re)insurance industry to estimate expected losses from natural disasters. 
 Catastrophe models output loss exceedance curves (LECs), i.e. a probability distribution of losses that will be sustained by 
@@ -85,8 +82,6 @@ fit-for-purpose.
 
 Simulation methodology
 **********************
-
-----
 
 The Oasis kernel provides a robust loss simulation engine for catastrophe modelling.  
 

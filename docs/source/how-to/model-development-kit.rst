@@ -4,8 +4,6 @@ MDK - Model Development Kit
 Introduction
 ************
 
-----
-
 Catastrophe models are generally made up of three modules: 
 
 • The **hazard module** which represents the event catalogues
@@ -28,8 +26,6 @@ which can result in loss of fidelity.
 Model Development Kit
 *********************
 
-----
-
 This problem motivated us to build the Oasis Model Development Kit, which is an easy to install set of tools available as a 
 Command Line Interface. The MDK is an open source python package which allows you to develop, test and run the components 
 of an Oasis model from your workstation with minimal setup. The hazard, vulnerability and exposure modules can be developed 
@@ -42,8 +38,6 @@ and reinsurance losses as well throughout the process.
 Deployment
 **********
 
-----
-
 But the real benefit of the MDK is that it uses the same underlying components for model development which are used in the 
 full deployment of an Oasis model. The OasisLMF python package forms the basis of the MDK, but it is also the same software 
 which is used in a fully deployed model in Oasis. The codebase and the peripheral assets are all the same, which means that 
@@ -55,14 +49,13 @@ associated risk of loss in fidelity.
 Installation
 ************
 
-----
-
 The MDK can be installed on a laptop, server, or in the cloud. It is availible as a python package on ``PiPy`` and can be 
 installed using ``pip``. The latest release version can be installed using:
 
 .. code-block:: sh
 
     pip install oasislmf
+
 |
 
 A specific package version can be installed using:
@@ -70,6 +63,7 @@ A specific package version can be installed using:
 .. code-block:: sh
 
     pip install oasislmf[==<version string>]
+
 |
 
 For those using ``zsh`` with a Mac:
@@ -77,6 +71,7 @@ For those using ``zsh`` with a Mac:
 .. code-block:: zsh
 
     pip install 'oasislmf[==<version string>]'
+
 |
 
 Alternatively you can install the latest development version using:
@@ -84,6 +79,7 @@ Alternatively you can install the latest development version using:
 .. code-block:: sh
 
     pip install git+{https,ssh}://git@github.com/OasisLMF/OasisLMF
+
 |
 
 You can also install from a specific branch ``<branch name>`` using:
@@ -91,6 +87,7 @@ You can also install from a specific branch ``<branch name>`` using:
 .. code-block:: sh
 
     pip install [-v] git+{https,ssh}://git@github.com/OasisLMF/OasisLMF.git@<branch name>#egg=oasislmf
+
 |
 
 .. note::

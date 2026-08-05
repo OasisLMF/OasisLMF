@@ -16,8 +16,6 @@ On this page
 Introduction
 ************
 
-----
-
 The Oasis modelling platform is designed to model individual buildings with known locations and vulnerability attributes. However, 
 this exposure data can sometimes be missing vital location data – a situation which is particularly true in the developing world.
 
@@ -41,8 +39,6 @@ An example of the geocoding step can be seen in our toy model `PiWind Pre Analys
 
 How it works
 ************
-
-----
 
 Currently in the Oasis platform, as of August 2022, exposure must be converted into detailed data before being imported into the 
 platform for analysis. The format for this data is one building per row in the location file. This can be done outside of the 
@@ -100,8 +96,6 @@ corresponding values. This exposure data is then written over the old, incomplet
 Example of geocoding
 ********************
 
-----
-
 Below is example of the geocode pre-analysis step that demonstrates latitude and longitude fields being completed when they have 
 not been provided in the original location file. The table below shows a location file with empty entries for latitude and 
 longitude.
@@ -138,8 +132,6 @@ This data is then written over the old location file to be processes by the mode
 
 Links for further information
 *****************************
-
-----
 
 * The example model PiWind Pre Analysis, with geocoding, can be found `here 
   <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPreAnalysis>`_.

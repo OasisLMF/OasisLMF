@@ -15,8 +15,6 @@ On this page
 Introdcution
 ************
 
-----
-
 Major catastrophic events can give rise to inflated costs as a result of the shortage of labour, materials and other factors. 
 Conversely, in some cases the costs may be lower as the main expenses may be shared among the sites that are hit in the same area. 
 To account for this, the ground up losses produced by the GUL calculation component (either ``gulpy``, ``gulmc`` or ``gulcalc``) 
@@ -48,6 +46,7 @@ to be applied to the uplift factor from the file. For example:
 .. image:: /_static/images/pla/post_loss_amplification_table.png
     :width: 400 px
     :align: center
+
 |
 
 The uplift factor is applied after the GUL calculation and is it's own module. This is so that it can be applied to gulcalc, 
@@ -63,8 +62,6 @@ OasisModels/tree/develop/PiWindPostLossAmplification>`_.
 
 File format
 ***********
-
-----
 
 The method comprised of 5 components:
 
@@ -127,6 +124,7 @@ red dot:
 .. image:: /_static/images/pla/PLA_1.png
     :width: 400 px
     :align: center
+
 |
 
 Locations are grouped by post code (locations file field ``PostalCode``). The means of the latitudes and longitudes for each 
@@ -138,6 +136,7 @@ locations that share that post code. Each red dot below represents a group, wher
 .. image:: /_static/images/pla/PLA_2.png
     :width: 400 px
     :align: center
+
 |
 
 A grid is constructed over this, and the above points are grouped as shown below (sizes of the red dots are proportional to the 
@@ -148,6 +147,7 @@ sum of the weights that lie within each grid):
 .. image:: /_static/images/pla/PLA_3.png
     :width: 400 px
     :align: center
+
 |
 
 These grid-tiles discretise the weights so the **post loss amplification factors** can be applied depending on the  inflation / 

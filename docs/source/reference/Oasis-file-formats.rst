@@ -16,8 +16,6 @@ On this page
 Exposures
 *********
 
-----
-
 Exposure data is also represented in an abstracted form in Oasis. The individual exposed coverages are depicted as integer 
 **“items”** where an item is a location, peril, coverage type combination. Item is the lowest level of exposure representation 
 in Oasis terminology. Each item will have an ``areaperil_id`` to represent its position in the geography of the model and a 
@@ -29,11 +27,12 @@ One or many items can form a **“coverage”** which is a location, coverage-ty
 value (TIV) is stored at this level in the data representation of exposure against the ``coverage_id``.
 
 |
+
 .. image:: /_static/images/mdk/file_formats_1.png
    :width: 180
    :align: center
-|
 
+|
 
 |
 
@@ -41,8 +40,6 @@ value (TIV) is stored at this level in the data representation of exposure again
 
 Financial Module
 ****************
-
-----
 
 Financial terms and conditions are also represented in an abstracted manner in Oasis using three main files:
 
@@ -57,9 +54,11 @@ The final file in the Financial Module is the FM Xref which is used to connect t
 output summary files.
 
 |
+
 .. image:: /_static/images/mdk/file_formats_2.png
    :width: 400
    :align: center
+
 |
 
 The FM structure is required to be hierarchical through levels until the final level, at which point a layer structure can 
@@ -67,11 +66,12 @@ be implemented, so that a single insurance contract can be applied over many lay
 lower levels split out to higher levels, they must aggregate through the levels.
 
 |
+
 .. image:: /_static/images/mdk/file_formats_3.png
    :width: 600
    :align: center
-|
 
+|
 
 |
 
@@ -80,8 +80,6 @@ lower levels split out to higher levels, they must aggregate through the levels.
 Summary Level Files
 *******************
 
-----
-
 Finally, there are two files that define how any outputs are aggregated:
 
 * GUL Summary Xref defines how coverage ids should be aggregated in any Ground Up Loss outputs.
@@ -89,11 +87,12 @@ Finally, there are two files that define how any outputs are aggregated:
 * FM Summary Xref defines how FM Output IDs are aggregated in any Insured Loss outputs.
 
 |
+
 .. image:: /_static/images/mdk/file_formats_4.png
    :width: 400
    :align: center
-|
 
+|
 
 |
 
@@ -102,12 +101,12 @@ Finally, there are two files that define how any outputs are aggregated:
 Putting it all together
 ***********************
 
-----
-
 The diagram below shows how the different exposure data files should fit together:
 
 |
+
 .. image:: /_static/images/mdk/file_formats_5.png
    :width: 600
    :align: center
+
 |

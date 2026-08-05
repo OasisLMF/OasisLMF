@@ -20,8 +20,6 @@ On this page:
 Introduction
 ------------
 
-----
-
 The ``oasislmf`` Python package, loosely called the model development kit (MDK) or the MDK package, provides a command line 
 toolkit for developing, testing and running Oasis models end-to-end locally, or remotely via the Oasis API. It can generate 
 ground-up losses (GUL), direct/insured losses (IL) and reinsurance losses (RIL). It can also generate deterministic losses 
@@ -34,29 +32,33 @@ at all these levels.
 Features
 ********
 
-----
-
 For running models locally the CLI provides a ``model`` subcommand with the following options:
 
 * ``model generate-exposure-pre-analysis``: generate new Exposure input using user custom code (e.g. geo-coding, exposure
   enhancement, or disaggregation).
+
 * ``model generate-keys``: generates Oasis keys files from model lookups; these are essentially line items of (location ID,
   peril ID, coverage type ID, area peril ID, vulnerability ID) where peril ID and coverage type ID span the full set of
   perils and coverage types that the model supports; if the lookup is for a complex/custom model the keys file will have
   the same format except that area peril ID and vulnerability ID are replaced by a model data JSON string.
   Keys can be output in ``oasis``, ``json``, or ``parquet`` format via the ``--keys-format`` flag.
+
 * ``model generate-oasis-files``: generates the Oasis input files for losses (GUL, GUL + IL, or GUL + IL + RIL); it
   requires the provision of source exposure and optionally source accounts and reinsurance info and scope files (in OED
   format), as well as assets for instantiating model lookups and generating keys files.
+
 * ``model generate-pre-loss``: runs pre-loss hooks before the main loss calculation. Custom code can be injected via
   ``--pre-loss-module`` / ``--pre-loss-class-name``.
+
 * ``model generate-post-file-gen``: runs post-file-generation hooks after Oasis input files are created but before losses
   are computed. Custom code injected via ``--post-file-gen-module`` / ``--post-file-gen-class-name``.
+
 * ``model generate-losses``: generates losses (GUL, or GUL + IL, or GUL + IL + RIL) from a set of pre-existing Oasis files.
 * ``model generate-losses-chunk``: generates losses for a single chunk (used internally by the platform worker).
 * ``model generate-losses-output``: post-processes and collects output from chunked loss generation.
 * ``model run``: runs the model from start to finish — exposure pre-analysis → keys → Oasis files → losses — from the
   source OED exposure, and optionally source accounts and reinsurance info and scope files.
+
 * ``model run-postanalysis``: runs the post-analysis hook on a completed set of results without re-running the full model.
 * ``model generate-doc``: prints the analysis settings JSON schema documentation.
 * ``model generate-computation-settings-json-schema``: outputs the computation settings JSON schema for tooling.
@@ -79,7 +81,6 @@ For remote model execution the ``api`` subcommand provides the following subcomm
 See :doc:`/how-to/api-client` for a full guide, including authentication options, a step-by-step
 workflow, and advice on diagnosing platform-specific failures.
 
-
 For generating deterministic losses an ``exposure run`` subcommand is available:
 
 * ``exposure run``: generates deterministic losses (GUL, or GUL + IL, or GUL + IL + RIL)
@@ -88,6 +89,7 @@ For utility and maintenance:
 
 * ``warmup``: pre-compiles all Numba JIT functions to eliminate cold-start overhead on the first model run. Recommended
   after installation — especially in Docker images — to avoid a 2–6 minute compilation delay on first use.
+
 * ``config``: describes the format of the MDK configuration JSON file.
 * ``config update``: updates a config JSON file with new values.
 * ``version``: prints the installed oasislmf version.
@@ -111,8 +113,6 @@ perspective are:
 Minimum Python Requirements
 ***************************
 
------
-
 Starting from 1st January 2019, Pandas will no longer be supporting Python 2. As Pandas is a key dependency of the MDK we 
 are **dropping Python 2 (2.7) support** as of this release (1.3.4). The last version which still supports Python 2.7 is 
 version ``1.3.3`` (published 12/03/2019).
@@ -125,8 +125,6 @@ Also for this release (and all future releases) a **minimum of Python 3.10 is re
 
 Installation
 ************
-
-----
 
 The latest released version of the package, or a specific package version, can be installed using ``pip``:
 
@@ -196,8 +194,6 @@ In Docker images, you can bake the cache in at build time:
 Enable Bash completion
 **********************
 
-----
-
 Bash completion is a functionality which bash helps users type their commands by presenting possible options when users 
 press the tab key while typing a command.
 
@@ -227,8 +223,6 @@ Global
 
 Dependencies
 ************
-
-----
 
 System
 ######
@@ -341,8 +335,6 @@ version ``1.27.3``.
 Testing
 *******
 
-----
-
 To test the code style run:
 
 .. code-block::
@@ -377,8 +369,6 @@ To run the full test suite run:
 
 Publishing
 **********
-
-----
 
 Version management and PyPI releases are handled automatically by the CI pipeline (``version.yml`` and ``publish.yml``
 workflows). Manually publishing is not normally required.

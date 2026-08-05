@@ -18,20 +18,19 @@ On this page
     * :ref:`aalcalc_results`
     * :ref:`kat_results`
     * :ref:`katparquet_results`
+
 * :ref:`ORD_output_components_results`
     * :ref:`summarycalctocsv_ORD_results`
     * :ref:`eltcalc_ORD_results`
     * :ref:`pltcalc_ORD_results`
     * :ref:`ordleccalc_ORD_results`
     * :ref:`aalcalc_ORD_results`
+
 * :ref:`output_file_naming_conventions`
     * :ref:`standard_outputs`
     * :ref:`ord_outputs`
+
 | 
-
-
-
-
 
 .. _output_components_results:
 
@@ -44,8 +43,6 @@ Output Components
 
 eltcalc
 *******
-
-----
 
 The program calculates mean and standard deviation of loss by summary_id and by event_id.
 
@@ -63,6 +60,7 @@ None
 
     $ [stdin component] | eltcalc > elt.csv
     $ eltcalc < [stdin].bin > elt.csv
+
 |
 
 **Example**
@@ -71,6 +69,7 @@ None
 
     $ eve 1 1 | getmodel | gulcalc -r -S100 -c - | summarycalc -g -1 - | eltcalc > elt.csv
     $ eltcalc < summarycalc.bin > elt.csv 
+
 |
 
 **Internal data**
@@ -100,18 +99,13 @@ csv file with the following fields:
     "mean", "float", "4", "mean", "1345.678"
     "standard_deviation", "float", "4", "sample standard deviation", "945.89"
     "exposure_value", "float", "4", "exposure value for summary_id affected by the event", "70000"
+
 |
-
-
-
-
 
 .. _leccalc_results:
 
 leccalc
 *******
-
-----
 
 Loss exceedance curves, also known as exceedance probability curves, are computed by a rank ordering a set of losses by 
 period and computing the probability of exceedance for each level of loss based on relative frequency. Losses are first 
@@ -245,8 +239,10 @@ Then the calculation differs by lec type, as follows:
 * **Full uncertainty** - all losses by period are rank ordered to produce a single loss exceedance curve.
 * **Wheatsheaf** - losses by period are rank ordered for each sample, which produces many loss exceedance curves - one for 
   each sample across the same timeline.
+
 * **Sample mean** - the losses by period are first averaged across the samples, and then a single loss exceedance curve is 
   created from the period sample mean losses.
+
 * **Wheatsheaf mean** - the return period losses from the Wheatsheaf are averaged, which produces a single loss exceedance 
   curve.
 
@@ -270,6 +266,7 @@ csv file with the following fields:
     "type", "int", "4", "1 for analytical mean, 2 for sample mean", "2"
     "return_period", "float", "4", "return period interval", "250"
     "loss", "float", "4", "loss exceedance threshold for return period", "546577.8"
+
 |
 
 **Wheatsheaf loss exceedance curve**
@@ -281,6 +278,7 @@ csv file with the following fields:
     "sidx", "int", "4", "Oasis sample index", "50"
     "return_period", "float", "4", "return period interval", "250"
     "loss", "float", "4", "loss exceedance threshold for return period", "546577.8"
+
 |
 
 **Period weightings**
@@ -298,14 +296,10 @@ This feature will be invoked automatically if the periods.bin file is present in
 
 |
 
-
-
 .. _pltcalc_results:
 
 pltcalc
 *******
-
-----
 
 The program outputs sample mean and standard deviation by summary_id, event_id and period_no. The analytical mean is also 
 output as a seperate record, differentiated by a 'type' field. It also outputs an event occurrence date.
@@ -372,6 +366,7 @@ In the former case, the output format is:
     "standard_deviation", "float", "4", "sample standard deviation", "945.89"
     "exposure_value", "float", "4", "exposure value for summary_id affected by the event", "70000"
     "date_id", "int", "4", "the date_id of the event occurrence", "28616"
+
 |
 
 Using a base date of 1/1/1900 the integer 28616 is interpreted as 16/5/1978.
@@ -391,17 +386,13 @@ In the latter case, the output format is:
     "occ_year", "int", "4", "the year number of the event occurrence", "56876"
     "occ_month", "int", "4", "the month of the event occurrence", "5"
     "occ_day", "int", "4", "the day of the event occurrence", "16"
+
 |
-
-
-
 
 .. _aalcalc_results:
 
 aalcalc
 *******
-
-----
 
 aalcalc computes the overall average annual loss and standard deviation of annual loss.
 
@@ -508,15 +499,10 @@ This feature will be invoked automatically if the periods.bin file is present in
 
 |
 
-
-
-
 .. _kat_results:
 
 kat
 ***
-
-----
 
 In cases where events have been distributed to multiple processes, the output files can be concatenated to standard output.
 
@@ -559,15 +545,10 @@ are concatenated in alphabetical order. When asked to sort by event ID, the orde
 
 |
 
-
-
-
 .. _katparquet_results:
 
 katparquet
 **********
-
-----
 
 The output parquet files from multiple processes can be concatenated to a single parquet file. The results are automatically 
 sorted by event ID. Unlike kat, the ORD table name for the input files must be specified on the command line.
@@ -604,8 +585,6 @@ sorted by event ID. Unlike kat, the ORD table name for the input files must be s
 
 |
 
-
-
 |
 
 ----
@@ -614,8 +593,6 @@ sorted by event ID. Unlike kat, the ORD table name for the input files must be s
 
 ORD Output Components
 ---------------------
-
-----
 
 As well as the set of legacy outputs described in OutputComponents.md, ktools also supports Open Results Data "ORD" output 
 calculations and reports.
@@ -638,15 +615,10 @@ mappings from component to ORD report:
 
 |
 
-
-
-
 .. _summarycalctocsv_ORD_results:
 
 summarycalctocsv (ORD)
 **********************
-
-----
 
 Summarycalctocsv takes the summarycalc loss stream, which contains the individual loss samples by event and summary_id, and 
 outputs them in ORD format. Summarycalc is a core component that aggregates the individual building or coverage loss samples 
@@ -705,21 +677,17 @@ The Sample ELT output is a csv file with the following fields:
 
 |
 
-
-
-
 .. _eltcalc_ORD_results:
 
 eltcalc (ORD)
 *************
-
-----
 
 The program calculates loss by SummaryId and EventId. There are two variants (in addition to the sample variant SELT output 
 by summarycalc, above):
 
 * **Moment ELT (MELT)** outputs Mean and Standard deviation of loss, as well as EventRate, ChanceOfLoss, MaxLoss, 
   FootprintExposure, MeanImpactedExposure and MaxImpactedExposure
+
 * **Quantile ELT (QELT)** outputs loss quantiles for the provided set of probabilites.
 
 |
@@ -843,22 +811,19 @@ The Quantile ELT output is a csv file with the following fields:
 
 |
 
-
-
-
 .. _pltcalc_ORD_results:
 
 pltcalc (ORD)
 *************
 
-----
-
 The program calculates loss by Period, EventId and SummaryId and outputs the results in ORD format. There are three variants;
 
 * **Sample PLT (SPLT)** outputs individual loss samples by SampleId, as well as PeriodWeight, Year, Month, Day, Hour, 
   Minute and ImpactedExposure
+
 * **Moment PLT (MPLT)** outputs Mean and Standard deviation of loss, as well as PeriodWeight, Year, Month, Day, Hour, 
   Minute, ChanceOfLoss, MaxLoss, FootprintExposure, MeanImpactedExposure and MaxImpactedExposure
+
 * **Quantile PLT (QPLT)** outputs loss quantiles for the provided set of probabilites as well as PeriodWeight, Year, Month, 
   Day, Hour, Minute
 
@@ -1001,16 +966,10 @@ The Quantile PLT output is a csv file with the following fields:
 
 |
 
-
-
-
-
 .. _ordleccalc_ORD_results:
 
 ordleccalc (ORD)
 ****************
-
-----
 
 This component produces several variants of loss exceedance curves, known as Exceedance Probability Tables "EPT" under ORD.
 
@@ -1030,12 +989,16 @@ The OasisLMF approach gives rise to five variations of calculation of these stat
 
 * **EP Table from Mean Damage Losses** – this means do the loss calculation for a year using the event mean damage loss 
   computed by numerical integration of the effective damageability distributions.
+
 * **EP Table of Sample Mean Losses** – this means do the loss calculation for a year using the statistical sample event 
   mean.
+
 * **Full Uncertainty EP Table** – this means do the calculation across all samples (treating the samples effectively as 
   repeat years) - this is the most accurate of all the single EP Curves.
+
 * **Per Sample EPT (PSEPT)** – this means calculate the EP Curve for each sample and leave it at the sample level of 
   detail, resulting in multiple "curves".
+
 * **Per Sample mean EPT** – this means average the loss at each return period of the Per Sample EPT.
 
 Exceedance Probability Tables are further generalised in Oasis to represent not only annual loss percentiles but loss 
@@ -1049,9 +1012,11 @@ interest is a year).
 
 * **-K{sub-directory}** - is the subdirectory of /work containing the input summarycalc binary files. Then the following
   parameters must be specified for at least one analysis type;
+
 * **Analysis type** - use -F for Full Uncertainty Aggregate, -f for Full Uncertainty Occurrence, -W for Per Sample 
   Aggregate, -w for Per Sample Occurrence, -S for Sample Mean Aggregate, -s for Sample Mean Occurrence, -M for Per Sample 
   Mean Aggregate, -m for Per Sample Mean Occurrence
+
 * **-O {ept.csv}** - is the output flag for the EPT csv (for analysis types -F, -f, -S, -s, -M, -m)
 * **-o {psept.csv}** - is the output flag for the PSEPT csv (for analysis types -W or -w)
 * **-P {ept.parquet}** - is the output flag for the EPT parquet file (for analysis types -F, -f, -S, -s, -M, -m)
@@ -1059,8 +1024,8 @@ interest is a year).
 
 An optional parameter is:
 
-* **-r** - use return period file - use this parameter if you are providing a file with a specific list of return periods. 
-If this file is not present then all calculated return periods will be returned, for losses greater than zero.
+* **-r** - use return period file - use this parameter if you are providing a file with a specific list of return periods.
+  If this file is not present then all calculated return periods will be returned, for losses greater than zero.
 
 |
 
@@ -1113,6 +1078,7 @@ Write aggregate and occurrence per sample (written to PSEPT) and per sample mean
     $ ordleccalc -Ksummary1 -W -w -M -m -O ept.csv -o psept.csv -P ept.parquet -p psept.parquet
 
 |
+
 Write full output
 
 .. code-block:: sh
@@ -1247,16 +1213,10 @@ This feature will be invoked automatically if the periods.bin file is present in
 
 |
 
-
-
-
-
 .. _aalcalc_ORD_results:
 
 aalcalc (ORD)
 *************
-
-----
 
 aalcalc outputs the Average Loss Table (ALT) which contains the average annual loss and standard deviation of annual 
 loss by SummaryId.
@@ -1371,9 +1331,7 @@ This feature will be invoked automatically if the periods.bin file is present in
 .. _output_file_naming_conventions:
 
 Output File Naming Conventions
----------------------
-
-----
+------------------------------
 
 The output calculations in oasislmf will produce output files which will follow a specific naming convention. All output files will be named in the following way:
 
@@ -1394,7 +1352,7 @@ Where each of perspective, summary level, output type and file extension are spe
 .. _standard_outputs:
 
 Standard Outputs
-*************
+****************
 
 +------------------------------+------------------------------+-----------------------------------------+
 | Analysis Settings Name       | Output File Type             | Example File Name                       |
@@ -1472,5 +1430,4 @@ ORD Outputs
 **Extension** can be .csv or .parquet, depending on the selection in the analysis settings file. Note, parquet output format is supported for ORD outputs only
 
 **Summary-info File**: In addition to the requested output files, a summary-info file will be produced for each perspective-level combination to allow mapping from the summary_id values in the output file(s) back to the original OED field combinations requested
-
 

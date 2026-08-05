@@ -15,8 +15,6 @@ On this page
 Introduction
 ************
 
-----
-
 Oasis is a detailed loss modelling platform, meaning that it is designed for modelling individual buildings with known 
 locations and vulnerability attributes. However, exposure data can be aggregated, low resolution or missing key attributes. 
 This is particularly true in the developing world - a key focus of the Oasis model library.
@@ -32,12 +30,11 @@ disaggregation features of Oasis. This model is availible to use from `here
 <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPostcode>`_.
 
 |
+
 .. _disaggregation_features_by_version:
 
 Disaggregation features by version
 **********************************
-
-----
 
 There are a few options in Oasis to handle disaggregation, and more features have been added in the more recent oasislmf package versions.
 
@@ -46,8 +43,10 @@ These can be summarized as follows;
 *  1.15 and later 
     *   Pre-analysis hooks for model-specific disaggregation
     *   Aggregate footprints to represent exposure location uncertainty
+
 *  1.27 and later
     *   On-the-fly blended vulnerability for unknown risk attributes
+
 *  1.28 and later
     *   Number of buildings disaggregation
     *   Financial terms disaggregation
@@ -58,8 +57,6 @@ These can be summarized as follows;
 
 Available in OasisLMF 1.15
 ##########################
-
-----
 
 **Pre-analysis hooks**
 
@@ -121,7 +118,6 @@ grid by binning the hazard values of the 9 grid cells.
 
 |
 
-
 This method could be performed for any definition of area, such as administrative zone, although irregular boundaries make it 
 more complicated.
 
@@ -152,9 +148,6 @@ Both fine-grid hazard intensity footprints and aggregate footprints for the low 
 
 Available in OasisLMF 1.27
 ##########################
-
-----
-
 
 **On-the-fly blended vulnerability for unknown risk attributes**
 
@@ -234,8 +227,6 @@ It is necessary to use the gulmc calculation module to use this feature. For mor
 
 Available in OasisLMF 1.28
 ##########################
-
-----
 
 **Number of buildings disaggregation**
 
@@ -363,10 +354,4 @@ The model provider can control this through the model settings json.
 In case it is not specified, the default setting in Oasis is to fully correlate the subrisks for campus sites in case 3 (same correlation group id is assigned) and to make the subrisks for aggregate data independent in case 2 (different correlation group_id per subrisk).
 
 For more details on model provider controls for correlation, please see :doc:`Correlation <correlation>`
-
-
-
-
-
-
 

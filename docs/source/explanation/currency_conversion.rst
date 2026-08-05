@@ -1,6 +1,5 @@
 Currency Conversion
-==================
-
+===================
 
 * :ref:`intro_currency`
 * :ref:`dict_based_conversion`
@@ -9,23 +8,19 @@ Currency Conversion
 * :ref:`mdk`
 
 |
+
 .. _intro_currency:
 
 Introduction:
 *************
 
-----
-
 The oasislmf package can handle the conversion of relevant columns of the oed files to a consistent reporting currency. 
 The package will reference exchange rates either form a user supplied exchange rate table (dictionary based) , or from an external API (FX).
-
 
 .. _dict_based_conversion:
 
 File Based Currency Conversion
-***************
-
-----
+******************************
 
 DictBasedCurrencyRates is a solution where all the rate are provided via files and stored internally in the package as a dictionary.
 
@@ -58,7 +53,6 @@ The expected format is (roe being a float in parquet format):
 Rate can also be passed directly in currency_conversion_json with type ``dict``
 ex:
 
-
 .. code-block:: json
 
     {
@@ -79,13 +73,10 @@ roe EUR=>GBP = 1/(roe GPB=>EUR)
 
 if a currency pair is missing ValueError(f"currency pair {(cur_from, cur_to)} is missing") is thrown
 
-
 .. _fx_currency_rates:
 
 FX Currency Rates
 *****************************
-
-----
 
 OasisLMF also lets you use the external package `forex-python <https://forex-python.readthedocs.io/en/latest/usage.html>`_
 to perform the conversion. A date may be specified in ISO 8601 format (YYYY-MM-DD)
@@ -100,24 +91,18 @@ currency_conversion_json:
 
 |
 
-
 .. _reporting_currency:
 
 Reporting Currency
 *****************************
 
-----
-
 The desired reporting currency will also need to be specified when running the oasislmf package.
 To do this, the user should enter the currecny code using the ``--reporting-currency`` flag
-
 
 .. _mdk:
 
 MDK
 *****************************
-
-----
 
 To run the currency conversion as part of the MDK then, the user should use a command as follows:
 
