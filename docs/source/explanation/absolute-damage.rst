@@ -29,4 +29,4 @@ An example toy model with the absolute damage factor option is availible to use 
 OasisModels/tree/develop/PiWindAbsoluteDamage>`_.
 
 A more involved toy model incorporating the use of the `damage_type` in the damage bin dictionary in the context of
-business interruption can seen `here <https://github.com/OasisLMF/OasisModels/tree/bi-test_model/PiWindBI>`.
+business interruption can be seen `here <https://github.com/OasisLMF/OasisModels/tree/bi-test_model/PiWindBI>`_.
