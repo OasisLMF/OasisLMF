@@ -100,8 +100,7 @@ def process_aggregate_vulnerability(aggregate_vulnerability):
 
     Returns:
         agg_vuln_ids (np.array[oasis_int]): sorted array of aggregate vulnerability ids.
-        agg_vuln_id_ja_offsets (np.array[oasis_int]): jagged array offsets. Row i spans
-            agg_vuln_id_ja_vuln_ids[agg_vuln_id_ja_offsets[i]:agg_vuln_id_ja_offsets[i+1]].
+        agg_vuln_id_ja_offsets (np.array[oasis_int]): jagged array offsets. Row i spans agg_vuln_id_ja_vuln_ids[agg_vuln_id_ja_offsets[i]:agg_vuln_id_ja_offsets[i+1]].
         agg_vuln_id_ja_vuln_ids (np.array[oasis_int]): flat jagged array of constituent vulnerability ids.
     """
     if aggregate_vulnerability is not None and len(aggregate_vulnerability) > 0:

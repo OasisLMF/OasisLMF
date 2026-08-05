@@ -5,7 +5,8 @@ read an event loss stream and aggregate it into the relevant summary loss stream
 using numba latest version 0.59, we are limited is our usage of classes and have to pass each data structure into the different function
 The attributes are name the same throughout the code, below is their definition
 
-Static intermediary data structure:
+Static intermediary data structure::
+
     summary_pipes : dict summary_set_id to path then updated to stream when reading starts
     summary_sets_id : array of all summary_set_id that have a stream
     summary_set_id_to_summary_set_index : array mapping summary_set_id => summary_set_index
@@ -13,7 +14,8 @@ Static intermediary data structure:
     item_id_to_summary_id : mapping array item_id => [summary_id for each summary set]
     item_id_to_risks_i : mapping array item_id => risks_i (index of th corresponding risk)
 
-event based intermediary data structure:
+event based intermediary data structure::
+
     summary_set_index_to_present_loss_ptr_end : copy of summary_set_index_to_loss_ptr that store the end of list of summary_id for each summary set
     present_summary_id : array that store all the summary_id found in the event
                          each summary set start at summary_set_index_to_loss_ptr and ends at summary_set_index_to_present_loss_ptr_end

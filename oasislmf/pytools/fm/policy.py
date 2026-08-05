@@ -2,7 +2,7 @@
 TODO: should I check values are valid in the financial structure percentage not between 0 and 1 (ex: deductible, limit ...)
 TODO: validate max and min ded implementation
 TODO: It seems that if a policy with share is used, subsequent policy using min or max deductible will be wrong
-     so it make no sense to compute deductible, over_limit, under_limit
+so it make no sense to compute deductible, over_limit, under_limit
 
 """
 

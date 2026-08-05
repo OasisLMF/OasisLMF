@@ -118,11 +118,12 @@ def do_lec_output_agg_summary(
     max_summary_id,
 ):
     """Populate outloss_mean and outloss_sample with aggregate and max losses
+
     Args:
         summary_id (oasis_int): summary_id
         sidx (oasis_int): Sample ID
         loss (oasis_float): Loss value
-        filtered_occ_map (ndarray[occ_map_dtype]): Filtered numpy map of event_id, period_no, occ_date_id from the occurrence file_
+        filtered_occ_map (ndarray[occ_map_dtype]): Filtered numpy map of event_id, period_no, occ_date_id from the occurrence file
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
