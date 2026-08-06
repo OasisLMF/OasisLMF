@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class PLTReader(EventReader):
+    """Read an event loss stream and compute the PLT outputs (SPLT, MPLT, QPLT)."""
+
     def __init__(
         self,
         len_sample,

@@ -301,6 +301,8 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
 
 
 class SummaryReader(EventReader):
+    """Read an event loss stream and aggregate it into the relevant summary loss streams."""
+
     def __init__(self, summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                  loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
                  item_id_to_risks_i, is_risk_affected, has_affected_risk):

@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class ELTReader(EventReader):
+    """Read an event loss stream and compute the ELT outputs (SELT, MELT, QELT)."""
+
     def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals):
         self.logger = logger
 
