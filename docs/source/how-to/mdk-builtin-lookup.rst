@@ -67,7 +67,7 @@ your CSV file must define 10 pairs of columns for 10 longitude/latitude corner p
 
 But areas which, for example, are only ``4``-sided can be defined using the first four longitude/latitude corner point columns, e.g. ``LON1,LAT1,...,LON4,LAT4``, and the remaining column values for such areas can be left blank.
 
-1.7. Once the area peril CSV file is complete then the properties of the file must be described in a JSON configuration file. Usually this is named ``lookup.json`` and can be kept with the model keys data. The `peril section of the PiWind lookup configuration file <https://github.com/OasisLMF/OasisPiWind/blob/kamdev/keys_data/PiWind/lookup.json#L12>`_ can be used as an example. The peril information is described in the subsection of the JSON named ``"peril"``, and it is more or
+1.7. Once the area peril CSV file is complete then the properties of the file must be described in a JSON configuration file. Usually this is named ``lookup.json`` and can be kept with the model keys data. The `peril section of the PiWind lookup configuration file <https://github.com/OasisLMF/OasisPiWind/blob/main/keys_data/PiWind/lookup_config.json#L12>`_ can be used as an example. The peril information is described in the subsection of the JSON named ``"peril"``, and it is more or
 less self-explanatory.
 
 1.8. The Rtree spatial index can be generated from the area peril CSV file using the command
@@ -196,7 +196,7 @@ The relevant flags here are ``-c`` for the lookup config. file path, ``-d`` for 
 
 and the entries of the file must representing its mappings.
 
-Here ``**<LOC PROPS>`` represents a sequence of columns representing loc. properties relevant for the vulnerability lookup for your model, including occupancy code, scheme, building class, etc. The column names pertaining to the location properties should be OED-compatible, e.g. ``OccupancyCode``. The `vulnerability section of the PiWind lookup configuration file <https://github.com/OasisLMF/OasisPiWind/blob/kamdev/keys_data/PiWind/lookup.json#L71>`_ can be used as an example.
+Here ``**<LOC PROPS>`` represents a sequence of columns representing loc. properties relevant for the vulnerability lookup for your model, including occupancy code, scheme, building class, etc. The column names pertaining to the location properties should be OED-compatible, e.g. ``OccupancyCode``. The `vulnerability section of the PiWind lookup configuration file <https://github.com/OasisLMF/OasisPiWind/blob/main/keys_data/PiWind/lookup_config.json#L71>`_ can be used as an example.
 
 2.2. The following iPython session excerpt for PiWind demonstrates how you would instantiate the built-in vulnerability lookup provided a valid and complete lookup configuration file for your model.
 
@@ -266,7 +266,7 @@ Here ``**<LOC PROPS>`` represents a sequence of columns representing loc. proper
 
     .. image:: /_static/images/keys/mdk-builtin-lookup-class-framework.jpg
 
-3.2. The properties of the integrated lookup and also other properties such as the keys data path, and model-supported coverage types must be defined in the appropriate sections of the lookup configuration file. Again, the `PiWind lookup configuration file <https://github.com/OasisLMF/OasisPiWind/blob/kamdev/keys_data/PiWind/lookup.json>`_ is a good example to refer to.
+3.2. The properties of the integrated lookup and also other properties such as the keys data path, and model-supported coverage types must be defined in the appropriate sections of the lookup configuration file. Again, the `PiWind lookup configuration file <https://github.com/OasisLMF/OasisPiWind/blob/main/keys_data/PiWind/lookup_config.json>`_ is a good example to refer to.
 
 3.3. One point to note is that the lookup configuration file also defines a section to define the properties of the input exposure, named ``"exposure"``. For PiWind it looks like this
 

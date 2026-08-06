@@ -345,7 +345,7 @@ resources are in the model GitHub repository which is
 
 https://github.com/OasisLMF/OasisPiWind
 
-The repository also contains a `JSON configuration file <ttps://github.com/OasisLMF/OasisPiWind/blob/master/mdk-oasislmf-piwind.json>`_ for the model
+The repository also contains a `JSON configuration file <https://github.com/OasisLMF/OasisPiWind/blob/main/oasislmf.json>`_ for the model
 which can be used to run it end-to-end with the MDK master script.
 
 ::

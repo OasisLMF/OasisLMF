@@ -215,7 +215,7 @@ via the steps below:
 |
 
 Once the flow above has executed, the class that you have defined that inherits the ``Lookup`` class 
-(`Lookup <https://github.com/OasisLMF/OasisLMF/blob/master/oasislmf/lookup/builtin.py>`_). This then runs the 
+(`Lookup <https://github.com/OasisLMF/OasisLMF/blob/main/oasislmf/lookup/builtin.py>`_). This then runs the 
 ``process_locations`` function which will run the series of functions defined in the that are defined in the "strategy" 
 section. When it comes to the ``process_locations`` function we do not overwrite it as the ``process_locations`` function 
 in the base ``Lookup`` class is the function responsible for going through the ``stratergy`` list in the config. If we 

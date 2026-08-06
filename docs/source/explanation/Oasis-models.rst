@@ -203,4 +203,4 @@ hazard model can be found in :doc:`/explanation/modelling-methodology`.
 The PiWind model is a very small example model, so it's files can be saved to a GitHub repository and easily queried.For 
 real models the data sets can get much larger, in some cases more than 1 TB for a single model.The following link is to a 
 Jupyter notebook that illustrates the setup of the PiWind model and how it can be ran using the Oasis MDK: 
-`Running PiWind <https://mybinder.org/v2/gh/OasisLMF/OasisPiWind/master>`_.
+`Running PiWind <https://mybinder.org/v2/gh/OasisLMF/OasisPiWind/main>`_.

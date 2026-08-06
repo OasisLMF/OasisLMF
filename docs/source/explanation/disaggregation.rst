@@ -78,7 +78,7 @@ Some examples of the procedures that might be applied in a pre-analysis hook are
 Pre-analysis hooks consist of modeller-provided source code and sometimes reference datasets containing built environment information. The hooks can be invoked at the very start of the model run workflow to generate a modified set of OED input files before the Oasis kernel exposure files are prepared.
 
 A very simple pre-analysis ‘hook’ for the PiWind model which demonstrates the mechanism can be found `here 
-<https://github.com/OasisLMF/OasisPiWind/blob/master/src/exposure_modification/exposure _pre_analysis_example.py>`_.
+<https://github.com/OasisLMF/OasisPiWind/blob/main/src/exposure_modification/exposure_pre_analysis_example.py>`_.
 
 See the pre-analysis hooks section for more information about how to use them.
 
