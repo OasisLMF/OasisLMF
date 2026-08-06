@@ -54,7 +54,7 @@ gulpy or gulmc...or complex model wrapper implementations. However, if elements 
 improve performance, this is also an option.
 
 An example toy model with post loss amplification is availible to use from `here <https://github.com/OasisLMF/
-OasisModels/tree/develop/PiWindPostLossAmplification>`_.
+OasisModels/tree/main/PiWindPostLossAmplification>`_.
 
 |
 

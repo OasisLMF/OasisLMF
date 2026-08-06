@@ -25,8 +25,8 @@ feature fills in incomplete OED fields for addresses in the exposure location da
 address provided.
 
 An example of the geocoding step can be seen in our toy model `PiWind Pre Analysis 
-<https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPreAnalysis>`_, which is available for use from `here 
-<https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPreAnalysis>`_.
+<https://github.com/OasisLMF/OasisModels/tree/main/PiWindPreAnalysis>`_, which is available for use from `here 
+<https://github.com/OasisLMF/OasisModels/tree/main/PiWindPreAnalysis>`_.
 
 .. note::
     Oasis does not do any of the geocoding for this model. The geocoding aspect is performed by `Precisely's Geocode API 
@@ -50,7 +50,7 @@ augmentation as required by the model. They are completely customisable ofr chan
 An example pre-analysis ‘hook’ for the PiWind model can be found `here 
 <https://github.com/OasisLMF/OasisPiWind/blob/main/src/exposure_modification/exposure_pre_analysis_example.py>`_.
 
-The Oasis toy model `PiWind Pre Analysis <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPreAnalysis>`_ uses 
+The Oasis toy model `PiWind Pre Analysis <https://github.com/OasisLMF/OasisModels/tree/main/PiWindPreAnalysis>`_ uses 
 the pre-analysis feature to integrate an external geocoder. The purpose of the geocoding is to ‘complete’ the location data in 
 the OED input by calculating the values for any empty fields for addresses in the location file, that would hinder the performance 
 of the model if left incomplete.
@@ -134,7 +134,7 @@ Links for further information
 *****************************
 
 * The example model PiWind Pre Analysis, with geocoding, can be found `here 
-  <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPreAnalysis>`_.
+  <https://github.com/OasisLMF/OasisModels/tree/main/PiWindPreAnalysis>`_.
 
 * More information on Precisely’s geocoding API can be found `here 
   <https://docs.precisely.com/docs/sftw/precisely-apis/main/en-us/webhelp/apis/Geocode/geocode_desc.html>`_.

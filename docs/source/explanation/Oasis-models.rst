@@ -26,7 +26,7 @@ This is a single event model which allows users to apply deterministic losses to
 in the OED location file. It is similar to the ``exposure`` feature in the oasislmf package, but can be deployed as a model in 
 it's own right to model deterministic losses which can then be passed through the Oasis financial module.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/DeterministicModel>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/DeterministicModel>`_.
 
 ----
 
@@ -35,7 +35,7 @@ Paris Windstorm
 
 This is very small, single peril model used for demonstration of how to build a simple model in Oasis.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/ParisWindstorm>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/ParisWindstorm>`_.
 
 ----
 
@@ -45,7 +45,7 @@ PiWind
 This is the original test model in Oasis and is an example of a multi-peril model implementation representing ficticious 
 events with wind and flood affecting the Town of Melton Mowbray in England.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWind>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWind>`_.
 
 More information on this model can be found here: :ref:`piwind_models`
 
@@ -60,7 +60,7 @@ equal to 1 in the damage bin dictionary, the factor will be applied as normal du
 sampled damage factor to the TIV to give a simulated loss; but with absolute damage factors, where the factor is greater 
 than 1, the TIV is not used in the calculation at all, but rather the absolute damage is applied as the loss.
 
-This model is availible to use from `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindAbsoluteDamage>`_.
+This model is availible to use from `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindAbsoluteDamage>`_.
 
 ----
 
@@ -70,7 +70,7 @@ PiWind Complex Model
 This is a version of the PiWind model which uses the complex model integreation approach to generate ground up losses in a 
 custoim module, which then sits in the workflow and replaces the standard ground up loss calculation from Oasis.
 
-This model is availible to use from `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindComplexModel>`_.
+This model is availible to use from `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindComplexModel>`_.
 
 ----
 
@@ -80,7 +80,7 @@ PiWind Postcode
 This is a variant of the original PiWind model designed for running exposures whose locations are known at postcode level 
 rather than by latitude and longitude. This model demonstrates the disaggregation features of Oasis.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPostcode>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindPostcode>`_.
 
 ----
 
@@ -92,7 +92,7 @@ give rise to inflated and/or deflated costs depending on that specific situation
 losses produced by the GUL calculation component are multiplied by post loss amplification factors, by the component 
 plapy.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPostLossAmplification>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindPostLossAmplification>`_.
 
 ----
 
@@ -104,7 +104,7 @@ files before they are processed in the analysis. This functionality is utilised 
 this checks the location data before it is analysed for any addresses that are missing OED location data. If an address is found t
 o be incomplete, it is geocoded to fill these gaps.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPreAnalysis>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindPreAnalysis>`_.
 
 ----
 
@@ -114,7 +114,7 @@ PiWind Single Peril
 This is a simplified variant of the original PiWind model which has single peril (wind only) and would be a good basis for
 a single peril model in Oasis.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindSinglePeril>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindSinglePeril>`_.
 
 ----
 
@@ -125,7 +125,7 @@ This model showcases how specific adjustments to the vulnerabilities can be intr
 file. Three adjustment methods are demonstrated: scaling vulnerability curves by a factor, replacing an entire
 vulnerability curve, and applying adjustments at aggregate level. See vulnerability adjustments for full details.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindVulnerability>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindVulnerability>`_.
 
 ----
 
@@ -137,7 +137,7 @@ pre-computed static hazard footprint files, the model generates footprint data d
 custom footprint module. This approach is suited to models where the hazard field is generated programmatically or
 where stochastic hazard selection is required.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/DynamicFootprint>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/DynamicFootprint>`_.
 
 ----
 
@@ -147,7 +147,7 @@ PiWind S3
 This variant of PiWind demonstrates running an Oasis model with model data stored on AWS S3. It contains the minimal
 set of configuration files and options required to use S3 as the model data backend via AWS credentials.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindS3>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindS3>`_.
 
 ----
 
@@ -157,12 +157,12 @@ PiWind Azure
 This variant of PiWind demonstrates running an Oasis model with model data stored on Azure Blob Storage. It contains
 the minimal configuration required to use Azure as the model data backend.
 
-This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindAzure>`_.
+This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindAzure>`_.
 
 ----
 
 .. note::
-    More information about these models can be found `here <https://github.com/OasisLMF/OasisModels/tree/develop>`_.
+    More information about these models can be found `here <https://github.com/OasisLMF/OasisModels/tree/main>`_.
 
 |
 
@@ -174,7 +174,7 @@ PiWind - toy model
 Oasis has developed a toy model, PiWind, available `here <https://github.com/OasisLMF/OasisPiWind>`_. PiWind is a wind storm 
 model for a small area of the UK. The data is mocked up to illustrate the Oasis data formats and functionality, and is not 
 meant to be a usable risk model. The PiWind toy model is availible to use from `here <https://github.com/OasisLMF/
-OasisModels/tree/develop/PiWind>`_.
+OasisModels/tree/main/PiWind>`_.
 
 There are three main components to a catastrophe risk model deployed in Oasis. A fuller discussion of the components of a 
 hazard model can be found in :doc:`/explanation/modelling-methodology`.

@@ -26,7 +26,7 @@ A `damage_type=1` corresponds to the damage bin being treated as a damage factor
 A `damage_type=2` corresponds to the damage bin being treated as an absolute damage.
 |
 An example toy model with the absolute damage factor option is availible to use from `here <https://github.com/OasisLMF/
-OasisModels/tree/develop/PiWindAbsoluteDamage>`_.
+OasisModels/tree/main/PiWindAbsoluteDamage>`_.
 
 A more involved toy model incorporating the use of the `damage_type` in the damage bin dictionary in the context of
-business interruption can be seen `here <https://github.com/OasisLMF/OasisModels/tree/bi-test_model/PiWindBI>`_.
+business interruption can be seen `here <https://github.com/OasisLMF/OasisModels/tree/main/PiWindBI>`_.

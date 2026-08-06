@@ -25,9 +25,9 @@ together determine the effective damage distribution per event in the analysis. 
 
 Oasis has implemented a range of options to support different ways of handling of uncertainty in the exposure inputs to improve the quality of risk modelling across all models. This was completed in 2023 following consultation of a technical steering subgroup representing model vendors, and model development teams within reinsurance brokers and risk carrier organisations.
 
-Our toy model `PiWind Postcode <https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPostcode>`_ demonstrates the 
+Our toy model `PiWind Postcode <https://github.com/OasisLMF/OasisModels/tree/main/PiWindPostcode>`_ demonstrates the 
 disaggregation features of Oasis. This model is availible to use from `here 
-<https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPostcode>`_.
+<https://github.com/OasisLMF/OasisModels/tree/main/PiWindPostcode>`_.
 
 |
 

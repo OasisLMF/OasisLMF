@@ -48,8 +48,8 @@ Example models
 
 Oasis currently offers two toy models that demonstrate the possible options for pre-analysis adjustment: 
 :doc:`Disaggregation </explanation/disaggregation>` via `PiWind Postcode 
-<https://github.com/OasisLMF/OasisModels/tree/develop/PiWindPostcode>`_, and Geocoding via 
-`PiWind Pre Analysis <https://github.com/OasisLMF/OasisModels/tree/feature/geocode/PiWindPreAnalysis>`_.
+<https://github.com/OasisLMF/OasisModels/tree/main/PiWindPostcode>`_, and Geocoding via 
+`PiWind Pre Analysis <https://github.com/OasisLMF/OasisModels/tree/main/PiWindPreAnalysis>`_.
 
 For more information on these model:
 
