@@ -11,13 +11,3 @@ first-analysis
 explore-model-data
 analyse-ord-results
 ```
-
-```{admonition} Proof-of-concept placeholder
-:class: note
-
-This section is a **stub** included to demonstrate the target Diátaxis structure
-(Tutorials / How-to / Reference / Explanation). In the full restructure it would
-hold guided walkthroughs such as *"Run your first analysis with PiWind"* and
-*"Build a toy model with the MDK"*, ideally as executable pages (`myst-nb`) that
-run at build time so they cannot silently rot. See `DOCS_STRATEGY.md`.
-```
