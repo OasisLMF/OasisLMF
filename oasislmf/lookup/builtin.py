@@ -40,8 +40,11 @@ except ImportError:
 
 try:  # needed for h3 lookup
     import h3
+    # the int flavour of the api returns cell indexes as python ints, which saves building
+    # (and re-parsing) the hexadecimal string representation for every location
+    from h3.api import basic_int as h3_int
 except ImportError:
-    h3 = None
+    h3 = h3_int = None
 
 import math
 import re
@@ -1004,29 +1007,45 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             h3_mapping_df = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
 
         h3_mapping_df.columns = [c.lower() for c in h3_mapping_df.columns]
-        if 'h3_int64' not in h3_mapping_df.columns:
+        missing_columns = {'h3_int64', 'area_peril_id'}.difference(h3_mapping_df.columns)
+        if missing_columns:
             raise OasisException(
-                f"H3 mapping file must contain an 'h3_int64' column, found: {list(h3_mapping_df.columns)}"
+                f"H3 mapping file must contain {sorted(missing_columns)} column(s), found: {list(h3_mapping_df.columns)}"
             )
         h3_mapping_df['h3_int64'] = h3_mapping_df['h3_int64'].astype('int64')
 
-        def h3_lookup(locations):
-            valid = locations['latitude'].notna() & locations['longitude'].notna()
-            locations['h3_int64'] = 0  # 0 correponds to an invalid H3 index
-
-            if valid.any():
-                locations.loc[valid, 'h3_int64'] = [
-                    h3.str_to_int(h3.latlng_to_cell(lat, lon, resolution))
-                    for lat, lon in zip(
-                        locations.loc[valid, 'latitude'],
-                        locations.loc[valid, 'longitude'],
-                    )
-                ]
-
-            locations = locations.merge(
-                h3_mapping_df[['h3_int64', 'area_peril_id']], on='h3_int64', how='left'
+        # a point falls in exactly one cell at a given resolution, so a repeated cell index is a
+        # mapping file error; fail here rather than silently emitting a key per duplicate row
+        duplicated_cells = h3_mapping_df['h3_int64'].duplicated()
+        if duplicated_cells.any():
+            raise OasisException(
+                f"H3 mapping file must have a unique 'h3_int64' per row, found {duplicated_cells.sum()} "
+                f"duplicate(s), starting with {h3_mapping_df.loc[duplicated_cells, 'h3_int64'].iloc[0]}"
             )
-            locations.drop(columns=['h3_int64'], inplace=True)
+        area_peril_by_cell = h3_mapping_df.set_index('h3_int64')['area_peril_id']
+
+        def h3_lookup(locations):
+            latitude = locations['latitude'].to_numpy(dtype='float64', na_value=np.nan)
+            longitude = locations['longitude'].to_numpy(dtype='float64', na_value=np.nan)
+            valid = ~(np.isnan(latitude) | np.isnan(longitude))
+
+            area_peril_id = np.full(len(locations), np.nan)  # nan becomes OASIS_UNKNOWN_ID below
+            if valid.any():
+                # h3 has no array api, so the conversion stays a python level loop; factorising the
+                # points first means it is paid once per distinct coordinate rather than once per
+                # location, which is where the win is for portfolios that repeat coordinates.
+                # the complex encoding is only a way to hash the (latitude, longitude) pair in one go.
+                codes, points = pd.factorize(latitude[valid] + 1j * longitude[valid], sort=False)
+                cells = np.fromiter(
+                    (h3_int.latlng_to_cell(point.real, point.imag, resolution) for point in points.tolist()),
+                    dtype='int64', count=points.size,
+                )
+                # resolving the mapping per distinct cell keeps the join off the per location path
+                area_peril_id[valid] = area_peril_by_cell.reindex(cells).to_numpy(
+                    dtype='float64', na_value=np.nan)[codes]
+
+            locations['area_peril_id'] = area_peril_id
+            locations.reset_index(drop=True, inplace=True)  # as the left join this replaces used to
             return self.set_id_columns(locations, ['area_peril_id'])
 
         return h3_lookup
