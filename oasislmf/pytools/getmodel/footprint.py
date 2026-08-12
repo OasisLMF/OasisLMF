@@ -548,7 +548,7 @@ class FootprintParquetDynamic(Footprint):
 
         Returns: (bool) True if the file is a directory of section_id=N/ partitions
         """
-        if self.storage.isfile(filename):
+        if not self.storage.exists(filename) or self.storage.isfile(filename):
             return False
 
         return any(
@@ -571,10 +571,8 @@ class FootprintParquetDynamic(Footprint):
         self.event_definition_partitioned = self._is_partitioned_by_section(event_defintion_filename)
         self.hazard_case_partitioned = self._is_partitioned_by_section(hazard_case_filename)
 
-        if self.areaperil_ids is not None:
-            self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
-        else:
-            self.areaperil_ids_filter = None
+        self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
+        self.absent_sections_reported = {}
 
         if self.event_definition_partitioned:
             self._load_partitioned_data()
@@ -582,6 +580,16 @@ class FootprintParquetDynamic(Footprint):
         else:
             self.get_event = self._get_event_flat
         return self
+
+    def _report_absent_sections(self, filename, absent):
+        reported = self.absent_sections_reported.setdefault(filename, set())
+        newly_absent = sorted(set(absent) - reported)
+        if not newly_absent:
+            return
+
+        reported.update(newly_absent)
+        logger.info(f"sections {newly_absent} have no data in {filename} for this portfolio, "
+                    f"so their locations are treated as not at risk")
 
     def _read_sections(self, filename, sections, partitioned, filters=None):
         """Read the requested sections of a parquet file, treating absent sections as empty.
@@ -601,20 +609,27 @@ class FootprintParquetDynamic(Footprint):
 
         if not partitioned:
             section_filters = (filters or []) + [("section_id", "in", sections)]
-            return self.get_df_reader(filename, filters=section_filters).as_pandas()
+            df_sections = self.get_df_reader(filename, filters=section_filters).as_pandas()
+            present = set() if df_sections.empty else set(df_sections['section_id'])
+            self._report_absent_sections(filename, set(sections) - present)
+            return df_sections
 
         # not every reader engine accepts filters=None, so only pass them when there are some
         reader_kwargs = {'filters': filters} if filters else {}
 
+        absent = []
         df_section_list = []
         for section in sections:
             section_path = f'{filename}/section_id={section}'
             if not self.storage.exists(section_path):
                 # the section is not in the model data, so it is not at risk
+                absent.append(section)
                 continue
             df_section = self.get_df_reader(section_path, **reader_kwargs).as_pandas()
             df_section['section_id'] = section
             df_section_list.append(df_section)
+
+        self._report_absent_sections(filename, absent)
 
         if not df_section_list:
             return pd.DataFrame()
@@ -631,6 +646,8 @@ class FootprintParquetDynamic(Footprint):
             event_defintion_filename, self.location_sections, self.event_definition_partitioned)
         if df_event_definition.empty:
             # no event in the model data affects any section of this portfolio
+            logger.warning(f"no section of this portfolio is in {event_defintion_filename}, "
+                           f"so no event affects it and every loss will be zero")
             return
 
         # sorted so that the per-event .loc lookups in _get_event_partitioned are indexed;
@@ -643,6 +660,8 @@ class FootprintParquetDynamic(Footprint):
             filters=self.areaperil_ids_filter)
         if df_hazard_case.empty:
             # the modelled perils leave every section of this portfolio unaffected
+            logger.warning(f"no section of this portfolio has hazard in {hazard_case_filename}, "
+                           f"so every loss will be zero")
             return
 
         self.df_hazard_case = df_hazard_case.set_index('section_id').sort_index(kind='stable')

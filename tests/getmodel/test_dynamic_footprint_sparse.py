@@ -11,6 +11,8 @@ See https://github.com/OasisLMF/OasisLMF/issues/2090 (sparse files)
 and https://github.com/OasisLMF/OasisLMF/issues/2091 (unpartitioned files).
 """
 import json
+import logging
+import shutil
 from contextlib import contextmanager
 
 import numpy as np
@@ -22,6 +24,11 @@ from oasislmf.pytools.getmodel.common import (
     event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename)
 from oasislmf.pytools.getmodel.footprint import FootprintParquetDynamic
 from oasislmf.utils.path import setcwd
+
+# the sections a flat file holds are found by pushing a section_id filter down to the reader,
+# so the sparse paths are worth running on every engine, not just the default one
+DF_ENGINES = ['oasis_data_manager.df_reader.reader.OasisPandasReader',
+              'oasis_data_manager.df_reader.reader.OasisPyarrowReader']
 
 
 # ---------------------------------------------------------------------------
@@ -119,8 +126,7 @@ def intensity_by_areaperil(event_footprint):
 # unpartitioned layouts of issue 2091.
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize('df_engine', ['oasis_data_manager.df_reader.reader.OasisPandasReader',
-                                       'oasis_data_manager.df_reader.reader.OasisPyarrowReader'])
+@pytest.mark.parametrize('df_engine', DF_ENGINES)
 @pytest.mark.parametrize('partition_event_definition', [True, False])
 @pytest.mark.parametrize('partition_hazard_case', [True, False])
 def test_every_partitioning_layout_builds_the_same_footprint(tmp_path, df_engine, partition_event_definition,
@@ -170,12 +176,13 @@ def test_no_location_sections_yields_no_events(tmp_path):
 # Issue 2090 — sections missing from the hazard case file
 # ---------------------------------------------------------------------------
 
-def test_section_missing_from_hazard_case_is_not_at_risk(tmp_path):
+@pytest.mark.parametrize('df_engine', DF_ENGINES)
+def test_section_missing_from_hazard_case_is_not_at_risk(tmp_path, df_engine):
     """Section 2 has events but no hazard: event 1 keeps section 1's areaperils only."""
     hazard_case = make_hazard_case([(1, 100, 10, 4), (1, 100, 20, 8), (1, 101, 10, 6), (1, 101, 20, 10)])
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case, sections=[1, 2])
 
-    with open_footprint(storage, run_dir) as footprint:
+    with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
         assert areaperils_of(footprint.get_event(1)) == {100, 101}
 
 
@@ -223,13 +230,14 @@ def test_areaperils_outside_portfolio_are_filtered_out(tmp_path):
 # Issue 2090 and 2091 together — sparse data in unpartitioned files
 # ---------------------------------------------------------------------------
 
-def test_flat_files_tolerate_missing_hazard_sections(tmp_path):
+@pytest.mark.parametrize('df_engine', DF_ENGINES)
+def test_flat_files_tolerate_missing_hazard_sections(tmp_path, df_engine):
     """Flat hazard case with no rows for section 2, which event 2 needs."""
     hazard_case = make_hazard_case([(1, 100, 10, 4), (1, 100, 20, 8)])
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case, sections=[1, 2],
                                    partition_event_definition=False, partition_hazard_case=False)
 
-    with open_footprint(storage, run_dir) as footprint:
+    with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
         assert areaperils_of(footprint.get_event(1)) == {100}
         assert footprint.get_event(2) is None
 
@@ -290,3 +298,92 @@ def test_stochastic_sparse_hazard_probabilities_sum_to_one(tmp_path):
         event_footprint = footprint.get_event(1)
         assert areaperils_of(event_footprint) == {100}
         assert event_footprint['probability'].sum() == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# What the log says about it
+#
+# Treating absent sections as not at risk means a portfolio whose section ids do not
+# match the model data produces zero losses instead of an error, so the log has to be
+# what tells the two apart.
+# ---------------------------------------------------------------------------
+
+def records_matching(caplog, level, *fragments):
+    return [record.message for record in caplog.records
+            if record.levelno == level and all(fragment in record.message for fragment in fragments)]
+
+
+def test_absent_section_is_reported(tmp_path, caplog):
+    """A section the model data does not cover is named, with the file it is missing from."""
+    hazard_case = make_hazard_case([(1, 100, 10, 4), (1, 100, 20, 8), (1, 101, 10, 6), (1, 101, 20, 10)])
+    storage, run_dir = build_model(tmp_path, hazard_case=hazard_case, sections=[1, 2])
+
+    with caplog.at_level(logging.INFO):
+        with open_footprint(storage, run_dir) as footprint:
+            footprint.get_event(1)
+
+    assert records_matching(caplog, logging.INFO, '[2]', hazard_case_filename, 'not at risk')
+
+
+def test_absent_section_is_reported_once_per_file(tmp_path, caplog):
+    """The flat path re-reads per event, so the same absence must not be logged per event."""
+    hazard_case = make_hazard_case([(1, 100, 10, 4), (1, 100, 20, 8)])
+    storage, run_dir = build_model(tmp_path, hazard_case=hazard_case, sections=[1, 2],
+                                   partition_event_definition=False, partition_hazard_case=False)
+
+    with caplog.at_level(logging.INFO):
+        with open_footprint(storage, run_dir) as footprint:
+            for event_id in (1, 2, 1, 2):
+                footprint.get_event(event_id)
+
+    assert len(records_matching(caplog, logging.INFO, hazard_case_filename, 'not at risk')) == 1
+
+
+def test_portfolio_absent_from_event_definition_warns(tmp_path, caplog):
+    """Zero losses from a section list that matches nothing is a warning, not silence."""
+    event_definition = make_event_definition([(1, 1, 10, 20, 0.5, 15)])
+    storage, run_dir = build_model(tmp_path, event_definition=event_definition, sections=[7])
+
+    with caplog.at_level(logging.INFO):
+        with open_footprint(storage, run_dir) as footprint:
+            assert footprint.get_event(1) is None
+
+    assert records_matching(caplog, logging.WARNING, event_defintion_filename, 'every loss will be zero')
+
+
+def test_portfolio_absent_from_hazard_case_warns(tmp_path, caplog):
+    """The same, one file further on: events exist for the portfolio but no hazard does."""
+    hazard_case = make_hazard_case([(99, 900, 10, 4), (99, 900, 20, 8)])
+    storage, run_dir = build_model(tmp_path, hazard_case=hazard_case, sections=[1, 2], areaperil_ids=[100])
+
+    with caplog.at_level(logging.INFO):
+        with open_footprint(storage, run_dir) as footprint:
+            assert footprint.get_event(1) is None
+
+    assert records_matching(caplog, logging.WARNING, hazard_case_filename, 'every loss will be zero')
+
+
+def test_missing_file_is_reported_as_that_file(tmp_path):
+    """A file absent altogether is a broken model, not sparse data: it must still name itself.
+
+    Partition detection has to inspect the file, so it is the first thing to touch a missing
+    one; the error the caller sees should be the read failing, not the detection probe.
+    """
+    storage, run_dir = build_model(tmp_path)
+    shutil.rmtree(tmp_path / 'static' / hazard_case_filename)
+
+    with pytest.raises(FileNotFoundError, match=hazard_case_filename):
+        with open_footprint(storage, run_dir) as footprint:
+            footprint.get_event(1)
+
+
+def test_complete_model_data_is_quiet(tmp_path, caplog):
+    """Nothing absent, nothing said: the reporting must not fire on ordinary models."""
+    storage, run_dir = build_model(tmp_path)
+
+    with caplog.at_level(logging.INFO):
+        with open_footprint(storage, run_dir) as footprint:
+            footprint.get_event(1)
+
+    assert records_matching(caplog, logging.INFO, 'not at risk') == []
+    assert records_matching(caplog, logging.WARNING, 'every loss will be zero') == []
