@@ -19,7 +19,7 @@ def default_toparquet(stack, file_in, file_out, file_type):
     file_in = resolve_file(file_in, "rb", stack)
     chunk_bytes = DEFAULT_BUFFER_SIZE * dtype.itemsize
 
-    schema = pa.schema([(col, pa.array(np.empty(0, dtype=dtype.fields[col][0])).type) for col in headers])
+    schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
     writer = pq.ParquetWriter(file_out, schema)
     try:
         while True:

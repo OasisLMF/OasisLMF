@@ -243,7 +243,7 @@ check_fifos \
 
 exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
 
-kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>dev>null
+kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>/dev/null
 
 # --- Do reinsurance loss kats ---
 

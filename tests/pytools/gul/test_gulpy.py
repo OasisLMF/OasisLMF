@@ -100,13 +100,12 @@ def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
             # compare the `loss` columns
             assert_allclose(df_ref['loss'], df_test['loss'], rtol=gul_rtol, atol=gul_atol, x_name='expected', y_name='test')
 
-            # remove temporary files
-            ref_out_bin_fname.with_suffix('.csv').unlink()
-            test_out_bin_fname.with_suffix('.csv').unlink()
-
         finally:
-            # remove temporary files
+            # remove temporary files; the csv files exist only if the bitwise comparison
+            # failed, and are written through the symlink into the real assets dir
             test_out_bin_fname.with_suffix('.bin').unlink()
+            ref_out_bin_fname.with_suffix('.csv').unlink(missing_ok=True)
+            test_out_bin_fname.with_suffix('.csv').unlink(missing_ok=True)
 
 
 @pytest.mark.parametrize("socket_server,ping_expected,port_expected", [
@@ -151,13 +150,19 @@ def test_gulpy_periodic_ping():
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
         os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
         stream = tmp_result_dir.joinpath("getmodel_stream.bin")
-        # capture a real getmodel stream (evepy | modelpy) so gulpy processes events
-        with open(stream, 'wb') as fout:
-            subprocess.run("evepy 1 1 | modelpy", cwd=test_model_dir, shell=True, check=True, stdout=fout)
-        with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
-              patch('oasislmf.pytools.gul.manager.SERVER_UPDATE_TIME', -1)):
-            gulpy_run(run_dir=tmp_result_dir, ignore_file_type=set(), sample_size=10, loss_threshold=0.,
-                      alloc_rule=1, debug=False, random_generator=1,
-                      file_in=str(stream), file_out=str(tmp_result_dir.joinpath("out.bin")),
-                      socket_server='True')
-        assert mock_ping.call_count > 1
+        out_bin = tmp_result_dir.joinpath("out.bin")
+        try:
+            # capture a real getmodel stream (evepy | modelpy) so gulpy processes events
+            with open(stream, 'wb') as fout:
+                subprocess.run("evepy 1 1 | modelpy", cwd=test_model_dir, shell=True, check=True, stdout=fout)
+            with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
+                  patch('oasislmf.pytools.gul.manager.SERVER_UPDATE_TIME', -1)):
+                gulpy_run(run_dir=tmp_result_dir, ignore_file_type=set(), sample_size=10, loss_threshold=0.,
+                          alloc_rule=1, debug=False, random_generator=1,
+                          file_in=str(stream), file_out=str(out_bin),
+                          socket_server='True')
+            assert mock_ping.call_count > 1
+        finally:
+            for scratch in (stream, out_bin):
+                if scratch.exists():
+                    scratch.unlink()
