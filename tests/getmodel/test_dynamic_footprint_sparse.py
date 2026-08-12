@@ -313,12 +313,30 @@ def records_matching(caplog, level, *fragments):
             if record.levelno == level and all(fragment in record.message for fragment in fragments)]
 
 
+@contextmanager
+def capture_footprint_logs(caplog):
+    """Capture the footprint logger whatever level an earlier test left it at.
+
+    redirect_logging (oasislmf/pytools/utils.py) puts every oasislmf.* logger at WARNING and
+    never puts the level back, so on a full run the ambient root level caplog raises is not
+    enough to see an INFO record: the logger itself has to be raised too.
+    """
+    logger = logging.getLogger(FootprintParquetDynamic.__module__)
+    propagate = logger.propagate
+    logger.propagate = True
+    try:
+        with caplog.at_level(logging.INFO, logger=logger.name):
+            yield
+    finally:
+        logger.propagate = propagate
+
+
 def test_absent_section_is_reported(tmp_path, caplog):
     """A section the model data does not cover is named, with the file it is missing from."""
     hazard_case = make_hazard_case([(1, 100, 10, 4), (1, 100, 20, 8), (1, 101, 10, 6), (1, 101, 20, 10)])
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case, sections=[1, 2])
 
-    with caplog.at_level(logging.INFO):
+    with capture_footprint_logs(caplog):
         with open_footprint(storage, run_dir) as footprint:
             footprint.get_event(1)
 
@@ -331,7 +349,7 @@ def test_absent_section_is_reported_once_per_file(tmp_path, caplog):
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case, sections=[1, 2],
                                    partition_event_definition=False, partition_hazard_case=False)
 
-    with caplog.at_level(logging.INFO):
+    with capture_footprint_logs(caplog):
         with open_footprint(storage, run_dir) as footprint:
             for event_id in (1, 2, 1, 2):
                 footprint.get_event(event_id)
@@ -344,7 +362,7 @@ def test_portfolio_absent_from_event_definition_warns(tmp_path, caplog):
     event_definition = make_event_definition([(1, 1, 10, 20, 0.5, 15)])
     storage, run_dir = build_model(tmp_path, event_definition=event_definition, sections=[7])
 
-    with caplog.at_level(logging.INFO):
+    with capture_footprint_logs(caplog):
         with open_footprint(storage, run_dir) as footprint:
             assert footprint.get_event(1) is None
 
@@ -356,7 +374,7 @@ def test_portfolio_absent_from_hazard_case_warns(tmp_path, caplog):
     hazard_case = make_hazard_case([(99, 900, 10, 4), (99, 900, 20, 8)])
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case, sections=[1, 2], areaperil_ids=[100])
 
-    with caplog.at_level(logging.INFO):
+    with capture_footprint_logs(caplog):
         with open_footprint(storage, run_dir) as footprint:
             assert footprint.get_event(1) is None
 
@@ -381,7 +399,7 @@ def test_complete_model_data_is_quiet(tmp_path, caplog):
     """Nothing absent, nothing said: the reporting must not fire on ordinary models."""
     storage, run_dir = build_model(tmp_path)
 
-    with caplog.at_level(logging.INFO):
+    with capture_footprint_logs(caplog):
         with open_footprint(storage, run_dir) as footprint:
             footprint.get_event(1)
 
