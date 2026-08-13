@@ -88,6 +88,8 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.cfg.upload-cov == true
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}

@@ -20,10 +20,11 @@ from pandas.testing import assert_frame_equal as pd_assert_frame_equal
 from tempfile import NamedTemporaryFile
 from ods_tools.oed import OedExposure
 
-from oasislmf.utils.data import (PANDAS_DEFAULT_NULL_VALUES, factorize_array,
+from oasislmf.utils.data import (PANDAS_DEFAULT_NULL_VALUES, assign_risk_ids, factorize_array,
                                  factorize_ndarray, fast_zip_arrays,
                                  get_dataframe, get_timestamp,
-                                 get_utctimestamp, prepare_location_df, validate_analysis_oed_fields,
+                                 get_utctimestamp, prepare_location_df, structured_dtype_to_pandas,
+                                 validate_analysis_oed_fields,
                                  validate_vuln_csv_contents, validate_vulnerability_replacements)
 from oasislmf.utils.exceptions import OasisException
 
@@ -2167,3 +2168,46 @@ class TestOedDataTypes(TestCase):
     )
     def test_ri_scope_loaded_correctly(self, data):
         pass
+
+
+def test_structured_dtype_to_pandas_matches_inline_idiom():
+    """structured_dtype_to_pandas reproduces the {col: dtype} map built inline
+    from a numpy structured dtype's fields."""
+    np_dtype = np.dtype([('item_id', 'i4'), ('coverage_id', 'i4'), ('tiv', 'f8')])
+    expected = {col: dtype for col, (dtype, _) in np_dtype.fields.items()}
+    assert structured_dtype_to_pandas(np_dtype) == expected
+    assert structured_dtype_to_pandas(np_dtype) == {
+        'item_id': np.dtype('i4'), 'coverage_id': np.dtype('i4'), 'tiv': np.dtype('f8'),
+    }
+
+
+def test_assign_risk_ids_matches_previous_implementations():
+    """assign_risk_ids must reproduce, exactly, the two former inline blocks in
+    gul_inputs and il_inputs across aggregate / non-aggregate / zero-count rows."""
+    base = pd.DataFrame({
+        'building_id': [3, 5, 7, 2, 0],
+        'NumberOfBuildings': [3, 0, 7, 0, 4],
+        'IsAggregate': [1, 1, 0, 0, 1],
+    })
+
+    # Former gul_inputs block (single combined .loc assignment)
+    old_gul = base.copy()
+    old_gul[['risk_id', 'NumberOfRisks']] = old_gul[['building_id', 'NumberOfBuildings']]
+    old_gul.loc[old_gul['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
+    old_gul.loc[old_gul['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
+
+    # Former il_inputs block (two separate .loc assignments)
+    old_il = base.copy()
+    old_il[['risk_id', 'NumberOfRisks']] = old_il[['building_id', 'NumberOfBuildings']]
+    old_il.loc[old_il['IsAggregate'] == 0, 'risk_id'] = 1
+    old_il.loc[old_il['IsAggregate'] == 0, 'NumberOfRisks'] = 1
+    old_il.loc[old_il['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
+
+    result = assign_risk_ids(base.copy())
+
+    cols = ['risk_id', 'NumberOfRisks']
+    pd_assert_frame_equal(result[cols], old_gul[cols])
+    pd_assert_frame_equal(result[cols], old_il[cols])
+    # explicit expected values, so the test also guards the semantics themselves
+    assert result['risk_id'].tolist() == [3, 5, 1, 1, 0]
+    assert result['NumberOfRisks'].tolist() == [3, 1, 1, 1, 4]

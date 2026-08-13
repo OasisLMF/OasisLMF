@@ -17,7 +17,7 @@ def compress_footprint(static_path, decompressed_size=True, compression_level=-1
     with ExitStack() as stack:
         footprint_obj = stack.enter_context(open(os.path.join(static_path, footprint_filename), 'rb'))
         footprint_map = mmap.mmap(footprint_obj.fileno(), length=0, access=mmap.ACCESS_READ)
-        footprint_header = np.frombuffer(bytearray(footprint_map[:FootprintHeader.size]), dtype=FootprintHeader)
+        footprint_header = np.frombuffer(bytearray(footprint_map[:FootprintHeader.itemsize]), dtype=FootprintHeader)
         if decompressed_size:
             footprint_header['has_intensity_uncertainty'] |= 2  # set compressed byte of has_intensity_uncertainty to 1
             index_dtype = EventIndexBinZ

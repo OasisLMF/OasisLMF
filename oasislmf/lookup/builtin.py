@@ -601,9 +601,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 peril_locations = peril_locations.merge(df_model_perils_covered,
                                                         left_on='peril_id', right_on='model_perils_covered',
                                                         sort=True)
-            not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])]
+            not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])].copy()
             if not not_covered_location.empty:
-                not_covered_location['status'] = OASIS_KEYS_STATUS['notatrisk']
+                not_covered_location['status'] = OASIS_KEYS_STATUS['notatrisk']['id']
                 not_covered_location['message'] = not_covered_location[perils_covered_column].astype(str) + " have no perils modelled"
                 peril_locations = pd.concat([peril_locations, not_covered_location], ignore_index=True)
             return peril_locations
@@ -631,7 +631,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 if 'max' in preparations:
                     locations.loc[locations[column_name] > preparations['max'], column_name] = preparations['max']
                 if 'min' in preparations:
-                    locations.loc[locations[column_name] > preparations['min'], column_name] = preparations['min']
+                    locations.loc[locations[column_name] < preparations['min'], column_name] = preparations['min']
                 if 'type' in preparations:
                     locations[column_name] = locations[column_name].astype(preparations['type'])
             return locations
@@ -936,7 +936,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 raise OasisException(f"band {col_name}, {info} has id outside of [1-{tiff_dataset.RasterCount}]")
             idx = info['id'] - 1
             usefull_array_idx[i] = idx
-            defaults[idx] = info['default']
+            defaults[i] = info['default']
 
         def geotiff_lookup(locations):
             tiff_array = tiff_dataset.GetVirtualMemArray()
