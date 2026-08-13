@@ -21,6 +21,7 @@ def get_loss(
         last_loss (float): Previous Loss value
         curr_retperiod (float): Current return period
         curr_loss (float): Current Loss value
+
     Returns:
         loss (float): Loss Value
     """
@@ -57,6 +58,7 @@ def fill_tvar(
         summary_id (int): Summary ID
         next_retperiod (float): Next Return Period
         tvar (float): Tail Value at Risk
+
     Returns:
         tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
         tail_sizes (ndarray[int64]): Array of current fill size per summary_id
@@ -91,6 +93,7 @@ def fill_tvar_wheatsheaf(
         num_sidxs (int): Number of sidxs to consider
         next_retperiod (float): Next Return Period
         tvar (float): Tail Value at Risk
+
     Returns:
         tail (ndarray[TAIL_valtype]): Flat array of (return period, tvar) values
         tail_sizes (ndarray[int64]): Array of current fill size per (summary_id, sidx) idx
@@ -236,6 +239,7 @@ def write_tvar(
         tail_sizes (ndarray[int64]): Array of current fill size per summary_id
         tail_offsets (ndarray[int64]): Array of start positions per summary_id in tail
         max_summary_id (int): Maximum summary ID
+
     Returns:
         rets (ndarray[EPT_dtype]): Return period and Loss EPT data
     """
@@ -275,6 +279,7 @@ def write_tvar_wheatsheaf(
         tail_sizes (ndarray[int64]): Array of current fill size per (summary_id, sidx) idx
         tail_offsets (ndarray[int64]): Array of start positions per idx in tail
         total_idxs (int): Total number of (summary_id, sidx) index entries
+
     Returns:
         rets (ndarray[PSEPT_dtype]): Return period and Loss PSEPT data
     """
@@ -328,6 +333,7 @@ def write_ept(
         returnperiods (ndarray[np.int32]): Return Periods array
         max_summary_id (int): Maximum summary ID
         sample_size (int, optional): Sample Size. Defaults to 1.
+        buffer (ndarray[EPT_dtype]): Pre-allocated output buffer that rows are written into and yielded from in chunks
 
     Yields:
         buffer (ndarray[EPT_dtype]): Buffered chunks of EPT data
@@ -516,6 +522,7 @@ def write_ept_weighted(
         returnperiods (ndarray[np.int32]): Return Periods array
         max_summary_id (int): Maximum summary ID
         sample_size (int, optional): Sample Size. Defaults to 1.
+        buffer (ndarray[EPT_dtype]): Pre-allocated output buffer that rows are written into and yielded from in chunks
 
     Yields:
         buffer (ndarray[EPT_dtype]): Buffered chunks of EPT data
@@ -708,6 +715,8 @@ def write_psept(
         returnperiods (ndarray[np.int32]): Return Periods array
         max_summary_id (int): Maximum summary ID
         num_sidxs (int): Number of sidxs to consider
+        buffer (ndarray[PSEPT_dtype]): Pre-allocated output buffer that rows are written into and yielded from in chunks
+
     Yields:
         buffer (ndarray[PSEPT_dtype]): Buffered chunks of PSEPT data
     """
@@ -895,6 +904,7 @@ def write_psept_weighted(
         num_sidxs (int): Number of sidxs to consider
         sample_size (int): Sample Size. Defaults to 1.
         mean_map (ndarray[MEANMAP_dtype], optional): An array mapping used for mean loss calculations per Summary ID. Used for EPT output later. Defaults to None.
+        buffer (ndarray[PSEPT_dtype]): Pre-allocated output buffer that rows are written into and yielded from in chunks
 
     Yields:
         buffer (ndarray[PSEPT_dtype]): Buffered chunks of PSEPT data
@@ -1085,6 +1095,8 @@ def write_wheatsheaf_mean(
         epcalc (int): Specifies the calculation method (mean damage loss, full uncertainty, per sample mean, sample mean).
         eptype (int): Type of exceedance probability (0 = OEP, 1 = AEP).
         max_summary_id (int): Maximum summary ID
+        buffer (ndarray[EPT_dtype]): Pre-allocated output buffer that rows are written into and yielded from in chunks
+
     Yields:
         buffer (ndarray[EPT_dtype]): Buffered chunks of EPT data
     """

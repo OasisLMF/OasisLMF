@@ -65,6 +65,7 @@ def process_bin_file(
         summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
         summaries_idx (int): current index reached in summaries_data
         file_index (int): Summary bin file index
+
     Returns:
         summaries_idx (int): current index reached in summaries_data
         resize_flag (bool): flag to indicate whether to resize summaries_data when full
@@ -189,6 +190,15 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
 def _save_chunk(summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id):
     """Flush summaries_data[:summaries_idx] to a numbered temp file.
 
+    Args:
+        summaries_data (ndarray[_SUMMARIES_DTYPE]): Indexed summary data, of which only the first
+            summaries_idx rows are written
+        summaries_idx (int): number of valid rows in summaries_data
+        path (str | os.PathLike): directory the temp file is written into
+        chunk_index (int): number of the chunk being written, used in the temp file name
+        temp_files (list): list of temp file paths, appended to in place
+        max_summary_id (int): running maximum summary_id seen across the chunks so far
+
     Returns:
         chunk_index (int): incremented chunk counter
         max_summary_id (int): updated running maximum
@@ -206,6 +216,7 @@ def merge_sorted_chunks(memmaps):
 
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
+
     Yields:
         smallest_row (ndarray[_SUMMARIES_DTYPE]): yields the next smallest row from sorted summaries partial files
     """
@@ -258,6 +269,7 @@ def get_summaries_data(
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         aal_max_memory (float): OASIS_AAL_MEMORY value (has to be passed in as numba won't update from environment variable)
         idx_handles (List[np.memmap | None] | None): Per-file .idx memmaps, or None to use sequential scan for all files
+
     Returns:
         memmaps (List[np.memmap]): List of temporary file memmaps
         max_summary_id (int): Max summary ID
@@ -325,6 +337,7 @@ def summary_index(path, occ_csr, stack):
         path (os.PathLike): Path to the workspace folder containing summary binaries
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         stack (ExitStack): Exit stack
+
     Returns:
         files_handles (List[np.memmap]): List of memmaps for summary files data
         sample_size (int): Sample size
@@ -378,6 +391,7 @@ def read_input_files(run_dir):
 
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
+
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
@@ -420,6 +434,7 @@ def get_num_subsets(alct, sample_size, max_summary_id):
         alct (bool): Boolean for ALCT output
         sample_size (int): Sample size
         max_summary_id (int): Max summary ID
+
     Returns:
         num_subsets (int): Number of subsets
     """
@@ -444,6 +459,7 @@ def get_weighted_means(
         weighting (float): Weighting value
         sidx (int): start index
         end_sidx (int): end index
+
     Returns:
         weighted_mean (float): Sum weighted mean
         weighted_mean_squared (float): Sum weighted mean squared
@@ -561,7 +577,8 @@ def read_losses(summary_fin, cursor, vec_sample_sum_loss):
     Args:
         summary_fin (np.memmap): summary file memmap
         cursor (int): data offset for reading binary files
-        (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
+        vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
+
     Returns:
         cursor (int): data offset for reading binary files
     """
@@ -590,6 +607,7 @@ def skip_losses(summary_fin, cursor):
     Args:
         summary_fin (np.memmap): summary file memmap
         cursor (int): data offset for reading binary files
+
     Returns:
         cursor (int): data offset for reading binary files
     """
@@ -707,6 +725,7 @@ def calculate_mean_stddev(
         observable_sum (ndarray[oasis_float]): Observable sum
         observable_squared_sum (ndarray[oasis_float]): Observable squared sum
         number_of_observations (int | ndarray[int]): number of observations
+
     Returns:
         mean (ndarray[oasis_float]): Mean
         std (ndarray[oasis_float]): Standard Deviation
@@ -737,6 +756,7 @@ def get_aal_data(
         vec_used_summary_id (ndarray[bool]): vector to store if summary_id is used
         sample_size (int): Sample Size
         no_of_periods (int): Number of periods
+
     Returns:
         aal_data (List[Tuple]): AAL csv data
     """
@@ -783,6 +803,7 @@ def get_aal_data_meanonly(
         vec_used_summary_id (ndarray[bool]): vector to store if summary_id is used
         sample_size (int): Sample Size
         no_of_periods (int): Number of periods
+
     Returns:
         aal_data (List[Tuple]): AAL csv data
     """
@@ -855,6 +876,7 @@ def get_alct_data(
         sample_size (int): Sample Size
         no_of_periods (int): Number of periods
         confidence (float): Confidence level between 0 and 1, default 0.95
+
     Returns:
         alct_data (List[List]): ALCT csv data
     """

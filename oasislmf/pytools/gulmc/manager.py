@@ -80,7 +80,7 @@ def run(run_dir,
 
     Args:
         run_dir (str): the directory of where the process is running
-        ignore_file_type set(str): file extension to ignore when loading
+        ignore_file_type (set(str)): file extension to ignore when loading
         sample_size (int): number of random samples to draw.
         loss_threshold (float): threshold above which losses are printed to the output stream.
         alloc_rule (int): back-allocation rule.
@@ -92,10 +92,16 @@ def run(run_dir,
         file_out (str, optional): filename of output stream. Defaults to None.
         data_server (bool, optional): if True, run the data server. Defaults to None.
         ignore_correlation (bool, optional): if True, do not compute correlated random samples. Defaults to False.
+        ignore_haz_correlation (bool, optional): if True, do not compute correlated hazard intensity samples. Defaults to False.
         effective_damageability (bool, optional): if True, it uses effective damageability to draw damage samples instead of
           using the full monte carlo approach (i.e., to draw hazard intensity first, then damage).
         max_cached_vuln_cdf_size_MB (int, optional): size in MB of the in-memory cache to store and reuse vulnerability cdf. Defaults to 200.
-        model_df_engine: (str) The engine to use when loading model dataframes
+        model_df_engine (str, optional): The engine to use when loading model dataframes. Defaults to OasisPandasReader.
+        dynamic_footprint (bool, optional): if True, load the dynamic footprint data and adjust hazard intensities at
+          runtime. Defaults to False.
+        **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
+          the port to override; analysis_pk is reported with each ping.
+
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
         ValueError: if alloc_rule is 1, 2, or 3 when debug is 1 or 2.

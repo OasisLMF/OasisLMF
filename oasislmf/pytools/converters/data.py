@@ -14,7 +14,7 @@ def build_tool_info():
     """Generates the tools information dictionary for conversion tools from the files in TOOL_MODULE_PACKAGE
 
     Returns:
-        tool_indo (dict): TOOL_INFO dict
+        tool_info (dict): TOOL_INFO dict
     """
     tool_info = {}
 

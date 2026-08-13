@@ -84,6 +84,7 @@ def get_max_summary_id(file_handles):
 
     Args:
         file_handles (List[np.memmap]): List of memmaps for summary files data
+
     Returns:
         max_summary_id (int): Max summary ID
     """

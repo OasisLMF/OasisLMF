@@ -32,7 +32,7 @@ def read_aggregate_vulnerability(storage: BaseStorage, ignore_file_type=set()):
     """Load the aggregate vulnerability definitions from file.
 
     Args:
-        storage: (BaseStorage) the storage manager for fetching model data
+        storage (BaseStorage): the storage manager for fetching model data
         ignore_file_type (Set[str]): file extension to ignore when loading.
 
     Returns:

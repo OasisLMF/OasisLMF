@@ -18,6 +18,8 @@ def convert_bin_to_parquet_event(static_path: str, **kwargs) -> None:
 
     Args:
         static_path: (str) the path to the static file
+        **kwargs: additional keyword arguments, accepted and ignored so that the conversion
+            entrypoints can share one signature
 
     Returns: None
     """
@@ -60,6 +62,8 @@ def convert_bin_to_parquet_chunk(static_path, chunk_size, **kwargs) -> None:
     Args:
         static_path: (str) the path to the static file
         chunk_size: target raw size of the partition
+        **kwargs: additional keyword arguments, accepted and ignored so that the conversion
+            entrypoints can share one signature
 
     Returns: None
     """

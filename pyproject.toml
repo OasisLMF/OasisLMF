@@ -92,18 +92,31 @@ archs = "arm64"
 archs = "AMD64"
 
 [tool.ruff]
-# Docstring style enforcement only (see CONTRIBUTING.md).
-# ruff is not used as a general linter here; flake8/autopep8 cover PEP8.
+# ruff replaces flake8 here; autopep8 still covers PEP8 formatting.
 line-length = 150
+exclude = [".tox", ".git", "*/migrations/*", "*/static/CACHE/*", "docs", ".ropeproject", ".hypothesis"]
+# required for the DOC* (pydoclint) rules below, which are preview-only.
+preview = true
 
 [tool.ruff.lint]
-# Structural Google-docstring rules that the codebase satisfies without
-# rewording. Prose/presence rules (D1xx missing docstrings, D205 blank line,
-# D400/D415 punctuation, D417 arg descriptions) are excluded.
+# D*: structural Google-docstring rules that the codebase satisfies without
+# rewording (see CONTRIBUTING.md). Prose rules (D1xx missing docstrings,
+# D205 blank line, D400/D415 punctuation) are excluded.
+# D417 + DOC*: signature/docstring agreement - a documented parameter list that
+# matches the signature, and Yields/Returns sections that match what the body
+# actually does. Note D411 does NOT catch a missing blank line before a section;
+# DOC201 is what surfaces that, because the section stops parsing as a section.
+# F*: the pyflakes checks previously gated by flake8.
 select = [
-    "D201", "D202", "D206", "D207", "D208", "D209", "D210", "D214", "D300",
-    "D301", "D403", "D405", "D410", "D411", "D412", "D414", "D416", "D419",
+    "D200", "D201", "D202", "D206", "D207", "D208", "D209", "D210", "D212",
+    "D214", "D300", "D301", "D403", "D405", "D410", "D411", "D412", "D414",
+    "D416", "D417", "D419",
+    "DOC202", "DOC402",
+    "F401", "F522", "F524", "F541",
 ]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]

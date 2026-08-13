@@ -58,8 +58,10 @@ class FootprintLayer:
         """The constructor for the FootprintLayer class.
 
         Args:
-            ignore_file_type: (Set[str]) collection of file types to ignore when loading
-            total_expected: (int) the total number of reliant processes expected
+            storage (BaseStorage): the storage connector the footprint data is loaded from
+            total_expected (int): the total number of reliant processes expected
+            ignore_file_type (Set[str]): collection of file types to ignore when loading
+            df_engine (str): the engine to use when loading dataframes
         """
         self.storage = storage
         self.ignore_file_type: Set[str] = ignore_file_type
@@ -98,10 +100,10 @@ class FootprintLayer:
         """Serialises data then splits it into chunks of 500 in turn streaming through a connection.
 
         Args:
-            event_data: (np.array) the data to be serialised and streamed through a connection
-            connection: (socket.socket) the connection that the data is going to be streamed through
-
-        Returns: None
+            event_data (np.array): the data to be serialised and streamed through a connection
+            connection (socket.socket): the connection that the data is going to be streamed through
+            event_id (int): the id of the event the data belongs to, currently not used by the
+                streaming itself
         """
         raw_data: bytes = pickle.dumps(event_data)
 

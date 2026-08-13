@@ -98,6 +98,7 @@ def get_header_idxs(
     Args:
         headers (List[str]): Headers
         headers_to_search (List[str]): Headers to search
+
     Returns:
         idxs (List[int]): Indexes of searched headers
     """
@@ -162,6 +163,7 @@ def csv_concat_sort_by_headers(
         header_idxs (List[int]): Indices of headers to sort by
         sort_fn (Callable[[List[int]], Any]): Sort function to apply to header_idxs
         out_file (str | os.PathLike): Output Concatenated CSV file.
+        **sort_kwargs: additional keyword arguments passed to sort_fn
     """
     # Open all csv files
     csv_files = [stack.enter_context(open(fp, "r", newline="")) for fp in file_paths]
@@ -226,6 +228,7 @@ def merge_elt_data(memmaps):
 
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
+
     Yields:
         buffer (ndarray): yields sorted buffer from memmaps
     """
@@ -273,6 +276,7 @@ def merge_plt_data(memmaps):
 
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
+
     Yields:
         buffer (ndarray): yields sorted buffer from memmaps
     """

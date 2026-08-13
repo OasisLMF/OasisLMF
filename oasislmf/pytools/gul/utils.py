@@ -9,7 +9,7 @@ def binary_search(value, array, n):
     where where `array` gets larger than `value`.
 
     Args:
-            value (float,int): the value to be searched
+        value (float,int): the value to be searched
         array (float, int): the array where `value` is to be searched.
         n (int): number of elements of `array` where `value` is to be searched, starting
           from the beginning of `array`.

@@ -665,7 +665,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             distance on a sphere or ellipsoid. It is the maximum accepted distance between the point
             locations and the containing geometry centroids.
 
-        nearest_neighbour_min_distance: deprecated alias for nearest_neighbour_max_distance. May be
+        nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
         """
         if nearest_neighbor_min_distance > 0:
@@ -958,6 +958,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             file_type (str): Pandas read function suffix (``'csv'``, ``'parquet'``, etc.).
                 Defaults to ``'csv'``.
             **kwargs: Additional keyword arguments forwarded to the pandas read function.
+
+        Returns:
+            function: function assigning an area_peril_id to each location from its latitude and
+                longitude, set to OASIS_UNKNOWN_ID where the H3 cell is missing from the mapping
+                file or the coordinates are null.
         """
         if h3 is None:
             raise OasisException(

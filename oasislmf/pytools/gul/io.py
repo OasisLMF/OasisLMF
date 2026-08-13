@@ -45,6 +45,7 @@ def read_getmodel_stream(stream_in, items,
         coverages (numpy.ndarray[coverage_type]): array with coverage data.
         compute (numpy.array[int]): list of coverages to be computed.
         seeds (numpy.array[int]): the random seeds for each coverage_id.
+        buff_size (int): size in bytes of the read buffer. Defaults to PIPE_CAPACITY.
 
     Raises:
         ValueError: If the stream type is not 1.
@@ -181,13 +182,22 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
         rec_idx_ptr (numpy.array[int]): array with the indices of `rec` where each cdf record starts.
 
     Returns:
-        int, bool, int, numpy.array[ProbMean], numpy.array[int], int, int, int, numpy.array[items_data_type],
-        int, Dict, int:
-          number of int numbers read from the int32_mv ndarray, whether the current event (id=`event_id`)
-          has been fully read, cdf record, array with the indices of `rec` where each cdf record starts, last or current
-          event id, index of the last coverage id stored in `compute`, index of the last items_data_i stored in `items_data`,
-          item-related data, number of unique random seeds computed so far, map of group ids to random seeds,
-          index of the last cdf record that has been read from stream and stored in `rec`.
+        Tuple[int, bool, int, numpy.array[damagecdfrec], numpy.array[ProbMean], List[int], int, int,
+        int, numpy.array[items_data_type], int, Dict[int, int], int]:
+            - cursor: number of bytes read from `byte_mv`
+            - yield_event: whether the event being read (id=`last_event_id`) has been fully read
+            - event_id: event_id of the record parsing stopped on. When `yield_event` is True this
+              is the id of the next event, which starts at `cursor`
+            - dmgcdfrec: areaperil_id and vulnerability_id of each cdf record read
+            - rec: the cdf bins read
+            - rec_idx_ptr: list with the indices of `rec` where each cdf record starts
+            - last_event_id: event id currently being accumulated
+            - compute_i: index of the last coverage id stored in `compute`
+            - items_data_i: index of the last items_data_i stored in `items_data`
+            - items_data: item-related data, a new larger array when `items_data` had to grow
+            - rng_index: number of unique random seeds computed so far
+            - group_id_rng_index: map of group ids to random seeds
+            - damagecdf_i: index of the last cdf record that has been read from stream and stored in `rec`
     """
     yield_event = False
 

@@ -104,10 +104,14 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
         run_dir (str): path to correlations file
         ignore_file_type (Set[str]): file extension to ignore when loading.
         filename (str | os.PathLike): correlations file name
+
     Returns:
-        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
-        vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-        areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+        numpy.array[correlations_dtype]: one row per item, holding item_id,
+            peril_correlation_group, damage_correlation_value, hazard_group_id and
+            hazard_correlation_value. A memmap when read from the binary file.
+
+    Raises:
+        FileNotFoundError: if no correlations file is found with a non-ignored extension
     """
     for ext in ["bin", "csv"]:
         if ext in ignore_file_type:
@@ -212,6 +216,7 @@ def read_event_rates(run_dir, filename=EVENTRATES_FILE):
     Args:
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): event rates csv file name
+
     Returns:
         unique_event_ids (ndarray[oasis_int]): unique event ids
         event_rates (ndarray[oasis_float]): event rates
@@ -245,6 +250,7 @@ def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=Fal
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): quantile binary file name
         return_empty (bool): return an empty intervals array regardless of the existence of the quantile binary
+
     Returns:
         intervals (quantile_interval_dtype): Numpy array emulating a dictionary for numba
     """
@@ -267,7 +273,7 @@ def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=Fal
 
 
 def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
-    """Read the occurrence binary file and returns an occurrence map
+    """Read the occurrence binary file and returns the occurrence records with their header options
 
     Args:
         run_dir (str | os.PathLike): Path to input files dir
@@ -275,7 +281,15 @@ def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
 
     Returns:
-        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        Tuple[numpy.array, int, int, int]:
+            - occ_arr: the occurrence records, of occurrence_dtype or, when the dates are granular,
+              occurrence_granular_dtype
+            - date_algorithm: date algorithm flag read from the file header
+            - granular_date: granular date flag read from the file header
+            - no_of_periods: number of periods read from the file header
+
+    Raises:
+        RuntimeError: if the file is truncated or the date algorithm is unknown
     """
     occurrence_fp = Path(run_dir, filename)
     if use_stdin:
@@ -475,6 +489,7 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
         no_of_periods (int): Number of periods
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): periods binary file name
+
     Returns:
         period_weights (ndarray[periods_dtype]): Period weights
     """
@@ -513,6 +528,7 @@ def read_returnperiods(use_return_period_file, run_dir, filename=RETURNPERIODS_F
         use_return_period_file (bool): Bool to use Return Period File
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): return periods binary file name
+
     Returns:
         return_periods (ndarray[np.int32]): Return Periods
         use_return_period_file (bool): Bool to use Return Period File

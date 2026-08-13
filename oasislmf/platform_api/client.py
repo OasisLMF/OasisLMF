@@ -284,8 +284,7 @@ class API_models(ApiEndpoint):
 
 
 class ExposureRunEndpoint(FileEndpoint):
-    """
-    Endpoint for `<portfolio>/exposure_run/` - runs (or fetches the result of)
+    """Endpoint for `<portfolio>/exposure_run/` - runs (or fetches the result of)
     `oasislmf exposure run` on the server against the portfolio's exposure files.
     """
 
@@ -294,8 +293,7 @@ class ExposureRunEndpoint(FileEndpoint):
 
 
 class ExposureTransformEndpoint(object):
-    """
-    Endpoint for `<portfolio>/exposure_transform/` - converts exposure data
+    """Endpoint for `<portfolio>/exposure_transform/` - converts exposure data
     between OED and AIR using a mapping and transform file.
     """
 
@@ -321,8 +319,7 @@ class ExposureTransformEndpoint(object):
 
 
 class TarExtractEndpoint(FileEndpoint):
-    """
-    Endpoint for extracting a single named file out of a tar-based file
+    """Endpoint for extracting a single named file out of a tar-based file
     resource, e.g. `<analyses>/input_file_tar_extract/?filename=...`
     """
 
@@ -641,9 +638,6 @@ class APIClient(object):
         Args:
             analyses_id (int): Analyses settings {id} from, `v1/analyses/{id}/settings`
             settings ([str, dict]): Either a valid filepath or dictionary holding the settings
-
-        Returns:
-            None
         """
         if isinstance(settings, dict):
             self.analyses.settings.post(analyses_id, settings)
@@ -685,8 +679,7 @@ class APIClient(object):
         return self._poll_generate_until_complete(analysis_id, analysis, poll_interval)
 
     def _poll_generate_until_complete(self, analysis_id, analysis, poll_interval):
-        """
-        Polls an in-progress or already-complete input generation to completion,
+        """Polls an in-progress or already-complete input generation to completion,
         without triggering it. `analysis` is the last known analysis dict/status,
         as returned by `self.analyses.get(analysis_id).json()`.
         """
@@ -825,8 +818,7 @@ class APIClient(object):
                     break
 
     def reconnect(self, analysis_id, output_dir=None, poll_interval=5):
-        """
-        Reconnects to an analysis that is still generating inputs or running,
+        """Reconnects to an analysis that is still generating inputs or running,
         and resumes polling from its current status - without re-triggering
         input generation or the run itself. If the run has already completed,
         downloads the output (when `output_dir` is given).

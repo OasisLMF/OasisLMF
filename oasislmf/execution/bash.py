@@ -361,6 +361,15 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
 
     Args:
         gulmc (bool): if True, return the combined (model+ground up) command name, else use 'modelpy | gulpy' .
+        gul_random_generator (int): random number generator to use in gulmc or gulpy
+            (0: Mersenne-Twister, 1: Latin Hypercube, 2: Latin Hypercube on Philox4x32-7)
+        gulmc_effective_damageability (bool): if True, use the effective damageability to draw loss
+            samples instead of the full Monte Carlo method
+        gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations
+        modelpy_server (bool): if True, run gulmc against the 'TCP' ipc data server
+        peril_filter (list): list of perils to include (all included if empty)
+        model_df_engine (str): the dataframe reading engine to use when loading model files
+        dynamic_footprint (bool): if True, enable dynamic footprint processing
 
     Returns:
         str: the ground-up loss calculation command
@@ -1608,8 +1617,23 @@ def get_getmodel_cmd(
         use_random_number_file (bool): flag to use the random number file
         gul_alloc_rule (int): back allocation rule for gulcalc
         item_output (str): The item output
+        process_id (int): The number of this process, passed to evepy as the partition to run
+        max_process_id (int): The total number of processes, passed to evepy as the partition count
+        correlated_output (str): Redirection appended to the command when correlated output is
+            requested, empty otherwise
         eve_shuffle_flag (str): The event shuffling rule
+        modelpy_server (bool): if True, run against the 'TCP' ipc data server
+        peril_filter (list): list of perils to include (all included if empty)
+        gulmc (bool): if True, use the combined gulmc command, else 'modelpy | gulpy'
+        gul_random_generator (int): random number generator to use in gulmc or gulpy
+            (0: Mersenne-Twister, 1: Latin Hypercube, 2: Latin Hypercube on Philox4x32-7)
+        gulmc_effective_damageability (bool): if True, use the effective damageability to draw loss
+            samples instead of the full Monte Carlo method
+        gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations
         model_df_engine (str): The engine to use when loading dataframes
+        dynamic_footprint (bool): if True, enable dynamic footprint processing
+        **kwargs: additional keyword arguments, accepted and ignored so that callers can forward
+            the whole bash_params dict
 
     Returns:
         The generated getmodel command
@@ -1683,8 +1707,15 @@ def get_main_cmd_ri_stream(
         fifo_dir (str): path to fifo directory
         stderr_guard (bool): send stderr output to log file
         from_file (bool): must be true if cmd is a file and false if it can be piped
+        fmpy_low_memory (bool): use memory map instead of RAM to store the loss array
+        fmpy_sort_output (bool): order fmpy output by item_id
+        step_flag (str): step policy flag appended to the first fmpy call
+        process_counter (Counter or dict): if given, the process ID of the command is tracked in it
         ri_inuring_priorities (dict): Inuring priorities where net output has been requested
         rl_inuring_priorities (dict): Inuring priorities where gross output has been requested
+
+    Returns:
+        str: the assembled reinsurance stream command
     """
     if from_file:
         main_cmd = f'{get_fmcmd(fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd}'
@@ -1737,6 +1768,10 @@ def get_main_cmd_il_stream(
         fifo_dir (str): path to fifo directory
         stderr_guard (bool): send stderr output to log file
         from_file (bool): must be true if cmd is a file and false if it can be piped
+        fmpy_low_memory (bool): use memory map instead of RAM to store the loss array
+        fmpy_sort_output (bool): order fmpy output by item_id
+        step_flag (str): step policy flag appended to the fmpy call
+        process_counter (Counter or dict): if given, the process ID of the command is tracked in it
 
     Returns:
         generated fmcalc command as str
@@ -1774,6 +1809,7 @@ def get_main_cmd_gul_stream(
         fifo_dir (str): path to fifo directory
         stderr_guard (bool): send stderr output to log file
         consumer (str): optional name of the consumer of the stream
+        process_counter (Counter or dict): if given, the process ID of the command is tracked in it
 
     Returns:
         generated command as str
@@ -2020,6 +2056,8 @@ def bash_params(
         custom_args (dict): Extra arguments forwarded to downstream functions.
         fmpy_low_memory (bool): Enable low-memory mode in ``fmpy``.
         fmpy_sort_output (bool): Sort ``fmpy`` output.
+        summarypy_low_memory (bool): Pass ``-m`` to ``summarypy`` so it writes a ``.idx``
+            side-file, consumed by the legacy ktools leccalc/aalcalc binaries.
         event_shuffle (int or None): Event shuffle rule override.
         gulmc (bool): Use ``gulmc`` (Monte Carlo sampler).
         gul_random_generator (int): Random number generator selector.
@@ -2035,6 +2073,8 @@ def bash_params(
         model_df_engine (str): DataFrame engine for model data.
         dynamic_footprint (bool): Enable dynamic footprint mode.
         log_level (int or None): Enable logging of pytools subprocesses.
+        **kwargs: additional keyword arguments, accepted and ignored so that callers can forward a
+            whole computation-step parameter dict.
 
     Returns:
         dict: Parameter dictionary ready for unpacking into
@@ -3084,18 +3124,46 @@ def genbash(
     Args:
         max_process_id (int): The number of processes to create
         analysis_settings (dict): The analysis settings
-        filename (str): The output file name
         num_reinsurance_iterations (int): The number of reinsurance iterations
         fifo_tmp_dir (bool): When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
         gul_alloc_rule (Int): Allocation rule (None or 1) for gulcalc, if not set default to coverage stream
         il_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc
         ri_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc
-        num_gul_in_calc_block (Int): number of gul in calc block
-        num_fm_in_calc_block (Int): number of gul in calc block
-        get_getmodel_cmd (callable): Method for getting the getmodel command, by default
+        num_gul_per_lb (int): number of gul streams per load balancer
+        num_fm_per_lb (int): number of fm streams per load balancer
+        stderr_guard (bool): Wrap commands with stderr redirection.
+        bash_trace (bool): Enable bash ``-x`` tracing.
+        filename (str): The output file name
+        _get_getmodel_cmd (callable): Method for getting the getmodel command, by default
             ``GenerateLossesCmd.get_getmodel_cmd`` is used.
+        custom_gulcalc_log_start (str or None): Log message produced when the custom gulcalc
+            binary process starts.
+        custom_gulcalc_log_finish (str or None): Log message produced when the custom gulcalc
+            binary process ends.
+        custom_args (dict): Extra arguments forwarded to downstream functions.
+        fmpy_low_memory (bool): use memory map instead of RAM to store the loss array.
+        fmpy_sort_output (bool): order fmpy output by item_id.
+        summarypy_low_memory (bool): Pass ``-m`` to ``summarypy`` so it writes a ``.idx``
+            side-file, consumed by the legacy ktools leccalc/aalcalc binaries.
+        event_shuffle (int or None): Event shuffle rule override.
+        gulmc (bool): use the full Monte Carlo gulcalc python version.
+        gul_random_generator (int): random number generator to use in gulmc or gulpy
+            (0: Mersenne-Twister, 1: Latin Hypercube, 2: Latin Hypercube on Philox4x32-7).
+        gulmc_effective_damageability (bool): use the effective damageability to draw loss samples
+            instead of the full Monte Carlo method.
+        gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations.
+        model_py_server (bool): run the data server for modelpy.
+        peril_filter (list): list of perils to include (all included if empty).
+        join_summary_info (bool): join summary id information to outputcalc csvs.
         base_df_engine (str): The engine to use when loading dataframes.
         model_df_engine (str): The engine to use when loading model dataframes.
+        dynamic_footprint (bool): Enable dynamic footprint mode.
+        analysis_pk (int or None): analysis primary key reported with progress pings. When set,
+            no local socket-server is started.
+        socket_server_size (int or None): total number of events, passed to the local
+            socket-server that reports run progress.
+        socket_server_port (int or None): port the local socket-server listens on.
+        log_level (int or None): Enable logging of pytools subprocesses.
     """
     model_df_engine = model_df_engine or base_df_engine
 

@@ -121,6 +121,8 @@ def prepare_run_directory(
             custom storage class
         inputs_archive (str): path to a tar file containing input files
         user_data_dir (str): path to a directory containing additional user-supplied model data
+        copy_model_data (bool): copy the model data into ``static`` instead of symlinking it.
+            Always copied on Windows regardless of this flag
         model_storage_config_fp (str): path to the model storage configuration, if not present
             the model data will be copied to the static directory
     """
@@ -297,6 +299,7 @@ def _calc_selected(analysis_settings, calc_type_list):
     """Return True, if any options in "calc_type_list" are set in the analysis settings file
 
     Args:
+        analysis_settings (dict): model analysis settings dict, whose gul/il/ri summaries sections are searched
         calc_type_list (list): List of string values or kernel outputs, e.g. `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
     """
     gul_section = analysis_settings.get('gul_summaries')
@@ -366,6 +369,8 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, r
     Args:
         analysis_settings (dict): model analysis settings dict
         run_dir (str): model run directory
+        model_storage (BaseStorage): storage connector the model data files are fetched from
+        ri (bool): Boolean flag for RI mode
     """
     try:
         model_settings = analysis_settings.get('model_settings', {})
@@ -550,7 +555,7 @@ def check_inputs_directory(directory_to_check, il=False, ri=False, check_binarie
     Args:
         directory_to_check (str): directory containing the CSV files
         il (bool): check insuured loss files
-        il (bool): check resinsurance sub-folders
+        ri (bool): check resinsurance sub-folders
         check_binaries (bool): check binary files are not present
     """
     # Check the top level directory, that containes the core files and any direct FM files

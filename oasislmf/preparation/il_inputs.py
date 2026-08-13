@@ -170,7 +170,7 @@ def get_profile_ids(il_inputs_df):
         il_inputs_df (pandas.DataFrame): IL input items dataframe.
 
     Returns:
-        numpy.ndarray: Numpy array of policy TC IDs.
+        pandas.Series: Series of profile IDs.
     """
     factor_col = list(set(il_inputs_df.columns).intersection(policytc_cols).difference({'profile_id', }))
     return il_inputs_df.groupby(factor_col, sort=False, observed=True, dropna=False).ngroup().astype('int32') + 1

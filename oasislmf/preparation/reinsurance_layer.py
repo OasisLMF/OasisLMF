@@ -185,6 +185,7 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
         reins_type: type of reinsurance (one of oed.REINS_TYPES)
         risk_level: level of the reinsurance terms (one of oed.REINS_RISK_LEVELS)
         fm_level_id: fm level in profile_map_df
+        logger: logger the assigned profile ids are dumped to at debug level
 
     Returns:
         fm_profile_df: updated version of fm_profile_df
@@ -319,7 +320,11 @@ def get_xref_df(xref_descriptions_df, risk_level):
         risk_level: risk_level
 
     Returns:
-        df_levels: list of dataframes, one per fm level
+        df_levels: dict of one dataframe per fm level, keyed in level order by
+            'programme_level', 'risk_level', 'filter_level' and 'items_level'.
+            Each dataframe carries the agg_id, level_id and agg_id_to fields
+            used to build the FM Programmes structure. Insertion order matters:
+            the caller concatenates the values into the single xref_df.
     """
     xref_descriptions = xref_descriptions_df.sort_values(by=REINS_RISK_LEVEL_XREF_COLUMN_MAP.get(risk_level, XREF_COLUMN_DEFAULT), kind='stable')
     risk_level_fields = RISK_LEVEL_FIELD_MAP[risk_level]
@@ -387,6 +392,21 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
     reinsurance risk level. Individual programme level profile IDs are
     assigned for each row of the reinsurance info dataframe. Finally, the
     Oasis structure is written out.
+
+    Args:
+        ri_info_df (pandas.DataFrame): reinsurance info, one row per contract
+        ri_scope_df (pandas.DataFrame): reinsurance scope, joined to ri_info_df on ReinsNumber
+        xref_descriptions_df (pandas.DataFrame): Fm summary mapping enhanced by relevant
+            information from Loc and Account
+        output_dir (str): directory the per-layer RI_<n> sub-directories are written into
+        fm_xref_fp (str): path to the direct insurance fm_xref binary the RI xref is built from
+        intermediary_csv (bool): If True, also write a csv copy of each Oasis structure alongside
+            the binary
+        logger (logging.Logger): logger the dataframes are dumped to at debug level
+
+    Returns:
+        dict: one entry per written layer, keyed by a 1-based reinsurance index, holding the
+            inuring_priority, risk_level and output directory of that layer
     """
     fm_xref_df = pd.DataFrame(np.fromfile(fm_xref_fp, dtype=fm_xref_dtype))
     fm_xref_df['agg_id'] = range(1, 1 + len(fm_xref_df))

@@ -642,7 +642,9 @@ def _try_add_key(info, lookup_table, index_table, key_storage, key, i_item=None)
     modes compile to specialized code with no runtime overhead.
 
     Args:
-        info, lookup_table, index_table: unpacked views.
+        info: unpacked view of the hashmap info array.
+        lookup_table: unpacked view of the slot lookup table.
+        index_table: unpacked view of the slot to dense index table.
         key_storage: 1D array. Read for equality checks against stored keys;
                      also written to in by-value mode.
         key: the key value to insert or find.

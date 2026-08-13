@@ -46,8 +46,8 @@ def stream_info_to_bytes(stream_source_type, stream_agg_type):
     """From Stream source type and aggregation type produce the stream header
 
     Args:
-        stream_source_type (np.int32):
-        stream_agg_type (np.int32):
+        stream_source_type (np.int32): id of the tool that produced the stream
+        stream_agg_type (np.int32): id of the aggregation level of the stream
 
     Returns:
         return bytes
@@ -72,6 +72,7 @@ def read_stream_info(stream_obj):
 
     Args:
         stream_obj: open stream
+
     Returns:
         (stream_source_type, stream_agg_type, len_sample) as np.int32 triplet
     """
@@ -171,8 +172,7 @@ def mv_write_summary_header_cached(byte_mv, cursor, event_id, summary_id, exposu
                                    event_id_type, event_id_size,
                                    summary_id_dtype, summary_id_size,
                                    exposure_value_dtype, exposure_value_size) -> int:
-    """
-    Cached write a summary header to the numpy byte view at index cursor, return the index of the end of the object
+    """Cached write a summary header to the numpy byte view at index cursor, return the index of the end of the object
     Args:
         byte_mv: numpy byte view
         cursor: index of where the object start
@@ -180,10 +180,10 @@ def mv_write_summary_header_cached(byte_mv, cursor, event_id, summary_id, exposu
         summary_id: summary id
         exposure_value: exposure value
         event_id_type: type info for event id
-        summary_id_type: type info for summary id
-        exposure_value_type: type info for exposure value
         event_id_size: size of event id in bytes
+        summary_id_dtype: type info for summary id
         summary_id_size: size of summary id
+        exposure_value_dtype: type info for exposure value
         exposure_value_size: size of exposure value
 
     Returns:
@@ -205,10 +205,6 @@ def mv_write_item_header(byte_mv, cursor, event_id, item_id) -> int:
         cursor: index of where the object start
         event_id: event id
         item_id: item id
-        event_id_type: type info for event id
-        item_id_type: type info for item id
-        event_id_size: size of event id in bytes
-        item_id_size: size of item id
 
     Returns:
         end of object index
@@ -240,8 +236,7 @@ def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
 @nb.jit(nopython=True, cache=True)
 def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
                               loss_type, sidx_size, loss_size) -> int:
-    """
-    Cached write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
+    """Cached write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
     Args:
         byte_mv: numpy byte view
         cursor: index of where the object start
@@ -337,8 +332,8 @@ class EventReader:
         Args:
             streams_in: streams to read
 
-        Returns:
-            event id generator
+        Yields:
+            int: each event id read from the streams
         """
         try:
             main_selector, stream_data = self.register_streams_in(selectors.DefaultSelector, streams_in)

@@ -11,6 +11,7 @@ def map_data(data: Optional[dict], logger) -> Optional[pd.DataFrame]:
 
     Args:
         data: (dict) the data loaded from the model settings
+        logger: logger used to warn when the model settings hold no correlation data
 
     Returns: (pd.DataFrame) the mapped data
     """

@@ -52,6 +52,7 @@ def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
         dataframe: DataFrame to convert to numpy
         dtype: numpy dtype of the output ndarray
         columns: optional dict-like object (with get method) mapping np_column => dataframe_column if they are different
+
     Returns:
         numpy nd array
 
@@ -110,6 +111,7 @@ class Footprint:
 
         Args:
             storage (BaseStorage): the storage object used to lookup files
+            df_engine (str): the engine to use when loading dataframes
             areaperil_ids (list): areaperil_ids that will be useful
         """
         self.storage = storage
@@ -170,6 +172,11 @@ class Footprint:
             z
             bin
             idx
+
+            df_engine (str): the engine to use when loading dataframes
+            areaperil_ids (list): areaperil_ids to filter the loaded footprint to
+            **kwargs: additional keyword arguments, accepted and ignored so that callers can
+                forward a wider parameter dict
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """
@@ -459,13 +466,15 @@ class FootprintParquetChunk(Footprint):
         return self
 
     def get_event(self, event_id: int):
-        """Gets the event data from the partitioned
-        parquetfootprint_chunked_filename data file.
+        """Gets the event data from the partitioned footprint_<partition>.parquet files
+        under parquetfootprint_chunked_dir.
 
         Args:
-            event_id: (int) the ID belonging to the Event being extracted
+            event_id (int): the ID belonging to the Event being extracted
 
-        Returns: (np.array[Event]) the event that was extracted
+        Returns:
+            np.array[Event]: the event that was extracted, or None if the event is absent from the
+                lookup map or from its partition
         """
         event_info = self.footprint_lookup_map.get(event_id)
         if event_info is None:

@@ -187,7 +187,7 @@ below is the summary:
 
 To test the code style run:
 
-    flake8
+    ruff check oasislmf/
 
 To test against all supported python versions run:
 

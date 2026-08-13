@@ -41,7 +41,7 @@ def generate_output_metadata(output):
     output description has type List(Tuple({name: str}, {type: Any}, {format: str}))
 
     Args:
-        output_map (list(tuple(str, Any, str))): Dictionary mapping string name to  {output description}_output list
+        output (list(tuple(str, Any, str))): Dictionary mapping string name to  {output description}_output list
     Returns:
         result (tuple(list[str], np.dtype, str)): Tuple containing the generated *_header list, *_dtype np.dtype, *_fmt csv format string
     """

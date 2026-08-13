@@ -38,11 +38,7 @@ class MarkdownGenerator:
         return slug
 
     def generate_toc(self, ):
-        """Generate a table of contents from markdown string
-
-        Returns:
-            toc (str): Table of contents markdown string
-        """
+        """Generate a table of contents from markdown string and prepend it to the sections."""
         markdown_text = "".join(self.sections)
         lines = markdown_text.split('\n')
         toc = []

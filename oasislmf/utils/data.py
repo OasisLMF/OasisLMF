@@ -196,6 +196,7 @@ def factorize_array(arr, sort_opt=False):
 
     Args:
         arr (numpy.ndarray): 1D Numpy array (or list, tuple, or Pandas series)
+        sort_opt (bool): sort the value groups before enumerating them (optional; default is False)
 
     Returns:
         tuple: A 2-tuple consisting of the enumeration and the value groups
@@ -213,6 +214,7 @@ def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[], sort_opt=False):
         ndarr (numpy.ndarray): n-D Numpy array (or appropriate Python structure or Pandas dataframe)
         row_idxs (list): A list of row indices to use for factorization (optional)
         col_idxs (list): A list of column indices to use for factorization (optional)
+        sort_opt (bool): sort the value groups before enumerating them (optional; default is False)
 
     Returns:
         tuple: A 2-tuple consisting of the enumeration and the value groups
@@ -357,9 +359,9 @@ def get_dataframe(
 
     Args:
         src_fp (str): Source CSV or JSON file path (optional)
-        src_type: Type of source file -CSV or JSON (optional; default is csv)
-        src_type: str
+        src_type (str): Type of source file -CSV or JSON (optional; default is csv)
         src_buf (io.StringIO): Text buffer of a source CSV or JSON file (optional)
+        src_data (list, dict): Source data to load the frame from directly (optional)
         float_precision (str): Indicates whether to support high-precision numbers
             present in the data (optional; default is high)
         empty_data_error_msg (str): The message of the exception that is thrown
@@ -536,8 +538,12 @@ def get_dtypes_and_required_cols(get_dtypes, all_dtypes=False):
     """Get OED column data types and required column names from JSON.
 
     Args:
-        all_dtypes (bool): If true return every dtype field, otherwise only categoricals
         get_dtypes (function): method to get dict from JSON
+        all_dtypes (bool): If true return every dtype field, otherwise only categoricals
+
+    Returns:
+        Tuple[dict, list]: column name to dtype mapping, and the names of the columns marked
+            as required
     """
     dtypes = get_dtypes()
 
@@ -659,11 +665,14 @@ def merge_check(left, right, on=[], raise_error=True):
 
     Args:
         left (pd.DataFrame): The first of two dataframes to be merged
-        right: The second of two dataframes to be merged
+        right (pd.DataFrame): The second of two dataframes to be merged
         on (list): column keys to test
+        raise_error (bool): Whether to raise when a key has no intersection
+            (optional; default is True)
 
-    Returns:
-        dict: A dict of booleans, True for an intersection between left/right
+    Raises:
+        OasisException: if raise_error is set and any key in `on` has no intersection
+            between left and right
     """
     keys_checked = {}
     for key in on:
@@ -682,8 +691,10 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
 
     Args:
         left (pd.DataFrame): The first of two dataframes to be merged
-        right: The second of two dataframes to be merged
-        kwargs (dict): Optional keyword arguments passed directly to the underlying
+        right (pd.DataFrame): The second of two dataframes to be merged
+        join_on (str, list): Column key(s) to index and join on. When set, the frames are joined
+            on this index instead of being passed to pd.merge (optional)
+        **kwargs (dict): Optional keyword arguments passed directly to the underlying
             pd.merge method that is called, including options for the
             join keys, join type, etc. - please see the pd.merge
             documentation for details of these optional arguments
@@ -875,10 +886,9 @@ def print_dataframe(
             method documnetation (optional; default is ".2f")
         end (str): String to append after printing the dataframe
             (optional; default is newline)
-        tabulate_kwargs: Additional optional arguments passed directly to
+        **tabulate_kwargs (dict): Additional optional arguments passed directly to
             the underlying tabulate.tabulate method - see the
             method documentation for more details
-        tabulate_kwargs: dict
     """
     _df = df.copy(deep=True)
 

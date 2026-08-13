@@ -142,6 +142,9 @@ class OasisBaseLookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         objects or any object which has as a dict-like interface.
 
         Generates results using ``yield``.
+
+        Yields:
+            dict: the lookup result for each (location, peril_id, coverage_type) combination
         """
         locs_seq = None
 

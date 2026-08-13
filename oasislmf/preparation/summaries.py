@@ -118,6 +118,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
 
     Args:
         inputs_df (pandas.DataFrame): datafame from gul_inputs.get_gul_input_items(..)  / il_inputs.get_il_input_items(..)
+        oed_hierarchy (dict): OED profile hierarchy, used to resolve the acc/loc/pol/port column names to keep
         is_fm_summary (bool): Indicates whether an FM summary mapping is required
 
     Returns:
@@ -185,8 +186,10 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     """Adds list of OED fields from `column_set` to summary map file
 
     Args:
+        oed_col_group (list): OED column names the rows are grouped by to form the summaries
         summary_map_df (pandas.DataFrame): dataframe return from get_summary_mapping
         exposure_df (pandas.DataFrame): DataFrame loaded from location.csv
+        sort_by (str): column the grouped rows are ordered by
         accounts_df (pandas.DataFrame): DataFrame loaded from accounts.csv
 
     Returns:
@@ -306,8 +309,8 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
     """Writes a summary map file, used to build summarycalc xref files.
 
     Args:
-        summary_mapping (pandas.DataFrame): dataframe return from get_summary_mapping
-        sum_mapping_fp (str): Summary map file path
+        sum_inputs_df (pandas.DataFrame): dataframe return from get_summary_mapping
+        target_dir (str): directory the summary map file is written to
         is_fm_summary (bool): Indicates whether an FM summary mapping is required
 
     Returns:
@@ -468,6 +471,7 @@ def get_summary_xref_df(
         map_df (pandas.DataFrame): Summary Map dataframe (GUL / IL)
         exposure_df (pandas.DataFrame): Location OED data
         accounts_df (pandas.DataFrame): Accounts OED data
+        id_set_index (str): column of map_df the summary xref ids are taken from
         summaries_info_dict (list): list of dictionary definition for a summary group from the
             analysis_settings file, e.g.::
 
@@ -553,6 +557,10 @@ def generate_summaryxref_files(
     """Top level function for creating the summaryxref files from the manager.py
 
     Args:
+        location_df (pandas.DataFrame): Source locations, joined to the summary map to build the
+            summary groupings and their description files
+        account_df (pandas.DataFrame): Source accounts, joined the same way. Required for the il,
+            ri and rl summary levels
         model_run_fp (str): Model run directory file path
         analysis_settings (dict): Model analysis settings file
         il (bool): Boolean to indicate the insured loss level mode - false if the
@@ -561,6 +569,8 @@ def generate_summaryxref_files(
             source accounts file path not provided to Oasis files gen.
         rl (bool): Boolean to indicate the RL loss level mode - false if the
             source accounts file path not provided to Oasis files gen.
+        intermediary_csv (bool): If True, also write a csv copy of each summaryxref file
+            alongside the binary
     """
     # Boolean checks for summary generation types (gul / il / ri)
     gul_summaries = all([
@@ -870,6 +880,7 @@ def get_exposure_summary(
         exposure_df (pandas.DataFrame): source exposure dataframe
         keys_df (pandas.DataFrame): dataFrame holding keys data (success and errors)
         exposure_profile (dict): profile defining exposure file
+        additional_fields (list): extra exposure columns to group the summary by, on top of loc_id
 
     Returns:
         dict: Exposure summary dictionary

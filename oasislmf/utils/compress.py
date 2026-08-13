@@ -22,7 +22,7 @@ def compress_string(st: str) -> bytes:
     with a modification to set block/chunk size to 500 Mb (5 x 10^8 bytes).
 
     Args:
-        s (str): Input string to be compressed
+        st (str): Input string to be compressed
 
     Returns:
         bytes: Compressed string as bytes

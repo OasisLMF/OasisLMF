@@ -247,8 +247,20 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
         len_sample: max sample id
         last_loss_summary_index: last summary index written (used to restart from the last summary when buffer was full)
         last_sidx: last sidx written in the buffer (used to restart from the correct sidx when buffer was full
+        output_zeros: if False, summaries and samples with a zero loss are skipped
+        has_affected_risk: None when the number of affected risks is not tracked, otherwise the affected risk data
+        summary_set_index: index of the summary set being written
+        summary_set_index_to_loss_ptr: start offset of each summary set in loss_summary
+        summary_set_index_to_present_loss_ptr_end: end offset of each summary set in present_summary_id
+        present_summary_id: summary ids present in this event, per summary set
+        loss_summary: the loss values to write, indexed by summary set offset and summary id
+        summary_index_cursor: next free slot in summary_stream_index
+        summary_sets_cursor: running byte offset written so far for each summary set
+        summary_stream_index: index records (summary_id, offset) written alongside the stream
 
-        see other args definition in run method
+    Returns:
+        the cursor reached in byte_mv, the summary index to resume from (-1 when the event is
+        complete), the sidx to resume from, and the updated summary_index_cursor
     """
     cursor = 0
     for loss_summary_index in range(max(summary_set_index_to_loss_ptr[summary_set_index], last_loss_summary_index),

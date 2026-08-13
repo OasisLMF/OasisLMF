@@ -37,7 +37,7 @@ class KeyServerInterface(metaclass=abc.ABCMeta):
             config_dir (str): path to the model directory, can be used to locate relative path to all the files
                 that serve as base for the model
             user_data_dir (str): Path to additional data necessary for the model that can vary from analysis to analysis
-            output_dir: Path to the analysis output directory, can be use to write additional files that are produce
+            output_dir (str): Path to the analysis output directory, can be use to write additional files that are produce
                 during the keys file generation
         """
         raise NotImplementedError
@@ -72,6 +72,7 @@ class KeyServerInterface(metaclass=abc.ABCMeta):
             multiproc_enabled (bool): option to run with multiple processor
             multiproc_num_cores (int): number of cores to use in multiproc mode
             multiproc_num_partitions (int): number of partition to create in multiproc mode
+            **kwargs: additional keyword arguments for model specific implementations
         """
         raise NotImplementedError
 

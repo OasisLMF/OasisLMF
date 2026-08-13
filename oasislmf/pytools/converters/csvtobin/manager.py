@@ -53,6 +53,7 @@ def csvtobin(file_in, file_out, file_type, **kwargs):
         file_in (str | os.PathLike): Input file path
         file_out (str | os.PathLike): Output file path
         file_type (str): File type str from SUPPORTED_CSVTOBIN
+        **kwargs: additional keyword arguments forwarded to the file type specific converter
     """
     with ExitStack() as stack:
         file_out = resolve_file(file_out, "wb", stack)
