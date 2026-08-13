@@ -17,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, ignore_file_type=set()):
-    """
-    Get Post Loss Amplification (PLA) factors mapped to event ID-item ID pair.
+    """Get Post Loss Amplification (PLA) factors mapped to event ID-item ID pair.
     Returns empty dictionary if uniform factor to apply across all losses has
     been given.
 
@@ -58,11 +57,13 @@ def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, 
 
 def read_lossfactors(run_dir="", ignore_file_type=set(), filename=PLAFACTORS_FILE, use_stdin=False):
     """Load the correlations from the lossfactors file.
+
     Args:
         run_dir (str): path to lossfactors.bin file
         ignore_file_type (Set[str]): file extension to ignore when loading.
         filename (str | os.PathLike): lossfactors file name
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
+
     Returns:
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
     """

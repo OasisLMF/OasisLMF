@@ -13,8 +13,7 @@ from ...utils.exceptions import OasisException
 
 
 class PostFileGen(ComputationStep):
-    """
-    Computation step that will be call just after oasis file generation.
+    """Computation step that will be call just after oasis file generation.
     On the platform it will be called on a single machine before the files are copied on the several worker for the loss calculation
     Add the ability to specify a model specific step that will modify or expand on the loss calculation input file
     """
@@ -50,6 +49,8 @@ class PostFileGen(ComputationStep):
                     'help': 'Directory containing additional model data files which varies between analysis runs'},
                    {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
                     'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
+                   {'name': 'disable_oed_version_update', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+                    'help': 'Flag to disable automatic conversion of exposure data to the latest compatible OED version.'},
                    ]
 
     run_dir_key = 'pre-loss'
@@ -69,12 +70,12 @@ class PostFileGen(ComputationStep):
             'base_df_engine': self.base_df_engine,
             'exposure_df_engine': self.exposure_df_engine,
             'backend_dtype': self.oed_backend_dtype,
+            'supported_oed_versions': self.settings.get('data_settings', {}).get('supported_oed_versions'),
+            'disable_oed_version_update': self.disable_oed_version_update,
         }
 
     def run(self):
-        """
-        import post_file_gen_module and call the run method
-        """
+        """Import post_file_gen_module and call the run method"""
         exposure_data = get_exposure_data(self, add_internal_col=True)
         kwargs = dict()
 

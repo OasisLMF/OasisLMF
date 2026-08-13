@@ -39,8 +39,9 @@ MEAN_TYPE_SAMPLE = 2
 def generate_output_metadata(output):
     """Generates *_header, *_dtype and *_fmt items given a list of tuples describing some output description
     output description has type List(Tuple({name: str}, {type: Any}, {format: str}))
+
     Args:
-        output_map (list(tuple(str, Any, str))): Dictionary mapping string name to  {output description}_output list
+        output (list(tuple(str, Any, str))): Dictionary mapping string name to  {output description}_output list
     Returns:
         result (tuple(list[str], np.dtype, str)): Tuple containing the generated *_header list, *_dtype np.dtype, *_fmt csv format string
     """
@@ -49,6 +50,19 @@ def generate_output_metadata(output):
     fmt = ','.join([c[2] for c in output])
     result = (headers, dtype, fmt)
     return result
+
+
+def def_to_type_and_size(def_str):
+    definition = globals().get(def_str, None)
+
+    if not isinstance(definition, tuple) or len(definition) != 3:
+        definition = None
+
+    if definition is None:
+        raise OasisException(f'Could not find dtype for variable: {def_str}')
+
+    dtype = np.dtype(definition[1])
+    return dtype, dtype.itemsize
 
 
 # single type definition index
@@ -109,7 +123,7 @@ random_no = ("random_no", 'f4', "%f")
 return_period = ("return_period", 'i4', "%d")
 scale1 = ("scale1", oasis_float, "%f")
 scale2 = ("scale2", oasis_float, "%f")
-section_id = ("scale2", oasis_int, "%d")
+section_id = ("section_id", oasis_int, "%d")
 share1 = ("share1", oasis_float, "%f")
 share2 = ("share2", oasis_float, "%f")
 share3 = ("share3", oasis_float, "%f")
@@ -124,6 +138,10 @@ trigger_start = ("trigger_start", oasis_float, "%f")
 vulnerability_id = ("vulnerability_id", 'i4', "%d")
 vulnerability_weight = ("weight", oasis_float, "%f")
 
+# custom header type definitions
+vulnerability_bin_header_type = np.dtype([
+    ('max_damage_bin_idx', np.int32),
+])
 
 # Types
 aggregatevulnerability_output = [
@@ -361,17 +379,20 @@ vulnerability_weight_output = [
 ]
 vulnerability_weight_headers, vulnerability_weight_dtype, vulnerability_weight_fmt = generate_output_metadata(vulnerability_weight_output)
 
-loss_pair_dtype = np.dtype([('sidx', oasis_int), ('loss', oasis_float)], align=False)
+loss_pair_dtype = np.dtype([('sidx', sidx[1]), ('loss', loss[1])], align=False)
 loss_pair_size = loss_pair_dtype.itemsize
 
-summary_stream_index_dtype = np.dtype([('summary_id', oasis_int), ('offset', np.int64)])
+item_header_dtype = np.dtype([('event_id', event_id[1]), ('item_id', item_id[1])])
+item_header_size = item_header_dtype.itemsize
+
+summary_stream_index_dtype = np.dtype([('summary_id', summary_id[1]), ('offset', np.int64)])
 summary_stream_index_size = summary_stream_index_dtype.itemsize
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
-    """
-    load a file as a numpy ndarray
+    """Load a file as a numpy ndarray
     useful for multi-columns files
+
     Args:
         dir_path: path to the directory where the binary or csv file is stored
         name: name of the file
@@ -381,7 +402,6 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     Returns:
         numpy ndarray
     """
-
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
         return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
@@ -414,11 +434,11 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
 
 
 def load_as_array(dir_path, name, _dtype, must_exist=True):
-    """
-    load file as a single numpy array,
-     useful for files with a binary version with only one type of value where their index correspond to an id.
-     For example coverage.bin only contains tiv value for each coverage id
-     coverage_id n correspond to index n-1
+    """Load file as a single numpy array,
+    useful for files with a binary version with only one type of value where their index correspond to an id.
+    For example coverage.bin only contains tiv value for each coverage id
+    coverage_id n correspond to index n-1
+
     Args:
         dir_path: path to the directory where the binary or csv file is stored
         name: name of the file

@@ -14,8 +14,7 @@ from ...utils.exceptions import OasisException
 
 
 class ExposurePreAnalysis(ComputationStep):
-    """
-    Computation step that will be call before the gulcalc.
+    """Computation step that will be call before the gulcalc.
     Add the ability to specify a model specific pre-analysis hook for exposure modification,
     Allows OED to be processed by some custom code.
     Example of usage include geo-coding, exposure enhancement, or dis-aggregation...
@@ -27,7 +26,6 @@ class ExposurePreAnalysis(ComputationStep):
     - return the output of the method
 
     you can find an example of such custom module in OasisPyWind/custom_module/exposure_pre_analysis.py
-
     """
     settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
                        {'name': 'model_settings_json', 'loader': model_settings_loader}]
@@ -61,6 +59,8 @@ class ExposurePreAnalysis(ComputationStep):
                     'help': 'Directory containing additional model data files which varies between analysis runs'},
                    {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
                     'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
+                   {'name': 'disable_oed_version_update', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+                    'help': 'Flag to disable automatic conversion of exposure data to the latest compatible OED version.'},
                    ]
 
     run_dir_key = 'pre-analysis'
@@ -80,12 +80,12 @@ class ExposurePreAnalysis(ComputationStep):
             'base_df_engine': self.base_df_engine,
             'exposure_df_engine': self.exposure_df_engine,
             'backend_dtype': self.oed_backend_dtype,
+            'supported_oed_versions': self.settings.get('data_settings', {}).get('supported_oed_versions'),
+            'disable_oed_version_update': self.disable_oed_version_update,
         }
 
     def run(self):
-        """
-        import exposure_pre_analysis_module and call the run method
-        """
+        """Import exposure_pre_analysis_module and call the run method"""
         exposure_data = get_exposure_data(self, add_internal_col=True)
         kwargs = dict()
 

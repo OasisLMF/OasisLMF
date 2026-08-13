@@ -30,8 +30,7 @@ from ..utils.exceptions import OasisException
 
 
 class ApiEndpoint(object):
-    """
-    Used to Implement the default requests common to all Oasis API
+    """Used to Implement the default requests common to all Oasis API
     End points.
     """
 
@@ -62,9 +61,7 @@ class ApiEndpoint(object):
 
 
 class JsonEndpoint(object):
-    """
-    Used for JSON data End points.
-    """
+    """Used for JSON data End points."""
 
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
@@ -104,9 +101,7 @@ class JsonEndpoint(object):
 
 
 class FileEndpoint(object):
-    """
-    File Resources Endpoint for Upload / Downloading
-    """
+    """File Resources Endpoint for Upload / Downloading"""
 
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
@@ -163,12 +158,11 @@ class FileEndpoint(object):
         return self.session.get(self._build_url(ID))
 
     def get_dataframe(self, ID):
-        '''
-        Return file endpoint as dict of pandas Dataframes:
+        """Return file endpoint as dict of pandas Dataframes:
 
         either 'application/gzip': search and extract all csv
         or 'text/csv': return as dataframe
-        '''
+        """
         supported_content = [
             'text/csv',
             'application/gzip',
@@ -250,9 +244,7 @@ class SettingTemplatesBaseEndpoint(object):
 
 
 class SettingTemplatesEndpoint(SettingTemplatesBaseEndpoint):
-    """
-    Settings Template Endpoint for interacting with analysis settings templates for a given model.
-    """
+    """Settings Template Endpoint for interacting with analysis settings templates for a given model."""
 
     def __init__(self, session, url_endpoint, logger=None):
         super().__init__(session, url_endpoint)
@@ -265,6 +257,7 @@ class API_models(ApiEndpoint):
         self.resource_file = FileEndpoint(self.session, self.url_endpoint, 'resource_file/')
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
         self.versions = JsonEndpoint(self.session, self.url_endpoint, 'versions/')
+        self.storage_links = JsonEndpoint(self.session, self.url_endpoint, 'storage_links/')
 
         # Platform 2.0 only (Check might be needed here)
         self.chunking_configuration = JsonEndpoint(self.session, self.url_endpoint, 'chunking_configuration/')
@@ -290,6 +283,66 @@ class API_models(ApiEndpoint):
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
 
+class ExposureRunEndpoint(FileEndpoint):
+    """Endpoint for `<portfolio>/exposure_run/` - runs (or fetches the result of)
+    `oasislmf exposure run` on the server against the portfolio's exposure files.
+    """
+
+    def post(self, ID, params=None):
+        return self.session.post(self._build_url(ID), json={'params': params or {}})
+
+
+class ExposureTransformEndpoint(object):
+    """Endpoint for `<portfolio>/exposure_transform/` - converts exposure data
+    between OED and AIR using a mapping and transform file.
+    """
+
+    def __init__(self, session, url_endpoint, logger=None):
+        self.logger = logger or logging.getLogger(__name__)
+        self.session = session
+        self.url_endpoint = str(url_endpoint)
+
+    def _build_url(self, ID):
+        return urljoin(self.url_endpoint, str(ID), 'exposure_transform/')
+
+    def post(self, ID, file_type, mapping_file, transform_file):
+        m = MultipartEncoder(fields={
+            'file_type': file_type,
+            'mapping_file': (os.path.basename(mapping_file), open(mapping_file, 'rb'), 'application/octet-stream'),
+            'transform_file': (os.path.basename(transform_file), open(transform_file, 'rb'), 'application/octet-stream'),
+        })
+        return self.session.post(
+            self._build_url(ID),
+            data=m,
+            headers={'Content-Type': m.content_type}
+        )
+
+
+class TarExtractEndpoint(FileEndpoint):
+    """Endpoint for extracting a single named file out of a tar-based file
+    resource, e.g. `<analyses>/input_file_tar_extract/?filename=...`
+    """
+
+    def get(self, ID, filename):
+        return self.session.get(self._build_url(ID), params={'filename': filename})
+
+    def download(self, ID, filename, file_path, overwrite=True, chuck_size=1024):
+        abs_fp = os.path.realpath(os.path.expanduser(file_path))
+        dir_fp = os.path.dirname(abs_fp)
+
+        if not os.path.exists(dir_fp):
+            os.makedirs(dir_fp)
+
+        if os.path.exists(abs_fp) and not overwrite:
+            error_message = 'Local file alreday exists: {}'.format(abs_fp)
+            raise IOError(error_message)
+
+        with io.open(abs_fp, 'wb') as f:
+            r = self.get(ID, filename)
+            f.write(r.content)
+        return r
+
+
 class API_portfolios(ApiEndpoint):
 
     def __init__(self, session, url_endpoint):
@@ -301,6 +354,10 @@ class API_portfolios(ApiEndpoint):
         self.currency_conversion_json = FileEndpoint(self.session, self.url_endpoint, 'currency_conversion_json/')
         self.storage_links = JsonEndpoint(self.session, self.url_endpoint, 'storage_links/')
         self.reporting_currency = JsonEndpoint(self.session, self.url_endpoint, 'reporting_currency/')
+        self.errors_file = FileEndpoint(self.session, self.url_endpoint, 'errors_file/')
+        self.validate = JsonEndpoint(self.session, self.url_endpoint, 'validate/')
+        self.exposure_run = ExposureRunEndpoint(self.session, self.url_endpoint, 'exposure_run/')
+        self.exposure_transform = ExposureTransformEndpoint(self.session, self.url_endpoint)
 
     def create(self, name):
         data = {"name": name}
@@ -311,8 +368,7 @@ class API_portfolios(ApiEndpoint):
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
     def create_analyses(self, ID, name, model_id):
-        """ Create new analyses from Exisiting portfolio
-        """
+        """Create new analyses from Exisiting portfolio"""
         data = {"name": name,
                 "model": model_id}
         return self.session.post('{}{}/create_analysis/'.format(self.url_endpoint, ID), json=data)
@@ -344,6 +400,7 @@ class API_task_status(ApiEndpoint):
         super(API_task_status, self).__init__(session, url_endpoint)
         self.output_log = FileEndpoint(self.session, self.url_endpoint, 'output_log/')
         self.error_log = FileEndpoint(self.session, self.url_endpoint, 'error_log/')
+        self.retry_log = FileEndpoint(self.session, self.url_endpoint, 'retry_log/')
 
 
 class API_analyses(ApiEndpoint):
@@ -361,6 +418,11 @@ class API_analyses(ApiEndpoint):
         self.run_log_file = FileEndpoint(self.session, self.url_endpoint, 'run_log_file/')
         self.settings_file = FileEndpoint(self.session, self.url_endpoint, 'settings_file/')
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
+        self.run_progress = JsonEndpoint(self.session, self.url_endpoint, 'run_progress/')
+        self.input_file_tar_list = JsonEndpoint(self.session, self.url_endpoint, 'input_file_tar_list/')
+        self.output_file_tar_list = JsonEndpoint(self.session, self.url_endpoint, 'output_file_tar_list/')
+        self.input_file_tar_extract = TarExtractEndpoint(self.session, self.url_endpoint, 'input_file_tar_extract/')
+        self.output_file_tar_extract = TarExtractEndpoint(self.session, self.url_endpoint, 'output_file_tar_extract/')
         # Platform 2.0 only (Check might be needed here)
         self.chunking_configuration = JsonEndpoint(self.session, self.url_endpoint, 'chunking_configuration/')
 
@@ -410,6 +472,10 @@ class API_analyses(ApiEndpoint):
 
     def sub_task_list(self, ID):
         return self.session.get('{}{}/sub_task_list/'.format(self.url_endpoint, ID))
+
+    def combine(self, analysis_ids, config, name='combine-analysis'):
+        data = {"analysis_ids": analysis_ids, "config": config, "name": name}
+        return self.session.post(urljoin(self.url_endpoint, 'combine/'), json=data)
 
 # --- API Main Client ------------------------------------------------------- #
 
@@ -464,9 +530,17 @@ class APIClient(object):
     def healthcheck(self):
         return self.api.get('{}healthcheck/'.format(self.api.url_base))
 
+    def healthcheck_connections(self):
+        return self.api.get('{}healthcheck_connections/'.format(self.api.url_base))
+
+    def queue(self):
+        return self.api.get('{}{}/queue/'.format(self.api.url_base, self.api_ver))
+
+    def queue_status(self):
+        return self.api.get('{}{}/queue-status/'.format(self.api.url_base, self.api_ver))
+
     def upload_portfolio_file(self, portfolio_id, portfolio_file, upload_data):
-        """
-        Upload a portfolio file using the API. Supports absolute filepaths or
+        """Upload a portfolio file using the API. Supports absolute filepaths or
         bytestreams.
 
         If uploading a byte stream `upload_data` is a dict with the keys `name`
@@ -478,21 +552,15 @@ class APIClient(object):
                               {'bytes': <byte_stream>, 'name': <filename>})
         ```
 
-        Parameters
-        :param portfolio_id: Portfolio {id} from
-        :type portfolio_id: int
-
-        :param portfolio_file: The name of the portfolio file to update. One of
-            the following options `location_file`, `accounts_file`,
-            `reinsurance_info_file`, `reinsurance_scope_file` or `currency_conversion_json`.
-        :type settings: str
-
-        :param upload_data: The file to upload through the api. This should be
-        a `str` if it is a filepath or a `dict` if it is a byte stream with the
-        keys `name` and `bytes` corresponding to the filename and bytestream
-        respectively.
-        :type upload_data: [str, dict]
-        ----------
+        Args:
+            portfolio_id (int): Portfolio {id} from
+            portfolio_file (str): The name of the portfolio file to update. One of
+                the following options `location_file`, `accounts_file`,
+                `reinsurance_info_file`, `reinsurance_scope_file` or `currency_conversion_json`.
+            upload_data ([str, dict]): The file to upload through the api. This should be
+                a `str` if it is a filepath or a `dict` if it is a byte stream with the
+                keys `name` and `bytes` corresponding to the filename and bytestream
+                respectively.
         """
         if isinstance(upload_data, dict):
             getattr(self.portfolios, portfolio_file).upload_byte(portfolio_id,
@@ -549,7 +617,7 @@ class APIClient(object):
         """Gets either the json or csv file referenced in the json and tells the endpoint which is needed
 
         Args:
-            filepath (string): path to json file
+            filepath (str): path to json file
 
         Returns:
             string: path to either same json file or csv file referenced by json file
@@ -563,21 +631,13 @@ class APIClient(object):
         return filepath
 
     def upload_settings(self, analyses_id, settings):
-        """
-        Upload an analyses run settings to an API
+        """Upload an analyses run settings to an API
 
         Method to post JSON data or upload a settings file containing JSON data
 
-        Parameters
-        ----------
-        :param analyses_id: Analyses settings {id} from, `v1/analyses/{id}/settings`
-        :type analyses_id: int
-
-        :param settings: Either a valid filepath or dictionary holding the settings
-        :type settings: [str, dict]
-
-        :return:
-        :rtype None
+        Args:
+            analyses_id (int): Analyses settings {id} from, `v1/analyses/{id}/settings`
+            settings ([str, dict]): Either a valid filepath or dictionary holding the settings
         """
         if isinstance(settings, dict):
             self.analyses.settings.post(analyses_id, settings)
@@ -605,17 +665,25 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'create_analysis: failed')
 
     def run_generate(self, analysis_id, poll_interval=5):
-        """
-        Generates the inputs for the analysis based on the portfolio.
+        """Generates the inputs for the analysis based on the portfolio.
         The analysis must have one of the following statuses, `NEW`, `INPUTS_GENERATION_ERROR`,
         `INPUTS_GENERATION_CANCELLED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`.
         """
-
         try:
-            r = self.analyses.generate(analysis_id)
-            analysis = r.json()
-            self.logger.info('Inputs Generation: Starting (id={})'.format(analysis_id))
+            analysis = self.analyses.generate(analysis_id).json()
+        except HTTPError as e:
+            self.api.unrecoverable_error(e, 'run_generate: failed')
+            return
+        self.logger.info('Inputs Generation: Starting (id={})'.format(analysis_id))
+        return self._poll_generate_until_complete(analysis_id, analysis, poll_interval)
+
+    def _poll_generate_until_complete(self, analysis_id, analysis, poll_interval):
+        """Polls an in-progress or already-complete input generation to completion,
+        without triggering it. `analysis` is the last known analysis dict/status,
+        as returned by `self.analyses.get(analysis_id).json()`.
+        """
+        try:
             logged_queued = None
             logged_running = None
 
@@ -684,8 +752,7 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'run_generate: failed')
 
     def run_analysis(self, analysis_id, analysis_settings_fp=None, poll_interval=5):
-        """
-        Runs all the analysis. The analysis must have one of the following
+        """Runs all the analysis. The analysis must have one of the following
         statuses, `NEW`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`
         """
@@ -750,6 +817,35 @@ class APIClient(object):
                     pbar.update(pbar.total - pbar.n)
                     break
 
+    def reconnect(self, analysis_id, output_dir=None, poll_interval=5):
+        """Reconnects to an analysis that is still generating inputs or running,
+        and resumes polling from its current status - without re-triggering
+        input generation or the run itself. If the run has already completed,
+        downloads the output (when `output_dir` is given).
+        """
+        analysis = self.analyses.get(analysis_id).json()
+        status = analysis['status']
+
+        if status in ['INPUTS_GENERATION_QUEUED', 'INPUTS_GENERATION_STARTED']:
+            self.logger.info(f'Reconnecting: Inputs Generation in progress (id={analysis_id})')
+            if not self._poll_generate_until_complete(analysis_id, analysis, poll_interval):
+                return False
+            status = self.analyses.status(analysis_id)
+
+        if status in ['RUN_QUEUED', 'RUN_STARTED']:
+            self.logger.info(f'Reconnecting: Analysis Run in progress (id={analysis_id})')
+            if not self._poll_analysis_until_complete(analysis_id, poll_interval):
+                return False
+            status = self.analyses.status(analysis_id)
+
+        if status == 'RUN_COMPLETED':
+            if output_dir is not None:
+                self.download_output(analysis_id, output_dir)
+            return True
+
+        self.logger.info(f'Reconnect: Analysis (id={analysis_id}) status={status} - nothing left to poll')
+        return False
+
     def download_output(self, analysis_id, download_path='', filename=None, clean_up=False, overwrite=True):
         if not filename:
             filename = 'analysis_{}_output.tar.gz'.format(analysis_id)
@@ -764,9 +860,7 @@ class APIClient(object):
             self.api.unrecoverable_error(e, err_msg)
 
     def cancel_generate(self, analysis_id):
-        """
-        Cancels a currently inputs generation. The analysis status must be `GENERATING_INPUTS`
-        """
+        """Cancels a currently inputs generation. The analysis status must be `GENERATING_INPUTS`"""
         try:
             self.analyses.cancel_generate_inputs(analysis_id)
             self.logger.info('Cancelled Input generation: (Id={})'.format(analysis_id))
@@ -774,8 +868,7 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'cancel_generate: Failed')
 
     def cancel_analysis(self, analysis_id):
-        """
-        Cancels a currently running analysis. The analysis must have one of the following
+        """Cancels a currently running analysis. The analysis must have one of the following
         statuses, `PENDING` or `STARTED`
         """
         try:

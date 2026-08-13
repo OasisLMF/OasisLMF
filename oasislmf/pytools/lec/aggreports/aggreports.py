@@ -250,10 +250,11 @@ class AggReports():
         """Output Mean Damage Ratio
         Mean Damage Losses - This means do the loss calculation for a year using the event mean
         damage loss computed by numerical integration of the effective damageability distributions.
+
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
-            outloss_type (string): Which loss to output
+            outloss_type (str): Which loss to output
         """
         if outloss_type not in ("agg_out_loss", "max_out_loss"):
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
@@ -273,10 +274,11 @@ class AggReports():
         """Output Full Uncertainty
         Full Uncertainty – this means do the calculation across all samples (treating the samples
         effectively as repeat years) - this is the most accurate of all the single EP Curves.
+
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
-            outloss_type (string): Which loss to output
+            outloss_type (str): Which loss to output
         """
         if outloss_type not in ("agg_out_loss", "max_out_loss"):
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
@@ -298,10 +300,11 @@ class AggReports():
         leave it at the sample level of detail, resulting in multiple "curves".
         Wheatsheaf Mean, Per Sample mean EPT – this means average the loss at each return period of
         the Per Sample EPT.
+
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
-            outloss_type (string): Which loss to output
+            outloss_type (str): Which loss to output
             output_wheatsheaf (bool): Bool to Output Wheatsheaf
             output_wheatsheaf_mean (bool): Bool to Output Wheatsheaf Mean
         """
@@ -338,10 +341,11 @@ class AggReports():
         """Output Sample Mean
         Sample Mean Losses – this means do the loss calculation for a year using the statistical
         sample event mean.
+
         Args:
             eptype (int): Exceedance Probability Type
             eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
-            outloss_type (string): Which loss to output
+            outloss_type (str): Which loss to output
         """
         if self.config.sample_size == 0:
             logger.warning("aggreports.output_sample_mean, self.sample_size is 0, not outputting any sample mean")

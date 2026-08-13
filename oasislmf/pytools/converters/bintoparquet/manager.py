@@ -19,7 +19,7 @@ def default_toparquet(stack, file_in, file_out, file_type):
     file_in = resolve_file(file_in, "rb", stack)
     chunk_bytes = DEFAULT_BUFFER_SIZE * dtype.itemsize
 
-    schema = pa.schema([(col, pa.array(np.empty(0, dtype=dtype.fields[col][0])).type) for col in headers])
+    schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
     writer = pq.ParquetWriter(file_out, schema)
     try:
         while True:
@@ -34,10 +34,12 @@ def default_toparquet(stack, file_in, file_out, file_type):
 
 def bintoparquet(file_in, file_out, file_type, **kwargs):
     """Convert bin file to parquet file based on file type
+
     Args:
         file_in (str | os.PathLike): Input file path
         file_out (str | os.PathLike): Output file path
         file_type (str): File type str from SUPPORTED_BINTOPARQUET
+        **kwargs: additional keyword arguments forwarded to the file type specific converter
     """
     with ExitStack() as stack:
         file_out = resolve_file(file_out, "wb", stack)

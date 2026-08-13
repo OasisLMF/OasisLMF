@@ -1,10 +1,7 @@
-"""
-This file contains the utilities for generating random numbers in gulpy.
-
-"""
+"""This file contains the utilities for generating random numbers in gulpy."""
 
 import logging
-from math import sqrt
+from math import floor, sqrt
 
 import numpy as np
 from numba import njit
@@ -44,6 +41,7 @@ cdf_min = -20
 cdf_max = 20.
 inv_factor = (norm_inv_N - 1) / (x_max - x_min)
 norm_factor = (norm_inv_N - 1) / (cdf_max - cdf_min)
+epsilon = 0.025
 
 
 @njit(cache=True, fastmath=True)
@@ -90,7 +88,6 @@ def get_random_generator(random_generator):
 
     Returns:
         The random generator function.
-
     """
     # define random generator function
     if random_generator == 0:
@@ -121,8 +118,8 @@ def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, c
     Args:
         unique_peril_correlation_groups (List[int]): list of the unique peril correlation groups.
         event_id (int): event id.
+        correlated_hashes: empty buffer for the output (size of max group id not the number of group id)
         base_seed (int, optional): base random seed. Defaults to 0.
-        correlated_hashes: empty buffer for the output (size of max group id not the number of group id
     """
     unique_peril_index = 0
     unique_peril_len = unique_peril_correlation_groups.shape[0]
@@ -147,41 +144,68 @@ def compute_norm_cdf_lookup(x_min, x_max, N):
 
 
 @njit(cache=True, fastmath=True)
-def get_norm_cdf_cell_nb(x, x_min, x_max, N):
-    return int((x - x_min) * (N - 1) // (x_max - x_min))
+def _interpolate_lookup(value, range_start, factor, table, N):
+    """Linear interpolation lookup into a precomputed table.
+
+    Instead of removing the fractional position to pick the lower table entry,
+    this blends the two surrounding entries using the fractional distance,
+    reducing lookup error in the distribution tails
+    """
+    pos = (value - range_start) * factor
+    index_lower = int(floor(pos))
+    frac = pos - index_lower
+    if index_lower < 0:
+        index_lower = 0
+    elif index_lower > N - 2:
+        index_lower = N - 2
+    return table[index_lower] + frac * (table[index_lower + 1] - table[index_lower])
 
 
 @njit(cache=True, fastmath=True)
-def get_corr_rval(x_unif, y_unif, rho, x_min, x_max, N, norm_inv_cdf, cdf_min,
-                  cdf_max, norm_cdf, Nsamples, z_unif):
-    sqrt_rho = sqrt(rho)
-    sqrt_1_minus_rho = sqrt(1. - rho)
-
-    for i in range(Nsamples):
-        x_norm = norm_inv_cdf[get_norm_cdf_cell_nb(x_unif[i], x_min, x_max, N)]
-        y_norm = norm_inv_cdf[get_norm_cdf_cell_nb(y_unif[i], x_min, x_max, N)]
-        z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
-
-        z_unif[i] = norm_cdf[get_norm_cdf_cell_nb(z_norm, cdf_min, cdf_max, N)]
+def _fast_lookup(value, range_start, factor, table, N):
+    """Fast table lookup using simple truncation (no interpolation)."""
+    index = int((value - range_start) * factor)
+    if index < 0:
+        index = 0
+    elif index > N - 1:
+        index = N - 1
+    return table[index]
 
 
 @njit(cache=True, fastmath=True)
-def get_corr_rval_float(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
-                        norm_cdf, norm_factor, Nsamples, z_unif):
-    """
-    this calculate the new correlated values like in get_corr_rval but with precomputed inv_factor and norm_factor
-    inv_factor = (N - 1) // (x_max - x_min)
-    norm_factor = (N - 1) // (cdf_max - cdf_min)
+def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
+                  norm_cdf, norm_factor, Nsamples, z_unif):
+    """Calculate the correlated random values with precomputed inv_factor and norm_factor.
+
+    inv_factor = (N - 1) / (x_max - x_min)
+    norm_factor = (N - 1) / (cdf_max - cdf_min)
+    Uses fast lookup for the middle values and interpolation for the tail values.
+
+    Previously `get_corr_rval_float` used by GulMC, now shared by both GULs
     """
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
+    N = len(norm_inv_cdf)
+    eps = epsilon
+    upper = 1.0 - eps
 
     for i in range(Nsamples):
-        x_norm = norm_inv_cdf[int((x_unif[i] - x_min) * inv_factor)]
-        y_norm = norm_inv_cdf[int((y_unif[i] - x_min) * inv_factor)]
+        x_i = x_unif[i]
+        y_i = y_unif[i]
+
+        if x_i < eps or x_i > upper:
+            x_norm = _interpolate_lookup(x_i, x_min, inv_factor, norm_inv_cdf, N)
+        else:
+            x_norm = _fast_lookup(x_i, x_min, inv_factor, norm_inv_cdf, N)
+
+        if y_i < eps or y_i > upper:
+            y_norm = _interpolate_lookup(y_i, x_min, inv_factor, norm_inv_cdf, N)
+        else:
+            y_norm = _fast_lookup(y_i, x_min, inv_factor, norm_inv_cdf, N)
+
         z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
 
-        z_unif[i] = norm_cdf[int((z_norm - cdf_min) * norm_factor)]
+        z_unif[i] = _interpolate_lookup(z_norm, cdf_min, norm_factor, norm_cdf, N)
 
 
 @njit(cache=True, fastmath=True)
@@ -197,9 +221,9 @@ def random_MersenneTwister(seeds, n, skip_seeds=0):
           Default is 0, i.e. no seeds are skipped.
 
     Returns:
-        rndms (array[float]): 2-d array of shape (number of seeds, n) 
+        rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the
           row in rndms that stores the corresponding random values.
     """
     Nseeds = len(seeds)
@@ -222,16 +246,16 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
     Args:
         seeds (List[int64]): List of seeds.
         n (int): number of random samples to generate for each seed.
-
-    Returns:
-        rndms (array[float]): 2-d array of shape (number of seeds, n) 
-          containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
-          row in rndms that stores the corresponding random values.
         skip_seeds (int): number of seeds to skip starting from the beginning
           of the `seeds` array. For skipped seeds no random numbers are generated
           and the output rndms will contain zeros at their corresponding row.
           Default is 0, i.e. no seeds are skipped.
+
+    Returns:
+        rndms (array[float]): 2-d array of shape (number of seeds, n)
+          containing the random values generated for each seed.
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the
+          row in rndms that stores the corresponding random values.
 
     Notes:
         Implementation follows scipy.stats.qmc.LatinHypercube v1.8.0.
@@ -273,8 +297,12 @@ def _philox4x32_7(c0, c1, c2, c3, k0, k1):
     against the official Random123 known-answer test vectors in the unit tests.
 
     Args:
-        c0, c1, c2, c3 (uint32): the 128-bit counter words.
-        k0, k1 (uint32): the 64-bit key words.
+        c0 (uint32): first word of the 128-bit counter.
+        c1 (uint32): second word of the 128-bit counter.
+        c2 (uint32): third word of the 128-bit counter.
+        c3 (uint32): fourth word of the 128-bit counter.
+        k0 (uint32): first word of the 64-bit key.
+        k1 (uint32): second word of the 64-bit key.
 
     Returns:
         tuple(uint32, uint32, uint32, uint32): the four output words.

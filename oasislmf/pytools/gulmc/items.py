@@ -1,6 +1,4 @@
-"""
-This file contains specific functionality to read and process items files.
-"""
+"""This file contains specific functionality to read and process items files."""
 import logging
 import os
 
@@ -307,8 +305,7 @@ def get_dynamic_footprint_adjustments(input_path):
 
 
 def get_peril_id(input_path):
-    """
-    Get peril_id associated with item_id
+    """Get peril_id associated with item_id
 
     Args:
         input_path (str): The directory path where the 'gul_summary_map.csv' file is located.

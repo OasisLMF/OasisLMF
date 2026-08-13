@@ -49,12 +49,12 @@ from oasislmf.computation.run.platform import PlatformBase, PlatformRun
 
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',   # Google-style docstrings (per project style guide)
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
-    'sphinx.ext.napoleon',   # Google-style docstrings (per project style guide)
     'autoapi.extension',
     'myst_nb',               # Markdown (MyST) + executable notebooks (bundles myst_parser)
     'sphinx_design',         # Grids / cards for the Diataxis + audience landing page

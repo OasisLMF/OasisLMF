@@ -125,7 +125,7 @@ def _run_stage(cmd, stdin_path=None, stdout_path=None, cwd=None, timeout=300):
 
 
 def _compile_modelpy_gulpy_gulmc():
-    """modelpy + gulpy + gulmc — each stage run sequentially via temp files.
+    """Modelpy + gulpy + gulmc — each stage run sequentially via temp files.
 
     Shell pipes (evepy | modelpy | gulpy) run all three processes concurrently.
     modelpy and gulpy both JIT-compile shared functions (e.g. mv_read) and race
@@ -165,7 +165,7 @@ def _compile_modelpy_gulpy_gulmc():
 
 
 def _compile_summarypy():
-    """summarypy manager on single_summary_set."""
+    """Summarypy manager on single_summary_set."""
     from oasislmf.pytools.summary.cli import manager
     with TemporaryDirectory() as tmpdir:
         manager.main(
@@ -180,7 +180,7 @@ def _compile_summarypy():
 
 
 def _compile_eltpy():
-    """eltpy manager — event loss table."""
+    """Eltpy manager — event loss table."""
     import numpy as np
     from unittest.mock import patch
     from oasislmf.pytools.common.data import oasis_int, oasis_float
@@ -200,7 +200,7 @@ def _compile_eltpy():
 
 
 def _compile_pltpy():
-    """pltpy manager — period loss table (with occurrence for occ JIT)."""
+    """Pltpy manager — period loss table (with occurrence for occ JIT)."""
     from oasislmf.pytools.plt.manager import main as plt_main
     with TemporaryDirectory() as tmpdir:
         out_file = Path(tmpdir) / "splt.csv"
@@ -213,7 +213,7 @@ def _compile_pltpy():
 
 
 def _compile_aalpy():
-    """aalpy manager — annual aggregate loss."""
+    """Aalpy manager — annual aggregate loss."""
     from oasislmf.pytools.aal.manager import main as aal_main
     with TemporaryDirectory() as tmpdir:
         workspace = Path(tmpdir) / "workspace"
@@ -232,7 +232,7 @@ def _compile_aalpy():
 
 
 def _compile_lecpy():
-    """lecpy manager — all 8 report flags for max JIT coverage."""
+    """Lecpy manager — all 8 report flags for max JIT coverage."""
     from oasislmf.pytools.lec.manager import main as lec_main
     with TemporaryDirectory() as tmpdir:
         workspace = Path(tmpdir) / "workspace"
@@ -262,7 +262,7 @@ def _compile_lecpy():
 
 
 def _compile_katpy():
-    """katpy manager — sorted mode for nb_heapq JIT."""
+    """Katpy manager — sorted mode for nb_heapq JIT."""
     from oasislmf.pytools.kat.manager import main as kat_main
     with TemporaryDirectory() as tmpdir:
         out_file = Path(tmpdir) / "katpy_qplt.csv"
@@ -275,7 +275,7 @@ def _compile_katpy():
 
 
 def _compile_plapy():
-    """plapy manager — post-loss amplification."""
+    """Plapy manager — post-loss amplification."""
     from tempfile import NamedTemporaryFile
     from oasislmf.pytools.pla.manager import run
 
@@ -324,7 +324,7 @@ class _silence:
 
 
 def _silence_func(func):
-    """silence decorator"""
+    """Silence decorator"""
     @functools.wraps(func)
     def silenced_func(*args, **kwargs):
         with _silence():

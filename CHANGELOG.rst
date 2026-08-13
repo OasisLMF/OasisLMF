@@ -1,6 +1,20 @@
 OasisLMF Changelog
 ==================
 
+`2.5.6`_
+ ---------
+* [#2048](https://github.com/OasisLMF/OasisLMF/pull/2048) - Add linear interpolation lookup for correlation functions
+* [#2051](https://github.com/OasisLMF/OasisLMF/pull/2051) - enhance/supported_oed_versions
+* [#2052](https://github.com/OasisLMF/OasisLMF/pull/2052) - enhance/pytools converters dtypes
+* [#2054](https://github.com/OasisLMF/OasisLMF/pull/2054) - upgrade cibuildwheels
+* [#2056](https://github.com/OasisLMF/OasisLMF/pull/2056) - fix(il): IL outputs non-deterministic when account rows are reordered (#2040)
+* [#2057](https://github.com/OasisLMF/OasisLMF/pull/2057) - Extent api client CLI options
+* [#2061](https://github.com/OasisLMF/OasisLMF/pull/2061) - Add py3.14 to binary package builds
+* [#2071](https://github.com/OasisLMF/OasisLMF/pull/2071) - Fixes for small issues
+* [#2072](https://github.com/OasisLMF/OasisLMF/pull/2072) - split get_il_input_items
+* [#2074](https://github.com/OasisLMF/OasisLMF/pull/2074) - Switch CI to using UV, replacement for pip-tools
+.. _`2.5.6`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.5...2.5.6
+
 `2.5.5`_
  ---------
 * [#1978](https://github.com/OasisLMF/OasisLMF/pull/1978) - Fix/logging pytools

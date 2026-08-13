@@ -26,9 +26,15 @@ from oasislmf.computation.run.generate_losses import GenerateOasisLosses
 from oasislmf.computation.run.generate_documentation import GenerateDocumentation
 from oasislmf.computation.run.model import RunModel, GenerateComputationSettingsJsonSchema
 from oasislmf.computation.run.platform import (PlatformDelete, PlatformGet,
+                                               PlatformPost,
                                                PlatformList, PlatformRun,
                                                PlatformRunInputs,
-                                               PlatformRunLosses)
+                                               PlatformRunLosses,
+                                               PlatformValidate, PlatformExposureRun,
+                                               PlatformExposureTransform, PlatformCombine,
+                                               PlatformCancel, PlatformSubTasks,
+                                               PlatformPlot, PlatformReconnect,
+                                               PlatformServerInfo)
 from oasislmf.utils.log import oasis_log
 
 
@@ -64,14 +70,23 @@ class OasisManager(object):
         PlatformRunLosses,
         PlatformDelete,
         PlatformGet,
+        PlatformPost,
+        PlatformValidate,
+        PlatformExposureRun,
+        PlatformExposureTransform,
+        PlatformCombine,
+        PlatformCancel,
+        PlatformSubTasks,
+        PlatformPlot,
+        PlatformReconnect,
+        PlatformServerInfo,
         HelperTabComplete,
     ]
     computations_params = {}
 
     @staticmethod
     def computation_name_to_method(name):
-        """
-        generate the name of the method in manager for a given ComputationStep name
+        """Generate the name of the method in manager for a given ComputationStep name
         taken from https://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-snake-case
 
         >>> OasisManager.computation_name_to_method('ExposurePreAnalysis')
