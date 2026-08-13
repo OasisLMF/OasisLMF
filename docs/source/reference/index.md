@@ -35,9 +35,7 @@ never imports the package).
 The API reference is **scoped per-subsystem** — currently the Financial Module
 (`oasislmf.pytools.fm`) and the ground-up Monte-Carlo engine
 (`oasislmf.pytools.gulmc`) — so it sits directly beside the matching explanation
-pages and the build stays fast (seconds rather than the ~4 minutes of the previous
-whole-package dump). The plan is to widen this per-subsystem as each module is
-migrated — see `DOCS_STRATEGY.md` / `MIGRATION_PLAN.md`.
+pages and the build stays fast. Coverage widens as more subsystems are documented.
 ```
 
 ```{toctree}

@@ -184,9 +184,10 @@ Financial Module:
 * **fm_policytc**: defines the relationship of the contract layers
 * **fm_xref**: specifies the summary level of the output losses
 
-This section explains the design of the Financial Module which has been implemented in the **fmcalc** component.
+This section explains the design of the Financial Module, implemented in the **fmpy** component
+(``fmcalc`` in the legacy ktools kernel).
 
-* Runtime parameters and usage instructions for fmcalc are covered in the
+* Runtime parameters and usage instructions for ``fmpy`` are covered in the
   :doc:`the kernel core-components reference <../reference/kernel/CoreComponents>`.
 * The formats of the input files are covered in the
   :doc:`the kernel data-conversion reference <../reference/kernel/DataConversionComponents>`.

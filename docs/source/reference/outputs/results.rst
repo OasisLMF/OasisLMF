@@ -594,7 +594,7 @@ sorted by event ID. Unlike kat, the ORD table name for the input files must be s
 ORD Output Components
 ---------------------
 
-As well as the set of legacy outputs described in OutputComponents.md, ktools also supports Open Results Data "ORD" output 
+As well as the set of legacy outputs described above (see :ref:`output_components_results`), Oasis also supports Open Results Data "ORD" output
 calculations and reports.
 
 Open Results Data is a data standard for catastrophe loss model results developed as part of Open Data Standards "ODS". ODS 
