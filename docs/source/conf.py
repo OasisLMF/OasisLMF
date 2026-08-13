@@ -430,7 +430,8 @@ def setup(app):
 # The GenerateDocs orchestrator sets OASIS_INTERSPHINX_MAP (JSON) to point cross-references at
 # the other components' built inventories; standalone builds add nothing. Use explicit roles,
 # e.g. {external+ord:doc}`reference/tables` or :external+oed:ref:`some-label`.
-import json as _ix_json, os as _ix_os
+import json as _ix_json
+import os as _ix_os
 if "sphinx.ext.intersphinx" not in extensions:
     extensions = list(extensions) + ["sphinx.ext.intersphinx"]
 try:
