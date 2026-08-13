@@ -113,18 +113,16 @@ def get_xref_df(il_inputs_df):
 
 @oasis_log
 def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
-    """
-    Create a DataFrame with linking information between Ktools `OasisFiles`
+    """Create a DataFrame with linking information between Ktools `OasisFiles`
     And the Exposure data
 
-    :param inputs_df: datafame from gul_inputs.get_gul_input_items(..)  / il_inputs.get_il_input_items(..)
-    :type inputs_df: pandas.DataFrame
+    Args:
+        inputs_df (pandas.DataFrame): datafame from gul_inputs.get_gul_input_items(..)  / il_inputs.get_il_input_items(..)
+        oed_hierarchy (dict): OED profile hierarchy, used to resolve the acc/loc/pol/port column names to keep
+        is_fm_summary (bool): Indicates whether an FM summary mapping is required
 
-    :param is_fm_summary: Indicates whether an FM summary mapping is required
-    :type is_fm_summary: bool
-
-    :return: Subset of columns from gul_inputs_df / il_inputs_df
-    :rtype: pandas.DataFrame
+    Returns:
+        pandas.DataFrame: Subset of columns from gul_inputs_df / il_inputs_df
     """
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
@@ -158,27 +156,19 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
 
 
 def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_join, oed_column_info):
-    """
-    Create a factorized col (summary ids) based on a list of oed column names
-
-    :param :summary_map_df dataframe return from get_summary_mapping
-    :type summary_map_df: pandas.DataFrame
-
-    :param exposure_df: Summary map file path
-    :type exposure_df: pandas.DataFrame
-
-    :param oed_column_join: column to join on
-    :type oed_column_join: list
-
-    :param oed_column_info: Dictionary of columns to pick from exposure_df and their default value
-    :type oed_column_info: dict
+    """Create a factorized col (summary ids) based on a list of oed column names
 
     {'Col_A': 0, 'Col_B': 1, 'Col_C': 2}
 
-    :return: New DataFrame of summary_map_df + exposure_df merged on exposure index
-    :rtype: pandas.DataFrame
-    """
+    Args:
+        summary_map_df (pandas.DataFrame): dataframe return from get_summary_mapping
+        exposure_df (pandas.DataFrame): Summary map file path
+        oed_column_join (list): column to join on
+        oed_column_info (dict): Dictionary of columns to pick from exposure_df and their default value
 
+    Returns:
+        pandas.DataFrame: New DataFrame of summary_map_df + exposure_df merged on exposure index
+    """
     column_set = set(oed_column_info)
     columns_found = [c for c in column_set if c in exposure_df.columns and c not in summary_map_df.columns]
     columns_missing = list(set(column_set) - set(columns_found))
@@ -193,23 +183,23 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_join, oed_colum
 
 
 def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_df=None):
-    """
-    Adds list of OED fields from `column_set` to summary map file
+    """Adds list of OED fields from `column_set` to summary map file
 
-    :param :summary_map_df dataframe return from get_summary_mapping
-    :type summary_map_df: pandas.DataFrame
+    Args:
+        oed_col_group (list): OED column names the rows are grouped by to form the summaries
+        summary_map_df (pandas.DataFrame): dataframe return from get_summary_mapping
+        exposure_df (pandas.DataFrame): DataFrame loaded from location.csv
+        sort_by (str): column the grouped rows are ordered by
+        accounts_df (pandas.DataFrame): DataFrame loaded from accounts.csv
 
-    :param exposure_df: DataFrame loaded from location.csv
-    :type exposure_df: pandas.DataFrame
+    Returns:
+        tuple: a 3-tuple ``(summary_ids, summary_id_values, summary_tiv)``:
 
-    :param accounts_df: DataFrame loaded from accounts.csv
-    :type accounts_df: pandas.DataFrame
-
-    :return: subset of columns from exposure_df to merge
-    :rtype: list
-
-        summary_ids[0] is an int list 1..n  array([1, 2, 1, 2, 1, 2, 1, 2, 1, 2, ... ])
-        summary_ids[1] is an array of values used to factorize  `array(['Layer1', 'Layer2'], dtype=object)`
+        - summary_ids (numpy.ndarray): integer summary id (1..n) for each row,
+          e.g. ``array([1, 2, 1, 2, 1, 2, 1, 2, 1, 2, ...])``
+        - summary_id_values (numpy.ndarray): distinct values used to factorize the
+          rows into summaries, e.g. ``array(['Layer1', 'Layer2'], dtype=object)``
+        - summary_tiv (pandas.DataFrame): total TIV aggregated per summary group
     """
     oed_cols = oed_col_group  # All required columns
     exposure_cols = [c for c in oed_cols if c not in summary_map_df.columns
@@ -251,8 +241,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
 
 @oasis_log
 def write_summary_levels(exposure_df, accounts_df, exposure_data, target_dir):
-    '''
-    Json file with list Available / Recommended columns for use in the summary reporting
+    """Json file with list Available / Recommended columns for use in the summary reporting
 
     Available: Columns which exists in input files and has at least one non-zero / NaN value
     Recommended: Columns which are available + also in the list of `useful` groupings SUMMARY_LEVEL_LOC
@@ -280,7 +269,7 @@ def write_summary_levels(exposure_df, accounts_df, exposure_data, target_dir):
                 ... etc ...
         }
     }
-    '''
+    """
     # Manage internal columns, (Non-OED exposure input)
     int_excluded_cols = ['loc_id', SOURCE_IDX['loc']]
     desc_non_oed = 'Not an OED field'
@@ -317,20 +306,15 @@ def write_summary_levels(exposure_df, accounts_df, exposure_data, target_dir):
 
 @oasis_log
 def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
-    """
-    Writes a summary map file, used to build summarycalc xref files.
+    """Writes a summary map file, used to build summarycalc xref files.
 
-    :param summary_mapping: dataframe return from get_summary_mapping
-    :type summary_mapping: pandas.DataFrame
+    Args:
+        sum_inputs_df (pandas.DataFrame): dataframe return from get_summary_mapping
+        target_dir (str): directory the summary map file is written to
+        is_fm_summary (bool): Indicates whether an FM summary mapping is required
 
-    :param sum_mapping_fp: Summary map file path
-    :type sum_mapping_fp: str
-
-    :param is_fm_summary: Indicates whether an FM summary mapping is required
-    :type is_fm_summary: bool
-
-    :return: Summary xref file path
-    :rtype: str
+    Returns:
+        str: Summary xref file path
     """
     target_dir = as_path(
         target_dir,
@@ -361,16 +345,15 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
 
 
 def get_column_selection(summary_set):
-    """
-    Given a analysis_settings summary definition, return either
-        1. the set of OED columns requested to group by
-        2. If no information key 'oed_fields', then group all outputs into a single summary_set
+    """Given a analysis_settings summary definition, return either
+    1. the set of OED columns requested to group by
+    2. If no information key 'oed_fields', then group all outputs into a single summary_set
 
-    :param summary_set: summary group dictionary from the `analysis_settings.json`
-    :type summary_set: dict
+    Args:
+        summary_set (dict): summary group dictionary from the `analysis_settings.json`
 
-    :return: List of selected OED columns to create summary groups from
-    :rtype: list
+    Returns:
+        list: List of selected OED columns to create summary groups from
     """
     if "oed_fields" not in summary_set:
         return []
@@ -390,8 +373,7 @@ def get_column_selection(summary_set):
 
 
 def get_ri_settings(run_dir):
-    """
-    Return the contents of ri_layers.json
+    """Return the contents of ri_layers.json
 
     Example:
     {
@@ -402,11 +384,11 @@ def get_ri_settings(run_dir):
         }
     }
 
-    :param run_dir: The file path of the model run directory
-    :type run_dir: str
+    Args:
+        run_dir (str): The file path of the model run directory
 
-    :return: metadata for the Reinsurance layers
-    :rtype: dict
+    Returns:
+        dict: metadata for the Reinsurance layers
     """
     return get_json(src_fp=os.path.join(run_dir, 'ri_layers.json'))
 
@@ -420,28 +402,23 @@ def get_ri_inuring_priority_output_levels(run_dir):
     levels (e.g. LOC and ACC), its output level is the highest RI layer index
     among those risk levels.
 
-    :param run_dir: Directory containing ``ri_inuring_priority_output_levels.json``
-    :type run_dir: str
+    Args:
+        run_dir (str): Directory containing ``ri_inuring_priority_output_levels.json``
 
-    :return: mapping ``{inuring_priority: output_level}`` with integer keys/values
-    :rtype: dict
+    Returns:
+        dict: mapping ``{inuring_priority: output_level}`` with integer keys/values
     """
     raw = get_json(src_fp=os.path.join(run_dir, 'ri_inuring_priority_output_levels.json'))
     return {int(k): int(v) for k, v in raw.items()}
 
 
 def write_df_to_csv_file(df, target_dir, filename):
-    """
-    Write a generated summary xref dataframe to disk in csv format.
+    """Write a generated summary xref dataframe to disk in csv format.
 
-    :param df: The dataframe output of get_df( .. )
-    :type df:  pandas.DataFrame
-
-    :param target_dir: Abs directory to write a summary_xref file
-    :type target_dir:  str
-
-    :param filename: Name of output file
-    :type filename:  str
+    Args:
+        df (pandas.DataFrame): The dataframe output of get_df( .. )
+        target_dir (str): Abs directory to write a summary_xref file
+        filename (str): Name of output file
     """
     target_dir = as_path(target_dir, 'Input files directory', is_dir=True, preexists=False)
     pathlib.Path(target_dir).mkdir(parents=True, exist_ok=True)
@@ -462,17 +439,12 @@ def write_df_to_csv_file(df, target_dir, filename):
 
 
 def write_df_to_parquet_file(df, target_dir, filename):
-    """
-    Write a generated summary xref dataframe to disk in parquet format.
+    """Write a generated summary xref dataframe to disk in parquet format.
 
-    :param df: The dataframe output of get_df( .. )
-    :type df: pandas.DataFrame
-
-    :param target_dir: Abs directory to write a summary_xref file
-    :type target_dir: str
-
-    :param filename: Name of output file
-    :type filename: str
+    Args:
+        df (pandas.DataFrame): The dataframe output of get_df( .. )
+        target_dir (str): Abs directory to write a summary_xref file
+        filename (str): Name of output file
     """
     target_dir = as_path(
         target_dir, 'Output files directory', is_dir=True, preexists=False
@@ -492,40 +464,30 @@ def get_summary_xref_df(
     map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type,
     id_set_index='output_id'
 ):
-    """
-    Create a Dataframe for either gul / il / ri  based on a section
+    """Create a Dataframe for either gul / il / ri  based on a section
     from the analysis settings
 
+    Args:
+        map_df (pandas.DataFrame): Summary Map dataframe (GUL / IL)
+        exposure_df (pandas.DataFrame): Location OED data
+        accounts_df (pandas.DataFrame): Accounts OED data
+        id_set_index (str): column of map_df the summary xref ids are taken from
+        summaries_info_dict (list): list of dictionary definition for a summary group from the
+            analysis_settings file, e.g.::
 
-    :param map_df: Summary Map dataframe (GUL / IL)
-    :type map_df:  pandas.DataFrame
+                [{
+                    "id": 1,
+                    "oed_fields": [],
+                      ...
+                  },
 
-    :param exposure_df: Location OED data
-    :type exposure_df:  pandas.DataFrame
+                  ...
+                 ]
+        summaries_type (str): Text label to use as key in summary description either ['gul', 'il', 'ri']
 
-    :param accounts_df: Accounts OED data
-    :type accounts_df:  pandas.DataFrame
-
-    :param summaries_info_dict: list of dictionary definitionfor a summary group from the analysis_settings file
-    :type summaries_info_dict:  list
-
-    [{
-        "id": 1,
-        "oed_fields": [],
-          ...
-      },
-
-      ...
-     ]
-
-    :param summaries_type: Text label to use as key in summary description either ['gul', 'il', 'ri']
-    :type summaries_type: String
-
-    :return summaryxref_df: Dataframe containing abstracted summary data for ktools
-    :rtypwrite_xref_filee: pandas.DataFrame
-
-    :return summary_desc: dictionary of dataFrames listing what summary_ids map to
-    :rtype: dictionary
+    Returns:
+        summaryxref_df (pandas.DataFrame): Dataframe containing abstracted summary data for ktools
+        summary_desc (dictionary): dictionary of dataFrames listing what summary_ids map to
     """
     summaryxref_df = pd.DataFrame()
     summary_desc = {}
@@ -592,28 +554,24 @@ def generate_summaryxref_files(
     location_df, account_df, model_run_fp, analysis_settings, il=False,
     ri=False, rl=False, intermediary_csv=False
 ):
+    """Top level function for creating the summaryxref files from the manager.py
+
+    Args:
+        location_df (pandas.DataFrame): Source locations, joined to the summary map to build the
+            summary groupings and their description files
+        account_df (pandas.DataFrame): Source accounts, joined the same way. Required for the il,
+            ri and rl summary levels
+        model_run_fp (str): Model run directory file path
+        analysis_settings (dict): Model analysis settings file
+        il (bool): Boolean to indicate the insured loss level mode - false if the
+            source accounts file path not provided to Oasis files gen.
+        ri (bool): Boolean to indicate the RI loss level mode - false if the
+            source accounts file path not provided to Oasis files gen.
+        rl (bool): Boolean to indicate the RL loss level mode - false if the
+            source accounts file path not provided to Oasis files gen.
+        intermediary_csv (bool): If True, also write a csv copy of each summaryxref file
+            alongside the binary
     """
-    Top level function for creating the summaryxref files from the manager.py
-
-    :param model_run_fp: Model run directory file path
-    :type model_run_fp:  str
-
-    :param analysis_settings: Model analysis settings file
-    :type analysis_settings:  dict
-
-    :param il: Boolean to indicate the insured loss level mode - false if the
-               source accounts file path not provided to Oasis files gen.
-    :type il: bool
-
-    :param ri: Boolean to indicate the RI loss level mode - false if the
-               source accounts file path not provided to Oasis files gen.
-    :type ri: bool
-
-    :param rl: Boolean to indicate the RL loss level mode - false if the
-               source accounts file path not provided to Oasis files gen.
-    :type rl: bool
-    """
-
     # Boolean checks for summary generation types (gul / il / ri)
     gul_summaries = all([
         analysis_settings.get('gul_output'),
@@ -796,30 +754,21 @@ def generate_summaryxref_files(
 
 
 def get_exposure_summary_field(df, exposure_summary, field_name, field_value, status):
-    """
-    Populate exposure_summary dictionary with the values below grouped by field and status
-        - tiv
-        - number_of_locations
-        - number_of_buildings
-        - number_of_risks
+    """Populate exposure_summary dictionary with the values below grouped by field and status
+    - tiv
+    - number_of_locations
+    - number_of_buildings
+    - number_of_risks
 
-    :param df: dataframe from gul_inputs.get_gul_input_items(..)
-    :type df: pandas.DataFrame
+    Args:
+        df (pandas.DataFrame): dataframe from gul_inputs.get_gul_input_items(..)
+        exposure_summary (dict): input exposure_summary dictionary
+        field_name (str): Name of OED field to add to exposure_summary
+        field_value (str): OED field vlaue to add to exposure_summary
+        status (str): status returned by lookup ('all', 'success', 'fail' or 'nomatch')
 
-    :param exposure_summary: input exposure_summary dictionary
-    :type exposure_summary: dict
-
-    :param field_name: Name of OED field to add to exposure_summary
-    :type field_name: str
-
-    :param field_value: OED field vlaue to add to exposure_summary
-    :type field_value: str
-
-    :param status: status returned by lookup ('all', 'success', 'fail' or 'nomatch')
-    :type status: str
-
-    :return: populated exposure_summary dictionary
-    :rtype: dict
+    Returns:
+        dict: populated exposure_summary dictionary
     """
     dedupe_cols_tiv = ['loc_id', 'peril_id']
     useful_cols = ['tiv', 'loc_id', 'peril_id', 'coverage_type_id',
@@ -848,16 +797,14 @@ def get_exposure_summary_field(df, exposure_summary, field_name, field_value, st
 
 @oasis_log
 def get_exposure_totals(df):
+    """Return dictionary with total TIVs and number of locations
+
+    Args:
+        df (pandas.DataFrame): dataframe `df_summary_peril` from `get_exposure_summary`
+
+    Returns:
+        dict: totals section for exposure_summary dictionary
     """
-    Return dictionary with total TIVs and number of locations
-
-    :param df: dataframe `df_summary_peril` from `get_exposure_summary`
-    :type df: pandas.DataFrame
-
-    :return: totals section for exposure_summary dictionary
-    :rtype: dict
-    """
-
     dedupe_cols = ['loc_id', 'coverage_type_id']
 
     within_scope_tiv = df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
@@ -902,15 +849,14 @@ def get_exposure_totals(df):
 
 
 def convert_col_name(col_name):
-    """
-    Convert a column from OED format to exposure summary report format. For
+    """Convert a column from OED format to exposure summary report format. For
     example `CountryCode` will be converted to `country_code`.
 
-    :param col_name: original OED column name
-    :type col_name: str
+    Args:
+        col_name (str): original OED column name
 
-    :return: exposure summary report field name
-    :rtype: str
+    Returns:
+        str: exposure summary report field name
     """
     col_list = [col_name[0].lower()]
     for i, c in enumerate(col_name[1:]):
@@ -927,21 +873,17 @@ def get_exposure_summary(
         exposure_profile=get_default_exposure_profile(),
         additional_fields=[]
 ):
-    """
-    Create exposure summary as dictionary of TIVs and number of locations
+    """Create exposure summary as dictionary of TIVs and number of locations
     grouped by peril and validity respectively. returns a python dict().
 
-    :param exposure_df: source exposure dataframe
-    :type exposure df: pandas.DataFrame
+    Args:
+        exposure_df (pandas.DataFrame): source exposure dataframe
+        keys_df (pandas.DataFrame): dataFrame holding keys data (success and errors)
+        exposure_profile (dict): profile defining exposure file
+        additional_fields (list): extra exposure columns to group the summary by, on top of loc_id
 
-    :param keys_df: dataFrame holding keys data (success and errors)
-    :type keys_errors_df: pandas.DataFrame
-
-    :param exposure_profile: profile defining exposure file
-    :type exposure_profile: dict
-
-    :return: Exposure summary dictionary
-    :rtype: dict
+    Returns:
+        dict: Exposure summary dictionary
     """
     # get location tivs by coveragetype
     df_summary = []
@@ -1053,22 +995,14 @@ def write_gul_errors_map(
         keys_errors_df,
         exposure_profile,
 ):
+    """Create csv file to help map keys errors back to original exposures.
+
+    Args:
+        target_dir (str): directory on disk to write csv file
+        exposure_df (pandas.DataFrame): source exposure dataframe
+        keys_errors_df (pandas.DataFrame): keys errors dataframe
+        exposure_profile (dict): profile defining exposure file
     """
-    Create csv file to help map keys errors back to original exposures.
-
-    :param target_dir: directory on disk to write csv file
-    :type target_dir: str
-
-    :param exposure_df: source exposure dataframe
-    :type exposure df: pandas.DataFrame
-
-    :param keys_errors_df: keys errors dataframe
-    :type keys_errors_df: pandas.DataFrame
-
-    :param exposure_profile: profile defining exposure file
-    :type exposure_profile: dict
-    """
-
     cols = ['loc_id', 'PortNumber', 'AccNumber', 'LocNumber', 'peril_id', 'coverage_type_id', 'tiv', 'status', 'message']
     gul_error_map_fp = os.path.join(target_dir, 'gul_errors_map.csv')
 
@@ -1107,31 +1041,20 @@ def write_exposure_summary(
         exposure_profile,
         additional_fields=[]
 ):
-    """
-    Create exposure summary as dictionary of TIVs and number of locations
+    """Create exposure summary as dictionary of TIVs and number of locations
     grouped by peril and validity respectively. Writes dictionary as json file
     to disk.
 
-    :param target_dir: directory on disk to write exposure summary file
-    :type target_dir: str
+    Args:
+        target_dir (str): directory on disk to write exposure summary file
+        exposure_df (pandas.DataFrame): source exposure dataframe
+        keys_fp (str): file path to keys file
+        keys_errors_fp (str): file path to keys errors file
+        exposure_profile (dict): profile defining exposure file
+        additional_fields (list[str]): list of additional OED fields to add to exposure summary file
 
-    :param exposure_df: source exposure dataframe
-    :type exposure df: pandas.DataFrame
-
-    :param keys_fp: file path to keys file
-    :type keys_fp: str
-
-    :param keys_errors_fp: file path to keys errors file
-    :type keys_errors_fp: str
-
-    :param exposure_profile: profile defining exposure file
-    :type exposure_profile: dict
-
-    :param additional_fields: list of additional OED fields to add to exposure summary file
-    :type additional_fields: list[str]
-
-    :return: Exposure summary file path
-    :rtype: str
+    Returns:
+        str: Exposure summary file path
     """
     keys_success_df = keys_errors_df = None
 

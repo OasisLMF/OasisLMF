@@ -1,7 +1,4 @@
-"""
-This file contains specific functionality needed for aggregate vulnerabilities.
-
-"""
+"""This file contains specific functionality needed for aggregate vulnerabilities."""
 import logging
 import os
 
@@ -35,7 +32,7 @@ def read_aggregate_vulnerability(storage: BaseStorage, ignore_file_type=set()):
     """Load the aggregate vulnerability definitions from file.
 
     Args:
-        storage: (BaseStorage) the storage manager for fetching model data
+        storage (BaseStorage): the storage manager for fetching model data
         ignore_file_type (Set[str]): file extension to ignore when loading.
 
     Returns:
@@ -138,8 +135,7 @@ def process_aggregate_vulnerability(aggregate_vulnerability):
 @nb.njit(cache=True)
 def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_data,
                                   vuln_map, vuln_map_keys, aggregate_weights):
-    """
-    Populate the weight field in the merged data array by matching aggregate_weights records.
+    """Populate the weight field in the merged data array by matching aggregate_weights records.
 
     Builds a (areaperil_id, vuln_idx) -> weight hashmap from aggregate_weights once, then
     iterates entries with one O(1) lookup each. Total cost: O(W + E).
@@ -204,8 +200,7 @@ def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areap
 
 
 def get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys):
-    """
-    Loads vulnerability adjustments from the analysis settings file.
+    """Loads vulnerability adjustments from the analysis settings file.
 
     Args:
         run_dir (str): path to the run directory (used to load the analysis settings)

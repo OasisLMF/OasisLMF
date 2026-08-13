@@ -7,30 +7,27 @@ from .. import __version__
 
 
 class ConfigUpdateCmd(OasisBaseCommand):
-    """
-    Read in an MDK config file and writes an updated file, replacing deprecated keys
+    """Read in an MDK config file and writes an updated file, replacing deprecated keys
     with newer ones compatible with the current MDK release
     """
 
     def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
+        """Adds arguments to the argument parser.
 
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
+        Args:
+            parser (ArgumentParser): The argument parser object
         """
-
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--output-config', default=None, help='File path to write an updated MDK config file')
         parser.add_argument('-y', '--no-confirm', default=False, help='No confirmation prompt before file write')
 
     def action(self, args):
-        """
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
+        """Update and write out the MDK config file, converting any obsolete keys.
 
+        Args:
+            args (Namespace): The arguments from the command line
+        """
         inputs = InputValues(args, update_keys=False)
 
         if inputs.obsolete_keys:
@@ -52,8 +49,7 @@ class ConfigUpdateCmd(OasisBaseCommand):
 
 
 class ConfigCmd(OasisBaseCommand):
-    """
-    Describes the format of the configuration (JSON) file to use the MDK
+    """Describes the format of the configuration (JSON) file to use the MDK
     ``model run`` command for running models end-to-end.
 
     One file will need to be defined per model, usually in the model repository

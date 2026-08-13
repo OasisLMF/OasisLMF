@@ -350,6 +350,7 @@ def read_buffer(
 
 def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
     """Reads all input files and returns a dict of relevant data
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         compute_melt (bool): Compute MELT bool
@@ -386,6 +387,7 @@ def run(
     output_format="csv",
 ):
     """Runs ELT calculations
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         files_in (list[str]): Path to summary binary input file

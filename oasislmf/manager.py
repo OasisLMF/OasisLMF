@@ -86,8 +86,7 @@ class OasisManager(object):
 
     @staticmethod
     def computation_name_to_method(name):
-        """
-        generate the name of the method in manager for a given ComputationStep name
+        """Generate the name of the method in manager for a given ComputationStep name
         taken from https://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-snake-case
 
         >>> OasisManager.computation_name_to_method('ExposurePreAnalysis')

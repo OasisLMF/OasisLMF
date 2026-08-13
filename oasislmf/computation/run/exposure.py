@@ -32,8 +32,7 @@ from oasislmf.utils.inputs import str2bool
 
 
 class RunExposure(ComputationStep):
-    """
-    Generates insured losses from preexisting Oasis files with specified
+    """Generates insured losses from preexisting Oasis files with specified
     loss factors (loss % of TIV).
     """
     step_params = [
@@ -331,8 +330,7 @@ class RunExposure(ComputationStep):
 
 
 class RunFmTest(ComputationStep):
-    """
-    Runs an FM test case and validates generated
+    """Runs an FM test case and validates generated
     losses against expected losses.
 
     only use 'update_expected' for debugging

@@ -1,9 +1,7 @@
-"""
-Module for the built-in Lookup Class
+"""Module for the built-in Lookup Class
 
 in the future we may want to improve on the management of files used to generate the keys
 tutorial for pandas and parquet https://towardsdatascience.com/a-gentle-introduction-to-apache-arrow-with-apache-spark-and-pandas-bb19ffe0ddae
-
 """
 import warnings
 
@@ -59,7 +57,6 @@ def get_nearest(src_points, candidates, k_neighbors=1):
 
     The distances returned are Euclidean distances, not distances on a sphere or ellipsoid.
     """
-
     # Create tree from the candidate points
     tree = BallTree(candidates, leaf_size=15, metric='haversine')
 
@@ -80,8 +77,7 @@ def get_nearest(src_points, candidates, k_neighbors=1):
 
 
 def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
-    """
-    For each point in left_gdf, find closest point in right GeoDataFrame and return them.
+    """For each point in left_gdf, find closest point in right GeoDataFrame and return them.
 
     NOTICE: Assumes that the input Points are in WGS84 projection (lat/lon).
             Distance returned is the Euclidean distance, not the true distance on a sphere or ellipsoid.
@@ -221,9 +217,7 @@ def jit_geo_grid_lookup(
 
 
 def get_step(grid):
-    """
-    Returns the grid size using the max and min long and latitude and arc size
-    """
+    """Returns the grid size using the max and min long and latitude and arc size"""
     length = round((grid["lon_max"] - grid["lon_min"]) / grid["arc_size"])
     width = round((grid["lat_max"] - grid["lat_min"]) / grid["arc_size"])
     return length * width
@@ -261,8 +255,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
 
 
 class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
-    """
-    Built-in Lookup class that implement the OasisLookupInterface
+    """Built-in Lookup class that implement the OasisLookupInterface
     The aim of this class is to provide a data driven lookup capability that will be both flexible and efficient.
 
     it provide several generic function factory that can be define in the config under the "step_definition" key (ex:)
@@ -330,13 +323,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 return modified_locations
 
             return fct
-
     """
     interface_version = "1"
 
     def set_step_function(self, step_name, step_config, function_being_set=None):
-        """
-        set the step as a function of the lookup object if it's not already done and return it.
+        """Set the step as a function of the lookup object if it's not already done and return it.
         if the step is composed of several child steps, it will set the child steps recursively.
 
         Args:
@@ -424,8 +415,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return locations
 
     def to_abs_filepath(self, filepath):
-        """
-        replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
+        """Replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
+
         Args:
             filepath (str): filepath with potentially a placeholder
 
@@ -442,8 +433,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def set_id_columns(df, id_columns):
-        """
-        in Dataframes, only float column can have nan values. So after a left join for example if you have nan values
+        """In Dataframes, only float column can have nan values. So after a left join for example if you have nan values
         that will change the type of the original column into float.
         this function replace the nan value with the OASIS_UNKNOWN_ID and reset the column type to int
         """
@@ -459,9 +449,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return df
 
     def build_interval_to_index(self, value_column_name, sorted_array, index_column_name=None, side='left'):
-        """
-        Allow to map a value column to an index according to it's index in the interval defined by sorted_array.
+        """Allow to map a value column to an index according to it's index in the interval defined by sorted_array.
         nan value are kept as nan
+
         Args:
             value_column_name: name of the column to map
             sorted_array: sorted value that define the interval to map to
@@ -491,8 +481,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_combine(id_columns, strategy, logical_type='or'):
-        """
-        build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
+        """Build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
         for example, finding the correct area_peril_id for a location with one method using (latitude, longitude)
         and one using postcode.
         each strategy will be applied sequentially on the location that steal have OASIS_UNKNOWN_ID in their id_columns after the precedent strategy
@@ -524,7 +513,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             logical_type: if 'or' apply the next strategy only on invalid id_columns
                           if 'and' apply the next strategy only on valid id_columns
                                    id_columns needs to be a list of list of columns that each sublist is checked sequentially
-
 
         Returns:
             function: function combining all strategies
@@ -570,13 +558,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_split_loc_perils_covered(model_perils_covered=None):
-        """
-        split the value of LocPerilsCovered into multiple line, taking peril group into account
+        """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
 
         usefull inspirational code:
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
-
         """
         peril_groups_df = get_peril_groups_df()
 
@@ -611,15 +597,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_prepare(**kwargs):
-        """
-        Prepare the dataframe by setting default, min and max values and type
+        """Prepare the dataframe by setting default, min and max values and type
         support several simple DataFrame preparation:
-            default: create the column if missing and replace the nan value with the default value
-            max: truncate the values in a column to the specified max
-            min: truncate the values in a column to the specified min
-            type: convert the type of the column to the specified numpy dtype
-                Note that we use the string representation of numpy dtype available at
-                https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing
+        default: create the column if missing and replace the nan value with the default value
+        max: truncate the values in a column to the specified max
+        min: truncate the values in a column to the specified min
+        type: convert the type of the column to the specified numpy dtype
+        Note that we use the string representation of numpy dtype available at
+        https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing
         """
         def prepare(locations):
             for column_name, preparations in kwargs.items():
@@ -647,8 +632,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         nearest_neighbor_min_distance=-1,
         nearest_neighbor_max_distance=-1
     ):
-        """
-        Function Factory to associate location to a geometry (e.g. area peril) based on the rtree method
+        """Function Factory to associate location to a geometry (e.g. area peril) based on the rtree method
 
         !!!
         please note that this method is quite time consuming (especially if you use the nearest neighbor option
@@ -681,10 +665,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             distance on a sphere or ellipsoid. It is the maximum accepted distance between the point
             locations and the containing geometry centroids.
 
-        nearest_neighbour_min_distance: deprecated alias for nearest_neighbour_max_distance. May be
+        nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
         """
-
         if nearest_neighbor_min_distance > 0:
             warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
                           "removed in a future version. Please use `nearest_neighbor_max_distance` "
@@ -776,16 +759,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_fixed_size_geo_grid_multi_peril(perils_dict):
-        """
-        Create multiple grids of varying resolution, one per peril, and
+        """Create multiple grids of varying resolution, one per peril, and
         associate an id to each square of the grid using the
         `fixed_size_geo_grid` method.
 
-        Parameters
-        ----------
-        perils_dict: dict
-                     Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
-                     value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
+        Args:
+            perils_dict: dict: Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
+                value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
         """
         def fct(locs_peril):
             start_index = 0
@@ -810,11 +790,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False, lon_first=False):
-        """
-        associate an id to each square of the grid define by the limit of lat and lon
+        """Associate an id to each square of the grid define by the limit of lat and lon
         reverse allow to change the ordering of id from (min to max) to (max to min)
         """
-
         lat_id, lon_id = create_lat_lon_id_functions(
             lat_min, lat_max, lon_min, lon_max, arc_size,
             lat_reverse, lon_reverse
@@ -844,15 +822,12 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_fixed_size_z_index_geo_grid_multi_peril(perils_dict):
-        """
-        Create multiple grids of varying resolution, one per peril, and associate an id to each square of the grid using the
+        """Create multiple grids of varying resolution, one per peril, and associate an id to each square of the grid using the
         `fixed_size_z_index_geo_grid` method.
 
-        Parameters
-        ----------
-        perils_dict: dict
-                     Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
-                     value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
+        Args:
+            perils_dict: dict: Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
+                value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
         """
         def fct(locs_peril):
             locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID
@@ -878,12 +853,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         lat_min, lat_max, lon_min, lon_max, arc_size,
         lat_reverse=False, lon_reverse=False, lon_first=False
     ):
-        """
-        associate an id to each square of the grid defined by z-order indexing.
+        """Associate an id to each square of the grid defined by z-order indexing.
         reverse allow to change the ordering of id from (min to max) to
         (max to min)
         """
-
         lat_id, lon_id = create_lat_lon_id_functions(
             lat_min, lat_max, lon_min, lon_max, arc_size,
             lat_reverse, lon_reverse
@@ -907,7 +880,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return geo_grid_lookup
 
     def build_geotiff(self, file_path, band_info):
-        """
+        """Build a lookup function that assigns geotiff band values to each lat/lon.
 
         Args:
             file_path: path to the geotiff file
@@ -957,8 +930,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return geotiff_lookup
 
     def build_h3(self, resolution, file_path, file_type='csv', **kwargs):
-        """
-        Function factory to look up area_peril_id using H3 hexagonal grid indexing.
+        """Function factory to look up area_peril_id using H3 hexagonal grid indexing.
 
         Converts latitude/longitude to an H3 cell at the specified resolution,
         converts the cell to its int64 representation, then maps to an int32
@@ -979,18 +951,18 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 }
             }
 
-        Parameters
-        ----------
-        resolution : int
-            H3 resolution level (0–15). Higher values produce finer cells.
-        file_path : str
-            Path to the int64→area_peril_id mapping file.
-            Supports the ``%%KEYS_DATA_PATH%%`` placeholder.
-        file_type : str
-            Pandas read function suffix (``'csv'``, ``'parquet'``, etc.).
-            Defaults to ``'csv'``.
-        **kwargs
-            Additional keyword arguments forwarded to the pandas read function.
+        Args:
+            resolution (int): H3 resolution level (0–15). Higher values produce finer cells.
+            file_path (str): Path to the int64→area_peril_id mapping file.
+                Supports the ``%%KEYS_DATA_PATH%%`` placeholder.
+            file_type (str): Pandas read function suffix (``'csv'``, ``'parquet'``, etc.).
+                Defaults to ``'csv'``.
+            **kwargs: Additional keyword arguments forwarded to the pandas read function.
+
+        Returns:
+            function: function assigning an area_peril_id to each location from its latitude and
+                longitude, set to OASIS_UNKNOWN_ID where the H3 cell is missing from the mapping
+                file or the coordinates are null.
         """
         if h3 is None:
             raise OasisException(
@@ -1032,13 +1004,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return h3_lookup
 
     def build_merge(self, file_path, id_columns=[], file_type='csv', **kwargs):
-        """
-        this method will merge the locations Dataframe with the Dataframe present in file_path
+        """Merges the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
 
         this is an efficient way to map a combination of column that have a finite scope to an idea.
         """
-
         read_func = getattr(pd, f"read_{file_type}", None)
         if callable(read_func):
             df_to_merge = read_func(self.to_abs_filepath(file_path), **kwargs)
@@ -1054,17 +1024,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_simple_pivot(pivots, remove_pivoted_col=True):
-        """
-        allow to pivot columns of the locations dataframe into multiple rows
+        """Allow to pivot columns of the locations dataframe into multiple rows
         each pivot in the pivot list may define:
-            "on": to rename a column into a new one
-            "new_cols": to create a new column with a certain values
+        "on": to rename a column into a new one
+        "new_cols": to create a new column with a certain values
         ex:
         "pivots": [{"on": {"vuln_str": "vulnerability_id"},
-                 "new_cols": {"coverage_type": 1}},
-                {"on": {"vuln_con": "vulnerability_id"},
-                 "new_cols": {"coverage_type": 3}},
-               ],
+        "new_cols": {"coverage_type": 1}},
+        {"on": {"vuln_con": "vulnerability_id"},
+        "new_cols": {"coverage_type": 3}},
+        ],
         loc_id  vuln_str    vuln_con
         1       3           2
         2       18          4
@@ -1075,8 +1044,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         2       18          4           18                  1
         1       3           2           2                   3
         2       18          4           4                   3
-
-
         """
         def simple_pivot(locations):
             pivoted_dfs = []
@@ -1098,9 +1065,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_model_data(columns):
-        """
-        Serialises specified columns from the OED file into a model_data dict
-        """
+        """Serialises specified columns from the OED file into a model_data dict"""
         def model_data(locations):
             locations['model_data'] = locations[columns].to_dict('records')
             return locations
@@ -1109,8 +1074,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_dynamic_model_adjustment(intensity_adjustment_col, return_period_col):
-        """
-        Converts specified columns from the OED file into intensity adjustments and
+        """Converts specified columns from the OED file into intensity adjustments and
         return period protection.
         """
         def adjustments(locations):

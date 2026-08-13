@@ -1,7 +1,4 @@
-"""
-This file defines the data types that are loaded from the data files.
-
-"""
+"""This file defines the data types that are loaded from the data files."""
 import numba as nb
 import numpy as np
 

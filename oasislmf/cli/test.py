@@ -9,18 +9,14 @@ from .command import OasisBaseCommand, OasisComputationCommand
 
 
 class ModelValidationCmd(OasisBaseCommand):
-    """
-    Checks the validity of a set of model data.
-    """
+    """Checks the validity of a set of model data."""
 
     def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
+        """Adds arguments to the argument parser.
 
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
+        Args:
+            parser (ArgumentParser): The argument parser object
         """
-
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
@@ -28,14 +24,12 @@ class ModelValidationCmd(OasisBaseCommand):
             default=None, help='Directory containing additional user-supplied model data files')
 
     def action(self, args):
-        """
-        Performs validity checks on model data csv files using ktools
+        """Performs validity checks on model data csv files using ktools
         executables.
 
-        :param args: The arguments from the command line
-        :type args: Namespace
+        Args:
+            args (Namespace): The arguments from the command line
         """
-
         inputs = InputValues(args)
 
         model_data_fp = as_path(
@@ -45,8 +39,7 @@ class ModelValidationCmd(OasisBaseCommand):
 
 
 class FmValidationCmd(OasisComputationCommand):
-    """
-    Run FM acceptance tests from "oasisLMF/validation/*"
+    """Run FM acceptance tests from "oasisLMF/validation/*"
 
     Example use:
     1. Run all test cases: "oasisLMF/validation$ oasislmf test fm"
@@ -89,9 +82,7 @@ class GenerateLossesDummyModelCmd(OasisComputationCommand):
 
 
 class TestModelCmd(BaseCommand):
-    """
-    Present sub-commands for creating test models
-    """
+    """Present sub-commands for creating test models"""
 
     sub_commands = {
         'generate-model-files': GenerateDummyModelFilesCmd,
@@ -101,9 +92,7 @@ class TestModelCmd(BaseCommand):
 
 
 class TestCmd(BaseCommand):
-    """
-    Test models and keys servers
-    """
+    """Test models and keys servers"""
 
     sub_commands = {
         'model-validation': ModelValidationCmd,

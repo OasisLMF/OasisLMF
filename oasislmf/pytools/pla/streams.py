@@ -11,8 +11,7 @@ logger = logging.getLogger(__name__)
 
 @nb.jit(nopython=True, cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
-    """
-    read the gul loss stream, apply the post loss amplification factor and load it into out_byte_mv buffer
+    """Read the gul loss stream, apply the post loss amplification factor and load it into out_byte_mv buffer
     This modified version of the read_buffer template return result when the whole input buffer is read and not when an event is read.
     therefore it cannot be used to read multiple stream at a time because events would be mixed up.
 
@@ -27,7 +26,6 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
         default_factor (float): post loss reduction/amplification factor to be used if loss factor not found in plafactors
         out_byte_mv: output byte arrau
         out_cursor: single value array to store valid part of out_byte_mv
-
     """
     if item_id:
         factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
@@ -137,8 +135,7 @@ class PlaReader(EventReader):
 def read_and_write_streams(
     stream_in, stream_out, items_amps, plafactors, default_factor
 ):
-    """
-    Read input stream from gulpy or gulcalc, determine amplification ID from
+    """Read input stream from gulpy or gulcalc, determine amplification ID from
     item ID, determine loss factor from event ID and amplification ID pair,
     multiply losses by relevant factors, and write to output stream.
 
@@ -165,7 +162,6 @@ def read_and_write_streams(
         items_amps (numpy array): amplification IDs where indexes correspond to item IDs
         plafactors (dict): event ID and amplification ID pairs mapped to loss factors
         default_factor (float): post loss reduction/amplification factor to be used if loss factor not found in plafactors
-
     """
     stream_source_type, stream_agg_type, len_sample = get_and_check_header_in(stream_in)
     stream_out.write(stream_info_to_bytes(stream_source_type, stream_agg_type))
