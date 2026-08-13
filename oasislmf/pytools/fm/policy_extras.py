@@ -8,9 +8,9 @@ TODO: It seems that if a policy with share is used, subsequent policy using min 
 
 
 from numba import njit
-from .policy import (calcrule_28 as _calcrule_28, calcrule_32 as _calcrule_32, calcrule_34 as _calcrule_34,
-                     calcrule_37 as _calcrule_37, calcrule_38 as _calcrule_38, calcrule_40 as _calcrule_40,
-                     calcrule_41 as _calcrule_41)
+from .policy import (calcrule_28 as _calcrule_28, calcrule_281 as _calcrule_281, calcrule_32 as _calcrule_32,
+                     calcrule_34 as _calcrule_34, calcrule_37 as _calcrule_37, calcrule_38 as _calcrule_38,
+                     calcrule_40 as _calcrule_40, calcrule_41 as _calcrule_41)
 
 
 @njit(cache=True)
@@ -524,6 +524,14 @@ def calcrule_28(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 
 @njit(cache=True, fastmath=True)
+def calcrule_281(policy, loss_out, loss_in, deductible, over_limit, under_limit):
+    """
+    conditional coverage
+    """
+    _calcrule_281(policy, loss_out, loss_in)
+
+
+@njit(cache=True, fastmath=True)
 def calcrule_32(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """
     monetary amount trigger and % loss step payout with limit
@@ -807,6 +815,8 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
             calcrule_27(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         elif policy['calcrule_id'] == 28:
             calcrule_28(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        elif policy['calcrule_id'] == 281:
+            calcrule_281(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         elif policy['calcrule_id'] == 32:
             calcrule_32(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         elif policy['calcrule_id'] == 37:

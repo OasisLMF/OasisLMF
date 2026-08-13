@@ -49,11 +49,6 @@ def stream_to_dict_array(stream_obj):
     return stream_type, len_sample, dict_array
 
 
-def round_dict_array(dict_array, precision):
-    for key, values in dict_array.items():
-        values.round(decimals=precision, out=values)
-
-
 def compare_streams(gul_stream, fm_stream_obj1, fm_stream_obj2, precision):
     fm_programme, fm_policytc, fm_profile, fm_xref, _, _ = load_static('./input')
 
@@ -80,9 +75,6 @@ def compare_streams(gul_stream, fm_stream_obj1, fm_stream_obj2, precision):
                 msg += f"    {len(missing)} missing in {i + 1} : {sorted(missing)[:10]}" \
                     f"{'...' if len(missing) > 10 else ''}\n"
         return msg
-
-    # round_dict_array(dict_array1, precision)
-    # round_dict_array(dict_array2, precision)
 
     msg_list = []
     mismatch = 0

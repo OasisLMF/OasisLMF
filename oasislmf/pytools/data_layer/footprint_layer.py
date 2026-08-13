@@ -96,8 +96,6 @@ class FootprintLayer:
         Returns: None
         """
         logging.info(f"establishing shutdown procedure: {datetime.datetime.now()}")
-        # atexit.register(_shutdown_port, self.socket)
-        pass
 
     @staticmethod
     def _stream_footprint_data(event_data: np.array, connection: socket.socket, event_id: int) -> None:
@@ -226,15 +224,6 @@ class FootprintLayerClient:
         return current_socket
 
     @classmethod
-    def _define_shutdown_procedure(cls) -> None:
-        """
-        Unregisters the client to the server on exit of the process.
-
-        Returns: None
-        """
-        atexit.register(cls.unregister)
-
-    @classmethod
     def register(cls) -> None:
         """
         Registers the client with the server.
@@ -249,7 +238,6 @@ class FootprintLayerClient:
         data: bytes = OperationEnum.REGISTER.value
         current_socket.sendall(data)
         current_socket.close()
-        # cls._define_shutdown_procedure()
 
     @classmethod
     def unregister(cls) -> None:
@@ -304,11 +292,6 @@ class FootprintLayerClient:
 
         if raw_data_buffer:
             return pickle.loads(b"".join(raw_data_buffer))
-
-
-def _shutdown_port(connection: socket.socket) -> None:
-    logging.info(f"socket is shutting down: {datetime.datetime.now()}")
-    connection.shutdown(socket.SHUT_RDWR)
 
 
 def main() -> None:

@@ -1,19 +1,4 @@
 import numba as nb
-import numpy as np
-
-
-@nb.njit(cache=True, error_model="numpy")
-def create_empty_array(mydtype, init_size=8):
-    return np.zeros(init_size, dtype=mydtype)
-
-
-@nb.njit(cache=True, error_model="numpy")
-def resize_array(array, current_size):
-    if current_size >= len(array):  # Resize if the array is full
-        new_array = np.empty(len(array) * 2, dtype=array.dtype)
-        new_array[:len(array)] = array
-        array = new_array
-    return array
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
