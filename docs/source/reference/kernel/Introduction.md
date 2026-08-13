@@ -39,10 +39,11 @@ The components in the Reference Model can be summarized as follows;
  
 ### Usage
 
-Standard piping syntax can be used to invoke the components at the command line. It is the same syntax in Windows DOS, Linux terminal or Cygwin (a Linux emulator for Windows). For example the following command invokes evepy, modelpy, gulmc, fmpy, summarypy and eltpy, and exports an event loss table output to a csv file.
+Standard piping syntax can be used to invoke the components at the command line. It is the same syntax in Windows DOS, Linux terminal or Cygwin (a Linux emulator for Windows). For example the following commands invoke evepy, gulmc, fmpy, summarypy and eltpy, and export an event loss table to a csv file (`gulmc` reads the event stream directly, so `modelpy` is not needed — it feeds the alternative `gulpy` engine; and `summarypy` writes a summary binary that `eltpy` then reads):
 
 ``` sh
-$ evepy 1 1 | modelpy | gulmc -r –S100 -a1 –i - | fmpy | summarypy -f -1 - | eltpy > elt.csv
+$ evepy 1 1 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -1 summary.bin
+$ eltpy -i summary.bin -s elt.csv
 ```
 
 Example python scripts are provided along with a binary data package in the /examples folder to demonstrate usage of the toolkit. For more guidance on how to use the toolkit, see [Workflows](Workflows.md).

@@ -9,7 +9,7 @@ stream type), replacing the individual ktools utilities:
 | `cdftocsv` | `bintocsv cdf` |
 | `gultocsv` | `bintocsv gul` |
 | `fmtocsv` | `bintocsv fm` |
-| `summarycalctocsv` | `bintocsv summarycalc` |
+| `summarycalctocsv` | *no direct equivalent — use `eltpy`/`pltpy` for ORD output from the summary stream* |
 | `gultobin` | `csvtobin gul` |
 
 General form: `bintocsv <type> -i in.bin -o out.csv` and
@@ -58,18 +58,12 @@ bintocsv fm -i il.bin -o il.csv
 
 **Output fields** — `event_id`, `output_id`, `sidx`, `loss`.
 
-## bintocsv summarycalc
-
-Converts the `summarypy` summary stream to CSV.
-
-**Usage**
-
-```bash
-summarypy -t il -1 - < il.bin | bintocsv summarycalc -o summary.csv
-bintocsv summarycalc -i summary.bin -o summary.csv
+```{note}
+There is no `bintocsv summarycalc` sub-command — the raw `summarypy` summary stream has no
+direct CSV converter. Produce ORD tables from it with `eltpy`/`pltpy` (see
+{doc}`OutputComponents`), or inspect the ground-up/insured streams upstream with
+`bintocsv gul` / `bintocsv fm`.
 ```
-
-**Output fields** — `event_id`, `summary_id`, `sidx`, `loss`.
 
 ## csvtobin gul
 
@@ -81,8 +75,8 @@ while zero-loss positive samples may be omitted.
 **Usage**
 
 ```bash
-csvtobin gul -i gul.csv -o gul.bin        # sample size / stream-type options as needed
-csvtobin gul -i gul.csv | fmpy -a2 -o il.bin
+csvtobin gul -i gul.csv -o gul.bin -S 100        # -S/--max_sample_index is required
+csvtobin gul -i gul.csv -S 100 | fmpy -a2 -o il.bin
 ```
 
 ---

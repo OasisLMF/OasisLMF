@@ -22,8 +22,8 @@ read the data.
   each `(vulnerability_id, intensity_bin_id)` group sum to 1; damage bins are contiguous.
 
 ```bash
-csvtobin footprint -i footprint.csv -o footprint.bin        # validates by default
-csvtobin footprint -N -i footprint.csv -o footprint.bin     # skip validation
+csvtobin footprint -i footprint.csv -o footprint.bin -x footprint.idx -m 50        # validates by default
+csvtobin footprint -N -i footprint.csv -o footprint.bin -x footprint.idx -m 50     # -N skips validation
 ```
 
 ### Standalone model-data check

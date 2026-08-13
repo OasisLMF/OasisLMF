@@ -21,8 +21,10 @@ Run ground-up → FM → summary (portfolio summary set 2) → ELT, per partitio
 concatenate:
 
 ```bash
-evepy 1 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 - | eltpy -s elt_p1.csv
-evepy 2 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 - | eltpy -s elt_p2.csv
+evepy 1 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 summary_p1.bin
+evepy 2 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 summary_p2.bin
+eltpy -i summary_p1.bin -s elt_p1.csv
+eltpy -i summary_p2.bin -s elt_p2.csv
 katpy -s -i elt_p1.csv elt_p2.csv -o elt.csv
 ```
 
@@ -31,8 +33,10 @@ katpy -s -i elt_p1.csv elt_p2.csv -o elt.csv
 As above, through `pltpy` instead:
 
 ```bash
-evepy 1 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 - | pltpy -s plt_p1.csv
-evepy 2 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 - | pltpy -s plt_p2.csv
+evepy 1 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 summary_p1.bin
+evepy 2 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 summary_p2.bin
+pltpy -i summary_p1.bin -s plt_p1.csv
+pltpy -i summary_p2.bin -s plt_p2.csv
 ```
 
 ### 3. Loss exceedance curves (EPT)
@@ -42,8 +46,8 @@ from `work/`, since EP curves are not valid on an event subset. Write the summar
 binaries over multiple partitions, then run `lecpy` once:
 
 ```bash
-evepy 1 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 - > work/summary2/p1.bin
-evepy 2 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 - > work/summary2/p2.bin
+evepy 1 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 work/summary2/p1.bin
+evepy 2 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 work/summary2/p2.bin
 lecpy -K summary2 -O ept.csv -F -f        # full-uncertainty AEP + OEP
 ```
 
@@ -52,8 +56,8 @@ lecpy -K summary2 -O ept.csv -F -f        # full-uncertainty AEP + OEP
 Same pattern; `aalpy` reads the summary binaries from `work/`:
 
 ```bash
-evepy 1 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 - > work/summary2/p1.bin
-evepy 2 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 - > work/summary2/p2.bin
+evepy 1 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 work/summary2/p1.bin
+evepy 2 2 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -2 work/summary2/p2.bin
 aalpy -K summary2 -a aal.csv
 ```
 
@@ -62,11 +66,14 @@ aalpy -K summary2 -a aal.csv
 ### 5. Ground-up and insured loss together
 
 `tee` the ground-up stream: one copy to a GUL summary, the other on into `fmpy` for the
-insured summary — both perspectives from one run:
+insured summary — both perspectives from one run. `summarypy` writes summary binaries (it
+has no stdout stage), so each summary is written to a file and read back by `eltpy`:
 
 ```bash
-evepy 1 2 | gulmc -S100 -a1 | tee >(summarypy -t gul -2 - | eltpy -s gul_elt_p1.csv) \
-          | fmpy -a2 | summarypy -t il -2 - | eltpy -s il_elt_p1.csv
+evepy 1 2 | gulmc -S100 -a1 | tee >(summarypy -t gul -2 gul_summary_p1.bin) \
+          | fmpy -a2 | summarypy -t il -2 il_summary_p1.bin
+eltpy -i gul_summary_p1.bin -s gul_elt_p1.csv
+eltpy -i il_summary_p1.bin -s il_elt_p1.csv
 ```
 
 ### 6. Multiple summary levels

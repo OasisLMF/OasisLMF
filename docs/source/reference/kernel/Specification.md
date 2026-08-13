@@ -183,7 +183,7 @@ modelpy is the component which generates a stream of effective damageability cdf
 
 ### gulmc 
 
-gulmc is the component which calculates ground up loss. It takes the modelpy output as standard input and based on the sampling parameters specified, performs Monte Carlo sampling and numerical integration. The output is a stream of ground up loss samples in Oasis kernel format with random samples identified by positive sample indexes (sidx 1 and greater), and special meaning samples assigned to negative sample indexes.
+gulmc is the full Monte Carlo component which calculates ground up loss. It takes the evepy event stream as standard input and reads the model's footprint and vulnerability data directly (rather than a pre-computed cdf stream); based on the sampling parameters specified, it performs Monte Carlo sampling and numerical integration. The output is a stream of ground up loss samples in Oasis kernel format with random samples identified by positive sample indexes (sidx 1 and greater), and special meaning samples assigned to negative sample indexes. (The alternative `gulpy` engine instead consumes the `modelpy` cdf stream described above.)
 
 gulmc also supports the combining and back-allocation of losses arising from multiple subperils impacting the same coverage with some options.
 

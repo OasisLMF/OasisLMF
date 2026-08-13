@@ -151,6 +151,7 @@ multiple perils (total loss to a coverage cannot exceed its TIV):
 | 0 | pass losses through unadjusted (single-peril models) |
 | 1 | sum losses, cap to TIV, back-allocate to items in proportion to unadjusted losses |
 | 2 | keep the maximum sub-peril loss, others zero; back-allocate equally on ties |
+| 3 | combine sub-peril losses multiplicatively, `tiv * (1 - (1-A)(1-B)…)`, back-allocated in proportion to losses |
 
 ## fmpy
 

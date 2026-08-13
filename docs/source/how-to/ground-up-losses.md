@@ -9,22 +9,25 @@ These options can be passed as CLI flags to `oasislmf model run` **or** set in t
 run configuration / analysis settings JSON (same names, with underscores). See
 {doc}`../building-and-running-models` for the base run command.
 
-## Select gulmc as the ground-up engine
+## The ground-up engine (gulmc is the default)
 
-Turn on the full Monte-Carlo Python engine:
+`gulmc`, the full Monte-Carlo Python engine, is the **default** — no flag is needed
+to select it. Just set the sample count:
 
 ```bash
-oasislmf model run --gulmc --number-of-samples 100 -C oasislmf.json
+oasislmf model run --number-of-samples 100 -C oasislmf.json
 ```
 
 Or in the config JSON:
 
 ```json
 {
-  "gulmc": true,
   "number_of_samples": 100
 }
 ```
+
+To opt out and fall back to the CDF-based `gulpy` engine, pass `--gulmc False`
+(config `"gulmc": false`).
 
 ## Choose the random number generator
 
@@ -37,7 +40,7 @@ Or in the config JSON:
 | `2` | Latin Hypercube on Philox4x32-7 **(default)** |
 
 ```bash
-oasislmf model run --gulmc --gul-random-generator 1 -C oasislmf.json
+oasislmf model run --gul-random-generator 1 -C oasislmf.json
 ```
 
 See {doc}`../explanation/sampling-methodology` for what these do.
@@ -54,12 +57,13 @@ present. To ignore them for a run, use the gulmc engine flags:
 See {doc}`../explanation/correlation` for the model-data setup and the difference
 between damage and hazard correlation.
 
-## Enable disaggregation
+## Disaggregation
 
-Split aggregate locations into individual buildings before sampling:
+Disaggregation — splitting aggregate locations into individual buildings before
+sampling — is **on by default**. To turn it off:
 
 ```bash
-oasislmf model run --gulmc --do-disaggregation -C oasislmf.json
+oasislmf model run --do-disaggregation False -C oasislmf.json
 ```
 
 See {doc}`../explanation/disaggregation`.
@@ -70,14 +74,14 @@ See {doc}`../explanation/disaggregation`.
   instead of full Monte-Carlo (faster, different sampling semantics):
 
   ```bash
-  oasislmf model run --gulmc --gulmc-effective-damageability -C oasislmf.json
+  oasislmf model run --gulmc-effective-damageability -C oasislmf.json
   ```
 
 - **Vulnerability cache** — size (MB) of the in-memory vulnerability-CDF cache
   (`--gulmc-vuln-cache-size`, config `gulmc_vuln_cache_size`, default `200`):
 
   ```bash
-  oasislmf model run --gulmc --gulmc-vuln-cache-size 500 -C oasislmf.json
+  oasislmf model run --gulmc-vuln-cache-size 500 -C oasislmf.json
   ```
 
 ## Run gulmc directly in a kernel pipeline
@@ -86,7 +90,7 @@ For low-level runs, `gulmc` reads an event stream and writes a GUL stream, like
 the other kernel components (see {doc}`../reference/kernel/CoreComponents`):
 
 ```bash
-eve 1 1 | modelpy | gulmc -S 100 -a 0 --random-generator 2 -i - -o gulmc.bin
+evepy 1 1 | gulmc -S 100 -a 0 --random-generator 2 -o gulmc.bin
 ```
 
 Key `gulmc` flags: `-S` sample size, `-a` back-allocation rule, `-L` loss

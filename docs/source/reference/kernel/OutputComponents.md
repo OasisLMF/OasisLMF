@@ -28,8 +28,8 @@ files for each table); `-E {csv,bin,parquet}`; `-H` (no header).
 **Usage**
 
 ```bash
-summarypy -t gul -1 - < gul.bin | eltpy -s gul_selt.csv -m gul_melt.csv
-eltpy -i gul_summary.bin -s gul_selt.csv
+summarypy -t gul -i gul.bin -1 summary_gul.bin
+eltpy -i summary_gul.bin -s gul_selt.csv -m gul_melt.csv
 ```
 
 ## pltpy
@@ -45,7 +45,8 @@ and **QPLT** (quantile PLT) — with event occurrence dates from the occurrence 
 **Usage**
 
 ```bash
-summarypy -t il -1 - < il.bin | pltpy -s il_splt.csv -m il_mplt.csv
+summarypy -t il -i il.bin -1 summary_il.bin
+pltpy -i summary_il.bin -s il_splt.csv -m il_mplt.csv
 ```
 
 ## lecpy
@@ -148,13 +149,13 @@ across processes) into a single result file — CSV, parquet or binary.
 
 **Parameters** — `-o, --out` (output file); `-f, --file_type {csv,parquet,bin}`;
 `-i, --files_in` (explicit files) or `-d, --dir_in` (a directory); one flag per ORD
-table type (`-s` SELT, `-m` MELT, …) to select what to concatenate.
+table type (`-s` SELT, `-m` MELT, `-M` MPLT, …) to select what to concatenate.
 
 **Usage**
 
 ```bash
 katpy -s -d work/kat/gul_S1_elt_sample -o gul_S1_selt.csv          # concat SELT partitions (csv)
-katpy -m -f parquet -i mplt_P1.parquet mplt_P2.parquet -o MPLT.parquet
+katpy -M -f parquet -i mplt_P1.parquet mplt_P2.parquet -o MPLT.parquet
 ```
 
 ---
