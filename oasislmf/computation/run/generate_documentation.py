@@ -10,9 +10,7 @@ from ..generate.doc import GenerateModelDocumentation
 
 
 class GenerateDocumentation(ComputationStep):
-    """
-    Generate Documentation for model from the config file
-    """
+    """Generate Documentation for model from the config file"""
 
     # Override params
     step_params = []

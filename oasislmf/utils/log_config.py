@@ -4,8 +4,7 @@ from typing import Optional, Dict, Any, Union, List
 
 
 class OasisLogConfig:
-    """
-    Configuration handler for OasisLMF CLI/console logging.
+    """Configuration handler for OasisLMF CLI/console logging.
 
     Handles log level resolution, format management, and validation for CLI-based logging.
     Designed to work alongside existing file-based logging in log.py.
@@ -47,8 +46,7 @@ class OasisLogConfig:
     }
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """
-        Initialize logging configuration manager.
+        """Initialize logging configuration manager.
 
         Args:
             config: Configuration dictionary (typically from JSON file loaded by command.py)
@@ -58,8 +56,7 @@ class OasisLogConfig:
     def get_log_level(
         self, cli_level: Optional[str] = None, is_verbose: bool = False
     ) -> int:
-        """
-        Get effective log level from various sources.
+        """Get effective log level from various sources.
 
         Priority order: CLI args > env vars > config file > verbose flag > default
 
@@ -99,8 +96,7 @@ class OasisLogConfig:
         return logging.INFO
 
     def get_ods_tools_level(self, main_level: int) -> int:
-        """
-        Get ods_tools logger level based on main logger level.
+        """Get ods_tools logger level based on main logger level.
 
         Args:
             main_level: Main oasislmf logger level to use as reference
@@ -117,8 +113,7 @@ class OasisLogConfig:
         return logging.DEBUG if main_level <= logging.DEBUG else logging.WARNING
 
     def get_format_string(self, format_name: Optional[str] = None) -> str:
-        """
-        Get log format string.
+        """Get log format string.
 
         Args:
             format_name: Format template name from CLI or None for config/default
@@ -143,8 +138,7 @@ class OasisLogConfig:
         return self.FORMAT_TEMPLATES["standard"]
 
     def get_date_format(self, format_name: Optional[str] = None) -> Optional[str]:
-        """
-        Get date format string for the specified template.
+        """Get date format string for the specified template.
 
         Args:
             format_name: Format template name
@@ -165,8 +159,7 @@ class OasisLogConfig:
         return None
 
     def create_formatter(self, format_name: Optional[str] = None) -> logging.Formatter:
-        """
-        Create a logging formatter with appropriate format and date format.
+        """Create a logging formatter with appropriate format and date format.
 
         Args:
             format_name: Format template name from CLI
@@ -180,8 +173,7 @@ class OasisLogConfig:
         return logging.Formatter(format_str, datefmt=date_format)
 
     def get_available_formats(self) -> List[str]:
-        """
-        Get list of available format template names.
+        """Get list of available format template names.
 
         Returns:
             List of format template names that can be used with get_format_string()
@@ -195,8 +187,7 @@ class OasisLogConfig:
         return list(self.FORMAT_TEMPLATES.keys())
 
     def get_available_levels(self) -> List[str]:
-        """
-        Get list of available log level names.
+        """Get list of available log level names.
 
         Returns:
             List of standard log level names that can be used with get_log_level()
@@ -210,8 +201,7 @@ class OasisLogConfig:
         return self.STANDARD_LEVELS.copy()
 
     def validate_config(self) -> List[str]:
-        """
-        Validate logging configuration and return any issues.
+        """Validate logging configuration and return any issues.
 
         Returns:
             List of warning messages about configuration issues
@@ -249,8 +239,7 @@ class OasisLogConfig:
         return warnings
 
     def _parse_level(self, level: Union[str, int, None]) -> int:
-        """
-        Parse log level using Python's logging module directly.
+        """Parse log level using Python's logging module directly.
 
         Args:
             level: Log level as string ('DEBUG'), integer (10), or None

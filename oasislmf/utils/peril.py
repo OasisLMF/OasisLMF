@@ -9,12 +9,11 @@ from ods_tools.oed import OedSchema
 
 
 def get_peril_info_from_schema(oed_version='latest version'):
-    '''
-    Get perils and peril_groups info from OedSchema.
+    """Get perils and peril_groups info from OedSchema.
 
     Args:
         oed_version (str): The version of OedSchema, default to `latest version`.
-    '''
+    """
     oed_schema = OedSchema.from_oed_schema_info(oed_version)
 
     peril_info = oed_schema.schema['perils']['info']

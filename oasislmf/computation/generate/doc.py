@@ -9,9 +9,7 @@ from oasislmf.utils.documentation.jsontomd import DefaultJsonToMarkdownGenerator
 
 
 class GenerateModelDocumentation(ComputationStep):
-    """
-    Generates Model Documentation from schema provided in the model config file
-    """
+    """Generates Model Documentation from schema provided in the model config file"""
     # Command line options
     step_params = [
         {'name': 'doc_out_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
@@ -26,6 +24,7 @@ class GenerateModelDocumentation(ComputationStep):
 
     def validate_doc_schema(self, schema_path, docjson_path):
         """Validates docjson_path file with schema_path file
+
         Args:
             schema_path (str | os.PathLike): Schema path file
             docjson_path (str | os.PathLike): Documentation JSON path file
@@ -52,6 +51,7 @@ class GenerateModelDocumentation(ComputationStep):
 
     def json_to_mdtxt(self, json_data, full_schema, data_path, doc_out_dir):
         """Convert json data to markdown text with schemas provided
+
         Args:
             json_data (dict): Json data as dictionary
             full_schema (dict): Full schema file as dictionary

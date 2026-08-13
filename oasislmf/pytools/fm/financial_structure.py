@@ -67,22 +67,27 @@ profile_entry_dtype = np.dtype([('layer_id', oasis_int),
 
 
 def load_static(static_path):
-    """
-    Load the raw financial data from static_path as numpy ndarray
+    """Load the raw financial data from static_path as numpy ndarray
     first check if .bin file is present then try .cvs
     try loading profile_step before falling back to normal profile,
 
-    :param static_path: str
-            static_path
-    :return:
-        programme : link between nodes
-        policytc : info on layer
-        profile : policy profile can be profile_step or profile
-        xref : node to output_id
-        items : items (item_id and coverage_id mapping)
-        coverages : Tiv value for each coverage id
-    :raise:
-        FileNotFoundError if one of the static is missing
+    Args:
+        static_path (str): path to the folder holding the static input files
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[bool], np.ndarray, np.ndarray, np.ndarray]:
+            - programme: link between nodes
+            - policytc: info on layer
+            - profile: policy profile can be profile_step or profile
+            - stepped: True when fm_profile_step was loaded, None when falling back to fm_profile
+            - xref: node to output_id
+            - items: items (item_id and coverage_id mapping), empty when items and coverages
+              disagree on the number of coverages
+            - coverages: Tiv value for each coverage id, empty when items and coverages disagree
+              on the number of coverages
+
+    Raises:
+        FileNotFoundError: if one of the static is missing
     """
     programme = load_as_ndarray(static_path, 'fm_programme', fm_programme_dtype)
     policytc = load_as_ndarray(static_path, 'fm_policytc', fm_policytc_dtype)
@@ -107,13 +112,14 @@ def load_static(static_path):
 
 @njit(cache=True)
 def does_nothing(profile):
-    """
-    evaluate if the profile is just doing nothing to the loss.
+    """Evaluate if the profile is just doing nothing to the loss.
     this allows to save some memory and compulation time and memory during the calculation
-    :param profile: np.array of fm_profile_dtype or fm_profile_step_dtype
-            profile
-    :return:
-        boolean : True is profile is actually doing nothing
+
+    Args:
+        profile (fm_profile_dtype or fm_profile_step_dtype record): the profile row to evaluate
+
+    Returns:
+        bool: True is profile is actually doing nothing
     """
     return ((profile['calcrule_id'] == 100) or
             (profile['calcrule_id'] == 12 and almost_equal(profile['deductible1'], 0)) or
@@ -142,13 +148,15 @@ def get_all_children_csr(node_idx, children_indptr, children_data, items_only, m
     """CSR version of get_all_children using NumPy arrays.
 
     Args:
-        node_idx: Starting node index
-        children_indptr, children_data: CSR arrays for parent->children relationship
-        items_only: If True, only return leaf nodes (items)
-        max_nodes: Maximum possible nodes (for pre-allocation)
+        node_idx (int): Starting node index
+        children_indptr (np.ndarray[oasis_int]): CSR row offsets for the parent->children relationship
+        children_data (np.ndarray[oasis_int]): CSR child indices for the parent->children relationship
+        items_only (bool): If True, only return leaf nodes (items)
+        max_nodes (int): Maximum possible nodes (for pre-allocation)
 
     Returns:
-        Tuple of (result_array, result_len) - node indices of children
+        Tuple[np.ndarray, int]: result_array holding the node indices of children, and result_len,
+            the number of valid entries in it
     """
     result = np.empty(max_nodes, dtype=oasis_int)
     stack = np.empty(max_nodes, dtype=oasis_int)
@@ -181,15 +189,17 @@ def get_all_parent_csr(start_nodes, start_len, parents_indptr, parents_data, tar
     """CSR version of get_all_parent using NumPy arrays.
 
     Args:
-        start_nodes: Array of starting node indices
-        start_len: Number of valid entries in start_nodes
-        parents_indptr, parents_data: CSR arrays for child->parents relationship
-        target_level: Stop at nodes at this level
-        node_level_start: Array to convert index to level
-        max_nodes: Maximum possible nodes (for pre-allocation)
+        start_nodes (np.ndarray[oasis_int]): Array of starting node indices
+        start_len (int): Number of valid entries in start_nodes
+        parents_indptr (np.ndarray[oasis_int]): CSR row offsets for the child->parents relationship
+        parents_data (np.ndarray[oasis_int]): CSR parent indices for the child->parents relationship
+        target_level (int): Stop at nodes at this level
+        node_level_start (np.ndarray[oasis_int]): Array to convert index to level
+        max_nodes (int): Maximum possible nodes (for pre-allocation)
 
     Returns:
-        Tuple of (result_array, result_len) - unique node indices at target_level
+        Tuple[np.ndarray, int]: result_array holding the unique node indices at target_level, and
+            result_len, the number of valid entries in it
     """
     result = np.empty(max_nodes, dtype=oasis_int)
     stack = np.empty(max_nodes, dtype=oasis_int)
@@ -248,15 +258,15 @@ def get_tiv_csr(children_indices, children_len, items, coverages, node_level_sta
     """CSR-compatible version of get_tiv using node indices.
 
     Args:
-        children_indices: Array of child node indices (item level nodes)
-        children_len: Number of valid entries in children_indices
-        items: Items array mapping item_id to coverage_id
-        coverages: Coverage values
-        node_level_start: Array for converting index to level/agg_id
-        start_level: The start level (item level)
+        children_indices (np.ndarray[oasis_int]): Array of child node indices (item level nodes)
+        children_len (int): Number of valid entries in children_indices
+        items (np.ndarray[items_dtype]): Items array mapping item_id to coverage_id
+        coverages (np.ndarray[oasis_float]): Coverage values
+        node_level_start (np.ndarray[oasis_int]): Array for converting index to level/agg_id
+        start_level (int): The start level (item level)
 
     Returns:
-        Total insured value for the children
+        float: Total insured value for the children, counting each coverage at most once
     """
     used_cov = np.zeros_like(coverages, dtype=np.uint8)
     tiv = 0
@@ -382,23 +392,29 @@ def prepare_profile_stepped(profile, tiv):
 
 @njit(cache=True)
 def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages):
-    """
-    :param allocation_rule:
-        option to indicate out the loss are allocated to the output
-    :param fm_programme:
-        structure of the levels
-    :param fm_policytc:
-        structure of the layers and policy_id to apply
-    :param fm_profile:
-        definition of the policy_id
-    :param fm_xref:
-        mapping between the output of the allocation and output item_id
-    :return:
-        compute_infos:
-        nodes_array:
-        node_parents_array:
-        node_profiles_array:
-        output_array:
+    """Build the in-memory financial structure arrays from the raw fm input files.
+
+    Args:
+        allocation_rule (int): option to indicate how the losses are allocated to the output
+        fm_programme (np.ndarray[fm_programme_dtype]): structure of the levels
+        fm_policytc (np.ndarray[fm_policytc_dtype]): structure of the layers and policy_id to apply
+        fm_profile (np.ndarray): definition of the policy_id, of fm_profile_dtype or fm_profile_step_dtype
+        stepped (Optional[bool]): True when fm_profile holds step policies, None otherwise
+        fm_xref (np.ndarray[fm_xref_dtype]): mapping between the output of the allocation and output item_id
+        items (np.ndarray[items_dtype]): item_id and coverage_id mapping, empty when unavailable
+        coverages (np.ndarray[oasis_float]): Tiv value for each coverage id, empty when unavailable
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            - compute_infos: array describing the steps of the computation to perform
+            - nodes_array: array of the nodes of the financial structure
+            - node_parents_array: array mapping each node to its parent nodes
+            - node_profiles_array: array mapping each node to its profiles
+            - output_array: array mapping each output to its node
+            - fm_profile: the fm_profile array used by the computation
+
+    Raises:
+        KeyError: if a node at the output level has no output_id
     """
     ##### profile_id_to_profile_index ####
     # policies may have multiple step, create a mapping between profile_id and the start and end index in fm_profile file
@@ -842,19 +858,19 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
 
 def create_financial_structure(allocation_rule, static_path):
-    """
-    :param allocation_rule: int
-            back-allocation rule
-    :param static_path: string
-            path to the static files
-    :return:
-        compute_queue : the step of the computation to perform on each event
-        node_indexes : map node to index of item in result array
-        index_dependencies : map node to its dependent indexes
-        node_profile : map node to profile
-        output_item_index : list of item_id, index to put in the output
-    """
+    """Compute the financial structure and save it as .npy files in ``static_path``.
 
+    The extracted structure (``compute_info``, ``nodes_array``, ``node_parents_array``,
+    ``node_profiles_array``, ``output_array`` and ``fm_profile``) is written to ``static_path``;
+    nothing is returned.
+
+    Args:
+        allocation_rule (int): back-allocation rule
+        static_path (str): path to the static files
+
+    Raises:
+        ValueError: if allocation_rule is not one of the allowed allocation rules
+    """
     if allocation_rule not in allowed_allocation_rule:
         raise ValueError(f"allocation_rule must be in {allowed_allocation_rule}, found {allocation_rule}")
     if allocation_rule == 3:

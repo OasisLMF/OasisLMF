@@ -1,7 +1,7 @@
 # This workflow performs code quality checks like:
 #   - PEP8: the workflow fails if code is not PEP8 compliant
-#   - flake8: the problems identified by flake 8 are listed but the workflow
-#             presently doesn't fail if flake reports errors.
+#   - ruff: docstring style and the pyflakes checks; the workflow fails if
+#           ruff reports errors. Rule selection lives in pyproject.toml.
 
 name: Code Quality
 
@@ -94,11 +94,11 @@ jobs:
           pip install --upgrade pip-tools
 
       - name: install code quality tools
-        run: pip install --upgrade autopep8 flake8
+        run: pip install --upgrade autopep8 ruff
 
-      - name: Run (partial) flake8
+      - name: Lint (ruff)
         if: ${{ ! cancelled() }}
-        run: flake8 --select F401,F522,F524,F541 --show-source oasislmf/
+        run: ruff check --output-format full oasislmf/
 
       - name: check PEP8 compliance
         if: ${{ ! cancelled() }}

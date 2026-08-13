@@ -30,8 +30,7 @@ from ..utils.exceptions import OasisException
 
 
 class ApiEndpoint(object):
-    """
-    Used to Implement the default requests common to all Oasis API
+    """Used to Implement the default requests common to all Oasis API
     End points.
     """
 
@@ -62,9 +61,7 @@ class ApiEndpoint(object):
 
 
 class JsonEndpoint(object):
-    """
-    Used for JSON data End points.
-    """
+    """Used for JSON data End points."""
 
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
@@ -104,9 +101,7 @@ class JsonEndpoint(object):
 
 
 class FileEndpoint(object):
-    """
-    File Resources Endpoint for Upload / Downloading
-    """
+    """File Resources Endpoint for Upload / Downloading"""
 
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
@@ -163,12 +158,11 @@ class FileEndpoint(object):
         return self.session.get(self._build_url(ID))
 
     def get_dataframe(self, ID):
-        '''
-        Return file endpoint as dict of pandas Dataframes:
+        """Return file endpoint as dict of pandas Dataframes:
 
         either 'application/gzip': search and extract all csv
         or 'text/csv': return as dataframe
-        '''
+        """
         supported_content = [
             'text/csv',
             'application/gzip',
@@ -250,9 +244,7 @@ class SettingTemplatesBaseEndpoint(object):
 
 
 class SettingTemplatesEndpoint(SettingTemplatesBaseEndpoint):
-    """
-    Settings Template Endpoint for interacting with analysis settings templates for a given model.
-    """
+    """Settings Template Endpoint for interacting with analysis settings templates for a given model."""
 
     def __init__(self, session, url_endpoint, logger=None):
         super().__init__(session, url_endpoint)
@@ -292,8 +284,7 @@ class API_models(ApiEndpoint):
 
 
 class ExposureRunEndpoint(FileEndpoint):
-    """
-    Endpoint for `<portfolio>/exposure_run/` - runs (or fetches the result of)
+    """Endpoint for `<portfolio>/exposure_run/` - runs (or fetches the result of)
     `oasislmf exposure run` on the server against the portfolio's exposure files.
     """
 
@@ -302,8 +293,7 @@ class ExposureRunEndpoint(FileEndpoint):
 
 
 class ExposureTransformEndpoint(object):
-    """
-    Endpoint for `<portfolio>/exposure_transform/` - converts exposure data
+    """Endpoint for `<portfolio>/exposure_transform/` - converts exposure data
     between OED and AIR using a mapping and transform file.
     """
 
@@ -329,8 +319,7 @@ class ExposureTransformEndpoint(object):
 
 
 class TarExtractEndpoint(FileEndpoint):
-    """
-    Endpoint for extracting a single named file out of a tar-based file
+    """Endpoint for extracting a single named file out of a tar-based file
     resource, e.g. `<analyses>/input_file_tar_extract/?filename=...`
     """
 
@@ -379,8 +368,7 @@ class API_portfolios(ApiEndpoint):
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
     def create_analyses(self, ID, name, model_id):
-        """ Create new analyses from Exisiting portfolio
-        """
+        """Create new analyses from Exisiting portfolio"""
         data = {"name": name,
                 "model": model_id}
         return self.session.post('{}{}/create_analysis/'.format(self.url_endpoint, ID), json=data)
@@ -552,8 +540,7 @@ class APIClient(object):
         return self.api.get('{}{}/queue-status/'.format(self.api.url_base, self.api_ver))
 
     def upload_portfolio_file(self, portfolio_id, portfolio_file, upload_data):
-        """
-        Upload a portfolio file using the API. Supports absolute filepaths or
+        """Upload a portfolio file using the API. Supports absolute filepaths or
         bytestreams.
 
         If uploading a byte stream `upload_data` is a dict with the keys `name`
@@ -565,21 +552,15 @@ class APIClient(object):
                               {'bytes': <byte_stream>, 'name': <filename>})
         ```
 
-        Parameters
-        :param portfolio_id: Portfolio {id} from
-        :type portfolio_id: int
-
-        :param portfolio_file: The name of the portfolio file to update. One of
-            the following options `location_file`, `accounts_file`,
-            `reinsurance_info_file`, `reinsurance_scope_file` or `currency_conversion_json`.
-        :type settings: str
-
-        :param upload_data: The file to upload through the api. This should be
-        a `str` if it is a filepath or a `dict` if it is a byte stream with the
-        keys `name` and `bytes` corresponding to the filename and bytestream
-        respectively.
-        :type upload_data: [str, dict]
-        ----------
+        Args:
+            portfolio_id (int): Portfolio {id} from
+            portfolio_file (str): The name of the portfolio file to update. One of
+                the following options `location_file`, `accounts_file`,
+                `reinsurance_info_file`, `reinsurance_scope_file` or `currency_conversion_json`.
+            upload_data ([str, dict]): The file to upload through the api. This should be
+                a `str` if it is a filepath or a `dict` if it is a byte stream with the
+                keys `name` and `bytes` corresponding to the filename and bytestream
+                respectively.
         """
         if isinstance(upload_data, dict):
             getattr(self.portfolios, portfolio_file).upload_byte(portfolio_id,
@@ -636,7 +617,7 @@ class APIClient(object):
         """Gets either the json or csv file referenced in the json and tells the endpoint which is needed
 
         Args:
-            filepath (string): path to json file
+            filepath (str): path to json file
 
         Returns:
             string: path to either same json file or csv file referenced by json file
@@ -650,21 +631,13 @@ class APIClient(object):
         return filepath
 
     def upload_settings(self, analyses_id, settings):
-        """
-        Upload an analyses run settings to an API
+        """Upload an analyses run settings to an API
 
         Method to post JSON data or upload a settings file containing JSON data
 
-        Parameters
-        ----------
-        :param analyses_id: Analyses settings {id} from, `v1/analyses/{id}/settings`
-        :type analyses_id: int
-
-        :param settings: Either a valid filepath or dictionary holding the settings
-        :type settings: [str, dict]
-
-        :return:
-        :rtype None
+        Args:
+            analyses_id (int): Analyses settings {id} from, `v1/analyses/{id}/settings`
+            settings ([str, dict]): Either a valid filepath or dictionary holding the settings
         """
         if isinstance(settings, dict):
             self.analyses.settings.post(analyses_id, settings)
@@ -692,8 +665,7 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'create_analysis: failed')
 
     def run_generate(self, analysis_id, poll_interval=5):
-        """
-        Generates the inputs for the analysis based on the portfolio.
+        """Generates the inputs for the analysis based on the portfolio.
         The analysis must have one of the following statuses, `NEW`, `INPUTS_GENERATION_ERROR`,
         `INPUTS_GENERATION_CANCELLED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`.
@@ -707,8 +679,7 @@ class APIClient(object):
         return self._poll_generate_until_complete(analysis_id, analysis, poll_interval)
 
     def _poll_generate_until_complete(self, analysis_id, analysis, poll_interval):
-        """
-        Polls an in-progress or already-complete input generation to completion,
+        """Polls an in-progress or already-complete input generation to completion,
         without triggering it. `analysis` is the last known analysis dict/status,
         as returned by `self.analyses.get(analysis_id).json()`.
         """
@@ -781,8 +752,7 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'run_generate: failed')
 
     def run_analysis(self, analysis_id, analysis_settings_fp=None, poll_interval=5):
-        """
-        Runs all the analysis. The analysis must have one of the following
+        """Runs all the analysis. The analysis must have one of the following
         statuses, `NEW`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`
         """
@@ -848,8 +818,7 @@ class APIClient(object):
                     break
 
     def reconnect(self, analysis_id, output_dir=None, poll_interval=5):
-        """
-        Reconnects to an analysis that is still generating inputs or running,
+        """Reconnects to an analysis that is still generating inputs or running,
         and resumes polling from its current status - without re-triggering
         input generation or the run itself. If the run has already completed,
         downloads the output (when `output_dir` is given).
@@ -891,9 +860,7 @@ class APIClient(object):
             self.api.unrecoverable_error(e, err_msg)
 
     def cancel_generate(self, analysis_id):
-        """
-        Cancels a currently inputs generation. The analysis status must be `GENERATING_INPUTS`
-        """
+        """Cancels a currently inputs generation. The analysis status must be `GENERATING_INPUTS`"""
         try:
             self.analyses.cancel_generate_inputs(analysis_id)
             self.logger.info('Cancelled Input generation: (Id={})'.format(analysis_id))
@@ -901,8 +868,7 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'cancel_generate: Failed')
 
     def cancel_analysis(self, analysis_id):
-        """
-        Cancels a currently running analysis. The analysis must have one of the following
+        """Cancels a currently running analysis. The analysis must have one of the following
         statuses, `PENDING` or `STARTED`
         """
         try:

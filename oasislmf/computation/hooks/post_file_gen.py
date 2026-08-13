@@ -13,8 +13,7 @@ from ...utils.exceptions import OasisException
 
 
 class PostFileGen(ComputationStep):
-    """
-    Computation step that will be call just after oasis file generation.
+    """Computation step that will be call just after oasis file generation.
     On the platform it will be called on a single machine before the files are copied on the several worker for the loss calculation
     Add the ability to specify a model specific step that will modify or expand on the loss calculation input file
     """
@@ -76,9 +75,7 @@ class PostFileGen(ComputationStep):
         }
 
     def run(self):
-        """
-        import post_file_gen_module and call the run method
-        """
+        """Import post_file_gen_module and call the run method"""
         exposure_data = get_exposure_data(self, add_internal_col=True)
         kwargs = dict()
 

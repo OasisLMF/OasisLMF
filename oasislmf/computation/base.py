@@ -18,25 +18,22 @@ from oasislmf.utils.log import oasis_log
 
 
 class ComputationStep:
-    """
-    "Abstract" Class for all Computation Step (ExposurePreAnalysis, GulCalc, ...)
+    """"Abstract" Class for all Computation Step (ExposurePreAnalysis, GulCalc, ...)
     initialise the object with all specified param un step_param and sub- ComputationStep
     provide a generic interface to get the all those parameter definitions (get_params)
 
     the Run method must be implemented and contain le business execution logic.
-
     """
 
     step_params = []
     chained_commands = []
 
     def __init__(self, **kwargs):
-        """
-        initialise the ComputationStep objects:
-         - do the basic check for required parameter (required)
-         - provide default value if defined (default)
-         - check path existence (pre_exist)
-         - create necessary directories (is_dir, is_path)
+        """Initialise the ComputationStep objects:
+        - do the basic check for required parameter (required)
+        - provide default value if defined (default)
+        - check path existence (pre_exist)
+        - create necessary directories (is_dir, is_path)
         """
         self.logger = logging.getLogger(__name__)
         self.kwargs = kwargs
@@ -97,8 +94,7 @@ class ComputationStep:
 
     @classmethod
     def get_params(cls, param_type="step"):
-        """
-        return all the params of the computation step defined in step_params
+        """Return all the params of the computation step defined in step_params
         and the params from the sub_computation step in chained_commands
         if two params have the same name, return the param definition of the first param found only
         this allow to overwrite the param definition of sub step if necessary.
@@ -120,11 +116,9 @@ class ComputationStep:
 
     @classmethod
     def get_arguments(cls, **kwargs):
-        """
-        Return a list of default arguments values for the functions parameters
+        """Return a list of default arguments values for the functions parameters
         If given arg values in 'kwargs' these will override the defaults
         """
-
         func_args = {el['name']: el.get('default', None) for el in cls.get_params()}
         type_map = {el['name']: el.get('type', None) for el in cls.get_params()}
 
@@ -150,8 +144,7 @@ class ComputationStep:
 
     @classmethod
     def get_signature(cls):
-        """ Create a function signature based on the 'get_params()' return
-        """
+        """Create a function signature based on the 'get_params()' return"""
         try:
             # Create keyword params (without default values)
             params = ["{}=None".format(p.get('name')) for p in cls.get_params() if 'default' not in p]
@@ -176,10 +169,7 @@ class ComputationStep:
 
     @classmethod
     def get_computation_settings_json_schema(cls):
-        """
-            return a json schema equivalent to validate the input of the command line
-        """
-
+        """Return a json schema equivalent to validate the input of the command line"""
         arg_type_to_json_type = {
             str: "string",
             int: "number",
@@ -224,5 +214,5 @@ class ComputationStep:
         return json_schema
 
     def run(self):
-        """method that will be call by all the interface to execute the computation step"""
+        """Method that will be call by all the interface to execute the computation step"""
         raise NotImplementedError(f'Method run must be implemented in {self.__class__.__name__}')

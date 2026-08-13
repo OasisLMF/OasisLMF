@@ -35,12 +35,10 @@ def get_oasis_env(name, dtype=None, default=None):
 
 
 class InputValues(object):
-    """
-    Helper class for accessing the input values from either
+    """Helper class for accessing the input values from either
     the command line or the configuration file.
 
     internal_update
-
     """
 
     def __init__(self, args, update_keys=True):
@@ -59,9 +57,7 @@ class InputValues(object):
                 raise OasisException(f"Configuration file {self.config_fp} is not a valid json file", e)
 
     def list_unknown_keys(self):
-        """
-        List all Unknown keys set in the 'oasislmf.json' file
-        """
+        """List all Unknown keys set in the 'oasislmf.json' file"""
         valid_arg_names = set(arg[0] for arg in self.args._get_kwargs())
         config_arg_names = set(self.config.keys())
         unknown_args = config_arg_names - valid_arg_names - set(self.config_mapping.keys())
@@ -102,37 +98,31 @@ class InputValues(object):
             self.logger.error('\nexiting.')
 
     def get(self, name, default=None, required=False, is_path=False, dtype=None):
-        """
-        Gets the name parameter until found from:
-          - the command line arguments.
-          - the configuration file
-          - the environment variable (put in uppercase)
+        """Gets the name parameter until found from:
+        - the command line arguments.
+        - the configuration file
+        - the environment variable (put in uppercase)
 
         If it is not found then ``default`` is returned
         unless ``required`` is True in which case an ``OasisException`` is raised.
 
-        :param name: The name of the parameter to lookup
-        :type name: str
+        Args:
+            name (str): The name of the parameter to lookup
+            default: The default value to return if the name is not
+                found on the command line or in the configuration file.
+            required (bool): Flag whether the value is required, if so and
+                the parameter is not found on the command line or in the
+                configuration file an error is raised.
+            is_path (bool): Flag whether the value should be treated as a path and return an abspath,
+                use config_dir as base dir if value comes from the config
+            dtype: the class <type> of the value, if 'None' load as string by default
 
-        :param default: The default value to return if the name is not
-            found on the command line or in the configuration file.
+        Returns:
+            The found value or the default
 
-        :param required: Flag whether the value is required, if so and
-            the parameter is not found on the command line or in the
-            configuration file an error is raised.
-        :type required: bool
-
-        :param is_path: Flag whether the value should be treated as a path and return an abspath,
-            use config_dir as base dir if value comes from the config
-        :type is_path: bool
-
-        :param dtype: the class <type> of the value, if 'None' load as string by default
-        :type: class
-
-        :raise OasisException: If the value is not found and ``required``
-            is True
-
-        :return: The found value or the default
+        Raises:
+            OasisException: If the value is not found and ``required``
+                is True
         """
         # Load order 0:  Get from CLI flag
         source = 'arg'
@@ -177,18 +167,18 @@ class InputValues(object):
 
 
 def str2bool(v):
-    """ Func type for loading strings to boolean values using argparse
-        https://stackoverflow.com/a/43357954
+    """Func type for loading strings to boolean values using argparse
+    https://stackoverflow.com/a/43357954
 
-        step_params:
-            use: `'default': False, 'type': str2bool, 'const':True, 'nargs':'?', ...`
+    step_params:
+        use: `'default': False, 'type': str2bool, 'const':True, 'nargs':'?', ...`
 
-        CLI:
-            oasislmf --some-flag
-            oasislmf --some-flag <bool>
+    CLI:
+        oasislmf --some-flag
+        oasislmf --some-flag <bool>
 
-        oasislmf.json
-        {"some_flag": true, ...}
+    oasislmf.json
+    {"some_flag": true, ...}
     """
     if v is None:
         return v
