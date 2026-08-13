@@ -64,19 +64,6 @@ oasislmf model run --gulmc --do-disaggregation -C oasislmf.json
 
 See {doc}`../explanation/disaggregation`.
 
-## Enable coverage dependency
-
-Coverage dependency (a dependent coverage's damage conditioned on a source
-coverage) activates automatically when its inputs are present — no run flag is
-needed. You must provide:
-
-1. `coverage_dependency_settings` in `model_settings.json`,
-2. the `source_coverage_id` column in the `correlations` input (populated during
-   GUL input generation), and
-3. a `conditional_vulnerability` static file.
-
-See {doc}`../explanation/coverage-dependency` for the full configuration and rules.
-
 ## Speed up large runs
 
 - **Effective damageability** — draw from the effective damage distribution
