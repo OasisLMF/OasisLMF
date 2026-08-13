@@ -469,9 +469,7 @@ def calcrule_28(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 @njit(cache=True, fastmath=True)
 def calcrule_281(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """
-    conditional coverage
-    """
+    """Conditional coverage"""
     _calcrule_281(policy, loss_out, loss_in)
 
 
