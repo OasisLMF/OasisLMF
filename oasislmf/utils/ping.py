@@ -11,10 +11,10 @@ def oasis_ping(data):
     """
     Sends a JSON message to either an HTTP endpoint, a websocket server, or a socket server.
 
-    If `analysis_pk` is in the data:
+    If `analysis_pk` is in the data, targets are tried in order until one succeeds:
         - if `OASIS_ANALYSIS_STATUS_URL` is in environment, POSTs the message to that URL.
-        - elif `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_PORT` are in environment, sends a websocket message.
-        - else, no message sent.
+        - if `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_PORT` are in environment, sends a websocket message.
+        - if neither is configured, or all configured targets fail, no message gets through.
     Else, a message sent to `OASIS_SOCKET_SERVER_IP` `OASIS_SOCKET_SERVER_PORT` defaulted to 127.0.0.1 8888.
 
     If ``data`` contains a ``port_override`` key, that port is used in place of the default/env-var port
@@ -29,13 +29,19 @@ def oasis_ping(data):
         Boolean: whether attempted call gets through
     """
     if data.get('analysis_pk', None) is not None:
+        attempted = False
         if 'OASIS_ANALYSIS_STATUS_URL' in os.environ:
-            return oasis_ping_http(os.environ['OASIS_ANALYSIS_STATUS_URL'], data)
+            attempted = True
+            if oasis_ping_http(os.environ['OASIS_ANALYSIS_STATUS_URL'], data):
+                return True
         if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
+            attempted = True
             msg = json.dumps(data)
-            return oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg)
-        logging.error("Missing environment variables `OASIS_ANALYSIS_STATUS_URL` or "
-                       "`OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT`.")
+            if oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg):
+                return True
+        if not attempted:
+            logging.error("Missing environment variables `OASIS_ANALYSIS_STATUS_URL` or "
+                           "`OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT`.")
         return False
     msg = json.dumps(data)
     port_override = data.pop('port_override', None)
@@ -70,7 +76,7 @@ def oasis_ping_http(url, data):
     Sends a JSON message to a target HTTP endpoint via POST.
 
     Args:
-        url (str): URL to hit (e.g. "http://oasis-server:8000/v2/analysis-status/")
+        url (str): URL to hit (e.g. "http://oasis-server:8000/analysis-status/")
         data (dict): dictionary of data: JSON serialisable
 
     Returns:
@@ -98,7 +104,7 @@ def oasis_ping_websocket(ws_url, data):
     """
     ws = websocket.WebSocket()
     try:
-        ws.connect(ws_url)
+        ws.connect(ws_url, timeout=5)
         ws.send(data)
         return True
     except Exception as e:
