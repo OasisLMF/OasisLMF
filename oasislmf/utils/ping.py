@@ -43,8 +43,8 @@ def oasis_ping(data):
             logging.error("Missing environment variables `OASIS_ANALYSIS_STATUS_URL` or "
                            "`OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT`.")
         return False
-    msg = json.dumps(data)
     port_override = data.pop('port_override', None)
+    msg = json.dumps(data)
     target_port = int(port_override) if port_override is not None else int(os.environ.get("OASIS_SOCKET_SERVER_PORT", SERVER_DEFAULT_PORT))
     target = (os.environ.get("OASIS_SOCKET_SERVER_IP", SERVER_DEFAULT_IP), target_port)
     return oasis_ping_socket(target, msg)
@@ -66,7 +66,7 @@ def oasis_ping_socket(target, data):
             oasis_socket.connect(target)
             oasis_socket.sendall(data.encode('utf-8'))
         return True
-    except ConnectionRefusedError as e:
+    except OSError as e:
         logging.error(f"oasis_ping_socket could not connect: {e}")
         return False
 
