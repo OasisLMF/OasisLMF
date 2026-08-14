@@ -27,8 +27,7 @@ def column_diff(a, b, width=130):
 
 
 def unified_diff(a, b, as_string=False):
-    """
-    Generates a unified diff of two files: ``a`` and ``b``. The files must
+    """Generates a unified diff of two files: ``a`` and ``b``. The files must
     be passed in as absolute paths.
     """
     try:

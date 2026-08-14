@@ -1,7 +1,4 @@
-"""
-This file contains the utilities for generating random numbers in gulpy.
-
-"""
+"""This file contains the utilities for generating random numbers in gulpy."""
 
 import logging
 from math import floor, sqrt
@@ -91,7 +88,6 @@ def get_random_generator(random_generator):
 
     Returns:
         The random generator function.
-
     """
     # define random generator function
     if random_generator == 0:
@@ -122,8 +118,8 @@ def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, c
     Args:
         unique_peril_correlation_groups (List[int]): list of the unique peril correlation groups.
         event_id (int): event id.
+        correlated_hashes: empty buffer for the output (size of max group id not the number of group id)
         base_seed (int, optional): base random seed. Defaults to 0.
-        correlated_hashes: empty buffer for the output (size of max group id not the number of group id
     """
     unique_peril_index = 0
     unique_peril_len = unique_peril_correlation_groups.shape[0]
@@ -179,8 +175,8 @@ def _fast_lookup(value, range_start, factor, table, N):
 @njit(cache=True, fastmath=True)
 def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
                   norm_cdf, norm_factor, Nsamples, z_unif):
-    """
-    Calculates the correlated random values with precomputed inv_factor and norm_factor
+    """Calculate the correlated random values with precomputed inv_factor and norm_factor.
+
     inv_factor = (N - 1) / (x_max - x_min)
     norm_factor = (N - 1) / (cdf_max - cdf_min)
     Uses fast lookup for the middle values and interpolation for the tail values.
@@ -250,16 +246,16 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
     Args:
         seeds (List[int64]): List of seeds.
         n (int): number of random samples to generate for each seed.
+        skip_seeds (int): number of seeds to skip starting from the beginning
+          of the `seeds` array. For skipped seeds no random numbers are generated
+          and the output rndms will contain zeros at their corresponding row.
+          Default is 0, i.e. no seeds are skipped.
 
     Returns:
         rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
         rndms_idx (Dict[int64, int]): mapping between `seed` and the
           row in rndms that stores the corresponding random values.
-        skip_seeds (int): number of seeds to skip starting from the beginning
-          of the `seeds` array. For skipped seeds no random numbers are generated
-          and the output rndms will contain zeros at their corresponding row.
-          Default is 0, i.e. no seeds are skipped.
 
     Notes:
         Implementation follows scipy.stats.qmc.LatinHypercube v1.8.0.
@@ -301,8 +297,12 @@ def _philox4x32_7(c0, c1, c2, c3, k0, k1):
     against the official Random123 known-answer test vectors in the unit tests.
 
     Args:
-        c0, c1, c2, c3 (uint32): the 128-bit counter words.
-        k0, k1 (uint32): the 64-bit key words.
+        c0 (uint32): first word of the 128-bit counter.
+        c1 (uint32): second word of the 128-bit counter.
+        c2 (uint32): third word of the 128-bit counter.
+        c3 (uint32): fourth word of the 128-bit counter.
+        k0 (uint32): first word of the 64-bit key.
+        k1 (uint32): second word of the 64-bit key.
 
     Returns:
         tuple(uint32, uint32, uint32, uint32): the four output words.

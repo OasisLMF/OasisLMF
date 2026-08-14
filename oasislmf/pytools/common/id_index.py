@@ -1,5 +1,4 @@
-"""
-Unified integer key → index lookup.
+"""Unified integer key → index lookup.
 
 Auto-selects strategy at build time:
     mode 0: flat   (density >= 25%, shifted by min_id)
@@ -158,7 +157,8 @@ def _flat_lookup(flat_data, key, min_id, max_id):
           _i64(_i64_1d, _i64, _i64)], cache=True, inline='always')
 def _interp_find_pos(data, key, lo):
     """Interpolation search returning position.
-    If data[pos] == key: found at pos. Otherwise: not found, pos is resume point."""
+    If data[pos] == key: found at pos. Otherwise: not found, pos is resume point.
+    """
     hi = len(data) - 1
     lo_val = data[lo]
     hi_val = data[hi]
@@ -201,7 +201,8 @@ def _interp_search(data, key):
           _i64(_i64_1d, _i64, _i64)], cache=True, inline='always')
 def _binary_find_pos(data, key, lo):
     """Binary search returning position.
-    If data[pos] == key: found at pos. Otherwise: not found, pos is resume point."""
+    If data[pos] == key: found at pos. Otherwise: not found, pos is resume point.
+    """
     hi = len(data) - 1
     while lo < hi:
         mid = (lo + hi) >> 1

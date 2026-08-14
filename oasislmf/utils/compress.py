@@ -13,8 +13,7 @@ CHUNK_SIZE = 5 * 10 ** 8  # 500 Mb
 
 
 def compress_string(st: str) -> bytes:
-    """
-    Compresses strings using the zlib library.
+    """Compresses strings using the zlib library.
 
     Adapted from a StackOverflow.com solution by Dmitry Skryabin
 
@@ -22,11 +21,11 @@ def compress_string(st: str) -> bytes:
 
     with a modification to set block/chunk size to 500 Mb (5 x 10^8 bytes).
 
-    :param s: Input string to be compressed
-    :type s: str
+    Args:
+        st (str): Input string to be compressed
 
-    :return: Compressed string as bytes
-    :rtype: bytes
+    Returns:
+        bytes: Compressed string as bytes
     """
     _st = ''.join(st).encode('utf-8')
     compressed = b''
@@ -46,14 +45,13 @@ def compress_string(st: str) -> bytes:
 
 
 def decompress_string(bt: bytes) -> str:
-    """
-    Decompresses zlib-compressed strings
+    """Decompresses zlib-compressed strings
 
-    :param bt: zlib-compressed string
-    :type bt: bytes
+    Args:
+        bt (bytes): zlib-compressed string
 
-    :return: Decompressed (Unicode) string
-    :rtype: str
+    Returns:
+        str: Decompressed (Unicode) string
     """
     decompressor = zlib.decompressobj()
 

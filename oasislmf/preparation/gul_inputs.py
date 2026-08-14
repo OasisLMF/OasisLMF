@@ -94,8 +94,7 @@ files_write_info = {
 
 
 def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups):
-    """
-    cleans out columns that are not valid oasis group columns.
+    """Cleans out columns that are not valid oasis group columns.
 
     Valid group id columns can be either
     1. exist in the location file
@@ -131,8 +130,7 @@ def get_gul_input_items(
     hazard_group_id_cols=None,
     do_disaggregation=True
 ):
-    """
-    Generates GUL (Ground-Up Loss) input items by combining location and keys data.
+    """Generates GUL (Ground-Up Loss) input items by combining location and keys data.
 
     This function creates the foundational data structure for loss calculations by
     merging exposure (location) data with model keys data. Each resulting row

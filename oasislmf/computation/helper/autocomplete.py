@@ -11,8 +11,7 @@ from platform import system
 
 
 class HelperTabComplete(ComputationStep):
-    """
-    Adds required command to `.bashrc` Linux or .bash_profile for mac
+    """Adds required command to `.bashrc` Linux or .bash_profile for mac
     so that Command autocomplete works for oasislmf CLI
     """
     step_params = [

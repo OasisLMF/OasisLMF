@@ -49,16 +49,14 @@ class AbstractBasicKeyLookup:
 
     @abc.abstractmethod
     def process_locations(self, locations):
-        """
-        Process location rows - passed in as a pandas dataframe.
+        """Process location rows - passed in as a pandas dataframe.
         Results can be list, tuple, generator or a pandas dataframe.
         """
         raise NotImplementedError
 
 
 class MultiprocLookupMixin:
-    """
-    Simple mixin class for multiprocessing
+    """Simple mixin class for multiprocessing
 
     implement the process_locations_multiproc by transforming the result of process_locations into a pandas DataFrame
     """
@@ -76,8 +74,7 @@ class MultiprocLookupMixin:
 
 
 class OasisBaseLookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
-    """
-    Abstract class that help with the implementation of the KeyServerInterface.
+    """Abstract class that help with the implementation of the KeyServerInterface.
     require lookup method to be implemented.
     Lookup will be call to create a key for each peril id and coverage type
     """
@@ -134,19 +131,20 @@ class OasisBaseLookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         self.__tweak_config_data__()
 
     def lookup(self, loc, peril_id, coverage_type, **kwargs):
-        """
-        Lookup for an individual location item, which could be a dict or a
+        """Lookup for an individual location item, which could be a dict or a
         Pandas series object.
         """
         raise NotImplementedError
 
     def process_locations(self, locs):
-        """
-        Bulk vulnerability lookup for a list, tuple, generator, pandas data
+        """Bulk vulnerability lookup for a list, tuple, generator, pandas data
         frame or dict of location items, which can be dicts or Pandas series
         objects or any object which has as a dict-like interface.
 
         Generates results using ``yield``.
+
+        Yields:
+            dict: the lookup result for each (location, peril_id, coverage_type) combination
         """
         locs_seq = None
 

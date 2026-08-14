@@ -46,8 +46,7 @@ def get_grouped_fm_profile_by_level_and_term_group(
     accounts_profile=get_default_accounts_profile(),
     grouped_profile_by_level=None
 ):
-    """
-    Get the grouped exposure + accounts profile - this describes the
+    """Get the grouped exposure + accounts profile - this describes the
     financial terms found in the source exposure and accounts files,
     which are for the following FM levels: site coverage (# 1),
     site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9),
@@ -94,8 +93,7 @@ def get_grouped_fm_terms_by_level_and_term_group(
     grouped_profile_by_level_and_term_group=None,
     lowercase=True
 ):
-    """
-    Get the FM terms profile (this is a simplfied view of the main grouped
+    """Get the FM terms profile (this is a simplfied view of the main grouped
     profile, containing only information about the financial terms)
     """
     grouped = (

@@ -1,7 +1,4 @@
-"""
-This file contains the core mathematical functions used in gulpy.
-
-"""
+"""This file contains the core mathematical functions used in gulpy."""
 from math import sqrt  # faster than numpy.sqrt
 
 import numpy as np

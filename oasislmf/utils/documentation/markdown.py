@@ -9,14 +9,15 @@ import re
 
 class MarkdownGenerator:
     def __init__(self):
-        """A simple markdown generator for adding markdown strings
-        """
+        """A simple markdown generator for adding markdown strings"""
         self.sections = []
 
     def get_markdown(self, generate_toc=False):
         """Returns markdown string from joined self.sections
+
         Args:
             generate_toc (bool): Generate table of contents bool.
+
         Returns:
             str: Markdown string
         """
@@ -26,6 +27,7 @@ class MarkdownGenerator:
 
     def _slugify(self, title):
         """Make title strings slugified (transform to URL friendly string)
+
         Args:
             title (str): Original Title str
         Returns:
@@ -36,10 +38,7 @@ class MarkdownGenerator:
         return slug
 
     def generate_toc(self, ):
-        """Generate a table of contents from markdown string
-        Returns:
-            toc (str): Table of contents markdown string 
-        """
+        """Generate a table of contents from markdown string and prepend it to the sections."""
         markdown_text = "".join(self.sections)
         lines = markdown_text.split('\n')
         toc = []
@@ -59,6 +58,7 @@ class MarkdownGenerator:
 
     def add_header(self, title, level=1):
         """Adds header to markdown
+
         Args:
             title (Any): Title string
             level (int): Markdown header level. Defaults to 1.
@@ -68,6 +68,7 @@ class MarkdownGenerator:
     def add_definition(self, title, content):
         """Adds definition line to markdown in the following format
         **title**: content
+
         Args:
             title (Any): Name
             content (Any): Description
@@ -76,6 +77,7 @@ class MarkdownGenerator:
 
     def add_table(self, headers, rows):
         """Adds a table to markdown with headers and rows
+
         Args:
             headers (List[str]): Headers
             rows (List[str]): Rows
@@ -94,6 +96,7 @@ class MarkdownGenerator:
 
     def add_list(self, items):
         """Adds list to markdown
+
         Args:
             items (List[str]): List of items
         """
@@ -103,6 +106,7 @@ class MarkdownGenerator:
 
     def add_collapsible_section(self, text, title="Root"):
         """Adds collapsible section to markdown
+
         Args:
             text (str): contents of collapsible section
             title (str, optional): Collapsible section title text. Defaults to "Root".
@@ -111,6 +115,7 @@ class MarkdownGenerator:
 
     def add_text(self, content):
         """Adds text to markdown
+
         Args:
             content (Any): Text content
         """

@@ -1,19 +1,15 @@
-"""
-This file contains general-purpose utilities used in gulpy.
-
-"""
+"""This file contains general-purpose utilities used in gulpy."""
 from numba import njit
 from numba.typed import List
 
 
 @njit(cache=True, fastmath=True)
 def binary_search(value, array, n):
-    """
-    Assuming `array` is a sorted array (increasing order), find the bin
+    """Assuming `array` is a sorted array (increasing order), find the bin
     where where `array` gets larger than `value`.
 
-        Args:
-            value (float,int): the value to be searched
+    Args:
+        value (float,int): the value to be searched
         array (float, int): the array where `value` is to be searched.
         n (int): number of elements of `array` where `value` is to be searched, starting
           from the beginning of `array`.
@@ -21,7 +17,6 @@ def binary_search(value, array, n):
     Returns:
         int: the first index of `array` where `array` is larger than `value`.
           Returns -1 if this condition never occurs.
-
     """
     lo = 0
     hi = n

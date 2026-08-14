@@ -1,6 +1,4 @@
-"""
-This file houses the classes that load the footprint data from compressed, binary, and CSV files.
-"""
+"""This file houses the classes that load the footprint data from compressed, binary, and CSV files."""
 import json
 import logging
 import pickle
@@ -48,12 +46,13 @@ def has_number_in_range(areaperil_ids, min_areaperil_id, max_areaperil_id):
 
 
 def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
-    """
+    """Convert a pandas DataFrame to a numpy structured array.
 
     Args:
         dataframe: DataFrame to convert to numpy
         dtype: numpy dtype of the output ndarray
         columns: optional dict-like object (with get method) mapping np_column => dataframe_column if they are different
+
     Returns:
         numpy nd array
 
@@ -84,13 +83,10 @@ def get_event_map(event_ids):
 
 
 class OasisFootPrintError(Exception):
-    """
-    Raises exceptions when loading footprints.
-    """
+    """Raises exceptions when loading footprints."""
 
     def __init__(self, message: str) -> None:
-        """
-        The constructor of the OasisFootPrintError class.
+        """The constructor of the OasisFootPrintError class.
 
         Args:
             message: (str) the message to be raised
@@ -99,8 +95,7 @@ class OasisFootPrintError(Exception):
 
 
 class Footprint:
-    """
-    This class is the base class for the footprint loaders.
+    """This class is the base class for the footprint loaders.
 
     Attributes:
         storage (BaseStorage): the storage object used to lookup files
@@ -112,11 +107,11 @@ class Footprint:
             df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
             areaperil_ids=None
     ) -> None:
-        """
-        The constructor for the Footprint class.
+        """The constructor for the Footprint class.
 
         Args:
             storage (BaseStorage): the storage object used to lookup files
+            df_engine (str): the engine to use when loading dataframes
             areaperil_ids (list): areaperil_ids that will be useful
         """
         self.storage = storage
@@ -132,8 +127,7 @@ class Footprint:
 
     @staticmethod
     def get_footprint_fmt_priorities():
-        """
-        Get list of footprint file format classes in order of priority.
+        """Get list of footprint file format classes in order of priority.
 
         Returns: (list) footprint file format classes
         """
@@ -156,8 +150,7 @@ class Footprint:
         areaperil_ids=None,
         **kwargs
     ):
-        """
-        Loads the loading classes defined in this file checking to see if the files are in the static path
+        """Loads the loading classes defined in this file checking to see if the files are in the static path
         whilst doing so. The loading goes through the hierarchy with the following order:
 
         -> parquet
@@ -179,6 +172,11 @@ class Footprint:
             z
             bin
             idx
+
+            df_engine (str): the engine to use when loading dataframes
+            areaperil_ids (list): areaperil_ids to filter the loaded footprint to
+            **kwargs: additional keyword arguments, accepted and ignored so that callers can
+                forward a wider parameter dict
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """
@@ -213,8 +211,7 @@ class Footprint:
 
     @staticmethod
     def prepare_df_data(data_frame: pd.DataFrame) -> np.array:
-        """
-        Reads footprint data from a parquet file.
+        """Reads footprint data from a parquet file.
 
         Returns: (np.array) footprint data loaded from the parquet file
         """
@@ -232,8 +229,7 @@ class Footprint:
 
 
 class FootprintCsv(Footprint):
-    """
-    This class is responsible for loading footprint data from CSV.
+    """This class is responsible for loading footprint data from CSV.
 
     Attributes (when in context):
         footprint (np.array[footprint_event_dtype]): event data loaded from the CSV file
@@ -266,8 +262,7 @@ class FootprintCsv(Footprint):
         return self
 
     def get_event(self, event_id):
-        """
-        Gets the event from self.footprint based off the event ID passed in.
+        """Gets the event from self.footprint based off the event ID passed in.
 
         Args:
             event_id: (int) the ID belonging to the Event being extracted
@@ -282,8 +277,7 @@ class FootprintCsv(Footprint):
 
 
 class FootprintBin(Footprint):
-    """
-    This class is responsible loading the event data from the footprint binary files.
+    """This class is responsible loading the event data from the footprint binary files.
 
     Attributes (when in context):
         footprint (mmap.mmap): loaded data from the binary file which has header and then Event data
@@ -323,8 +317,7 @@ class FootprintBin(Footprint):
         return self
 
     def get_event(self, event_id):
-        """
-        Gets the event from self.footprint based off the event ID passed in.
+        """Gets the event from self.footprint based off the event ID passed in.
 
         Args:
             event_id: (int) the ID belonging to the Event being extracted
@@ -343,8 +336,7 @@ class FootprintBin(Footprint):
 
 
 class FootprintBinZ(Footprint):
-    """
-    This class is responsible for loading event data from compressed event data.
+    """This class is responsible for loading event data from compressed event data.
 
     Attributes (when in context):
         zfootprint (mmap.mmap): loaded data from the compressed binary file which has header and then Event data
@@ -392,15 +384,13 @@ class FootprintBinZ(Footprint):
         return self
 
     def get_event(self, event_id):
-        """
-        Gets the event from self.zfootprint based off the event ID passed in.
+        """Gets the event from self.zfootprint based off the event ID passed in.
 
         Args:
             event_id: (int) the ID belonging to the Event being extracted
 
         Returns: (np.array[Event]) the event that was extracted
         """
-
         idx = np.searchsorted(self.footprint_index['event_id'], event_id)
         if idx >= len(self.footprint_index) or self.footprint_index['event_id'][idx] != event_id:
             return None
@@ -414,8 +404,7 @@ class FootprintBinZ(Footprint):
 
 
 class FootprintParquet(Footprint):
-    """
-    This class is responsible for loading event data from parquet event data.
+    """This class is responsible for loading event data from parquet event data.
 
     Attributes (when in context):
         num_intensity_bins (int): number of intensity bins in the data
@@ -439,8 +428,7 @@ class FootprintParquet(Footprint):
         return self
 
     def get_event(self, event_id: int):
-        """
-        Gets the event data from the partitioned parquet data file.
+        """Gets the event data from the partitioned parquet data file.
 
         Args:
             event_id: (int) the ID belonging to the Event being extracted
@@ -478,14 +466,15 @@ class FootprintParquetChunk(Footprint):
         return self
 
     def get_event(self, event_id: int):
-        """
-        Gets the event data from the partitioned
-        parquetfootprint_chunked_filename data file.
+        """Gets the event data from the partitioned footprint_<partition>.parquet files
+        under parquetfootprint_chunked_dir.
 
         Args:
-            event_id: (int) the ID belonging to the Event being extracted
+            event_id (int): the ID belonging to the Event being extracted
 
-        Returns: (np.array[Event]) the event that was extracted
+        Returns:
+            np.array[Event]: the event that was extracted, or None if the event is absent from the
+                lookup map or from its partition
         """
         event_info = self.footprint_lookup_map.get(event_id)
         if event_info is None:
@@ -516,8 +505,7 @@ class FootprintParquetChunk(Footprint):
 
 
 class FootprintParquetDynamic(Footprint):
-    """
-    This class is responsible for loading event data from parquet dynamic event sets and maps
+    """This class is responsible for loading event data from parquet dynamic event sets and maps
     It will build the footprint from the underlying event defintion and hazard case files
 
     If the event_definition.parquet is partitioned by section_id (has subdirectories like
