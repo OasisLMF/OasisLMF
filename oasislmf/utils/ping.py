@@ -6,6 +6,8 @@ import logging
 import requests
 from oasislmf.utils.defaults import SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
 
+logger = logging.getLogger(__name__)
+
 
 def oasis_ping(data):
     """
@@ -32,21 +34,26 @@ def oasis_ping(data):
         attempted = False
         if 'OASIS_ANALYSIS_STATUS_URL' in os.environ:
             attempted = True
-            if oasis_ping_http(os.environ['OASIS_ANALYSIS_STATUS_URL'], data):
+            url = os.environ['OASIS_ANALYSIS_STATUS_URL']
+            logger.debug(f"Sending ping to {url}: {data}")
+            if oasis_ping_http(url, data):
                 return True
         if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
             attempted = True
             msg = json.dumps(data)
-            if oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg):
+            ws_url = f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/"
+            logger.debug(f"Sending ping to {ws_url}: {msg}")
+            if oasis_ping_websocket(ws_url, msg):
                 return True
         if not attempted:
-            logging.error("Missing environment variables `OASIS_ANALYSIS_STATUS_URL` or "
-                           "`OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT`.")
+            logger.error("Missing environment variables `OASIS_ANALYSIS_STATUS_URL` or "
+                          "`OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT`.")
         return False
     port_override = data.pop('port_override', None)
     msg = json.dumps(data)
     target_port = int(port_override) if port_override is not None else int(os.environ.get("OASIS_SOCKET_SERVER_PORT", SERVER_DEFAULT_PORT))
     target = (os.environ.get("OASIS_SOCKET_SERVER_IP", SERVER_DEFAULT_IP), target_port)
+    logger.debug(f"Sending ping to {target}: {msg}")
     return oasis_ping_socket(target, msg)
 
 
@@ -67,7 +74,7 @@ def oasis_ping_socket(target, data):
             oasis_socket.sendall(data.encode('utf-8'))
         return True
     except (ConnectionError, TimeoutError, socket.gaierror) as e:
-        logging.error(f"oasis_ping_socket could not connect: {e}")
+        logger.error(f"oasis_ping_socket could not connect: {e}")
         return False
 
 
@@ -87,7 +94,7 @@ def oasis_ping_http(url, data):
         response.raise_for_status()
         return True
     except requests.exceptions.RequestException as e:
-        logging.error(f"oasis_ping_http could not connect: {e}")
+        logger.error(f"oasis_ping_http could not connect: {e}")
         return False
 
 
@@ -108,7 +115,7 @@ def oasis_ping_websocket(ws_url, data):
         ws.send(data)
         return True
     except Exception as e:
-        logging.error(f"oasis_ping_websocket could not connect: {e}")
+        logger.error(f"oasis_ping_websocket could not connect: {e}")
         return False
     finally:
         ws.close()
