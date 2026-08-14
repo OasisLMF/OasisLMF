@@ -3232,13 +3232,14 @@ def genbash(
 
 
 def add_server_call(call, analysis_pk=None, socket_server_port=None):
-    """Inject WebSocket or socket-server flags into a GUL command string.
+    """Inject WebSocket/HTTP or socket-server flags into a GUL command string.
 
-    If the environment variables ``OASIS_WEBSOCKET_URL`` and
-    ``OASIS_WEBSOCKET_PORT`` are set and ``analysis_pk`` is provided, the
-    ``gulmc``/``gulpy`` invocation within *call* is augmented with
-    ``--socket-server`` and ``--analysis-pk`` flags.  Otherwise, the
-    ``--socket-server`` flag is set to ``IP:port`` when a port is known.
+    If ``analysis_pk`` is provided and either the environment variables
+    ``OASIS_WEBSOCKET_URL``/``OASIS_WEBSOCKET_PORT`` (websocket mode) or
+    ``OASIS_ANALYSIS_STATUS_URL`` (HTTP mode) are set, the ``gulmc``/``gulpy``
+    invocation within *call* is augmented with ``--socket-server`` and
+    ``--analysis-pk`` flags.  Otherwise, the ``--socket-server`` flag is set
+    to ``IP:port`` when a port is known.
 
     Args:
         call (str): The full pipeline command string.
@@ -3250,7 +3251,9 @@ def add_server_call(call, analysis_pk=None, socket_server_port=None):
     """
     if '| gul' not in call:
         return call
-    if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']) and analysis_pk is not None:
+    has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
+    has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
+    if (has_websocket or has_http) and analysis_pk is not None:
         return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='True' --analysis-pk='{analysis_pk}'", call)
     if socket_server_port is not None:
         return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='{socket_server_port}'", call)
