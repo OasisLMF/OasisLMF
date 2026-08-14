@@ -18,7 +18,9 @@ import pytest
 from posixpath import join as urljoin
 
 import requests
+from requests.adapters import HTTPAdapter
 from requests.exceptions import HTTPError
+from urllib3.util.retry import Retry
 from requests_toolbelt import MultipartEncoder
 import responses
 from responses.registries import OrderedRegistry
@@ -67,6 +69,20 @@ CURRENCY_CSV = BASE_DIR / "data" / "currency.csv"
 
 responses_ver = get_version("responses")
 DISABLE_DATA_CHECKS = version.parse(responses_ver) >= version.parse("0.25.3")
+
+
+def fetch_with_retries(url, retries=5, backoff_factor=1.0):
+    session = requests.Session()
+    retry = Retry(
+        total=retries,
+        connect=retries,
+        read=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=[502, 503, 504],
+    )
+    session.mount('https://', HTTPAdapter(max_retries=retry))
+    session.mount('http://', HTTPAdapter(max_retries=retry))
+    return session.get(url).content
 
 
 @responses.activate
@@ -250,6 +266,11 @@ class JsonEndpointTests(unittest.TestCase):
 
 class FileEndpointTests(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        cls.parquet_data = fetch_with_retries(f'{PIWIND_EXP_URL}/SourceLocOEDPiWind10.parquet')
+        cls.csv_data = fetch_with_retries(f'{PIWIND_EXP_URL}/SourceLocOEDPiWind10.csv')
+
     def setUp(self):
         assert responses, 'responses package required to run'
         self.url_endpoint = 'http://example.com/api'
@@ -260,8 +281,6 @@ class FileEndpointTests(unittest.TestCase):
             'accept': 'application/json',
             'content-type': 'application/json',
         }
-        self.parquet_data = requests.get(f'{PIWIND_EXP_URL}/SourceLocOEDPiWind10.parquet').content
-        self.csv_data = requests.get(f'{PIWIND_EXP_URL}/SourceLocOEDPiWind10.csv').content
         responses.start()
 
     def tearDown(self):
