@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import numba as nb
 
-from .data import def_to_type_and_size, oasis_int, oasis_int_size, oasis_float, oasis_float_size
+from .data import def_to_type_and_size
 
 # streams
 PIPE_CAPACITY = 65536  # bytes
