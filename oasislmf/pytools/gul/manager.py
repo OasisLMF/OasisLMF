@@ -328,6 +328,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     ping_data['port_override'] = ping_port
                 oasis_ping(ping_data)
                 counter = 0
+                timer = time.time()
 
         if ping:
             ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
