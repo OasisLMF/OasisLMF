@@ -12,9 +12,7 @@ from ..hooks.post_analysis import PostAnalysis
 
 
 class GenerateOasisLosses(ComputationStep):
-    """
-    Run Oasis file geneartion with optional PreAnalysis hook.
-    """
+    """Run Oasis file geneartion with optional PreAnalysis hook."""
 
     # Override params
     step_params = [

@@ -18,8 +18,7 @@ def run(
     run_dir, file_in, file_out, input_path, static_path, secondary_factor,
     uniform_factor
 ):
-    """
-    Execute the main Post Loss Amplification workflow.
+    """Execute the main Post Loss Amplification workflow.
 
     Args:
         run_dir (str): the directory of where the process is running

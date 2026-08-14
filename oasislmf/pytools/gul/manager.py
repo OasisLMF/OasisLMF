@@ -1,7 +1,4 @@
-"""
-This file is the entry point for the gul command for the package.
-
-"""
+"""This file is the entry point for the gul command for the package."""
 import logging
 import os
 import sys
@@ -44,8 +41,8 @@ logger = logging.getLogger(__name__)
 
 @njit(cache=True)
 def adjust_byte_mv_size(byte_mv, max_bytes_per_coverage):
-    """
-    adjust buff size so that the buffer fits the longest coverage
+    """Adjust buff size so that the buffer fits the longest coverage
+
     Args:
         byte_mv: numpy byte array
         max_bytes_per_coverage: max size possible to accommodate all the coverage in byte_mv
@@ -162,16 +159,20 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
     Args:
         run_dir: (str) the directory of where the process is running
-        ignore_file_type set(str): file extension to ignore when loading
+        ignore_file_type (set(str)): file extension to ignore when loading
         sample_size (int): number of random samples to draw.
         loss_threshold (float): threshold above which losses are printed to the output stream.
         alloc_rule (int): back-allocation rule.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
         random_generator (int): random generator function id.
+        peril_filter (list[int], optional): list of perils to include in the computation (all
+          included if empty). Defaults to [].
         file_in (str, optional): filename of input stream. Defaults to None.
         file_out (str, optional): filename of output stream. Defaults to None.
         ignore_correlation (bool): if True, do not compute correlated random samples.
+        **kwargs: additional keyword arguments, accepted and ignored so that callers can forward a
+          wider parameter dict.
 
     Raises:
         ValueError: if alloc_rule is not 0, 1, or 2.
@@ -361,8 +362,17 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for all item_ids.
         alloc_rule (int): back-allocation rule.
         do_correlation (bool): if True, compute correlated random samples.
-        rndms (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
+        rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed.
+        eps_ij (np.array[float]): correlated random values for damage sampling.
+        corr_data_by_item_id (np.array[correlations_dtype]): correlation values by item id.
+        arr_min (float): minimum value of the inverse Gaussian cdf lookup table.
+        arr_inv_factor (float): scaling factor to index the inverse Gaussian cdf lookup table.
+        norm_inv_cdf (np.array[float]): inverse Gaussian cdf lookup table.
+        arr_min_cdf (float): minimum value of the Gaussian cdf lookup table.
+        arr_norm_factor (float): scaling factor to index the Gaussian cdf lookup table.
+        norm_cdf (np.array[float]): Gaussian cdf lookup table.
+        z_unif (np.array[float]): reusable buffer for correlated random values.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
         max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.

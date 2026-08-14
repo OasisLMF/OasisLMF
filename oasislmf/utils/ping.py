@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 def oasis_ping(data):
-    """
-    Sends a JSON message to either an HTTP endpoint, a websocket server, or a socket server.
+    """Sends a JSON message to either an HTTP endpoint, a websocket server, or a socket server.
+
 
     If `analysis_pk` is in the data, targets are tried in order until one succeeds:
         - if `OASIS_ANALYSIS_STATUS_URL` is in environment, POSTs the message to that URL.
@@ -58,8 +58,7 @@ def oasis_ping(data):
 
 
 def oasis_ping_socket(target, data):
-    """
-    Sends a JSON message to a target socket
+    """Sends a JSON message to a target socket
 
     Args:
         target ((str, int)): IP and port to hit
@@ -79,8 +78,7 @@ def oasis_ping_socket(target, data):
 
 
 def oasis_ping_http(url, data):
-    """
-    Sends a JSON message to a target HTTP endpoint via POST.
+    """Sends a JSON message to a target HTTP endpoint via POST.
 
     Args:
         url (str): URL to hit (e.g. "http://oasis-server:8000/analysis-status/")
@@ -99,8 +97,7 @@ def oasis_ping_http(url, data):
 
 
 def oasis_ping_websocket(ws_url, data):
-    """
-    Sends a JSON message to a target websocket
+    """Sends a JSON message to a target websocket
 
     Args:
         ws_url (str): URL to hit (e.g. "ws://oasis-websocket:8001/ws/analysis-status/")

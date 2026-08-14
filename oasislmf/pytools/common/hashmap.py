@@ -1,5 +1,4 @@
-"""
-Robin Hood hash table for numba JIT code.
+"""Robin Hood hash table for numba JIT code.
 
 Supports structured-record keys (e.g. np.dtype([('a','i4'),('b','u1')])) and
 scalar keys — numeric (int8..int64, uint8..uint64, bool, float32, float64) or
@@ -270,7 +269,8 @@ def _fmix64(h):
     / shift. Strong avalanche: even a single-bit input change touches
     every output bit with ~50% probability. Eliminates the bucket skew
     seen with biased low-bit inputs (floats in [0,1), stride-spaced ints).
-    Bijective, so distinct inputs always produce distinct outputs."""
+    Bijective, so distinct inputs always produce distinct outputs.
+    """
     h = h ^ np.uint64(h >> np.uint64(33))
     h = h * M3_C1
     h = h ^ np.uint64(h >> np.uint64(33))
@@ -297,7 +297,8 @@ def fnv1a(record, h=init_hash):
 
     Note: plain Python ``float`` / ``int`` keys (without a numpy dtype) take
     the ``np.uint64(record)`` value-cast path. Production code uses numpy
-    types throughout, so this restriction is academic."""
+    types throughout, so this restriction is academic.
+    """
     if hasattr(record, 'dtype') and record.dtype.names is not None:
         for fname in record.dtype.names:
             fld = record[fname]
@@ -373,7 +374,8 @@ def fnv1a_overload_scalar(key, h=init_hash):
     Floats are bit-cast to match the record overload's behavior.
 
     Unicode scalars (``UnicodeCharSeq`` / ``UnicodeType``) are handled by
-    ``fnv1a_overload_unichr`` (the next overload arm)."""
+    ``fnv1a_overload_unichr`` (the next overload arm).
+    """
     if not isinstance(key, nbt.Number):
         return None
 
@@ -421,7 +423,8 @@ def fnv1a_overload_unichr(key, h=init_hash):
     ``UnicodeType`` (e.g. when a numpy.str_ scalar is passed in from Python
     and lowered to a unicode string). ``str(key)`` is a no-op for
     UnicodeType and trims trailing NUL padding for UnicodeCharSeq, so both
-    converge on the same hash for the same logical string."""
+    converge on the same hash for the same logical string.
+    """
     if not isinstance(key, (nbt.UnicodeCharSeq, nbt.UnicodeType)):
         return None
 
@@ -453,7 +456,8 @@ def key_eq(a, b):
 
     Note: plain Python ``float`` / ``int`` keys (without a numpy dtype) fall
     back to Python ``==`` semantics. Production code uses numpy types
-    throughout, so this restriction is academic."""
+    throughout, so this restriction is academic.
+    """
     if hasattr(a, 'dtype') and a.dtype.names is not None:
         for fname in a.dtype.names:
             fa, fb = a[fname], b[fname]
@@ -508,7 +512,8 @@ def key_eq_overload_scalar(a, b):
     fnv1a hash side: +0.0 ≠ -0.0, NaN equals NaN iff bit patterns match.
 
     Unicode scalar pairs are handled by ``key_eq_overload_unichr`` (the
-    next overload arm)."""
+    next overload arm).
+    """
     if not (isinstance(a, nbt.Number) and isinstance(b, nbt.Number)):
         return None
 
@@ -540,7 +545,8 @@ def key_eq_overload_unichr(a, b):
     """Handles unicode scalar key pairs — any combination of
     ``UnicodeCharSeq`` and ``UnicodeType``. Numba's `==` for these types
     (``charseq_eq``) compares code-by-code after trimming trailing NUL
-    padding on the UnicodeCharSeq side, matching fnv1a's hashing semantics."""
+    padding on the UnicodeCharSeq side, matching fnv1a's hashing semantics.
+    """
     str_types = (nbt.UnicodeCharSeq, nbt.UnicodeType)
     if not (isinstance(a, str_types) and isinstance(b, str_types)):
         return None
@@ -595,7 +601,8 @@ def init_dict(hint_size=15):
 def _move_key(lookup_table, index_table, mask, i_lookup):
     """Find the next empty slot to the right of i_lookup and shift entries up
     by one slot to make room. Returns False if a key would become 'too poor'
-    to fit (signals a rehash is needed)."""
+    to fit (signals a rehash is needed).
+    """
     i_lookup_start = i_lookup
     while full_bit <= lookup_table[i_lookup & mask] < full_rh:
         i_lookup += index_dtype(1)
@@ -635,7 +642,9 @@ def _try_add_key(info, lookup_table, index_table, key_storage, key, i_item=None)
     modes compile to specialized code with no runtime overhead.
 
     Args:
-        info, lookup_table, index_table: unpacked views.
+        info: unpacked view of the hashmap info array.
+        lookup_table: unpacked view of the slot lookup table.
+        index_table: unpacked view of the slot to dense index table.
         key_storage: 1D array. Read for equality checks against stored keys;
                      also written to in by-value mode.
         key: the key value to insert or find.
@@ -742,7 +751,8 @@ def find_key(table, key_table, key):
 @nb.jit(cache=True)
 def rehash(table, key_table):
     """Double the table size and re-insert every live key. Returns a new
-    packed table buffer (the old one becomes stale)."""
+    packed table buffer (the old one becomes stale).
+    """
     info, lookup_table, index_table = unpack(table)
 
     while info[HM_INFO_N_VALID] > (info[HM_INFO_N_FULL] >> np.uint8(3)):
@@ -785,7 +795,8 @@ def jit_factorize(key_table):
     Uses _try_add_key in by-position mode (i_item passed): no extra storage
     allocated, no input modification. index[slot] points to the i_item of
     the first occurrence; agg_id is tracked via info[HM_INFO_N_VALID] (which increments
-    to match the insertion order)."""
+    to match the insertion order).
+    """
     table = init_dict()
     info, lookup_table, index_table = unpack(table)
     res = np.empty(key_table.shape[0], dtype=np.uint64)
@@ -833,7 +844,8 @@ def factorize(df):
         - Other numeric columns → kept as-is.
         - Everything else → fixed-width unicode 'U<max_len>' via astype(str).
     The resulting columns are packed into a single structured array and
-    handed to ``jit_factorize`` for grouping."""
+    handed to ``jit_factorize`` for grouping.
+    """
     np_arrays = {}
     np_dtypes = []
     for _name, _dtype in df.dtypes.items():

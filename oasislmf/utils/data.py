@@ -190,38 +190,34 @@ DEFAULT_ADDITIONAL_FIELDS = {
 
 
 def factorize_array(arr, sort_opt=False):
-    """
-    Groups a 1D Numpy array by item value, and optionally enumerates the
+    """Groups a 1D Numpy array by item value, and optionally enumerates the
     groups, starting from 1. The default or assumed type is a Nunpy
     array, although a Python list, tuple or Pandas series will work too.
 
-    :param arr: 1D Numpy array (or list, tuple, or Pandas series)
-    :type arr: numpy.ndarray
+    Args:
+        arr (numpy.ndarray): 1D Numpy array (or list, tuple, or Pandas series)
+        sort_opt (bool): sort the value groups before enumerating them (optional; default is False)
 
-    :return: A 2-tuple consisting of the enumeration and the value groups
-    :rtype: tuple
+    Returns:
+        tuple: A 2-tuple consisting of the enumeration and the value groups
     """
     enum, groups = pd.factorize(pd.Series(arr), sort=sort_opt)
     return enum + 1, groups
 
 
 def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[], sort_opt=False):
-    """
-    Groups an n-D Numpy array by item value, and optionally enumerates the
+    """Groups an n-D Numpy array by item value, and optionally enumerates the
     groups, starting from 1. The default or assumed type is a Nunpy
     array, although a Python list, tuple or Pandas series will work too.
 
-    :param ndarr: n-D Numpy array (or appropriate Python structure or Pandas dataframe)
-    :type ndarr: numpy.ndarray
+    Args:
+        ndarr (numpy.ndarray): n-D Numpy array (or appropriate Python structure or Pandas dataframe)
+        row_idxs (list): A list of row indices to use for factorization (optional)
+        col_idxs (list): A list of column indices to use for factorization (optional)
+        sort_opt (bool): sort the value groups before enumerating them (optional; default is False)
 
-    :param row_idxs: A list of row indices to use for factorization (optional)
-    :type row_idxs: list
-
-    :param col_idxs: A list of column indices to use for factorization (optional)
-    :type col_idxs: list
-
-    :return: A 2-tuple consisting of the enumeration and the value groups
-    :rtype: tuple
+    Returns:
+        tuple: A 2-tuple consisting of the enumeration and the value groups
     """
     if not (row_idxs or col_idxs):
         raise OasisException('A list of row indices or column indices must be provided')
@@ -244,27 +240,18 @@ def factorize_dataframe(
         by_col_labels=None,
         by_col_indices=None
 ):
-    """
-    Groups a selection of rows or columns of a Pandas DataFrame array by value,
+    """Groups a selection of rows or columns of a Pandas DataFrame array by value,
     and optionally enumerates the groups, starting from 1.
 
-    :param df: Pandas DataFrame
-    :type: pandas.DataFrame
+    Args:
+        df (pandas.DataFrame): Pandas DataFrame
+        by_row_labels (list, tuple): A list or tuple of row labels
+        by_row_indices (list, tuple): A list or tuple of row indices
+        by_col_labels (list, tuple): A list or tuple of column labels
+        by_col_indices (list, tuple): A list or tuple of column indices
 
-    :param by_row_labels: A list or tuple of row labels
-    :type by_row_labels: list, tuple
-
-    :param by_row_indices: A list or tuple of row indices
-    :type by_row_indices: list, tuple
-
-    :param by_col_labels: A list or tuple of column labels
-    :type by_col_labels: list, tuple
-
-    :param by_col_indices: A list or tuple of column indices
-    :type by_col_indices: list, tuple
-
-    :return: A 2-tuple consisting of the enumeration and the value groups
-    :rtype: tuple
+    Returns:
+        tuple: A 2-tuple consisting of the enumeration and the value groups
     """
     by_row_indices = by_row_indices or (None if not by_row_labels else [df.index.get_loc(label) for label in by_row_labels])
     by_col_indices = by_col_indices or (None if not by_col_labels else [df.columns.get_loc(label) for label in by_col_labels])
@@ -277,41 +264,36 @@ def factorize_dataframe(
 
 
 def fast_zip_arrays(*arrays):
-    """
-    Speedy zip of a sequence or ordered iterable of Numpy arrays (Python
+    """Speedy zip of a sequence or ordered iterable of Numpy arrays (Python
     iterables with ordered elements such as lists and tuples, or iterators
     or generators of these, will also work).
 
-    :param arrays: An iterable or iterator or generator of Numpy arrays
-    :type arrays: list, tuple, collections.Iterator, types.GeneratorType
+    Args:
+        arrays (list, tuple, collections.Iterator, types.GeneratorType): An iterable or iterator or generator of Numpy arrays
 
-    :return: A Numpy 1D array of n-tuples of the zipped sequences
-    :rtype: np.array
+    Returns:
+        np.array: A Numpy 1D array of n-tuples of the zipped sequences
     """
     return pd._libs.lib.fast_zip([arr for arr in arrays])
 
 
 def fast_zip_dataframe_columns(df, cols):
-    """
-    Speedy zip of a sequence or ordered iterable of Pandas DataFrame columns
+    """Speedy zip of a sequence or ordered iterable of Pandas DataFrame columns
     (Python iterables with ordered elements such as lists and tuples, or
     iterators or generators of these, will also work).
 
-    :param df: Pandas DataFrame
-    :type df: pandas.DataFrame
+    Args:
+        df (pandas.DataFrame): Pandas DataFrame
+        cols (list, tuple, collections.Iterator, types.GeneratorType): An iterable or iterator or generator of Pandas DataFrame columns
 
-    :param cols: An iterable or iterator or generator of Pandas DataFrame columns
-    :type cols: list, tuple, collections.Iterator, types.GeneratorType
-
-    :return: A Numpy 1D array of n-tuples of the dataframe columns to be zipped
-    :rtype: np.array
+    Returns:
+        np.array: A Numpy 1D array of n-tuples of the dataframe columns to be zipped
     """
     return fast_zip_arrays(*(df[col].values for col in cols))
 
 
 def establish_correlations(model_settings: dict) -> bool:
-    """
-    Checks the model settings to see if correlations are present.
+    """Checks the model settings to see if correlations are present.
 
     Args:
         model_settings: (dict) the model settings that are going to be checked
@@ -332,17 +314,15 @@ def establish_correlations(model_settings: dict) -> bool:
 
 
 def detect_encoding(filepath):
-    """
-    Given a path to a CSV of unknown encoding
+    """Given a path to a CSV of unknown encoding
     read lines to detects its encoding type
 
-    :param filepath: Filepath to check
-    :type  filepath: str
+    Args:
+        filepath (str): Filepath to check
 
-    :return: Example `{'encoding': 'ISO-8859-1', 'confidence': 0.73, 'language': ''}`
-    :rtype: dict
+    Returns:
+        dict: Example `{'encoding': 'ISO-8859-1', 'confidence': 0.73, 'language': ''}`
     """
-
     detector = UniversalDetector()
     with io.open(filepath, 'rb') as f:
         for line in f:
@@ -374,79 +354,49 @@ def get_dataframe(
         low_memory=False,
         encoding=None
 ):
-    """
-    Loads a Pandas dataframe from a source CSV or JSON file, or a text buffer
+    """Loads a Pandas dataframe from a source CSV or JSON file, or a text buffer
     of such a file (``io.StringIO``), or another Pandas dataframe.
 
-    :param src_fp: Source CSV or JSON file path (optional)
-    :type src_fp: str
+    Args:
+        src_fp (str): Source CSV or JSON file path (optional)
+        src_type (str): Type of source file -CSV or JSON (optional; default is csv)
+        src_buf (io.StringIO): Text buffer of a source CSV or JSON file (optional)
+        src_data (list, dict): Source data to load the frame from directly (optional)
+        float_precision (str): Indicates whether to support high-precision numbers
+            present in the data (optional; default is high)
+        empty_data_error_msg (str): The message of the exception that is thrown
+            there is no data content, i.e no rows
+            (optional)
+        lowercase_cols (bool): Whether to convert the dataframe columns to lowercase
+            (optional; default is True)
+        required_cols (list, tuple, collections.Iterable): An iterable of columns required to be present in the
+            source data (optional)
+        col_defaults (dict): A dict of column names and their default values. This
+            can include both existing columns and new columns -
+            defaults for existing columns are set row-wise using
+            pd.DataFrame.fillna, while defaults for non-existent
+            columns are set column-wise using assignment (optional)
+        non_na_cols (list, tuple, collections.Iterable): An iterable of names of columns which must be dropped
+            if they contain any null values (optional)
+        col_dtypes (dict): A dict of column names and corresponding data types -
+            Python built-in datatypes are accepted but are mapped
+            to the corresponding Numpy datatypes (optional)
+        sort_cols (list, tuple, collections.Iterable): An iterable of column names by which to sort the frame
+            rows (optional)
+        sort_ascending (bool): Whether to perform an ascending or descending sort -
+            is used only in conjunction with the sort_cols
+            option (optional)
+        memory_map (bool): Memory-efficient option used when loading a frame from
+            a file or text buffer - is a direct optional argument
+            for the pd.read_csv method
+        low_memory (bool): Internally process the file in chunks, resulting in lower memory use
+            while parsing, but possibly mixed type inference.
+            To ensure no mixed types either set False,
+        encoding (str): Try to read CSV of JSON data with the given encoding type,
+            if 'None' will try to auto-detect on UnicodeDecodeError
 
-    :param src_type: Type of source file -CSV or JSON (optional; default is csv)
-    :param src_type: str
-
-    :param src_buf: Text buffer of a source CSV or JSON file (optional)
-    :type src_buf: io.StringIO
-
-    :param float_precision: Indicates whether to support high-precision numbers
-                            present in the data (optional; default is high)
-    :type float_precision: str
-
-    :param empty_data_error_msg: The message of the exception that is thrown
-                                there is no data content, i.e no rows
-                                (optional)
-    :type empty_data_error_msg: str
-
-    :param lowercase_cols: Whether to convert the dataframe columns to lowercase
-                           (optional; default is True)
-    :type lowercase_cols: bool
-
-    :param required_cols: An iterable of columns required to be present in the
-                          source data (optional)
-    :type required_cols: list, tuple, collections.Iterable
-
-    :param col_defaults: A dict of column names and their default values. This
-                         can include both existing columns and new columns -
-                         defaults for existing columns are set row-wise using
-                         pd.DataFrame.fillna, while defaults for non-existent
-                         columns are set column-wise using assignment (optional)
-    :type col_defaults: dict
-
-    :param non_na_cols: An iterable of names of columns which must be dropped
-                        if they contain any null values (optional)
-    :type non_na_cols: list, tuple, collections.Iterable
-
-    :param col_dtypes: A dict of column names and corresponding data types -
-                       Python built-in datatypes are accepted but are mapped
-                       to the corresponding Numpy datatypes (optional)
-    :type col_dtypes: dict
-
-    :param sort_cols: An iterable of column names by which to sort the frame
-                      rows (optional)
-    :type sort_cols: list, tuple, collections.Iterable
-
-    :param sort_ascending: Whether to perform an ascending or descending sort -
-                           is used only in conjunction with the sort_cols
-                           option (optional)
-    :type sort_ascending: bool
-
-    :param memory_map: Memory-efficient option used when loading a frame from
-                       a file or text buffer - is a direct optional argument
-                       for the pd.read_csv method
-    :type memory_map: bool
-
-    :param low_memory: Internally process the file in chunks, resulting in lower memory use
-                       while parsing, but possibly mixed type inference.
-                       To ensure no mixed types either set False,
-    :type low_memory: bool
-
-    :param encoding: Try to read CSV of JSON data with the given encoding type,
-                     if 'None' will try to auto-detect on UnicodeDecodeError
-    :type  encoding: str
-
-
-
-    :return: A Pandas dataframe
-    :rtype: pd.DataFrame
+    Returns:
+        pd.DataFrame: A Pandas dataframe
     """
     if not (src_fp or src_buf or src_data is not None):
         raise OasisException(
@@ -585,14 +535,15 @@ def get_dataframe(
 
 
 def get_dtypes_and_required_cols(get_dtypes, all_dtypes=False):
-    """
-    Get OED column data types and required column names from JSON.
+    """Get OED column data types and required column names from JSON.
 
-    :param all_dtypes: If true return every dtype field, otherwise only categoricals
-    :type all_dtypes: boolean
+    Args:
+        get_dtypes (function): method to get dict from JSON
+        all_dtypes (bool): If true return every dtype field, otherwise only categoricals
 
-    :param get_dtypes: method to get dict from JSON
-    :type get_dtypes: function
+    Returns:
+        Tuple[dict, list]: column name to dtype mapping, and the names of the columns marked
+            as required
     """
     dtypes = get_dtypes()
 
@@ -612,26 +563,19 @@ def get_dtypes_and_required_cols(get_dtypes, all_dtypes=False):
 
 
 def get_ids(df, usecols, group_by=[], sort_keys=True):
-    """
-    Enumerates (counts) the rows of a given dataframe in a given subset
+    """Enumerates (counts) the rows of a given dataframe in a given subset
     of dataframe columns, and optionally does the enumeration with
     respect to subgroups of the column subset.
 
-    :param df: Input dataframe
-    :type df: pandas.DataFrame
+    Args:
+        df (pandas.DataFrame): Input dataframe
+        usecols (list): The column subset
+        group_by (list): A subset of the column subset to use a subgroup key
+        sort_keys (bool): Sort keys by value before assigning ids
 
-    :param usecols: The column subset
-    :param usecols: list
-
-    :param group_by: A subset of the column subset to use a subgroup key
-    :param group_by: list
-
-    :param sort_keys: Sort keys by value before assigning ids
-    :param sort_keys: Boolean
-
-        Example if sort_keys=True:
-        -----------------
-        index  PortNumber AccNumber    locnumbera  id (returned)
+            Example if sort_keys=True:
+            -----------------
+            index  PortNumber AccNumber    locnumbera  id (returned)
             0           1    A11111  10002082049    3
             1           1    A11111  10002082050    4
             2           1    A11111  10002082051    5
@@ -643,8 +587,8 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
             8           1    A11111  10002082048    2
             9           1    A11111  10002082055    9
 
-    :return: The enumeration
-    :rtype: numpy.ndarray
+    Returns:
+        numpy.ndarray: The enumeration
     """
     _usecols = group_by + list(set(usecols).difference(group_by))
 
@@ -660,14 +604,13 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
 
 
 def get_json(src_fp):
-    """
-    Loads JSON from file.
+    """Loads JSON from file.
 
-    :param src_fp: Source JSON file path
-    :type src_fp: str
+    Args:
+        src_fp (str): Source JSON file path
 
-    :return: dict
-    :rtype: dict
+    Returns:
+        dict: dict
     """
     try:
         with io.open(src_fp, 'r', encoding='utf-8') as f:
@@ -677,24 +620,20 @@ def get_json(src_fp):
 
 
 def get_timestamp(thedate=datetime.now(), fmt='%Y%m%d%H%M%S'):
-    """
-    Get a timestamp string from a ``datetime.datetime`` object
+    """Get a timestamp string from a ``datetime.datetime`` object
 
-    :param thedate: ``datetime.datetime`` object
-    :type thedate: datetime.datetime
+    Args:
+        thedate (datetime.datetime): ``datetime.datetime`` object
+        fmt (str): Timestamp format string
 
-    :param fmt: Timestamp format string
-    :type fmt: str
-
-    :return: Timestamp string
-    :rtype: str
+    Returns:
+        str: Timestamp string
     """
     return thedate.strftime(fmt)
 
 
 def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
-    """
-    Get a UTC timestamp string from a ``datetime.datetime`` object.
+    """Get a UTC timestamp string from a ``datetime.datetime`` object.
 
     When ``thedate`` is omitted, the current UTC time is used. A naive
     ``datetime`` (no ``tzinfo``) is interpreted as UTC, matching the
@@ -704,15 +643,13 @@ def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
     time, which caused run-directory timestamps to drift by the local
     UTC offset on non-UTC hosts (issue #1936).
 
-    :param thedate: ``datetime.datetime`` object. If ``None`` (the
-        default), ``datetime.now(pytz.utc)`` is used.
-    :type thedate: datetime.datetime or None
+    Args:
+        thedate (datetime.datetime or None): ``datetime.datetime`` object. If ``None`` (the
+            default), ``datetime.now(pytz.utc)`` is used.
+        fmt (str): Timestamp format string, default is "%Y-%b-%d %H:%M:%S"
 
-    :param fmt: Timestamp format string, default is "%Y-%b-%d %H:%M:%S"
-    :type fmt: str
-
-    :return: UTC timestamp string
-    :rtype: str
+    Returns:
+        str: UTC timestamp string
     """
     if thedate is None:
         thedate = datetime.now(pytz.utc)
@@ -722,22 +659,20 @@ def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
 
 
 def merge_check(left, right, on=[], raise_error=True):
-    """
-    Check two dataframes for keys intersection, use before performing a merge
-
-    :param left: The first of two dataframes to be merged
-    :type left: pd.DataFrame
-
-    :param right: The second of two dataframes to be merged
-    :type left: pd.DataFrame
-
-    :param on: column keys to test
-    :type on: list
-
-    :return: A dict of booleans, True for an intersection between left/right
-    :rtype: dict
+    """Check two dataframes for keys intersection, use before performing a merge
 
     {'PortNumber': False, 'AccNumber': True, 'layer_id': True, 'condnumber': True}
+
+    Args:
+        left (pd.DataFrame): The first of two dataframes to be merged
+        right (pd.DataFrame): The second of two dataframes to be merged
+        on (list): column keys to test
+        raise_error (bool): Whether to raise when a key has no intersection
+            (optional; default is True)
+
+    Raises:
+        OasisException: if raise_error is set and any key in `on` has no intersection
+            between left and right
     """
     keys_checked = {}
     for key in on:
@@ -752,23 +687,20 @@ def merge_check(left, right, on=[], raise_error=True):
 
 
 def merge_dataframes(left, right, join_on=None, **kwargs):
-    """
-    Merges two dataframes by ensuring there is no duplication of columns.
+    """Merges two dataframes by ensuring there is no duplication of columns.
 
-    :param left: The first of two dataframes to be merged
-    :type left: pd.DataFrame
+    Args:
+        left (pd.DataFrame): The first of two dataframes to be merged
+        right (pd.DataFrame): The second of two dataframes to be merged
+        join_on (str, list): Column key(s) to index and join on. When set, the frames are joined
+            on this index instead of being passed to pd.merge (optional)
+        **kwargs (dict): Optional keyword arguments passed directly to the underlying
+            pd.merge method that is called, including options for the
+            join keys, join type, etc. - please see the pd.merge
+            documentation for details of these optional arguments
 
-    :param right: The second of two dataframes to be merged
-    :type left: pd.DataFrame
-
-    :param kwargs: Optional keyword arguments passed directly to the underlying
-                   pd.merge method that is called, including options for the
-                   join keys, join type, etc. - please see the pd.merge
-                   documentation for details of these optional arguments
-    :type kwargs: dict
-
-    :return: A merged dataframe
-    :rtype: pd.DataFrame
+    Returns:
+        pd.DataFrame: A merged dataframe
     """
     if not join_on:
         left_keys = kwargs.get('left_on') or kwargs.get('on') or []
@@ -933,49 +865,30 @@ def print_dataframe(
         end='\n',
         **tabulate_kwargs
 ):
-    """
-    A method to pretty-print a Pandas dataframe - calls on the ``tabulate``
+    """A method to pretty-print a Pandas dataframe - calls on the ``tabulate``
     package
 
-    :param df: The dataframe to pretty-print
-    :type df: pd.DataFrame
-
-    :param cols: An iterable of names of columns whose values should
-                           be printed (optional). If unset, all columns will be printed.
-    :type cols: list, tuple, collections.Iterable
-
-    :param string_cols: An iterable of names of columns whose values should
-                           be treated as strings (optional)
-    :type string_cols: list, tuple, collections.Iterable
-
-    :param show_index: Whether to display the index column in the printout
-                       (optional; default is False)
-    :type show_index: bool
-
-    :param frame_header: Header string to display on top of the printed
-                         dataframe (optional)
-    :type frame_header: str
-
-    :param column_headers: Column header format - see the tabulate.tabulate
-                        method documentation (optional, default is 'keys')
-    :type column_headers: list, str
-
-    :param tablefmt: Table format - see the tabulate.tabulate method
-                     documentation (optional; default is 'psql')
-    :type tablefmt: str, list, tuple
-
-    :param floatfmt: Floating point format - see the tabulate.tabulate
-                    method documnetation (optional; default is ".2f")
-    :type floatfmt: str
-
-    :param end: String to append after printing the dataframe
-                (optional; default is newline)
-    :type end: str
-
-    :param tabulate_kwargs: Additional optional arguments passed directly to
-                            the underlying tabulate.tabulate method - see the
-                            method documentation for more details
-    :param tabulate_kwargs: dict
+    Args:
+        df (pd.DataFrame): The dataframe to pretty-print
+        cols (list, tuple, collections.Iterable): An iterable of names of columns whose values should
+            be printed (optional). If unset, all columns will be printed.
+        string_cols (list, tuple, collections.Iterable): An iterable of names of columns whose values should
+            be treated as strings (optional)
+        show_index (bool): Whether to display the index column in the printout
+            (optional; default is False)
+        frame_header (str): Header string to display on top of the printed
+            dataframe (optional)
+        column_headers (list, str): Column header format - see the tabulate.tabulate
+            method documentation (optional, default is 'keys')
+        tablefmt (str, list, tuple): Table format - see the tabulate.tabulate method
+            documentation (optional; default is 'psql')
+        floatfmt (str): Floating point format - see the tabulate.tabulate
+            method documnetation (optional; default is ".2f")
+        end (str): String to append after printing the dataframe
+            (optional; default is newline)
+        **tabulate_kwargs (dict): Additional optional arguments passed directly to
+            the underlying tabulate.tabulate method - see the
+            method documentation for more details
     """
     _df = df.copy(deep=True)
 
@@ -1002,19 +915,16 @@ def print_dataframe(
 
 
 def set_dataframe_column_dtypes(df, dtypes):
-    """
-    A method to set column datatypes for a Pandas dataframe
+    """A method to set column datatypes for a Pandas dataframe
 
-    :param df: The dataframe to process
-    :type df: pd.DataFrame
+    Args:
+        df (pd.DataFrame): The dataframe to process
+        dtypes (dict): A dict of column names and corresponding Numpy datatypes -
+            Python built-in datatypes can be passed in but they will be
+            mapped to the corresponding Numpy datatypes
 
-    :param dtypes: A dict of column names and corresponding Numpy datatypes -
-                   Python built-in datatypes can be passed in but they will be
-                   mapped to the corresponding Numpy datatypes
-    :type dtypes: dict
-
-    :return: The processed dataframe with column datatypes set
-    :rtype: pandas.DataFrame
+    Returns:
+        pandas.DataFrame: The processed dataframe with column datatypes set
     """
     existing_cols = list(set(dtypes).intersection(df.columns))
     _dtypes = {
@@ -1027,8 +937,7 @@ def set_dataframe_column_dtypes(df, dtypes):
 
 
 def validate_vuln_csv_contents(file_path):
-    """
-    Validate the contents of the CSV file for vulnerability replacements.
+    """Validate the contents of the CSV file for vulnerability replacements.
 
     Args:
         file_path (str): Path to the vulnerability CSV file
@@ -1066,8 +975,7 @@ def validate_vuln_csv_contents(file_path):
 
 
 def validate_vulnerability_replacements(analysis_settings_json):
-    """
-    Validate vulnerability replacements in analysis settings file.
+    """Validate vulnerability replacements in analysis settings file.
     If vulnerability replacements are specified as a file path, check that the file exists.
     This way the user will be warned early if the vulnerability option selected is not valid.
 
@@ -1076,7 +984,6 @@ def validate_vulnerability_replacements(analysis_settings_json):
 
     Returns:
         bool: True if the vulnerability replacements are present and valid, False otherwise
-
     """
     if analysis_settings_json is None:
         return False
@@ -1130,18 +1037,14 @@ def validate_analysis_oed_fields(analysis_settings_json, exposure_data, summarie
 
 
 def fill_na_with_categoricals(df, fill_value):
-    """
-    Fill NA values in a Pandas DataFrame, with handling for Categorical dtype columns.
+    """Fill NA values in a Pandas DataFrame, with handling for Categorical dtype columns.
 
     The input dataframe is modified inplace.
 
-    :param df: The dataframe to process
-    :type df: pd.DataFrame
-
-    :param fill_value: A single value to use in all columns, or a dict of column names and
-                       corresponding values to fill.
-    :type fill_value: int, float, str, dict
-
+    Args:
+        df (pd.DataFrame): The dataframe to process
+        fill_value (int, float, str, dict): A single value to use in all columns, or a dict of column names and
+            corresponding values to fill.
     """
     if not isinstance(fill_value, dict):
         fill_value = {col_name: fill_value for col_name in df.columns}

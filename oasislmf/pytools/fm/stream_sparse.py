@@ -1,5 +1,4 @@
-"""
-FM Stream I/O with Sparse Array Storage
+"""FM Stream I/O with Sparse Array Storage
 ========================================
 
 This module handles reading loss data from the input stream (GUL or previous FM)
@@ -69,8 +68,7 @@ SIDX_LOSS_WRITE_SIZE = oasis_int_size + oasis_float_size
 
 @nb.jit(cache=True, nopython=True)
 def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
-    """
-    Handle items that received no loss data (all samples were zero).
+    """Handle items that received no loss data (all samples were zero).
 
     If an item's sidx range is empty (no non-zero losses), we still need
     a placeholder entry to maintain array consistency. This adds a single
@@ -84,8 +82,7 @@ def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
 
 @nb.jit(cache=True, nopython=True)
 def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
-    """
-    Insert a (sidx, loss) pair into the sparse arrays, maintaining sorted sidx order.
+    """Insert a (sidx, loss) pair into the sparse arrays, maintaining sorted sidx order.
 
     The sidx values must be stored in sorted order for efficient lookup during
     computation. This function handles three cases:
@@ -130,8 +127,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                 computes, compute_idx
                 ):
-    """
-    Parse a buffer of stream data, populating sparse loss arrays.
+    """Parse a buffer of stream data, populating sparse loss arrays.
 
     This is the core stream parsing function. It handles the state machine for
     reading the Oasis binary stream format:
@@ -238,8 +234,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 
 
 class FMReader(EventReader):
-    """
-    when reading the stream we store relenvant value into a slithly modified version of the CSR sparse matrix where
+    """when reading the stream we store relenvant value into a slithly modified version of the CSR sparse matrix where
     the column indices for row i are stored in indices[indptr[i]:indptr[i+1]]
     and their corresponding values are stored in data[indptr[i]:indptr[i+1]].
 

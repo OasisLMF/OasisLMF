@@ -9,8 +9,7 @@ from .command import OasisBaseCommand, OasisComputationCommand
 
 
 class RunCmd(OasisComputationCommand):
-    """
-    Generates deterministic losses using the installed ktools framework given
+    """Generates deterministic losses using the installed ktools framework given
     direct Oasis files (GUL + optionally IL and RI input files).
 
     The command line arguments can be supplied in the configuration file
@@ -22,10 +21,9 @@ class RunCmd(OasisComputationCommand):
 
 
 class ExposureCmd(OasisBaseCommand):
-    """
-    Exposure subcommands::
+    """Exposure subcommands::
 
-        * generate - and optionally, validate - deterministic losses (GUL, IL or RIL)
+    * generate - and optionally, validate - deterministic losses (GUL, IL or RIL)
     """
     sub_commands = {
         'run': RunCmd

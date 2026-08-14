@@ -1,8 +1,6 @@
-"""
-This file is the entry point for the python get model command for the package
+"""This file is the entry point for the python get model command for the package
 
 TODO: use selector and select for output
-
 """
 import atexit
 import json
@@ -98,17 +96,17 @@ else:
 
 @nb.njit(cache=True)
 def load_items(items):
-    """
-    Processes pre-sorted, pre-filtered items extracting vulnerability metadata.
+    """Processes pre-sorted, pre-filtered items extracting vulnerability metadata.
 
     Items must be sorted by (areaperil_id, vulnerability_id) before calling.
 
     Args:
-        items: (np.ndarray[items_dtype]) sorted items array
+        items (np.ndarray[items_dtype]): sorted items array
 
-    Returns: (Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray])
-             vuln_map (packed hashmap), vuln_map_keys, unique_areaperil_ids (sorted),
-             areaperil_to_vulns_idx_array, areaperil_to_vulns
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]: vuln_map (packed
+            hashmap), vuln_map_keys, unique_areaperil_ids (sorted),
+            areaperil_to_vulns_idx_array, areaperil_to_vulns
     """
     # Collect unique vuln_ids via hashmap
     max_vulns = max(items.shape[0], 1)
@@ -179,17 +177,17 @@ def load_items(items):
 
 
 def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
-    """
-    Loads the items from the items file.
+    """Loads the items from the items file.
 
     Args:
-        input_path: (str) the path pointing to the file
-        ignore_file_type: set(str) file extension to ignore when loading
-        valid_area_peril_id: array of area_peril_id to include (if None, all are included)
+        input_path (str): the path pointing to the file
+        ignore_file_type (set(str)): file extension to ignore when loading
+        valid_area_peril_id (np.ndarray): array of area_peril_id to include (if None, all are included)
 
-    Returns: (Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray])
-             vuln_map (packed hashmap), vuln_map_keys, areaperil_id_ind (id_index),
-             areaperil_to_vulns_idx_array, areaperil_to_vulns, unique_areaperil_ids
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]: vuln_map
+            (packed hashmap), vuln_map_keys, areaperil_id_ind (id_index),
+            areaperil_to_vulns_idx_array, areaperil_to_vulns, unique_areaperil_ids
     """
     input_files = set(os.listdir(input_path))
     if "items.bin" in input_files and "bin" not in ignore_file_type:
@@ -214,18 +212,18 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
 
 
 def get_intensity_bin_dict(input_path):
-    """
-    Loads the intensity bin dictionary file and creates arrays to map intensities to bins.
+    """Loads the intensity bin dictionary file and creates arrays to map intensities to bins.
     Used in the dynamic footprint generation as intensities can be adjusted for defences at runtime.
 
     Args:
-        input_path: (str) the path pointing to the file
+        input_path (str): the path pointing to the file
 
-    Returns: (np.array[int32], np.array[int32, 2d])
-             intensity_bin_peril_ids: 1-d array of unique encoded peril_ids (length n_perils).
-             intensity_bins: 2-d array of shape (n_perils, max_intensity + 1) mapping
-                 [peril_idx, intensity_value] -> intensity_bin_id.  Slots not present in the
-                 CSV are pre-filled with the fallback bin for intensity=0 of that peril.
+    Returns:
+        Tuple[np.array[int32], np.array[int32, 2d]]: intensity_bin_peril_ids, a 1-d array of
+            unique encoded peril_ids (length n_perils), and intensity_bins, a 2-d array of shape
+            (n_perils, max_intensity + 1) mapping [peril_idx, intensity_value] ->
+            intensity_bin_id. Slots not present in the CSV are pre-filled with the fallback bin
+            for intensity=0 of that peril.
     """
     input_files = set(os.listdir(input_path))
     if "intensity_bin_dict.csv" not in input_files:
@@ -272,7 +270,6 @@ def encode_peril_id(peril_id):
     Returns:
         int: The encoded peril_id.
     """
-
     return sum(ord(c) << (8 * i) for i, c in enumerate(str(peril_id).upper()))
 
 
@@ -291,18 +288,21 @@ def load_vuln_probability(vuln_array, vuln, vuln_id):
 @nb.njit(cache=True)
 def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_map, vuln_map_keys,
                        num_damage_bins, num_intensity_bins, rowsize):
-    """
-    Loads the vulnerability binary index file.
+    """Loads the vulnerability binary index file.
 
     Args:
-        vulns_bin: (List[VulnerabilityRow]) vulnerability data from the vulnerability file
-        vulns_idx_bin: (List[VulnerabilityIndex]) vulnerability index data from the vulnerability idx file
-        vuln_map: (np.ndarray[uint8]) packed hashmap table mapping vuln_id to dense index
-        vuln_map_keys: (np.ndarray[int32]) array of unique vulnerability ids (hashmap keys)
-        num_damage_bins: (int) number of damage bins in the data
-        num_intensity_bins: (int) the number of intensity bins
+        vulns_bin (List[VulnerabilityRow]): vulnerability data from the vulnerability file
+        vulns_idx_bin (List[VulnerabilityIndex]): vulnerability index data from the vulnerability idx file
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys)
+        num_damage_bins (int): number of damage bins in the data
+        num_intensity_bins (int): the number of intensity bins
+        rowsize (int): size in bytes of one vulnerability row, used to turn the byte offsets held
+            in the idx file into row indices
 
-    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: vulnerability data grouped by intensity bin and damage bin,
+            and the vulnerability id held at each dense index
     """
     n_vulns = len(vuln_map_keys)
     vuln_array = np.zeros((n_vulns, num_damage_bins, num_intensity_bins), dtype=oasis_float)
@@ -327,20 +327,23 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_map, vuln_map_keys,
 @nb.njit(cache=True)
 def load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_map, vuln_map_keys,
                                 num_damage_bins, num_intensity_bins, rowsize, adj_vuln_data=None):
-    """
-    Loads the vulnerability binary index file, prioritizing the data in the adjustments file over the data in the
+    """Loads the vulnerability binary index file, prioritizing the data in the adjustments file over the data in the
     vulnerability file.
 
     Args:
-        vulns_bin: (List[VulnerabilityRow]) vulnerability data from the vulnerability file
-        vulns_idx_bin: (List[VulnerabilityIndex]) vulnerability index data from the vulnerability idx file
-        vuln_map: (np.ndarray[uint8]) packed hashmap table mapping vuln_id to dense index
-        vuln_map_keys: (np.ndarray[int32]) array of unique vulnerability ids (hashmap keys)
-        num_damage_bins: (int) number of damage bins in the data
-        num_intensity_bins: (int) the number of intensity bins
-        adj_vuln_data: (List[vulnerability_dtype]) vulnerability adjustment data, sorted by vuln_id
+        vulns_bin (List[VulnerabilityRow]): vulnerability data from the vulnerability file
+        vulns_idx_bin (List[VulnerabilityIndex]): vulnerability index data from the vulnerability idx file
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys)
+        num_damage_bins (int): number of damage bins in the data
+        num_intensity_bins (int): the number of intensity bins
+        rowsize (int): size in bytes of one vulnerability row, used to turn the byte offsets held
+            in the idx file into row indices
+        adj_vuln_data (List[vulnerability_dtype]): vulnerability adjustment data, sorted by vuln_id
 
-    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: vulnerability data grouped by intensity bin and damage bin,
+            and the vulnerability id held at each dense index
     """
     n_vulns = len(vuln_map_keys)
     vuln_array = np.zeros((n_vulns, num_damage_bins, num_intensity_bins), dtype=oasis_float)
@@ -387,17 +390,18 @@ def load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_map, vuln_map_key
 
 @nb.njit(cache=True)
 def load_vulns_bin(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins):
-    """
-    Loads the vulnerability data grouped by the intensity and damage bins.
+    """Loads the vulnerability data grouped by the intensity and damage bins.
 
     Args:
-        vulns_bin: (List[Vulnerability]) vulnerability data from the vulnerability file
-        vuln_map: (np.ndarray[uint8]) packed hashmap table mapping vuln_id to dense index
-        vuln_map_keys: (np.ndarray[int32]) array of unique vulnerability ids (hashmap keys)
-        num_damage_bins: (int) number of damage bins in the data
-        num_intensity_bins: (int) the number of intensity bins
+        vulns_bin (List[Vulnerability]): vulnerability data from the vulnerability file
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys)
+        num_damage_bins (int): number of damage bins in the data
+        num_intensity_bins (int): the number of intensity bins
 
-    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: vulnerability data grouped by intensity bin and damage bin,
+            and the vulnerability id held at each dense index
     """
     n_vulns = len(vuln_map_keys)
     vuln_array = np.zeros((n_vulns, num_damage_bins, num_intensity_bins), dtype=oasis_float)
@@ -424,19 +428,20 @@ def load_vulns_bin(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_inte
 
 @nb.njit(cache=True)
 def load_vulns_bin_adjusted(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins, adj_vuln_data=None):
-    """
-    Loads the vulnerability data grouped by the intensity and damage bins, prioritizing the data
+    """Loads the vulnerability data grouped by the intensity and damage bins, prioritizing the data
     in the adjustments file over the data in the vulnerability file.
 
     Args:
-        vulns_bin: (List[Vulnerability]) vulnerability data from the vulnerability file
-        vuln_map: (np.ndarray[uint8]) packed hashmap table mapping vuln_id to dense index
-        vuln_map_keys: (np.ndarray[int32]) array of unique vulnerability ids (hashmap keys)
-        num_damage_bins: (int) number of damage bins in the data
-        num_intensity_bins: (int) the number of intensity bins
-        adj_vuln_data: (List[vulnerability_dtype]) vulnerability adjustment data, sorted by vuln_id
+        vulns_bin (List[Vulnerability]): vulnerability data from the vulnerability file
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys)
+        num_damage_bins (int): number of damage bins in the data
+        num_intensity_bins (int): the number of intensity bins
+        adj_vuln_data (List[vulnerability_dtype]): vulnerability adjustment data, sorted by vuln_id
 
-    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: vulnerability data grouped by intensity bin and damage bin,
+            and the vulnerability id held at each dense index
     """
     n_vulns = len(vuln_map_keys)
     vuln_array = np.zeros((n_vulns, num_damage_bins, num_intensity_bins), dtype=oasis_float)
@@ -480,16 +485,16 @@ def load_vulns_bin_adjusted(vulns_bin, vuln_map, vuln_map_keys, num_damage_bins,
 
 @nb.njit(cache=True)
 def update_vuln_array_with_adj_data(vuln_array, vuln_map, vuln_map_keys, adj_vuln_data):
-    """
-    Update the vulnerability array with adjustment data (used for parquet loading).
+    """Update the vulnerability array with adjustment data (used for parquet loading).
 
     Args:
-        vuln_array: (3D array) The vulnerability data array.
-        vuln_map: (np.ndarray[uint8]) packed hashmap table mapping vuln_id to dense index.
-        vuln_map_keys: (np.ndarray[int32]) array of unique vulnerability ids (hashmap keys).
-        adj_vuln_data: (List[vulnerability_dtype]) The vulnerability adjustment data.
+        vuln_array (3D array): The vulnerability data array.
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys).
+        adj_vuln_data (List[vulnerability_dtype]): The vulnerability adjustment data.
 
-    Returns: (3D array) The updated vulnerability data array.
+    Returns:
+        3D array: The updated vulnerability data array.
     """
     hm_info, hm_lookup, hm_index = hm_unpack(vuln_map)
     for adj_vuln in adj_vuln_data:
@@ -504,18 +509,20 @@ def update_vuln_array_with_adj_data(vuln_array, vuln_map, vuln_map_keys, adj_vul
 def get_vulns(
         storage: BaseStorage, run_dir, vuln_map, vuln_map_keys, num_intensity_bins,
         ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
-    """
-    Loads the vulnerabilities from the file.
+    """Loads the vulnerabilities from the file.
 
     Args:
-        storage: (str) the storage manager for fetching model data
-        run_dir: (str) the path to the run folder (used to load the analysis settings)
-        vuln_map: (np.ndarray[uint8]) packed hashmap table mapping vuln_id to dense index
-        vuln_map_keys: (np.ndarray[int32]) array of unique vulnerability ids (hashmap keys)
-        num_intensity_bins: (int) the number of intensity bins
-        ignore_file_type: set(str) file extension to ignore when loading
+        storage (BaseStorage): the storage manager for fetching model data
+        run_dir (str): the path to the run folder (used to load the analysis settings)
+        vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index
+        vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys)
+        num_intensity_bins (int): the number of intensity bins
+        ignore_file_type (set(str)): file extension to ignore when loading
+        df_engine (str): the engine to use when loading dataframes
 
-    Returns: (Tuple[List[List[float]], int, np.array[int]) vulnerability data, vulnerabilities id, number of damage bins
+    Returns:
+        Tuple[List[List[float]], np.array[int], int]: vulnerability data, vulnerabilities id,
+            number of damage bins
     """
     n_vulns = len(vuln_map_keys)
     input_files = set(storage.listdir())
@@ -607,14 +614,15 @@ def get_vulns(
 
 
 def get_vulnerability_replacements(run_dir, vuln_ids_set):
-    """
-    Loads the vulnerability adjustment file.
+    """Loads the vulnerability adjustment file.
 
     Args:
-        run_dir: (str) the path pointing to the run directory
-        vuln_ids_set: (set) set of vulnerability IDs to filter by
+        run_dir (str): the path pointing to the run directory
+        vuln_ids_set (set): set of vulnerability IDs to filter by
 
-    Returns: (List[vulnerability_dtype]) vulnerability replacement data
+    Returns:
+        List[vulnerability_dtype]: vulnerability replacement data, or None when the run has no
+            valid vulnerability_adjustments entry
     """
     settings_path = os.path.join(run_dir, "analysis_settings.json")
 
@@ -652,27 +660,27 @@ def get_vulnerability_replacements(run_dir, vuln_ids_set):
 
 
 def get_mean_damage_bins(storage: BaseStorage, ignore_file_type=set()):
-    """
-    Loads the mean damage bins from the damage_bin_dict file, namely, the `interpolation` value for each bin.
+    """Loads the mean damage bins from the damage_bin_dict file, namely, the `interpolation` value for each bin.
 
     Args:
-        storage: (BaseStorage) the storage connector for fetching the model data
-        ignore_file_type: set(str) file extension to ignore when loading
+        storage (BaseStorage): the storage connector for fetching the model data
+        ignore_file_type (set(str)): file extension to ignore when loading
 
-    Returns: (List[Union[damagebindictionary]]) loaded data from the damage_bin_dict file
+    Returns:
+        List[Union[damagebindictionary]]: the interpolation column of the damage_bin_dict file
     """
     return get_damage_bins(storage, ignore_file_type)['interpolation']
 
 
 def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
-    """
-    Loads the damage bins from the damage_bin_dict file.
+    """Loads the damage bins from the damage_bin_dict file.
 
     Args:
-        storage: (BaseStorage) the storage connector for fetching the model data
-        ignore_file_type: set(str) file extension to ignore when loading
+        storage (BaseStorage): the storage connector for fetching the model data
+        ignore_file_type (set(str)): file extension to ignore when loading
 
-    Returns: (List[Union[damagebindictionary]]) loaded data from the damage_bin_dict file
+    Returns:
+        List[Union[damagebindictionary]]: loaded data from the damage_bin_dict file
     """
     input_files = set(storage.listdir())
 
@@ -690,19 +698,19 @@ def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
 
 @nb.njit(cache=True, fastmath=True)
 def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
-    """
-    Calculate the probability of an event happening and then causing damage.
+    """Calculate the probability of an event happening and then causing damage.
     Note: vulns is a 1-d array containing 1 damage bin of the damage probability distribution as a
     function of hazard intensity.
 
     Args:
-        p: (float) the probability to be updated
-        intensities_min: (int) minimum intensity bin id
-        intensities_max: (int) maximum intensity bin id
-        vulns: (List[float]) slice of damage probability distribution given hazard intensity
-        intensities: (List[float]) intensity probability distribution
+        p (float): the probability to be updated
+        intensities_min (int): minimum intensity bin id
+        intensities_max (int): maximum intensity bin id
+        vulns (List[float]): slice of damage probability distribution given hazard intensity
+        intensities (List[float]): intensity probability distribution
 
-    Returns: (float) the updated probability
+    Returns:
+        float: the updated probability
     """
     i = intensities_min
     while i < intensities_max:
@@ -716,24 +724,28 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
               int32_mv, num_damage_bins,
               intensities_min, intensities_max, intensities,
               event_id, areaperil_id, vuln_i, cursor):
-    """
-    Calculate the result concerning an event ID.
+    """Calculate the result concerning an event ID.
+
+    Writes one cdf record into the output buffer as
+    event_id, areaperil_id, vulnerability_id, number of damage bins, then a (prob_to, bin_mean)
+    pair per damage bin. Bins stop being written once the cumulative probability reaches 1.
 
     Args:
-        vulns_id: (List[int]) list of vulnerability IDs
-        vuln_array: (List[List[list]]) list of vulnerabilities and their data
-        mean_damage_bins: (List[float]) the mean of each damage bin (len(mean_damage_bins) == num_damage_bins)
-        int32_mv: (List[int]) FILL IN LATER
-        num_damage_bins: (int) number of damage bins in the data
-        intensities_min: (int) minimum intensity bin id
-        intensities_max: (int) maximum intensity bin id
-        intensities: (List[float]) intensity probability distribution
-        event_id: (int) the event ID that concerns the result being calculated
-        areaperil_id: (List[int]) the areaperil ID that concerns the result being calculated
-        vuln_i: (int) the index concerning the vulnerability inside the vuln_array
-        cursor: (int) PLEASE FILL IN
+        vulns_id (List[int]): list of vulnerability IDs
+        vuln_array (List[List[list]]): list of vulnerabilities and their data
+        mean_damage_bins (List[float]): the mean of each damage bin (len(mean_damage_bins) == num_damage_bins)
+        int32_mv (np.ndarray[int32]): int32 view of the output buffer the record is written into
+        num_damage_bins (int): number of damage bins in the data
+        intensities_min (int): minimum intensity bin id
+        intensities_max (int): maximum intensity bin id
+        intensities (List[float]): intensity probability distribution
+        event_id (int): the event ID that concerns the result being calculated
+        areaperil_id (List[int]): the areaperil ID that concerns the result being calculated
+        vuln_i (int): the index concerning the vulnerability inside the vuln_array
+        cursor (int): index in int32_mv (in int32 words) where the record is written
 
-    Returns: (int) PLEASE FILL IN
+    Returns:
+        int: the cursor position (in int32 words) just past the record written
     """
     int32_mv[cursor], cursor = event_id, cursor + 1
     int32_mv[cursor:cursor + areaperil_int_relative_size] = areaperil_id.view(oasis_int)
@@ -766,25 +778,27 @@ def doCdf(event_id,
           areaperil_id_ind, areaperil_to_vulns_idx_array, areaperil_to_vulns,
           vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
           int32_mv, max_result_relative_size):
-    """
-    Calculates the cumulative distribution function (cdf) for an event ID.
+    """Calculates the cumulative distribution function (cdf) for an event ID.
 
     Args:
-        event_id: (int) the event ID the the CDF is being calculated to.
-        num_intensity_bins: (int) the number of intensity bins for the CDF
-        footprint: (List[Tuple[int, int, float]]) information about the footprint with event_id, areaperil_id,
-                                                  probability
-        areaperil_id_ind: (np.array) id_index structure mapping areaperil_id to dense index
-        areaperil_to_vulns_idx_array: (List[Tuple[int, int]]) the index where the areaperil ID starts and finishes
-        areaperil_to_vulns: (List[int]) maps the areaperil ID to the vulnerability ID
-        vuln_array: (List[list]) FILL IN LATER
-        vulns_id: (List[int]) list of vulnerability IDs
-        num_damage_bins: (int) number of damage bins in the data
-        mean_damage_bins: (List[float]) the mean of each damage bin (len(mean_damage_bins) == num_damage_bins)
-        int32_mv: (List[int]) FILL IN LATER
-        max_result_relative_size: (int) the maximum result size
+        event_id (int): the event ID the the CDF is being calculated to.
+        num_intensity_bins (int): the number of intensity bins for the CDF
+        footprint (List[Tuple[int, int, float]]): information about the footprint with event_id, areaperil_id,
+            probability
+        areaperil_id_ind (np.array): id_index structure mapping areaperil_id to dense index
+        areaperil_to_vulns_idx_array (List[Tuple[int, int]]): the index where the areaperil ID starts and finishes
+        areaperil_to_vulns (List[int]): maps the areaperil ID to the vulnerability ID
+        vuln_array (np.ndarray[oasis_float]): damage probabilities of shape
+            (n_vulnerabilities, num_damage_bins, num_intensity_bins)
+        vulns_id (List[int]): list of vulnerability IDs
+        num_damage_bins (int): number of damage bins in the data
+        mean_damage_bins (List[float]): the mean of each damage bin (len(mean_damage_bins) == num_damage_bins)
+        int32_mv (np.ndarray[int32]): int32 view of the output buffer the cdf records are written into
+        max_result_relative_size (int): the maximum result size
 
-    Returns: (int)
+    Yields:
+        int: the number of bytes written into the buffer, emitted whenever the buffer is full and
+            once more at the end of the event (0 when the event produced no result)
     """
     if not footprint.shape[0]:
         return 0
@@ -869,19 +883,17 @@ def run(
     df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     analysis_pk=None
 ):
-    """
-    Runs the main process of the getmodel process.
+    """Runs the main process of the getmodel process.
 
     Args:
-        run_dir: (str) the directory of where the process is running
-        file_in: (Optional[str]) the path to the input directory
-        file_out: (Optional[str]) the path to the output directory
-        ignore_file_type: set(str) file extension to ignore when loading
-        data_server: (bool) if set to True runs the data server
+        run_dir (str): the directory of where the process is running
+        file_in (Optional[str]): the path to the input directory
+        file_out (Optional[str]): the path to the output directory
+        ignore_file_type (set(str)): file extension to ignore when loading
+        data_server (bool): if set to True runs the data server
         peril_filter (list[int]): list of perils to include in the computation (if None, all perils will be included).
-        df_engine: (str) The engine to use when loading dataframes
-
-    Returns: None
+        df_engine (str): The engine to use when loading dataframes
+        analysis_pk (int): the analysis primary key reported alongside the completion ping
     """
     model_storage = get_storage_from_config_path(
         os.path.join(run_dir, 'model_storage.json'),

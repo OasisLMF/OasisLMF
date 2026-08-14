@@ -144,8 +144,7 @@ STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__fil
 
 
 def store_exposure_fp(fp, exposure_type):
-    """
-    Preserve original exposure file extention if its in a pandas supported
+    """Preserve original exposure file extention if its in a pandas supported
     compressed format
 
     compression : {‘infer’, ‘gzip’, ‘bz2’, ‘zip’, ‘xz’, None}, default ‘infer’
@@ -168,8 +167,7 @@ def store_exposure_fp(fp, exposure_type):
 
 
 def find_exposure_fp(input_dir, exposure_type, required=True):
-    """
-    Find an OED exposure file stored in the oasis inputs dir
+    """Find an OED exposure file stored in the oasis inputs dir
     while preserving the compressed ext
     """
     fp = glob.glob(os.path.join(input_dir, SOURCE_FILENAMES[exposure_type].rsplit(".", 1)[0] + '*'))
@@ -178,14 +176,13 @@ def find_exposure_fp(input_dir, exposure_type, required=True):
 
 
 def get_default_json(src_fp):
-    """
-    Loads JSON from file.
+    """Loads JSON from file.
 
-    :param src_fp: Source JSON file path
-    :type src_fp: str
+    Args:
+        src_fp (str): Source JSON file path
 
-    :return: dict
-    :rtype: dict
+    Returns:
+        dict: dict
     """
     try:
         with io.open(src_fp, 'r', encoding='utf-8') as f:

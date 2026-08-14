@@ -27,8 +27,7 @@ class KeyComputationStep(ComputationStep):
 
 
 class GenerateKeys(KeyComputationStep):
-    """
-    Generates keys from a model lookup, and write Oasis keys and keys error files.
+    """Generates keys from a model lookup, and write Oasis keys and keys error files.
 
     The model lookup, which is normally independently implemented by the model
     supplier, should generate keys as dicts with the following format

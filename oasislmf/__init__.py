@@ -39,17 +39,17 @@ class MyLoader(Loader):
 
 
 class MyImport(MetaPathFinder):
-    """ Support alias of depreciated sub-modules
+    """Support alias of depreciated sub-modules
 
-        * model_execution   -> execution
-        * model_preparation -> preparation
-        * api               -> platform
+    * model_execution   -> execution
+    * model_preparation -> preparation
+    * api               -> platform
 
-        Example:
-            `from oasislmf.model_execution.bash import genbash`
-                is the same as calling the new name
-            `from oasislmf.execution.bash import genbash`
-            https://docs.python.org/3/library/importlib.html#importlib.machinery.PathFinder
+    Example:
+        `from oasislmf.model_execution.bash import genbash`
+            is the same as calling the new name
+        `from oasislmf.execution.bash import genbash`
+        https://docs.python.org/3/library/importlib.html#importlib.machinery.PathFinder
     """
 
     def __init__(self):
