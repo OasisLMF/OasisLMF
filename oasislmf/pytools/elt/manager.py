@@ -208,7 +208,7 @@ def read_buffer(
     while cursor < valid_buff:
         if not state["reading_losses"]:
             # Read summary header
-            if valid_buff - cursor >= summaryset_id_dtype_size + event_id_dtype_size + summaryset_id_dtype_size + loss_dtype_size:
+            if valid_buff - cursor >= summaryset_id_dtype_size + event_id_dtype_size + summary_id_dtype_size + loss_dtype_size:
                 # Need to read summary_set_id from summary info first
                 if not state["read_summary_set_id"]:
                     _, cursor = mv_read(byte_mv, cursor, summaryset_id_dtype, summaryset_id_dtype_size)

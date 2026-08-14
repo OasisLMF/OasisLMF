@@ -287,23 +287,6 @@ def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
     return cursor
 
 
-@nb.jit(nopython=True, cache=True)
-def mv_write_delimiter(byte_mv, cursor) -> int:
-    """
-    write the item delimiter (0,0) to the numpy byte view at index cursor, return the index of the end of the object
-    Args:
-        byte_mv: numpy byte view
-        cursor: index of where the object start
-
-    Returns:
-        end of delimiter index
-    """
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, 0)
-    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, 0)
-    # print('end', cursor)
-    return cursor
-
-
 class EventReader:
     """
     Abstract class to read event stream

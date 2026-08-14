@@ -296,7 +296,6 @@ def get_summaries_data(
                 if cursor >= len(idx_data):
                     break
         else:
-            # TODO: remove hardcoding and infer from types
             offset = SUMMARY_META_SIZE  # Summary stream header size
             while True:
                 summaries_idx, resize_flag, offset = process_bin_file(
