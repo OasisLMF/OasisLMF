@@ -26,6 +26,14 @@ from math import erf
 import numpy as np
 
 
+# the file layouts are declared as struct format characters, which the arrays written to
+# the files have to match exactly, so the two are kept in step through this mapping
+STRUCT_TO_NUMPY_FORMAT = {'i': 'i4', 'f': 'f4', 'q': 'i8'}
+
+# rows generated before being written, keeping the memory used by a chunk in the tens of MBs
+CHUNK_ROWS = 10 ** 6
+
+
 class ModelFile:
     """Base class for all dummy model files.
 
@@ -33,20 +41,30 @@ class ModelFile:
     typical order of execution is as follows:
         1. Initialise class attributes and methods (__init__).
         2. Set random seed (seed_rng).
-        3. Generate random data (generate_data).
-        4. Convert random data to binary format and write to file. This step is
-        done as each line of data is generated to minimise memory use
-        (write_file).
+        3. Generate random data (generate_arrays, or generate_data for the
+        classes that generate their data a row at a time).
+        4. Write the generated data to file in binary format, in chunks to
+        minimise memory use (write_file).
 
     Attributes:
         seed_rng: Seed random number generator.
         write_file: Write data to output file in binary format.
         debug_write_file: Write data to screen in csv format.
-        generate_data: Generate dummy model data.
+        generate_data: Generate dummy model data row by row.
+        generate_arrays: Generate dummy model data in chunks.
     """
 
     def __init__(self):
         pass
+
+    @property
+    def array_dtype(self):
+        """Get the numpy dtype of the rows written to the file.
+
+        Returns:
+            numpy.dtype: packed dtype matching the file's struct format
+        """
+        return np.dtype([(name, STRUCT_TO_NUMPY_FORMAT[fmt]) for name, fmt in self.dtypes.items()])
 
     def seed_rng(self):
         """Seed random number generator.
@@ -69,16 +87,15 @@ class ModelFile:
     def write_file(self):
         """Write data to output file in binary format.
 
-        General method to convert generated data to binary format and write to
-        file. Calls chlid class-specific generate_data method.
+        General method to write the generated data to file. Calls child
+        class-specific generate_arrays method.
         """
         with open(self.file_name, 'wb') as f:
             if self.start_stats:
                 for stat in self.start_stats:
                     f.write(struct.pack(stat['dtype'], stat['value']))
-            dtypes_list = ''.join(self.dtypes.values())
-            for line in self.generate_data():
-                f.write(struct.pack('=' + dtypes_list, *(line)))
+            for chunk in self.generate_arrays():
+                chunk.tofile(f)
 
     def debug_write_file(self):
         """Write data to screen in csv format.
@@ -96,10 +113,22 @@ class ModelFile:
     def generate_data(self):
         """Generate dummy model data.
 
-        Class specific method to generate randomised data. Is called by
-        write_file method.
+        Class specific method to generate randomised data a row at a time. Is
+        called by debug_write_file, and by generate_arrays for the classes that
+        do not generate their data with numpy.
         """
         pass
+
+    def generate_arrays(self):
+        """Generate dummy model data as arrays of the file's rows.
+
+        Class specific method, defaulting to packing the rows from
+        generate_data. Is called by write_file.
+
+        Yields:
+            numpy.ndarray: rows of dummy model data, in the file's dtype
+        """
+        yield np.fromiter(self.generate_data(), dtype=self.array_dtype)
 
 
 class VulnerabilityFile(ModelFile):
@@ -176,6 +205,39 @@ class VulnerabilityFile(ModelFile):
                 for damage_bin, probability in enumerate(probabilities):
                     yield vulnerability + 1, intensity_bin + 1, damage_bin + 1, probability
 
+    def generate_arrays(self):
+        """Generate Vulnerability dummy model file data.
+
+        The probabilities are drawn per (vulnerability, intensity bin) pair, two blocks of
+        num_damage_bins at a time, so drawing them for several pairs at once takes the same
+        numbers from the generator as drawing them pair by pair does.
+
+        Yields:
+            numpy.ndarray: rows of vulnerability data, in the file's dtype
+        """
+        super().seed_rng()
+        pairs = self.num_vulnerabilities * self.num_intensity_bins
+        pairs_per_chunk = max(1, CHUNK_ROWS // self.num_damage_bins)
+        damage_bins = np.arange(1, self.num_damage_bins + 1)
+
+        for start in range(0, pairs, pairs_per_chunk):
+            chunk_pairs = min(pairs_per_chunk, pairs - start)
+            draws = np.random.uniform(size=(chunk_pairs, 2, self.num_damage_bins))
+            probabilities = np.where(draws[:, 0, :] < self.vulnerability_sparseness, draws[:, 1, :], 0.0)
+
+            total_probability = probabilities.sum(axis=1)
+            impacted = total_probability != 0
+            probabilities[~impacted, 0] = 1.0   # First damage bin is always zero-loss
+            probabilities[impacted] /= total_probability[impacted, np.newaxis]
+
+            pair_index = np.arange(start, start + chunk_pairs)
+            chunk = np.empty(chunk_pairs * self.num_damage_bins, dtype=self.array_dtype)
+            chunk['vulnerability_id'] = np.repeat(pair_index // self.num_intensity_bins + 1, self.num_damage_bins)
+            chunk['intensity_bin_index'] = np.repeat(pair_index % self.num_intensity_bins + 1, self.num_damage_bins)
+            chunk['damage_bin_index'] = np.tile(damage_bins, chunk_pairs)
+            chunk['prob'] = probabilities.reshape(-1)
+            yield chunk
+
 
 class EventsFile(ModelFile):
     """Generate random data for Events dummy model file.
@@ -206,6 +268,16 @@ class EventsFile(ModelFile):
             event (int): event ID.
         """
         return (tuple([event]) for event in range(1, self.num_events + 1))
+
+    def generate_arrays(self):
+        """Generate Events dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of event data, in the file's dtype
+        """
+        events = np.empty(self.num_events, dtype=self.array_dtype)
+        events['event_id'] = np.arange(1, self.num_events + 1)
+        yield events
 
 
 class LossFactorsFile(ModelFile):
@@ -268,6 +340,33 @@ class LossFactorsFile(ModelFile):
                     continue   # Default loss factor = 1.0
                 yield event + 1, amplification + 1, factor
 
+    def generate_arrays(self):
+        """Generate Loss Factors dummy model file data.
+
+        One factor is drawn per event and amplification pair, so drawing them for several events
+        at once takes the same numbers from the generator as drawing them event by event does.
+
+        Yields:
+            numpy.ndarray: rows of loss factor data, in the file's dtype
+        """
+        super().seed_rng()
+        events_per_chunk = max(1, CHUNK_ROWS // self.num_amplifications)
+        amplification_id = np.arange(1, self.num_amplifications + 1)
+
+        for start in range(0, self.num_events, events_per_chunk):
+            chunk_events = min(events_per_chunk, self.num_events - start)
+            factor = np.round(
+                np.random.random(size=chunk_events * self.num_amplifications) * self.delta_pla_factor
+                + self.min_pla_factor, decimals=2
+            )
+            amplified = factor != 1.0   # Default loss factor = 1.0
+
+            chunk = np.empty(int(amplified.sum()), dtype=self.array_dtype)
+            chunk['event_id'] = np.repeat(np.arange(start + 1, start + chunk_events + 1), self.num_amplifications)[amplified]
+            chunk['amplification_id'] = np.tile(amplification_id, chunk_events)[amplified]
+            chunk['factor'] = factor[amplified]
+            yield chunk
+
     def write_file(self):
         """Write data to output Loss Factors file in binary format.
 
@@ -287,6 +386,7 @@ class FootprintIdxFile(ModelFile):
 
     Attributes:
         write_file: Write data to Footprint index file in binary format.
+        write_array: Write the whole index to the Footprint index file in binary format.
     """
 
     def __init__(self, directory):
@@ -300,6 +400,18 @@ class FootprintIdxFile(ModelFile):
         ])
         self.dtypes_list = ''.join(self.dtypes.values())
         self.file_name = os.path.join(directory, 'footprint.idx')
+
+    def write_array(self, index):
+        """Write the whole footprint index to file in binary format.
+
+        Called by FootprintBinFile.write_file() with the index of every event, in place of the
+        per-event appends the row by row path makes.
+
+        Args:
+            index (numpy.ndarray): the event id, offset and size of every event
+        """
+        with open(self.file_name, 'wb') as f:
+            index.tofile(f)
 
     def write_file(self, event_id, offset, event_size):
         """Write data to output Footprint index file in binary format.
@@ -386,6 +498,7 @@ class FootprintBinFile(ModelFile):
         self.offset = 0
         for stat in self.start_stats:
             self.offset += struct.calcsize(stat['dtype'])
+        self.initial_offset = self.offset
 
     def generate_data(self):
         """Generate Footprint binary dummy model file data.
@@ -438,6 +551,74 @@ class FootprintBinFile(ModelFile):
 
             self.idx_file.write_file(event + 1, self.offset, event_size)
             self.offset += event_size
+
+    def generate_arrays(self):
+        """Generate Footprint binary dummy model file data.
+
+        The areaperils of an event are drawn together, and the intensities of each of those
+        areaperils in blocks of num_intensity_bins, so an event's intensities can be drawn in
+        one go without changing which numbers come from the generator. The event index is
+        collected as the events are generated, for write_file to write afterwards.
+
+        Yields:
+            numpy.ndarray: rows of footprint data for one event, in the file's dtype
+        """
+        super().seed_rng()
+        self.offset = self.initial_offset
+        self.index = np.empty(self.num_events, dtype=self.idx_file.array_dtype)
+        intensity_bins = np.arange(1, self.num_intensity_bins + 1)
+
+        for event in range(self.num_events):
+            if self.areaperils_per_event == self.num_areaperils:
+                selected_areaperils = np.arange(1, self.num_areaperils + 1)
+            else:
+                selected_areaperils = np.random.choice(
+                    self.num_areaperils, self.areaperils_per_event,
+                    replace=False
+                )
+                selected_areaperils += 1
+                selected_areaperils = np.sort(selected_areaperils)
+
+            if self.no_intensity_uncertainty:
+                impacted_areaperils = self.areaperils_per_event
+                areaperil_id = selected_areaperils
+                intensity_bin_id = np.random.randint(
+                    1, self.num_intensity_bins + 1, size=self.areaperils_per_event
+                )
+                probability = np.ones(self.areaperils_per_event)
+            else:
+                # Generate probabalities according to intensity sparseness
+                # and normalise
+                draws = np.random.uniform(size=(self.areaperils_per_event, 2, self.num_intensity_bins))
+                probabilities = np.where(draws[:, 0, :] < self.intensity_sparseness, draws[:, 1, :], 0.0)
+
+                total_probability = probabilities.sum(axis=1)
+                impacted = total_probability != 0   # areaperils with no impacted intensity bin
+                probabilities = probabilities[impacted] / total_probability[impacted, np.newaxis]
+
+                impacted_areaperils = probabilities.shape[0]
+                areaperil_id = np.repeat(selected_areaperils[impacted], self.num_intensity_bins)
+                intensity_bin_id = np.tile(intensity_bins, impacted_areaperils)
+                probability = probabilities.reshape(-1)
+
+            event_data = np.empty(len(areaperil_id), dtype=self.array_dtype)
+            event_data['areaperil_id'] = areaperil_id
+            event_data['intensity_bin_id'] = intensity_bin_id
+            event_data['probability'] = probability
+
+            event_size = self.size * impacted_areaperils
+            self.index[event] = (event + 1, self.offset, event_size)
+            self.offset += event_size
+            yield event_data
+
+    def write_file(self):
+        """Write data to output Footprint binary file, and its index file, in binary format.
+
+        The index is only known once the events have been generated, so it is written after the
+        binary file rather than as each event is generated.
+        """
+        super().write_file()
+        self.idx_file.write_array(self.index)
 
 
 class DamageBinDictFile(ModelFile):
@@ -676,6 +857,19 @@ class RandomFile(ModelFile):
         # First random number is 0
         return (tuple([np.random.uniform()]) if i != 0 else (0,) for i in range(self.num_randoms))
 
+    def generate_arrays(self):
+        """Generate Random Numbers dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of random numbers, in the file's dtype
+        """
+        super().seed_rng()
+        randoms = np.empty(self.num_randoms, dtype=self.array_dtype)
+        # First random number is 0
+        randoms['random_no'][:1] = 0
+        randoms['random_no'][1:] = np.random.uniform(size=max(0, self.num_randoms - 1))
+        yield randoms
+
 
 class CoveragesFile(ModelFile):
     """Generate data for Coverages dummy model Oasis file.
@@ -718,6 +912,17 @@ class CoveragesFile(ModelFile):
                 self.num_locations * self.coverages_per_location
             )
         )
+
+    def generate_arrays(self):
+        """Generate Coverages dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of coverage data, in the file's dtype
+        """
+        super().seed_rng()
+        coverages = np.empty(self.num_locations * self.coverages_per_location, dtype=self.array_dtype)
+        coverages['tiv'] = np.random.uniform(1, 1000000, size=len(coverages))
+        yield coverages
 
 
 class ItemsFile(ModelFile):
@@ -782,6 +987,39 @@ class ItemsFile(ModelFile):
                 # Assume group ID mapped to location
                 yield item, item, areaperils[coverage], vulnerabilities[coverage], location + 1
 
+    def generate_arrays(self):
+        """Generate Items dummy model file data.
+
+        The areaperils and vulnerabilities of a location are drawn from different ranges, and the
+        two draws alternate per location, so they have to stay in that order to take the same
+        numbers from the generator. Only the ids and the packing are built with numpy.
+
+        Yields:
+            numpy.ndarray: rows of item data, in the file's dtype
+        """
+        super().seed_rng()
+        shape = (self.num_locations, self.coverages_per_location)
+        areaperils = np.empty(shape, dtype='int64')
+        vulnerabilities = np.empty(shape, dtype='int64')
+
+        for location in range(self.num_locations):
+            areaperils[location] = np.random.randint(
+                1, self.num_areaperils + 1, size=self.coverages_per_location
+            )
+            vulnerabilities[location] = np.random.randint(
+                1, self.num_vulnerabilities + 1, size=self.coverages_per_location
+            )
+
+        items = np.empty(self.num_locations * self.coverages_per_location, dtype=self.array_dtype)
+        # Assume 1-1 mapping between item and coverage IDs
+        items['item_id'] = np.arange(1, len(items) + 1)
+        items['coverage_id'] = items['item_id']
+        items['areaperil_id'] = areaperils.reshape(-1)
+        items['vulnerability_id'] = vulnerabilities.reshape(-1)
+        # Assume group ID mapped to location
+        items['group_id'] = np.repeat(np.arange(1, self.num_locations + 1), self.coverages_per_location)
+        yield items
+
 
 class AmplificationsFile(ModelFile):
     """Generate data for Amplifications dummy model Oasis file.
@@ -829,6 +1067,20 @@ class AmplificationsFile(ModelFile):
         for item in range(self.num_items):
             amplification = np.random.randint(1, self.num_amplifications + 1)
             yield item + 1, amplification
+
+    def generate_arrays(self):
+        """Generate Amplifications dummy model Oasis file data.
+
+        Yields:
+            numpy.ndarray: rows of amplification data, in the file's dtype
+        """
+        super().seed_rng()
+        amplifications = np.empty(self.num_items, dtype=self.array_dtype)
+        amplifications['item_id'] = np.arange(1, self.num_items + 1)
+        amplifications['amplification_id'] = np.random.randint(
+            1, self.num_amplifications + 1, size=self.num_items
+        )
+        yield amplifications
 
     def write_file(self):
         """Write data to output Amplifications file in binary format.
@@ -902,6 +1154,22 @@ class FMProgrammeFile(FMFile):
                 elif level == len(levels):
                     yield agg_id, level, 1
 
+    def generate_arrays(self):
+        """Generate Financial Model Programme dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of programme data, in the file's dtype
+        """
+        num_aggs = self.num_locations * self.coverages_per_location
+        agg_id = np.arange(1, num_aggs + 1)
+
+        programme = np.empty(num_aggs * 2, dtype=self.array_dtype)   # 2 from number of levels
+        programme['from_agg_id'] = np.tile(agg_id, 2)
+        programme['level_id'] = np.repeat([1, 2], num_aggs)
+        # Site coverage FM level aggregates to itself, policy layer FM level to the programme
+        programme['to_agg_id'] = np.concatenate([agg_id, np.ones(num_aggs, dtype='int64')])
+        yield programme
+
 
 class FMPolicyTCFile(FMFile):
     """Generate data for Financial Model Policy dummy model Oasis file.
@@ -961,6 +1229,27 @@ class FMPolicyTCFile(FMFile):
                 for layer in range(self.num_layers):
                     yield level, 1, layer + 1, profile_id
                     profile_id += 1   # Next profile_id
+
+    def generate_arrays(self):
+        """Generate Financial Model Policy dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of policy data, in the file's dtype
+        """
+        num_aggs = self.num_locations * self.coverages_per_location
+
+        policytc = np.empty(num_aggs + self.num_layers, dtype=self.array_dtype)
+        # Site coverage FM level, one layer sharing the first profile
+        policytc['level_id'][:num_aggs] = 1
+        policytc['agg_id'][:num_aggs] = np.arange(1, num_aggs + 1)
+        policytc['layer_id'][:num_aggs] = 1
+        policytc['profile_id'][:num_aggs] = 1
+        # Policy layer FM level, a profile per layer
+        policytc['level_id'][num_aggs:] = 2
+        policytc['agg_id'][num_aggs:] = 1
+        policytc['layer_id'][num_aggs:] = np.arange(1, self.num_layers + 1)
+        policytc['profile_id'][num_aggs:] = np.arange(2, self.num_layers + 2)
+        yield policytc
 
 
 class FMProfileFile(ModelFile):
@@ -1078,6 +1367,20 @@ class FMXrefFile(FMFile):
                 yield output_count, agg_id, layer
                 output_count += 1
 
+    def generate_arrays(self):
+        """Generate Financial Model Cross Reference dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of cross reference data, in the file's dtype
+        """
+        num_aggs = self.num_locations * self.coverages_per_location
+
+        xref = np.empty(num_aggs * self.num_layers, dtype=self.array_dtype)
+        xref['output'] = np.arange(1, len(xref) + 1)
+        xref['agg_id'] = np.repeat(np.arange(1, num_aggs + 1), self.num_layers)
+        xref['layer_id'] = np.tile(np.arange(1, self.num_layers + 1), num_aggs)
+        yield xref
+
 
 class GULSummaryXrefFile(FMFile):
     """Generate data for Ground Up Losses Summary Cross Reference dummy model Oasis
@@ -1118,6 +1421,18 @@ class GULSummaryXrefFile(FMFile):
         summaryset_id = 1
         for item in range(self.num_locations * self.coverages_per_location):
             yield item + 1, summary_id, summaryset_id
+
+    def generate_arrays(self):
+        """Generate Ground Up Losses Summary Cross Reference dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of summary cross reference data, in the file's dtype
+        """
+        summary_xref = np.empty(self.num_locations * self.coverages_per_location, dtype=self.array_dtype)
+        summary_xref['item_id'] = np.arange(1, len(summary_xref) + 1)
+        summary_xref['summary_id'] = 1
+        summary_xref['summaryset_id'] = 1
+        yield summary_xref
 
 
 class FMSummaryXrefFile(FMFile):
@@ -1165,3 +1480,16 @@ class FMSummaryXrefFile(FMFile):
             self.num_locations * self.coverages_per_location * self.num_layers
         ):
             yield output_id + 1, summary_id, summaryset_id
+
+    def generate_arrays(self):
+        """Generate Financial Model Summary Cross Reference dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of summary cross reference data, in the file's dtype
+        """
+        summary_xref = np.empty(
+            self.num_locations * self.coverages_per_location * self.num_layers, dtype=self.array_dtype)
+        summary_xref['output_id'] = np.arange(1, len(summary_xref) + 1)
+        summary_xref['summary_id'] = 1
+        summary_xref['summaryset_id'] = 1
+        yield summary_xref
