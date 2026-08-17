@@ -108,6 +108,46 @@ def test_join_parquet():
             raise Exception(f"running 'join-summary-info {arg_str}' led to diff, see files at {error_path}") from e
 
 
+def write_parquet_pair(tmp_dir, summary_info, data):
+    summaryinfo_file = Path(tmp_dir, "gul_summary-info.parquet")
+    data_file = Path(tmp_dir, "aalgul_ord.parquet")
+    pd.DataFrame(summary_info).to_parquet(summaryinfo_file, index=False)
+    pd.DataFrame(data).to_parquet(data_file, index=False)
+    output_file = Path(tmp_dir, "joined_aalgul_ord.parquet")
+    main(summaryinfo=summaryinfo_file, data=data_file, output=output_file)
+
+    return pd.read_parquet(output_file)
+
+
+def test_join_parquet_with_sparse_summary_ids():
+    """Tests join-summary-info fills the gaps in non contiguous summary ids
+    """
+    with TemporaryDirectory() as tmp_dir:
+        joined = write_parquet_pair(
+            tmp_dir,
+            summary_info={"summary_id": [3, 1, 7], "PortNumber": ["1", "1", "2"], "tiv": [10.5, 20.0, 30.25]},
+            data={"SummaryId": [7, 1, 3, 2], "MeanLoss": [1.0, 2.0, 3.0, 4.0]},
+        )
+
+        assert list(joined["PortNumber"]) == ["2", "1", "1", ""]
+        assert list(joined["tiv"]) == ["30.25", "20.0", "10.5", ""]
+
+
+def test_join_parquet_with_summary_id_beyond_the_summary_info():
+    """Tests join-summary-info leaves the summary info blank for unknown summary ids
+    """
+    with TemporaryDirectory() as tmp_dir:
+        joined = write_parquet_pair(
+            tmp_dir,
+            summary_info={"summary_id": [1, 2], "PortNumber": ["1", "2"], "tiv": [10.0, 20.0]},
+            data={"SummaryId": [1, 5, 2], "MeanLoss": [1.0, 2.0, 3.0]},
+        )
+
+        # an unknown summary id joins to nothing, so only the first summary column is filled
+        assert list(joined["PortNumber"]) == ["1", "", "2"]
+        assert list(joined["tiv"]) == ["10.0", None, "20.0"]
+
+
 def test_missing_summary_col_parquet():
     """Tests join-summary-info with non-ORD parquet file, should not generate output
     """

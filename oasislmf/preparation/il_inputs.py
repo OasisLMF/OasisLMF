@@ -1010,6 +1010,19 @@ def write_level_policytc_and_programme(gul_inputs_df, level_id, fm_policytc_bin,
                                                                header=False, chunksize=chunksize)
 
 
+def get_sub_step_trigger_types():
+    """Get the sub-step trigger type of every (step trigger type, coverage type) pair that has one.
+
+    Returns:
+        pandas.Series: sub-step trigger type, indexed by (steptriggertype, coverage_type_id)
+    """
+    return pd.Series({
+        (step_trigger_type, coverage_type_id): sub_step_trigger_type
+        for step_trigger_type, step_trigger_info in STEP_TRIGGER_TYPES.items()
+        for coverage_type_id, sub_step_trigger_type in step_trigger_info['sub_step_trigger_types'].items()
+    })
+
+
 @oasis_log
 def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, profile_id_offset):
     """Assign calcrule_id and profile_id to a level's terms.
@@ -1039,16 +1052,13 @@ def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, pro
         # coverages are covered separately
         # For example, StepTriggerType = 5 covers buildings and contents separately
 
-        def assign_sub_step_trigger_type(row):
-            try:
-                step_trigger_type = STEP_TRIGGER_TYPES[row['steptriggertype']]['sub_step_trigger_types'][
-                    row['coverage_type_id']]
-                return step_trigger_type
-            except KeyError:
-                return row['steptriggertype']
-        level_df.loc[step_filter, 'steptriggertype'] = level_df[step_filter].apply(
-            lambda row: assign_sub_step_trigger_type(row), axis=1
-        )
+        step_rows = level_df.loc[step_filter, ['steptriggertype', 'coverage_type_id']]
+        sub_step_trigger_type = get_sub_step_trigger_types().reindex(pd.MultiIndex.from_frame(step_rows))
+        # a trigger type with no sub-type for the row's coverage type keeps the trigger type it has
+        has_sub_type = sub_step_trigger_type.notna().to_numpy()
+        level_df.loc[step_rows.index[has_sub_type], 'steptriggertype'] = pd.Series(
+            sub_step_trigger_type.to_numpy()[has_sub_type],
+            index=step_rows.index[has_sub_type], dtype=level_df['steptriggertype'].dtype)
         final_step_filter = level_df['steptriggertype'] > 0
         # step part
         level_df.loc[final_step_filter, 'calcrule_id'] = get_calc_rule_ids(level_df[final_step_filter], calc_rule_type='step')

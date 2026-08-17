@@ -3,6 +3,7 @@
 import logging
 import shutil
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import pyarrow.parquet as pq
 import pyarrow as pa
@@ -53,7 +54,9 @@ def load_summary_info(stack, summaryinfo_file):
             raise ValueError("Missing 'summary_id' column in summary info file.")
 
         summary_ids = df["summary_id"].to_numpy(dtype=np.int64)
-        summary_data = df.drop(columns=["summary_id"]).astype(str).agg(",".join, axis=1).to_numpy(dtype=object)
+        summary_columns = df.drop(columns=["summary_id"]).astype(str)
+        summary_data = summary_columns.iloc[:, 0].str.cat(
+            summary_columns.iloc[:, 1:], sep=",").to_numpy(dtype=object)
         headers = [col for col in df.columns if col != "summary_id"]
     else:
         raise ValueError(f"Unsupported file format {summaryinfo_file.suffix}.")
@@ -63,8 +66,7 @@ def load_summary_info(stack, summaryinfo_file):
 
     max_summary_id = summary_ids.max()
     full_summary_data = np.full((max_summary_id + 1,), "," * (len(headers) - 1), dtype=object)
-    for i in range(len(summary_ids)):
-        full_summary_data[summary_ids[i]] = summary_data[i]
+    full_summary_data[summary_ids] = summary_data
 
     return full_summary_data, headers, max_summary_id
 
@@ -128,9 +130,12 @@ def run(
             if "SummaryId" not in df.columns:
                 raise ValueError("Missing 'SummaryId' column in data file.")
 
-            df[summary_headers] = df["SummaryId"].apply(
-                lambda sid: summary_data[sid] if sid <= max_summary_id else ""
-            ).str.split(",", expand=True)
+            summary_id = df["SummaryId"].to_numpy()
+            in_range = summary_id <= max_summary_id
+            joined_summary_data = np.full(len(df), "", dtype=object)
+            joined_summary_data[in_range] = summary_data[summary_id[in_range]]
+            df[summary_headers] = pd.Series(
+                joined_summary_data, index=df.index).str.split(",", expand=True)
             pq.write_table(pa.Table.from_pandas(df), temp_output_file)
         else:
             raise ValueError(f"Unsupported file format {data_file.suffix}.")

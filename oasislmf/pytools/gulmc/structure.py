@@ -105,8 +105,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                                ('AreaPerilID', areaperil_int), ('VulnerabilityID', np.int32)])
         keys_tb = load_as_ndarray(input_path, 'keys', keys_dtype)
         if peril_filter:
-            peril_set = set(peril_filter)
-            mask = np.array([p in peril_set for p in keys_tb['PerilID']])
+            mask = np.isin(keys_tb['PerilID'], list(peril_filter))
             valid_areaperil_id = np.unique(keys_tb['AreaPerilID'][mask])
             logger.debug(
                 f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_tb)}')

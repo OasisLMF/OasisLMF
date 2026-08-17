@@ -960,7 +960,7 @@ def validate_vuln_csv_contents(file_path):
         ):
             logger.warning("vulnerability_id, intensity_bin_id, and damage_bin_id columns must contain integer values.")
             return False
-        if vuln_df['probability'].apply(lambda x: isinstance(x, (int, float))).all():
+        if np.issubdtype(vuln_df['probability'].dtype, np.number):
             if not (vuln_df['probability'].between(0, 1).all()):
                 logger.warning("probability column must contain values between 0 and 1.")
                 return False

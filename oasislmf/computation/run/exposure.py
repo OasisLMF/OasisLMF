@@ -304,8 +304,7 @@ class RunExposure(ComputationStep):
                         total_gul, total_il, total_ri_ceded)
 
             # Convert output cols to strings for formatting
-            for c in group_by_cols:
-                all_losses_df[c] = all_losses_df[c].apply(str)
+            all_losses_df[group_by_cols] = all_losses_df[group_by_cols].astype(str)
 
             if self.print_summary:
                 cols_to_print = all_loss_cols.copy()
