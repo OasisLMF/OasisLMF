@@ -30,7 +30,7 @@ An implementation of each of the above components is provided in the [Reference 
 
 The architecture supports multiple stream types. Therefore a developer can define a new type of data stream within the framework by specifying a unique stream_id of the stdout of one or more of the components, or even write a new component which performs an intermediate calculation between the existing components.
 
-The stream_id is the first 4 byte header of the stdout streams. The higher byte is reserved to identify the type of stream, and the 2nd to 4th bytes hold the identifier of the stream. This is used for validation of pipeline commands to report errors if the components are not being used in the correct order.
+The stream_id is the first 4 byte header of the stdout streams. The higher byte is reserved to identify the type of stream, and the 2nd to 4th bytes hold the identifier of the stream. This is used for validation of pipeline commands to report errors if the components are not being used in the correct order. The one exception is the event stream that starts a pipeline: `evepy` writes a bare sequence of 4-byte `event_id` integers with **no header**, so it carries no stream_id and is shown as `event_id list` in the table below.
 
 The current reserved values are as follows;
 
@@ -55,13 +55,15 @@ Reserved stream_ids;
 
 The supported standard input and output streams of the reference model components are summarized here;
 
-| Component    | Standard input                        |  Standard output                      | Stream option parameters          			|
-|:-------------|:--------------------------------------|:--------------------------------------|:-------------------------------------------|
-| modelpy     | none                                  | 0/1 cdf                               | none                              			|
-| gulmc      | 0/1 cdf                               | 2/1 loss                              | -i -a{}                           			|
-| fmpy       | 2/1 loss                              | 2/1 loss                              | none                              			|
-| summarypy  | 2/1 loss                              | 3/1 summary                           | -i input from gulmc, -f input from fmpy| 
-| outputcalc   | 3/1 summary                           | none                                  | none                              			| 
+| Component    | Standard input                        |  Standard output                      | Stream option parameters                |
+|:-------------|:--------------------------------------|:--------------------------------------|:----------------------------------------|
+| evepy        | none                                  | event_id list (no header)             | -o (default `-`, i.e. stdout)           |
+| modelpy      | event_id list                         | 0/1 cdf                               | none                                    |
+| gulpy        | 0/1 cdf                               | 2/1 loss                              | -a{}                                    |
+| gulmc        | event_id list                         | 2/1 loss                              | -a{} (reads model data directly, not a cdf stream) |
+| fmpy         | 2/1 loss                              | 2/1 loss                              | none                                    |
+| summarypy    | 2/1 loss                              | 3/1 summary                           | -i input from gulmc, -f input from fmpy |
+| outputcalc   | 3/1 summary                           | none                                  | none                                    |
 
 
 ## Stream structure
