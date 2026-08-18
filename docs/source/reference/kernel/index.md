@@ -9,7 +9,7 @@ ktools decommission — the components are reimplemented in `oasislmf/pytools`
 (gulpy/gulmc, fmpy, summarypy, the output modules, and the converters). The
 **stream/file-format and calc-rule reference is stable**, but some command-line
 syntax and workflow examples still reflect the legacy C++ binaries and are being
-**updated to the pytools implementation** — see `MIGRATION_PLAN.md` §3.3.
+**updated to the pytools implementation**.
 
 - The Financial Module *design* is documented in
   {doc}`../../explanation/financial-module`.

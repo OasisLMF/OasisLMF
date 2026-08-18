@@ -11,8 +11,8 @@ factory, and a command line interface (run ``oasislmf --help``).
 The documentation is organised using the `Diátaxis <https://diataxis.fr/>`_
 framework — **Tutorials**, **How-to guides**, **Reference** and **Explanation** —
 so each page has one clear job. See
-`DOCS_STRATEGY.md <https://github.com/OasisLMF/OasisLMF/blob/main/DOCS_STRATEGY.md>`_
-for the documentation strategy this structure is part of.
+:doc:`explanation/documentation-strategy` for how the documentation is organised, built
+and published.
 
 Start where you fit
 -------------------

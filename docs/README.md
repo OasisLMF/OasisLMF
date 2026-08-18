@@ -3,7 +3,8 @@
 This is the in-repo Sphinx documentation for the `oasislmf` package. It is
 **co-located with the code** so that a change in behaviour and its documentation
 travel together in the same pull request. See
-[`DOCS_STRATEGY.md`](../DOCS_STRATEGY.md) for the overall documentation strategy
+[`explanation/documentation-strategy.md`](source/explanation/documentation-strategy.md)
+for the overall documentation strategy
 and the consolidation plan this structure is part of.
 
 ## Structure (Diátaxis)

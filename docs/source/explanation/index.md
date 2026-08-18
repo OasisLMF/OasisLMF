@@ -4,7 +4,7 @@ Understanding-oriented material: the *why* and *how it works* behind OasisLMF.
 
 These pages are **co-located with the code they describe** so that a change in
 behaviour and its explanation travel together in the same pull request. This is
-the core of the documentation strategy — see [`DOCS_STRATEGY.md`](https://github.com/OasisLMF/OasisLMF/blob/main/DOCS_STRATEGY.md).
+the core of the documentation strategy — see {doc}`documentation-strategy`.
 
 ## Financial Module
 
@@ -79,3 +79,14 @@ geocoding
 The corresponding **API reference** for these subsystems is generated directly from
 the source in {doc}`../reference/index`, so explanation and reference sit side by
 side.
+
+## How the docs work
+
+Guidance for people writing these pages — ownership, the content model, tooling and the
+authoring traps worth knowing:
+
+```{toctree}
+:maxdepth: 1
+
+documentation-strategy
+```

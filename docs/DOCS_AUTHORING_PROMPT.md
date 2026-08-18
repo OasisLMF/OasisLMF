@@ -3,7 +3,7 @@
 A reusable prompt for documenting a new feature in the OasisLMF in-repo docs
 (`docs/`). Fill in the **Feature context** block and hand the whole thing to
 Claude Code (or follow it yourself). It encodes the conventions from
-`DOCS_STRATEGY.md` so features get documented in the right place, the right way,
+`source/explanation/documentation-strategy.md` so features get documented in the right place, the right way,
 and in the same PR as the code.
 
 ---
@@ -94,7 +94,7 @@ Rules:
   ```` ```bash ````.
 - Match the tone and depth of the neighbouring pages.
 
-### 4. Gotchas — do NOT trip these (see `DOCS_STRATEGY.md` §9)
+### 4. Gotchas — do NOT trip these (see `source/explanation/documentation-strategy.md`)
 
 - **Never use the `.. contents::` directive.** Furo already renders an "On this
   page" TOC in the right sidebar and turns `.. contents::` into a red, reader-

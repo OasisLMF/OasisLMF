@@ -70,7 +70,8 @@ extensions = [
 # scoped per-subsystem (currently FM + gulmc) so the API reference sits directly
 # beside its explanation pages and the build stays fast. The consolidation plan is
 # to widen this per-subsystem as each adopts the reference/explanation pattern --
-# not to go back to a single whole-package dump. See ``DOCS_STRATEGY.md``.
+# not to go back to a single whole-package dump. See
+# docs/source/explanation/documentation-strategy.md.
 autoapi_dirs = [
     '../../oasislmf/pytools/fm',
     '../../oasislmf/pytools/gulmc',

@@ -1,7 +1,7 @@
 .. note::
     Migrated from the ``OasisLMF/GenerateDocs`` repository
     (``src/sections/financial-module.rst``) as part of the documentation
-    consolidation described in ``DOCS_STRATEGY.md``. It is now co-located with
+    consolidation described in :doc:`documentation-strategy`. It is now co-located with
     the Financial Module code so behaviour and documentation change together.
     The dead ``simplitium/oed`` link has been repointed to the current
     ``OasisLMF/ODS_OpenExposureData`` repository, and figure paths updated to the
