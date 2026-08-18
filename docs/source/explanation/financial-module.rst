@@ -226,7 +226,7 @@ limit, say, a profile does not represent a policy structure on its own, but rath
 which can be combined with other building blocks to model a particular financial contract. In this way it is possible
 to model an unlimited range of structures with a limited number of profiles.
 
-The FM Profiles form an extensible library of calculations defined within the fmcalc code that can be invoked by
+The FM Profiles form an extensible library of calculations defined within the fmpy code that can be invoked by
 specifying a particular ``calcrule_id`` and providing the required data values such as deductible and limit, as
 described below.
 
@@ -485,9 +485,9 @@ to items (2) in proportion to the losses from the prior level calculation.
 
 .. code-block:: sh
 
-    $ fmcalc -a0 # Losses are output at the contract level and not back-allocated
-    $ fmcalc -a1 # Losses are back-allocated to items on the basis of the input losses (e.g. ground up loss)
-    $ fmcalc -a2 # Losses are back-allocated to items on the basis of the prior level losses
+    $ fmpy -a 0 # Losses are output at the contract level and not back-allocated
+    $ fmpy -a 1 # Losses are back-allocated to items on the basis of the input losses (e.g. ground up loss)
+    $ fmpy -a 2 # Losses are back-allocated to items on the basis of the prior level losses
 
 The rules for specifying the ``output_ids`` in the xref table are as follows:
 
@@ -500,15 +500,15 @@ to all of the items, with each individual loss represented by a unique ``output_
 
 To avoid unnecessary computation, it is recommended not to back-allocate unless losses are required to be reported at
 a more detailed level than the contract level (site or zip code, for example). In this case, losses are re-aggregated
-up from item level (represented by ``output_id`` in fmcalc output) in ``summarycalc``, using the ``fmsummaryxref``
+up from item level (represented by ``output_id`` in fmpy output) in ``summarypy``, using the ``fmsummaryxref``
 table.
 
 Reinsurance
 ###########
 
-The first run of fmcalc is designed to calculate the primary or direct insurance losses from the ground up losses of
-an exposure portfolio. fmcalc has been designed to be recursive, so that the 'gross' losses from the first run can be
-streamed back in to second and subsequent runs of fmcalc, each time with a different set of input files representing
+The first run of fmpy is designed to calculate the primary or direct insurance losses from the ground up losses of
+an exposure portfolio. fmpy has been designed to be recursive, so that the 'gross' losses from the first run can be
+streamed back in to second and subsequent runs of fmpy, each time with a different set of input files representing
 reinsurance contracts, and can output either the reinsurance gross loss, or net loss. There are two modes of output:
 
 * **gross** meaning the loss to the policies or reinsurance contracts, and
@@ -530,7 +530,7 @@ The types of reinsurance supported by the Financial Module are:
 Required files
 """"""""""""""
 
-Second and subsequent runs of fmcalc require the same four fm files ``fm_programme``, ``fm_policytc``, ``fm_profile``,
+Second and subsequent runs of fmpy require the same four fm files ``fm_programme``, ``fm_policytc``, ``fm_profile``,
 and ``fm_xref``.
 
 This time, the hierarchy specified in ``fm_programme`` must be consistent with the range of ``output_ids`` from the
@@ -558,7 +558,7 @@ For example:
     "2", "2", "1"
 
 The abstraction of ``from_agg_id`` at level 1 from ``item_id`` means that losses needn't be back-allocated to
-``item_id`` after every iteration of fmcalc. In fact, performance will be improved when back-allocation is minimised.
+``item_id`` after every iteration of fmpy. In fact, performance will be improved when back-allocation is minimised.
 
 Example - Quota share reinsurance
 """""""""""""""""""""""""""""""""
@@ -570,11 +570,11 @@ The command to run the direct insurance followed by reinsurance might look like 
 
 .. code-block:: sh
 
-    $ fmcalc -p direct < guls.bin | fmcalc -p ri1 -n > ri1_net.bin
+    $ fmpy -p direct < guls.bin | fmpy -p ri1 -n > ri1_net.bin
 
-In this command, ground up losses are being streamed into fmcalc to calculate the insurance losses, which are streamed
-into fmcalc again to calculate the reinsurance net loss. The direct insurance fm files would be located in the folder
-'``direct``' and the reinsurance fm files in the folder '``ri1``'. The -n flag in the second call of fmcalc results in
+In this command, ground up losses are being streamed into fmpy to calculate the insurance losses, which are streamed
+into fmpy again to calculate the reinsurance net loss. The direct insurance fm files would be located in the folder
+'``direct``' and the reinsurance fm files in the folder '``ri1``'. The -n flag in the second call of fmpy results in
 net losses being output to the file '``ri1_net.bin``'. These are the losses to the insurer net of recoveries from the
 quota share treaty.
 

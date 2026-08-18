@@ -1,97 +1,87 @@
 # Appendix A: Random numbers
 
-Simple uniform random numbers are assigned to each event, group and sample number to sample ground up loss in the gulmc process. A group is a collection of items which share the same group_id, and is the method of supporting spatial correlation in ground up loss sampling in Oasis and ktools.
+Simple uniform random numbers are assigned to each event, group and sample number to sample
+ground up loss in the gulmc process. A group is a collection of items which share the same
+group_id, and is the method of supporting spatial correlation in ground up loss sampling in
+Oasis.
 
 #### Correlation
 
-Items (typically representing, in insurance terms, the underlying risk coverages) that are assigned the same group_id will use the same random number to sample damage for a given event and sample number. Items with different group_ids will be assigned independent random numbers.  Therefore sampled damage is fully correlated within groups and fully independent between groups, where group is an abstract collection of items defined by the user.
+Items (typically representing, in insurance terms, the underlying risk coverages) that are
+assigned the same group_id will use the same random number to sample damage for a given event
+and sample number. Items with different group_ids will be assigned independent random numbers.
+Therefore sampled damage is fully correlated within groups and fully independent between
+groups, where group is an abstract collection of items defined by the user.
 
 The item_id, group_id data is provided by the user in the items input file (items.bin).
 
+`gulmc` samples hazard intensity as well as damage, and the two are correlated independently:
+damage draws key off `group_id` (items file) and hazard draws off `hazard_group_id`
+(correlations file), each with its own seeding constants.
+
 ### Methodology
 
-The method of assigning random numbers in gulmc uses an random number index (ridx), an integer which is used as a position reference into a list of random numbers.  S random numbers corresponding to the runtime number of samples are drawn from the list starting at the ridx position.
+There is no buffer of pre-generated random numbers and no index into one. For each
+`(group_id, event_id)` pair `gulmc` derives a seed and generates the sample draws from it, so a
+run is repeatable without a seed parameter, and there is no buffer size to choose.
 
-In pytools the random-number generator is selected with `--random-generator`: `0`
-Mersenne-Twister, `1` Latin Hypercube, `2` Latin Hypercube on Philox4x32-7 (the default).
-The seeding and correlation methodology described here still applies; historically ktools
-offered three ways to source random numbers (below), now selected via `--random-generator`
-rather than the legacy `-R`/`-r`/`-s` flags.
-
-#### 1. Generate dynamically during the calculation
-
-##### Usage
-Use -R{number of random numbers} as a parameter. Optionally you may use -s{seed} to make the random numbers repeatable.
-
-##### Example
-```
-$ gulmc -S00 -R1000000 -i -
-```
-This will run 100 samples drawing from 1 million dynamically generated random numbers. They are simple uniform random numbers.
+The damage seed is (`oasislmf/pytools/gul/random.py`):
 
 ```
-$ gulmc -S00 -s123 -R1000000 -i -
+s1   = mod(group_id * 1543270363, 2147483648)
+s2   = mod(event_id * 1943272559, 2147483648)
+seed = mod(s1 + s2, 2147483648)
 ```
-This will run 100 samples drawing from 1 million seeded random numbers (repeatable)
 
-##### Method
+Hazard sampling uses the same shape with its own constants and modulus, keyed off
+`hazard_group_id` rather than `group_id`:
 
-Random numbers are sampled dynamically using the Mersenne twister psuedo random number generator (the default RNG of the C++ v11 compiler). 
-A sparse array capable of holding R random numbers is allocated to each event. The ridx is generated from the group_id and number of samples S using the following modulus function;
-
-ridx= mod(group_id x P1, R)
-
-* P1 is the first prime number which is bigger than the number of samples, S.
-
-This formula pseudo-randomly assigns ridx indexes to each group_id between 0 and 999,999. 
-
-As a ridx is sampled, the section in the array starting at the ridx position of length S is populated with random numbers unless they have already been populated, in which case the existing random numbers are re-used.
-
-The array is cleared for the next event and a new set of random numbers is generated.  
-
-#### 2. Use numbers from random number file
-
-##### Usage
-Use -r as a parameter
-
-##### Example
 ```
-$ gulmc -S100 -r -i -
+s1   = mod(hazard_group_id * 1143271949, 1957483729)
+s2   = mod(event_id       * 1243274353, 1957483729)
+seed = mod(s1 + s2, 1957483729)
 ```
-This will run 100 samples using random numbers from file random.bin in the static sub-directory.
 
-##### Method
-The random number file(s) is read into memory at the start of the gulmc process. 
+Because the seed is a pure function of the group and the event, items in the same group see
+identical draws for a given event and sample index, which is what produces the correlation
+described above.
 
-The ridx is generated from the sample index (sidx), event_id and group_id using the following modulus function;
+#### Choosing the generator
 
-ridx= sidx + mod(group_id x P1 x P3 + event_id x P2, R)
+`--random-generator` selects how numbers are drawn from that seed:
 
-* R is the divisor of the modulus, equal to the total number of random numbers in the list.
-* P1 and P2 are the first two prime numbers which are greater than half of R.
-* P3 is the first prime number which is bigger than the number of samples, S.
+| Value | Generator |
+|-------|-----------|
+| `0` | numpy default (MT19937) |
+| `1` | Latin Hypercube |
+| `2` | Latin Hypercube on Philox4x32-7 (counter-based, faster) — **default** |
 
-This formula pseudo-randomly assigns a starting position index to each event_id and group_id combo between 0 and R-1, and then S random numbers are drawn by incrementing the starting position by the sidx.
-
-#### 3. Generate automatically seeded random numbers (no buffer)
-
-##### Usage
-Default option
-
-##### Example
+```bash
+evepy 1 1 | gulmc -S 100 --random-generator 0 -o gulmc.bin
 ```
-$ gulmc -S100 -i -
+
+There is no seed option and no random-number file: seeding is derived as above, so repeatability
+is inherent rather than something to switch on.
+
+#### Inspecting the numbers used
+
+`-d` writes the random numbers instead of the losses, which is the way to check what a run drew:
+
+```bash
+evepy 1 1 | gulmc -S 100 -d 1 -o hazard_rands.bin      # hazard sampling numbers
+evepy 1 1 | gulmc -S 100 -d 2 -o damage_rands.bin      # damage sampling numbers
 ```
-This option will produce repeatable random numbers seeded from a combination of the event_id and group_id. The difference between this option and method 1 with the fixed seed is that there is no limit on the number of random numbers generated, and you do not need to make a decision on the buffer size. This will impact performance for large analyses.
 
-##### Method
+`-d 0` (the default) writes the ground up loss stream.
 
-For each event_id and group_id, the seed is calculated as follows;
-
-s1 = mod(group_id * 1543270363, 2147483648);        
-s2 = mod(event_id * 1943272559, 2147483648);
-seed = mod(s1 + s2 , 2147483648)
-
+```{note}
+**Historical note (ktools).** ktools offered three ways to source random numbers, selected with
+`-R{buffer size}`, `-r` (read `random.bin` from the static directory) and the default
+auto-seeded mode, with an optional `-s{seed}`. Numbers were drawn from a shared buffer addressed
+by a random number index (*ridx*) computed from `group_id`, `event_id` and prime moduli. None of
+those flags exist in `gulmc`: only the auto-seeded behaviour survives — it is the scheme
+described above — and `--random-generator` now selects the generator instead.
+```
 
 [Go to Appendix B FM Profiles](fmprofiles.md)
 
