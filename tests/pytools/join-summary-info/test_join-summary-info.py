@@ -145,7 +145,13 @@ def test_join_parquet_with_summary_id_beyond_the_summary_info():
 
         # an unknown summary id joins to nothing, so only the first summary column is filled
         assert list(joined["PortNumber"]) == ["1", "", "2"]
-        assert list(joined["tiv"]) == ["10.0", None, "20.0"]
+
+        # the columns after it are missing rather than empty. Which value reports that is the
+        # pandas string dtype's to choose, None on the object dtype and NaN on StringDtype,
+        # so the test asks whether it is missing rather than which of the two it is.
+        tiv = list(joined["tiv"])
+        assert [tiv[0], tiv[2]] == ["10.0", "20.0"]
+        assert pd.isna(tiv[1])
 
 
 def test_missing_summary_col_parquet():
