@@ -74,6 +74,8 @@ extensions = [
 autoapi_dirs = [
     '../../oasislmf/pytools/fm',
     '../../oasislmf/pytools/gulmc',
+    # shared stream/data layer (event_stream: stream ids, headers, special sidx)
+    '../../oasislmf/pytools/common',
     # output modules (results / ORD outputs)
     '../../oasislmf/pytools/elt',
     '../../oasislmf/pytools/lec',

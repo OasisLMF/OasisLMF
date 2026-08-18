@@ -32,10 +32,13 @@ The API reference is generated directly from the source docstrings with
 never imports the package).
 
 ```{note}
-The API reference is **scoped per-subsystem** — currently the Financial Module
-(`oasislmf.pytools.fm`) and the ground-up Monte-Carlo engine
-(`oasislmf.pytools.gulmc`) — so it sits directly beside the matching explanation
-pages and the build stays fast. Coverage widens as more subsystems are documented.
+The API reference is **scoped per-subsystem** rather than covering the whole
+package, so each subsystem sits beside the explanation pages that describe it and the
+build stays fast. Currently included: the Financial Module (`oasislmf.pytools.fm`), the
+ground-up Monte-Carlo engine (`oasislmf.pytools.gulmc`), the shared stream/data layer
+(`oasislmf.pytools.common`), the output modules (`elt`, `lec`, `plt`, `aal`, `summary`,
+`pla`) and the keys/lookup framework (`oasislmf.lookup`). Coverage widens as more
+subsystems are documented.
 ```
 
 ```{toctree}
@@ -43,6 +46,7 @@ pages and the build stays fast. Coverage widens as more subsystems are documente
 
 api/oasislmf/pytools/fm/index
 api/oasislmf/pytools/gulmc/index
+api/oasislmf/pytools/common/index
 api/oasislmf/pytools/elt/index
 api/oasislmf/pytools/lec/index
 api/oasislmf/pytools/plt/index
