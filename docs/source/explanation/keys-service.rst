@@ -176,7 +176,7 @@ This section goes through step by step on how to run a basic model.
 Before we use the new interface we should explore how we run the lookup process in general. This can be done with the 
 command below:
 
-.. code-block:: python
+.. code-block:: bash
 
    oasislmf model run --config ./us_oasislmf_mdk.json
 
@@ -525,11 +525,11 @@ any name of your choice). In ``lookup_config.json`` change ``builtin_lookup_type
 In ``<module_name>.py`` we create our custom class ``<model_id>KeysLookup`` where ``<model_id>`` is the ``model_id`` in 
 your lookup config.
 
-.. code-block:: text
+.. code-block:: python
 
    from oasislmf.lookup.builtin import Lookup
 
-   class <model_id>Lookup(Lookup):
+   class MyModelLookup(Lookup):
       pass
 
 |
@@ -554,18 +554,18 @@ the signature ``fct_name(locations)=>locations``.
 For example let's say we want to have a default height if missing based on the number of ``storeys``. With 
 ``numberofstoreys`` between 0 and 100.
 
-.. code-block:: text
+.. code-block:: python
 
    from oasislmf.lookup.builtin import Lookup
    import pandas as pd
 
-   class <model_id>Lookup(Lookup):
+   class MyModelLookup(Lookup):
       @staticmethod
       def storey_nb_to_height(locations):
          missing_height_with_storeys = ~locations['numberofstoreys'].isna() & locations['buildingheight'].isna()
          loc_missing = locations[missing_height_with_storeys]
          loc_missing['buildingheight'] = locations['numberofstoreys'].clip(0, 100) * 3 # as a default each storey is 3 meters
-         return pd.concat([loc_missing, locations[~missing_height_with_storeys])
+         return pd.concat([loc_missing, locations[~missing_height_with_storeys]])
 
 |
 
@@ -578,19 +578,19 @@ example above and put the min max and storey heigh as parameters.
 
 Then the code will be changed to:
 
-.. code-block:: text
+.. code-block:: python
 
    from oasislmf.lookup.builtin import Lookup
    import pandas as pd
 
-   class <model_id>Lookup(Lookup):
+   class MyModelLookup(Lookup):
 
       def build_storey_nb_to_height(self, min, max, height):
          def fct(locations):
             missing_height_with_storeys = ~locations['numberofstoreys'].isna() & locations['buildingheight'].isna()
             loc_missing = locations[missing_height_with_storeys]
             loc_missing['buildingheight'] = locations['numberofstoreys'].clip(min, max) * height # as a default each storey is 3 meters
-            return pd.concat([loc_missing, locations[~missing_height_with_storeys])
+            return pd.concat([loc_missing, locations[~missing_height_with_storeys]])
          
          return fct
 
@@ -621,12 +621,12 @@ Custom parametric function let you be as flexible as you need and also let you u
 will use custom function to use two different method of geo-localization depending on the data available. If we have lat 
 lon we use it otherwise we use a mapping file based on the ``locuserdef1`` column.
 
-.. code-block:: text
+.. code-block:: python
 
    from oasislmf.lookup.builtin import Lookup
    import pandas as pd
 
-   class <model_id>Lookup(Lookup):
+   class MyModelLookup(Lookup):
       def build_peril_methods(self, file_path_loc_id, file_path_rtree1, file_type_rtree,
                               nearest_neighbor_min_distance=-1, id_columns=[], **kwargs):
          merge = self.build_merge(file_path_loc_id, id_columns=[], **kwargs)

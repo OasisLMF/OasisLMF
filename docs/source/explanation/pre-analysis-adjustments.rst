@@ -55,4 +55,4 @@ For more information on these model:
 
 * :doc:`Disaggregation </explanation/disaggregation>`
 
-* Geocoding
+* :doc:`Geocoding </explanation/geocoding>`

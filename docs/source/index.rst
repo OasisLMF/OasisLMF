@@ -10,7 +10,8 @@ factory, and a command line interface (run ``oasislmf --help``).
 
 The documentation is organised using the `Diátaxis <https://diataxis.fr/>`_
 framework — **Tutorials**, **How-to guides**, **Reference** and **Explanation** —
-so each page has one clear job. See ``DOCS_STRATEGY.md`` in the repository root
+so each page has one clear job. See
+`DOCS_STRATEGY.md <https://github.com/OasisLMF/OasisLMF/blob/main/DOCS_STRATEGY.md>`_
 for the documentation strategy this structure is part of.
 
 Start where you fit
@@ -58,14 +59,7 @@ Start where you fit
    :caption: How-to guides
    :hidden:
 
-   installation
-   building-and-running-models
-   logging-configuration
-   how-to/model-development-kit
-   how-to/api-client
-   how-to/ground-up-losses
-   how-to/mdk-builtin-lookup
-   how-to/Oasis-evaluation
+   how-to/index
 
 .. toctree::
    :caption: Reference
