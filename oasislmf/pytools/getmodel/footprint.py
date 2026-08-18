@@ -521,9 +521,12 @@ class FootprintParquetDynamic(Footprint):
 
     Either file may be partitioned by section_id (i.e. be a directory of section_id=N/
     subdirectories) or be a single unpartitioned parquet file, independently of the other.
-    When the event definition is partitioned, data is bulk-loaded at __enter__ for fast
-    indexed lookups in get_event; otherwise event definitions are read lazily per get_event
-    call.
+    Both layouts are read the same way, by pushing a section_id filter down to the reader.
+
+    The hazard case is bulk-loaded at __enter__ for this portfolio's sections and areaperils,
+    which is all get_event ever needs of it. The event definition is bulk-loaded too when it
+    is partitioned, giving indexed per-event lookups; when it is unpartitioned it is instead
+    filtered to the event per get_event call.
 
     Both files may also be sparse: a section that is absent from the event definition has no
     events affecting it, and a section absent from the hazard case is unaffected by the
@@ -569,16 +572,22 @@ class FootprintParquetDynamic(Footprint):
             self.areaperil_ids = pd.read_csv('input/keys.csv', usecols=['AreaPerilID']).AreaPerilID.unique()
 
         self.event_definition_partitioned = self._is_partitioned_by_section(event_defintion_filename)
-        self.hazard_case_partitioned = self._is_partitioned_by_section(hazard_case_filename)
 
         self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
         self.absent_sections_reported = {}
 
+        self.df_event_definition = None
+        self.df_hazard_case = None
+        self.event_set = set()
+
         if self.event_definition_partitioned:
-            self._load_partitioned_data()
             self.get_event = self._get_event_partitioned
+            if not self._load_event_definitions():
+                return self
         else:
             self.get_event = self._get_event_flat
+
+        self._load_hazard_case()
         return self
 
     def _report_absent_sections(self, filename, absent):
@@ -591,13 +600,12 @@ class FootprintParquetDynamic(Footprint):
         logger.info(f"sections {newly_absent} have no data in {filename} for this portfolio, "
                     f"so their locations are treated as not at risk")
 
-    def _read_sections(self, filename, sections, partitioned, filters=None):
+    def _read_sections(self, filename, sections, filters=None):
         """Read the requested sections of a parquet file, treating absent sections as empty.
 
         Args:
             filename (str): the parquet file or dataset directory to read
             sections (iterable): the section_ids to read
-            partitioned (bool): whether filename is partitioned by section_id
             filters (list): optional pyarrow filters pushed down to the reader
 
         Returns: (pd.DataFrame) the concatenated sections with a section_id column, or an
@@ -607,57 +615,40 @@ class FootprintParquetDynamic(Footprint):
         if not sections:
             return pd.DataFrame()
 
-        if not partitioned:
-            section_filters = (filters or []) + [("section_id", "in", sections)]
-            df_sections = self.get_df_reader(filename, filters=section_filters).as_pandas()
-            present = set() if df_sections.empty else set(df_sections['section_id'])
-            self._report_absent_sections(filename, set(sections) - present)
-            return df_sections
+        section_filters = (filters or []) + [("section_id", "in", sections)]
+        df_sections = self.get_df_reader(filename, filters=section_filters).as_pandas()
+        # a hive partition key is read back as a category, which does not survive the
+        # fillna and merge in _build_footprint the way the flat file's integer column does
+        df_sections['section_id'] = df_sections['section_id'].astype('int64')
+        present = set() if df_sections.empty else set(df_sections['section_id'])
+        self._report_absent_sections(filename, set(sections) - present)
+        return df_sections
 
-        # not every reader engine accepts filters=None, so only pass them when there are some
-        reader_kwargs = {'filters': filters} if filters else {}
+    def _load_event_definitions(self):
+        """Bulk-load the event definitions of this portfolio's sections.
 
-        absent = []
-        df_section_list = []
-        for section in sections:
-            section_path = f'{filename}/section_id={section}'
-            if not self.storage.exists(section_path):
-                # the section is not in the model data, so it is not at risk
-                absent.append(section)
-                continue
-            df_section = self.get_df_reader(section_path, **reader_kwargs).as_pandas()
-            df_section['section_id'] = section
-            df_section_list.append(df_section)
-
-        self._report_absent_sections(filename, absent)
-
-        if not df_section_list:
-            return pd.DataFrame()
-
-        return pd.concat(df_section_list, ignore_index=True)
-
-    def _load_partitioned_data(self):
-        """Bulk-load event definitions and hazard cases from section-partitioned parquet."""
-        self.df_event_definition = None
-        self.df_hazard_case = None
-        self.event_set = set()
-
-        df_event_definition = self._read_sections(
-            event_defintion_filename, self.location_sections, self.event_definition_partitioned)
+        Returns: (bool) False if no event in the model data affects the portfolio at all
+        """
+        df_event_definition = self._read_sections(event_defintion_filename, self.location_sections)
         if df_event_definition.empty:
-            # no event in the model data affects any section of this portfolio
             logger.warning(f"no section of this portfolio is in {event_defintion_filename}, "
                            f"so no event affects it and every loss will be zero")
-            return
+            return False
 
         # sorted so that the per-event .loc lookups in _get_event_partitioned are indexed;
         # a stable sort keeps the row order the model data was written in
         self.df_event_definition = df_event_definition.set_index('event_id').sort_index(kind='stable')
         self.event_set = set(df_event_definition['event_id'].unique())
+        return True
 
+    def _load_hazard_case(self):
+        """Bulk-load the hazard of this portfolio's sections and areaperils.
+
+        The hazard case does not depend on the event, so it is read once here for both
+        get_event paths rather than per call.
+        """
         df_hazard_case = self._read_sections(
-            hazard_case_filename, self.location_sections, self.hazard_case_partitioned,
-            filters=self.areaperil_ids_filter)
+            hazard_case_filename, self.location_sections, filters=self.areaperil_ids_filter)
         if df_hazard_case.empty:
             # the modelled perils leave every section of this portfolio unaffected
             logger.warning(f"no section of this portfolio has hazard in {hazard_case_filename}, "
@@ -667,38 +658,43 @@ class FootprintParquetDynamic(Footprint):
         self.df_hazard_case = df_hazard_case.set_index('section_id').sort_index(kind='stable')
 
     def _get_event_partitioned(self, event_id):
-        """Fast path: lookup from pre-loaded indexed DataFrames."""
-        if event_id not in self.event_set or self.df_hazard_case is None:
+        """Fast path: the event definition is indexed in memory, so look the event up."""
+        if event_id not in self.event_set:
             return None
 
-        this_event_definition = self.df_event_definition.loc[[event_id]].reset_index()
-        sections = this_event_definition['section_id'].unique()
-        # sections the event affects but that carry no hazard are not at risk
-        df_hazard_case = self.df_hazard_case.loc[self.df_hazard_case.index.intersection(sections)].reset_index()
-        if df_hazard_case.empty:
-            return None
-
-        return self._build_footprint(df_hazard_case, this_event_definition)
+        return self._build_event(self.df_event_definition.loc[[event_id]].reset_index())
 
     def _get_event_flat(self, event_id):
-        """Lazy path: read event definition and hazard cases from parquet per call."""
-        event_defintion_reader = self.get_df_reader(event_defintion_filename, filters=[("event_id", "==", event_id)])
-        df_event_defintion = event_defintion_reader.as_pandas()
-        if df_event_defintion.empty:
+        """Lazy path: an unpartitioned event definition is filtered to the event per call."""
+        df_event_definition = self.get_df_reader(
+            event_defintion_filename, filters=[("event_id", "==", event_id)]).as_pandas()
+        if df_event_definition.empty:
             return None
 
-        sections = set(df_event_defintion['section_id']) & self.location_sections
-        if len(sections) == 0:
+        return self._build_event(df_event_definition)
+
+    def _build_event(self, df_event_definition):
+        """Build one event's footprint from the sections it affects that carry hazard.
+
+        Args:
+            df_event_definition (pd.DataFrame): the event definition rows of a single event
+
+        Returns: (np.array[EventDynamic]) the footprint, or None if no section of the event
+            is at risk. The hazard case holds only this portfolio's sections, so intersecting
+            with its index drops both the sections outside the portfolio and those the
+            modelled perils leave unaffected.
+        """
+        if self.df_hazard_case is None:
             return None
 
-        df_hazard_case = self._read_sections(
-            hazard_case_filename, sections, self.hazard_case_partitioned, filters=self.areaperil_ids_filter)
-        if df_hazard_case.empty:
+        sections = self.df_hazard_case.index.intersection(df_event_definition['section_id'].unique())
+        if sections.empty:
             return None
 
-        df_event_defintion = df_event_defintion[df_event_defintion['section_id'].isin(sections)]
+        df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
+        df_event_definition = df_event_definition[df_event_definition['section_id'].isin(sections)]
 
-        return self._build_footprint(df_hazard_case, df_event_defintion)
+        return self._build_footprint(df_hazard_case, df_event_definition)
 
     def _build_footprint(self, df_hazard_case, df_event_definition):
         """Build the interpolated footprint from hazard case and event definition DataFrames.

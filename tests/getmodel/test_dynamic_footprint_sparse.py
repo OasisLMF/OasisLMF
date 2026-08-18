@@ -142,6 +142,34 @@ def test_every_partitioning_layout_builds_the_same_footprint(tmp_path, df_engine
         assert footprint.get_event(999) is None
 
 
+@pytest.mark.parametrize('partition_event_definition', [True, False])
+@pytest.mark.parametrize('partition_hazard_case', [True, False])
+def test_hazard_case_is_read_once_per_run(tmp_path, monkeypatch, partition_event_definition,
+                                          partition_hazard_case):
+    """The hazard case does not depend on the event, so no layout may re-read it per event.
+
+    Reading it per call costs a partition discovery over the whole dataset each time, which
+    scales with the sections the model has rather than with the sections the event needs.
+    """
+    storage, run_dir = build_model(tmp_path, partition_event_definition=partition_event_definition,
+                                   partition_hazard_case=partition_hazard_case)
+
+    reads = []
+    original_get_df_reader = FootprintParquetDynamic.get_df_reader
+
+    def counting_get_df_reader(self, filepath, **kwargs):
+        reads.append(filepath)
+        return original_get_df_reader(self, filepath, **kwargs)
+
+    monkeypatch.setattr(FootprintParquetDynamic, 'get_df_reader', counting_get_df_reader)
+
+    with open_footprint(storage, run_dir) as footprint:
+        for event_id in (1, 2, 3, 1, 2, 3):
+            footprint.get_event(event_id)
+
+    assert reads.count(hazard_case_filename) == 1
+
+
 # ---------------------------------------------------------------------------
 # Issue 2090 — sections missing from the event definition file
 # ---------------------------------------------------------------------------
