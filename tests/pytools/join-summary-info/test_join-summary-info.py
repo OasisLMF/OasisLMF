@@ -143,15 +143,44 @@ def test_join_parquet_with_summary_id_beyond_the_summary_info():
             data={"SummaryId": [1, 5, 2], "MeanLoss": [1.0, 2.0, 3.0]},
         )
 
-        # an unknown summary id joins to nothing, so only the first summary column is filled
+        # an unknown summary id joins to empty summary columns, the same as a gap does
         assert list(joined["PortNumber"]) == ["1", "", "2"]
+        assert list(joined["tiv"]) == ["10.0", "", "20.0"]
 
-        # the columns after it are missing rather than empty. Which value reports that is the
-        # pandas string dtype's to choose, None on the object dtype and NaN on StringDtype,
-        # so the test asks whether it is missing rather than which of the two it is.
-        tiv = list(joined["tiv"])
-        assert [tiv[0], tiv[2]] == ["10.0", "20.0"]
-        assert pd.isna(tiv[1])
+
+def test_join_parquet_with_every_summary_id_beyond_the_summary_info():
+    """Tests join-summary-info joins a file whose every summary id is unknown
+
+    Nothing to join is not an error, and the summary columns still have to be there for the
+    output to have the schema the joined file is supposed to have.
+    """
+    with TemporaryDirectory() as tmp_dir:
+        joined = write_parquet_pair(
+            tmp_dir,
+            summary_info={"summary_id": [1, 2], "PortNumber": ["1", "2"], "tiv": [10.0, 20.0]},
+            data={"SummaryId": [7, 8], "MeanLoss": [1.0, 2.0]},
+        )
+
+        assert list(joined.columns) == ["SummaryId", "MeanLoss", "PortNumber", "tiv"]
+        assert list(joined["PortNumber"]) == ["", ""]
+        assert list(joined["tiv"]) == ["", ""]
+
+
+def test_join_parquet_matches_csv_for_unknown_summary_ids(tmp_path):
+    """Tests both formats say the same thing about a summary id they cannot join"""
+    summary_info = pd.DataFrame({"summary_id": [1, 2], "PortNumber": ["1", "2"], "tiv": [10.0, 20.0]})
+    data = pd.DataFrame({"SummaryId": [1, 5, 2], "MeanLoss": [1.0, 2.0, 3.0]})
+
+    summary_info.to_csv(tmp_path / "gul_summary-info.csv", index=False)
+    data.to_csv(tmp_path / "aalgul_ord.csv", index=False)
+    main(summaryinfo=tmp_path / "gul_summary-info.csv", data=tmp_path / "aalgul_ord.csv",
+         output=tmp_path / "joined.csv")
+    joined_csv = pd.read_csv(tmp_path / "joined.csv", dtype=str).fillna("")
+
+    joined_parquet = write_parquet_pair(tmp_path, summary_info=summary_info, data=data)
+
+    assert list(joined_csv["PortNumber"]) == list(joined_parquet["PortNumber"])
+    assert list(joined_csv["tiv"]) == list(joined_parquet["tiv"])
 
 
 def test_missing_summary_col_parquet():

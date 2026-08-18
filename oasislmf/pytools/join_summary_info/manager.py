@@ -132,7 +132,11 @@ def run(
 
             summary_id = df["SummaryId"].to_numpy()
             in_range = summary_id <= max_summary_id
-            joined_summary_data = np.full(len(df), "", dtype=object)
+            # a summary id past the end of the summary info has no summary info, the same as
+            # one that falls in a gap within it, so it joins to the same empty columns. They
+            # have to be spelled out, as a row splitting into fewer columns than the headers
+            # is an error rather than a short row
+            joined_summary_data = np.full(len(df), "," * (len(summary_headers) - 1), dtype=object)
             joined_summary_data[in_range] = summary_data[summary_id[in_range]]
             df[summary_headers] = pd.Series(
                 joined_summary_data, index=df.index).str.split(",", expand=True)
