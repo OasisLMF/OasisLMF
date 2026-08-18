@@ -39,7 +39,7 @@ Higher byte;
 | Byte 1 |  Stream name  		|
 |:-------|:---------------------|
 |    0   | cdf          		|
-|    1   | gulmc (deprecated) |
+|    1   | gul (deprecated)   |
 |    2   | loss          		|
 |    3   | summary       		|
 
@@ -48,8 +48,8 @@ Reserved stream_ids;
 | Byte 1   | Bytes 2-4    |  Description                                                             		         
 |:---------|--------------|:---------------------------------------------------------------------------------|
 |    0     |     1        |  cdf - Oasis format effective damageability CDF output                           |
-|	 1     |     1        |  gulmc - Oasis format item level ground up loss sample output (deprecated)     |
-|    1     |     2        |  gulmc - Oasis format coverage level ground up loss sample output (deprecated) |
+|	 1     |     1        |  gul - Oasis format item level ground up loss sample output (deprecated, superseded by 2/1 loss) |
+|    1     |     2        |  gul - Oasis format coverage level ground up loss sample output (deprecated, superseded by 2/1 loss) |
 |    2     |     1        |  loss -  Oasis format loss sample output (any loss perspective)                  |
 |    3     |     1        |  summary - Oasis format summary level loss sample output                         |
 
