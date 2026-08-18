@@ -197,8 +197,7 @@ def __split_fm_terms_by_risk(df):
 
 
 def check_cond_tags(locations_df, accounts_df):
-    """
-    Raise if any non-default CondTag referenced by a location is not present
+    """Raise if any non-default CondTag referenced by a location is not present
     in the account file for that acc_id.
 
     Kept standalone (rather than inlined in get_cond_info) so it can also be
@@ -226,8 +225,7 @@ def check_cond_tags(locations_df, accounts_df):
 
 
 def validate_account_location_references(locations_df, accounts_df):
-    """
-    Validate that every location's account/policy reference resolves to a
+    """Validate that every location's account/policy reference resolves to a
     row in the account file.
 
     This covers the same referential-integrity checks that would otherwise
