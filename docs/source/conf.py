@@ -440,7 +440,7 @@ except NameError:
     intersphinx_mapping = {}
 intersphinx_mapping.update({
     _k: (_v[0], _v[1])
-    for _k, _v in _ix_json.loads(_ix_os.environ.get("OASIS_INTERSPHINX_MAP", "{}")).items()
+    for _k, _v in _ix_json.loads(_ix_os.environ.get("OASIS_INTERSPHINX_MAP") or "{}").items()
 })
 # -- Oasis shared branding (logo, palette, GitHub footer) -------------------
 if globals().get("html_theme") == "furo":
