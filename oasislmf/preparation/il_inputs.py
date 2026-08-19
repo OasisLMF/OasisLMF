@@ -242,11 +242,17 @@ def get_cond_info(locations_df, accounts_df):
 
         # layers each cond_tag already appears in, and per (acc_id, layer_id) policy info + exclusion flag
         layers_present = set(map(tuple, accounts_df[['acc_id', 'CondTag', 'layer_id']].drop_duplicates().to_numpy()))
-        account_layers = accounts_df.groupby(['acc_id', 'layer_id'], sort=False, observed=True).agg(
+        # has_excl is resolved before the groupby so 'max' can take the cython path; a lambda here
+        # forces pandas' per-group pure-python aggregation and dominates the whole function
+        layer_cols = accounts_df[['acc_id', 'layer_id', 'PolNumber', 'LayerNumber', 'acc_idx']].assign(
+            has_excl=(accounts_df['CondClass'].eq(1).fillna(False).astype(bool)
+                      if 'CondClass' in accounts_df.columns else False),
+        )
+        account_layers = layer_cols.groupby(['acc_id', 'layer_id'], sort=False, observed=True).agg(
             PolNumber=('PolNumber', 'last'),
             LayerNumber=('LayerNumber', 'last'),
             acc_idx=('acc_idx', 'last'),
-            has_excl=('CondClass', lambda s: bool((s == 1).any())) if 'CondClass' in accounts_df.columns else ('acc_id', lambda s: False),
+            has_excl=('has_excl', 'max'),
         ).reset_index()
 
         # --- resolve each location's cond priority, detect same-priority conflicts, rank within the location ---

@@ -256,7 +256,14 @@ def _normalise(fn, loc, acc):
 
 
 def _random_case(rng):
-    """An account/location pair shaped like the real ones: one row per (loc_id, acc_id, CondTag)."""
+    """An account/location pair shaped like the real ones: one row per (loc_id, acc_id, CondTag).
+
+    The trailing ``.drop_duplicates()`` on the locations frame is a deliberate exclusion, not an
+    oversight: exactly-duplicated (loc_id, acc_id, CondTag) rows are the one input class where the
+    two implementations are *meant* to differ, so feeding them to the reference comparison below
+    would assert the old answer. They are covered instead by the two duplicate-row tests, which
+    pin the new answer directly.
+    """
     tags = ['A', 'B', 'C', '0']
     acc_rows = []
     for _ in range(int(rng.integers(1, 7))):
@@ -310,3 +317,52 @@ def test_duplicate_location_rows_do_not_inflate_levels():
     level_conds, _ = get_cond_info(duplicated, acc)
     assert _levels(level_conds) == {1: [(1, 'A')], 2: [(1, 'B')]}
     assert _levels(level_conds) == _levels(get_cond_info(deduplicated, acc)[0])
+
+
+def test_duplicate_location_rows_can_merge_two_tags_into_one_level():
+    """Two tags of equal priority on different locations share an FM level once duplicates count once.
+
+    This is the one deliberate behaviour change against the loop implementation, and it moves loss
+    numbers rather than only renumbering levels. B and C both have priority 2 but sit on different
+    locations, so no same-priority conflict is raised. The loop pushed B down to level 3 because
+    location 10's duplicated 'A' row occupied a slot; de-duplicating first leaves B and C tied at
+    the same dense rank, so they are applied at one aggregation node instead of nested.
+
+    Old (loop): {1: [(1, 'A')], 2: [(1, 'C')], 3: [(1, 'B')]} -> three cond FM levels.
+    New:        {1: [(1, 'A')], 2: [(1, 'B'), (1, 'C')]}      -> two, with B and C sharing one.
+    """
+    acc = _acc([
+        [1, 0, 1, 'P1', 1, 'A', 'A', 1, 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'B', 'B', 2, 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'C', 'C', 2, 'AA1', 0],
+    ])
+    loc = _loc([[10, 1, 'A'], [10, 1, 'A'], [10, 1, 'B'], [11, 1, 'A'], [11, 1, 'C']])
+
+    level_conds, _ = get_cond_info(loc, acc)
+    assert _levels(level_conds) == {1: [(1, 'A')], 2: [(1, 'B'), (1, 'C')]}
+
+    # the loop's answer, kept here so the divergence stays visible if either side is touched
+    assert _levels(reference_get_cond_info(loc.copy(), acc.copy())[0]) == {
+        1: [(1, 'A')], 2: [(1, 'C')], 3: [(1, 'B')]}
+
+
+def test_duplicate_location_rows_match_the_deduplicated_frame():
+    """Duplicated location rows are equivalent to the de-duplicated frame, over random cases.
+
+    This is the invariant the new semantics claims, and it is the input class
+    test_matches_reference_implementation deliberately excludes. Asserting it against
+    get_cond_info's own de-duplicated answer (rather than against the loop) is the point:
+    the loop does not hold this invariant.
+    """
+    rng = np.random.default_rng(20260819)
+    compared = 0
+
+    for _ in range(120):
+        loc, acc = _random_case(rng)
+        # repeat a random subset of the location rows, so the frame carries real duplicates
+        repeated = pd.concat([loc, loc.sample(frac=0.5, random_state=int(rng.integers(0, 2**31)))])
+        expected = _normalise(get_cond_info, loc, acc)
+        assert _normalise(get_cond_info, repeated, acc) == expected, f"\nacc:\n{acc}\nloc:\n{repeated}"
+        compared += expected != 'raised'
+
+    assert compared > 60
