@@ -187,6 +187,85 @@ def test_empty_frame_gives_a_fully_zeroed_summary():
     assert_summaries_equal(summary, reference_exposure_summary_fields(df, categories))
 
 
+def make_shared_loc_id_df(seed=21, field_value='ZA'):
+    """A frame where one loc_id carries two different country codes.
+
+    loc_id identifies the location (PortNumber, AccNumber, LocNumber) rather than the row, so two
+    exposure rows with the same LocNumber share one, and ods_tools has no uniqueness rule that
+    rejects them. Any deduplication shared across summary fields drops one of the two, taking the
+    whole of its field bucket to zero while the portfolio total stays put.
+    """
+    df = make_summary_peril_df(seed, num_locations=8, duplicate_keys=False)
+    shared = df.loc[df['loc_id'] == 1].copy()
+    shared['country_code'] = field_value
+    shared['tiv'] = shared['tiv'] * 2
+    shared['number_of_buildings'] = shared['number_of_buildings'] + 1
+    shared['number_of_risks'] = shared['number_of_buildings']
+
+    return pd.concat([df, shared], ignore_index=True)
+
+
+def test_one_loc_id_carrying_two_field_values():
+    """A field value reachable only through a shared loc_id keeps its own TIV and counts."""
+    df = make_shared_loc_id_df()
+    categories = oed_categories_for(df)
+
+    summary = get_exposure_summary_fields(df, categories)
+
+    # the shared row's bucket is populated, not zeroed
+    assert summary['country_code']['ZA']['all']['tiv'] > 0.0
+    assert summary['country_code']['ZA']['all']['number_of_locations'] == 1
+    assert_summaries_equal(summary, reference_exposure_summary_fields(df, categories))
+
+
+def test_one_loc_id_carrying_two_field_values_counts_it_under_both():
+    """A shared loc_id lands in the bucket of each of its field values, as it did before.
+
+    The field value is part of the deduplication key, so a location carrying two country codes
+    contributes to both, and the country breakdown deliberately sums to more than the peril
+    breakdown. That asymmetry is the pre-existing behaviour of the row-wise implementation, not
+    something the deduplication may quietly resolve one way or the other.
+    """
+    df = make_shared_loc_id_df(seed=23)
+    categories = oed_categories_for(df)
+    shared_values = sorted(df.loc[df['loc_id'] == 1, 'country_code'].unique())
+    assert len(shared_values) == 2, 'fixture must give loc_id 1 two country codes'
+
+    summary = get_exposure_summary_fields(df, categories)
+    expected = reference_exposure_summary_fields(df, categories)
+
+    for value in shared_values:
+        assert summary['country_code'][value]['all']['tiv'] > 0.0
+
+    by_country = sum(summary['country_code'][value]['all']['tiv'] for value in categories['country_code'])
+    by_peril = sum(summary['peril_id'][value]['all']['tiv'] for value in categories['peril_id'])
+    assert by_country > by_peril
+    assert by_country == pytest.approx(
+        sum(expected['country_code'][value]['all']['tiv'] for value in categories['country_code']))
+    assert by_peril == pytest.approx(
+        sum(expected['peril_id'][value]['all']['tiv'] for value in categories['peril_id']))
+
+
+@pytest.mark.parametrize('field_name', ['number_of_buildings', 'number_of_risks', 'coverage_type_id', 'loc_id'])
+def test_field_named_after_a_summed_or_key_column(field_name):
+    """A summary field named after a column the summary sums or groups by does not shadow it.
+
+    summary_report_fields comes from the model settings and is converted with convert_col_name, so
+    an ordinary OED column like NumberOfBuildings arrives here as 'number_of_buildings' -- the same
+    name as one of the columns COUNT_AGGREGATION sums.
+    """
+    df = make_summary_peril_df(24, num_locations=12)
+    categories = {
+        'peril_id': df['peril_id'].drop_duplicates().to_list(),
+        field_name: df[field_name].drop_duplicates().to_list(),
+    }
+
+    assert_summaries_equal(
+        get_exposure_summary_fields(df, categories),
+        reference_exposure_summary_fields(df, categories),
+    )
+
+
 def test_statuses_sum_to_the_all_status():
     df = make_summary_peril_df(15, duplicate_keys=False)
     categories = oed_categories_for(df)

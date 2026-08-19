@@ -760,6 +760,23 @@ COUNT_AGGREGATION = {
 }
 
 
+def code_column(name):
+    """Name of the coded column for the exposure summary field `name`.
+
+    The codes live in their own namespace because a summary field is named after an OED column, and
+    the summary is grouped by fields while summing columns of its own. `NumberOfBuildings` is an
+    ordinary field to want a breakdown by, and its coded values would otherwise overwrite the
+    `number_of_buildings` being summed.
+
+    Args:
+        name (str): name of the column being coded
+
+    Returns:
+        str: the name the coded column is held under
+    """
+    return f'__code__{name}'
+
+
 def encode_exposure_summary_keys(df, field_names):
     """Replace the columns the exposure summary groups by with integer codes.
 
@@ -772,9 +789,9 @@ def encode_exposure_summary_keys(df, field_names):
         field_names (iterable): names of the exposure summary fields the rows are grouped by
 
     Returns:
-        tuple: a 2-tuple ``(encoded, codes)``, where ``encoded`` holds the coded key columns
-        alongside the columns being summed, and ``codes`` maps each coded column name to its
-        ``{value: code}`` lookup. A value missing from a lookup does not appear in `df`.
+        tuple: a 2-tuple ``(encoded, codes)``, where ``encoded`` holds the coded key columns, named
+        by `code_column`, alongside the columns being summed, and ``codes`` maps each coded field
+        name to its ``{value: code}`` lookup. A value missing from a lookup does not appear in `df`.
     """
     # taken as arrays as the frame is a concatenation, so its index is not unique
     encoded = {col: df[col].to_numpy() for col in ['loc_id', 'coverage_type_id', 'tiv',
@@ -782,34 +799,13 @@ def encode_exposure_summary_keys(df, field_names):
     codes = {}
     for col in dict.fromkeys(['peril_id', 'status'] + list(field_names)):
         column_codes, values = pd.factorize(df[col], sort=False)
-        encoded[col] = column_codes
+        encoded[code_column(col)] = column_codes
         codes[col] = {value: code for code, value in enumerate(values.tolist())}
 
     return pd.DataFrame(encoded, copy=False), codes
 
 
-def get_exposure_tiv_rows(df, group_by_status):
-    """Deduplicate the exposure rows the summarised TIV is added up from.
-
-    The row-wise equivalent deduplicates on (loc_id, peril_id) inside every (field value, status,
-    coverage type) combination it summarises. Since the summary fields hold one value per location,
-    and the frame is deduplicated on the coverage type and status either way, deduplicating on the
-    combined key keeps the same rows for every field at once.
-
-    Args:
-        df (pandas.DataFrame): dataframe `df_summary_peril` from `get_exposure_summary`
-        group_by_status (bool): keep one row per lookup status, rather than treating the statuses
-            as interchangeable the way the 'all' status does
-
-    Returns:
-        pandas.DataFrame: the rows of `df` whose TIV the summary adds up
-    """
-    dedupe_cols = ['loc_id', 'peril_id', 'coverage_type_id'] + (['status'] if group_by_status else [])
-
-    return df.drop_duplicates(dedupe_cols)
-
-
-def get_exposure_summary_stats(tiv_rows, field_name, group_by_status):
+def get_exposure_summary_stats(encoded, field_name, group_by_status):
     """Aggregate the exposure summary statistics for every value of one OED field at once.
 
     The row-wise equivalent filters the frame down to one (field value, status, coverage type)
@@ -817,10 +813,16 @@ def get_exposure_summary_stats(tiv_rows, field_name, group_by_status):
     such a combination, deduplicating on the combined key and grouping gives the same numbers from
     a single pass over the frame instead of one pass per combination.
 
+    The field value is part of that key, so the deduplication is per field and cannot be hoisted out
+    and shared. Two exposure rows sharing a `loc_id` -- which a repeated `LocNumber` produces, and
+    which nothing upstream rejects -- may hold different field values, and sharing the key across
+    fields would drop one of them and zero its bucket.
+
     Args:
-        tiv_rows (pandas.DataFrame): the deduplicated frame from `get_exposure_tiv_rows`
+        encoded (pandas.DataFrame): the coded frame from `encode_exposure_summary_keys`
         field_name (str): name of the exposure summary field the rows are grouped by
-        group_by_status (bool): whether `tiv_rows` was deduplicated per lookup status
+        group_by_status (bool): keep one row per lookup status, rather than treating the statuses
+            as interchangeable the way the 'all' status does
 
     Returns:
         tuple: a 3-tuple ``(tiv, by_coverage, overall)`` of dicts keyed by the group key, which is
@@ -828,11 +830,14 @@ def get_exposure_summary_stats(tiv_rows, field_name, group_by_status):
         key. ``tiv`` holds the summed TIV, ``by_coverage`` and ``overall`` the location, building
         and risk counts per coverage type and over all coverage types respectively.
     """
-    # field_name is itself sometimes 'peril_id', so the key lists need deduplicating
-    group_keys = list(dict.fromkeys([field_name] + (['status'] if group_by_status else [])))
-    coverage_keys = group_keys + ['coverage_type_id']
+    # field_name is itself sometimes 'peril_id' or 'status', so the key lists need deduplicating
+    group_keys = list(dict.fromkeys(
+        [code_column(field_name)] + ([code_column('status')] if group_by_status else [])))
+    coverage_keys = list(dict.fromkeys(group_keys + ['coverage_type_id']))
 
     # each frame is deduplicated from the one above it, which is already the first row per group
+    tiv_rows = encoded.drop_duplicates(list(dict.fromkeys(
+        group_keys + ['loc_id', code_column('peril_id'), 'coverage_type_id'])))
     coverage_rows = tiv_rows.drop_duplicates(list(dict.fromkeys(coverage_keys + ['loc_id'])))
     location_rows = coverage_rows.drop_duplicates(list(dict.fromkeys(group_keys + ['loc_id'])))
 
@@ -1016,12 +1021,10 @@ def get_exposure_summary_fields(df, oed_categories):
 
     coverage_ids = [(coverage_type, info['id']) for coverage_type, info in SUPPORTED_COVERAGE_TYPES.items()]
     encoded, codes = encode_exposure_summary_keys(df, oed_categories)
-    tiv_rows_by_status = get_exposure_tiv_rows(encoded, group_by_status=True)
-    tiv_rows_for_all = get_exposure_tiv_rows(encoded, group_by_status=False)
 
     for field_name, field_list in oed_categories.items():
-        stats_by_status = get_exposure_summary_stats(tiv_rows_by_status, field_name, group_by_status=True)
-        stats_for_all = get_exposure_summary_stats(tiv_rows_for_all, field_name, group_by_status=False)
+        stats_by_status = get_exposure_summary_stats(encoded, field_name, group_by_status=True)
+        stats_for_all = get_exposure_summary_stats(encoded, field_name, group_by_status=False)
 
         for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
             if status == 'all':
