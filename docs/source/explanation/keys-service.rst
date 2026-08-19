@@ -347,7 +347,7 @@ Function Factory to associate location to ``area_peril`` based on the rtree meth
    * An example on how to create such dataframe is available in PiWind
    * If you are new to geo data (in python) and want to learn more, you may have a look at this excellent course:
 
-   https://automating-gis-processes.github.io/site/index.html
+   https://autogis-site.readthedocs.io/
 
 ``file_type``: can be any format readable by geopandas ('file', 'parquet', ...)
    * See: https://geopandas.readthedocs.io/en/latest/docs/reference/io.html (you may have to install additional library) 
