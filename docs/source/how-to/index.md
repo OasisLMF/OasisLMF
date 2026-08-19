@@ -11,9 +11,9 @@ how locations are joined to your geometry file — is covered in
 ```{toctree}
 :maxdepth: 1
 
-../installation
-../building-and-running-models
-../logging-configuration
+installation
+building-and-running-models
+logging-configuration
 model-development-kit
 api-client
 ground-up-losses

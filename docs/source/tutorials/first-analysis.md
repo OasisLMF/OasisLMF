@@ -17,7 +17,7 @@ execute against real result files.
 
 ## 1. Install OasisLMF
 
-Install the toolkit into a virtual environment (see {doc}`../installation` for platform
+Install the toolkit into a virtual environment (see {doc}`../how-to/installation` for platform
 notes and optional extras):
 
 ```bash

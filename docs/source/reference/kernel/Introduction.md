@@ -5,7 +5,7 @@ of components (the “reference model”) that can be adapted for particular mod
 needs. The kernel is now implemented in Python (**pytools**); it was historically the C++
 toolkit “ktools”, which is being decommissioned.
 
-Installation instructions can be found in {doc}`the installation guide </installation>`.
+Installation instructions can be found in {doc}`the installation guide </how-to/installation>`.
 
 ### Background
 The Kernel performs the core Oasis calculations of computing effective damageability distributions, Monte-Carlo sampling of ground up loss, the financial module calculations, which apply insurance policy terms and conditions to the sampled losses, and finally some common catastrophe model outputs.

@@ -7,7 +7,7 @@ see {doc}`../options_config_file` and {doc}`../generated_options`.
 
 These options can be passed as CLI flags to `oasislmf model run` **or** set in the
 run configuration / analysis settings JSON (same names, with underscores). See
-{doc}`../building-and-running-models` for the base run command.
+{doc}`building-and-running-models` for the base run command.
 
 ## The ground-up engine (gulmc is the default)
 

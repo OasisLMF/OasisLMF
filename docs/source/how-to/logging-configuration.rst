@@ -34,7 +34,7 @@ replacing the previous binary INFO/DEBUG system with full user control.
 
 **Related Configuration**
 
-See :doc:`options_config_file` for general configuration options and model-specific settings.
+See :doc:`../options_config_file` for general configuration options and model-specific settings.
 
 Quick Start
 -----------
@@ -158,7 +158,7 @@ You can specify custom format strings in the configuration file:
      }
    }
 
-See :doc:`options_config_file` for more configuration file examples and general settings.
+See :doc:`../options_config_file` for more configuration file examples and general settings.
 
 Environment Variables
 ---------------------
@@ -388,7 +388,7 @@ For Python scripts using OasisLMF as a library:
 See Also
 --------
 
-* :doc:`options_config_file` - General configuration file options
+* :doc:`../options_config_file` - General configuration file options
 * :doc:`building-and-running-models` - Model execution commands
 * :doc:`installation` - Installation and setup guide
 

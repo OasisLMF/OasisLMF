@@ -28,7 +28,7 @@ Start where you fit
       **Tutorials.**
 
    .. grid-item-card:: 🛠️ Model developer
-      :link: building-and-running-models
+      :link: how-to/building-and-running-models
       :link-type: doc
 
       Build, run and test models with the MDK.
