@@ -35,6 +35,18 @@ and reinsurance losses as well throughout the process.
 
 |
 
+.. image:: /_static/images/mdk/Oasis_workflow.png
+    :width: 700
+    :align: center
+
+Each stage is its own command — ``generate-keys``,
+``generate-oasis-files`` and ``generate-losses`` — so a model can be built and checked one
+stage at a time, taking the model's keys and model data together with the user's OED
+exposure. ``oasislmf model run`` performs all three in sequence, which is the ``run`` box
+above.
+
+|
+
 Deployment
 **********
 
