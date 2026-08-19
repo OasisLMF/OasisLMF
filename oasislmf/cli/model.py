@@ -18,8 +18,7 @@ from .command import OasisBaseCommand, OasisComputationCommand
 
 
 class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
-    """
-    Generate a new EOD from original one by specifying a model specific pre-analysis hook for exposure modification
+    """Generate a new EOD from original one by specifying a model specific pre-analysis hook for exposure modification
     see ExposurePreAnalysis for more detail
     """
     formatter_class = RawDescriptionHelpFormatter
@@ -27,8 +26,7 @@ class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
 
 
 class GeneratePostFileGenCmd(OasisComputationCommand):
-    """
-    Run a post file generation hook to modify or expand the generated Oasis files
+    """Run a post file generation hook to modify or expand the generated Oasis files
     before loss calculation.
     """
     formatter_class = RawDescriptionHelpFormatter
@@ -36,24 +34,19 @@ class GeneratePostFileGenCmd(OasisComputationCommand):
 
 
 class GeneratePrelossCmd(OasisComputationCommand):
-    """
-    Run a pre-loss hook on each worker to modify input files before loss calculation.
-    """
+    """Run a pre-loss hook on each worker to modify input files before loss calculation."""
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PreLoss'
 
 
 class GenerateKeysCmd(OasisComputationCommand):
-    """
-    Generates keys from a model lookup, and write Oasis keys and keys error files.
-    """
+    """Generates keys from a model lookup, and write Oasis keys and keys error files."""
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'GenerateKeys'
 
 
 class GenerateOasisFilesCmd(OasisComputationCommand):
-    """
-    Generates the standard Oasis GUL input files + optionally the IL/FM input
+    """Generates the standard Oasis GUL input files + optionally the IL/FM input
     files and the RI input files.
     """
     formatter_class = RawDescriptionHelpFormatter
@@ -61,32 +54,25 @@ class GenerateOasisFilesCmd(OasisComputationCommand):
 
 
 class GenerateLossesCmd(OasisComputationCommand):
-    """
-    Run loss calculations with optional pre-loss and post-analysis hooks.
-    """
+    """Run loss calculations with optional pre-loss and post-analysis hooks."""
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'GenerateOasisLosses'
 
 
 class GenerateLossesPartialCmd(OasisComputationCommand):
-    """
-    Runs a single analysis event chunk.
-    """
+    """Runs a single analysis event chunk."""
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'GenerateLossesPartial'
 
 
 class GenerateLossesOutputCmd(OasisComputationCommand):
-    """
-    Runs the output reports generation on a set of event chunks.
-    """
+    """Runs the output reports generation on a set of event chunks."""
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'GenerateLossesOutput'
 
 
 class GenerateDocumentationCmd(OasisComputationCommand):
-    """
-    Generate Documentation for model from the config file
+    """Generate Documentation for model from the config file
 
     The command line arguments can be supplied in the configuration file
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
@@ -96,8 +82,7 @@ class GenerateDocumentationCmd(OasisComputationCommand):
 
 
 class RunCmd(OasisComputationCommand):
-    """
-    Run models end to end.
+    """Run models end to end.
 
     The command line arguments can be supplied in the configuration file
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
@@ -107,8 +92,7 @@ class RunCmd(OasisComputationCommand):
 
 
 class RunPostAnalysisCmd(OasisComputationCommand):
-    """
-    Run the output postprocessing step.
+    """Run the output postprocessing step.
 
     The command line arguments can be supplied in the configuration file
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
@@ -118,22 +102,19 @@ class RunPostAnalysisCmd(OasisComputationCommand):
 
 
 class GenerateComputationSettingsJsonSchema(OasisComputationCommand):
-    """
-    Generate a json schema to validate the computation settings part of oed settings
-    """
+    """Generate a json schema to validate the computation settings part of oed settings"""
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'GenerateComputationSettingsJsonSchema'
 
 
 class ModelCmd(OasisBaseCommand):
-    """
-    Model subcommands::
+    """Model subcommands::
 
-        * generating keys files from model lookups
-        * generating Oasis input CSV files (GUL [+ IL, RI])
-        * generating losses from a preexisting set of Oasis input CSV files
-        * generating deterministic losses (no model)
-        * running a model end-to-end
+    * generating keys files from model lookups
+    * generating Oasis input CSV files (GUL [+ IL, RI])
+    * generating losses from a preexisting set of Oasis input CSV files
+    * generating deterministic losses (no model)
+    * running a model end-to-end
     """
     sub_commands = {
         'generate-exposure-pre-analysis': GenerateExposurePreAnalysisCmd,

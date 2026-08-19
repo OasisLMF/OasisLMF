@@ -29,15 +29,14 @@ INPUT_FILES = {
 
 
 def csv_validity_test(model_data_fp):
+    """Assess validity of model data.
+
+    Args:
+        model_data_fp (str): directory containing csv files
+
+    Raises:
+        OasisException: if one of the tests fail
     """
-    Assess validity of model data.
-
-    :param model_data_fp: directory containing csv files
-    :type model_data_fp: str
-
-    :raises OasisException: if one of the tests fail
-    """
-
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 

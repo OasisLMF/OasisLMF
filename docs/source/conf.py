@@ -49,6 +49,7 @@ from oasislmf.computation.run.platform import PlatformBase, PlatformRun
 
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.coverage',

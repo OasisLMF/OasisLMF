@@ -55,7 +55,8 @@ def _check_prob_sums(event_ids, areaperil_ids, probs,
                      atol=1e-6):
     """Incremental probability sum check assuming sorted data.
     Returns (bad_idx, last_event_id, last_areaperil_id, running_sum).
-    bad_idx=-1 means valid; the final group is not finalised here — check after last chunk."""
+    bad_idx=-1 means valid; the final group is not finalised here — check after last chunk.
+    """
     if len(event_ids) == 0:
         return np.int64(-1), prev_event_id, prev_areaperil_id, running_sum
     if first_chunk:
@@ -81,7 +82,8 @@ def _check_prob_sums(event_ids, areaperil_ids, probs,
 def _check_duplicates(event_ids, areaperil_ids, intensity_bin_ids,
                       prev_event_id, prev_areaperil_id, prev_intensity_bin_id, first_chunk):
     """Single-pass duplicate intensity_bin_id check assuming sorted data.
-    Returns (bad_idx, last_event_id, last_areaperil_id, last_intensity_bin_id)."""
+    Returns (bad_idx, last_event_id, last_areaperil_id, last_intensity_bin_id).
+    """
     if len(event_ids) == 0:
         return np.int64(-1), prev_event_id, prev_areaperil_id, prev_intensity_bin_id
     if not first_chunk:
@@ -150,7 +152,8 @@ def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
 def _flush_event(event_id, rows, file_out, idx_entries,
                  max_intensity_bin_idx, zip_files, decompressed_size, offset):
     """Convert, optionally compress, and write a single event. Used for partial events
-    (spanning chunk boundaries) and for the zip path where per-event compression is required."""
+    (spanning chunk boundaries) and for the zip path where per-event compression is required.
+    """
     bin_data = np.empty(len(rows), dtype=Event_dtype)
     bin_data["areaperil_id"] = rows["areaperil_id"]
     bin_data["intensity_bin_id"] = rows["intensity_bin_id"]

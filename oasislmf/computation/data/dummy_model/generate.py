@@ -27,8 +27,7 @@ import numpy as np
 
 
 class ModelFile:
-    """
-    Base class for all dummy model files.
+    """Base class for all dummy model files.
 
     Each dummy model file is a class that inherits from this base class. The
     typical order of execution is as follows:
@@ -50,8 +49,7 @@ class ModelFile:
         pass
 
     def seed_rng(self):
-        """
-        Seed random number generator.
+        """Seed random number generator.
 
         Assign different random number generator seed to generate each
         randomised dummy model file data. Pollute seeds with salt to prevent
@@ -69,8 +67,7 @@ class ModelFile:
             np.random.seed((self.random_seed + salt) % 0xFFFFFFFF)
 
     def write_file(self):
-        """
-        Write data to output file in binary format.
+        """Write data to output file in binary format.
 
         General method to convert generated data to binary format and write to
         file. Calls chlid class-specific generate_data method.
@@ -84,8 +81,7 @@ class ModelFile:
                 f.write(struct.pack('=' + dtypes_list, *(line)))
 
     def debug_write_file(self):
-        """
-        Write data to screen in csv format.
+        """Write data to screen in csv format.
 
         Used for debugging file output.
         """
@@ -98,8 +94,7 @@ class ModelFile:
             print(line_format.format(*line))
 
     def generate_data(self):
-        """
-        Generate dummy model data.
+        """Generate dummy model data.
 
         Class specific method to generate randomised data. Is called by
         write_file method.
@@ -108,8 +103,7 @@ class ModelFile:
 
 
 class VulnerabilityFile(ModelFile):
-    """
-    Generate random data for Vulnerability dummy model file.
+    """Generate random data for Vulnerability dummy model file.
 
     This file shows the conditional distributions of damage for each intensity
     bin and for each vulnerability ID.
@@ -122,8 +116,7 @@ class VulnerabilityFile(ModelFile):
         self, num_vulnerabilities, num_intensity_bins, num_damage_bins,
         vulnerability_sparseness, random_seed, directory
     ):
-        """
-        Initialise VulnerabilityFile class.
+        """Initialise VulnerabilityFile class.
 
         Args:
             num_vulnerabilities (int): number of vulnerabilities.
@@ -153,8 +146,7 @@ class VulnerabilityFile(ModelFile):
         self.file_name = os.path.join(directory, 'vulnerability.bin')
 
     def generate_data(self):
-        """
-        Generate Vulnerability dummy model file data.
+        """Generate Vulnerability dummy model file data.
 
         Yields:
             vulnerability (int): vulnerability ID.
@@ -186,8 +178,7 @@ class VulnerabilityFile(ModelFile):
 
 
 class EventsFile(ModelFile):
-    """
-    Generate random data for Events dummy model file.
+    """Generate random data for Events dummy model file.
 
     This file lists event IDs to be run.
 
@@ -196,8 +187,7 @@ class EventsFile(ModelFile):
     """
 
     def __init__(self, num_events, directory):
-        """
-        Initialise VulnerabilityFile class.
+        """Initialise VulnerabilityFile class.
 
         Args:
             num_events (int): number of events.
@@ -210,8 +200,7 @@ class EventsFile(ModelFile):
         self.file_name = os.path.join(directory, 'events.bin')
 
     def generate_data(self):
-        """
-        Generate Events dummy model file data.
+        """Generate Events dummy model file data.
 
         Yields:
             event (int): event ID.
@@ -220,8 +209,7 @@ class EventsFile(ModelFile):
 
 
 class LossFactorsFile(ModelFile):
-    """
-    Generate data for Loss Factors dummy model file.
+    """Generate data for Loss Factors dummy model file.
 
     This file maps post loss amplification/reduction loss factors to
     event ID-amplification ID pairs.
@@ -236,8 +224,7 @@ class LossFactorsFile(ModelFile):
         self, num_events, num_amplifications, min_pla_factor, max_pla_factor,
         random_seed, directory
     ):
-        """
-        Initialise LossFactorsFile class.
+        """Initialise LossFactorsFile class.
 
         Args:
             num_events (int): number of events.
@@ -265,8 +252,7 @@ class LossFactorsFile(ModelFile):
         ])
 
     def generate_data(self):
-        """
-        Generate Loss Factors dummy model file data.
+        """Generate Loss Factors dummy model file data.
 
         Yields:
             event (int): event ID
@@ -283,8 +269,7 @@ class LossFactorsFile(ModelFile):
                 yield event + 1, amplification + 1, factor
 
     def write_file(self):
-        """
-        Write data to output Loss Factors file in binary format.
+        """Write data to output Loss Factors file in binary format.
 
         Checks number of amplifications are greater than 0 before calling base
         class method.
@@ -295,8 +280,7 @@ class LossFactorsFile(ModelFile):
 
 
 class FootprintIdxFile(ModelFile):
-    """
-    Generate data for Footprint index dummy model file.
+    """Generate data for Footprint index dummy model file.
 
     The binary footprint file footprint.bin requires the index file
     footprint.idx.
@@ -306,8 +290,7 @@ class FootprintIdxFile(ModelFile):
     """
 
     def __init__(self, directory):
-        """
-        Initialise Footprint index file class.
+        """Initialise Footprint index file class.
 
         Args:
             directory (str): dummy model file destination.
@@ -319,8 +302,7 @@ class FootprintIdxFile(ModelFile):
         self.file_name = os.path.join(directory, 'footprint.idx')
 
     def write_file(self, event_id, offset, event_size):
-        """
-        Write data to output Footprint index file in binary format.
+        """Write data to output Footprint index file in binary format.
 
         Overrides method in base class. Converts data to arguments to binary and
         writes to file. Called by FootprintBinFile.generate_data().
@@ -339,8 +321,7 @@ class FootprintIdxFile(ModelFile):
 
 
 class FootprintBinFile(ModelFile):
-    """
-    Generate data for Footprint binary dummy model file.
+    """Generate data for Footprint binary dummy model file.
 
     This file shows the intensity of a given event-areaperil combination. The
     binary footprint file footprint.bin requires the index file footprint.idx.
@@ -354,8 +335,7 @@ class FootprintBinFile(ModelFile):
         num_intensity_bins, intensity_sparseness, no_intensity_uncertainty,
         random_seed, directory
     ):
-        """
-        Initialise Footprint binary file class.
+        """Initialise Footprint binary file class.
 
         Args:
             num_events (int): number of events.
@@ -408,8 +388,7 @@ class FootprintBinFile(ModelFile):
             self.offset += struct.calcsize(stat['dtype'])
 
     def generate_data(self):
-        """
-        Generate Footprint binary dummy model file data.
+        """Generate Footprint binary dummy model file data.
 
         Yields:
             areaperil (int): areaperil ID.
@@ -462,8 +441,7 @@ class FootprintBinFile(ModelFile):
 
 
 class DamageBinDictFile(ModelFile):
-    """
-    Generate data for Damage Bin Dictionary dummy model file.
+    """Generate data for Damage Bin Dictionary dummy model file.
 
     This file shows the discretisation of the effective damageability cumulative
     distribution function.
@@ -473,8 +451,7 @@ class DamageBinDictFile(ModelFile):
     """
 
     def __init__(self, num_damage_bins, directory):
-        """
-        Initialise Damage Bin Dictionary file class.
+        """Initialise Damage Bin Dictionary file class.
 
         Args:
             num_damage_bins (int): number of damage bins.
@@ -490,8 +467,7 @@ class DamageBinDictFile(ModelFile):
         self.file_name = os.path.join(directory, 'damage_bin_dict.bin')
 
     def generate_data(self):
-        """
-        Generate Damage Bin Dictionary dummy model file data.
+        """Generate Damage Bin Dictionary dummy model file data.
 
         First bin always runs from 0 to 0, i.e. has a midpoint (interpolation)
         of 0. Last bin always runs from 0 to 0, i.e. has a midpoint
@@ -529,8 +505,7 @@ class DamageBinDictFile(ModelFile):
 
 
 class OccurrenceFile(ModelFile):
-    """
-    Generate data for Occurrence dummy model file.
+    """Generate data for Occurrence dummy model file.
 
     This file maps events to periods, which can represent any length of time.
 
@@ -546,8 +521,7 @@ class OccurrenceFile(ModelFile):
     def __init__(
             self, num_events, num_periods, random_seed, directory, mean, stddev
     ):
-        """
-        Initialise Occurrence file class.
+        """Initialise Occurrence file class.
 
         Args:
             num_events (int): number of events.
@@ -582,8 +556,7 @@ class OccurrenceFile(ModelFile):
         self.file_name = os.path.join(directory, 'occurrence.bin')
 
     def get_num_periods_from_truncated_normal_cdf(self):
-        """
-        Get number of periods from truncated normal cumulative distribution
+        """Get number of periods from truncated normal cumulative distribution
         function.
 
         Events can occur mupltiple times over multiple periods in the occurrence
@@ -614,8 +587,7 @@ class OccurrenceFile(ModelFile):
             bound_a += 1
 
     def get_num_periods_per_event(self):
-        """
-        Get number of periods on event-by-event basis.
+        """Get number of periods on event-by-event basis.
 
         Determines whether sampling of truncated normal cumulative distribution
         function is required to obtain number of periods for this event.
@@ -630,8 +602,7 @@ class OccurrenceFile(ModelFile):
             return self.get_num_periods_from_truncated_normal_cdf()
 
     def set_occ_date_id(self, year, month, day):
-        """
-        Set date of occurrence in ktools format.
+        """Set date of occurrence in ktools format.
 
         Reduce year, month and day information to a single integer.
 
@@ -649,8 +620,7 @@ class OccurrenceFile(ModelFile):
         return 365 * year + year // 4 - year // 100 + year // 400 + (306 * month + 5) // 10 + (day - 1)
 
     def generate_data(self):
-        """
-        Generate Occurrence dummy model file data.
+        """Generate Occurrence dummy model file data.
 
         Yields:
             event (int): event ID.
@@ -673,8 +643,7 @@ class OccurrenceFile(ModelFile):
 
 
 class RandomFile(ModelFile):
-    """
-    Generate data for Random Numbers dummy model file.
+    """Generate data for Random Numbers dummy model file.
 
     This optional file contains random numbers for ground up loss sampling.
 
@@ -683,8 +652,7 @@ class RandomFile(ModelFile):
     """
 
     def __init__(self, num_randoms, random_seed, directory):
-        """
-        Initialise Random Numbers file class.
+        """Initialise Random Numbers file class.
 
         Args:
             num_randoms (int): number of random numbers.
@@ -699,8 +667,7 @@ class RandomFile(ModelFile):
         self.file_name = os.path.join(directory, 'random.bin')
 
     def generate_data(self):
-        """
-        Generate Random Numbers dummy model file data.
+        """Generate Random Numbers dummy model file data.
 
         Yields:
             random number (float): random number.
@@ -711,8 +678,7 @@ class RandomFile(ModelFile):
 
 
 class CoveragesFile(ModelFile):
-    """
-    Generate data for Coverages dummy model Oasis file.
+    """Generate data for Coverages dummy model Oasis file.
 
     This file maps coverage IDs to Total Insured Values.
 
@@ -723,8 +689,7 @@ class CoveragesFile(ModelFile):
     def __init__(
         self, num_locations, coverages_per_location, random_seed, directory
     ):
-        """
-        Initialise Coverages file class.
+        """Initialise Coverages file class.
 
         Args:
             num_locations (int): number of locations.
@@ -741,8 +706,7 @@ class CoveragesFile(ModelFile):
         self.file_name = os.path.join(directory, 'coverages.bin')
 
     def generate_data(self):
-        """
-        Generate Coverages dummy model file data.
+        """Generate Coverages dummy model file data.
 
         Yields:
             total insured value (float): Total Insured Value (TIV).
@@ -757,8 +721,7 @@ class CoveragesFile(ModelFile):
 
 
 class ItemsFile(ModelFile):
-    """
-    Generate data for Items dummy model Oasis file.
+    """Generate data for Items dummy model Oasis file.
 
     This file lists the exposure items for which ground up loss will be sampled.
 
@@ -770,8 +733,7 @@ class ItemsFile(ModelFile):
         self, num_locations, coverages_per_location, num_areaperils,
         num_vulnerabilities, random_seed, directory
     ):
-        """
-        Initialise Items file class.
+        """Initialise Items file class.
 
         Args:
             num_locations (int): number of locations.
@@ -795,8 +757,7 @@ class ItemsFile(ModelFile):
         self.file_name = os.path.join(directory, 'items.bin')
 
     def generate_data(self):
-        """
-        Generate Items dummy model file data.
+        """Generate Items dummy model file data.
 
         Yields:
             item (int): item ID.
@@ -823,8 +784,7 @@ class ItemsFile(ModelFile):
 
 
 class AmplificationsFile(ModelFile):
-    """
-    Generate data for Amplifications dummy model Oasis file.
+    """Generate data for Amplifications dummy model Oasis file.
 
     This file maps exposure items to amplification IDs.
 
@@ -838,8 +798,7 @@ class AmplificationsFile(ModelFile):
         self, num_locations, coverages_per_location, num_amplifications,
         random_seed, directory
     ):
-        """
-        Initialise AmplificationsFile class.
+        """Initialise AmplificationsFile class.
 
         Args:
             num_locations (int): number of locations.
@@ -860,8 +819,7 @@ class AmplificationsFile(ModelFile):
         self.dtypes = OrderedDict([('item_id', 'i'), ('amplification_id', 'i')])
 
     def generate_data(self):
-        """
-        Generate Amplifications dummy model Oasis file data.
+        """Generate Amplifications dummy model Oasis file data.
 
         Yields:
             item (int): item ID
@@ -873,8 +831,7 @@ class AmplificationsFile(ModelFile):
             yield item + 1, amplification
 
     def write_file(self):
-        """
-        Write data to output Amplifications file in binary format.
+        """Write data to output Amplifications file in binary format.
 
         Checks number of amplifications are greater than 0 before calling base
         class method.
@@ -885,13 +842,10 @@ class AmplificationsFile(ModelFile):
 
 
 class FMFile(ModelFile):
-    """
-    Parent class for generating random data for Financial Model files.
-    """
+    """Parent class for generating random data for Financial Model files."""
 
     def __init__(self, num_locations, coverages_per_location):
-        """
-        Initialise Financial Model files classes.
+        """Initialise Financial Model files classes.
 
         Args:
             num_locations (int): number of locations.
@@ -903,8 +857,7 @@ class FMFile(ModelFile):
 
 
 class FMProgrammeFile(FMFile):
-    """
-    Generate data for Financial Model Programme dummy model Oasis file.
+    """Generate data for Financial Model Programme dummy model Oasis file.
 
     This file shows the level hierarchy.
 
@@ -914,8 +867,7 @@ class FMProgrammeFile(FMFile):
     """
 
     def __init__(self, num_locations, coverages_per_location, directory):
-        """
-        Initialise Financial Model Programme file class.
+        """Initialise Financial Model Programme file class.
 
         Args:
             num_locations (int): number of locations.
@@ -930,8 +882,7 @@ class FMProgrammeFile(FMFile):
         self.file_name = os.path.join(directory, 'fm_programme.bin')
 
     def generate_data(self):
-        """
-        Generate Financial Model Programme dummy model file data.
+        """Generate Financial Model Programme dummy model file data.
 
         Yields:
             agg_id (int): from aggregate ID.
@@ -953,8 +904,7 @@ class FMProgrammeFile(FMFile):
 
 
 class FMPolicyTCFile(FMFile):
-    """
-    Generate data for Financial Model Policy dummy model Oasis file.
+    """Generate data for Financial Model Policy dummy model Oasis file.
 
     This file shows the calculation rule (from the Financial Model Policy file)
     that should be applied to aggregations of loss at a particular level.
@@ -967,8 +917,7 @@ class FMPolicyTCFile(FMFile):
     def __init__(
         self, num_locations, coverages_per_location, num_layers, directory
     ):
-        """
-        Initialise Financial Model Policy file class.
+        """Initialise Financial Model Policy file class.
 
         Args:
             num_locations (int): number of locations.
@@ -986,8 +935,7 @@ class FMPolicyTCFile(FMFile):
         self.file_name = os.path.join(directory, 'fm_policytc.bin')
 
     def generate_data(self):
-        """
-        Generate Financial Model Policy dummy model file data.
+        """Generate Financial Model Policy dummy model file data.
 
         Yields:
             level (int): level ID.
@@ -1016,8 +964,7 @@ class FMPolicyTCFile(FMFile):
 
 
 class FMProfileFile(ModelFile):
-    """
-    Generate data for Financial Model Profile dummy model Oasis file.
+    """Generate data for Financial Model Profile dummy model Oasis file.
 
     This file contains the list of calculation rules with profile values used
     to generate insurance losses.
@@ -1028,8 +975,7 @@ class FMProfileFile(ModelFile):
     """
 
     def __init__(self, num_layers, directory):
-        """
-        Initialise Financial Model Profile file class.
+        """Initialise Financial Model Profile file class.
 
         Args:
             num_layers (int): number of layers.
@@ -1046,8 +992,7 @@ class FMProfileFile(ModelFile):
         self.file_name = os.path.join(directory, 'fm_profile.bin')
 
     def generate_data(self):
-        """
-        Generate Financial Model Profile dummy model file data.
+        """Generate Financial Model Profile dummy model file data.
 
         Yields:
             profile_id (int): profile ID.
@@ -1087,8 +1032,7 @@ class FMProfileFile(ModelFile):
 
 
 class FMXrefFile(FMFile):
-    """
-    Generate data for Financial Model Cross Reference dummy model Oasis file.
+    """Generate data for Financial Model Cross Reference dummy model Oasis file.
 
     This file shows the mapping between the financial model output ID, and
     aggregate and layer IDs.
@@ -1101,8 +1045,7 @@ class FMXrefFile(FMFile):
     def __init__(
         self, num_locations, coverages_per_location, num_layers, directory
     ):
-        """
-        Initialise Financial Model Cross Reference file class.
+        """Initialise Financial Model Cross Reference file class.
 
         Args:
             num_locations (int): number of locations.
@@ -1119,8 +1062,7 @@ class FMXrefFile(FMFile):
         self.file_name = os.path.join(directory, 'fm_xref.bin')
 
     def generate_data(self):
-        """
-        Generate Financial Model Cross Reference dummy model file data.
+        """Generate Financial Model Cross Reference dummy model file data.
 
         Yields:
             output_count (int): output ID.
@@ -1138,8 +1080,7 @@ class FMXrefFile(FMFile):
 
 
 class GULSummaryXrefFile(FMFile):
-    """
-    Generate data for Ground Up Losses Summary Cross Reference dummy model Oasis
+    """Generate data for Ground Up Losses Summary Cross Reference dummy model Oasis
     file.
 
     This file shows how item ground up losses are summed together at various
@@ -1151,8 +1092,7 @@ class GULSummaryXrefFile(FMFile):
     """
 
     def __init__(self, num_locations, coverages_per_location, directory):
-        """
-        Initialise Ground Up Losses Summary Cross Reference file class.
+        """Initialise Ground Up Losses Summary Cross Reference file class.
 
         Args:
             num_locations (int): number of locations.
@@ -1167,8 +1107,7 @@ class GULSummaryXrefFile(FMFile):
         self.file_name = os.path.join(directory, 'gulsummaryxref.bin')
 
     def generate_data(self):
-        """
-        Generate Ground Up Losses Summary Cross Reference dummy model file data.
+        """Generate Ground Up Losses Summary Cross Reference dummy model file data.
 
         Yields:
             item (int): item ID.
@@ -1182,8 +1121,7 @@ class GULSummaryXrefFile(FMFile):
 
 
 class FMSummaryXrefFile(FMFile):
-    """
-    Generate data for Financial Model Summary Cross Reference dummy model Oasis
+    """Generate data for Financial Model Summary Cross Reference dummy model Oasis
     file.
 
     This file shows how insurance losses are summed together at various levels
@@ -1197,8 +1135,7 @@ class FMSummaryXrefFile(FMFile):
     def __init__(
         self, num_locations, coverages_per_location, num_layers, directory
     ):
-        """
-        Initialise Financial Model Summary Cross Reference file class.
+        """Initialise Financial Model Summary Cross Reference file class.
 
         Args:
             num_locations (int): number of locations.
@@ -1215,8 +1152,7 @@ class FMSummaryXrefFile(FMFile):
         self.file_name = os.path.join(directory, 'fmsummaryxref.bin')
 
     def generate_data(self):
-        """
-        Generate Financial Model Summary Cross Reference dummy model file data.
+        """Generate Financial Model Summary Cross Reference dummy model file data.
 
         Yields:
             output_id (int): output ID.

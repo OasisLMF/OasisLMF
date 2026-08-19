@@ -39,8 +39,9 @@ MEAN_TYPE_SAMPLE = 2
 def generate_output_metadata(output):
     """Generates *_header, *_dtype and *_fmt items given a list of tuples describing some output description
     output description has type List(Tuple({name: str}, {type: Any}, {format: str}))
+
     Args:
-        output_map (list(tuple(str, Any, str))): Dictionary mapping string name to  {output description}_output list
+        output (list(tuple(str, Any, str))): Dictionary mapping string name to  {output description}_output list
     Returns:
         result (tuple(list[str], np.dtype, str)): Tuple containing the generated *_header list, *_dtype np.dtype, *_fmt csv format string
     """
@@ -389,9 +390,9 @@ summary_stream_index_size = summary_stream_index_dtype.itemsize
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
-    """
-    load a file as a numpy ndarray
+    """Load a file as a numpy ndarray
     useful for multi-columns files
+
     Args:
         dir_path: path to the directory where the binary or csv file is stored
         name: name of the file
@@ -401,7 +402,6 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     Returns:
         numpy ndarray
     """
-
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
         return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
@@ -434,11 +434,11 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
 
 
 def load_as_array(dir_path, name, _dtype, must_exist=True):
-    """
-    load file as a single numpy array,
-     useful for files with a binary version with only one type of value where their index correspond to an id.
-     For example coverage.bin only contains tiv value for each coverage id
-     coverage_id n correspond to index n-1
+    """Load file as a single numpy array,
+    useful for files with a binary version with only one type of value where their index correspond to an id.
+    For example coverage.bin only contains tiv value for each coverage id
+    coverage_id n correspond to index n-1
+
     Args:
         dir_path: path to the directory where the binary or csv file is stored
         name: name of the file

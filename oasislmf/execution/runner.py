@@ -119,8 +119,7 @@ def run(analysis_settings,
 
 
 def rerun():
-    """
-    A function to find where an error was made and to rerun that part of the script without
+    """A function to find where an error was made and to rerun that part of the script without
     NumBa to give better error messages
     """
     try:

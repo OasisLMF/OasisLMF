@@ -103,8 +103,7 @@ def prepare_ded_and_limit(level_df):
 
 
 def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
-    """
-    Merges IL inputs with the correct calc_rule table and returns calc rule IDs.
+    """Merges IL inputs with the correct calc_rule table and returns calc rule IDs.
 
     Args:
         il_inputs_calc_rules_df (pandas.DataFrame): IL input items dataframe.
@@ -165,22 +164,20 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
 
 
 def get_profile_ids(il_inputs_df):
-    """
-    Returns a Numpy array of policy TC IDs from a table of IL input items.
+    """Returns a Numpy array of policy TC IDs from a table of IL input items.
 
     Args:
         il_inputs_df (pandas.DataFrame): IL input items dataframe.
 
     Returns:
-        numpy.ndarray: Numpy array of policy TC IDs.
+        pandas.Series: Series of profile IDs.
     """
     factor_col = list(set(il_inputs_df.columns).intersection(policytc_cols).difference({'profile_id', }))
     return il_inputs_df.groupby(factor_col, sort=False, observed=True, dropna=False).ngroup().astype('int32') + 1
 
 
 def __split_fm_terms_by_risk(df):
-    """
-    Adjusts financial terms by the number of risks.
+    """Adjusts financial terms by the number of risks.
 
     For example, deductible is split into each individual building risk.
 
@@ -442,8 +439,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
 
 
 def associate_items_peril_to_policy_peril(item_perils, policy_df, fm_peril_col, oed_schema):
-    """
-    Maps item perils to policy perils and merges the mapping with policies.
+    """Maps item perils to policy perils and merges the mapping with policies.
 
     For each peril_id in item_perils, maps it to policy perils so that each line
     will have a peril_id that can be used directly as a key when merging with gul_input_df.
@@ -466,8 +462,7 @@ def associate_items_peril_to_policy_peril(item_perils, policy_df, fm_peril_col, 
 def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
                              level_info, gul_inputs_columns,
                              acc_id_map=None, max_groups=5):
-    """
-    Pre-validate that the right side of the upcoming
+    """Pre-validate that the right side of the upcoming
     `validate='many_to_one'` merge into gul_inputs_df is unique on the actual
     join keys.
 
@@ -1152,8 +1147,7 @@ def get_il_input_items(
         chunksize=(2 * 10 ** 5),
         intermediary_csv=False,
 ):
-    """
-    Generates IL (Insured Loss) input items by applying financial terms to GUL items.
+    """Generates IL (Insured Loss) input items by applying financial terms to GUL items.
 
     This function builds the Financial Module (FM) structure by processing insurance
     policy terms across multiple hierarchical levels. It takes GUL (Ground-Up Loss)
@@ -1512,8 +1506,7 @@ def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_c
 
 def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file,
                            step_policies_present, chunksize=100000):
-    """
-    Writes an FM profile file.
+    """Writes an FM profile file.
 
     Args:
         level_df (pandas.DataFrame): FM terms dataframe.

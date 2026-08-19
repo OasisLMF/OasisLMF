@@ -321,16 +321,18 @@ exec_wait(){
 
 
 def process_range(max_process_id, process_number=None):
-    """
-    Creates an iterable for all the process ids, if process number is set
+    """Creates an iterable for all the process ids, if process number is set
     then an iterable containing only that number is returned.
 
     This allows for the loss generation to be ran in different processes
     rather than accross multiple cores.
 
-    :param max_process_id: The largest process number
-    :param process_number: If set iterable only containing this number is returned
-    :return: iterable containing all the process numbers to process
+    Args:
+        max_process_id: The largest process number
+        process_number: If set iterable only containing this number is returned
+
+    Returns:
+        iterable containing all the process numbers to process
     """
     if process_number is not None:
         return [process_number]
@@ -339,13 +341,11 @@ def process_range(max_process_id, process_number=None):
 
 
 def get_modelcmd(server=False, peril_filter=[]) -> str:
-    """
-    Gets the construct model command line argument for the bash script.
+    """Gets the construct model command line argument for the bash script.
 
     Args:
         server: (bool) if set then enable 'TCP' ipc server/client mode
         peril_filter: (list) list of perils to include (all included if empty)
-
     """
     py_cmd = 'modelpy'
     if server:
@@ -361,6 +361,15 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
 
     Args:
         gulmc (bool): if True, return the combined (model+ground up) command name, else use 'modelpy | gulpy' .
+        gul_random_generator (int): random number generator to use in gulmc or gulpy
+            (0: Mersenne-Twister, 1: Latin Hypercube, 2: Latin Hypercube on Philox4x32-7)
+        gulmc_effective_damageability (bool): if True, use the effective damageability to draw loss
+            samples instead of the full Monte Carlo method
+        gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations
+        modelpy_server (bool): if True, run gulmc against the 'TCP' ipc data server
+        peril_filter (list): list of perils to include (all included if empty)
+        model_df_engine (str): the dataframe reading engine to use when loading model files
+        dynamic_footprint (bool): if True, enable dynamic footprint processing
 
     Returns:
         str: the ground-up loss calculation command
@@ -406,25 +415,18 @@ def get_fmcmd(fmpy_low_memory=False, fmpy_sort_output=False):
 
 
 def print_command(command_file, cmd):
-    """
-    Writes the supplied command to the end of the generated script
+    """Writes the supplied command to the end of the generated script
 
-    :param command_file: File to append command to.
-    :param cmd: The command to append
+    Args:
+        command_file: File to append command to.
+        cmd: The command to append
     """
     with io.open(command_file, "a", encoding='utf-8') as myfile:
         myfile.writelines(cmd + "\n")
 
 
 def ord_enabled(summary_options, ORD_SWITCHES):
-    """
-    Checks if ORD leccalc is enabled in a summaries section
-
-    :param summary_options: Summaies section from an analysis_settings file
-    :type summary_options: dict
-
-    :param ORD_SWITCHES: Options from the analysis_settings 'Summaies' section to search
-    :type  ORD_SWITCHES: dict
+    """Checks if ORD leccalc is enabled in a summaries section
 
     Example:
     {
@@ -442,9 +444,13 @@ def ord_enabled(summary_options, ORD_SWITCHES):
         }
     }
 
-    :return: True is leccalc is enables, False otherwise.
-    """
+    Args:
+        summary_options (dict): Summaies section from an analysis_settings file
+        ORD_SWITCHES (dict): Options from the analysis_settings 'Summaies' section to search
 
+    Returns:
+        True is leccalc is enabled, False otherwise.
+    """
     ord_options = summary_options.get('ord_output', {})
     for ouput_opt in ord_options:
         if ouput_opt in ORD_SWITCHES and ord_options[ouput_opt]:
@@ -768,7 +774,6 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
             ``leccalc``/``aalcalc`` binaries consume that pipe; ``lecpy``/
             ``aalpy`` only read ``.bin`` work files).
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return []
@@ -815,7 +820,6 @@ def create_workfolders(
         inuring_priority (str or None): Inuring priority label to embed in
             directory names, or None / empty for the final priority.
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -969,7 +973,6 @@ def do_summarycalcs(
             ``aalpy``, ``eltpy``, ``pltpy``) glob ``*.bin`` work files and
             do not read ``.idx`` -- so they don't require this flag.
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -1052,7 +1055,6 @@ def do_tees(
             When False the ``.idx`` companion is skipped to avoid leaving a
             tee blocked on a pipe nothing writes to.
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -1118,7 +1120,6 @@ def do_tees_fc_sumcalc_fmcalc(process_id, filename, correlated_output_stems):
         correlated_output_stems (dict): FIFO path stems returned by
             :func:`get_correlated_output_stems`.
     """
-
     if process_id == 1:
         print_command(filename, '')
 
@@ -1153,7 +1154,6 @@ def get_correlated_output_stems(fifo_dir):
     Returns:
         dict: Mapping of stem names to FIFO path prefixes.
     """
-
     correlated_output_stems = {}
     correlated_output_stems['gulcalc_output'] = '{0}{1}_P'.format(
         fifo_dir, RUNTYPE_GROUNDUP_LOSS
@@ -1198,7 +1198,6 @@ def do_ord(
         inuring_priority (str or None): Inuring priority label for file and
             FIFO names.
     """
-
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -1332,7 +1331,6 @@ def rl(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-
     for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
         for process_id in process_range(max_process_id, process_number):
             do_ord(
@@ -1395,7 +1393,6 @@ def ri(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-
     for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
 
         for process_id in process_range(max_process_id, process_number):
@@ -1496,7 +1493,6 @@ def do_gul(
         process_number (int or None): If set, restrict to a single process.
         summarypy_low_memory (bool): Enable summarypy ``-m``.
     """
-
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
                process_counter, fifo_dir, work_dir, stderr_guard)
@@ -1543,7 +1539,6 @@ def do_gul_full_correlation(
         stderr_guard: Unused (kept for interface consistency).
         process_number (int or None): If set, restrict to a single process.
     """
-
     for process_id in process_range(max_process_id, process_number):
         do_tees(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
@@ -1554,17 +1549,12 @@ def do_gul_full_correlation(
 
 
 def do_waits(wait_variable, wait_count, filename):
-    """
-    Add waits to the script
+    """Add waits to the script
 
-    :param wait_variable: The type of wait
-    :type wait_variable: str
-
-    :param wait_count: The number of processes to wait for
-    :type wait_count: int
-
-    :param filename: Script to add waits to
-    :type filename: str
+    Args:
+        wait_variable (str): The type of wait
+        wait_count (int): The number of processes to wait for
+        filename (str): Script to add waits to
     """
     if wait_count > 0:
         cmd = 'exec_wait'
@@ -1576,37 +1566,27 @@ def do_waits(wait_variable, wait_count, filename):
 
 
 def do_pwaits(filename, process_counter):
-    """
-    Add pwaits to the script
-    """
+    """Add pwaits to the script"""
     do_waits('pid', process_counter['pid_monitor_count'], filename)
 
 
 def do_awaits(filename, process_counter):
-    """
-    Add awaits to the script
-    """
+    """Add awaits to the script"""
     do_waits('apid', process_counter['apid_monitor_count'], filename)
 
 
 def do_lwaits(filename, process_counter):
-    """
-    Add lwaits to the script
-    """
+    """Add lwaits to the script"""
     do_waits('lpid', process_counter['lpid_monitor_count'], filename)
 
 
 def do_kwaits(filename, process_counter):
-    """
-    Add kwaits to the script
-    """
+    """Add kwaits to the script"""
     do_waits('kpid', process_counter['kpid_monitor_count'], filename)
 
 
 def do_jwaits(filename, process_counter):
-    """
-    Add jwaits to the script (join-summary-info processes)
-    """
+    """Add jwaits to the script (join-summary-info processes)"""
     do_waits('jpid', process_counter['jpid_monitor_count'], filename)
 
 
@@ -1629,23 +1609,34 @@ def get_getmodel_cmd(
         model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         dynamic_footprint=False,
         **kwargs):
-    """
-    Gets the GUL pipeline command (gulpy/gulmc) for a single process
-    :param number_of_samples: The number of samples to run
-    :type number_of_samples: int
-    :param gul_threshold: The GUL threshold to use
-    :type gul_threshold: float
-    :param use_random_number_file: flag to use the random number file
-    :type use_random_number_file: bool
-    :param gul_alloc_rule: back allocation rule for gulcalc
-    :type gul_alloc_rule: int
-    :param item_output: The item output
-    :type item_output: str
-    :param eve_shuffle_flag: The event shuffling rule
-    :type eve_shuffle_flag: str
-    :param model_df_engine: The engine to use when loading dataframes
-    :type  model_df_engine: str
-    :return: The generated getmodel command
+    """Gets the GUL pipeline command (gulpy/gulmc) for a single process
+
+    Args:
+        number_of_samples (int): The number of samples to run
+        gul_threshold (float): The GUL threshold to use
+        use_random_number_file (bool): flag to use the random number file
+        gul_alloc_rule (int): back allocation rule for gulcalc
+        item_output (str): The item output
+        process_id (int): The number of this process, passed to evepy as the partition to run
+        max_process_id (int): The total number of processes, passed to evepy as the partition count
+        correlated_output (str): Redirection appended to the command when correlated output is
+            requested, empty otherwise
+        eve_shuffle_flag (str): The event shuffling rule
+        modelpy_server (bool): if True, run against the 'TCP' ipc data server
+        peril_filter (list): list of perils to include (all included if empty)
+        gulmc (bool): if True, use the combined gulmc command, else 'modelpy | gulpy'
+        gul_random_generator (int): random number generator to use in gulmc or gulpy
+            (0: Mersenne-Twister, 1: Latin Hypercube, 2: Latin Hypercube on Philox4x32-7)
+        gulmc_effective_damageability (bool): if True, use the effective damageability to draw loss
+            samples instead of the full Monte Carlo method
+        gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations
+        model_df_engine (str): The engine to use when loading dataframes
+        dynamic_footprint (bool): if True, enable dynamic footprint processing
+        **kwargs: additional keyword arguments, accepted and ignored so that callers can forward
+            the whole bash_params dict
+
+    Returns:
+        The generated getmodel command
     """
     # events
     cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
@@ -1671,8 +1662,7 @@ def get_getmodel_cmd(
 
 
 def add_pid_to_shell_command(cmd, process_counter):
-    """
-    Add a variable to the end of a command in order to track the ID of the process executing it.
+    """Add a variable to the end of a command in order to track the ID of the process executing it.
     Each time this function is called, the counter `process_counter` is incremented.
 
     Args:
@@ -1682,7 +1672,6 @@ def add_pid_to_shell_command(cmd, process_counter):
     Returns:
         cmd (str): the updated command string.
     """
-
     process_counter["pid_monitor_count"] += 1
     cmd = f'{cmd} pid{process_counter["pid_monitor_count"]}=$!'
 
@@ -1706,30 +1695,27 @@ def get_main_cmd_ri_stream(
     ri_inuring_priorities=None,
     rl_inuring_priorities=None
 ):
-    """
-    Gets the fmpy command for the reinsurance stream
-    :param cmd: either gulcalc command stream or correlated output file
-    :type cmd: str
-    :param process_id: ID corresponding to thread
-    :type process_id: int
-    :param il_output: If insured loss outputs required
-    :type il_output: Boolean
-    :param il_alloc_rule: insured loss allocation rule for fmcalc
-    :type il_alloc_rule: int
-    :param ri_alloc_rule: reinsurance allocation rule for fmcalc
-    :type ri_alloc_rule: int
-    :param num_reinsurance_iterations: number of reinsurance iterations
-    :type num_reinsurance_iterations: int
-    :param fifo_dir: path to fifo directory
-    :type fifo_dir: str
-    :param stderr_guard: send stderr output to log file
-    :type stderr_guard: bool
-    :param from_file: must be true if cmd is a file and false if it can be piped
-    :type from_file: bool
-    :param ri_inuring_priorities: Inuring priorities where net output has been requested
-    :type ri_inuring_priorities: dict
-    :param rl_inuring_priorities: Inuring priorities where gross output has been requested
-    :type rl_inuring_priorities: dict
+    """Gets the fmpy command for the reinsurance stream
+
+    Args:
+        cmd (str): either gulcalc command stream or correlated output file
+        process_id (int): ID corresponding to thread
+        il_output (bool): If insured loss outputs required
+        il_alloc_rule (int): insured loss allocation rule for fmcalc
+        ri_alloc_rule (int): reinsurance allocation rule for fmcalc
+        num_reinsurance_iterations (int): number of reinsurance iterations
+        fifo_dir (str): path to fifo directory
+        stderr_guard (bool): send stderr output to log file
+        from_file (bool): must be true if cmd is a file and false if it can be piped
+        fmpy_low_memory (bool): use memory map instead of RAM to store the loss array
+        fmpy_sort_output (bool): order fmpy output by item_id
+        step_flag (str): step policy flag appended to the first fmpy call
+        process_counter (Counter or dict): if given, the process ID of the command is tracked in it
+        ri_inuring_priorities (dict): Inuring priorities where net output has been requested
+        rl_inuring_priorities (dict): Inuring priorities where gross output has been requested
+
+    Returns:
+        str: the assembled reinsurance stream command
     """
     if from_file:
         main_cmd = f'{get_fmcmd(fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd}'
@@ -1773,23 +1759,23 @@ def get_main_cmd_il_stream(
     step_flag='',
     process_counter=None,
 ):
-    """
-    Gets the fmpy command for the insured losses stream
-    :param cmd: either gulcalc command stream or correlated output file
-    :type cmd: str
-    :param process_id: ID corresponding to thread
-    :type process_id: int
-    :param il_alloc_rule: insured loss allocation rule for fmcalc
-    :type il_alloc_rule: int
-    :param fifo_dir: path to fifo directory
-    :type fifo_dir: str
-    :param stderr_guard: send stderr output to log file
-    :type stderr_guard: bool
-    :param from_file: must be true if cmd is a file and false if it can be piped
-    :type from_file: bool
-    :return: generated fmcalc command as str
-    """
+    """Gets the fmpy command for the insured losses stream
 
+    Args:
+        cmd (str): either gulcalc command stream or correlated output file
+        process_id (int): ID corresponding to thread
+        il_alloc_rule (int): insured loss allocation rule for fmcalc
+        fifo_dir (str): path to fifo directory
+        stderr_guard (bool): send stderr output to log file
+        from_file (bool): must be true if cmd is a file and false if it can be piped
+        fmpy_low_memory (bool): use memory map instead of RAM to store the loss array
+        fmpy_sort_output (bool): order fmpy output by item_id
+        step_flag (str): step policy flag appended to the fmpy call
+        process_counter (Counter or dict): if given, the process ID of the command is tracked in it
+
+    Returns:
+        generated fmcalc command as str
+    """
     il_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)
 
     if from_file:
@@ -1815,19 +1801,18 @@ def get_main_cmd_gul_stream(
     consumer='',
     process_counter=None,
 ):
-    """
-    Gets the command to output ground up losses
-    :param cmd: either gulcalc command stream or correlated output file
-    :type cmd: str
-    :param process_id: ID corresponding to thread
-    :type process_id: int
-    :param fifo_dir: path to fifo directory
-    :type fifo_dir: str
-    :param stderr_guard: send stderr output to log file
-    :type stderr_guard: bool
-    :param consumer: optional name of the consumer of the stream
-    :type consumer: string
-    :return: generated command as str
+    """Gets the command to output ground up losses
+
+    Args:
+        cmd (str): either gulcalc command stream or correlated output file
+        process_id (int): ID corresponding to thread
+        fifo_dir (str): path to fifo directory
+        stderr_guard (bool): send stderr output to log file
+        consumer (str): optional name of the consumer of the stream
+        process_counter (Counter or dict): if given, the process ID of the command is tracked in it
+
+    Returns:
+        generated command as str
     """
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
@@ -1920,7 +1905,6 @@ def do_computes(outputs):
         outputs (list[dict]): Deferred compute descriptors built up by the
             caller (e.g. :func:`create_bash_analysis`).
     """
-
     if len(outputs) == 0:
         return
 
@@ -1978,8 +1962,7 @@ def get_main_cmd_lb(num_lb, num_in_per_lb, num_out_per_lb, get_input_stream_name
 
 
 def get_pla_cmd(pla, secondary_factor, uniform_factor):
-    """
-    Determine whether Post Loss Amplification should be implemented and issue
+    """Determine whether Post Loss Amplification should be implemented and issue
     plapy command.
 
     Args:
@@ -2073,6 +2056,8 @@ def bash_params(
         custom_args (dict): Extra arguments forwarded to downstream functions.
         fmpy_low_memory (bool): Enable low-memory mode in ``fmpy``.
         fmpy_sort_output (bool): Sort ``fmpy`` output.
+        summarypy_low_memory (bool): Pass ``-m`` to ``summarypy`` so it writes a ``.idx``
+            side-file, consumed by the legacy ktools leccalc/aalcalc binaries.
         event_shuffle (int or None): Event shuffle rule override.
         gulmc (bool): Use ``gulmc`` (Monte Carlo sampler).
         gul_random_generator (int): Random number generator selector.
@@ -2088,6 +2073,8 @@ def bash_params(
         model_df_engine (str): DataFrame engine for model data.
         dynamic_footprint (bool): Enable dynamic footprint mode.
         log_level (int or None): Enable logging of pytools subprocesses.
+        **kwargs: additional keyword arguments, accepted and ignored so that callers can forward a
+            whole computation-step parameter dict.
 
     Returns:
         dict: Parameter dictionary ready for unpacking into
@@ -2097,7 +2084,6 @@ def bash_params(
         OasisException: If no valid output settings are found or an unknown
             event shuffle rule is specified.
     """
-
     bash_params = {}
     bash_params['max_process_id'] = max_process_id if max_process_id > 0 else multiprocessing.cpu_count()
     bash_params['number_of_processes'] = number_of_processes if number_of_processes > 0 else multiprocessing.cpu_count()
@@ -2917,7 +2903,6 @@ def create_bash_outputs(
     All parameters are typically supplied by unpacking the dict returned from
     :func:`bash_params`.
     """
-
     if max_process_id is not None:
         num_gul_per_lb = 0
         num_fm_per_lb = 0
@@ -3133,49 +3118,52 @@ def genbash(
     socket_server_port=None,
     log_level=None
 ):
-    """
-    Generates a bash script containing pytools calculation instructions for an
+    """Generates a bash script containing pytools calculation instructions for an
     Oasis model.
 
-    :param max_process_id: The number of processes to create
-    :type max_process_id: int
-
-    :param analysis_settings: The analysis settings
-    :type analysis_settings: dict
-
-    :param filename: The output file name
-    :type filename: string
-
-    :param num_reinsurance_iterations: The number of reinsurance iterations
-    :type num_reinsurance_iterations: int
-
-    :param fifo_tmp_dir: When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
-    :type fifo_tmp_dir: boolean
-
-    :param gul_alloc_rule: Allocation rule (None or 1) for gulcalc, if not set default to coverage stream
-    :type gul_alloc_rule: Int
-
-    :param il_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
-    :type il_alloc_rule: Int
-
-    :param ri_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
-    :type ri_alloc_rule: Int
-
-    :param num_gul_in_calc_block: number of gul in calc block
-    :type num_gul_in_calc_block: Int
-
-    :param num_fm_in_calc_block: number of gul in calc block
-    :type num_fm_in_calc_block: Int
-
-    :param get_getmodel_cmd: Method for getting the getmodel command, by default
-        ``GenerateLossesCmd.get_getmodel_cmd`` is used.
-    :type get_getmodel_cmd: callable
-
-    :param base_df_engine: The engine to use when loading dataframes.
-    :type  base_df_engine: str
-
-    :param model_df_engine: The engine to use when loading model dataframes.
-    :type  model_df_engine: str
+    Args:
+        max_process_id (int): The number of processes to create
+        analysis_settings (dict): The analysis settings
+        num_reinsurance_iterations (int): The number of reinsurance iterations
+        fifo_tmp_dir (bool): When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
+        gul_alloc_rule (Int): Allocation rule (None or 1) for gulcalc, if not set default to coverage stream
+        il_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc
+        ri_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc
+        num_gul_per_lb (int): number of gul streams per load balancer
+        num_fm_per_lb (int): number of fm streams per load balancer
+        stderr_guard (bool): Wrap commands with stderr redirection.
+        bash_trace (bool): Enable bash ``-x`` tracing.
+        filename (str): The output file name
+        _get_getmodel_cmd (callable): Method for getting the getmodel command, by default
+            ``GenerateLossesCmd.get_getmodel_cmd`` is used.
+        custom_gulcalc_log_start (str or None): Log message produced when the custom gulcalc
+            binary process starts.
+        custom_gulcalc_log_finish (str or None): Log message produced when the custom gulcalc
+            binary process ends.
+        custom_args (dict): Extra arguments forwarded to downstream functions.
+        fmpy_low_memory (bool): use memory map instead of RAM to store the loss array.
+        fmpy_sort_output (bool): order fmpy output by item_id.
+        summarypy_low_memory (bool): Pass ``-m`` to ``summarypy`` so it writes a ``.idx``
+            side-file, consumed by the legacy ktools leccalc/aalcalc binaries.
+        event_shuffle (int or None): Event shuffle rule override.
+        gulmc (bool): use the full Monte Carlo gulcalc python version.
+        gul_random_generator (int): random number generator to use in gulmc or gulpy
+            (0: Mersenne-Twister, 1: Latin Hypercube, 2: Latin Hypercube on Philox4x32-7).
+        gulmc_effective_damageability (bool): use the effective damageability to draw loss samples
+            instead of the full Monte Carlo method.
+        gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations.
+        model_py_server (bool): run the data server for modelpy.
+        peril_filter (list): list of perils to include (all included if empty).
+        join_summary_info (bool): join summary id information to outputcalc csvs.
+        base_df_engine (str): The engine to use when loading dataframes.
+        model_df_engine (str): The engine to use when loading model dataframes.
+        dynamic_footprint (bool): Enable dynamic footprint mode.
+        analysis_pk (int or None): analysis primary key reported with progress pings. When set,
+            no local socket-server is started.
+        socket_server_size (int or None): total number of events, passed to the local
+            socket-server that reports run progress.
+        socket_server_port (int or None): port the local socket-server listens on.
+        log_level (int or None): Enable logging of pytools subprocesses.
     """
     model_df_engine = model_df_engine or base_df_engine
 

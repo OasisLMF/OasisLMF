@@ -32,12 +32,14 @@ def read_input_files(
     sample_size
 ):
     """Reads all input files and returns a dict of relevant data
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         use_return_period (bool): Use Return Period file.
         agg_wheatsheaf_mean (bool): Aggregate Wheatsheaf Mean.
         occ_wheatsheaf_mean (bool): Occurrence Wheatsheaf Mean.
         sample_size (int): Sample Size.
+
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
         use_return_period (bool): Use Return Period file.
@@ -79,8 +81,10 @@ def read_input_files(
 @nb.njit(cache=True, error_model="numpy")
 def get_max_summary_id(file_handles):
     """Get max summary_id from all summary files
+
     Args:
         file_handles (List[np.memmap]): List of memmaps for summary files data
+
     Returns:
         max_summary_id (int): Max summary ID
     """
@@ -118,6 +122,7 @@ def do_lec_output_agg_summary(
     max_summary_id,
 ):
     """Populate outloss_mean and outloss_sample with aggregate and max losses
+
     Args:
         summary_id (oasis_int): summary_id
         sidx (oasis_int): Sample ID
@@ -228,6 +233,7 @@ def process_input_file(
     max_summary_id,
 ):
     """Process summary file and populate outloss_mean and outloss_sample with losses
+
     Args:
         fin (np.memmap): summary binary memmap
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
@@ -291,6 +297,7 @@ def run_lec(
     max_summary_id,
 ):
     """Process each summary file and populate outloss_mean and outloss_sample
+
     Args:
         file_handles (List[np.memmap]): List of memmaps for summary files data
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
@@ -358,6 +365,7 @@ def run(
     output_format="csv",
 ):
     """Runs LEC calculations
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         subfolder (str): Workspace subfolder inside <run_dir>/work/<subfolder>

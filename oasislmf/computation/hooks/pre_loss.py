@@ -13,8 +13,7 @@ from ...utils.exceptions import OasisException
 
 
 class PreLoss(ComputationStep):
-    """
-    Computation step that will be call just before loss compuation.
+    """Computation step that will be call just before loss compuation.
     On the platform it will be called on each machine performing the loss calculation,
     Add the ability to specify a model specific step that will modify or expand on the loss calculation input file on each worker.
     """
@@ -76,9 +75,7 @@ class PreLoss(ComputationStep):
         }
 
     def run(self):
-        """
-        import pre_loss_module and call the run method
-        """
+        """Import pre_loss_module and call the run method"""
         exposure_data = get_exposure_data(self, add_internal_col=True)
         kwargs = dict()
 
