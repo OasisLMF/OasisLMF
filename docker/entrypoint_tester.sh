@@ -43,8 +43,8 @@ export COVERAGE_DEBUG=process,config,dataio
     fi
 
 # Code Standards report
-    flake8 oasislmf/ --ignore=E501,E402 | tee -a $LOG_FLAKE
-    flake8 tests/ --ignore=E501,E402 --exclude=tests/model_preparation/test_reinsurance.py | tee -a $LOG_FLAKE
+    ruff check oasislmf/ --select E,W,F --ignore E501,E402 --exit-zero | tee -a $LOG_FLAKE
+    ruff check tests/ --select E,W,F --ignore E501,E402 --exit-zero --exclude tests/model_preparation/test_reinsurance.py | tee -a $LOG_FLAKE
 
 # Coverate report
     coverage combine

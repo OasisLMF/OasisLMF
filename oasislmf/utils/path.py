@@ -19,29 +19,21 @@ from .exceptions import OasisException
 
 
 def as_path(path, label, is_dir=False, preexists=True, null_is_valid=True):
-    """
-    Processes the path and returns the absolute path.
+    """Processes the path and returns the absolute path.
 
     If the path does not exist and ``preexists`` is true
     an ``OasisException`` is raised.
 
-    :param path: The path to process
-    :type path: str
+    Args:
+        path (str): The path to process
+        label (str): Human-readable label of the path (used for error reporting)
+        is_dir (bool): Whether the path is a directory
+        preexists (bool): Flag whether to raise an error if the path
+            does not exist.
+        null_is_valid (bool): flag to indicate if None is a valid value
 
-    :param label: Human-readable label of the path (used for error reporting)
-    :type label: str
-
-    :param is_dir: Whether the path is a directory
-    :type is_dir: bool
-
-    :param preexists: Flag whether to raise an error if the path
-        does not exist.
-    :type preexists: bool
-
-    :param null_is_valid: flag to indicate if None is a valid value
-    :type null_is_valid: bool
-
-    :return: The absolute path of the input path
+    Returns:
+        The absolute path of the input path
     """
     if path is None and null_is_valid:
         return
@@ -62,11 +54,10 @@ def as_path(path, label, is_dir=False, preexists=True, null_is_valid=True):
 
 
 def empty_dir(dir_fp):
-    """
-    Empties the contents of a directory, but leaves the directory in place.
+    """Empties the contents of a directory, but leaves the directory in place.
 
-    :param dir_fp: A pre-existing directory path
-    :type dir_fp: str
+    Args:
+        dir_fp (str): A pre-existing directory path
     """
     _dir_fp = as_path(dir_fp, dir_fp, is_dir=True)
 
@@ -75,16 +66,13 @@ def empty_dir(dir_fp):
 
 
 class PathCleaner(object):
-    """
-    A callable that generates the absolute path of the given path and checks
+    """A callable that generates the absolute path of the given path and checks
     that it exists if indicated as preexisting.
 
-    :param label: A user-friendly label for the path (used for error reporting)
-    :type label: str
-
-    :param preexists: Flag whether to raise an error if the path
-        does not exist.
-    :type preexists: bool
+    Args:
+        label (str): A user-friendly label for the path (used for error reporting)
+        preexists (bool): Flag whether to raise an error if the path
+            does not exist.
     """
 
     def __init__(self, label, preexists=True):
@@ -96,8 +84,8 @@ class PathCleaner(object):
 
 
 def import_from_string(name):
-    """
-    return the object or module from the path given
+    """Return the object or module from the path given
+
     >>> import os.path
     >>> mod = import_from_string('os.path')
     >>> os.path is mod
@@ -116,8 +104,7 @@ def import_from_string(name):
 
 
 def get_custom_module(custom_module_path, label):
-    """
-    return the custom module present at the custom_module_path.
+    """Return the custom module present at the custom_module_path.
     the try loop allow for the custom module to work even if it depends on other module of its package
     by testing recursively for the presence of __init__.py file
 

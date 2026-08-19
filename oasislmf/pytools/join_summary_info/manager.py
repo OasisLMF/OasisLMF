@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 def load_summary_info(stack, summaryinfo_file):
     """Load summary-info data into an array as strings to maintain sigfigs/formatting
+
     Args:
         stack (ExitStack): Exit Stack
         summaryinfo_file (str | os.PathLike): Path to summary-info csv file
@@ -74,9 +75,10 @@ def run(
     output_file,
 ):
     """Join the summary-info file to the given ORD data file based on SummaryId
+
     Args:
         summaryinfo_file (str | os.PathLike): Path to summary-info file
-        data_file (str | os.PathLike): Path to ORD output data file (e.g. SELT, MPLT, AAL, PSEPT) 
+        data_file (str | os.PathLike): Path to ORD output data file (e.g. SELT, MPLT, AAL, PSEPT)
         output_file (str | os.PathLike): Path to combined output file
     """
     summaryinfo_file = Path(summaryinfo_file)

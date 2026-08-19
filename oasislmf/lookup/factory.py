@@ -99,8 +99,7 @@ def lookup_multiproc_worker(error_queue, lookup_cls, config, config_dir, user_da
 
 
 class KeyServerFactory(object):
-    """
-    A factory class to create the Keys Server that will be use to generate the keys files
+    """A factory class to create the Keys Server that will be use to generate the keys files
     All Key Server must implement the interface defined in lookup.interface.KeyServerInterface
 
     Oasis provides a built-in Key Server that manage the generation of the key files from the key provided by
@@ -122,9 +121,7 @@ class KeyServerFactory(object):
 
     @classmethod
     def get_model_info(cls, model_version_file_path):
-        """
-        Get model information from the model version file.
-        """
+        """Get model information from the model version file."""
         model_version_file_path = as_path(model_version_file_path, 'model_version_file_path', preexists=True, null_is_valid=False)
 
         with open(model_version_file_path, 'r', encoding='utf-8') as f:
@@ -167,8 +164,7 @@ class KeyServerFactory(object):
             user_data_dir=None,
             output_directory=None,
     ):
-        """
-        Creates a keys lookup class instance for the given model and supplier -
+        """Creates a keys lookup class instance for the given model and supplier -
         local file paths are required for the model keys data folder, the model
         version file and the Git repository for the model keys server. Returns a
         pair ``(model_info, klc)``, where ``model_info`` is a dictionary holding
@@ -220,8 +216,7 @@ class KeyServerFactory(object):
 
 
 class BasicKeyServer:
-    """
-    A basic implementation of the KeyServerInterface
+    """A basic implementation of the KeyServerInterface
     will load the KeyLookup class from config['lookup_module_path'] if present or used the built-in KeyLookup
     KeyLookup must implement the KeyLookupInterface
 
@@ -397,7 +392,7 @@ class BasicKeyServer:
             raise OasisException(f"lookup interface version {lookup_interface_version} not implemented")
 
     def get_locations(self, location_fp):
-        """load exposure data from location_fp and return the exposure dataframe"""
+        """Load exposure data from location_fp and return the exposure dataframe"""
         raise NotImplementedError('oasislmf now use ods_tools to pass location to the KeyServer. '
                                   'this method need to be implemented'
                                   'if you want to provide you own loader from filepath')
@@ -587,12 +582,10 @@ class BasicKeyServer:
 
     def generate_key_files_multiproc(self, loc_df, successes_fp, errors_fp, output_format, keys_success_msg,
                                      num_cores, num_partitions, **kwargs):
-        """
-        Process and return the lookup results a location row
+        """Process and return the lookup results a location row
         Used in multiprocessing based query
 
         location_row is of type <class 'pandas.core.series.Series'>
-
         """
         pool_count = num_cores if num_cores > 0 else multiprocessing.cpu_count()
         if num_partitions > 0:
@@ -653,8 +646,7 @@ class BasicKeyServer:
             location_df=None,
             **kwargs
     ):
-        """
-        generate key files by calling:
+        """Generate key files by calling:
         1. get_locations to get a location object from the location_fp
         2. process_locations or process_locations_multiproc to get results object from the locations object
         3. write_keys_file to writes the relevant files from the results object

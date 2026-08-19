@@ -7,8 +7,7 @@ from oasislmf.utils.defaults import SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
 
 
 def oasis_ping(data):
-    """
-    Sends a JSON message to either a websocket server or a socket server.
+    """Sends a JSON message to either a websocket server or a socket server.
 
     If `analysis_pk` is in the data, `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` are in environment, sends a websocket message.
     If `analysis_pk` but missing variables, no message sent.
@@ -38,8 +37,7 @@ def oasis_ping(data):
 
 
 def oasis_ping_socket(target, data):
-    """
-    Sends a JSON message to a target socket
+    """Sends a JSON message to a target socket
 
     Args:
         target ((str, int)): IP and port to hit
@@ -59,8 +57,7 @@ def oasis_ping_socket(target, data):
 
 
 def oasis_ping_websocket(ws_url, data):
-    """
-    Sends a JSON message to a target websocket
+    """Sends a JSON message to a target websocket
 
     Args:
         ws_url (str): URL to hit (e.g. "ws://oasis-websocket:8001/ws/analysis-status/")

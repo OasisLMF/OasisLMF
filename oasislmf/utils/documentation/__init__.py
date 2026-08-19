@@ -1,3 +1,1 @@
-"""
-Documentation Utils
-"""
+"""Documentation Utils"""

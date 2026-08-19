@@ -77,8 +77,7 @@ def compute_ri_inuring_priority_output_levels(ri_layers):
 
 
 class GenerateFiles(ComputationStep):
-    """
-    Generates the standard Oasis GUL input files + optionally the IL/FM input
+    """Generates the standard Oasis GUL input files + optionally the IL/FM input
     files and the RI input files.
     """
     settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
@@ -467,9 +466,7 @@ class GenerateFiles(ComputationStep):
 
 
 class GenerateDummyModelFiles(ComputationStep):
-    """
-    Generates dummy model files.
-    """
+    """Generates dummy model files."""
 
     # Command line options
     step_params = [
@@ -608,8 +605,7 @@ class GenerateDummyModelFiles(ComputationStep):
 
 
 class GenerateDummyOasisFiles(GenerateDummyModelFiles):
-    """
-    Generates dummy model and Oasis GUL input files + optionally the IL/FM
+    """Generates dummy model and Oasis GUL input files + optionally the IL/FM
     input files.
     """
 

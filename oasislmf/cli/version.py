@@ -3,15 +3,12 @@ from .command import OasisBaseCommand
 
 
 class VersionCmd(OasisBaseCommand):
-    """
-    Prints the installed package version
-    """
+    """Prints the installed package version"""
 
     def action(self, args):
-        """
-        Prints the version number to the console.
+        """Prints the version number to the console.
 
-        :param args: The arguments from the command line
-        :type args: Namespace
+        Args:
+            args (Namespace): The arguments from the command line
         """
         print(__version__)

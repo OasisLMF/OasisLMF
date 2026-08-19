@@ -131,8 +131,7 @@ def _update_splt_data(
     loss,
     impacted_exposure
 ):
-    """updates splt_data to write to output
-    """
+    """Updates splt_data to write to output"""
     year, month, day, hour, minute = occ_get_date(record["occ_date_id"], granular_date)
     splt_data[si]["Period"] = record["period_no"]
     splt_data[si]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]
@@ -163,8 +162,7 @@ def _update_mplt_data(
     mean_impacted_exposure,
     max_impacted_exposure
 ):
-    """updates mplt_data to write to output
-    """
+    """Updates mplt_data to write to output"""
     year, month, day, hour, minute = occ_get_date(record["occ_date_id"], granular_date)
     mplt_data[mi]["Period"] = record["period_no"]
     mplt_data[mi]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]
@@ -194,8 +192,7 @@ def _update_qplt_data(
     quantile,
     loss,
 ):
-    """updates mplt_data to write to output
-    """
+    """Updates mplt_data to write to output"""
     year, month, day, hour, minute = occ_get_date(record["occ_date_id"], granular_date)
     qplt_data[qi]["Period"] = record["period_no"]
     qplt_data[qi]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]

@@ -4,16 +4,13 @@ from pathlib import Path
 
 
 class WarmupCmd(OasisBaseCommand):
-    """
-    Pre-compiles all Numba JIT functions to eliminate cold-start overhead.
-    """
+    """Pre-compiles all Numba JIT functions to eliminate cold-start overhead."""
 
     def action(self, args):
-        """
-        Runs the JIT warmup in parallel across all pytools modules.
+        """Runs the JIT warmup in parallel across all pytools modules.
 
-        :param args: The arguments from the command line
-        :type args: Namespace
+        Args:
+            args (Namespace): The arguments from the command line
         """
         from oasislmf.warmup import warmup, _DATA_DIR
 
