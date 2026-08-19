@@ -5,6 +5,7 @@ import struct
 import numpy as np
 import pytest
 
+from oasislmf.computation.data.dummy_model import generate
 from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile, CoveragesFile,
                                                             DamageBinDictFile, EventsFile,
                                                             FMPolicyTCFile, FMProfileFile,
@@ -138,6 +139,46 @@ def test_footprint_index_matches_the_rows_written_per_event(tmp_path):
     )
     np.testing.assert_array_equal(
         index['offset'], footprint.initial_offset + np.cumsum([0] + [event.nbytes for event in events[:-1]])
+    )
+
+
+@pytest.mark.parametrize('chunk_rows', [1, 2, 3, 7, 13])
+@pytest.mark.parametrize('no_intensity_uncertainty', [False, True])
+def test_footprint_chunking_does_not_change_the_output(chunk_rows, no_intensity_uncertainty, monkeypatch, tmp_path):
+    """Taking an event's areaperils in chunks takes the same numbers from the generator.
+
+    An event is unbounded in areaperils_per_event x num_intensity_bins, so it is generated in
+    chunks rather than all at once. The draws stay contiguous per areaperil, so the rows must come
+    out identical however the chunk boundaries fall, and the index must still describe whole events.
+    """
+    # more areaperils than the largest chunk size, so every parametrisation really does chunk
+    settings = {'no_intensity_uncertainty': no_intensity_uncertainty, 'num_areaperils': 30,
+                'areaperils_per_event': 30, 'num_intensity_bins': 4}
+    unchunked = model_files(tmp_path, **settings)['footprint']
+    expected = arrays_of(unchunked)
+
+    monkeypatch.setattr(generate, 'CHUNK_ROWS', chunk_rows)
+    chunked = model_files(tmp_path, **settings)['footprint']
+    generated = arrays_of(chunked)
+
+    np.testing.assert_array_equal(generated, expected)
+    np.testing.assert_array_equal(chunked.index, unchunked.index)
+    # the chunking is real: the event is yielded as more than one array
+    assert len(list(model_files(tmp_path, **settings)['footprint'].generate_arrays())) > unchunked.num_events
+
+
+def test_footprint_index_describes_whole_events_when_chunked(monkeypatch, tmp_path):
+    """The index holds one entry per event, sized for the whole event, not per chunk."""
+    monkeypatch.setattr(generate, 'CHUNK_ROWS', 2)
+    footprint = model_files(tmp_path, num_areaperils=12, areaperils_per_event=12)['footprint']
+    chunks = list(footprint.generate_arrays())
+
+    index = footprint.index
+    assert len(index) == footprint.num_events < len(chunks)
+    np.testing.assert_array_equal(index['event_id'], np.arange(1, footprint.num_events + 1))
+    assert index['size'].sum() == sum(chunk.nbytes for chunk in chunks)
+    np.testing.assert_array_equal(
+        index['offset'], footprint.initial_offset + np.cumsum(np.append(0, index['size'][:-1]))
     )
 
 

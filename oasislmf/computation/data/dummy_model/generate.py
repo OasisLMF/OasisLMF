@@ -560,13 +560,21 @@ class FootprintBinFile(ModelFile):
         one go without changing which numbers come from the generator. The event index is
         collected as the events are generated, for write_file to write afterwards.
 
+        A whole event is the largest thing this file generates, and it is unbounded in
+        areaperils_per_event x num_intensity_bins, so the areaperils of an event are taken in
+        chunks rather than all at once. The draws stay contiguous per areaperil, so chunking
+        takes the same numbers from the generator as drawing the event in one go, and an event
+        is simply yielded as more than one array.
+
         Yields:
-            numpy.ndarray: rows of footprint data for one event, in the file's dtype
+            numpy.ndarray: rows of footprint data for part of one event, in the file's dtype
         """
         super().seed_rng()
         self.offset = self.initial_offset
         self.index = np.empty(self.num_events, dtype=self.idx_file.array_dtype)
         intensity_bins = np.arange(1, self.num_intensity_bins + 1)
+        rows_per_areaperil = 1 if self.no_intensity_uncertainty else self.num_intensity_bins
+        areaperils_per_chunk = max(1, CHUNK_ROWS // rows_per_areaperil)
 
         for event in range(self.num_events):
             if self.areaperils_per_event == self.num_areaperils:
@@ -579,37 +587,42 @@ class FootprintBinFile(ModelFile):
                 selected_areaperils += 1
                 selected_areaperils = np.sort(selected_areaperils)
 
-            if self.no_intensity_uncertainty:
-                impacted_areaperils = self.areaperils_per_event
-                areaperil_id = selected_areaperils
-                intensity_bin_id = np.random.randint(
-                    1, self.num_intensity_bins + 1, size=self.areaperils_per_event
-                )
-                probability = np.ones(self.areaperils_per_event)
-            else:
-                # Generate probabalities according to intensity sparseness
-                # and normalise
-                draws = np.random.uniform(size=(self.areaperils_per_event, 2, self.num_intensity_bins))
-                probabilities = np.where(draws[:, 0, :] < self.intensity_sparseness, draws[:, 1, :], 0.0)
+            event_size = 0
+            for start in range(0, self.areaperils_per_event, areaperils_per_chunk):
+                chunk_areaperils = selected_areaperils[start:start + areaperils_per_chunk]
 
-                total_probability = probabilities.sum(axis=1)
-                impacted = total_probability != 0   # areaperils with no impacted intensity bin
-                probabilities = probabilities[impacted] / total_probability[impacted, np.newaxis]
+                if self.no_intensity_uncertainty:
+                    impacted_areaperils = len(chunk_areaperils)
+                    areaperil_id = chunk_areaperils
+                    intensity_bin_id = np.random.randint(
+                        1, self.num_intensity_bins + 1, size=impacted_areaperils
+                    )
+                    probability = np.ones(impacted_areaperils)
+                else:
+                    # Generate probabalities according to intensity sparseness
+                    # and normalise
+                    draws = np.random.uniform(size=(len(chunk_areaperils), 2, self.num_intensity_bins))
+                    probabilities = np.where(draws[:, 0, :] < self.intensity_sparseness, draws[:, 1, :], 0.0)
 
-                impacted_areaperils = probabilities.shape[0]
-                areaperil_id = np.repeat(selected_areaperils[impacted], self.num_intensity_bins)
-                intensity_bin_id = np.tile(intensity_bins, impacted_areaperils)
-                probability = probabilities.reshape(-1)
+                    total_probability = probabilities.sum(axis=1)
+                    impacted = total_probability != 0   # areaperils with no impacted intensity bin
+                    probabilities = probabilities[impacted] / total_probability[impacted, np.newaxis]
 
-            event_data = np.empty(len(areaperil_id), dtype=self.array_dtype)
-            event_data['areaperil_id'] = areaperil_id
-            event_data['intensity_bin_id'] = intensity_bin_id
-            event_data['probability'] = probability
+                    impacted_areaperils = probabilities.shape[0]
+                    areaperil_id = np.repeat(chunk_areaperils[impacted], self.num_intensity_bins)
+                    intensity_bin_id = np.tile(intensity_bins, impacted_areaperils)
+                    probability = probabilities.reshape(-1)
 
-            event_size = self.size * impacted_areaperils
+                event_data = np.empty(len(areaperil_id), dtype=self.array_dtype)
+                event_data['areaperil_id'] = areaperil_id
+                event_data['intensity_bin_id'] = intensity_bin_id
+                event_data['probability'] = probability
+
+                event_size += self.size * impacted_areaperils
+                yield event_data
+
             self.index[event] = (event + 1, self.offset, event_size)
             self.offset += event_size
-            yield event_data
 
     def write_file(self):
         """Write data to output Footprint binary file, and its index file, in binary format.
