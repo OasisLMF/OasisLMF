@@ -82,6 +82,71 @@ def test_build_h3_null_coordinates_get_unknown_id(h3_mapping_csv):
     assert result.loc[result["loc_id"] == 2, "area_peril_id"].iloc[0] == 1
 
 
+@pytest.mark.parametrize("lat,lon", [
+    (51.5074, np.inf),
+    (51.5074, -np.inf),
+    (np.inf, -0.1278),
+    (-np.inf, -0.1278),
+    (np.inf, np.inf),
+])
+def test_build_h3_infinite_coordinates_get_unknown_id(h3_mapping_csv, lat, lon):
+    """An infinite coordinate is unknown, not the last mapped cell's area_peril_id.
+
+    An isnan-only validity test lets an infinity through, and 1j * inf has a nan real part, so the
+    complex key reaches factorize as an NA and takes its -1 sentinel. -1 is a legal numpy index, so
+    the lookup would silently return whatever the last distinct coordinate in the chunk resolved
+    to -- a wrong value that also depends on row order, and so on multiprocessing chunk boundaries.
+    """
+    lookup_fn = Lookup(config={}).build_h3(resolution=_H3_RESOLUTION, file_path=str(h3_mapping_csv))
+
+    # the last sample coordinate is ordered last here, so a -1 code would resolve to its id
+    lat_last, lon_last = _SAMPLE_COORDS[-1]
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "latitude": [lat, lat_last],
+        "longitude": [lon, lon_last],
+    })
+    result = lookup_fn(locations)
+
+    assert result.loc[result["loc_id"] == 2, "area_peril_id"].iloc[0] == len(_SAMPLE_COORDS)
+    assert result.loc[result["loc_id"] == 1, "area_peril_id"].iloc[0] == OASIS_UNKNOWN_ID
+
+
+def test_build_h3_area_peril_id_above_float64_exact_range(tmp_path):
+    """area_peril_id keeps its exact value above 2^53, where a float64 intermediate would round it.
+
+    An h3 model can use the cell index itself as the area_peril_id; cells are ~6e17, well past the
+    range float64 represents exactly, so every id would come back off by one.
+    """
+    lat0, lon0 = _SAMPLE_COORDS[0]
+    cell0 = h3.str_to_int(h3.latlng_to_cell(lat0, lon0, _H3_RESOLUTION))
+    big_id = 2 ** 53 + 1
+
+    path = tmp_path / "big_id_mapping.csv"
+    pd.DataFrame({"h3_int64": [cell0], "area_peril_id": [big_id]}).to_csv(path, index=False)
+
+    lookup_fn = Lookup(config={}).build_h3(resolution=_H3_RESOLUTION, file_path=str(path))
+    result = lookup_fn(pd.DataFrame({"loc_id": [1], "latitude": [lat0], "longitude": [lon0]}))
+
+    assert result["area_peril_id"].iloc[0] == big_id
+
+
+def test_build_h3_cell_index_as_area_peril_id(tmp_path):
+    """The identity mapping case: every cell index maps to itself, exactly."""
+    cells = [h3.str_to_int(h3.latlng_to_cell(lat, lon, _H3_RESOLUTION)) for lat, lon in _SAMPLE_COORDS]
+    path = tmp_path / "identity_mapping.csv"
+    pd.DataFrame({"h3_int64": cells, "area_peril_id": cells}).to_csv(path, index=False)
+
+    lookup_fn = Lookup(config={}).build_h3(resolution=_H3_RESOLUTION, file_path=str(path))
+    result = lookup_fn(pd.DataFrame({
+        "loc_id": np.arange(1, len(_SAMPLE_COORDS) + 1),
+        "latitude": [lat for lat, lon in _SAMPLE_COORDS],
+        "longitude": [lon for lat, lon in _SAMPLE_COORDS],
+    }))
+
+    assert result["area_peril_id"].to_numpy().tolist() == cells
+
+
 def test_build_h3_unmatched_location_gets_unknown_id(h3_mapping_csv):
     """Locations whose H3 cell is absent from the mapping receive OASIS_UNKNOWN_ID."""
     lookup_fn = Lookup(config={}).build_h3(resolution=_H3_RESOLUTION, file_path=str(h3_mapping_csv))

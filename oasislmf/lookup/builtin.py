@@ -960,8 +960,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return geotiff_lookup
 
     def build_h3(self, resolution, file_path, file_type='csv', **kwargs):
-        """
-        Function factory to look up area_peril_id using H3 hexagonal grid indexing.
+        """Function factory to look up area_peril_id using H3 hexagonal grid indexing.
 
         Converts latitude/longitude to an H3 cell at the specified resolution,
         converts the cell to its int64 representation, then maps to an int32
@@ -970,6 +969,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         The mapping file must contain at least two columns:
             - ``h3_int64``      : H3 cell index as a 64-bit integer
             - ``area_peril_id`` : Oasis area peril ID (int32)
+
+        ``h3_int64`` must be unique: a point falls in exactly one cell at a given resolution, so a
+        repeated cell index is a mapping file error and raises ``OasisException`` at build time.
+        A mapping file with duplicate cells previously emitted one key per duplicate row, which
+        changed the row count of the keys file rather than reporting the problem.
+
+        A location whose coordinates are null, infinite, or absent from the mapping file resolves
+        to ``OASIS_UNKNOWN_ID``, which the lookup reports as a per-location ``fail`` status.
 
         Config example::
 
@@ -982,18 +989,18 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 }
             }
 
-        Parameters
-        ----------
-        resolution : int
-            H3 resolution level (0–15). Higher values produce finer cells.
-        file_path : str
-            Path to the int64→area_peril_id mapping file.
-            Supports the ``%%KEYS_DATA_PATH%%`` placeholder.
-        file_type : str
-            Pandas read function suffix (``'csv'``, ``'parquet'``, etc.).
-            Defaults to ``'csv'``.
-        **kwargs
-            Additional keyword arguments forwarded to the pandas read function.
+        Args:
+            resolution (int): H3 resolution level (0–15). Higher values produce finer cells.
+            file_path (str): Path to the int64→area_peril_id mapping file.
+                Supports the ``%%KEYS_DATA_PATH%%`` placeholder.
+            file_type (str): Pandas read function suffix (``'csv'``, ``'parquet'``, etc.).
+                Defaults to ``'csv'``.
+            **kwargs: Additional keyword arguments forwarded to the pandas read function.
+
+        Returns:
+            function: function assigning an area_peril_id to each location from its latitude and
+                longitude, set to OASIS_UNKNOWN_ID where the H3 cell is missing from the mapping
+                file or the coordinates are null or non-finite.
         """
         if h3 is None:
             raise OasisException(
@@ -1027,22 +1034,28 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         def h3_lookup(locations):
             latitude = locations['latitude'].to_numpy(dtype='float64', na_value=np.nan)
             longitude = locations['longitude'].to_numpy(dtype='float64', na_value=np.nan)
-            valid = ~(np.isnan(latitude) | np.isnan(longitude))
+            # isfinite rather than ~isnan: an infinite coordinate would survive an isnan test, and
+            # 1j * inf has a nan real part, so it would reach factorize as an NA and take its -1
+            # sentinel, which indexes back from the end of the mapped array and silently returns
+            # another location's area_peril_id. infinite coordinates are unknown, like null ones.
+            valid = np.isfinite(latitude) & np.isfinite(longitude)
 
-            area_peril_id = np.full(len(locations), np.nan)  # nan becomes OASIS_UNKNOWN_ID below
+            # int64 throughout: a float64 intermediate would round area_peril_id above 2^53, which
+            # an h3 model keyed on the cell index itself (~6e17) would hit on every row
+            area_peril_id = np.full(len(locations), OASIS_UNKNOWN_ID, dtype='int64')
             if valid.any():
                 # h3 has no array api, so the conversion stays a python level loop; factorising the
                 # points first means it is paid once per distinct coordinate rather than once per
-                # location, which is where the win is for portfolios that repeat coordinates.
-                # the complex encoding is only a way to hash the (latitude, longitude) pair in one go.
+                # location. the complex encoding is only a way to hash the (latitude, longitude)
+                # pair in one go, and is safe here because valid guarantees both parts are finite.
                 codes, points = pd.factorize(latitude[valid] + 1j * longitude[valid], sort=False)
                 cells = np.fromiter(
                     (h3_int.latlng_to_cell(point.real, point.imag, resolution) for point in points.tolist()),
                     dtype='int64', count=points.size,
                 )
                 # resolving the mapping per distinct cell keeps the join off the per location path
-                area_peril_id[valid] = area_peril_by_cell.reindex(cells).to_numpy(
-                    dtype='float64', na_value=np.nan)[codes]
+                area_peril_id[valid] = area_peril_by_cell.reindex(
+                    cells, fill_value=OASIS_UNKNOWN_ID).to_numpy(dtype='int64')[codes]
 
             locations['area_peril_id'] = area_peril_id
             locations.reset_index(drop=True, inplace=True)  # as the left join this replaces used to
