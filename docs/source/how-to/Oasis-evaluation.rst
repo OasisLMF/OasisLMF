@@ -2,7 +2,7 @@ Oasis Evaluation
 ================
 
 The OasisEvaluation repository provides a streamlined way to run the Oasis stack in multi-container environment using docker-compose.
-This is intended for locally testing the `OasisPlatform 1 <https://github.com/OasisLMF/OasisPlatform/tree/main-platform1>`_ with a toy model example `OasisPiWind <https://github.com/OasisLMF/OasisPiWind>`_, via the Web UI `OasisUI <https://github.com/OasisLMF/OasisUI>`_.
+This is intended for locally testing the `OasisPlatform 1 <https://github.com/OasisLMF/OasisPlatform/tree/stable/1.23.x>`_ with a toy model example `OasisPiWind <https://github.com/OasisLMF/OasisPiWind>`_, via the Web UI `OasisUI <https://github.com/OasisLMF/OasisUI>`_.
 
 .. _installing_oasis:
 
