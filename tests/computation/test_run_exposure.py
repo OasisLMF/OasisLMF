@@ -347,6 +347,22 @@ class _RunExposureIntegrationBase(ComputationChecker):
         )
         _assert_output_matches(out, EXPECTED_ALL)
 
+    def test_multiple_loss_factors_produce_ri_for_every_factor(self):
+        out = self._output_file()
+        self._run(
+            out,
+            oed_location_csv=LOCATION,
+            oed_accounts_csv=ACCOUNTS,
+            oed_info_csv=RI_INFO,
+            oed_scope_csv=RI_SCOPE,
+            loss_factor=[0.5, 1.0],
+        )
+        losses = pd.read_csv(out)
+        ri_by_factor = losses.groupby('loss_factor_idx')['loss_ri'].sum()
+
+        self.assertEqual(list(ri_by_factor[ri_by_factor > 0].index), [0, 1])
+        self.assertGreater(ri_by_factor[1], ri_by_factor[0])
+
     def test_src_dir_discovers_files_and_output_matches_expected(self):
         import shutil
         src_tmp = self.tmp_dir()
