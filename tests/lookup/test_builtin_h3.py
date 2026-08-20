@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 from oasislmf.lookup.builtin import (
     Lookup)
-from oasislmf.utils.status import OASIS_UNKNOWN_ID
+from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 from oasislmf.utils.exceptions import OasisException
 
 h3 = pytest.importorskip("h3", minversion="4", reason="h3>=4 not installed")
@@ -379,3 +379,83 @@ def test_build_h3_mixed_valid_invalid_locations(h3_mapping_csv):
     assert result.loc[result["loc_id"] == 1, "area_peril_id"].iloc[0] == 1
     assert result.loc[result["loc_id"] == 2, "area_peril_id"].iloc[0] == OASIS_UNKNOWN_ID
     assert result.loc[result["loc_id"] == 3, "area_peril_id"].iloc[0] == OASIS_UNKNOWN_ID
+
+
+def h3_lookup_config(mapping_path):
+    """A whole Lookup config whose area_peril step is the h3 one.
+
+    The pivot step supplies the peril, coverage and vulnerability ids process_locations needs, so
+    the only thing under test is what the h3 step contributes.
+    """
+    return {
+        "step_definition": {
+            "pivot": {
+                "type": "simple_pivot",
+                "parameters": {"pivots": [{"new_cols": {
+                    "peril_id": "WTC", "coverage_type": 1, "vulnerability_id": 1}}]},
+            },
+            "area_peril": {
+                "type": "h3",
+                "columns": ["latitude", "longitude"],
+                "parameters": {"resolution": _H3_RESOLUTION, "file_path": str(mapping_path)},
+            },
+        },
+        "strategy": ["area_peril", "pivot"],
+    }
+
+
+def test_process_locations_reports_a_matched_location_as_success(h3_mapping_csv):
+    """The lookup contract, not just the closure: a matched location comes back successful."""
+    lat0, lon0 = _SAMPLE_COORDS[0]
+    locations = pd.DataFrame({"loc_id": [1], "latitude": [lat0], "longitude": [lon0]})
+
+    keys = Lookup(config=h3_lookup_config(h3_mapping_csv)).process_locations(locations)
+
+    assert keys["status"].to_list() == [OASIS_KEYS_STATUS["success"]["id"]]
+    assert keys["area_peril_id"].to_list() == [1]
+    assert keys["message"].to_list() == [""]
+
+
+@pytest.mark.parametrize("latitude,longitude,description", [
+    (-89.0, 179.0, "coordinates whose cell is absent from the mapping"),
+    (None, None, "null coordinates"),
+    (51.5074, np.inf, "an infinite longitude"),
+    (np.inf, -0.1278, "an infinite latitude"),
+    (-np.inf, -np.inf, "infinite coordinates"),
+])
+def test_process_locations_reports_an_unresolved_location_as_a_failure(
+        h3_mapping_csv, latitude, longitude, description):
+    """A location the lookup cannot resolve survives to the output as a per-location failure.
+
+    This is the requirement downstream actually has, and it is what OASIS_UNKNOWN_ID exists to
+    signal. It matters most for the infinite coordinates: they used to slip through the validity
+    mask and take another location's area peril, so the location came back *successful* carrying a
+    wrong id rather than being reported here.
+    """
+    locations = pd.DataFrame({"loc_id": [1], "latitude": [latitude], "longitude": [longitude]})
+
+    keys = Lookup(config=h3_lookup_config(h3_mapping_csv)).process_locations(locations)
+
+    assert keys["status"].to_list() == [OASIS_KEYS_STATUS["fail"]["id"]], description
+    assert keys["message"].to_list() == ["area_peril_id has an unknown id"], description
+    assert keys["area_peril_id"].to_list() == [OASIS_UNKNOWN_ID], description
+
+
+def test_process_locations_keeps_every_location_and_its_order(h3_mapping_csv):
+    """Failures are reported alongside the successes, not dropped from the keys output."""
+    lat0, lon0 = _SAMPLE_COORDS[0]
+    lat1, lon1 = _SAMPLE_COORDS[1]
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3, 4],
+        "latitude": [lat0, 51.5074, lat1, None],
+        "longitude": [lon0, np.inf, lon1, None],
+    })
+
+    keys = Lookup(config=h3_lookup_config(h3_mapping_csv)).process_locations(locations)
+
+    assert keys["loc_id"].to_list() == [1, 2, 3, 4]
+    assert keys["status"].to_list() == [
+        OASIS_KEYS_STATUS["success"]["id"], OASIS_KEYS_STATUS["fail"]["id"],
+        OASIS_KEYS_STATUS["success"]["id"], OASIS_KEYS_STATUS["fail"]["id"],
+    ]
+    assert keys["area_peril_id"].to_list() == [1, OASIS_UNKNOWN_ID, 2, OASIS_UNKNOWN_ID]
