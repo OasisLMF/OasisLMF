@@ -65,6 +65,25 @@ def test_building_ids_number_each_locations_buildings(number_of_buildings):
         np.testing.assert_allclose(per_location, exposure[tiv_by_coverage[coverage_type_id]].to_numpy())
 
 
+@pytest.mark.parametrize('is_aggregate', [0, 1])
+def test_disaggregation_is_driven_by_the_building_count_not_the_aggregate_flag(is_aggregate):
+    """IsAggregate does not gate the building expansion; NumberOfBuildings does.
+
+    Every other test here runs with IsAggregate=1, so the flag is otherwise only ever a
+    passed-through column. It feeds risk_id/NumberOfRisks in assign_risk_ids rather than the
+    building numbering, and a location splits into one row per building either way.
+    """
+    number_of_buildings = [1, 3, 2]
+    exposure = make_exposure(number_of_buildings, is_aggregate=[is_aggregate] * len(number_of_buildings))
+    gul_inputs = get_gul_input_items(exposure, make_keys(exposure), damage_group_id_cols=['loc_id'])
+
+    for coverage_type_id in COVERAGE_TYPE_IDS:
+        coverage = gul_inputs[gul_inputs['coverage_type_id'] == coverage_type_id]
+        np.testing.assert_array_equal(
+            coverage['building_id'].to_numpy(), reference_building_ids(number_of_buildings))
+    assert set(gul_inputs['IsAggregate']) == {is_aggregate}
+
+
 def test_building_ids_are_all_one_without_disaggregation():
     exposure = make_exposure([1, 3, 2])
     gul_inputs = get_gul_input_items(exposure, make_keys(exposure), damage_group_id_cols=['loc_id'],
@@ -147,6 +166,41 @@ def test_correlations_bin_holds_the_correlations_frame(tmp_path):
 
     # the row by row packing this replaced, which read the columns positionally
     expected = np.array([row for row in correlations_df.itertuples(index=False)], dtype=correlations_dtype)
+    np.testing.assert_array_equal(written, expected)
+
+
+def test_correlations_bin_keys_the_columns_by_name_not_position(tmp_path):
+    """A frame whose columns are ordered differently from the dtype still packs into the right fields.
+
+    This is the property the switch away from itertuples was made for, and it is otherwise
+    untested: make_correlations ends with [correlations_headers], so every other fixture here is
+    already in dtype order and positional packing and by-name packing agree.
+    """
+    correlations_df = make_correlations(50)
+    reordered = correlations_df[correlations_headers[::-1]]
+    assert list(reordered.columns) != correlations_headers, 'the fixture must really be reordered'
+
+    expected = written_correlations(tmp_path, correlations_df)
+    written = written_correlations(tmp_path, reordered)
+
+    np.testing.assert_array_equal(written, expected)
+    # the packing this replaced read the columns positionally, so it would have scrambled them
+    positional = np.array([row for row in reordered.itertuples(index=False)], dtype=correlations_dtype)
+    assert not np.array_equal(positional, expected)
+
+
+def test_correlations_bin_ignores_a_column_that_is_not_a_field(tmp_path):
+    """A column with no matching field is dropped rather than raising.
+
+    The positional packing raised ValueError on a frame with more columns than the dtype has
+    fields. Ignoring it is the saner behaviour, but it does mean passing a whole gul_inputs frame
+    here by mistake would now quietly succeed, so the contract is worth stating.
+    """
+    correlations_df = make_correlations(20)
+
+    expected = written_correlations(tmp_path, correlations_df)
+    written = written_correlations(tmp_path, correlations_df.assign(loc_id=-1))
+
     np.testing.assert_array_equal(written, expected)
 
 
