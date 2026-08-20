@@ -227,7 +227,7 @@ class GenerateFiles(ComputationStep):
             account_df = exposure_data.account.dataframe
             # Validate location/account referential integrity now, before the (potentially very
             # long) keys lookup stage, so a bad portfolio fails fast instead of after hours of work.
-            validate_account_location_references(location_df, account_df)
+            validate_account_location_references(exposure_data.location.dataframe, exposure_data.account.dataframe)
         else:
             account_df = None
 

@@ -204,6 +204,8 @@ def check_cond_tags(locations_df, accounts_df):
     run as a cheap, early sanity check on just locations_df/accounts_df -
     e.g. by validate_account_location_references - before any of the more
     expensive keys lookup or GUL processing has run.
+
+    Returns (loc_condkey_df, acc_condkey_df).
     """
     default_cond_tag = '0'
     if 'CondTag' in locations_df.columns:
@@ -218,22 +220,22 @@ def check_cond_tags(locations_df, accounts_df):
         condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
         missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['acc_id', 'CondTag']]
     else:
+        acc_condkey_df = pd.DataFrame([], columns=['acc_id', 'CondTag'])
         missing_condkey_df = loc_condkey_df
 
     if missing_condkey_df.shape[0]:
         raise OasisException(f'Those condtag are present in locations but missing in the account file:\n{missing_condkey_df}')
 
+    return loc_condkey_df, acc_condkey_df
+
 
 def validate_account_location_references(locations_df, accounts_df):
-    """Validate that every location's account/policy reference resolves to a
-    row in the account file.
+    """Validate that every location's PortNumber/AccNumber and CondTag
+    references resolve to a row in the account file.
 
-    This covers the same referential-integrity checks that would otherwise
-    only surface deep inside get_il_input_items (via prepare_il_source_dataframes
-    and get_cond_info), i.e. after the (potentially very long) keys lookup and
-    GUL processing stages have already run. It only needs locations_df/accounts_df,
-    so it should be called as early as possible in the files-generation pipeline,
-    so a bad portfolio fails in seconds rather than after hours of keys lookup.
+    Should be called as early as possible in the files-generation pipeline -
+    it only needs locations_df/accounts_df - so a bad portfolio fails in
+    seconds rather than after hours of keys lookup.
 
     locations_df/accounts_df themselves are never mutated - only fresh frames
     derived from them (merge results, or minimal column-subset copies) are.
@@ -261,7 +263,7 @@ def validate_account_location_references(locations_df, accounts_df):
         offending_locations = locations_df.loc[missing_acc_mask, id_cols].drop_duplicates()
         raise OasisException(
             'The following locations reference a PortNumber/AccNumber combination '
-            f'that is not present in the account file:\n{offending_locations.to_string(index=False)}'
+            f'that is not present in the account file:\n{offending_locations.head(20).to_string(index=False)}'
         )
 
     # Built from plain numpy arrays (copy=True) rather than sliced from locations_df/accounts_df,
@@ -281,17 +283,8 @@ def get_cond_info(locations_df, accounts_df):
     pol_info = {}
     level_conds = {}
     extra_accounts = []
-    check_cond_tags(locations_df, accounts_df)
+    _, acc_condkey_df = check_cond_tags(locations_df, accounts_df)
     default_cond_tag = '0'
-    if 'CondTag' in locations_df.columns:
-        loc_condkey_df = locations_df.loc[locations_df['CondTag'] != default_cond_tag, ['acc_id', 'CondTag']].drop_duplicates()
-    else:
-        loc_condkey_df = pd.DataFrame([], columns=['acc_id', 'CondTag'])
-
-    if 'CondTag' in accounts_df.columns:
-        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['acc_id', 'CondTag']].drop_duplicates()
-    else:
-        acc_condkey_df = pd.DataFrame([], columns=['acc_id', 'CondTag'])
 
     if acc_condkey_df.shape[0]:
         if 'CondTag' not in locations_df.columns:

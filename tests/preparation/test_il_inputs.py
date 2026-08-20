@@ -85,6 +85,7 @@ class TestValidateAccountLocationReferences(TestCase):
             validate_account_location_references(locations_df, accounts_df)
 
         self.assertIn('condtag', str(ctx.exception))
+        self.assertIn('C1', str(ctx.exception))
 
 
 class TestCheckCondTags(TestCase):
