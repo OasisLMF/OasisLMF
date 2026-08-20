@@ -325,6 +325,22 @@ class _RunExposureIntegrationBase(ComputationChecker):
         )
         _assert_output_matches(out, EXPECTED_ACC_LOC)
 
+    def test_extra_summary_col_already_in_the_level_matches_the_plain_run(self):
+        """An extra_summary_cols entry the level already has is dropped rather than repeated.
+
+        extra_summary_cols comes straight from the CLI and is never checked against the level's
+        own columns. A repeat gives groupby a grouper that is not 1-dimensional, and on the gul
+        only path it gives the frame wide astype(str) a duplicate key.
+        """
+        out = self._output_file()
+        self._run(
+            out,
+            oed_location_csv=LOCATION,
+            oed_accounts_csv=ACCOUNTS,
+            extra_summary_cols=['PortNumber'],
+        )
+        _assert_output_matches(out, EXPECTED_ACC_LOC)
+
     def test_acc_loc_usd_output_matches_expected(self):
         out = self._output_file()
         self._run(

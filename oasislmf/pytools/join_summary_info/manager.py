@@ -55,8 +55,11 @@ def load_summary_info(stack, summaryinfo_file):
 
         summary_ids = df["summary_id"].to_numpy(dtype=np.int64)
         summary_columns = df.drop(columns=["summary_id"]).astype(str)
-        summary_data = summary_columns.iloc[:, 0].str.cat(
-            summary_columns.iloc[:, 1:], sep=",").to_numpy(dtype=object)
+        if summary_columns.shape[1]:
+            summary_data = summary_columns.iloc[:, 0].str.cat(
+                summary_columns.iloc[:, 1:], sep=",").to_numpy(dtype=object)
+        else:
+            summary_data = np.full(len(df), "", dtype=object)
         headers = [col for col in df.columns if col != "summary_id"]
     else:
         raise ValueError(f"Unsupported file format {summaryinfo_file.suffix}.")
@@ -119,7 +122,7 @@ def run(
                 for line in data_fin:
                     row = line.strip().split(",")
                     summary_id = int(row[summary_id_col_idx])
-                    if summary_id > max_summary_id:
+                    if summary_id < 0 or summary_id > max_summary_id:
                         fout.write(line.strip() + ("," * len(summary_headers)) + "\n")
                     else:
                         fout.write(line.strip() + "," + summary_data[summary_id] + "\n")
@@ -131,15 +134,16 @@ def run(
                 raise ValueError("Missing 'SummaryId' column in data file.")
 
             summary_id = df["SummaryId"].to_numpy()
-            in_range = summary_id <= max_summary_id
+            in_range = (summary_id >= 0) & (summary_id <= max_summary_id)
             # a summary id past the end of the summary info has no summary info, the same as
             # one that falls in a gap within it, so it joins to the same empty columns. They
             # have to be spelled out, as a row splitting into fewer columns than the headers
             # is an error rather than a short row
-            joined_summary_data = np.full(len(df), "," * (len(summary_headers) - 1), dtype=object)
-            joined_summary_data[in_range] = summary_data[summary_id[in_range]]
-            df[summary_headers] = pd.Series(
-                joined_summary_data, index=df.index).str.split(",", expand=True)
+            if summary_headers:
+                joined_summary_data = np.full(len(df), "," * (len(summary_headers) - 1), dtype=object)
+                joined_summary_data[in_range] = summary_data[summary_id[in_range]]
+                df[summary_headers] = pd.Series(
+                    joined_summary_data, index=df.index).str.split(",", expand=True)
             pq.write_table(pa.Table.from_pandas(df), temp_output_file)
         else:
             raise ValueError(f"Unsupported file format {data_file.suffix}.")

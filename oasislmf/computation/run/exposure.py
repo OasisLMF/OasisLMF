@@ -231,7 +231,7 @@ class RunExposure(ComputationStep):
         elif self.output_level == 'peril_item':
             summary_cols = ['output_id'] + lowest_id_cols + [policy_num, 'coverage_type_id', 'peril_id']
 
-        summary_cols += self.extra_summary_cols
+        summary_cols = list(dict.fromkeys(summary_cols + self.extra_summary_cols))
         for col in self.extra_summary_cols:
             if col in calculated_summary_cols:
                 all_losses_df = calculated_summary_cols[col](all_losses_df)

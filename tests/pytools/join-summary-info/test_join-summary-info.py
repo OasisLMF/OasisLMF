@@ -166,6 +166,57 @@ def test_join_parquet_with_every_summary_id_beyond_the_summary_info():
         assert list(joined["tiv"]) == ["", ""]
 
 
+def test_join_parquet_with_a_negative_summary_id():
+    """Tests join-summary-info leaves a negative summary id blank rather than counting back
+
+    A negative id is a legal index into the summary table, so it would otherwise silently join
+    the row to some other summary's info.
+    """
+    with TemporaryDirectory() as tmp_dir:
+        joined = write_parquet_pair(
+            tmp_dir,
+            summary_info={"summary_id": [1, 2, 3], "PortNumber": ["1", "2", "3"], "tiv": [10.0, 20.0, 30.0]},
+            data={"SummaryId": [1, -1, -3, 3], "MeanLoss": [1.0, 2.0, 3.0, 4.0]},
+        )
+
+        assert list(joined["PortNumber"]) == ["1", "", "", "3"]
+        assert list(joined["tiv"]) == ["10.0", "", "", "30.0"]
+
+
+def test_join_matches_csv_for_a_negative_summary_id(tmp_path):
+    """Tests both formats say the same thing about a negative summary id"""
+    summary_info = pd.DataFrame({"summary_id": [1, 2, 3], "PortNumber": ["1", "2", "3"], "tiv": [10.0, 20.0, 30.0]})
+    data = pd.DataFrame({"SummaryId": [1, -1, -3, 3], "MeanLoss": [1.0, 2.0, 3.0, 4.0]})
+
+    summary_info.to_csv(tmp_path / "gul_summary-info.csv", index=False)
+    data.to_csv(tmp_path / "aalgul_ord.csv", index=False)
+    main(summaryinfo=tmp_path / "gul_summary-info.csv", data=tmp_path / "aalgul_ord.csv",
+         output=tmp_path / "joined.csv")
+    joined_csv = pd.read_csv(tmp_path / "joined.csv", dtype=str).fillna("")
+
+    joined_parquet = write_parquet_pair(tmp_path, summary_info=summary_info, data=data)
+
+    assert list(joined_csv["PortNumber"]) == list(joined_parquet["PortNumber"])
+    assert list(joined_csv["tiv"]) == list(joined_parquet["tiv"])
+
+
+def test_join_parquet_with_no_summary_info_columns():
+    """Tests join-summary-info joins a summary info file holding nothing but summary_id
+
+    There is no summary info to add, so every row joins to nothing and the data file comes back
+    unchanged rather than the join failing.
+    """
+    with TemporaryDirectory() as tmp_dir:
+        joined = write_parquet_pair(
+            tmp_dir,
+            summary_info={"summary_id": [1, 2]},
+            data={"SummaryId": [1, 2, 9], "MeanLoss": [1.0, 2.0, 3.0]},
+        )
+
+        assert list(joined.columns) == ["SummaryId", "MeanLoss"]
+        assert list(joined["MeanLoss"]) == [1.0, 2.0, 3.0]
+
+
 def test_join_parquet_matches_csv_for_unknown_summary_ids(tmp_path):
     """Tests both formats say the same thing about a summary id they cannot join"""
     summary_info = pd.DataFrame({"summary_id": [1, 2], "PortNumber": ["1", "2"], "tiv": [10.0, 20.0]})
