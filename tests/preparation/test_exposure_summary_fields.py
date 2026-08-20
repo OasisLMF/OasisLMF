@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from oasislmf.preparation.summaries import get_exposure_summary_fields
+from oasislmf.preparation.summaries import get_exposure_summary_fields, get_exposure_totals
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.status import OASIS_KEYS_STATUS
+from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
 
 STATUSES = ['all'] + list(OASIS_KEYS_STATUS.keys())
 
@@ -275,3 +275,149 @@ def test_statuses_sum_to_the_all_status():
     for peril_id in categories['peril_id']:
         per_status = sum(summary['peril_id'][peril_id][status]['tiv'] for status in OASIS_KEYS_STATUS)
         assert per_status == pytest.approx(summary['peril_id'][peril_id]['all']['tiv'])
+
+
+def reference_exposure_totals(df):
+    """The totals implementation replaced by get_exposure_totals, kept as the reference."""
+    dedupe_cols = ['loc_id', 'coverage_type_id']
+
+    within_scope_tiv = df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
+    within_scope_num = len(df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
+    within_scope_num_buildings = int(
+        df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_buildings'].sum())
+    within_scope_num_risks = int(
+        df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_risks'].sum())
+
+    outside_scope_tiv = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
+    outside_scope_num = len(df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
+    outside_scope_num_buildings = int(
+        df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_buildings'].sum())
+    outside_scope_num_risks = int(
+        df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_risks'].sum())
+
+    portfolio_tiv = df.drop_duplicates(subset=dedupe_cols)['tiv'].sum()
+    portfolio_num = len(df['loc_id'].unique())
+    portfolio_num_buildings = int(df.drop_duplicates(subset='loc_id')['number_of_buildings'].sum())
+    portfolio_num_risks = int(df.drop_duplicates(subset='loc_id')['number_of_risks'].sum())
+
+    return {
+        "modelled": {"tiv": within_scope_tiv, "number_of_locations": within_scope_num,
+                     "number_of_buildings": within_scope_num_buildings, "number_of_risks": within_scope_num_risks},
+        "not-modelled": {"tiv": outside_scope_tiv, "number_of_locations": outside_scope_num,
+                         "number_of_buildings": outside_scope_num_buildings, "number_of_risks": outside_scope_num_risks},
+        "portfolio": {"tiv": portfolio_tiv, "number_of_locations": portfolio_num,
+                      "number_of_buildings": portfolio_num_buildings, "number_of_risks": portfolio_num_risks},
+    }
+
+
+@pytest.mark.parametrize('seed', range(5))
+def test_totals_match_the_reference_implementation(seed):
+    df = make_summary_peril_df(seed)
+
+    assert_summaries_equal(get_exposure_totals(df), reference_exposure_totals(df))
+
+
+def test_totals_match_the_reference_implementation_with_a_shared_loc_id():
+    df = make_shared_loc_id_df()
+
+    assert_summaries_equal(get_exposure_totals(df), reference_exposure_totals(df))
+
+
+def test_totals_match_the_reference_implementation_when_every_status_is_modelled():
+    """The not-modelled scope is empty, so its sums come from an empty frame rather than a filter."""
+    df = make_summary_peril_df(31)
+    df['status'] = list(OASIS_KEYS_STATUS_MODELLED)[0]
+
+    totals = get_exposure_totals(df)
+
+    assert_summaries_equal(totals, reference_exposure_totals(df))
+    assert totals['not-modelled']['number_of_locations'] == 0
+    assert totals['not-modelled']['tiv'] == 0
+    assert totals['modelled']['tiv'] == pytest.approx(totals['portfolio']['tiv'])
+
+
+def test_totals_match_the_reference_implementation_on_an_empty_frame():
+    df = make_summary_peril_df(32).iloc[:0]
+
+    assert_summaries_equal(get_exposure_totals(df), reference_exposure_totals(df))
+
+
+def make_heterogeneous_duplicates_df(seed=41):
+    """Duplicate keys whose rows differ, so which row survives the deduplication is observable.
+
+    make_summary_peril_df duplicates whole rows, so every duplicate group is identical in tiv,
+    status and number_of_buildings and the tests cannot tell 'keeps the first row' from 'keeps an
+    arbitrary row' -- even though the summed TIV depends on the answer.
+    """
+    df = make_summary_peril_df(seed, num_locations=12, duplicate_keys=False)
+    later = df.copy()
+    later['tiv'] = later['tiv'] * 10
+    later['number_of_buildings'] = later['number_of_buildings'] + 7
+    later['number_of_risks'] = later['number_of_buildings']
+    later['status'] = list(OASIS_KEYS_STATUS.keys())[-1]
+
+    return pd.concat([df, later], ignore_index=True)
+
+
+def test_duplicate_keys_differing_in_tiv_and_status_keep_the_first_row():
+    df = make_heterogeneous_duplicates_df()
+    categories = oed_categories_for(df)
+
+    assert_summaries_equal(
+        get_exposure_summary_fields(df, categories),
+        reference_exposure_summary_fields(df, categories),
+    )
+
+
+def test_totals_for_duplicate_keys_differing_in_tiv_and_status():
+    df = make_heterogeneous_duplicates_df(seed=42)
+
+    assert_summaries_equal(get_exposure_totals(df), reference_exposure_totals(df))
+
+
+@pytest.mark.parametrize('missing', [np.nan, None, pd.NA])
+def test_a_missing_field_value_is_bucketed_to_zero(missing):
+    """A null field value matches no bucket, and must not become one via factorize's -1 sentinel.
+
+    pd.factorize codes a null as -1, which is a legal index, so this is exactly the sort of
+    mechanism worth pinning rather than reasoning about.
+    """
+    df = make_summary_peril_df(43, num_locations=12, duplicate_keys=False)
+    df.loc[df['loc_id'] <= 4, 'country_code'] = missing
+    categories = oed_categories_for(df)
+    categories['country_code'] = [value for value in categories['country_code'] if isinstance(value, str)]
+
+    assert_summaries_equal(
+        get_exposure_summary_fields(df, categories),
+        reference_exposure_summary_fields(df, categories),
+    )
+
+
+def test_every_supported_coverage_type_is_attributed_by_id():
+    """The coverage attribution is driven by coverage_type_id, not by position in the fixture.
+
+    The other fixtures here only ever use the first four of the thirteen supported coverage types,
+    so the remaining nine are only exercised as zero-filled buckets.
+    """
+    coverage_type_ids = [info['id'] for info in SUPPORTED_COVERAGE_TYPES.values()]
+    rng = np.random.default_rng(44)
+    num_locations = 6
+    rows = pd.DataFrame({
+        'loc_id': np.repeat(np.arange(1, num_locations + 1), len(coverage_type_ids)),
+        'coverage_type_id': np.tile(coverage_type_ids, num_locations),
+        'tiv': rng.uniform(1e3, 1e6, num_locations * len(coverage_type_ids)).round(2),
+    })
+    rows['number_of_buildings'] = rng.integers(1, 5, len(rows))
+    rows['number_of_risks'] = rows['number_of_buildings']
+    rows['country_code'] = np.repeat(rng.choice(['GB', 'US'], num_locations), len(coverage_type_ids))
+    df = pd.concat([rows.assign(peril_id=peril) for peril in ['WTC', 'WSS']], ignore_index=True)
+    df['status'] = rng.choice(list(OASIS_KEYS_STATUS.keys()), len(df))
+    categories = oed_categories_for(df)
+
+    summary = get_exposure_summary_fields(df, categories)
+
+    assert_summaries_equal(summary, reference_exposure_summary_fields(df, categories))
+    # every coverage type carries TIV, so none of the thirteen is only ever a zero bucket
+    for coverage_type in SUPPORTED_COVERAGE_TYPES:
+        assert sum(summary['country_code'][value]['all']['tiv_by_coverage'][coverage_type]
+                   for value in categories['country_code']) > 0, coverage_type
