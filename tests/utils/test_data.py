@@ -1589,14 +1589,23 @@ class TestValidateVulnCsvProbabilityDtype(TestCase):
         self.assertFalse(self._validate(pd.Series([0.5, 0.25], dtype=object)))
 
     def test_non_numeric_probability_is_rejected(self):
-        self.assertFalse(self._validate(['most of it']))
-        self.mock_logger.warning.assert_called_with('probability column must contain numeric values.')
+        """The rejection must be reported as such whatever dtype the strings arrive as.
 
-    def test_nullable_extension_dtype_probability_is_rejected(self):
-        """np.issubdtype cannot interpret a pandas extension dtype, so the outer except warns."""
-        self.assertFalse(self._validate(pd.array([0.5, 0.25], dtype='Float64')))
-        assert any('Error occurred while validating CSV file' in args[0]
-                   for args, _ in self.mock_logger.warning.call_args_list)
+        pandas is moving to a dedicated string dtype, and np.issubdtype cannot interpret one --
+        it raises, and the outer except turns a plain 'this column is not numeric' into an
+        internal error message, which is not what a file validator should tell a user.
+        """
+        for dtype in [None, 'object', 'string']:
+            with self.subTest(dtype=dtype):
+                self.assertFalse(self._validate(pd.Series(['most of it'], dtype=dtype)))
+                self.mock_logger.warning.assert_called_with(
+                    'probability column must contain numeric values.')
+
+    def test_nullable_extension_dtype_probability_is_accepted(self):
+        """A nullable Float64 column is a numeric probability column like any other."""
+        self.assertTrue(self._validate(pd.array([0.5, 0.25], dtype='Float64')))
+        self.assertFalse(self._validate(pd.array([0.5, 1.25], dtype='Float64')))
+        self.mock_logger.warning.assert_called_with('probability column must contain values between 0 and 1.')
 
 
 class TestValidateAnalysisOedFields(TestCase):
