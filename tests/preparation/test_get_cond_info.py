@@ -67,8 +67,62 @@ def test_same_priority_conflict_raises():
         [1, 0, 1, 'P1', 1, 'B', 'B', 1, 'AA1', 0],
     ])
     loc = _loc([[10, 1, 'A'], [10, 1, 'B']])  # both priority 1 on the same location
-    with pytest.raises(OasisException, match="same priority"):
+    # the full message is pinned, not just "same priority": support scripts grep this text, and the
+    # operand order is the row loop's -- the arriving tag first, then the one already held
+    with pytest.raises(OasisException, match=r"^\(1, 'B'\) and \(1, 'A'\) have same priority in 10$"):
         get_cond_info(loc, acc)
+
+
+def test_same_priority_conflict_names_the_first_conflict_in_row_order():
+    """Several conflicting locations report the one that collides first in the file, not the lowest id.
+
+    The row loop raised at the first offending location *row*, so a conflict on location 12 that
+    appears before a conflict on location 11 is the one reported. Selecting by a sorted groupby key
+    would name 11 instead.
+    """
+    acc = _acc([
+        [1, 0, 1, 'P1', 1, 'A', 'A', 1, 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'B', 'B', 1, 'AA1', 0],
+    ])
+    loc = _loc([[12, 1, 'A'], [11, 1, 'A'], [12, 1, 'B'], [11, 1, 'B']])
+
+    with pytest.raises(OasisException, match=r"have same priority in 12$"):
+        get_cond_info(loc, acc)
+    assert _normalise(get_cond_info, loc, acc) == _normalise(reference_get_cond_info, loc, acc)
+
+
+def test_empty_locations_against_a_populated_account_file():
+    """No locations means no cond keys from the location side, but the account tags still emit."""
+    acc = _acc([
+        [1, 0, 1, 'P1', 1, 'A', 'A', 1, 'AA1', 0],
+        [1, 0, 2, 'P2', 2, 'A', 'A', 1, 'AA1', 0],
+    ])
+    loc = _loc([])
+
+    assert _normalise(get_cond_info, loc, acc) == _normalise(reference_get_cond_info, loc, acc)
+
+
+def test_extra_account_dtypes_survive_the_frame_the_caller_builds():
+    """get_levels does pd.DataFrame(extra_accounts) and concatenates it onto accounts_df.
+
+    The values come from itertuples, so they are numpy scalars where the row loop produced python
+    ones. That must not change the dtypes the caller ends up concatenating, in particular it must
+    not upcast the integer id columns.
+    """
+    acc = _acc([
+        [1, 0, 1, 'P1', 1, 'A', 'A', 1, 'AA1', 0],
+        [1, 0, 2, 'P2', 2, 'B', 'B', 1, 'AA1', 0],
+    ])
+    loc = _loc([[10, 1, 'A'], [11, 1, 'B']])
+
+    _, extra_accounts = get_cond_info(loc.copy(), acc.copy())
+    _, reference_extra = reference_get_cond_info(loc.copy(), acc.copy())
+    frame, reference_frame = pd.DataFrame(extra_accounts), pd.DataFrame(reference_extra)
+
+    assert frame.columns.to_list() == reference_frame.columns.to_list()
+    assert frame.dtypes.to_dict() == reference_frame.dtypes.to_dict()
+    for column in ['acc_id', 'acc_idx', 'layer_id']:
+        assert frame[column].dtype.kind == 'i', f'{column} must stay an integer, got {frame[column].dtype}'
 
 
 def test_priority_zero_treated_as_one():
@@ -94,7 +148,8 @@ def test_extra_account_filler_for_uncovered_layer():
     a_row = extra[(extra['CondTag'] == 'A') & (extra['layer_id'] == 2)]
     assert len(a_row) == 1
     assert a_row.iloc[0]['CondNumber'] == ''            # no exclusion -> empty filler
-    assert 'CondDed6All' not in extra_accounts[list(extra.index[(extra['CondTag'] == 'A') & (extra['layer_id'] == 2)])[0]]
+    filler = next(e for e in extra_accounts if e['CondTag'] == 'A' and e['layer_id'] == 2)
+    assert 'CondDed6All' not in filler
 
 
 def test_exclusion_produces_fullfilter():
@@ -243,15 +298,21 @@ def reference_get_cond_info(locations_df, accounts_df):
 
 
 def _normalise(fn, loc, acc):
-    """Run fn and reduce its result to a comparable form, treating a raise as an outcome."""
+    """Run fn and reduce its result to a comparable form, treating a raise as an outcome.
+
+    Both orders here are load-bearing, so neither is sorted away. get_levels iterates
+    level_conds.items() and never reads the level number, so the *insertion* order of level_conds
+    is what assigns cond FM levels; and extra_accounts is concatenated onto accounts_df by the
+    caller, so its row order becomes FM row order. The exception message is compared too, since
+    two implementations raising for different reasons are not the same outcome.
+    """
     try:
         level_conds, extra_accounts = fn(loc.copy(), acc.copy())
-    except OasisException:
-        return 'raised'
+    except OasisException as exc:
+        return f'raised: {exc}'
     return (
-        _levels(level_conds),
-        # order differs between the two implementations and does not matter to the caller
-        sorted(tuple(sorted((k, str(v)) for k, v in extra.items())) for extra in extra_accounts),
+        list(_levels(level_conds).items()),
+        [tuple(sorted((k, str(v)) for k, v in extra.items())) for extra in extra_accounts],
     )
 
 
@@ -276,6 +337,16 @@ def _random_case(rng):
             int(rng.integers(0, 2)),                          # CondClass, exclusion included
         ])
     acc = _acc(acc_rows)
+
+    # PolNumber/LayerNumber are never fill_empty'd, so nulls reach the filler rows the account
+    # aggregation emits; CondClass/CondPriority/CondPeril are all optional on the account file
+    for column in ['PolNumber', 'LayerNumber']:
+        nulls = rng.random(len(acc)) < 0.2
+        if nulls.any():
+            acc.loc[nulls, column] = np.nan
+    for column in ['CondClass', 'CondPriority', 'CondPeril']:
+        if rng.random() < 0.15:
+            acc = acc.drop(columns=[column])
 
     acc_tags = acc[['acc_id', 'CondTag']].drop_duplicates().to_numpy().tolist()
     loc_rows = []

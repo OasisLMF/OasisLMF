@@ -245,24 +245,31 @@ def get_cond_info(locations_df, accounts_df):
             has_excl=(accounts_df['CondClass'].eq(1).fillna(False).astype(bool)
                       if 'CondClass' in accounts_df.columns else False),
         )
-        account_layers = layer_cols.groupby(['acc_id', 'layer_id'], sort=False, observed=True).agg(
-            PolNumber=('PolNumber', 'last'),
-            LayerNumber=('LayerNumber', 'last'),
-            acc_idx=('acc_idx', 'last'),
-            has_excl=('has_excl', 'max'),
-        ).reset_index()
+        # the exclusion flag is an 'any' over the layer, but the policy columns are literally the
+        # last row's, nulls included, as the row loop overwrote them per row. a groupby 'last' is
+        # last *non-null*, which would put a value on a filler row where the loop emitted NaN, so
+        # they are taken by drop_duplicates and joined onto the groups in first-appearance order.
+        account_layers = layer_cols.groupby(
+            ['acc_id', 'layer_id'], sort=False, observed=True)['has_excl'].max().reset_index()
+        account_layers = account_layers.merge(
+            layer_cols.drop_duplicates(['acc_id', 'layer_id'], keep='last').drop(columns='has_excl'),
+            on=['acc_id', 'layer_id'], how='left')
 
         # --- resolve each location's cond priority, detect same-priority conflicts, rank within the location ---
         loc = locations_df[['loc_id', 'acc_id', 'CondTag']].drop_duplicates()
         loc = loc.merge(tag_first[['acc_id', 'CondTag', 'priority']], on=['acc_id', 'CondTag'], how='left')
         loc['priority'] = loc['priority'].fillna(1)  # loc tags absent from accounts (e.g. default '0') -> priority 1
 
-        distinct_per_prio = loc.groupby(['loc_id', 'priority'], observed=True)[['acc_id', 'CondTag']].nunique()
-        conflict = distinct_per_prio[(distinct_per_prio > 1).any(axis=1)]
-        if conflict.shape[0]:
-            loc_key, prio_val = conflict.index[0]
-            keys = [tuple(x) for x in loc.loc[(loc['loc_id'] == loc_key) & (loc['priority'] == prio_val),
-                                              ['acc_id', 'CondTag']].drop_duplicates().to_numpy()]
+        # loc is unique on (loc_id, acc_id, CondTag), so a repeated (loc_id, priority) is by
+        # construction two different cond tags claiming one priority on one location. taking the
+        # first repeat in row order reports the same pair, in the same order, as the row loop did:
+        # the arriving tag first, then the one already held for that location.
+        collisions = loc.duplicated(['loc_id', 'priority'], keep='first').to_numpy()
+        if collisions.any():
+            arriving = int(np.argmax(collisions))
+            loc_key, prio_val = loc['loc_id'].iloc[arriving], loc['priority'].iloc[arriving]
+            held = int(np.argmax(((loc['loc_id'] == loc_key) & (loc['priority'] == prio_val)).to_numpy()))
+            keys = [tuple(row) for row in loc[['acc_id', 'CondTag']].iloc[[arriving, held]].to_numpy().tolist()]
             raise OasisException(f"{keys[0]} and {keys[1]} have same priority in {loc_key}")
 
         # cond_level_start = max over a cond_tag's locations of its 1-based rank (priorities are distinct within a location)
