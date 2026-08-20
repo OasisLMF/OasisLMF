@@ -1023,6 +1023,41 @@ def get_sub_step_trigger_types():
     })
 
 
+def assign_sub_step_trigger_types(level_df, step_filter):
+    """Split each step row's trigger type into its sub-type for that row's coverage type.
+
+    A StepTriggerType can cover several coverage types separately -- type 5 covers buildings and
+    contents apart from one another -- and the calc rule is looked up by the sub-type. A pair with
+    no sub-type keeps the trigger type it already has.
+
+    Args:
+        level_df (pandas.DataFrame): the FM level frame, with `steptriggertype` and
+            `coverage_type_id` columns. Modified in place.
+        step_filter (pandas.Series): boolean mask of the rows that are step rows
+
+    Returns:
+        pandas.DataFrame: `level_df`, with the step rows' `steptriggertype` replaced by its
+        sub-type wherever the (trigger type, coverage type) pair has one
+    """
+    step_rows = level_df.loc[step_filter, ['steptriggertype', 'coverage_type_id']]
+    sub_step_trigger_type = get_sub_step_trigger_types().reindex(pd.MultiIndex.from_frame(step_rows))
+    # positional throughout: level_df's index is not guaranteed unique, and reindexing onto a
+    # duplicated label would raise rather than assign
+    has_sub_type = sub_step_trigger_type.notna().to_numpy()
+    # reindexing onto a MultiIndex introduces NaN and so promotes the lookup to float64. sub-types
+    # are integers, and a float written into an object column would not match the integer key the
+    # calc rules table is merged on, so the integer is restored before the rows are combined
+    sub_types = sub_step_trigger_type.fillna(0).to_numpy().astype('int64')
+    replacement = np.where(has_sub_type, sub_types, step_rows['steptriggertype'].to_numpy())
+    # pd.array rather than ndarray.astype, because the column is a nullable Int32 in the real
+    # pipeline and numpy cannot interpret a pandas extension dtype. assigning an array rather
+    # than a Series keeps the assignment positional.
+    level_df.loc[step_filter, 'steptriggertype'] = pd.array(
+        replacement, dtype=level_df['steptriggertype'].dtype)
+
+    return level_df
+
+
 @oasis_log
 def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, profile_id_offset):
     """Assign calcrule_id and profile_id to a level's terms.
@@ -1052,13 +1087,7 @@ def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, pro
         # coverages are covered separately
         # For example, StepTriggerType = 5 covers buildings and contents separately
 
-        step_rows = level_df.loc[step_filter, ['steptriggertype', 'coverage_type_id']]
-        sub_step_trigger_type = get_sub_step_trigger_types().reindex(pd.MultiIndex.from_frame(step_rows))
-        # a trigger type with no sub-type for the row's coverage type keeps the trigger type it has
-        has_sub_type = sub_step_trigger_type.notna().to_numpy()
-        level_df.loc[step_rows.index[has_sub_type], 'steptriggertype'] = pd.Series(
-            sub_step_trigger_type.to_numpy()[has_sub_type],
-            index=step_rows.index[has_sub_type], dtype=level_df['steptriggertype'].dtype)
+        level_df = assign_sub_step_trigger_types(level_df, step_filter)
         final_step_filter = level_df['steptriggertype'] > 0
         # step part
         level_df.loc[final_step_filter, 'calcrule_id'] = get_calc_rule_ids(level_df[final_step_filter], calc_rule_type='step')

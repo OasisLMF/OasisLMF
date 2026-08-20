@@ -7,7 +7,7 @@ import numpy as np
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (
-    load_as_ndarray, nb_oasis_int,
+    areaperil_int, load_as_ndarray, nb_oasis_int,
     correlations_headers, correlations_dtype, coverages_headers,
     occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
     quantile_interval_dtype, returnperiods_dtype,
@@ -37,6 +37,26 @@ OCCURRENCE_FILE = "occurrence.bin"
 PERIODS_FILE = "periods.bin"
 QUANTILE_FILE = "quantile.bin"
 RETURNPERIODS_FILE = "returnperiods.bin"
+
+
+KEYS_DTYPE = np.dtype([('LocID', np.int32), ('PerilID', 'U3'), ('CoverageTypeID', np.int32),
+                       ('AreaPerilID', areaperil_int), ('VulnerabilityID', np.int32)])
+
+
+def filter_area_peril_id(keys_tb, peril_filter):
+    """Select the area perils a peril specific run covers.
+
+    Args:
+        keys_tb (numpy.ndarray): the keys table, in `KEYS_DTYPE`
+        peril_filter (iterable): the peril ids the run is restricted to
+
+    Returns:
+        numpy.ndarray: the distinct AreaPerilIDs of the keys rows whose PerilID is in
+        `peril_filter`, in ascending order. Empty rather than absent when nothing matches.
+    """
+    # peril_filter is listed because np.isin treats a bare string as a sequence of characters,
+    # and an empty keys table must still give an integer array for the indexing below to work
+    return np.unique(keys_tb['AreaPerilID'][np.isin(keys_tb['PerilID'], list(peril_filter))])
 
 
 @nb.njit(cache=True)

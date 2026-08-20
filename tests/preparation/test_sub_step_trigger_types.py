@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from oasislmf.preparation.il_inputs import get_sub_step_trigger_types
+from oasislmf.preparation.il_inputs import assign_sub_step_trigger_types as _assign_sub_step_trigger_types
 from oasislmf.utils.fm import STEP_TRIGGER_TYPES
 
 COVERAGE_TYPE_IDS = [1, 2, 3, 4, 5]
@@ -19,34 +19,74 @@ def reference_sub_step_trigger_type(row):
         return row['steptriggertype']
 
 
-def assign_sub_step_trigger_types(level_df):
-    """Assign the sub-step trigger types the way assign_level_calcrule_and_profile_ids does."""
-    step_rows = level_df[['steptriggertype', 'coverage_type_id']]
-    sub_step_trigger_type = get_sub_step_trigger_types().reindex(pd.MultiIndex.from_frame(step_rows))
-    has_sub_type = sub_step_trigger_type.notna().to_numpy()
+def assign_sub_step_trigger_types(level_df, step_filter=None):
+    """Call the assignment, so a regression in it fails these tests.
 
-    assigned = level_df.copy()
-    assigned.loc[step_rows.index[has_sub_type], 'steptriggertype'] = pd.Series(
-        sub_step_trigger_type.to_numpy()[has_sub_type],
-        index=step_rows.index[has_sub_type], dtype=assigned['steptriggertype'].dtype)
+    Only the reference implementation is duplicated here; the code under test is imported.
+    """
+    if step_filter is None:
+        step_filter = pd.Series(True, index=level_df.index)
 
-    return assigned['steptriggertype']
+    return _assign_sub_step_trigger_types(level_df.copy(), step_filter)['steptriggertype']
 
 
-@pytest.mark.parametrize('dtype', ['int64', 'int32', 'float64'])
+# Int32 is what the real pipeline carries: coverage_type_id_df gives steptriggertype a nullable
+# extension dtype, which numpy's astype cannot interpret
+@pytest.mark.parametrize('dtype', ['int64', 'int32', 'float64', 'object', 'Int32', 'Int64'])
 def test_matches_the_row_wise_assignment(dtype):
     rng = np.random.default_rng(3)
     level_df = pd.DataFrame({
-        'steptriggertype': rng.choice(STEP_TRIGGER_TYPE_IDS, 200).astype(dtype),
-        'coverage_type_id': rng.choice(COVERAGE_TYPE_IDS, 200).astype(dtype),
+        'steptriggertype': pd.Series(rng.choice(STEP_TRIGGER_TYPE_IDS, 200)).astype(dtype),
+        'coverage_type_id': pd.Series(rng.choice(COVERAGE_TYPE_IDS, 200)).astype(dtype),
     })
 
     expected = level_df.apply(reference_sub_step_trigger_type, axis=1)
+    assigned = assign_sub_step_trigger_types(level_df)
 
     np.testing.assert_array_equal(
-        assign_sub_step_trigger_types(level_df).to_numpy().astype('int64'),
-        expected.to_numpy().astype('int64'),
-    )
+        assigned.to_numpy().astype('int64'), expected.to_numpy().astype('int64'))
+    assert assigned.dtype == level_df['steptriggertype'].dtype
+
+
+def test_an_object_column_keeps_integers_rather_than_floats():
+    """The calc rules table is merged on steptriggertype, and 1.0 does not match the key 1.
+
+    Reindexing onto the MultiIndex introduces NaN, which promotes the lookup to float64. Masking
+    the NaN away afterwards does not convert the surviving values back, so an object column would
+    silently take floats and the merge would return a NaN calcrule_id for those rows.
+    """
+    level_df = pd.DataFrame({
+        'steptriggertype': pd.Series([5, 5, 4], dtype=object),
+        'coverage_type_id': pd.Series([1, 2, 1], dtype=object),
+    })
+
+    assigned = assign_sub_step_trigger_types(level_df)
+
+    assert assigned.dtype == object
+    assert not any(isinstance(value, float) for value in assigned), assigned.to_list()
+    # (5, 1) has sub-type 1; (5, 2) has none so keeps 5; (4, 1) has none so keeps 4
+    np.testing.assert_array_equal(assigned.to_numpy().astype('int64'), [1, 5, 4])
+
+
+def test_a_duplicated_index_is_assigned_positionally():
+    """level_df's index is not guaranteed unique, and reindexing onto duplicate labels raises."""
+    level_df = pd.DataFrame(
+        {'steptriggertype': [5, 5, 5, 1], 'coverage_type_id': [1, 2, 3, 4]}, index=[0, 0, 1, 1])
+
+    assigned = assign_sub_step_trigger_types(level_df)
+
+    # (5, 1) -> 1; (5, 2) has no sub-type so keeps 5; (5, 3) -> 2; (1, 4) -> 0
+    np.testing.assert_array_equal(assigned.to_numpy(), [1, 5, 2, 0])
+
+
+def test_only_the_filtered_rows_are_assigned():
+    """Non-step rows keep their trigger type even when the pair has a sub-type."""
+    level_df = pd.DataFrame({'steptriggertype': [5, 5], 'coverage_type_id': [1, 2]})
+    step_filter = pd.Series([True, False], index=level_df.index)
+
+    assigned = assign_sub_step_trigger_types(level_df, step_filter)
+
+    np.testing.assert_array_equal(assigned.to_numpy(), [1, 5])
 
 
 def test_covers_every_declared_pair():

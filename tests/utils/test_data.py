@@ -1538,6 +1538,67 @@ class TestValidateVulnerabilityReplacements(TestCase):
                     self.assertTrue(message_found, "Expected log message not found")
 
 
+class TestValidateVulnCsvProbabilityDtype(TestCase):
+    """The probability dtype branch of validate_vuln_csv_contents.
+
+    Its reject path is reached by no other test in this file: every fixture uses a float64
+    probability column, so only the accept branch ever runs.
+    """
+
+    def setUp(self):
+        self.logger_patch = patch('oasislmf.utils.data.logger')
+        self.mock_logger = self.logger_patch.start()
+
+    def tearDown(self):
+        self.logger_patch.stop()
+
+    def _validate(self, probability):
+        rows = len(probability)
+        vuln_df = pd.DataFrame({
+            'vulnerability_id': [2] * rows, 'intensity_bin_id': [1] * rows,
+            'damage_bin_id': [1] * rows, 'probability': probability,
+        })
+        with patch('pandas.read_csv', return_value=vuln_df):
+            return validate_vuln_csv_contents('any_path.csv')
+
+    def test_float_probability_is_accepted(self):
+        self.assertTrue(self._validate([0.5, 1.0, 0.0]))
+
+    def test_integer_probability_is_accepted(self):
+        # 0 and 1 are legal probabilities, and such a column reads back from a csv as int64
+        self.assertTrue(self._validate([0, 1]))
+
+    def test_probability_outside_the_unit_interval_is_rejected(self):
+        self.assertFalse(self._validate([1.5]))
+
+    def test_boolean_probability_is_rejected(self):
+        """A True/False column compares inside [0, 1] but is not a probability column.
+
+        The per-value ``isinstance(x, (int, float))`` check this replaced accepted it, because
+        bool is a subclass of int, so True passed as the probability 1.
+        """
+        self.assertFalse(self._validate([True, False]))
+
+    def test_object_probability_is_rejected(self):
+        """An object column is rejected even when every value in it is a python number.
+
+        ``Series.apply`` unboxes to python scalars, so the check this replaced saw plain floats
+        here and accepted them. pd.read_csv cannot produce this, but the tests in this file mock
+        read_csv and inject frames directly, so it is reachable from a fixture.
+        """
+        self.assertFalse(self._validate(pd.Series([0.5, 0.25], dtype=object)))
+
+    def test_non_numeric_probability_is_rejected(self):
+        self.assertFalse(self._validate(['most of it']))
+        self.mock_logger.warning.assert_called_with('probability column must contain numeric values.')
+
+    def test_nullable_extension_dtype_probability_is_rejected(self):
+        """np.issubdtype cannot interpret a pandas extension dtype, so the outer except warns."""
+        self.assertFalse(self._validate(pd.array([0.5, 0.25], dtype='Float64')))
+        assert any('Error occurred while validating CSV file' in args[0]
+                   for args, _ in self.mock_logger.warning.call_args_list)
+
+
 class TestValidateAnalysisOedFields(TestCase):
     def setUp(self):
         self.logger_patch = patch('oasislmf.utils.data.logger')
