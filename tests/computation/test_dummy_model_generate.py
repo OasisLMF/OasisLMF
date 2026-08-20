@@ -1,6 +1,8 @@
 """Pin the array generation of the dummy model files against the row by row generation."""
 
+import os
 import struct
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -182,12 +184,67 @@ def test_footprint_index_describes_whole_events_when_chunked(monkeypatch, tmp_pa
     )
 
 
+def test_footprint_with_no_events_writes_a_header_and_an_empty_index(tmp_path):
+    """A footprint with no events still writes both files, the index simply holding no records.
+
+    The row by row version only ever opened footprint.idx from inside the per event loop, so with
+    no events it left no index file at all -- and a footprint with no index is not readable, where
+    an empty one is well formed. This is the single case where the array output is not byte for
+    byte what the row output was, so it is pinned rather than left to be rediscovered.
+    """
+    footprint = model_files(tmp_path, num_events=0)['footprint']
+    footprint.write_file()
+
+    idx_path = Path(footprint.idx_file.file_name)
+    assert idx_path.exists()
+    assert np.fromfile(idx_path, dtype=footprint.idx_file.array_dtype).size == 0
+    assert len(footprint.index) == 0
+
+    # the bin file is the 8 byte header and nothing else
+    start_stats_size = sum(struct.calcsize(stat['dtype']) for stat in footprint.start_stats or [])
+    assert os.path.getsize(footprint.file_name) == start_stats_size
+    assert np.fromfile(footprint.file_name, dtype=footprint.array_dtype,
+                       offset=start_stats_size).size == 0
+
+
 def test_footprint_index_written_to_file(tmp_path):
     footprint = model_files(tmp_path)['footprint']
     footprint.write_file()
 
     written = np.fromfile(footprint.idx_file.file_name, dtype=footprint.idx_file.array_dtype)
     np.testing.assert_array_equal(written, footprint.index)
+
+
+@pytest.mark.parametrize('file_name', FILE_NAMES)
+def test_array_dtype_is_packed_like_the_struct_format(file_name, tmp_path):
+    """Every row written as an array occupies exactly the bytes its struct format declares.
+
+    The files are read back by struct format characters, so the dtype has to stay packed. Building
+    it with align=True, or adding a format character to STRUCT_TO_NUMPY_FORMAT whose numpy width
+    does not match, would insert padding and shift every field after it -- producing a file of
+    plausible size that no assertion on the generated rows would notice.
+    """
+    model_file = model_files(tmp_path)[file_name]
+    array_dtype = model_file.array_dtype
+
+    assert array_dtype.itemsize == struct.calcsize('=' + ''.join(model_file.dtypes.values()))
+    assert array_dtype.names == tuple(model_file.dtypes)
+    # no gaps: each field starts where the previous one ended
+    offsets = [array_dtype.fields[name][1] for name in array_dtype.names]
+    widths = [array_dtype.fields[name][0].itemsize for name in array_dtype.names]
+    assert offsets == list(np.cumsum([0] + widths[:-1]))
+
+
+def test_footprint_index_dtype_is_packed_like_the_struct_format(tmp_path):
+    """The index record is 20 bytes, not the 24 an aligned dtype would give it.
+
+    getmodel reads footprint.idx with EventIndexBin_dtype, so a padded record here would be
+    silently misread rather than rejected.
+    """
+    idx_file = model_files(tmp_path)['footprint'].idx_file
+
+    assert idx_file.array_dtype.itemsize == struct.calcsize('=' + ''.join(idx_file.dtypes.values()))
+    assert idx_file.array_dtype.itemsize == 20
 
 
 @pytest.mark.parametrize('file_name', FILE_NAMES)
