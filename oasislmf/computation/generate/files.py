@@ -227,7 +227,10 @@ class GenerateFiles(ComputationStep):
             account_df = exposure_data.account.dataframe
             # Validate location/account referential integrity now, before the (potentially very
             # long) keys lookup stage, so a bad portfolio fails fast instead of after hours of work.
-            validate_account_location_references(exposure_data.location.dataframe, exposure_data.account.dataframe)
+            # exposure_data.location can be None (e.g. cyber, marine - no location file), in which
+            # case there's nothing to validate against accounts.
+            true_location_df = exposure_data.location.dataframe if exposure_data.location is not None else None
+            validate_account_location_references(true_location_df, exposure_data.account.dataframe)
         else:
             account_df = None
 

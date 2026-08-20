@@ -216,7 +216,7 @@ def check_cond_tags(locations_df, accounts_df):
 
     if 'CondTag' in accounts_df.columns:
         fill_empty(accounts_df, 'CondTag', default_cond_tag)
-        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['acc_id', 'CondTag']].drop_duplicates()
+        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != default_cond_tag, ['acc_id', 'CondTag']].drop_duplicates()
         condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
         missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['acc_id', 'CondTag']]
     else:
@@ -254,6 +254,12 @@ def validate_account_location_references(locations_df, accounts_df):
         loc_acc_id_col = locations_df['acc_id'].to_numpy()
     else:
         acc_id_map = accounts_df[['PortNumber', 'AccNumber']].assign(acc_id=acc_id_col).drop_duplicates()
+        dup_keys = acc_id_map.duplicated(subset=['PortNumber', 'AccNumber'], keep=False)
+        if dup_keys.any():
+            raise OasisException(
+                'The following PortNumber/AccNumber combinations map to more than one acc_id '
+                f'in the account file:\n{acc_id_map.loc[dup_keys].head(20).to_string(index=False)}'
+            )
         loc_acc_id_col = locations_df[['PortNumber', 'AccNumber']].merge(
             acc_id_map, how='left', on=['PortNumber', 'AccNumber'])['acc_id'].to_numpy()
 
@@ -643,6 +649,15 @@ def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
     )
 
 
+def assign_acc_id(accounts_df):
+    """Ensure accounts_df has an 'acc_id' column, computing it from PortNumber/AccNumber
+    if not already present. Mutates accounts_df in place; idempotent.
+    """
+    if 'acc_id' not in accounts_df.columns:
+        accounts_df['acc_id'] = get_ids(accounts_df, ['PortNumber', 'AccNumber'])
+    return accounts_df
+
+
 @oasis_log
 def prepare_il_source_dataframes(gul_inputs_df, exposure_data):
     """Resolve the acc_id key across gul/location/account frames and fill location defaults.
@@ -663,8 +678,7 @@ def prepare_il_source_dataframes(gul_inputs_df, exposure_data):
     if exposure_data.location is not None:
         locations_df = exposure_data.location.dataframe
         accounts_df = exposure_data.account.dataframe
-        if 'acc_id' not in accounts_df:
-            accounts_df['acc_id'] = get_ids(exposure_data.account.dataframe, ['PortNumber', 'AccNumber'])
+        assign_acc_id(accounts_df)
         acc_id_map = accounts_df[['PortNumber', 'AccNumber', 'acc_id']].drop_duplicates()
         gul_inputs_df = gul_inputs_df.merge(acc_id_map, how='left')
         locations_df = locations_df.merge(acc_id_map, how='left')
