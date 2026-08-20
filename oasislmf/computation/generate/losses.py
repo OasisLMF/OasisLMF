@@ -937,19 +937,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         ri_layer_bin_fp = os.path.join(output_dir, f"ri{layer}.bin")
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
                         try:
-                            csvtobin(guls_fp, guls_bin_fp, "gul", stream_type=self.il_stream_type, max_sample_index=1)
                             if layer == 1:
-                                fmpy_run(
-                                    create_financial_structure_files=False,
-                                    allocation_rule=self.kernel_alloc_rule_il,
-                                    static_path=output_dir,
-                                    files_in=[guls_bin_fp],
-                                    files_out=[ils_bin_fp],
-                                    low_memory=self.fmpy_low_memory,
-                                    sort_output=self.fmpy_sort_output,
-                                    net_loss=None,
-                                    storage_method='sparse',
-                                )
                                 ri_input_fp = ils_bin_fp
                             else:
                                 ri_input_fp = os.path.join(output_dir, f'ri{layer - 1}.bin')
