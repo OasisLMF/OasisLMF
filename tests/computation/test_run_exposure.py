@@ -1,4 +1,7 @@
+import io
 import os
+import re
+from contextlib import redirect_stdout
 from tempfile import NamedTemporaryFile
 from unittest.mock import patch
 
@@ -288,6 +291,13 @@ class _RunExposureIntegrationBase(ComputationChecker):
     def _run(self, output_file, **kwargs):
         return _run_exposure(output_file, **self.extra_kwargs, **kwargs)
 
+    def _run_capturing_summary(self, output_file, **kwargs):
+        params = {**BASE_PARAMS, **self.extra_kwargs, **kwargs, 'print_summary': True}
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            RunExposure(output_file=output_file, **params).run()
+        return buffer.getvalue()
+
     def test_acc_loc_run_returns_il_true_ril_false(self):
         il, ril = self._run(
             self._output_file(),
@@ -380,6 +390,21 @@ class _RunExposureIntegrationBase(ComputationChecker):
             loss_factor=[0.5],
         )
         _assert_output_matches(out, EXPECTED_LOSS_HALF)
+
+    def test_multiple_loss_factors_gul_totals_match_output(self):
+        out = self._output_file()
+        summary = self._run_capturing_summary(
+            out,
+            oed_location_csv=LOCATION,
+            oed_accounts_csv=ACCOUNTS,
+            loss_factor=[0.5, 1.0],
+        )
+        printed = [float(t.replace(',', '')) for t in re.findall(r'total gul=([\d,]+)', summary)]
+        expected = pd.read_csv(out).groupby('loss_factor_idx')['loss_gul'].sum()
+
+        self.assertEqual(len(printed), 2)
+        for idx, total in enumerate(printed):
+            self.assertAlmostEqual(total, expected[idx], delta=1)
 
 
 class TestRunExposureIntegration(_RunExposureIntegrationBase):

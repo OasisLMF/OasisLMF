@@ -265,6 +265,10 @@ class RunExposure(ComputationStep):
             all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=group_by_cols)
             all_losses_df = all_losses_df.merge(how='left', right=summary_ri_df, on=group_by_cols)
 
+        # Convert summary cols to strings for formatting. loss_factor_idx is left
+        # numeric so that it can still be compared against the loop index below.
+        all_losses_df[summary_cols] = all_losses_df[summary_cols].astype(str)
+
         for i in range(len(self.loss_factor)):
 
             if include_loss_factor:
@@ -303,15 +307,11 @@ class RunExposure(ComputationStep):
                         self.loss_factor[i],
                         total_gul, total_il, total_ri_ceded)
 
-            # Convert output cols to strings for formatting
-            for c in group_by_cols:
-                all_losses_df[c] = all_losses_df[c].apply(str)
-
             if self.print_summary:
                 cols_to_print = all_loss_cols.copy()
                 if include_loss_factor:
                     print_dataframe(
-                        all_losses_df[all_losses_df.loss_factor_idx == str(i)],
+                        all_losses_df[all_losses_df.loss_factor_idx == i],
                         frame_header=header,
                         cols=cols_to_print)
                 else:
