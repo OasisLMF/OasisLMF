@@ -256,9 +256,10 @@ def validate_account_location_references(locations_df, accounts_df):
         acc_id_map = accounts_df[['PortNumber', 'AccNumber']].assign(acc_id=acc_id_col).drop_duplicates()
         dup_keys = acc_id_map.duplicated(subset=['PortNumber', 'AccNumber'], keep=False)
         if dup_keys.any():
+            dups = acc_id_map.loc[dup_keys]
             raise OasisException(
                 'The following PortNumber/AccNumber combinations map to more than one acc_id '
-                f'in the account file:\n{acc_id_map.loc[dup_keys].head(20).to_string(index=False)}'
+                f'in the account file (total={len(dups)}):\n{dups.head(20).to_string(index=False)}'
             )
         loc_acc_id_col = locations_df[['PortNumber', 'AccNumber']].merge(
             acc_id_map, how='left', on=['PortNumber', 'AccNumber'])['acc_id'].to_numpy()
@@ -268,8 +269,8 @@ def validate_account_location_references(locations_df, accounts_df):
         id_cols = [col for col in ['LocNumber', 'PortNumber', 'AccNumber'] if col in locations_df.columns]
         offending_locations = locations_df.loc[missing_acc_mask, id_cols].drop_duplicates()
         raise OasisException(
-            'The following locations reference a PortNumber/AccNumber combination '
-            f'that is not present in the account file:\n{offending_locations.head(20).to_string(index=False)}'
+            'The following locations reference a PortNumber/AccNumber combination that is not present '
+            f'in the account file (total={len(offending_locations)}):\n{offending_locations.head(20).to_string(index=False)}'
         )
 
     # Built from plain numpy arrays (copy=True) rather than sliced from locations_df/accounts_df,

@@ -68,6 +68,19 @@ class TestValidateAccountLocationReferences(TestCase):
 
         self.assertIn('PortNumber/AccNumber combination', str(ctx.exception))
         self.assertIn('A9', str(ctx.exception))
+        self.assertIn('total=1', str(ctx.exception))
+
+    def test_duplicate_acc_id_mapping_raises(self):
+        # a pre-existing (corrupted) acc_id column where the same PortNumber/AccNumber
+        # combination maps to two different acc_id values
+        locations_df = make_locations(AccNumber=['A1', 'A1', 'A1'])
+        accounts_df = make_accounts(AccNumber=['A1', 'A1'], acc_id=[10, 99])
+
+        with self.assertRaises(OasisException) as ctx:
+            validate_account_location_references(locations_df, accounts_df)
+
+        self.assertIn('more than one acc_id', str(ctx.exception))
+        self.assertIn('total=2', str(ctx.exception))
 
     def test_valid_matching_condtag_on_both_sides_does_not_raise(self):
         # exercises the CondTag branches in validate_account_location_references itself
