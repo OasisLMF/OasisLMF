@@ -77,7 +77,7 @@ def test_oasis_ping_websocket_success():
     with patch("websocket.WebSocket", return_value=fake_ws):
         result = oasis_ping_websocket("ws://fakehost:1234/ws", '{"hello": "world"}')
     assert result is True
-    fake_ws.connect.assert_called_once_with("ws://fakehost:1234/ws")
+    fake_ws.connect.assert_called_once_with("ws://fakehost:1234/ws", timeout=5)
     fake_ws.send.assert_called_once_with('{"hello": "world"}')
     fake_ws.close.assert_called_once()
 
