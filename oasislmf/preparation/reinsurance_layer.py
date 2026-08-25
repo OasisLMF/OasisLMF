@@ -175,8 +175,7 @@ FM_TERMS_PER_REINS_TYPE = {
 
 
 def match_filter_level_scope(filter_df, ri_filter_fields, merge_on):
-    """
-    Work out which rows of the merged filter level dataframe the reinsurance scope applies to.
+    """Work out which rows of the merged filter level dataframe the reinsurance scope applies to.
 
     A scope row applies to a profile map row when every filter field the scope actually specifies
     (the ones flagged by the matching '<field>_valid' column) holds the same value on both sides of
