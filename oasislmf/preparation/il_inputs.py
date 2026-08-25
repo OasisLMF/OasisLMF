@@ -282,22 +282,27 @@ def get_cond_info(locations_df, accounts_df):
         # every such pair on separate levels. Sorted on a copy: loc's row order is load-bearing,
         # it feeds all_cond_keys below and thence the level_conds and extra_accounts orderings.
         chain = loc.sort_values(['loc_id', 'priority'], kind='stable')
-        tag_code, tag_keys = pd.MultiIndex.from_frame(chain[['acc_id', 'CondTag']]).factorize()
-        chain = chain.assign(tag_code=tag_code,
-                             inner_code=pd.Series(tag_code, index=chain.index)
-                             .groupby(chain['loc_id'], observed=True).shift())
+        if chain.empty:
+            # an account file can carry cond tags with no locations referencing them; guarded
+            # explicitly because MultiIndex.factorize raises on an empty frame in older pandas
+            level_map = {}
+        else:
+            tag_code, tag_keys = pd.MultiIndex.from_frame(chain[['acc_id', 'CondTag']]).factorize()
+            chain = chain.assign(tag_code=tag_code,
+                                 inner_code=pd.Series(tag_code, index=chain.index)
+                                 .groupby(chain['loc_id'], observed=True).shift())
 
-        levels = np.ones(len(tag_keys), dtype='int64')
-        # every edge runs from a lower priority to a higher one, so ascending priority is a
-        # topological order: a tag's inner neighbours are final by the time it is reached
-        for priority in np.sort(chain['priority'].unique()):
-            step = chain[(chain['priority'] == priority) & chain['inner_code'].notna()]
-            if step.empty:
-                continue
-            np.maximum.at(levels, step['tag_code'].to_numpy(),
-                          levels[step['inner_code'].to_numpy().astype('int64')] + 1)
+            levels = np.ones(len(tag_keys), dtype='int64')
+            # every edge runs from a lower priority to a higher one, so ascending priority is a
+            # topological order: a tag's inner neighbours are final by the time it is reached
+            for priority in np.sort(chain['priority'].unique()):
+                step = chain[(chain['priority'] == priority) & chain['inner_code'].notna()]
+                if step.empty:
+                    continue
+                np.maximum.at(levels, step['tag_code'].to_numpy(),
+                              levels[step['inner_code'].to_numpy().astype('int64')] + 1)
 
-        level_map = {tuple(key): int(level) for key, level in zip(tag_keys, levels)}
+            level_map = {tuple(key): int(level) for key, level in zip(tag_keys, levels)}
 
         # every cond_tag key to emit results for: those defined on accounts plus those referenced by
         # locations (the latter adds default-'0' tags, which are synthetic priority-1 conds)
