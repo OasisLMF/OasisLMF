@@ -72,17 +72,17 @@ DISABLE_DATA_CHECKS = version.parse(responses_ver) >= version.parse("0.25.3")
 
 
 def fetch_with_retries(url, retries=5, backoff_factor=1.0):
-    session = requests.Session()
-    retry = Retry(
-        total=retries,
-        connect=retries,
-        read=retries,
-        backoff_factor=backoff_factor,
-        status_forcelist=[502, 503, 504],
-    )
-    session.mount('https://', HTTPAdapter(max_retries=retry))
-    session.mount('http://', HTTPAdapter(max_retries=retry))
-    return session.get(url).content
+    with requests.Session() as session:
+        retry = Retry(
+            total=retries,
+            connect=retries,
+            read=retries,
+            backoff_factor=backoff_factor,
+            status_forcelist=[502, 503, 504],
+        )
+        session.mount('https://', HTTPAdapter(max_retries=retry))
+        session.mount('http://', HTTPAdapter(max_retries=retry))
+        return session.get(url).content
 
 
 @responses.activate
