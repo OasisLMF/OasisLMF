@@ -71,12 +71,10 @@ responses_ver = get_version("responses")
 DISABLE_DATA_CHECKS = version.parse(responses_ver) >= version.parse("0.25.3")
 
 
-def fetch_with_retries(url, retries=5, backoff_factor=1.0):
+def fetch_with_retries(url, retries=5, backoff_factor=0.1):
     with requests.Session() as session:
         retry = Retry(
             total=retries,
-            connect=retries,
-            read=retries,
             backoff_factor=backoff_factor,
             status_forcelist=[502, 503, 504],
         )
