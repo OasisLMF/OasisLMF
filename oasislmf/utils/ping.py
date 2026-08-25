@@ -47,7 +47,7 @@ def oasis_ping(data):
                 return True
         if not attempted:
             logger.error("Missing environment variables `OASIS_ANALYSIS_STATUS_URL` or "
-                          "`OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT`.")
+                         "`OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT`.")
         return False
     port_override = data.pop('port_override', None)
     msg = json.dumps(data)

@@ -682,7 +682,7 @@ class GenerateLosses(GenerateLossesDir):
             has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
             if 'analysis_pk' in self.kwargs and not (has_websocket or has_http):
                 self.logger.info("Set `OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT` or `OASIS_ANALYSIS_STATUS_URL` "
-                                  "environment variables for run progress updates")
+                                 "environment variables for run progress updates")
             elif 'analysis_pk' in self.kwargs:
                 oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
             else:
