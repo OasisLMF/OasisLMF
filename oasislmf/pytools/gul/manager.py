@@ -317,11 +317,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 while write_start < cursor:
                     select([], select_stream_list, select_stream_list)
                     write_start += stream_out.write(byte_mv[write_start:cursor].tobytes())
-                    counter += 1
 
                 cursor = 0
 
             logger.info(f"event {event_id} DONE")
+            counter += 1
 
             if ping and time.time() - timer > SERVER_UPDATE_TIME:
                 ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
