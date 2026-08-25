@@ -24,6 +24,7 @@ __all__ = [
     'SUMMARY_MAPPING',
     'SUMMARY_OUTPUT',
     'SOURCE_IDX',
+    'SAR_ID',
     'STATIC_DATA_FP',
     'WRITE_CHUNKSIZE',
     'KTOOLS_ALLOC_IL_DEFAULT',
