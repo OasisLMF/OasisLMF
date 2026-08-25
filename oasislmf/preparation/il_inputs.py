@@ -272,10 +272,32 @@ def get_cond_info(locations_df, accounts_df):
             keys = [tuple(row) for row in loc[['acc_id', 'CondTag']].iloc[[arriving, held]].to_numpy().tolist()]
             raise OasisException(f"{keys[0]} and {keys[1]} have same priority in {loc_key}")
 
-        # cond_level_start = max over a cond_tag's locations of its 1-based rank (priorities are distinct within a location)
-        loc['pos'] = loc.groupby('loc_id', observed=True)['priority'].rank(method='dense').astype(int)
-        level_map = {(r.acc_id, r.CondTag): int(r.pos)
-                     for r in loc.groupby(['acc_id', 'CondTag'], observed=True)['pos'].max().reset_index().itertuples()}
+        # cond_level_start = the longest chain of strictly-inner conditions ending at this cond_tag,
+        # taken over every location it sits on. Ranking within a location and maxing the rank does
+        # not compose across locations: a tag can rank first where it is innermost and second
+        # elsewhere, which lands it on the same level as a lower-priority tag it shares a location
+        # with -- a pair the FM has to nest and cannot express as one node. Priorities are distinct
+        # within a location (checked above), so ordering a location by priority gives a strict
+        # chain, and the longest path over those chains is the shallowest assignment that keeps
+        # every such pair on separate levels. Sorted on a copy: loc's row order is load-bearing,
+        # it feeds all_cond_keys below and thence the level_conds and extra_accounts orderings.
+        chain = loc.sort_values(['loc_id', 'priority'], kind='stable')
+        tag_code, tag_keys = pd.MultiIndex.from_frame(chain[['acc_id', 'CondTag']]).factorize()
+        chain = chain.assign(tag_code=tag_code,
+                             inner_code=pd.Series(tag_code, index=chain.index)
+                             .groupby(chain['loc_id'], observed=True).shift())
+
+        levels = np.ones(len(tag_keys), dtype='int64')
+        # every edge runs from a lower priority to a higher one, so ascending priority is a
+        # topological order: a tag's inner neighbours are final by the time it is reached
+        for priority in np.sort(chain['priority'].unique()):
+            step = chain[(chain['priority'] == priority) & chain['inner_code'].notna()]
+            if step.empty:
+                continue
+            np.maximum.at(levels, step['tag_code'].to_numpy(),
+                          levels[step['inner_code'].to_numpy().astype('int64')] + 1)
+
+        level_map = {tuple(key): int(level) for key, level in zip(tag_keys, levels)}
 
         # every cond_tag key to emit results for: those defined on accounts plus those referenced by
         # locations (the latter adds default-'0' tags, which are synthetic priority-1 conds)
@@ -283,6 +305,11 @@ def get_cond_info(locations_df, accounts_df):
         for r in all_cond_keys.itertuples():
             cond_key = (int(r.acc_id), r.CondTag)
             level_conds.setdefault(level_map.get((r.acc_id, r.CondTag), 1), set()).add(cond_key)
+
+        # get_levels iterates level_conds and never reads the key, so insertion order *is* the FM
+        # nesting order. The loop above inserts a level the first time a cond_tag carrying it is
+        # seen, which is account-file order, not depth order -- emit innermost level first instead.
+        level_conds = dict(sorted(level_conds.items()))
 
         # extra 'filler' account rows for every (cond_tag, layer) the cond_tag does not already cover
         for r in all_cond_keys.merge(account_layers, on='acc_id', how='inner').itertuples():

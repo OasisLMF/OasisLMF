@@ -300,18 +300,23 @@ def reference_get_cond_info(locations_df, accounts_df):
 def _normalise(fn, loc, acc):
     """Run fn and reduce its result to a comparable form, treating a raise as an outcome.
 
-    Both orders here are load-bearing, so neither is sorted away. get_levels iterates
-    level_conds.items() and never reads the level number, so the *insertion* order of level_conds
-    is what assigns cond FM levels; and extra_accounts is concatenated onto accounts_df by the
-    caller, so its row order becomes FM row order. The exception message is compared too, since
-    two implementations raising for different reasons are not the same outcome.
+    extra_accounts row order is load-bearing and is not sorted away: it is concatenated onto
+    accounts_df by the caller, so it becomes FM row order. The exception message is compared too,
+    since two implementations raising for different reasons are not the same outcome.
+
+    level_conds is compared by level, not by insertion order. get_levels iterates it and never
+    reads the key, so insertion order is what assigns cond FM levels -- but it is now depth order
+    by construction, whereas the loop emitted a level the first time a cond_tag carrying it was
+    seen, i.e. account-file order, which nests an outer condition inside an inner one whenever the
+    two disagree. That divergence is deliberate and is pinned by
+    test_levels_are_emitted_innermost_first rather than against the loop.
     """
     try:
         level_conds, extra_accounts = fn(loc.copy(), acc.copy())
     except OasisException as exc:
         return f'raised: {exc}'
     return (
-        list(_levels(level_conds).items()),
+        sorted(_levels(level_conds).items()),
         [tuple(sorted((k, str(v)) for k, v in extra.items())) for extra in extra_accounts],
     )
 
@@ -369,6 +374,43 @@ def test_matches_reference_implementation():
 
     # the generator must be producing real comparisons, not just conflicting priorities
     assert compared > 60
+
+
+def test_levels_are_emitted_innermost_first():
+    """level_conds is emitted in depth order, because that order is what nests the FM levels.
+
+    A is inner to B on location 10 (priority 2 before 3), and C is inner to A on location 11.
+    Emitting in account-file order would yield A, B, C -- applying the outermost condition first
+    and the innermost last. The levels must come out C, A, B.
+    """
+    acc = _acc([
+        [1, 0, 1, 'P1', 1, 'A', 'A', 2, 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'B', 'B', 3, 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'C', 'C', 1, 'AA1', 0],
+    ])
+    loc = _loc([[10, 1, 'A'], [10, 1, 'B'], [11, 1, 'C'], [11, 1, 'A']])
+
+    level_conds, _ = get_cond_info(loc, acc)
+    assert [sorted(tags) for tags in level_conds.values()] == [[(1, 'C')], [(1, 'A')], [(1, 'B')]]
+
+
+def test_a_tag_never_shares_a_level_with_one_it_must_nest_inside():
+    """Two cond_tags on one location always land on different levels, whatever their other locations.
+
+    A ranks innermost on location 10 but sits behind C on location 11. Taking the deepest
+    per-location rank promoted A onto B's level, and the FM cannot express two conditions that
+    must nest as a single node -- it built 165 output ids for 99 items and corrupted the heap.
+    """
+    acc = _acc([
+        [1, 0, 1, 'P1', 1, 'A', 'A', 2, 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'B', 'B', 3, 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'C', 'C', 1, 'AA1', 0],
+    ])
+    loc = _loc([[10, 1, 'A'], [10, 1, 'B'], [11, 1, 'C'], [11, 1, 'A']])
+
+    levels = {tag: level for level, tags in get_cond_info(loc, acc)[0].items() for tag in tags}
+    assert levels[(1, 'A')] < levels[(1, 'B')]     # share location 10
+    assert levels[(1, 'C')] < levels[(1, 'A')]     # share location 11
 
 
 def test_duplicate_location_rows_do_not_inflate_levels():
