@@ -132,18 +132,6 @@ def does_nothing(profile):
 
 
 @njit(cache=True)
-def idx_to_node(node_idx, node_level_start, start_level, max_level):
-    """Convert a flat node index back to (level, agg_id) tuple."""
-    for level in range(start_level, max_level + 1):
-        level_start = node_level_start[level]
-        level_end = node_level_start[level + 1]
-        if level_start < node_idx <= level_end:
-            return (nb_oasis_int(level), nb_oasis_int(node_idx - level_start))
-    # Fallback (shouldn't happen)
-    return (nb_oasis_int(0), nb_oasis_int(0))
-
-
-@njit(cache=True)
 def get_all_children_csr(node_idx, children_indptr, children_data, items_only, max_nodes):
     """CSR version of get_all_children using NumPy arrays.
 
@@ -242,15 +230,6 @@ def get_all_parent_csr(start_nodes, start_len, parents_indptr, parents_data, tar
                     break
 
     return result, result_len
-
-
-@njit(cache=True)
-def is_multi_peril(fm_programme):
-    for i in range(fm_programme.shape[0]):
-        if fm_programme[i]['level_id'] == 1 and fm_programme[i]['from_agg_id'] != fm_programme[i]['to_agg_id']:
-            return True
-    else:
-        return False
 
 
 @njit(cache=True)

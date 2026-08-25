@@ -1,7 +1,9 @@
 import numpy as np
+import pytest
 from numpy.testing import assert_array_almost_equal
 from oasislmf.pytools.common.data import fm_profile_dtype
 from oasislmf.pytools.fm.policy_extras import calc
+from .test_policy import step_policy
 
 
 def test_calcrule_1():
@@ -516,3 +518,21 @@ def test_calcrule_36():
     assert_array_almost_equal(deductible, deductible_expected)
     assert_array_almost_equal(over_limit, over_limit_expected)
     assert_array_almost_equal(under_limit, under_limit_expected)
+
+
+@pytest.mark.parametrize('calcrule_id', [28, 281])
+def test_step_calcrule_is_dispatched(calcrule_id):
+    loss_in = np.array([0., 10., 20., 30.])
+    loss_out = np.empty_like(loss_in)
+    zeros = np.zeros_like(loss_in)
+    calc(step_policy(calcrule_id), loss_out, loss_in, zeros, zeros.copy(), zeros.copy(), True)
+
+
+def test_calcrule_281():
+    loss_in = np.array([0., 10., 20., 30.])
+    loss_out = np.array([0., 10., 20., 30.])
+    zeros = np.zeros_like(loss_in)
+    policy = step_policy(281, step_id=2, scale2=0.5, limit2=8.)
+    calc(policy, loss_out, loss_in, zeros, zeros.copy(), zeros.copy(), True)
+
+    assert_array_almost_equal(loss_out, np.array([0., 15., 28., 38.]))
