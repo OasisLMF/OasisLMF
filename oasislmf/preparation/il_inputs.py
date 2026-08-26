@@ -305,12 +305,21 @@ def get_cond_info(locations_df, accounts_df):
                                  .groupby(chain['loc_id'], observed=True).shift())
 
             levels = np.ones(len(tag_keys), dtype='int64')
-            # every edge runs from a lower priority to a higher one, so ascending priority is a
-            # topological order: a tag's inner neighbours are final by the time it is reached
             edges = chain[chain['inner_code'].notna()]
-            for _, step in edges.groupby('priority', sort=True, observed=True):
-                np.maximum.at(levels, step['tag_code'].to_numpy(),
-                              levels[step['inner_code'].to_numpy().astype('int64')] + 1)
+            if not edges.empty:
+                inner = edges['inner_code'].to_numpy().astype('int64')
+                outer = edges['tag_code'].to_numpy()
+                # relax every edge at once and repeat. Each pass propagates one hop, so this
+                # settles in as many passes as the deepest chain of conditions -- a handful --
+                # rather than once per distinct CondPriority, of which an account file may carry
+                # as many as it has conditions. Every edge runs from a lower priority to a higher
+                # one, so the graph is acyclic and the iteration always terminates; the bound is
+                # a backstop, not the expected exit.
+                for _ in range(len(tag_keys)):
+                    previous = levels.copy()
+                    np.maximum.at(levels, outer, levels[inner] + 1)
+                    if np.array_equal(levels, previous):
+                        break
 
             level_map = {tuple(key): int(level) for key, level in zip(tag_keys, levels)}
 

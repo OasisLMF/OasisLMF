@@ -370,6 +370,28 @@ def reference_get_cond_info(locations_df, accounts_df):
     return level_conds, extra_accounts
 
 
+def _nesting_holds(level_conds, loc, acc):
+    """True when every location's cond tags have strictly increasing levels in priority order.
+
+    This is the property the FM needs -- two conditions on one location must sit on different
+    levels, innermost first -- and it is a property of the answer alone, so it can be asserted
+    without reference to either implementation.
+    """
+    level = {key: lvl for lvl, keys in level_conds.items() for key in keys}
+    priority = {}
+    if 'CondPriority' in acc.columns:
+        for key, value in acc.groupby(['acc_id', 'CondTag'])['CondPriority'].first().items():
+            priority[(int(key[0]), str(key[1]))] = 1 if pd.isna(value) or value == 0 else float(value)
+
+    for _, rows in loc.groupby('loc_id'):
+        keys = [(int(r.acc_id), str(r.CondTag)) for r in rows.itertuples()]
+        ordered = sorted(keys, key=lambda k: priority.get(k, 1))
+        levels = [level.get(k, 1) for k in ordered]
+        if any(inner >= outer for inner, outer in zip(levels, levels[1:])):
+            return False
+    return True
+
+
 def _normalise(fn, loc, acc):
     """Run fn and reduce its result to a comparable form, treating a raise as an outcome.
 
@@ -381,8 +403,8 @@ def _normalise(fn, loc, acc):
     reads the key, so insertion order is what assigns cond FM levels -- but it is now depth order
     by construction, whereas the loop emitted a level the first time a cond_tag carrying it was
     seen, i.e. account-file order, which nests an outer condition inside an inner one whenever the
-    two disagree. That divergence is deliberate and is pinned by
-    test_levels_are_emitted_innermost_first rather than against the loop.
+    two disagree. That divergence is deliberate and is pinned end to end by the
+    validation/insurance_conditions unit sc26, which fails on the losses if it regresses.
     """
     try:
         level_conds, extra_accounts = fn(loc.copy(), acc.copy())
@@ -435,18 +457,38 @@ def _random_case(rng):
 
 
 def test_matches_reference_implementation():
-    """The vectorized result equals the loop one over randomly generated account/location pairs."""
+    """The vectorized result matches the loop one wherever the loop's answer was usable.
+
+    The loop can assign one level to two conditions that share a location and must therefore
+    nest, which the FM cannot express. Where it does, the two implementations are meant to
+    differ, so the levels are held to the nesting invariant rather than to the loop's answer;
+    everything else -- the extra_accounts rows and their order, and raising -- must match
+    exactly. Seeds are only a sampling strategy here, so a case that diverges is a case the
+    generator found, not a test that has drifted.
+    """
     rng = np.random.default_rng(20260812)
-    compared = 0
+    compared = diverged = 0
 
     for _ in range(120):
         loc, acc = _random_case(rng)
         expected = _normalise(reference_get_cond_info, loc, acc)
-        assert _normalise(get_cond_info, loc, acc) == expected, f"\nacc:\n{acc}\nloc:\n{loc}"
-        compared += expected != 'raised'
+        actual = _normalise(get_cond_info, loc, acc)
+        if isinstance(expected, str) or isinstance(actual, str):
+            assert actual == expected, f"\nacc:\n{acc}\nloc:\n{loc}"
+            continue
+
+        compared += 1
+        assert actual[1] == expected[1], f"extra_accounts differ\nacc:\n{acc}\nloc:\n{loc}"
+        if actual[0] != expected[0]:
+            diverged += 1
+            assert _nesting_holds(get_cond_info(loc.copy(), acc.copy())[0], loc, acc), (
+                f"new levels break the nesting invariant\nacc:\n{acc}\nloc:\n{loc}")
+            assert not _nesting_holds(reference_get_cond_info(loc.copy(), acc.copy())[0], loc, acc), (
+                f"levels differ but the loop's answer was already valid\nacc:\n{acc}\nloc:\n{loc}")
 
     # the generator must be producing real comparisons, not just conflicting priorities
     assert compared > 60
+    print(f"compared {compared}, of which {diverged} diverged on levels")
 
 
 def test_duplicate_location_rows_do_not_inflate_levels():
@@ -512,6 +554,6 @@ def test_duplicate_location_rows_match_the_deduplicated_frame():
         repeated = pd.concat([loc, loc.sample(frac=0.5, random_state=int(rng.integers(0, 2**31)))])
         expected = _normalise(get_cond_info, loc, acc)
         assert _normalise(get_cond_info, repeated, acc) == expected, f"\nacc:\n{acc}\nloc:\n{repeated}"
-        compared += expected != 'raised'
+        compared += not isinstance(expected, str)
 
     assert compared > 60
