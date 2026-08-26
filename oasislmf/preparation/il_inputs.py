@@ -221,6 +221,8 @@ def get_cond_info(locations_df, accounts_df):
         if 'CondTag' not in locations_df.columns:
             locations_df['CondTag'] = default_cond_tag
         if 'CondPriority' in accounts_df.columns:
+            if not is_numeric_dtype(accounts_df['CondPriority']):
+                accounts_df['CondPriority'] = accounts_df['CondPriority'].astype('object')
             fill_empty(accounts_df, 'CondPriority', 1)
         else:
             accounts_df['CondPriority'] = 1
