@@ -265,29 +265,68 @@ def get_cond_info(locations_df, accounts_df):
             on=['acc_id', 'layer_id'], how='left')
 
         # --- resolve each location's cond priority, detect same-priority conflicts, rank within the location ---
-        loc = locations_df[['loc_id', 'acc_id', 'CondTag']].drop_duplicates()
-        loc = loc.merge(tag_first[['acc_id', 'CondTag', 'priority']], on=['acc_id', 'CondTag'], how='left')
-        loc['priority'] = loc['priority'].fillna(1)  # loc tags absent from accounts (e.g. default '0') -> priority 1
+        loc_conds_df = locations_df[['loc_id', 'acc_id', 'CondTag']].drop_duplicates()
+        loc_conds_df = loc_conds_df.merge(tag_first[['acc_id', 'CondTag', 'priority']], on=['acc_id', 'CondTag'], how='left')
+        # location cond tags absent from accounts (e.g. default '0') -> priority 1
+        loc_conds_df['priority'] = loc_conds_df['priority'].fillna(1)
 
-        # loc is unique on (loc_id, acc_id, CondTag), so a repeated (loc_id, priority) is by
-        # construction two different cond tags claiming one priority on one location. taking the
+        # loc_conds_df is unique on (loc_id, acc_id, CondTag), so a repeated (loc_id, priority) is
+        # by construction two different cond tags claiming one priority on one location. taking the
         # first repeat in row order reports the same pair, in the same order, as the row loop did:
         # the arriving tag first, then the one already held for that location.
-        collisions = loc.duplicated(['loc_id', 'priority'], keep='first').to_numpy()
+        collisions = loc_conds_df.duplicated(['loc_id', 'priority'], keep='first').to_numpy()
         if collisions.any():
             arriving = int(np.argmax(collisions))
-            loc_key, prio_val = loc['loc_id'].iloc[arriving], loc['priority'].iloc[arriving]
-            held = int(np.argmax(((loc['loc_id'] == loc_key) & (loc['priority'] == prio_val)).to_numpy()))
-            keys = [tuple(row) for row in loc[['acc_id', 'CondTag']].iloc[[arriving, held]].to_numpy().tolist()]
+            loc_key = loc_conds_df['loc_id'].iloc[arriving]
+            prio_val = loc_conds_df['priority'].iloc[arriving]
+            held = int(np.argmax(((loc_conds_df['loc_id'] == loc_key) & (loc_conds_df['priority'] == prio_val)).to_numpy()))
+            keys = [tuple(row) for row in loc_conds_df[['acc_id', 'CondTag']].iloc[[arriving, held]].to_numpy().tolist()]
             raise OasisException(f"{keys[0]} and {keys[1]} have same priority in {loc_key}")
 
-        # cond_level_start = max over a cond_tag's locations of its 1-based rank (priorities are distinct within a location)
-        loc['pos'] = loc.groupby('loc_id', observed=True)['priority'].rank(method='dense').astype(int)
-        level_map = loc.groupby(['acc_id', 'CondTag'], observed=True)['pos'].max().to_dict()
+        # cond_level_start = the longest chain of strictly-inner conditions ending at this cond_tag,
+        # taken over every location it sits on. Ranking within a location and maxing the rank does
+        # not compose across locations: a tag can rank first where it is innermost and second
+        # elsewhere, which lands it on the same level as a lower-priority tag it shares a location
+        # with -- a pair the FM has to nest and cannot express as one node. Priorities are distinct
+        # within a location (checked above), so ordering a location by priority gives a strict
+        # chain, and the longest path over those chains is the shallowest assignment that keeps
+        # every such pair on separate levels. Sorted on a copy: loc_conds_df's row order is
+        # load-bearing, it feeds all_cond_keys below and thence the level_conds and
+        # extra_accounts orderings.
+        chain = loc_conds_df.sort_values(['loc_id', 'priority'], kind='stable')
+        if chain.empty:
+            # an account file can carry cond tags with no locations referencing them; guarded
+            # explicitly because MultiIndex.factorize raises on an empty frame in older pandas
+            level_map = {}
+        else:
+            tag_code, tag_keys = pd.MultiIndex.from_frame(chain[['acc_id', 'CondTag']]).factorize()
+            chain = chain.assign(tag_code=tag_code,
+                                 inner_code=pd.Series(tag_code, index=chain.index)
+                                 .groupby(chain['loc_id'], observed=True).shift())
+
+            levels = np.ones(len(tag_keys), dtype='int64')
+            edges = chain[chain['inner_code'].notna()]
+            if not edges.empty:
+                inner = edges['inner_code'].to_numpy().astype('int64')
+                outer = edges['tag_code'].to_numpy()
+                # relax every edge at once and repeat. Each pass propagates one hop, so this
+                # settles in as many passes as the deepest chain of conditions -- a handful --
+                # rather than once per distinct CondPriority, of which an account file may carry
+                # as many as it has conditions. Every edge runs from a lower priority to a higher
+                # one, so the graph is acyclic and the iteration always terminates; the bound is
+                # a backstop, not the expected exit.
+                for _ in range(len(tag_keys)):
+                    previous = levels.copy()
+                    np.maximum.at(levels, outer, levels[inner] + 1)
+                    if np.array_equal(levels, previous):
+                        break
+
+            level_map = {tuple(key): int(level) for key, level in zip(tag_keys, levels)}
 
         # every cond_tag key to emit results for: those defined on accounts plus those referenced by
         # locations (the latter adds default-'0' tags, which are synthetic priority-1 conds)
-        all_cond_keys = pd.concat([tag_first[['acc_id', 'CondTag']], loc[['acc_id', 'CondTag']]]).drop_duplicates()
+        all_cond_keys = pd.concat([tag_first[['acc_id', 'CondTag']],
+                                   loc_conds_df[['acc_id', 'CondTag']]]).drop_duplicates()
 
         # a location acc_id with no account rows has no layers to attach its conds to. the row loop
         # raised KeyError on account_layer_exclusion[acc_id]; the frame version would drop it on the
@@ -299,6 +338,11 @@ def get_cond_info(locations_df, accounts_df):
         for r in all_cond_keys.itertuples():
             cond_key = (int(r.acc_id), r.CondTag)
             level_conds.setdefault(level_map.get((r.acc_id, r.CondTag), 1), set()).add(cond_key)
+
+        # get_levels iterates level_conds and never reads the key, so insertion order *is* the FM
+        # nesting order. The loop above inserts a level the first time a cond_tag carrying it is
+        # seen, which is account-file order, not depth order -- emit innermost level first instead.
+        level_conds = dict(sorted(level_conds.items()))
 
         # extra 'filler' account rows for every (cond_tag, layer) the cond_tag does not already cover.
         # the cond_tag x layer coverage check is an anti-join against the account rows; only the
