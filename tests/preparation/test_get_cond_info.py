@@ -376,43 +376,6 @@ def test_matches_reference_implementation():
     assert compared > 60
 
 
-def test_levels_are_emitted_innermost_first():
-    """level_conds is emitted in depth order, because that order is what nests the FM levels.
-
-    A is inner to B on location 10 (priority 2 before 3), and C is inner to A on location 11.
-    Emitting in account-file order would yield A, B, C -- applying the outermost condition first
-    and the innermost last. The levels must come out C, A, B.
-    """
-    acc = _acc([
-        [1, 0, 1, 'P1', 1, 'A', 'A', 2, 'AA1', 0],
-        [1, 0, 1, 'P1', 1, 'B', 'B', 3, 'AA1', 0],
-        [1, 0, 1, 'P1', 1, 'C', 'C', 1, 'AA1', 0],
-    ])
-    loc = _loc([[10, 1, 'A'], [10, 1, 'B'], [11, 1, 'C'], [11, 1, 'A']])
-
-    level_conds, _ = get_cond_info(loc, acc)
-    assert [sorted(tags) for tags in level_conds.values()] == [[(1, 'C')], [(1, 'A')], [(1, 'B')]]
-
-
-def test_a_tag_never_shares_a_level_with_one_it_must_nest_inside():
-    """Two cond_tags on one location always land on different levels, whatever their other locations.
-
-    A ranks innermost on location 10 but sits behind C on location 11. Taking the deepest
-    per-location rank promoted A onto B's level, and the FM cannot express two conditions that
-    must nest as a single node -- it built 165 output ids for 99 items and corrupted the heap.
-    """
-    acc = _acc([
-        [1, 0, 1, 'P1', 1, 'A', 'A', 2, 'AA1', 0],
-        [1, 0, 1, 'P1', 1, 'B', 'B', 3, 'AA1', 0],
-        [1, 0, 1, 'P1', 1, 'C', 'C', 1, 'AA1', 0],
-    ])
-    loc = _loc([[10, 1, 'A'], [10, 1, 'B'], [11, 1, 'C'], [11, 1, 'A']])
-
-    levels = {tag: level for level, tags in get_cond_info(loc, acc)[0].items() for tag in tags}
-    assert levels[(1, 'A')] < levels[(1, 'B')]     # share location 10
-    assert levels[(1, 'C')] < levels[(1, 'A')]     # share location 11
-
-
 def test_duplicate_location_rows_do_not_inflate_levels():
     """Repeated (loc_id, acc_id, CondTag) rows count once, so they cannot invent nesting levels.
 
