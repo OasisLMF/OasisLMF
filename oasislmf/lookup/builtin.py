@@ -948,6 +948,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         A mapping file with duplicate cells previously emitted one key per duplicate row, which
         changed the row count of the keys file rather than reporting the problem.
 
+        ``area_peril_id`` must be an exact integer on every row and also raises ``OasisException``
+        at build time otherwise. A single null or fractional value makes pandas read the whole
+        column as ``float64``, which rounds any other id in the file above 2^53 -- so the failure
+        would not be confined to the offending row.
+
         A location whose coordinates are null, infinite, or absent from the mapping file resolves
         to ``OASIS_UNKNOWN_ID``, which the lookup reports as a per-location ``fail`` status.
 
@@ -1002,7 +1007,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 f"H3 mapping file must have a unique 'h3_int64' per row, found {duplicated_cells.sum()} "
                 f"duplicate(s), starting with {h3_mapping_df.loc[duplicated_cells, 'h3_int64'].iloc[0]}"
             )
-        area_peril_by_cell = h3_mapping_df.set_index('h3_int64')['area_peril_id']
+        # a null or fractional area_peril_id means a float64 column, and that rounds every other id
+        # above 2^53 in the same file; only the offending row itself is caught downstream by
+        # set_id_columns, and only because a nan cast to int64 happens to land on a value it treats
+        # as unknown. fail on the whole class here instead
+        area_peril_ids = h3_mapping_df['area_peril_id']
+        if pd.api.types.is_integer_dtype(area_peril_ids.dtype):
+            unusable = area_peril_ids.isna()
+        else:
+            numeric_ids = pd.to_numeric(area_peril_ids, errors='coerce')
+            unusable = numeric_ids.isna() | (numeric_ids % 1 != 0) | (numeric_ids.abs() >= 2 ** 53)
+        if unusable.any():
+            raise OasisException(
+                f"H3 mapping file must have an exact integer 'area_peril_id' per row, found {unusable.sum()} "
+                f"value(s) that are null, fractional or beyond the exactly representable range of the "
+                f"'{area_peril_ids.dtype}' column, starting with "
+                f"'{area_peril_ids[unusable].iloc[0]}' at cell {h3_mapping_df.loc[unusable, 'h3_int64'].iloc[0]}"
+            )
+        area_peril_by_cell = h3_mapping_df.set_index('h3_int64')['area_peril_id'].astype('int64')
 
         def h3_lookup(locations):
             latitude = locations['latitude'].to_numpy(dtype='float64', na_value=np.nan)

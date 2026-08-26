@@ -212,6 +212,63 @@ def test_build_h3_duplicate_mapping_cell_raises(tmp_path):
         Lookup(config={}).build_h3(resolution=_H3_RESOLUTION, file_path=str(dup_path))
 
 
+@pytest.mark.parametrize("area_peril_ids", [
+    [1, None, 3],         # null: forces the column to float64
+    [1, 2.5, 3],          # fractional: also a float64 column
+    [1, "not_an_id", 3],  # unparseable, so an object column
+])
+def test_build_h3_unusable_area_peril_id_raises(tmp_path, area_peril_ids):
+    """An area_peril_id that is not an exact integer raises at build time.
+
+    A single such value makes pandas read the whole column as float64, so every other id in the
+    file above 2^53 is rounded too. Only the offending row is caught downstream, and only because
+    a nan cast to int64 saturates to a value set_id_columns treats as unknown -- which is the ISA's
+    choice, not a guarantee. Fail on the class of problem here instead.
+    """
+    cells = [h3.str_to_int(h3.latlng_to_cell(lat, lon, _H3_RESOLUTION)) for lat, lon in _SAMPLE_COORDS]
+    path = tmp_path / "unusable_area_peril_id.csv"
+    pd.DataFrame({"h3_int64": cells, "area_peril_id": area_peril_ids}).to_csv(path, index=False)
+
+    with pytest.raises(OasisException, match="exact integer 'area_peril_id'"):
+        Lookup(config={}).build_h3(resolution=_H3_RESOLUTION, file_path=str(path))
+
+
+def test_build_h3_float_typed_area_peril_id_past_exact_range_raises(tmp_path):
+    """An id above 2^53 in a float column has already lost precision and cannot be trusted.
+
+    9007199254740993 does not exist as a float64; the column holds 9007199254740992 by the time it
+    is read. Casting it to int64 would hand back a whole, plausible, wrong id, so refuse it and
+    leave the model provider to store the column as an integer.
+    """
+    cells = [h3.str_to_int(h3.latlng_to_cell(lat, lon, _H3_RESOLUTION)) for lat, lon in _SAMPLE_COORDS]
+    path = tmp_path / "rounded_area_peril_id.parquet"
+    ids = np.array([1.0, 2.0, float(2 ** 53 + 1)], dtype='float64')
+    pd.DataFrame({"h3_int64": cells, "area_peril_id": ids}).to_parquet(path, index=False)
+
+    with pytest.raises(OasisException, match="exact integer 'area_peril_id'"):
+        Lookup(config={}).build_h3(
+            resolution=_H3_RESOLUTION, file_path=str(path), file_type="parquet"
+        )
+
+
+def test_build_h3_float_typed_whole_area_peril_id_is_accepted(tmp_path):
+    """A float column of whole ids is still usable, and comes back in the integer domain."""
+    cells = [h3.str_to_int(h3.latlng_to_cell(lat, lon, _H3_RESOLUTION)) for lat, lon in _SAMPLE_COORDS]
+    path = tmp_path / "float_area_peril_id.parquet"
+    pd.DataFrame({"h3_int64": cells, "area_peril_id": [1.0, 2.0, 3.0]}).to_parquet(path, index=False)
+
+    lookup_fn = Lookup(config={}).build_h3(
+        resolution=_H3_RESOLUTION, file_path=str(path), file_type="parquet"
+    )
+    result = lookup_fn(pd.DataFrame({
+        "loc_id": np.arange(1, len(_SAMPLE_COORDS) + 1),
+        "latitude": [lat for lat, lon in _SAMPLE_COORDS],
+        "longitude": [lon for lat, lon in _SAMPLE_COORDS],
+    }))
+
+    assert result["area_peril_id"].to_numpy().tolist() == [1, 2, 3]
+
+
 def test_build_h3_area_peril_id_dtype(h3_mapping_csv):
     """area_peril_id column has Int64 dtype after lookup (nullable integer)."""
     lookup_fn = Lookup(config={}).build_h3(resolution=_H3_RESOLUTION, file_path=str(h3_mapping_csv))
