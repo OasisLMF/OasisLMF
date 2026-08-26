@@ -58,6 +58,9 @@ fm_xref_pd_dtype = structured_dtype_to_pandas(fm_xref_dtype)
 # Define a list of all supported OED coverage types in the exposure
 supp_cov_type_ids = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
 
+# peril applied to a condition that does not name one; 'AA1' is the OED all-perils code
+DEFAULT_COND_PERIL = 'AA1'
+
 policytc_cols = ['profile_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
 
 profile_cols_map = {
@@ -231,14 +234,18 @@ def get_cond_info(locations_df, accounts_df):
             CondPriority=('CondPriority', 'first'),
             CondPeril=('CondPeril', 'first'),
         ).reset_index()
-        prio = pd.to_numeric(tag_first['CondPriority'], errors='coerce').fillna(1)
+        # fill_empty above already mapped every blank to 1, so anything left that will not convert is
+        # not an empty priority but a malformed one, and is rejected rather than silently defaulted
+        prio = pd.to_numeric(tag_first['CondPriority'], errors='coerce')
+        if prio.isna().any():
+            bad_priority_df = tag_first.loc[prio.isna(), ['acc_id', 'CondTag', 'CondPriority']]
+            raise OasisException(f'Those CondPriority values in the account file are not numeric:\n{bad_priority_df}')
         tag_first['priority'] = prio.mask(prio == 0, 1)
         peril = tag_first['CondPeril'].astype('object').fillna('')
-        tag_first['cond_peril'] = peril.mask(peril == '', 'AA1')
-        peril_map = {(r.acc_id, r.CondTag): r.cond_peril for r in tag_first.itertuples()}
+        tag_first['cond_peril'] = peril.mask(peril == '', DEFAULT_COND_PERIL)
+        peril_map = tag_first.set_index(['acc_id', 'CondTag'])['cond_peril'].to_dict()
 
-        # layers each cond_tag already appears in, and per (acc_id, layer_id) policy info + exclusion flag
-        layers_present = set(map(tuple, accounts_df[['acc_id', 'CondTag', 'layer_id']].drop_duplicates().to_numpy()))
+        # per (acc_id, layer_id) policy info + exclusion flag
         # has_excl is resolved before the groupby so 'max' can take the cython path; a lambda here
         # forces pandas' per-group pure-python aggregation and dominates the whole function
         layer_cols = accounts_df[['acc_id', 'layer_id', 'PolNumber', 'LayerNumber', 'acc_idx']].assign(
@@ -307,8 +314,16 @@ def get_cond_info(locations_df, accounts_df):
 
         # every cond_tag key to emit results for: those defined on accounts plus those referenced by
         # locations (the latter adds default-'0' tags, which are synthetic priority-1 conds)
-        all_cond_keys = pd.concat([accounts_df[['acc_id', 'CondTag']],
+        all_cond_keys = pd.concat([tag_first[['acc_id', 'CondTag']],
                                    loc_conds_df[['acc_id', 'CondTag']]]).drop_duplicates()
+
+        # a location acc_id with no account rows has no layers to attach its conds to. the row loop
+        # raised KeyError on account_layer_exclusion[acc_id]; the frame version would drop it on the
+        # merge below and leave the key in level_conds, which get_levels turns into an all-null row
+        missing_acc_df = all_cond_keys.loc[~all_cond_keys['acc_id'].isin(accounts_df['acc_id']), ['acc_id', 'CondTag']]
+        if missing_acc_df.shape[0]:
+            raise OasisException(f'Those acc_id are present in locations but missing in the account file:\n{missing_acc_df}')
+
         for r in all_cond_keys.itertuples():
             cond_key = (int(r.acc_id), r.CondTag)
             level_conds.setdefault(level_map.get((r.acc_id, r.CondTag), 1), set()).add(cond_key)
@@ -318,10 +333,13 @@ def get_cond_info(locations_df, accounts_df):
         # seen, which is account-file order, not depth order -- emit innermost level first instead.
         level_conds = dict(sorted(level_conds.items()))
 
-        # extra 'filler' account rows for every (cond_tag, layer) the cond_tag does not already cover
-        for r in all_cond_keys.merge(account_layers, on='acc_id', how='inner').itertuples():
-            if (r.acc_id, r.CondTag, r.layer_id) in layers_present:
-                continue
+        # extra 'filler' account rows for every (cond_tag, layer) the cond_tag does not already cover.
+        # the cond_tag x layer coverage check is an anti-join against the account rows; only the
+        # surviving fillers are built row-by-row, since the exclusion ones carry extra keys
+        cond_tag_layers_df = all_cond_keys.merge(account_layers, on='acc_id', how='inner').merge(
+            accounts_df[['acc_id', 'CondTag', 'layer_id']].drop_duplicates(),
+            on=['acc_id', 'CondTag', 'layer_id'], how='left', indicator=True)
+        for r in cond_tag_layers_df.loc[cond_tag_layers_df['_merge'] == 'left_only'].itertuples():
             extra = {
                 'acc_idx': r.acc_idx, 'acc_id': int(r.acc_id), 'PolNumber': r.PolNumber,
                 'LayerNumber': r.LayerNumber, 'CondTag': r.CondTag, 'layer_id': r.layer_id,
@@ -330,7 +348,7 @@ def get_cond_info(locations_df, accounts_df):
                 extra.update({'CondNumber': 'FullFilter', 'CondDed6All': 1, 'CondDedType6All': 1})
             else:
                 extra['CondNumber'] = ''
-            extra['CondPeril'] = peril_map.get((r.acc_id, r.CondTag), 'AA1')
+            extra['CondPeril'] = peril_map.get((r.acc_id, r.CondTag), DEFAULT_COND_PERIL)
             extra_accounts.append(extra)
     return level_conds, extra_accounts
 
