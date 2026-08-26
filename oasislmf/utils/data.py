@@ -962,7 +962,7 @@ def validate_vuln_csv_contents(file_path):
             return False
         probability = vuln_df['probability']
         if pd.api.types.is_numeric_dtype(probability) and not pd.api.types.is_bool_dtype(probability):
-            if not (vuln_df['probability'].between(0, 1).all()):
+            if not (probability.notna().all() and probability.between(0, 1).all()):
                 logger.warning("probability column must contain values between 0 and 1.")
                 return False
         else:

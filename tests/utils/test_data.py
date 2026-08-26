@@ -1607,6 +1607,21 @@ class TestValidateVulnCsvProbabilityDtype(TestCase):
         self.assertFalse(self._validate(pd.array([0.5, 1.25], dtype='Float64')))
         self.mock_logger.warning.assert_called_with('probability column must contain values between 0 and 1.')
 
+    def test_missing_probability_is_rejected(self):
+        """A missing value is not a probability in [0, 1], whichever dtype carries it.
+
+        ``between`` yields False for a float64 NaN but pd.NA for a nullable one, and ``all()``
+        skips NA by default, so the same missing value was rejected in a float64 column and
+        accepted in a nullable one.
+        """
+        for probability in [pd.array([0.5, None], dtype='Float64'),
+                            pd.array([1, None], dtype='Int64'),
+                            [0.5, float('nan')]]:
+            with self.subTest(dtype=getattr(probability, 'dtype', 'float64')):
+                self.assertFalse(self._validate(probability))
+                self.mock_logger.warning.assert_called_with(
+                    'probability column must contain values between 0 and 1.')
+
 
 class TestValidateAnalysisOedFields(TestCase):
     def setUp(self):

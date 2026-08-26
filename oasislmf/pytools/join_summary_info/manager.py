@@ -119,13 +119,14 @@ def run(
                 fout.write(",".join(data_headers + summary_headers) + "\n")
 
                 summary_id_col_idx = data_headers.index("SummaryId")
+                summary_sep = "," if summary_headers else ""
                 for line in data_fin:
                     row = line.strip().split(",")
                     summary_id = int(row[summary_id_col_idx])
                     if summary_id < 0 or summary_id > max_summary_id:
                         fout.write(line.strip() + ("," * len(summary_headers)) + "\n")
                     else:
-                        fout.write(line.strip() + "," + summary_data[summary_id] + "\n")
+                        fout.write(line.strip() + summary_sep + summary_data[summary_id] + "\n")
         elif data_file.suffix == ".parquet":
             table = pq.read_table(data_file)
             df = table.to_pandas()

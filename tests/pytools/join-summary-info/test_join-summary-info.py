@@ -217,6 +217,51 @@ def test_join_parquet_with_no_summary_info_columns():
         assert list(joined["MeanLoss"]) == [1.0, 2.0, 3.0]
 
 
+def write_csv_pair(tmp_dir, summary_info, data):
+    summaryinfo_file = Path(tmp_dir, "gul_summary-info.csv")
+    data_file = Path(tmp_dir, "aalgul_ord.csv")
+    pd.DataFrame(summary_info).to_csv(summaryinfo_file, index=False)
+    pd.DataFrame(data).to_csv(data_file, index=False)
+    output_file = Path(tmp_dir, "joined_aalgul_ord.csv")
+    main(summaryinfo=summaryinfo_file, data=data_file, output=output_file)
+
+    return output_file
+
+
+def test_join_csv_with_no_summary_info_columns(tmp_path):
+    """Tests join-summary-info joins a summary info file holding nothing but summary_id
+
+    The csv counterpart of test_join_parquet_with_no_summary_info_columns. With no summary
+    columns to add there is nothing to separate them from the data, so a joined row must not
+    gain a trailing comma that a row with no summary info to join does not have -- that is a
+    ragged file, and pandas reads the extra field back by shifting the first column into the
+    index rather than by failing.
+    """
+    output_file = write_csv_pair(
+        tmp_path,
+        summary_info={"summary_id": [1, 2]},
+        data={"SummaryId": [1, 2, 9], "MeanLoss": [1.0, 2.0, 3.0]},
+    )
+
+    lines = output_file.read_text().strip().splitlines()
+    assert [line.count(",") for line in lines] == [1, 1, 1, 1]
+
+    joined = pd.read_csv(output_file)
+    assert list(joined.columns) == ["SummaryId", "MeanLoss"]
+    assert list(joined["MeanLoss"]) == [1.0, 2.0, 3.0]
+
+
+def test_join_matches_csv_with_no_summary_info_columns(tmp_path):
+    """Tests both formats say the same thing about a summary info file with no columns to join"""
+    summary_info = pd.DataFrame({"summary_id": [1, 2]})
+    data = pd.DataFrame({"SummaryId": [1, 2, 9], "MeanLoss": [1.0, 2.0, 3.0]})
+
+    joined_csv = pd.read_csv(write_csv_pair(tmp_path, summary_info=summary_info, data=data))
+    joined_parquet = write_parquet_pair(tmp_path, summary_info=summary_info, data=data)
+
+    pd.testing.assert_frame_equal(joined_csv, joined_parquet)
+
+
 def test_join_parquet_matches_csv_for_unknown_summary_ids(tmp_path):
     """Tests both formats say the same thing about a summary id they cannot join"""
     summary_info = pd.DataFrame({"summary_id": [1, 2], "PortNumber": ["1", "2"], "tiv": [10.0, 20.0]})
