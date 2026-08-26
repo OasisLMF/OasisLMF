@@ -777,6 +777,24 @@ def code_column(name):
     return f'__code__{name}'
 
 
+def key_column(name):
+    """Name of the coded column for `name` in its role as one of the summary's own group keys.
+
+    The summary always groups by peril id and lookup status, and separately by each summary field.
+    A field is named after an OED column, so it can perfectly well be named `Status` -- which
+    `convert_col_name` turns into 'status'. The two roles are coded under names of their own because
+    sharing one column would make the group key one element shorter for such a field than for every
+    other, and the caller's lookups would then all miss and report the bucket as empty.
+
+    Args:
+        name (str): name of the column being coded
+
+    Returns:
+        str: the name the coded column is held under
+    """
+    return f'__key__{name}'
+
+
 def encode_exposure_summary_keys(df, field_names):
     """Replace the columns the exposure summary groups by with integer codes.
 
@@ -790,16 +808,24 @@ def encode_exposure_summary_keys(df, field_names):
 
     Returns:
         tuple: a 2-tuple ``(encoded, codes)``, where ``encoded`` holds the coded key columns, named
-        by `code_column`, alongside the columns being summed, and ``codes`` maps each coded field
-        name to its ``{value: code}`` lookup. A value missing from a lookup does not appear in `df`.
+        by `key_column` for the summary's own group keys and by `code_column` for the summary fields,
+        alongside the columns being summed, and ``codes`` maps each coded column name to its
+        ``{value: code}`` lookup. A value missing from a lookup does not appear in `df`.
     """
     # taken as arrays as the frame is a concatenation, so its index is not unique
     encoded = {col: df[col].to_numpy() for col in ['loc_id', 'coverage_type_id', 'tiv',
                                                    'number_of_buildings', 'number_of_risks']}
+    # a field named 'peril_id' or 'status' is coded under both its names, so that the two roles stay
+    # separate columns and the group key keeps the same shape for every field -- see `key_column`
+    coded_as = {col: [key_column(col)] for col in ['peril_id', 'status']}
+    for col in field_names:
+        coded_as.setdefault(col, []).append(code_column(col))
+
     codes = {}
-    for col in dict.fromkeys(['peril_id', 'status'] + list(field_names)):
+    for col, column_names in coded_as.items():
         column_codes, values = pd.factorize(df[col], sort=False)
-        encoded[code_column(col)] = column_codes
+        for column_name in column_names:
+            encoded[column_name] = column_codes
         codes[col] = {value: code for code, value in enumerate(values.tolist())}
 
     return pd.DataFrame(encoded, copy=False), codes
@@ -830,16 +856,13 @@ def get_exposure_summary_stats(encoded, field_name, group_by_status):
         key. ``tiv`` holds the summed TIV, ``by_coverage`` and ``overall`` the location, building
         and risk counts per coverage type and over all coverage types respectively.
     """
-    # field_name is itself sometimes 'peril_id' or 'status', so the key lists need deduplicating
-    group_keys = list(dict.fromkeys(
-        [code_column(field_name)] + ([code_column('status')] if group_by_status else [])))
-    coverage_keys = list(dict.fromkeys(group_keys + ['coverage_type_id']))
+    group_keys = [code_column(field_name)] + ([key_column('status')] if group_by_status else [])
+    coverage_keys = group_keys + ['coverage_type_id']
 
     # each frame is deduplicated from the one above it, which is already the first row per group
-    tiv_rows = encoded.drop_duplicates(list(dict.fromkeys(
-        group_keys + ['loc_id', code_column('peril_id'), 'coverage_type_id'])))
-    coverage_rows = tiv_rows.drop_duplicates(list(dict.fromkeys(coverage_keys + ['loc_id'])))
-    location_rows = coverage_rows.drop_duplicates(list(dict.fromkeys(group_keys + ['loc_id'])))
+    tiv_rows = encoded.drop_duplicates(group_keys + ['loc_id', key_column('peril_id'), 'coverage_type_id'])
+    coverage_rows = tiv_rows.drop_duplicates(coverage_keys + ['loc_id'])
+    location_rows = coverage_rows.drop_duplicates(group_keys + ['loc_id'])
 
     tiv = tiv_rows.groupby(coverage_keys, observed=True, sort=False)['tiv'].sum()
     by_coverage = coverage_rows.groupby(coverage_keys, observed=True, sort=False).agg(**COUNT_AGGREGATION)

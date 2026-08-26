@@ -246,13 +246,16 @@ def test_one_loc_id_carrying_two_field_values_counts_it_under_both():
         sum(expected['peril_id'][value]['all']['tiv'] for value in categories['peril_id']))
 
 
-@pytest.mark.parametrize('field_name', ['number_of_buildings', 'number_of_risks', 'coverage_type_id', 'loc_id'])
+@pytest.mark.parametrize('field_name', ['number_of_buildings', 'number_of_risks', 'coverage_type_id',
+                                        'loc_id', 'status', 'peril_id'])
 def test_field_named_after_a_summed_or_key_column(field_name):
     """A summary field named after a column the summary sums or groups by does not shadow it.
 
     summary_report_fields comes from the model settings and is converted with convert_col_name, so
     an ordinary OED column like NumberOfBuildings arrives here as 'number_of_buildings' -- the same
-    name as one of the columns COUNT_AGGREGATION sums.
+    name as one of the columns COUNT_AGGREGATION sums. 'status' and 'peril_id' name the two columns
+    the summary itself groups by, so a field of either name is grouped by the same coded column
+    twice.
     """
     df = make_summary_peril_df(24, num_locations=12)
     categories = {
@@ -264,6 +267,31 @@ def test_field_named_after_a_summed_or_key_column(field_name):
         get_exposure_summary_fields(df, categories),
         reference_exposure_summary_fields(df, categories),
     )
+
+
+def test_a_status_field_intersects_itself_on_the_diagonal_only():
+    """A summary field named 'status' is the column the summary already groups by.
+
+    So the (field value, status) pair is empty off the diagonal, and on it holds the whole of that
+    status -- which is the identity the collapsed group key used to break, silently zeroing every
+    non-'all' bucket rather than only the off-diagonal ones.
+    """
+    df = make_summary_peril_df(25, num_locations=12)
+    categories = {'status': df['status'].drop_duplicates().to_list()}
+
+    summary = get_exposure_summary_fields(df, categories)
+
+    for field_value in categories['status']:
+        on_diagonal = summary['status'][field_value][field_value]
+        assert on_diagonal['tiv'] > 0.0
+        assert on_diagonal['number_of_locations'] > 0
+        assert on_diagonal['tiv'] == pytest.approx(summary['status'][field_value]['all']['tiv'])
+        assert on_diagonal['number_of_locations'] == summary['status'][field_value]['all']['number_of_locations']
+
+        for status in categories['status']:
+            if status != field_value:
+                assert summary['status'][field_value][status]['tiv'] == 0.0
+                assert summary['status'][field_value][status]['number_of_locations'] == 0
 
 
 def test_statuses_sum_to_the_all_status():
