@@ -125,6 +125,61 @@ def test_extra_account_dtypes_survive_the_frame_the_caller_builds():
         assert frame[column].dtype.kind == 'i', f'{column} must stay an integer, got {frame[column].dtype}'
 
 
+def test_acc_id_missing_from_the_account_file_raises():
+    """A location acc_id with no account rows is rejected, not dropped.
+
+    The existing CondTag check above only covers non-default tags, so a location carrying the
+    default '0' tag reaches here. There are no layers to attach its conds to: the row loop died on
+    a bare ``account_layer_exclusion[acc_id]`` lookup, and dropping it on the merge instead would
+    leave the key in level_conds for get_levels to left-merge into an all-null account row.
+    """
+    acc = _acc([[1, 0, 1, 'P1', 1, 'A', 'A', 1, 'AA1', 0]])
+    loc = _loc([[10, 1, 'A'], [11, 2, '0']])  # acc_id 2 is not in the account file
+
+    with pytest.raises(OasisException, match='present in locations but missing in the account file'):
+        get_cond_info(loc.copy(), acc.copy())
+    with pytest.raises(KeyError):  # what the loop implementation did with the same input
+        reference_get_cond_info(loc.copy(), acc.copy())
+
+
+def test_unresolved_acc_id_raises():
+    """An unresolved location->account match leaves a null acc_id, which is the same failure."""
+    acc = _acc([[1, 0, 1, 'P1', 1, 'A', 'A', 1, 'AA1', 0]])
+    loc = _loc([[10, 1, 'A'], [11, np.nan, '0']])
+
+    with pytest.raises(OasisException, match='present in locations but missing in the account file'):
+        get_cond_info(loc, acc)
+
+
+def test_non_numeric_priority_raises():
+    """A malformed CondPriority fails loudly rather than defaulting to 1.
+
+    fill_empty has already mapped every blank value to 1 by this point, so a value that survives
+    and will not convert is not a missing priority but a bad one. Coercing it to 1 would silently
+    reassign the condition's place in the hierarchy.
+    """
+    acc = _acc([
+        [1, 0, 1, 'P1', 1, 'A', 'A', 'N/A', 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'B', 'B', 2, 'AA1', 0],
+    ])
+    loc = _loc([[10, 1, 'A'], [10, 1, 'B']])
+
+    with pytest.raises(OasisException, match='CondPriority values in the account file are not numeric'):
+        get_cond_info(loc, acc)
+
+
+def test_blank_priority_still_defaults_to_one():
+    """The values fill_empty treats as empty keep defaulting to priority 1, unaffected by the above."""
+    acc = _acc([
+        [1, 0, 1, 'P1', 1, 'A', 'A', '', 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'B', 'B', np.nan, 'AA1', 0],
+    ])
+    loc = _loc([[10, 1, 'A'], [11, 1, 'B']])  # different locations, so no same-priority conflict
+
+    level_conds, _ = get_cond_info(loc, acc)
+    assert _levels(level_conds) == {1: [(1, 'A'), (1, 'B')]}
+
+
 def test_priority_zero_treated_as_one():
     acc = _acc([
         [1, 0, 1, 'P1', 1, 'A', 'A', 0, 'AA1', 0],   # priority 0 -> 1
