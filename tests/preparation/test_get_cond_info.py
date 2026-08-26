@@ -180,6 +180,24 @@ def test_blank_priority_still_defaults_to_one():
     assert _levels(level_conds) == {1: [(1, 'A'), (1, 'B')]}
 
 
+def test_blank_priority_defaults_to_one_on_a_text_dtype_column():
+    """A text-dtype CondPriority still defaults its blanks, rather than rejecting the int default.
+
+    Both pandas' string dtypes refuse an int written into them, so `fill_empty(.., 1)` raises on a
+    CondPriority column held as text. pandas 3 reaches that on ordinary input: a column of priorities
+    read as strings, or one left entirely blank, is inferred as `str` rather than object.
+    """
+    acc = _acc([
+        [1, 0, 1, 'P1', 1, 'A', 'A', '', 'AA1', 0],
+        [1, 0, 1, 'P1', 1, 'B', 'B', '2', 'AA1', 0],
+    ])
+    acc['CondPriority'] = acc['CondPriority'].astype('string')
+    loc = _loc([[10, 1, 'A'], [10, 1, 'B']])
+
+    level_conds, _ = get_cond_info(loc, acc)
+    assert _levels(level_conds) == {1: [(1, 'A')], 2: [(1, 'B')]}
+
+
 def test_priority_zero_treated_as_one():
     acc = _acc([
         [1, 0, 1, 'P1', 1, 'A', 'A', 0, 'AA1', 0],   # priority 0 -> 1
