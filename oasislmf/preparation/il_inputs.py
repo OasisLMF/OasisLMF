@@ -256,20 +256,22 @@ def get_cond_info(locations_df, accounts_df):
             on=['acc_id', 'layer_id'], how='left')
 
         # --- resolve each location's cond priority, detect same-priority conflicts, rank within the location ---
-        loc = locations_df[['loc_id', 'acc_id', 'CondTag']].drop_duplicates()
-        loc = loc.merge(tag_first[['acc_id', 'CondTag', 'priority']], on=['acc_id', 'CondTag'], how='left')
-        loc['priority'] = loc['priority'].fillna(1)  # loc tags absent from accounts (e.g. default '0') -> priority 1
+        loc_conds_df = locations_df[['loc_id', 'acc_id', 'CondTag']].drop_duplicates()
+        loc_conds_df = loc_conds_df.merge(tag_first[['acc_id', 'CondTag', 'priority']], on=['acc_id', 'CondTag'], how='left')
+        # location cond tags absent from accounts (e.g. default '0') -> priority 1
+        loc_conds_df['priority'] = loc_conds_df['priority'].fillna(1)
 
-        # loc is unique on (loc_id, acc_id, CondTag), so a repeated (loc_id, priority) is by
-        # construction two different cond tags claiming one priority on one location. taking the
+        # loc_conds_df is unique on (loc_id, acc_id, CondTag), so a repeated (loc_id, priority) is
+        # by construction two different cond tags claiming one priority on one location. taking the
         # first repeat in row order reports the same pair, in the same order, as the row loop did:
         # the arriving tag first, then the one already held for that location.
-        collisions = loc.duplicated(['loc_id', 'priority'], keep='first').to_numpy()
+        collisions = loc_conds_df.duplicated(['loc_id', 'priority'], keep='first').to_numpy()
         if collisions.any():
             arriving = int(np.argmax(collisions))
-            loc_key, prio_val = loc['loc_id'].iloc[arriving], loc['priority'].iloc[arriving]
-            held = int(np.argmax(((loc['loc_id'] == loc_key) & (loc['priority'] == prio_val)).to_numpy()))
-            keys = [tuple(row) for row in loc[['acc_id', 'CondTag']].iloc[[arriving, held]].to_numpy().tolist()]
+            loc_key = loc_conds_df['loc_id'].iloc[arriving]
+            prio_val = loc_conds_df['priority'].iloc[arriving]
+            held = int(np.argmax(((loc_conds_df['loc_id'] == loc_key) & (loc_conds_df['priority'] == prio_val)).to_numpy()))
+            keys = [tuple(row) for row in loc_conds_df[['acc_id', 'CondTag']].iloc[[arriving, held]].to_numpy().tolist()]
             raise OasisException(f"{keys[0]} and {keys[1]} have same priority in {loc_key}")
 
         # cond_level_start = the longest chain of strictly-inner conditions ending at this cond_tag,
@@ -279,9 +281,10 @@ def get_cond_info(locations_df, accounts_df):
         # with -- a pair the FM has to nest and cannot express as one node. Priorities are distinct
         # within a location (checked above), so ordering a location by priority gives a strict
         # chain, and the longest path over those chains is the shallowest assignment that keeps
-        # every such pair on separate levels. Sorted on a copy: loc's row order is load-bearing,
-        # it feeds all_cond_keys below and thence the level_conds and extra_accounts orderings.
-        chain = loc.sort_values(['loc_id', 'priority'], kind='stable')
+        # every such pair on separate levels. Sorted on a copy: loc_conds_df's row order is
+        # load-bearing, it feeds all_cond_keys below and thence the level_conds and
+        # extra_accounts orderings.
+        chain = loc_conds_df.sort_values(['loc_id', 'priority'], kind='stable')
         if chain.empty:
             # an account file can carry cond tags with no locations referencing them; guarded
             # explicitly because MultiIndex.factorize raises on an empty frame in older pandas
@@ -295,10 +298,8 @@ def get_cond_info(locations_df, accounts_df):
             levels = np.ones(len(tag_keys), dtype='int64')
             # every edge runs from a lower priority to a higher one, so ascending priority is a
             # topological order: a tag's inner neighbours are final by the time it is reached
-            for priority in np.sort(chain['priority'].unique()):
-                step = chain[(chain['priority'] == priority) & chain['inner_code'].notna()]
-                if step.empty:
-                    continue
+            edges = chain[chain['inner_code'].notna()]
+            for _, step in edges.groupby('priority', sort=True, observed=True):
                 np.maximum.at(levels, step['tag_code'].to_numpy(),
                               levels[step['inner_code'].to_numpy().astype('int64')] + 1)
 
@@ -306,7 +307,8 @@ def get_cond_info(locations_df, accounts_df):
 
         # every cond_tag key to emit results for: those defined on accounts plus those referenced by
         # locations (the latter adds default-'0' tags, which are synthetic priority-1 conds)
-        all_cond_keys = pd.concat([accounts_df[['acc_id', 'CondTag']], loc[['acc_id', 'CondTag']]]).drop_duplicates()
+        all_cond_keys = pd.concat([accounts_df[['acc_id', 'CondTag']],
+                                   loc_conds_df[['acc_id', 'CondTag']]]).drop_duplicates()
         for r in all_cond_keys.itertuples():
             cond_key = (int(r.acc_id), r.CondTag)
             level_conds.setdefault(level_map.get((r.acc_id, r.CondTag), 1), set()).add(cond_key)
