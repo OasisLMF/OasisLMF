@@ -2,11 +2,14 @@ import numba as nb
 import numpy as np
 import logging
 
-from oasislmf.pytools.common.data import oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size
+from oasislmf.pytools.common.data import loss_pair_dtype, loss_pair_size, def_to_type_and_size
 from oasislmf.pytools.common.event_stream import (EventReader, get_and_check_header_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, PIPE_CAPACITY)
 
 logger = logging.getLogger(__name__)
+
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
 
 
 @nb.jit(nopython=True, cache=True)
@@ -57,10 +60,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
             else:
                 cursor += n_pairs * loss_pair_size
         else:
-            if valid_buff - cursor < 2 * oasis_int_size:
+            if valid_buff - cursor < event_id_dtype_size + item_id_dtype_size:
                 break
-            event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            event_id, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
+            item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
             ##### do new item setup #####
             factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
             ##########
@@ -97,10 +100,10 @@ def read_buffer_uniform(byte_mv, cursor, valid_buff, event_id, item_id, items_am
             else:
                 cursor += n_pairs * loss_pair_size
         else:
-            if valid_buff - cursor < 2 * oasis_int_size:
+            if valid_buff - cursor < event_id_dtype_size + item_id_dtype_size:
                 break
-            event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            event_id, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
+            item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
     out_byte_mv[:cursor] = byte_mv[:cursor]
     out_cursor[0] = cursor
     return cursor, event_id, item_id, 1

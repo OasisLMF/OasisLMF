@@ -273,10 +273,6 @@ def encode_peril_id(peril_id):
     return sum(ord(c) << (8 * i) for i, c in enumerate(str(peril_id).upper()))
 
 
-def get_intensity_adjustment(input_path):
-    pass
-
-
 @nb.njit(cache=True)
 def load_vuln_probability(vuln_array, vuln, vuln_id):
     if vuln_array.shape[0] < vuln['damage_bin_id']:

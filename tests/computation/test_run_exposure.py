@@ -1,3 +1,4 @@
+import json
 import os
 from tempfile import NamedTemporaryFile
 from unittest.mock import patch
@@ -325,6 +326,22 @@ class _RunExposureIntegrationBase(ComputationChecker):
         )
         _assert_output_matches(out, EXPECTED_ACC_LOC)
 
+    def test_extra_summary_col_already_in_the_level_matches_the_plain_run(self):
+        """An extra_summary_cols entry the level already has is dropped rather than repeated.
+
+        extra_summary_cols comes straight from the CLI and is never checked against the level's
+        own columns. A repeat gives groupby a grouper that is not 1-dimensional, and on the gul
+        only path it gives the frame wide astype(str) a duplicate key.
+        """
+        out = self._output_file()
+        self._run(
+            out,
+            oed_location_csv=LOCATION,
+            oed_accounts_csv=ACCOUNTS,
+            extra_summary_cols=['PortNumber'],
+        )
+        _assert_output_matches(out, EXPECTED_ACC_LOC)
+
     def test_acc_loc_usd_output_matches_expected(self):
         out = self._output_file()
         self._run(
@@ -390,3 +407,67 @@ class TestRunExposureIntegration(_RunExposureIntegrationBase):
 class TestRunExposureIntegrationIntermediaryCsv(_RunExposureIntegrationBase):
     """Integration tests with intermediary_csv=True."""
     extra_kwargs = {'intermediary_csv': True}
+
+
+def _write_tiv_multiplier_module(module_path):
+    with open(module_path, 'w') as f:
+        f.write('''
+class ExposurePreAnalysis:
+    def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
+        self.exposure_data = exposure_data
+        self.multiplier = exposure_pre_analysis_setting['BuildingTIV_multiplier']
+
+    def run(self):
+        loc_df = self.exposure_data.location.dataframe
+        loc_df['BuildingTIV'] = loc_df['BuildingTIV'] * self.multiplier
+''')
+
+
+def _write_setting_json(setting_path, multiplier):
+    with open(setting_path, 'w') as f:
+        json.dump({'BuildingTIV_multiplier': multiplier}, f)
+
+
+class TestRunExposurePreAnalysisHook(ComputationChecker):
+    """Regression tests for GH #2115: 'exposure run' must run a model's
+    exposure_pre_analysis_module, the same as 'model run' / 'generate-oasis-files'.
+    """
+
+    def setUp(self):
+        self.tmp = self.tmp_dir()
+
+    def _run_with_hook(self, out, multiplier):
+        module_path = os.path.join(self.tmp.name, 'epa.py')
+        setting_path = os.path.join(self.tmp.name, 'epa_setting.json')
+        _write_tiv_multiplier_module(module_path)
+        _write_setting_json(setting_path, multiplier)
+        return _run_exposure(
+            out,
+            oed_location_csv=LOCATION,
+            oed_accounts_csv=ACCOUNTS,
+            exposure_pre_analysis_module=module_path,
+            exposure_pre_analysis_setting_json=setting_path,
+        )
+
+    def test_pre_analysis_hook_modifies_exposure_before_keys_and_losses(self):
+        baseline_out = os.path.join(self.tmp.name, 'baseline.csv')
+        _run_exposure(baseline_out, oed_location_csv=LOCATION, oed_accounts_csv=ACCOUNTS)
+
+        doubled_out = os.path.join(self.tmp.name, 'doubled.csv')
+        self._run_with_hook(doubled_out, multiplier=2)
+
+        baseline = pd.read_csv(baseline_out)
+        doubled = pd.read_csv(doubled_out)
+        pd.testing.assert_series_equal(
+            doubled['loss_gul'],
+            baseline['loss_gul'] * 2,
+            check_names=False,
+            rtol=1e-4,
+        )
+
+    def test_without_pre_analysis_module_output_is_unaffected(self):
+        """Regression guard: adding the hook chain must not change behaviour
+        for callers who never set exposure_pre_analysis_module."""
+        out = os.path.join(self.tmp.name, 'output.csv')
+        _run_exposure(out, oed_location_csv=LOCATION, oed_accounts_csv=ACCOUNTS)
+        _assert_output_matches(out, EXPECTED_ACC_LOC)

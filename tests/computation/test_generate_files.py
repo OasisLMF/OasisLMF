@@ -1,5 +1,6 @@
 import pathlib
 import os
+import io
 import logging
 import re
 import pandas as pd
@@ -7,7 +8,8 @@ import responses
 
 from unittest.mock import patch
 
-from ods_tools.oed.common import OdsException
+from ods_tools.oed.common import OdsException, ClassOfBusiness
+from ods_tools.oed.exposure import OedExposure
 from oasislmf.utils.exceptions import OasisException, OasisExceptionNoKeys
 from oasislmf.utils.path import setcwd
 from oasislmf.manager import OasisManager
@@ -109,6 +111,36 @@ class TestGenFiles(ComputationChecker):
             for _, filepath in expected_return.items():
                 self.assertTrue(os.path.isfile(filepath))
                 self.assertTrue(os.path.getsize(filepath) > 0)
+
+    @patch('oasislmf.computation.generate.files.validate_account_location_references')
+    def test_files__cyber_class_of_business__no_location_file__does_not_raise(self, mock_validate):
+        # Regression test: for classes of business such as Cyber/Liability, no location
+        # file is required so exposure_data.location can legitimately be None. GenerateFiles.run()
+        # must not crash trying to access .dataframe on it - it should pass None through instead.
+        account_df = pd.read_csv(io.StringIO(MIN_ACC))
+        exposure_data = OedExposure(
+            location=None,
+            account=account_df,
+            class_of_business=ClassOfBusiness.cyb,
+            use_field=True,
+        )
+
+        with self.tmp_dir() as t_dir:
+            try:
+                self.manager.generate_files(
+                    exposure_data=exposure_data,
+                    lookup_config_json=LOOKUP_CONFIG,
+                    oasis_files_dir=t_dir,
+                )
+            except AttributeError as e:
+                self.fail(f"generate_files() raised AttributeError instead of handling a None location: {e}")
+            except Exception:
+                # Downstream keys lookup/GUL processing isn't exercised by this minimal
+                # account-only fixture - only the location=None handling is under test here.
+                pass
+
+            mock_validate.assert_called_once()
+            self.assertIsNone(mock_validate.call_args[0][0])
 
     def test_files__check_return__ri_args__given_output_dir(self):
         with self.tmp_dir() as t_dir:

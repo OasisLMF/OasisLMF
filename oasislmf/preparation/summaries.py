@@ -34,6 +34,7 @@ from ..utils.data import (
 )
 from ..utils.defaults import (
     SOURCE_IDX,
+    SAR_ID,
     SUMMARY_MAPPING,
     SUMMARY_OUTPUT,
     SUMMARY_TOP_LEVEL_COLS,
@@ -213,12 +214,12 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     # Extract mapped_cols from summary_map_df
     summary_group_df = summary_map_df.loc[:, list(set(tiv_cols).union(mapped_cols))]
 
-    # Search Loc / Acc files and merge in remaing
-    if exposure_cols is not []:
-        # Location file columns
+    # Search Loc / Acc files and merge in remaining
+    if exposure_cols:
+        # Subject-at-risk (location / account) file columns
         exposure_cols_loc = [c for c in exposure_cols if c in exposure_df.columns]
-        exposure_col_df = exposure_df.loc[:, exposure_cols_loc + [SOURCE_IDX['loc']]]
-        summary_group_df = merge_dataframes(summary_group_df, exposure_col_df, join_on=SOURCE_IDX['loc'], how='left')
+        exposure_col_df = exposure_df.loc[:, exposure_cols_loc + [SAR_ID]].drop_duplicates(subset=SAR_ID, keep='first')
+        summary_group_df = merge_dataframes(summary_group_df, exposure_col_df, join_on=SAR_ID, how='left')
 
         # Account file columns
         if isinstance(accounts_df, pd.DataFrame):

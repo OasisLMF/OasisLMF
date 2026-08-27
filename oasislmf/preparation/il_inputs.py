@@ -4,6 +4,7 @@ __all__ = [
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy',
     'get_il_input_items',
+    'validate_account_location_references',
 ]
 
 import contextlib
@@ -195,9 +196,17 @@ def __split_fm_terms_by_risk(df):
             df[term] /= df['NumberOfRisks']
 
 
-def get_cond_info(locations_df, accounts_df):
-    level_conds = {}
-    extra_accounts = []
+def check_cond_tags(locations_df, accounts_df):
+    """Raise if any non-default CondTag referenced by a location is not present
+    in the account file for that acc_id.
+
+    Kept standalone (rather than inlined in get_cond_info) so it can also be
+    run as a cheap, early sanity check on just locations_df/accounts_df -
+    e.g. by validate_account_location_references - before any of the more
+    expensive keys lookup or GUL processing has run.
+
+    Returns (loc_condkey_df, acc_condkey_df).
+    """
     default_cond_tag = '0'
     if 'CondTag' in locations_df.columns:
         fill_empty(locations_df, 'CondTag', default_cond_tag)
@@ -207,7 +216,7 @@ def get_cond_info(locations_df, accounts_df):
 
     if 'CondTag' in accounts_df.columns:
         fill_empty(accounts_df, 'CondTag', default_cond_tag)
-        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['acc_id', 'CondTag']].drop_duplicates()
+        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != default_cond_tag, ['acc_id', 'CondTag']].drop_duplicates()
         condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
         missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['acc_id', 'CondTag']]
     else:
@@ -216,6 +225,72 @@ def get_cond_info(locations_df, accounts_df):
 
     if missing_condkey_df.shape[0]:
         raise OasisException(f'Those condtag are present in locations but missing in the account file:\n{missing_condkey_df}')
+
+    return loc_condkey_df, acc_condkey_df
+
+
+def validate_account_location_references(locations_df, accounts_df):
+    """Validate that every location's PortNumber/AccNumber and CondTag
+    references resolve to a row in the account file.
+
+    Should be called as early as possible in the files-generation pipeline -
+    it only needs locations_df/accounts_df - so a bad portfolio fails in
+    seconds rather than after hours of keys lookup.
+
+    locations_df/accounts_df themselves are never mutated - only fresh frames
+    derived from them (merge results, or minimal column-subset copies) are.
+    """
+    if locations_df is None or accounts_df is None:
+        return
+
+    # Positional numpy arrays throughout (never Series) so the merge below - which resets
+    # the index - can't misalign values when reattached to locations_df/accounts_df.
+    if 'acc_id' in accounts_df.columns:
+        acc_id_col = accounts_df['acc_id'].to_numpy()
+    else:
+        acc_id_col = np.asarray(get_ids(accounts_df, ['PortNumber', 'AccNumber']))
+
+    if 'acc_id' in locations_df.columns:
+        loc_acc_id_col = locations_df['acc_id'].to_numpy()
+    else:
+        acc_id_map = accounts_df[['PortNumber', 'AccNumber']].assign(acc_id=acc_id_col).drop_duplicates()
+        dup_keys = acc_id_map.duplicated(subset=['PortNumber', 'AccNumber'], keep=False)
+        if dup_keys.any():
+            dups = acc_id_map.loc[dup_keys]
+            raise OasisException(
+                'The following PortNumber/AccNumber combinations map to more than one acc_id '
+                f'in the account file (total={len(dups)}):\n{dups.head(20).to_string(index=False)}'
+            )
+        loc_acc_id_col = locations_df[['PortNumber', 'AccNumber']].merge(
+            acc_id_map, how='left', on=['PortNumber', 'AccNumber'])['acc_id'].to_numpy()
+
+    missing_acc_mask = pd.isna(loc_acc_id_col) | ~pd.Series(loc_acc_id_col).isin(acc_id_col).to_numpy()
+    if missing_acc_mask.any():
+        id_cols = [col for col in ['LocNumber', 'PortNumber', 'AccNumber'] if col in locations_df.columns]
+        offending_locations = locations_df.loc[missing_acc_mask, id_cols].drop_duplicates()
+        raise OasisException(
+            'The following locations reference a PortNumber/AccNumber combination that is not present '
+            f'in the account file (total={len(offending_locations)}):\n{offending_locations.head(20).to_string(index=False)}'
+        )
+
+    # Built from plain numpy arrays (copy=True) rather than sliced from locations_df/accounts_df,
+    # so check_cond_tags' in-place fill_empty() calls can't leak back into the caller's data.
+    loc_cond_df = pd.DataFrame({'acc_id': loc_acc_id_col.copy()})
+    if 'CondTag' in locations_df.columns:
+        loc_cond_df['CondTag'] = locations_df['CondTag'].to_numpy(copy=True)
+
+    acc_cond_df = pd.DataFrame({'acc_id': acc_id_col.copy()})
+    if 'CondTag' in accounts_df.columns:
+        acc_cond_df['CondTag'] = accounts_df['CondTag'].to_numpy(copy=True)
+
+    check_cond_tags(loc_cond_df, acc_cond_df)
+
+
+def get_cond_info(locations_df, accounts_df):
+    level_conds = {}
+    extra_accounts = []
+    _, acc_condkey_df = check_cond_tags(locations_df, accounts_df)
+    default_cond_tag = '0'
 
     if acc_condkey_df.shape[0]:
         if 'CondTag' not in locations_df.columns:
@@ -625,6 +700,15 @@ def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
     )
 
 
+def assign_acc_id(accounts_df):
+    """Ensure accounts_df has an 'acc_id' column, computing it from PortNumber/AccNumber
+    if not already present. Mutates accounts_df in place; idempotent.
+    """
+    if 'acc_id' not in accounts_df.columns:
+        accounts_df['acc_id'] = get_ids(accounts_df, ['PortNumber', 'AccNumber'])
+    return accounts_df
+
+
 @oasis_log
 def prepare_il_source_dataframes(gul_inputs_df, exposure_data):
     """Resolve the acc_id key across gul/location/account frames and fill location defaults.
@@ -645,8 +729,7 @@ def prepare_il_source_dataframes(gul_inputs_df, exposure_data):
     if exposure_data.location is not None:
         locations_df = exposure_data.location.dataframe
         accounts_df = exposure_data.account.dataframe
-        if 'acc_id' not in accounts_df:
-            accounts_df['acc_id'] = get_ids(exposure_data.account.dataframe, ['PortNumber', 'AccNumber'])
+        assign_acc_id(accounts_df)
         acc_id_map = accounts_df[['PortNumber', 'AccNumber', 'acc_id']].drop_duplicates()
         gul_inputs_df = gul_inputs_df.merge(acc_id_map, how='left')
         locations_df = locations_df.merge(acc_id_map, how='left')
@@ -1065,6 +1148,54 @@ def write_level_policytc_and_programme(gul_inputs_df, level_id, fm_policytc_bin,
                                                                header=False, chunksize=chunksize)
 
 
+def get_sub_step_trigger_types():
+    """Get the sub-step trigger type of every (step trigger type, coverage type) pair that has one.
+
+    Returns:
+        pandas.Series: sub-step trigger type, indexed by (steptriggertype, coverage_type_id)
+    """
+    return pd.Series({
+        (step_trigger_type, coverage_type_id): sub_step_trigger_type
+        for step_trigger_type, step_trigger_info in STEP_TRIGGER_TYPES.items()
+        for coverage_type_id, sub_step_trigger_type in step_trigger_info['sub_step_trigger_types'].items()
+    })
+
+
+def assign_sub_step_trigger_types(level_df, step_filter):
+    """Split each step row's trigger type into its sub-type for that row's coverage type.
+
+    A StepTriggerType can cover several coverage types separately -- type 5 covers buildings and
+    contents apart from one another -- and the calc rule is looked up by the sub-type. A pair with
+    no sub-type keeps the trigger type it already has.
+
+    Args:
+        level_df (pandas.DataFrame): the FM level frame, with `steptriggertype` and
+            `coverage_type_id` columns. Modified in place.
+        step_filter (pandas.Series): boolean mask of the rows that are step rows
+
+    Returns:
+        pandas.DataFrame: `level_df`, with the step rows' `steptriggertype` replaced by its
+        sub-type wherever the (trigger type, coverage type) pair has one
+    """
+    step_rows = level_df.loc[step_filter, ['steptriggertype', 'coverage_type_id']]
+    sub_step_trigger_type = get_sub_step_trigger_types().reindex(pd.MultiIndex.from_frame(step_rows))
+    # positional throughout: level_df's index is not guaranteed unique, and reindexing onto a
+    # duplicated label would raise rather than assign
+    has_sub_type = sub_step_trigger_type.notna().to_numpy()
+    # reindexing onto a MultiIndex introduces NaN and so promotes the lookup to float64. sub-types
+    # are integers, and a float written into an object column would not match the integer key the
+    # calc rules table is merged on, so the integer is restored before the rows are combined
+    sub_types = sub_step_trigger_type.fillna(0).to_numpy().astype('int64')
+    replacement = np.where(has_sub_type, sub_types, step_rows['steptriggertype'].to_numpy())
+    # pd.array rather than ndarray.astype, because the column is a nullable Int32 in the real
+    # pipeline and numpy cannot interpret a pandas extension dtype. assigning an array rather
+    # than a Series keeps the assignment positional.
+    level_df.loc[step_filter, 'steptriggertype'] = pd.array(
+        replacement, dtype=level_df['steptriggertype'].dtype)
+
+    return level_df
+
+
 @oasis_log
 def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, profile_id_offset):
     """Assign calcrule_id and profile_id to a level's terms.
@@ -1094,16 +1225,7 @@ def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, pro
         # coverages are covered separately
         # For example, StepTriggerType = 5 covers buildings and contents separately
 
-        def assign_sub_step_trigger_type(row):
-            try:
-                step_trigger_type = STEP_TRIGGER_TYPES[row['steptriggertype']]['sub_step_trigger_types'][
-                    row['coverage_type_id']]
-                return step_trigger_type
-            except KeyError:
-                return row['steptriggertype']
-        level_df.loc[step_filter, 'steptriggertype'] = level_df[step_filter].apply(
-            lambda row: assign_sub_step_trigger_type(row), axis=1
-        )
+        level_df = assign_sub_step_trigger_types(level_df, step_filter)
         final_step_filter = level_df['steptriggertype'] > 0
         # step part
         level_df.loc[final_step_filter, 'calcrule_id'] = get_calc_rule_ids(level_df[final_step_filter], calc_rule_type='step')
