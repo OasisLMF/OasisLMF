@@ -309,17 +309,22 @@ def get_cond_info(locations_df, accounts_df):
             if not edges.empty:
                 inner = edges['inner_code'].to_numpy().astype('int64')
                 outer = edges['tag_code'].to_numpy()
-                # relax every edge at once and repeat. Each pass propagates one hop, so this
-                # settles in as many passes as the deepest chain of conditions -- a handful --
-                # rather than once per distinct CondPriority, of which an account file may carry
-                # as many as it has conditions. Every edge runs from a lower priority to a higher
-                # one, so the graph is acyclic and the iteration always terminates; the bound is
-                # a backstop, not the expected exit.
+                # relax every edge at once and repeat. Each pass propagates one hop, so the
+                # pass count is the longest nesting chain in the portfolio -- not the per-account
+                # condition count, since chains compose across locations, which is the whole
+                # reason a per-location rank was not enough. Iterating per distinct CondPriority
+                # instead is flat in depth but pays a pass per priority value, and an account file
+                # may carry as many of those as it has conditions. Every edge runs from a lower
+                # priority to a higher one, so the graph is acyclic and this always terminates.
                 for _ in range(len(tag_keys)):
                     previous = levels.copy()
                     np.maximum.at(levels, outer, levels[inner] + 1)
                     if np.array_equal(levels, previous):
                         break
+                else:
+                    # unreachable on an acyclic graph, but a short bound would otherwise return
+                    # silently under-counted levels, which is exactly the defect being fixed
+                    raise OasisException('cond level assignment did not converge')
 
             level_map = {tuple(key): int(level) for key, level in zip(tag_keys, levels)}
 
