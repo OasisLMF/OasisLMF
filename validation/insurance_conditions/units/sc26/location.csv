@@ -1,0 +1,6 @@
+FlexiLocTestCase,PortNumber,AccNumber,LocNumber,CountryCode,LocPerilsCovered,LocCurrency,BuildingTIV,OtherTIV,ContentsTIV,BITIV,CondTag,OEDVersion
+sc26,sc26,1,10,GB,AA1,GBP,100000,0,50000,0,A,latest version
+sc26,sc26,1,10,GB,AA1,GBP,100000,0,50000,0,B,latest version
+sc26,sc26,1,10,GB,AA1,GBP,100000,0,50000,0,C,latest version
+sc26,sc26,1,10,GB,AA1,GBP,100000,0,50000,0,D,latest version
+sc26,sc26,1,10,GB,AA1,GBP,100000,0,50000,0,E,latest version

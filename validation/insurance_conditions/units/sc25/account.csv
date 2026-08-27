@@ -1,0 +1,4 @@
+FlexiAccTestCase,PortNumber,AccNumber,PolNumber,LayerNumber,AccCurrency,PolPerilsCovered,LayerParticipation,LayerLimit,LayerAttachment,CondPeril,CondTag,CondNumber,CondDed6All,CondDedType6All,CondLimit6All,CondLimitType6All,CondPriority,CondClass,OEDVersion
+sc25,sc25,1,1,1,GBP,AA1,1,0,0,AA1,A,A,20000,0,0,0,2,0,latest version
+sc25,sc25,1,1,1,GBP,AA1,1,0,0,AA1,B,B,0,0,80000,0,3,0,latest version
+sc25,sc25,1,1,1,GBP,AA1,1,0,0,AA1,C,C,10000,0,0,0,1,0,latest version
