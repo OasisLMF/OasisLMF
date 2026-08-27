@@ -116,9 +116,16 @@ one bin lower with some spread:
 
 The matrix is sized ``num_damage_bins x num_damage_bins`` — it is indexed by damage bins,
 independent of the footprint's hazard-intensity resolution, so ``num_damage_bins`` may
-differ from the number of intensity bins. A source damage bin with no rows is treated as an
-all-zero column, i.e. "that source damage produces no dependent damage" — leaving a source
-bin undefined is a valid modelling choice, not an error.
+differ from the number of intensity bins.
+
+Completeness is not required: a source damage bin the source can never reach may be left with
+no rows, and is read as "that source damage produces no dependent damage". Such a column is
+filled with a point mass on **damage bin 1**, which the damage_bin_dict must therefore define
+as the no-damage bin ``[0, 0]`` — the usual convention. If it does not, an undefined source
+damage bin cannot mean "no damage" and the run fails, asking for the column to be authored
+explicitly. A column that *is* defined but whose probabilities sum to less than 1 is left as
+authored, with a warning: the engine absorbs the shortfall into the highest damage bin defined
+for that column rather than reweighting.
 
 Rules and constraints
 ---------------------
@@ -151,11 +158,35 @@ Zero-TIV (uninsured) sources
 
 A source coverage with zero TIV (for example an uninsured building) is **retained** so that
 it can still drive its dependent — a source's damage is physical and does not depend on
-whether the source itself is insured. Such a source is not special-cased: it flows as an
-ordinary zero-TIV, zero-loss coverage, and appears with zero loss in the outputs.
+whether the source itself is insured. It reports **zero loss** in the outputs whatever the
+damage type: with no TIV there is no value at risk, so the damage-bin scaling is zero even for
+an absolute damage function, whose bins carry currency directly rather than a fraction of TIV.
+Its dependent is unaffected, being driven by the source's sampled damage *bin* rather than by
+its loss.
+
+Dynamic footprint: intensity adjustment and return-period protection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Under a dynamic footprint the keys server returns two per-item adjustments alongside the
+areaperil and vulnerability ids, and a dependent treats them differently.
+
+``IntensityAdjustment`` shifts the hazard intensity before it is mapped to an intensity bin. A
+dependent has no hazard intensity — its "hazard bins" are its source's damage bins — so the
+adjustment is **inert** for a dependent. It still applies to the source, and so reaches the
+dependent through the source's damage.
+
+``ReturnPeriod`` is a protection standard: where the event's effective return period for the
+item's areaperil is below it, the event's hazard does not reach the item. That is upstream of
+how the item's damage would be computed, so it **does** apply to a dependent, exactly as to any
+other item: the item is skipped whole and reports zero for both its samples and its analytic
+values (mean, standard deviation, maximum loss). A protected source additionally exposes "no
+damage" (damage bin 0) to its dependents, so protection propagates down a dependency chain.
 
 .. note::
 
    The behaviours described here are exercised end-to-end by
    ``tests/pytools/gulmc/test_coverage_dependency.py``, which is the source of truth for the
-   configuration formats and examples on this page.
+   configuration formats and examples on this page. ``tests/assets/test_model_8`` additionally
+   carries a reference model — a two-deep dependency chain rooted on an uninsured coverage,
+   alongside an independent one — run by ``test_gulmc`` across every sample size, back-allocation
+   rule, random generator and effective-damageability mode. See its ``README.md`` for the layout.

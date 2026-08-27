@@ -18,6 +18,7 @@ import pytest
 from ods_tools.oed import OedExposure
 
 from oasislmf.pytools.common.data import correlations_dtype
+from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, STD_DEV_IDX, TIV_IDX
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 from oasislmf.pytools.gulmc.structure import build_coverage_dependency_forest
@@ -64,6 +65,22 @@ def test_get_coverage_dependency_settings():
 # --------------------------------------------------------------------------------------
 # conditional vulnerability file (damage-transition matrix)
 # --------------------------------------------------------------------------------------
+def _damage_bins(n, first_bin_is_zero_damage=True):
+    """A damage_bin_dict with n bins: bin 1 is the no-damage point bin [0, 0] by convention,
+    then n-1 equal bins up to 1.0. `first_bin_is_zero_damage=False` drops that convention."""
+    from oasislmf.pytools.common.data import damagebin_dtype
+    dbd = np.zeros(n, dtype=damagebin_dtype)
+    dbd['bin_index'] = np.arange(1, n + 1)
+    edges = np.linspace(0., 1., n if first_bin_is_zero_damage else n + 1)
+    if first_bin_is_zero_damage:
+        dbd[0]['bin_from'] = dbd[0]['bin_to'] = dbd[0]['interpolation'] = 0.
+        dbd[1:]['bin_from'], dbd[1:]['bin_to'] = edges[:-1], edges[1:]
+    else:
+        dbd['bin_from'], dbd['bin_to'] = edges[:-1], edges[1:]
+    dbd['interpolation'] = (dbd['bin_from'] + dbd['bin_to']) / 2
+    return dbd
+
+
 def _write_conditional_vuln_csv(dir_path, rows):
     # columns match vulnerability_dtype order: vulnerability_id, intensity_bin_id (= source damage
     # bin), damage_bin_id (= dependent damage bin), probability
@@ -85,7 +102,7 @@ def test_get_conditional_vulns():
             (7, 2, 2, 0.5), (7, 2, 3, 0.5),   # source bin 2 -> dependent {2:0.5, 3:0.5}
             (7, 3, 3, 1.0),                   # source bin 3 -> dependent {3:1.0}
         ])
-        arr, ids = get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
+        arr, ids = get_conditional_vulns(LocalStorage(d), _damage_bins(3))
     assert arr.shape == (1, 3, 3)
     assert ids.tolist() == [7]
     # [dependent-1, source-1]
@@ -98,22 +115,52 @@ def test_get_conditional_vulns_absent_is_empty():
     from oasislmf.pytools.gulmc.structure import get_conditional_vulns
     from oasis_data_manager.filestore.backends.local import LocalStorage
     with tempfile.TemporaryDirectory() as d:
-        arr, ids = get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
+        arr, ids = get_conditional_vulns(LocalStorage(d), _damage_bins(3))
     assert arr.shape == (0, 3, 3) and ids.shape == (0,)
 
 
 def test_get_conditional_vulns_allows_missing_source_bins():
-    """A source damage bin may be left undefined: its column is all-zero, which the kernel samples
-    as no dependent damage. This is a valid modelling choice, so the loader must not require every
-    source bin to be defined."""
+    """A source damage bin may be left undefined (the source may never reach it), meaning "no
+    dependent damage". The loader makes that explicit as a point mass on damage bin 1, the
+    no-damage bin: left as an all-zero column the sampled loss would be undefined, since a
+    zero-height cdf bin cannot be interpolated within."""
     from oasislmf.pytools.gulmc.structure import get_conditional_vulns
     from oasis_data_manager.filestore.backends.local import LocalStorage
     with tempfile.TemporaryDirectory() as d:
         # only source bins 1 and 2 defined; source bin 3 left undefined (num_damage_bins=3)
         _write_conditional_vuln_csv(d, [(7, 1, 1, 1.0), (7, 2, 2, 1.0)])
-        arr, ids = get_conditional_vulns(LocalStorage(d), num_damage_bins=3)
+        arr, ids = get_conditional_vulns(LocalStorage(d), _damage_bins(3))
     assert arr.shape == (1, 3, 3) and ids.tolist() == [7]
-    assert np.all(arr[0, :, 2] == 0.0), "undefined source bin 3 -> all-zero column (no dependent damage)"
+    np.testing.assert_allclose(arr[0, :, 2], [1.0, 0.0, 0.0]), "undefined source bin -> no damage"
+    # the defined columns are untouched
+    np.testing.assert_allclose(arr[0, :, 0], [1.0, 0.0, 0.0])
+    np.testing.assert_allclose(arr[0, :, 1], [0.0, 1.0, 0.0])
+
+
+def test_get_conditional_vulns_rejects_undefined_bin_without_a_no_damage_bin():
+    """"No dependent damage" has to be expressible: if damage bin 1 of the damage_bin_dict is not a
+    zero-damage point bin, an undefined source damage bin cannot mean no damage, so it must be
+    authored explicitly rather than silently mapped to a damaging bin."""
+    from oasislmf.pytools.gulmc.structure import get_conditional_vulns
+    from oasis_data_manager.filestore.backends.local import LocalStorage
+    with tempfile.TemporaryDirectory() as d:
+        _write_conditional_vuln_csv(d, [(7, 1, 1, 1.0), (7, 2, 2, 1.0)])
+        with pytest.raises(OasisException, match="zero-damage"):
+            get_conditional_vulns(LocalStorage(d), _damage_bins(3, first_bin_is_zero_damage=False))
+
+
+def test_get_conditional_vulns_warns_on_a_partial_column(caplog):
+    """A column that is defined but sums to less than 1 is a partially specified distribution; the
+    kernel absorbs the shortfall into the column's top defined bin, so say so rather than
+    silently reweighting."""
+    from oasislmf.pytools.gulmc.structure import get_conditional_vulns
+    from oasis_data_manager.filestore.backends.local import LocalStorage
+    with tempfile.TemporaryDirectory() as d:
+        _write_conditional_vuln_csv(d, [(7, 1, 1, 0.4), (7, 2, 2, 1.0), (7, 3, 3, 1.0)])
+        with caplog.at_level(logging.WARNING):
+            arr, _ = get_conditional_vulns(LocalStorage(d), _damage_bins(3))
+    assert "summing to" in caplog.text
+    np.testing.assert_allclose(arr[0, :, 0], [0.4, 0.0, 0.0]), "not reweighted"
 
 
 def test_get_conditional_vulns_bin_matches_csv():
@@ -126,16 +173,99 @@ def test_get_conditional_vulns_bin_matches_csv():
     rows = [(7, 1, 1, 0.8), (7, 1, 2, 0.2), (7, 2, 2, 0.5), (7, 2, 3, 0.5), (7, 3, 3, 1.0)]
     with tempfile.TemporaryDirectory() as d_csv, tempfile.TemporaryDirectory() as d_bin:
         _write_conditional_vuln_csv(d_csv, rows)
-        arr_csv, ids_csv = get_conditional_vulns(LocalStorage(d_csv), num_damage_bins=3)
+        arr_csv, ids_csv = get_conditional_vulns(LocalStorage(d_csv), _damage_bins(3))
 
         recs = np.array(rows, dtype=vulnerability_dtype)
         with open(Path(d_bin) / 'conditional_vulnerability.bin', 'wb') as f:
             np.array([3], dtype=np.int32).tofile(f)  # 4-byte header: num_damage_bins
             recs.tofile(f)
-        arr_bin, ids_bin = get_conditional_vulns(LocalStorage(d_bin), num_damage_bins=3)
+        arr_bin, ids_bin = get_conditional_vulns(LocalStorage(d_bin), _damage_bins(3))
 
     np.testing.assert_array_equal(ids_bin, ids_csv)
     np.testing.assert_allclose(arr_bin, arr_csv)
+
+
+# --------------------------------------------------------------------------------------
+# dependent-damage axis alignment (conditional matrix vs vulnerability array width)
+# --------------------------------------------------------------------------------------
+def _cond_matrix(num_damage_bins, num_source_bins=None, top_bin_prob=0.0):
+    """A single conditional vulnerability: source bin 1 -> dependent bin 1, plus an optional
+    probability on the top dependent damage bin."""
+    from oasislmf.pytools.common.data import oasis_float
+    arr = np.zeros((1, num_damage_bins, num_source_bins or num_damage_bins), dtype=oasis_float)
+    arr[0, 0, 0] = 1.0
+    if top_bin_prob:
+        arr[0, num_damage_bins - 1, 0] = top_bin_prob
+    return arr
+
+
+def test_align_conditional_damage_axis_is_identity_when_widths_match():
+    from oasislmf.pytools.gulmc.structure import align_conditional_damage_axis
+    arr = _cond_matrix(3)
+    assert align_conditional_damage_axis(arr, 3) is arr
+    # an empty matrix (no conditional file) is passed through whatever the widths
+    empty = np.zeros((0, 3, 3), dtype=arr.dtype)
+    assert align_conditional_damage_axis(empty, 2) is empty
+
+
+def test_align_conditional_damage_axis_drops_unreachable_top_bins():
+    """The vulnerability data may declare fewer damage bins than the damage_bin_dict (e.g. a
+    vulnerability.csv whose top damage bin is unused). The kernel copies a conditional column into
+    a vuln_pdf row of that width, so the unused tail must be dropped, not left to mismatch."""
+    from oasislmf.pytools.gulmc.structure import align_conditional_damage_axis
+    arr = _cond_matrix(3)
+    aligned = align_conditional_damage_axis(arr, 2)
+    assert aligned.shape == (1, 2, 3)
+    np.testing.assert_allclose(aligned[0, :, 0], [1.0, 0.0])
+
+
+def test_align_conditional_damage_axis_rejects_dropping_probability():
+    from oasislmf.pytools.gulmc.structure import align_conditional_damage_axis
+    arr = _cond_matrix(3, top_bin_prob=0.5)  # dependent damage bin 3 carries probability
+    with pytest.raises(OasisException, match="damage bin"):
+        align_conditional_damage_axis(arr, 2)
+
+
+def test_align_conditional_damage_axis_rejects_oversized_vulnerability_axis():
+    """If the vulnerability data declares more damage bins than the damage_bin_dict, a source
+    coverage can sample a damage bin with no column in the conditional matrix."""
+    from oasislmf.pytools.gulmc.structure import align_conditional_damage_axis
+    with pytest.raises(OasisException, match="damage_bin_dict"):
+        align_conditional_damage_axis(_cond_matrix(2), 3)
+
+
+# --------------------------------------------------------------------------------------
+# dense vuln index -> conditional row mapping
+# --------------------------------------------------------------------------------------
+def _items_for_cond_idx(rows):
+    """rows: (vulnerability_id, vulnerability_idx, areaperil_agg_vuln_idx)."""
+    return np.array(rows, dtype=[('vulnerability_id', 'i4'), ('vulnerability_idx', 'i4'),
+                                 ('areaperil_agg_vuln_idx', 'i4')])
+
+
+def test_build_vuln_idx_to_cond_idx_maps_conditional_vulns():
+    from oasislmf.pytools.gulmc.structure import build_vuln_idx_to_cond_idx
+    items = _items_for_cond_idx([(50, 0, -1), (101, 1, -1), (102, 2, -1)])
+    got = build_vuln_idx_to_cond_idx(items, np.array([101, 102], dtype=np.int32), n_vulns=3)
+    assert got.tolist() == [-1, 0, 1]
+
+
+def test_build_vuln_idx_to_cond_idx_ignores_aggregate_items():
+    """An aggregate item has no vulnerability_idx (generate_item_map assigns it only in the
+    non-aggregate branch), so an aggregate vulnerability id colliding with a conditional one must
+    not scatter through that unassigned index."""
+    from oasislmf.pytools.gulmc.structure import build_vuln_idx_to_cond_idx
+    # the aggregate item's id collides with conditional id 101; its vulnerability_idx is unset (0)
+    items = _items_for_cond_idx([(101, 0, 7), (50, 0, -1), (102, 1, -1)])
+    got = build_vuln_idx_to_cond_idx(items, np.array([101, 102], dtype=np.int32), n_vulns=2)
+    assert got.tolist() == [-1, 1], "dense index 0 belongs to normal vuln 50, not to the aggregate"
+
+
+def test_build_vuln_idx_to_cond_idx_no_conditional_vulns():
+    from oasislmf.pytools.gulmc.structure import build_vuln_idx_to_cond_idx
+    items = _items_for_cond_idx([(50, 0, -1)])
+    got = build_vuln_idx_to_cond_idx(items, np.zeros(0, dtype=np.int32), n_vulns=2)
+    assert got.tolist() == [-1, -1]
 
 
 # --------------------------------------------------------------------------------------
@@ -244,6 +374,48 @@ def test_zero_tiv_source_retained_as_driver():
         assert (contents[contents['loc_id'] == loc]['source_coverage_id'] == src).all()
 
 
+def _gul_inputs_chain(building_tiv, contents_tiv, bi_tiv):
+    """One location with a configured dependency CHAIN building (1) -> contents (3) -> BI (4)."""
+    loc_df = pd.DataFrame({
+        'PortNumber': ['1'], 'AccNumber': ['1'], 'LocNumber': ['1'],
+        'CountryCode': ['GB'], 'LocCurrency': ['GBP'], 'LocPerilsCovered': ['WTC'],
+        'BuildingTIV': [building_tiv], 'ContentsTIV': [contents_tiv],
+        'OtherTIV': [0.0], 'BITIV': [bi_tiv],
+    })
+    exposure = OedExposure(location=loc_df, use_field=True)
+    prepare_oed_exposure(exposure)
+    keys_df = pd.DataFrame([
+        {'loc_id': 1, 'peril_id': 'WTC', 'coverage_type_id': ct, 'areaperil_id': 1,
+         'vulnerability_id': 1, 'status': 'success', 'message': ''} for ct in (1, 3, 4)
+    ])
+    gul = get_gul_input_items(exposure.location.dataframe, keys_df, damage_group_id_cols=['loc_id'],
+                              coverage_dependency_settings=[(1, 3), (3, 4)])
+    return gul.set_index('coverage_type_id')
+
+
+def test_zero_tiv_retention_follows_a_dependency_chain():
+    """Retention has to resolve from the insured end backwards. With a configured chain
+    building -> contents -> BI and only BI insured, contents is retained as BI's source — and the
+    building must then be retained as *contents'* source. Keeping contents while dropping the
+    building would leave contents with a conditional vulnerability and no source, which gulmc
+    rejects outright (validate_coverage_dependency).
+    """
+    cov = _gul_inputs_chain(building_tiv=0.0, contents_tiv=0.0, bi_tiv=200.0)
+    assert set(cov.index) == {1, 3, 4}, "the whole chain is retained, not just the last zero-TIV link"
+    # every dependent in the chain resolves to its source
+    assert int(cov.loc[3, 'source_coverage_id']) == int(cov.loc[1, 'coverage_id'])
+    assert int(cov.loc[4, 'source_coverage_id']) == int(cov.loc[3, 'coverage_id'])
+    assert float(cov.loc[1, 'tiv']) == 0.0 and float(cov.loc[3, 'tiv']) == 0.0
+
+
+def test_zero_tiv_retention_stops_where_the_chain_is_not_kept():
+    """Retention is not unconditional: a zero-TIV source with no kept dependent anywhere down the
+    chain is still dropped as an empty coverage."""
+    # nothing insured below the building: contents and BI are both zero-TIV, so none is retained
+    cov = _gul_inputs_chain(building_tiv=5000.0, contents_tiv=0.0, bi_tiv=0.0)
+    assert set(cov.index) == {1}, "only the insured building survives"
+
+
 def test_per_location_activation_by_areaperil():
     """Dependency is active only where the key server returns the source at the same areaperil as
     the dependent. Where contents' areaperil differs from building's, the dependent is independent."""
@@ -324,10 +496,11 @@ def test_forest_rejects_cycles():
 
 def test_forest_rejects_out_of_range_source():
     # a source id beyond the coverage range is malformed/stale input -> fail loud, not silently
-    # demote the dependent to independent
+    # demote the dependent to independent. An OasisException, not an assert: the check must
+    # survive python -O, where a bad id would reach the njit depth walk and index out of bounds.
     items = np.array([(1, 0), (2, 99)],
                      dtype=[('coverage_id', 'u4'), ('source_coverage_id', 'u4')])
-    with pytest.raises(AssertionError, match="out of range"):
+    with pytest.raises(OasisException, match="out of range"):
         build_coverage_dependency_forest(items, 3)
 
 
@@ -335,7 +508,7 @@ def test_forest_rejects_self_reference():
     # a coverage listing itself as its own source is malformed input -> fail loud
     items = np.array([(1, 0), (2, 2)],
                      dtype=[('coverage_id', 'u4'), ('source_coverage_id', 'u4')])
-    with pytest.raises(AssertionError, match="itself"):
+    with pytest.raises(OasisException, match="itself"):
         build_coverage_dependency_forest(items, 3)
 
 
@@ -451,6 +624,72 @@ def test_conditional_dependency_end_to_end(source_damage_type):
         # boundaries. Independent sampling over 12 bins would give a mean difference of several bins.
         assert n > 0 and (diff == 0).mean() > 0.9 and diff.mean() < 0.15, \
             f"identity conditional => dependent damage bin should follow source's (exact {(diff == 0).mean():.3f}, mean|d| {diff.mean():.3f})"
+
+
+@pytest.mark.parametrize("source_damage_type,absolute_bins", [
+    (0, False), (0, True), (1, False), (2, True), (3, False),
+], ids=["default-relative-bins", "default-absolute-bins", "relative", "absolute", "duration"])
+def test_zero_tiv_source_reports_no_loss_but_still_drives_dependent(source_damage_type, absolute_bins):
+    """A source retained with zero TIV must report no loss of its own while still driving its
+    dependent, for every damage type.
+
+    Relative and duration functions get the zero from their tiv factor, but absolute functions
+    carry currency directly in the damage bins, so without an explicit zero an uninsured building
+    would emit non-zero gul (and the tiv split that caps absolute losses at the tiv is itself
+    skipped when tiv is 0). That covers both ways a scaling of 1 is reached: damage_type 2, and
+    damage_type 0 (default) with currency-scale bins, whose last bin_to exceeds 1. The dependent is
+    unaffected either way: it is driven by the source's sampled damage bin, which does not depend
+    on the loss scaling.
+    """
+    with tempfile.TemporaryDirectory() as t:
+        run_dir = Path(t) / 'assets'
+        shutil.copytree(SRC_MODEL, run_dir)
+        shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
+
+        items = pd.read_csv(run_dir / 'input' / 'items.csv')
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 154), 'vulnerability_id'] = 101
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 54), 'vulnerability_id'] = 102
+        items.to_csv(run_dir / 'input' / 'items.csv', index=False)
+        (run_dir / 'input' / 'items.bin').unlink()
+
+        dbd_path = run_dir / 'static' / 'damage_bin_dict.csv'
+        dbd = pd.read_csv(dbd_path)
+        n_damage_bins = len(dbd)
+        if absolute_bins:  # currency-scale bins (bin_to > 1)
+            to = np.arange(n_damage_bins, dtype='f8') * 1000.0
+            frm = np.concatenate([[0.0], to[:-1]])
+            dbd['bin_from'], dbd['bin_to'], dbd['interpolation'] = frm, to, (frm + to) / 2
+        dbd['damage_type'] = source_damage_type
+        dbd.to_csv(dbd_path, index=False)
+        (run_dir / 'static' / 'damage_bin_dict.bin').unlink()
+
+        with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
+            f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
+            for vid in (101, 102):  # identity: source bin k -> dependent bin k
+                for k in range(1, n_damage_bins + 1):
+                    f.write(f'{vid},{k},{k},1.0\n')
+
+        # coverage 1 is the source: make it uninsured (the retained zero-TIV driver)
+        cov = pd.read_csv(run_dir / 'input' / 'coverages.csv')
+        cov.loc[cov.coverage_id == 1, 'tiv'] = 0.0
+        cov.to_csv(run_dir / 'input' / 'coverages.csv', index=False)
+        (run_dir / 'input' / 'coverages.bin').unlink()
+
+        _write_correlations(run_dir, {2: 1})
+        df = _run(run_dir, effective_damageability=False)
+
+    src = df[df['item_id'] == 1]           # coverage 1, tiv 0
+    dep = df[df['item_id'] == 3]           # coverage 2, tiv > 0, dependent on coverage 1
+    assert len(src) > 0 and len(dep) > 0
+
+    # the uninsured source reports no loss anywhere: samples and the loss-valued special sidx
+    # (mean, std dev, tiv, max loss). sidx -4 is a probability, not a loss, so it is left alone.
+    assert (src[src['sidx'] > 0]['loss'] == 0).all()
+    loss_sidx = src[src['sidx'].isin([MEAN_IDX, STD_DEV_IDX, TIV_IDX, MAX_LOSS_IDX])]
+    assert (loss_sidx['loss'] == 0).all(), f"zero-tiv source reported loss on {loss_sidx.to_dict('records')}"
+
+    # ... and still drives its dependent, which is insured and does have losses
+    assert (dep[dep['sidx'] > 0]['loss'] > 0).any()
 
 
 def test_conditional_dependency_eff_dam_marginal():

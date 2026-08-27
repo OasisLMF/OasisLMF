@@ -699,6 +699,14 @@ def compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv):
     relative functions scale by tiv, absolute by 1, duration converts annual tiv to daily,
     and the default path infers relative-vs-absolute from whether the last bin_to is <= 1.
 
+    A coverage with no tiv has no value at risk, so it yields no loss whatever the damage type.
+    Relative and duration functions get that from their tiv factor, but absolute functions carry
+    currency directly in the damage bins, so they need the zero explicitly (write_losses' tiv
+    split, which caps absolute losses at the tiv, is likewise skipped when tiv is 0). This only
+    arises for a coverage dependency source retained with zero tiv (an uninsured building driving
+    its insured contents): it must drive its dependents but report no loss of its own. The sampled
+    damage bin and the effective damage cdf that do the driving are independent of this scaling.
+
     Args:
         damage_bins (np.array): damage bin dictionary with bin_to and damage_type fields.
         Neff_damage_bins (int): number of effective damage bins.
@@ -707,6 +715,9 @@ def compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv):
     Returns:
         float: the scaling factor applied to damage-bin values to produce gul.
     """
+    if tiv <= 0:
+        return 0.
+
     damage_type = damage_bins[Neff_damage_bins - 1]['damage_type']
     if damage_type == DAMAGE_TYPE_RELATIVE:
         damage_bin_scaling = tiv
@@ -969,8 +980,8 @@ def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sa
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dynamic_footprint,
-                       item_event_data, haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
+def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index,
+                       haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                        eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
                        damage_bins, damage_bin_scaling, losses,
                        is_dependent, store_source_bin, source_damage_bin_stack, depth):
@@ -979,8 +990,8 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dyna
     In debug modes 1/2 the drawn hazard/damage random values are stored directly. Otherwise the
     gul is computed per sample: under effective_damageability from the single effective damage CDF;
     with a single hazard bin from that bin's vulnerability CDF; and in the general case by drawing
-    the hazard bin per sample (with per-sample return-period protection under a dynamic footprint)
-    and using that bin's vulnerability CDF.
+    the hazard bin per sample and using that bin's vulnerability CDF. Return-period protection is
+    not handled here: the caller skips a protected item whole, before any sampling.
 
     Coverage dependency: a dependent item (``is_dependent``, full Monte Carlo) selects its hazard
     bin as its source's per-sample sampled damage bin, read from ``source_damage_bin_stack`` at the
@@ -993,8 +1004,6 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dyna
         item_j (int): column index of this item within the coverage's loss buffer.
         sample_size (int): number of random samples.
         hazard_rng_index (int): index into hazard random values, or < 0 if hazard deterministic.
-        dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
-        item_event_data (np.void): per-item event data (return_period, event_rp).
         haz_z_unif (np.array[float]): hazard random values for this item.
         vuln_z_unif (np.array[float]): damage random values for this item.
         haz_cdf_prob (np.array[float]): hazard intensity cdf.
@@ -1050,14 +1059,6 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dyna
                 # is bigger, we want the index Nhaz_bins-1 anyway. if we were using Nhaz_bins,
                 # bigger than haz_cdf_prob[-1] haz_rval would have index Nhaz_bins, outside haz_i_to_Ndamage_bins
                 haz_bin_idx = binary_search(haz_z_unif[sample_idx - 1], haz_cdf_prob, Nhaz_bins - 1)
-
-                # per-sample RP protection: the drawn bin carries its own return period
-                if dynamic_footprint is not None and item_event_data['return_period'] > 0 \
-                        and item_event_data['event_rp'] < item_event_data['return_period']:
-                    losses[sample_idx, item_j] = 0
-                    if store_source_bin:  # protected sample -> no damage -> bin 0
-                        source_damage_bin_stack[depth, item_j, sample_idx - 1] = 0
-                    continue
 
                 # get the individual vulnerability cdf
                 Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
@@ -1224,11 +1225,23 @@ def compute_event_losses(compute_info,
 
             if dynamic_footprint is not None:
                 intensity_adjustment = item['intensity_adjustment']
-                # Single-bin RP protection: zero all losses up front (deterministic behaviour preserved).
-                # Multi-bin case is handled per-sample in the stochastic loop below.
-                if haz_pdf_record.shape[0] == 1 and item_event_data['return_period'] > 0 \
+                # RP protection: the event's hazard does not reach this item, so the item takes no
+                # damage at all and is skipped whole — samples and the analytic sidx alike. The
+                # protection is upstream of how the item's damage would be computed, so it applies
+                # to a dependent item too (whose hazard axis is its source's damage bins rather
+                # than the footprint's) and whatever the number of footprint hazard records for its
+                # areaperil: the return period is a per-item-event value, not a per-hazard-bin one.
+                if item_event_data['return_period'] > 0 \
                         and item_event_data['event_rp'] < item_event_data['return_period']:
                     losses[:, item_j] = 0
+                    if compute_info['do_coverage_dependency'] == 1:
+                        # this item is skipped, but a dependent below it in the DFS still reads the
+                        # source state at (depth, item_j), so record "no damage" (per-sample damage
+                        # bin 0 and a point-mass effective-damage CDF on bin 0) instead of leaving
+                        # the previously processed coverage's values in place.
+                        source_damage_bin_stack[depth, item_j, :] = 0
+                        source_eff_damage_cdf_stack[depth, item_j, 0] = 1.
+                        source_eff_damage_cdf_len_stack[depth, item_j] = 1
                     continue
             else:
                 intensity_adjustment = nb_oasis_int(0)
@@ -1309,8 +1322,8 @@ def compute_event_losses(compute_info,
                                          norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
                                          haz_z_unif, vuln_z_unif)
 
-                sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dynamic_footprint,
-                                   item_event_data, haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
+                sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index,
+                                   haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                                    eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
                                    damage_bins, damage_bin_scaling, losses,
                                    is_dependent, store_source_bin, source_damage_bin_stack, depth)

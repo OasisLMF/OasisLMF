@@ -376,26 +376,40 @@ def get_gul_input_items(
         mask = gul_inputs_df['coverage_type_id'] == cov_type
         gul_inputs_df.loc[mask, 'tiv'] = gul_inputs_df.loc[mask, tiv_col['tiv_col']]
 
-    # coverage dependency: keep zero-TIV coverages that are dependency SOURCES for an insured
+    # coverage dependency: keep zero-TIV coverages that are dependency SOURCES for a kept
     # dependent at the same location, so an uninsured source (e.g. an uninsured building) can still
     # drive its dependent (contents) in gulmc — a source's damage is physical (hazard x
     # vulnerability), independent of whether the source coverage is insured. Such a source is not
-    # special-cased downstream: it simply flows as an ordinary zero-TIV, zero-loss coverage.
+    # special-cased downstream: it flows as an ordinary coverage and reports zero loss (gulmc
+    # scales damage bins by a zero tiv).
+    # A dependent that is itself kept only because it is a source further down the chain still
+    # needs its own source, so retention is resolved from the insured end backwards: iterate to a
+    # fixed point rather than testing each configured pair once in isolation. Without this, a
+    # configured chain building -> contents -> BI with only BI insured keeps contents (a source for
+    # BI) but drops the building, leaving contents with a conditional vulnerability and no source —
+    # which gulmc rejects outright.
     # Computed at loc_id level (building_id is assigned at disaggregation below, which replicates
     # uniformly).
     keep_zero_tiv_source = pd.Series(False, index=gul_inputs_df.index)
     if coverage_dependency_settings:
         tiv_positive = gul_inputs_df['tiv'] > 0
-        for source_cov_type, dependent_cov_type in coverage_dependency_settings:
-            insured_dependent_locs = gul_inputs_df.loc[
-                tiv_positive & (gul_inputs_df['coverage_type_id'] == dependent_cov_type), 'loc_id'].unique()
-            if len(insured_dependent_locs) == 0:
-                continue
-            keep_zero_tiv_source |= (
-                (gul_inputs_df['coverage_type_id'] == source_cov_type)
-                & (~tiv_positive)
-                & gul_inputs_df['loc_id'].isin(insured_dependent_locs)
-            )
+        # each pass can only extend the chain by one link, so len(pairs) passes always suffice
+        for _ in range(len(coverage_dependency_settings)):
+            kept = tiv_positive | keep_zero_tiv_source
+            newly_kept = pd.Series(False, index=gul_inputs_df.index)
+            for source_cov_type, dependent_cov_type in coverage_dependency_settings:
+                kept_dependent_locs = gul_inputs_df.loc[
+                    kept & (gul_inputs_df['coverage_type_id'] == dependent_cov_type), 'loc_id'].unique()
+                if len(kept_dependent_locs) == 0:
+                    continue
+                newly_kept |= (
+                    (gul_inputs_df['coverage_type_id'] == source_cov_type)
+                    & (~kept)
+                    & gul_inputs_df['loc_id'].isin(kept_dependent_locs)
+                )
+            if not newly_kept.any():
+                break
+            keep_zero_tiv_source |= newly_kept
 
     # Filter out rows with zero TIV, except retained dependency sources
     gul_inputs_df = gul_inputs_df[(gul_inputs_df['tiv'] > 0) | keep_zero_tiv_source]

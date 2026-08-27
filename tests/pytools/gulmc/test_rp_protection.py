@@ -10,8 +10,10 @@ Three levels of coverage:
   3. compute_event_losses             – losses are zeroed when event_rp < item_rp
 """
 import numpy as np
+import pytest
 
 from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int, damagebin_dtype
+from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.getmodel.common import EventDynamic
 from oasislmf.pytools.gulmc.common import (
@@ -103,15 +105,26 @@ def _make_items_array(intensity_adjustment=0, return_period=0):
     return items
 
 
-def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment=0):
+def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment=0,
+                                    sample_size=0, n_haz_records=1, dependent=False):
     """
     Build the full argument set for a single-item, single-coverage call to
-    compute_event_losses with sample_size=0 and effective_damageability=True.
+    compute_event_losses. Defaults give sample_size=0 and effective_damageability=True.
+
+    Args:
+        event_rp (int): the event's effective return period for the item's areaperil.
+        item_rp (int): the item's RP protection threshold (0 = unprotected).
+        item_intensity_adjustment (int): dynamic-footprint intensity shift.
+        sample_size (int): number of samples; > 0 switches to full Monte Carlo
+          (effective_damageability=False) with deterministic spread-out random values.
+        n_haz_records (int): number of footprint hazard records for the item's areaperil.
+          More than one takes the multi-hazard-bin path.
+        dependent (bool): make the coverage a coverage-dependency dependent at depth 1, driven
+          by a fully damaged source held on the depth-0 stacks via an identity conditional matrix.
 
     Returns (args_tuple, losses_array) where losses_array is the buffer
     that will be written by the function.
     """
-    sample_size = 0
     Ndamage_bins = 2
     Nintensity_bins = 1
 
@@ -121,7 +134,8 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     compute_info['Ndamage_bins_max'] = Ndamage_bins
     compute_info['loss_threshold'] = 0.0
     compute_info['alloc_rule'] = 0
-    compute_info['effective_damageability'] = 1
+    compute_info['effective_damageability'] = 0 if sample_size > 0 else 1
+    compute_info['do_coverage_dependency'] = 1 if dependent else 0
     compute_info['do_correlation'] = 0
     compute_info['do_haz_correlation'] = 0
     compute_info['debug'] = 0
@@ -156,21 +170,28 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     # --- items ---
     items = _make_items_array(intensity_adjustment=item_intensity_adjustment, return_period=item_rp)
 
-    # --- haz_pdf: single entry (intensity=100, prob=1.0) ---
-    haz_pdf = np.zeros(1, dtype=haz_arr_type)
-    haz_pdf[0]['probability'] = 1.0
-    haz_pdf[0]['intensity_bin_id'] = HAZ_BIN_ID
-    haz_pdf[0]['intensity'] = HAZ_INTENSITY
+    # --- haz_pdf: n_haz_records entries (intensity=100), probability split evenly ---
+    haz_pdf = np.zeros(n_haz_records, dtype=haz_arr_type)
+    haz_pdf['probability'] = 1.0 / n_haz_records
+    haz_pdf['intensity_bin_id'] = HAZ_BIN_ID
+    haz_pdf['intensity'] = HAZ_INTENSITY
 
-    haz_arr_ptr = np.array([0, 1], dtype=np.int64)
+    haz_arr_ptr = np.array([0, n_haz_records], dtype=np.int64)
 
     # --- vulnerability array: shape (1, Ndamage_bins, Nintensity_bins) ---
     # All probability in damage bin 1 (index 1) → always max damage
     vuln_array = np.zeros((1, Ndamage_bins, Nintensity_bins), dtype=oasis_float)
     vuln_array[0, 1, 0] = 1.0  # P(damage bin index 1) = 1.0 at intensity bin 0
-    # no coverage dependency in these tests: empty conditional array, all vulns normal (-1)
-    conditional_vuln_array = np.zeros((0, Ndamage_bins, Ndamage_bins), dtype=oasis_float)
-    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=np.int32)
+    # coverage dependency: an identity conditional matrix (source damage bin k -> dependent bin k)
+    # and the item's vuln marked conditional; otherwise no conditional vulns and all vulns normal.
+    if dependent:
+        conditional_vuln_array = np.zeros((1, Ndamage_bins, Ndamage_bins), dtype=oasis_float)
+        for damage_bin_i in range(Ndamage_bins):
+            conditional_vuln_array[0, damage_bin_i, damage_bin_i] = 1.0
+        vuln_idx_to_cond_idx = np.zeros(vuln_array.shape[0], dtype=np.int64)
+    else:
+        conditional_vuln_array = np.zeros((0, Ndamage_bins, Ndamage_bins), dtype=oasis_float)
+        vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=np.int64)
 
     # --- damage_bins ---
     damage_bins = np.zeros(Ndamage_bins, dtype=damagebin_dtype)
@@ -197,9 +218,12 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     # --- losses buffer ---
     losses = np.zeros((sample_size + 6, 1), dtype=oasis_float)  # 6 = NUM_IDX + 1
 
-    # --- stub random arrays (not accessed with sample_size=0) ---
-    haz_rndms_base = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
-    vuln_rndms_base = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
+    # --- random arrays (stubs when sample_size=0; a deterministic spread otherwise) ---
+    rndms = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
+    if sample_size > 0:
+        rndms[0] = np.linspace(0.05, 0.95, sample_size)
+    haz_rndms_base = rndms
+    vuln_rndms_base = rndms.copy()
     vuln_adj = np.ones(1, dtype=oasis_float)
     haz_eps_ij = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
     damage_eps_ij = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
@@ -221,11 +245,18 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 
     dynamic_footprint = True  # truthy, enables dynamic footprint path
 
-    # coverage dependency is inactive in these tests: depth 0 (all roots), empty stacks
-    compute_depth = np.zeros(len(coverage_ids), dtype=np.int32)
-    source_damage_bin_stack = np.zeros((1, 1, max(sample_size, 1)), dtype=np.int32)
-    source_eff_damage_cdf_stack = np.zeros((1, 1, Ndamage_bins), dtype=oasis_float)
-    source_eff_damage_cdf_len_stack = np.zeros((1, 1), dtype=np.int64)
+    # coverage dependency: depth 1 with a fully damaged source on the depth-0 stacks when
+    # `dependent`, otherwise depth 0 (all roots) with unused single-depth stacks.
+    Ndepths = 2 if dependent else 1
+    compute_depth = np.full(len(coverage_ids), 1 if dependent else 0, dtype=np.int32)
+    source_damage_bin_stack = np.zeros((Ndepths, 1, max(sample_size, 1)), dtype=np.int32)
+    source_eff_damage_cdf_stack = np.zeros((Ndepths, 1, Ndamage_bins), dtype=oasis_float)
+    source_eff_damage_cdf_len_stack = np.zeros((Ndepths, 1), dtype=np.int64)
+    if dependent:
+        # source's effective damage cdf [0, 1]: all mass in the last damage bin (full damage)
+        source_eff_damage_cdf_stack[0, 0, Ndamage_bins - 1] = 1.
+        source_eff_damage_cdf_len_stack[0, 0] = Ndamage_bins
+        source_damage_bin_stack[0, 0, :] = Ndamage_bins - 1
 
     args = (
         compute_info, coverages, coverage_ids, items_event_data, items,
@@ -546,3 +577,92 @@ def test_rp_protection_only_affects_protected_items():
     assert np.any(losses[:, 1] != 0.0), (
         f"Expected non-zero losses for unprotected item 1, got {losses[:, 1]}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests: RP protection interaction with coverage dependency
+# ---------------------------------------------------------------------------
+
+def test_rp_protection_records_no_damage_source_state_for_dependents():
+    """
+    A protected item is skipped before both source-state recording sites (sample_item_losses and
+    the effective-damage-CDF block), but a dependent coverage below it in the DFS still reads
+    ``source_*_stack[depth, item_j]``. The protected item must therefore leave "no damage" there
+    (per-sample damage bin 0, point-mass CDF on bin 0) rather than whatever the previously
+    processed coverage wrote.
+    """
+    args, losses = _make_compute_event_losses_args(event_rp=EVENT_RP_BELOW, item_rp=ITEM_RP_PROTECTION)
+    compute_info = args[0]
+    compute_info['do_coverage_dependency'] = 1
+
+    source_damage_bin_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack = args[-3:]
+    # stale state from a previously processed coverage at the same (depth, item_j)
+    source_damage_bin_stack[0, 0, :] = 1
+    source_eff_damage_cdf_stack[0, 0, :] = [0.0, 1.0]
+    source_eff_damage_cdf_len_stack[0, 0] = 2
+
+    assert compute_event_losses(*args) is True
+    assert np.all(losses == 0.0), "protected item still yields zero losses"
+
+    assert np.all(source_damage_bin_stack[0, 0, :] == 0), \
+        "protected source must expose damage bin 0 to its dependents, not the stale bin"
+    assert source_eff_damage_cdf_len_stack[0, 0] == 1
+    np.testing.assert_allclose(source_eff_damage_cdf_stack[0, 0, 0], 1.0)
+
+
+def test_rp_protection_leaves_source_stacks_untouched_without_dependency():
+    """Without coverage dependency the stacks are unused, so the protected path must not touch
+    them (they are dummy-sized arrays in that configuration)."""
+    args, _ = _make_compute_event_losses_args(event_rp=EVENT_RP_BELOW, item_rp=ITEM_RP_PROTECTION)
+    assert args[0]['do_coverage_dependency'] == 0
+
+    source_damage_bin_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack = args[-3:]
+    source_damage_bin_stack[0, 0, :] = 7
+    source_eff_damage_cdf_len_stack[0, 0] = 2
+
+    assert compute_event_losses(*args) is True
+    assert np.all(source_damage_bin_stack[0, 0, :] == 7)
+    assert source_eff_damage_cdf_len_stack[0, 0] == 2
+
+
+@pytest.mark.parametrize("n_haz_records", [1, 2], ids=["single-hazard-bin", "multi-hazard-bin"])
+def test_rp_protection_zeros_samples_and_analytics_whatever_the_bin_count(n_haz_records):
+    """A protected item is skipped whole: the samples AND the analytic sidx (mean, std dev, max
+    loss) are all zero. The return period is a per-item-event value, not a per-hazard-bin one, so
+    the number of footprint hazard records for the item's areaperil must not change this.
+    """
+    sample_size = 8
+    args, losses = _make_compute_event_losses_args(
+        event_rp=EVENT_RP_BELOW, item_rp=ITEM_RP_PROTECTION,
+        sample_size=sample_size, n_haz_records=n_haz_records)
+    assert compute_event_losses(*args) is True
+    assert np.all(losses == 0.0), f"protected item reported {losses[:, 0]}"
+
+    # the same item unprotected does have losses, so the assertion above is not vacuous
+    args, losses = _make_compute_event_losses_args(
+        event_rp=EVENT_RP_BELOW, item_rp=0,
+        sample_size=sample_size, n_haz_records=n_haz_records)
+    assert compute_event_losses(*args) is True
+    assert (losses[1:sample_size + 1, 0] > 0).all()
+    assert losses[MEAN_IDX, 0] > 0 and losses[MAX_LOSS_IDX, 0] > 0
+
+
+@pytest.mark.parametrize("n_haz_records", [1, 2], ids=["single-hazard-bin", "multi-hazard-bin"])
+def test_rp_protection_applies_to_a_dependent_item(n_haz_records):
+    """RP protection is upstream of how an item's damage is computed, so a dependent coverage's own
+    return period protects it just like any other item's — even though its hazard axis is its
+    source's damage bins rather than the footprint's, and whatever the footprint record count.
+    """
+    sample_size = 8
+    args, losses = _make_compute_event_losses_args(
+        event_rp=EVENT_RP_BELOW, item_rp=ITEM_RP_PROTECTION,
+        sample_size=sample_size, n_haz_records=n_haz_records, dependent=True)
+    assert compute_event_losses(*args) is True
+    assert np.all(losses == 0.0), f"protected dependent reported {losses[:, 0]}"
+
+    # unprotected, the dependent is driven by its fully damaged source and does have losses
+    args, losses = _make_compute_event_losses_args(
+        event_rp=EVENT_RP_BELOW, item_rp=0,
+        sample_size=sample_size, n_haz_records=n_haz_records, dependent=True)
+    assert compute_event_losses(*args) is True
+    assert (losses[1:sample_size + 1, 0] > 0).all()
