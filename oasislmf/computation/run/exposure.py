@@ -16,6 +16,7 @@ from oasislmf.computation.base import ComputationStep
 from oasislmf.computation.generate.files import GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
+from oasislmf.computation.hooks.pre_analysis import ExposurePreAnalysis
 from oasislmf.preparation.il_inputs import get_oed_hierarchy
 from oasislmf.preparation.summaries import calculated_summary_cols
 from oasislmf.pytools.fm.portfolio_complexity import (
@@ -36,6 +37,11 @@ class RunExposure(ComputationStep):
     loss factors (loss % of TIV).
     """
     step_params = [
+        {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True,
+         'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
+        # No '-a' flag: already taken by kernel_alloc_rule_il below.
+        {'name': 'analysis_settings_json', 'is_path': True, 'pre_exist': True,
+         'help': 'Analysis settings JSON file path'},
         {'name': 'src_dir', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': ''},
         {'name': 'run_dir', 'flag': '-r', 'is_path': True, 'pre_exist': False, 'help': ''},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
@@ -74,7 +80,7 @@ class RunExposure(ComputationStep):
          'help': 'if True, compute and report portfolio complexity metrics (GUL dimensions always; IL/RI FM structure when present)'},
     ]
 
-    chained_commands = [GenerateKeysDeterministic]
+    chained_commands = [GenerateKeysDeterministic, ExposurePreAnalysis]
 
     def get_exposure_data_config(self):
         def _resolve(override, key):
@@ -120,13 +126,21 @@ class RunExposure(ComputationStep):
         self.oasis_files_dir = src_dir
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
+        if not os.path.exists(run_dir):
+            os.makedirs(run_dir)
+
+        # 0. Run model's exposure pre-analysis hook, if configured, so 'exposure run'
+        # validates and loss-tests the same (post-transform) exposure a real analysis would.
+        if self.exposure_pre_analysis_module:
+            ExposurePreAnalysis(**{
+                **self.kwargs,
+                **{"exposure_data": exposure_data, "oasis_files_dir": run_dir},
+            }).run()
+
         il = bool(exposure_data.account)
         ril = all([exposure_data.ri_info, exposure_data.ri_scope, il])
 
         self.logger.debug('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
-
-        if not os.path.exists(run_dir):
-            os.makedirs(run_dir)
 
         # 1. Create Deterministic keys file
         keys_fp = GenerateKeysDeterministic(**{**self.kwargs, **{"exposure_data": exposure_data, "oasis_files_dir": run_dir}}).run()[0]

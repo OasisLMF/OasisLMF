@@ -7,7 +7,7 @@ import numpy as np
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (
-    load_as_ndarray, nb_oasis_int,
+    load_as_ndarray,
     correlations_headers, correlations_dtype, coverages_headers,
     occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
     quantile_interval_dtype, returnperiods_dtype,
@@ -337,36 +337,6 @@ def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
     return occ_arr, date_algorithm, granular_date, no_of_periods
 
 
-@nb.njit(cache=True, error_model="numpy")
-def _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype):
-    """Reads occurrence file array and returns an occurrence map of event_id to list of (period_no, occ_date_id)"""
-    occ_map = nb.typed.Dict.empty(nb_oasis_int, NB_occ_map_valtype)
-    occ_map_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
-    for row in occ_arr:
-        event_id = row["event_id"]
-        if event_id not in occ_map:
-            occ_map[event_id] = np.zeros(8, dtype=occ_map_valtype)
-            occ_map_sizes[event_id] = 0
-        array = occ_map[event_id]
-        current_size = occ_map_sizes[event_id]
-
-        if current_size >= len(array):  # Resize if the array is full
-            new_array = np.empty(len(array) * 2, dtype=occ_map_valtype)
-            new_array[:len(array)] = array
-            array = new_array
-
-        occ_map_current_size = occ_map_sizes[event_id]
-        array[occ_map_current_size]["period_no"] = row["period_no"]
-        array[occ_map_current_size]["occ_date_id"] = row["occ_date_id"]
-        occ_map[event_id] = array
-        occ_map_sizes[event_id] += 1
-
-    for event_id in occ_map:
-        occ_map[event_id] = occ_map[event_id][:occ_map_sizes[event_id]]
-
-    return occ_map
-
-
 def _occ_flat_valtype(granular_date):
     occ_date_np_type = np.int64 if granular_date else np.int32
     return np.dtype([("period_no", np.int32), ("occ_date_id", occ_date_np_type)])
@@ -454,32 +424,6 @@ def occ_get_date(occ_date_id, granular_date):
     occ_minutes = minutes % 60
 
     return y, mm, dd, occ_hour, occ_minutes
-
-
-@nb.njit(cache=True)
-def occ_get_date_id(granular_date, occ_year, occ_month, occ_day, occ_hour=0, occ_minute=0):
-    """Returns the occ_date_id from year, month, day, hour, minute and whether it is a granular date
-
-    Args:
-        granular_date (bool): boolean for whether granular date should be extracted or not
-        occ_year (int): Occurrence Year.
-        occ_month (int): Occurrence Month.
-        occ_day (int): Occurrence Day.
-        occ_hour (int): Occurrence Hour. Defaults to 0.
-        occ_minute (int): Occurrence Minute. Defaults to 0.
-
-    Returns:
-        occ_date_id (np.int64): occurrence file date id (int64 for granular dates)
-    """
-    occ_month = (occ_month + 9) % 12
-    occ_year = occ_year - occ_month // 10
-    occ_date_id = np.int64(
-        365 * occ_year + occ_year // 4 - occ_year // 100 + occ_year // 400 + (occ_month * 306 + 5) // 10 + (occ_day - 1)
-    )
-
-    occ_date_id *= (1440 // (1440 - 1439 * granular_date))
-    occ_date_id += (60 * occ_hour + occ_minute)
-    return occ_date_id
 
 
 def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
