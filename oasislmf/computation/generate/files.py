@@ -37,7 +37,8 @@ from oasislmf.preparation.gul_inputs import (get_gul_input_items,
                                              process_group_id_cols,
                                              write_gul_input_files)
 from oasislmf.preparation.il_inputs import (get_il_input_items,
-                                            get_oed_hierarchy)
+                                            get_oed_hierarchy,
+                                            validate_account_location_references)
 from oasislmf.preparation.reinsurance_layer import write_files_for_reinsurance
 from oasislmf.preparation.summaries import (get_summary_mapping,
                                             merge_oed_to_mapping,
@@ -223,6 +224,12 @@ class GenerateFiles(ComputationStep):
         if il:
             exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
             account_df = exposure_data.account.dataframe
+            # Validate location/account referential integrity now, before the (potentially very
+            # long) keys lookup stage, so a bad portfolio fails fast instead of after hours of work.
+            # exposure_data.location can be None (e.g. cyber, marine - no location file), in which
+            # case there's nothing to validate against accounts.
+            true_location_df = exposure_data.location.dataframe if exposure_data.location is not None else None
+            validate_account_location_references(true_location_df, exposure_data.account.dataframe)
         else:
             account_df = None
 
