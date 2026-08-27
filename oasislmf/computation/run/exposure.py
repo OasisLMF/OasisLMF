@@ -245,7 +245,7 @@ class RunExposure(ComputationStep):
         elif self.output_level == 'peril_item':
             summary_cols = ['output_id'] + lowest_id_cols + [policy_num, 'coverage_type_id', 'peril_id']
 
-        summary_cols += self.extra_summary_cols
+        summary_cols = list(dict.fromkeys(summary_cols + self.extra_summary_cols))
         for col in self.extra_summary_cols:
             if col in calculated_summary_cols:
                 all_losses_df = calculated_summary_cols[col](all_losses_df)
@@ -318,8 +318,7 @@ class RunExposure(ComputationStep):
                         total_gul, total_il, total_ri_ceded)
 
             # Convert output cols to strings for formatting
-            for c in group_by_cols:
-                all_losses_df[c] = all_losses_df[c].apply(str)
+            all_losses_df[group_by_cols] = all_losses_df[group_by_cols].astype(str)
 
             if self.print_summary:
                 cols_to_print = all_loss_cols.copy()

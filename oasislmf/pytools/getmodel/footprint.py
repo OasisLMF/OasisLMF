@@ -746,9 +746,7 @@ class FootprintParquetDynamic(Footprint):
             df_footprint = df_footprint.groupby(
                 ['areaperil_id', 'intensity', 'return_period'], as_index=False
             )['probability'].sum()
-            df_footprint['probability'] = df_footprint.groupby('areaperil_id')['probability'].transform(
-                lambda x: x / x.sum()
-            )
+            df_footprint['probability'] /= df_footprint.groupby('areaperil_id')['probability'].transform('sum')
             df_footprint = df_footprint.sort_values(['areaperil_id', 'intensity'], ascending=[True, False])
 
             df_footprint['intensity_bin_id'] = 0
