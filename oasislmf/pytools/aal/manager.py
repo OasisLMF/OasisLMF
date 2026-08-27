@@ -6,12 +6,13 @@ import numba as nb
 import os
 from contextlib import ExitStack
 from pathlib import Path
+from oasislmf.pytools.summary.manager import SUMMARY_META_SIZE
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from oasislmf.pytools.aal.data import AAL_meanonly_dtype, AAL_meanonly_fmt, AAL_meanonly_headers, AAL_dtype, AAL_fmt, AAL_headers, ALCT_dtype, ALCT_fmt, ALCT_headers
-from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
-                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv,
+from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, def_to_type_and_size,
+                                          write_ndarray_to_fmt_csv,
                                           summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
@@ -21,6 +22,14 @@ from oasislmf.pytools.utils import redirect_logging
 
 
 logger = logging.getLogger(__name__)
+
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
+summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
+_, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
+sidx_dtype, sidx_size = def_to_type_and_size('sidx')
+loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+
 
 # Total amount of memory AAL summary index should use before raising an error (GB)
 OASIS_AAL_MEMORY = float(os.environ["OASIS_AAL_MEMORY"]) if "OASIS_AAL_MEMORY" in os.environ else 4
@@ -73,14 +82,14 @@ def process_bin_file(
     """
     while offset < len(fbin):
         cursor = offset
-        event_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
-        summary_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
+        event_id, cursor = mv_read(fbin, cursor, event_id_dtype, event_id_dtype_size)
+        summary_id, cursor = mv_read(fbin, cursor, summary_id_dtype, summary_id_dtype_size)
 
         occ_rows = occ_get(occ_csr, event_id)
         if len(occ_rows) == 0:
             offset = cursor
             # Skip over Expval and losses
-            _, offset = mv_read(fbin, offset, oasis_float, oasis_float_size)
+            _, offset = mv_read(fbin, offset, loss_dtype, loss_dtype_size)
             offset = skip_losses(fbin, offset)
             continue
 
@@ -107,7 +116,7 @@ def process_bin_file(
 
         offset = cursor
         # Read Expval
-        _, offset = mv_read(fbin, offset, oasis_float, oasis_float_size)
+        eval, offset = mv_read(fbin, offset, loss_dtype, loss_dtype_size)
         # Skip over losses
         offset = skip_losses(fbin, offset)
 
@@ -149,7 +158,7 @@ def process_idx_file(
         summary_id = idx_data[idx_cursor]['summary_id']
         offset = idx_data[idx_cursor]['offset']
 
-        event_id, _ = mv_read(fbin, offset, oasis_int, oasis_int_size)
+        event_id, _ = mv_read(fbin, offset, event_id_dtype, event_id_dtype_size)
 
         occ_rows = occ_get(occ_csr, event_id)
         if len(occ_rows) == 0:
@@ -303,7 +312,7 @@ def get_summaries_data(
                 if cursor >= len(idx_data):
                     break
         else:
-            offset = oasis_int_size * 3  # Summary stream header size
+            offset = SUMMARY_META_SIZE  # Summary stream header size
             while True:
                 summaries_idx, resize_flag, offset = process_bin_file(
                     fbin, offset, occ_csr, summaries_data, summaries_idx, file_index,
@@ -585,10 +594,10 @@ def read_losses(summary_fin, cursor, vec_sample_sum_loss):
     # Max losses is sample_size + num special sidxs
     valid_buff = len(summary_fin)
     while True:
-        if valid_buff - cursor < oasis_int_size + oasis_float_size:
+        if valid_buff - cursor < sidx_size + loss_dtype_size:
             raise RuntimeError("Error: broken summary file, not enough data")
-        sidx, cursor = mv_read(summary_fin, cursor, oasis_int, oasis_int_size)
-        loss, cursor = mv_read(summary_fin, cursor, oasis_float, oasis_float_size)
+        sidx, cursor = mv_read(summary_fin, cursor, sidx_dtype, sidx_size)
+        loss, cursor = mv_read(summary_fin, cursor, loss_dtype, loss_dtype_size)
 
         if sidx == 0:
             break
@@ -614,10 +623,10 @@ def skip_losses(summary_fin, cursor):
     valid_buff = len(summary_fin)
     sidx = 1
     while sidx:
-        if valid_buff - cursor < oasis_int_size + oasis_float_size:
+        if valid_buff - cursor < sidx_size + loss_dtype_size:
             raise RuntimeError("Error: broken summary file, not enough data")
-        sidx, cursor = mv_read(summary_fin, cursor, oasis_int, oasis_int_size)
-        cursor += oasis_float_size
+        sidx, cursor = mv_read(summary_fin, cursor, sidx_dtype, sidx_size)
+        cursor += loss_dtype_size
     return cursor
 
 
@@ -694,7 +703,7 @@ def run_aal(
         summary_fin = files_handles[file_idx]
 
         # Read summary header values (event_id, summary_id, expval)
-        cursor = file_offset + (2 * oasis_int_size) + oasis_float_size
+        cursor = file_offset + (event_id_dtype_size + summary_id_dtype_size) + loss_dtype_size
 
         read_losses(summary_fin, cursor, vec_sample_sum_loss)
 

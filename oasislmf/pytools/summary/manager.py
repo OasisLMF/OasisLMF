@@ -31,11 +31,11 @@ import logging
 import os
 from itertools import zip_longest
 
-from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
+from oasislmf.pytools.common.data import (def_to_type_and_size, load_as_ndarray, oasis_int, nb_oasis_int, oasis_float,
                                           null_index, fm_summary_xref_dtype, gul_summary_xref_dtype,
                                           loss_pair_dtype, loss_pair_size, summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
-                                                  mv_read, mv_write_summary_header, mv_write_sidx_loss, mv_write_delimiter,
+                                                  mv_read, mv_write_summary_header, mv_write_sidx_loss,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
@@ -44,9 +44,16 @@ from oasislmf.pytools.utils import redirect_logging
 logger = logging.getLogger(__name__)
 
 
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
+loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
+_, summary_id_dtype_size = def_to_type_and_size('summary_id')
+
 SPECIAL_SIDX_COUNT = 6  # 0 is included as a special sidx
-SUMMARY_HEADER_SIZE = 2 * oasis_int_size + oasis_float_size + SPECIAL_SIDX_COUNT * (oasis_int_size + oasis_float_size)
-SIDX_LOSS_WRITE_SIZE = 2 * (oasis_int_size + oasis_float_size)
+SUMMARY_HEADER_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size + SPECIAL_SIDX_COUNT * (loss_pair_size)
+SUMMARY_META_SIZE = 4 + 4 + summaryset_id_dtype_size  # (stream_type, sample size , summary_set_id)
+SIDX_LOSS_WRITE_SIZE = 2 * (loss_pair_size)
 
 
 SUPPORTED_SUMMARY_SET_ID = list(range(1, 10))
@@ -195,15 +202,15 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
             if not terminated:
                 cursor += n_sidx_loss * loss_pair_size
         else:
-            if valid_buff - cursor < 2 * oasis_int_size:
+            if valid_buff - cursor < (event_id_dtype_size + item_id_dtype_size):
                 break
-            event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            event_id, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
             if event_id != last_event_id:
                 if last_event_id:  # we have a new event we return the one we just finished
-                    return cursor - oasis_int_size, last_event_id, 0, 1
+                    return cursor - event_id_dtype_size, last_event_id, 0, 1
                 else:  # first pass we store the event we are reading
                     last_event_id = event_id
-            item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
 
             ##### do new item setup #####
             if has_affected_risk is not None:
@@ -294,7 +301,7 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
             else:
                 return cursor, loss_summary_index, sidx, summary_index_cursor
 
-        cursor = mv_write_delimiter(byte_mv, cursor)
+        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
         # set the correct offset for idx file and update summary_sets_cursor
         summary_byte_len = cursor - summary_stream_index[summary_index_cursor]['offset']
         summary_stream_index[summary_index_cursor]['offset'] = summary_sets_cursor[summary_set_index]
@@ -445,7 +452,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
             summary_pipe = summary_sets_pipe[summary_set_id]
             summary_sets_cursor[summary_set_index] += summary_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
             summary_sets_cursor[summary_set_index] += summary_pipe.write(len_sample.tobytes())
-            summary_sets_cursor[summary_set_index] += summary_pipe.write(nb_oasis_int(summary_set_id).tobytes())
+            summary_sets_cursor[summary_set_index] += summary_pipe.write(summaryset_id_dtype.type(summary_set_id).tobytes())
 
         try:
             for event_id in summary_reader.read_streams(streams_in):
