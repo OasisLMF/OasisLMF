@@ -327,7 +327,7 @@ def get_gul_input_items(
     # ``modeldata`` column in the keys file, and ignore the area peril
     # and vulnerability ID columns, unless it's the dynamic model generator which
     # uses them
-    if 'model_data' in keys_df and 'areaperil_id' not in keys_df and 'vulnerbaility_id' not in keys_df:
+    if 'model_data' in keys_df and 'areaperil_id' not in keys_df and 'vulnerability_id' not in keys_df:
         keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
     gul_inputs_df = merge_dataframes(
         keys_df,
