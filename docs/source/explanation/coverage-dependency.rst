@@ -3,8 +3,8 @@ Coverage dependency
 
 Coverage dependency lets one coverage's damage be **conditioned on another coverage's
 damage** at the same location, so that correlated coverages no longer sample
-independently. It is an opt-in ``gulmc`` feature; when it is not configured, results are
-bit-identical to previous behaviour.
+independently. It is an opt-in ``gulmc`` feature: when no dependency is configured none of the
+machinery below runs, and losses are unchanged by it.
 
 Overview
 --------
@@ -142,6 +142,11 @@ producing wrong losses:
 - **No aggregate dependents.** A dependent coverage may not use an aggregate vulnerability.
 - **Acyclic links only.** Source links may not form a cycle, point outside the coverage
   set, or be self-referential.
+- **Damage bin spaces must agree.** Where conditional vulnerabilities are present, the
+  vulnerability data may not declare more damage bins than the ``damage_bin_dict`` — a source
+  could then sample a damage bin with no column in the conditional matrix. Declaring fewer is
+  fine (the unreachable top of the conditional matrix is dropped), unless those rows carry
+  probability, which is also rejected.
 
 Per-location activation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -163,6 +168,11 @@ damage type: with no TIV there is no value at risk, so the damage-bin scaling is
 an absolute damage function, whose bins carry currency directly rather than a fraction of TIV.
 Its dependent is unaffected, being driven by the source's sampled damage *bin* rather than by
 its loss.
+
+Retention follows the chain. A zero-TIV coverage is kept when the dependent it drives is itself
+kept, which is resolved from the insured end backwards — so in a configured chain
+``building → contents → BI`` with only the BI insured, the contents *and* the building are both
+retained. A zero-TIV coverage with nothing kept below it is still dropped as an empty coverage.
 
 Dynamic footprint: intensity adjustment and return-period protection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
