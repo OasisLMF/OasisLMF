@@ -718,34 +718,6 @@ def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=No
     return fifos
 
 
-def do_fifos_exec_full_correlation(
-        runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo'):
-    """Write FIFO create/remove commands for full-correlation sumcalc and fmcalc pipes.
-
-    For each process ID two FIFOs are created: one for the summarycalc input
-    (``<runtype>_sumcalc_P<id>``) and one for the fmcalc input
-    (``<runtype>_fmcalc_P<id>``).
-
-    Args:
-        runtype (str): The run type identifier (typically ``'gul'``).
-        max_process_id (int): Upper bound of process IDs.
-        filename (str): Path to the bash script being generated.
-        fifo_dir (str): Base directory for FIFOs.
-        process_number (int or None): If set, restrict to a single process.
-        action (str): Shell command (``'mkfifo'`` or ``'rm'``).
-    """
-    for process_id in process_range(max_process_id, process_number):
-        print_command(filename, '{} {}{}_sumcalc_P{}'.format(
-            action, fifo_dir, runtype, process_id
-        ))
-    print_command(filename, '')
-    for process_id in process_range(max_process_id, process_number):
-        print_command(filename, '{} {}{}_fmcalc_P{}'.format(
-            action, fifo_dir, runtype, process_id
-        ))
-    print_command(filename, '')
-
-
 def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None,
                   consumer_prefix=None, action='mkfifo', summarypy_low_memory=False):
     """Write FIFO create/remove commands for all summary and ORD output pipes.
@@ -1108,66 +1080,6 @@ def do_tees(
                 print_command(filename, cmd_idx)
 
 
-def do_tees_fc_sumcalc_fmcalc(process_id, filename, correlated_output_stems):
-    """Write a ``tee`` command that splits the full-correlation GUL output.
-
-    Duplicates the correlated GUL stream into two FIFOs: one for the
-    summarycalc path and one for the fmcalc (financial module) path.
-
-    Args:
-        process_id (int): The process number.
-        filename (str): Path to the bash script being generated.
-        correlated_output_stems (dict): FIFO path stems returned by
-            :func:`get_correlated_output_stems`.
-    """
-    if process_id == 1:
-        print_command(filename, '')
-
-    cmd = 'tee < {0}{1}'.format(
-        correlated_output_stems['gulcalc_output'], process_id
-    )
-    cmd = '{0} {1}{3} {2}{3} > /dev/null &'.format(
-        cmd,
-        correlated_output_stems['sumcalc_input'],
-        correlated_output_stems['fmcalc_input'],
-        process_id
-    )
-
-    print_command(filename, cmd)
-
-
-def get_correlated_output_stems(fifo_dir):
-    """Return a dict of FIFO path stems for the full-correlation pipeline.
-
-    The returned dict contains three keys:
-
-    * ``'gulcalc_output'`` -- stem for the GUL output FIFO.
-    * ``'fmcalc_input'``   -- stem for the fmcalc input FIFO.
-    * ``'sumcalc_input'``  -- stem for the summarycalc input FIFO.
-
-    Each value is a string ending with ``_P`` so that a process ID can be
-    appended directly.
-
-    Args:
-        fifo_dir (str): Base directory for FIFOs (e.g. ``'fifo/'``).
-
-    Returns:
-        dict: Mapping of stem names to FIFO path prefixes.
-    """
-    correlated_output_stems = {}
-    correlated_output_stems['gulcalc_output'] = '{0}{1}_P'.format(
-        fifo_dir, RUNTYPE_GROUNDUP_LOSS
-    )
-    correlated_output_stems['fmcalc_input'] = '{0}{1}_fmcalc_P'.format(
-        fifo_dir, RUNTYPE_GROUNDUP_LOSS
-    )
-    correlated_output_stems['sumcalc_input'] = '{0}{1}_sumcalc_P'.format(
-        fifo_dir, RUNTYPE_GROUNDUP_LOSS
-    )
-
-    return correlated_output_stems
-
-
 def do_ord(
     runtype,
     analysis_settings,
@@ -1511,41 +1423,6 @@ def do_gul(
             stderr_guard=stderr_guard,
             summarypy_low_memory=summarypy_low_memory,
         )
-
-
-def do_gul_full_correlation(
-    analysis_settings,
-    max_process_id,
-    filename,
-    process_counter,
-    fifo_dir='fifo/full_correlation/',
-    work_dir='work/full_correlation/',
-    stderr_guard=None,
-    process_number=None,
-):
-    """Write GUL consumer commands for the full-correlation path.
-
-    Similar to :func:`do_gul` but operates on the ``full_correlation/``
-    sub-directories and only emits ``do_tees`` (no ``do_ord`` or
-    ``do_summarycalcs``).
-
-    Args:
-        analysis_settings (dict): The full analysis settings dictionary.
-        max_process_id (int): Upper bound of process IDs.
-        filename (str): Path to the bash script being generated.
-        process_counter (dict): Mutable counter dict tracking background PIDs.
-        fifo_dir (str): FIFO directory for full-correlation pipes.
-        work_dir (str): Work directory for full-correlation outputs.
-        stderr_guard: Unused (kept for interface consistency).
-        process_number (int or None): If set, restrict to a single process.
-    """
-    for process_id in process_range(max_process_id, process_number):
-        do_tees(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
-            process_counter, fifo_dir, work_dir
-        )
-
-    print_command(filename, '')
 
 
 def do_waits(wait_variable, wait_count, filename):
