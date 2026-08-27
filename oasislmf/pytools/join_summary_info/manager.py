@@ -3,6 +3,7 @@
 import logging
 import shutil
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import pyarrow.parquet as pq
 import pyarrow as pa
@@ -53,7 +54,12 @@ def load_summary_info(stack, summaryinfo_file):
             raise ValueError("Missing 'summary_id' column in summary info file.")
 
         summary_ids = df["summary_id"].to_numpy(dtype=np.int64)
-        summary_data = df.drop(columns=["summary_id"]).astype(str).agg(",".join, axis=1).to_numpy(dtype=object)
+        summary_columns = df.drop(columns=["summary_id"]).astype(str)
+        if summary_columns.shape[1]:
+            summary_data = summary_columns.iloc[:, 0].str.cat(
+                summary_columns.iloc[:, 1:], sep=",").to_numpy(dtype=object)
+        else:
+            summary_data = np.full(len(df), "", dtype=object)
         headers = [col for col in df.columns if col != "summary_id"]
     else:
         raise ValueError(f"Unsupported file format {summaryinfo_file.suffix}.")
@@ -63,8 +69,7 @@ def load_summary_info(stack, summaryinfo_file):
 
     max_summary_id = summary_ids.max()
     full_summary_data = np.full((max_summary_id + 1,), "," * (len(headers) - 1), dtype=object)
-    for i in range(len(summary_ids)):
-        full_summary_data[summary_ids[i]] = summary_data[i]
+    full_summary_data[summary_ids] = summary_data
 
     return full_summary_data, headers, max_summary_id
 
@@ -114,13 +119,14 @@ def run(
                 fout.write(",".join(data_headers + summary_headers) + "\n")
 
                 summary_id_col_idx = data_headers.index("SummaryId")
+                summary_sep = "," if summary_headers else ""
                 for line in data_fin:
                     row = line.strip().split(",")
                     summary_id = int(row[summary_id_col_idx])
-                    if summary_id > max_summary_id:
+                    if summary_id < 0 or summary_id > max_summary_id:
                         fout.write(line.strip() + ("," * len(summary_headers)) + "\n")
                     else:
-                        fout.write(line.strip() + "," + summary_data[summary_id] + "\n")
+                        fout.write(line.strip() + summary_sep + summary_data[summary_id] + "\n")
         elif data_file.suffix == ".parquet":
             table = pq.read_table(data_file)
             df = table.to_pandas()
@@ -128,9 +134,17 @@ def run(
             if "SummaryId" not in df.columns:
                 raise ValueError("Missing 'SummaryId' column in data file.")
 
-            df[summary_headers] = df["SummaryId"].apply(
-                lambda sid: summary_data[sid] if sid <= max_summary_id else ""
-            ).str.split(",", expand=True)
+            summary_id = df["SummaryId"].to_numpy()
+            in_range = (summary_id >= 0) & (summary_id <= max_summary_id)
+            # a summary id past the end of the summary info has no summary info, the same as
+            # one that falls in a gap within it, so it joins to the same empty columns. They
+            # have to be spelled out, as a row splitting into fewer columns than the headers
+            # is an error rather than a short row
+            if summary_headers:
+                joined_summary_data = np.full(len(df), "," * (len(summary_headers) - 1), dtype=object)
+                joined_summary_data[in_range] = summary_data[summary_id[in_range]]
+                df[summary_headers] = pd.Series(
+                    joined_summary_data, index=df.index).str.split(",", expand=True)
             pq.write_table(pa.Table.from_pandas(df), temp_output_file)
         else:
             raise ValueError(f"Unsupported file format {data_file.suffix}.")
