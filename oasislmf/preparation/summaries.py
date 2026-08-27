@@ -753,13 +753,6 @@ def generate_summaryxref_files(
         )
 
 
-COUNT_AGGREGATION = {
-    'number_of_locations': ('loc_id', 'size'),
-    'number_of_buildings': ('number_of_buildings', 'sum'),
-    'number_of_risks': ('number_of_risks', 'sum'),
-}
-
-
 def code_column(name):
     """Name of the coded column for the exposure summary field `name`.
 
@@ -856,6 +849,11 @@ def get_exposure_summary_stats(encoded, field_name, group_by_status):
         key. ``tiv`` holds the summed TIV, ``by_coverage`` and ``overall`` the location, building
         and risk counts per coverage type and over all coverage types respectively.
     """
+    counts = {
+        'number_of_locations': ('loc_id', 'size'),
+        'number_of_buildings': ('number_of_buildings', 'sum'),
+        'number_of_risks': ('number_of_risks', 'sum'),
+    }
     group_keys = [code_column(field_name)] + ([key_column('status')] if group_by_status else [])
     coverage_keys = group_keys + ['coverage_type_id']
 
@@ -865,8 +863,8 @@ def get_exposure_summary_stats(encoded, field_name, group_by_status):
     location_rows = coverage_rows.drop_duplicates(group_keys + ['loc_id'])
 
     tiv = tiv_rows.groupby(coverage_keys, observed=True, sort=False)['tiv'].sum()
-    by_coverage = coverage_rows.groupby(coverage_keys, observed=True, sort=False).agg(**COUNT_AGGREGATION)
-    overall = location_rows.groupby(group_keys, observed=True, sort=False).agg(**COUNT_AGGREGATION)
+    by_coverage = coverage_rows.groupby(coverage_keys, observed=True, sort=False).agg(**counts)
+    overall = location_rows.groupby(group_keys, observed=True, sort=False).agg(**counts)
 
     return tiv.to_dict(), by_coverage.to_dict('index'), overall.to_dict('index')
 
@@ -883,15 +881,17 @@ def get_exposure_totals(df):
     """
     dedupe_cols = ['loc_id', 'coverage_type_id']
 
-    within_scope = df['status'].isin(OASIS_KEYS_STATUS_MODELLED)
-    scopes = {
-        "modelled": df[within_scope],
-        "not-modelled": df[~within_scope],
-        "portfolio": df,
+    within_scope = df['status'].isin(OASIS_KEYS_STATUS_MODELLED).to_numpy()
+    # masks rather than frames, so only the scope being summed is held in memory
+    scope_masks = {
+        "modelled": within_scope,
+        "not-modelled": ~within_scope,
+        "portfolio": np.full(len(df), True),
     }
 
     totals = {}
-    for scope, scope_df in scopes.items():
+    for scope, mask in scope_masks.items():
+        scope_df = df[mask]
         by_location = scope_df.drop_duplicates(subset='loc_id')
         totals[scope] = {
             "tiv": scope_df.drop_duplicates(subset=dedupe_cols)['tiv'].sum(),
