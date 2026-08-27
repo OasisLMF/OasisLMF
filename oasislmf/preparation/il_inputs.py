@@ -4,6 +4,7 @@ __all__ = [
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy',
     'get_il_input_items',
+    'validate_account_location_references',
 ]
 
 import contextlib
@@ -192,10 +193,17 @@ def __split_fm_terms_by_risk(df):
             df[term] /= df['NumberOfRisks']
 
 
-def get_cond_info(locations_df, accounts_df):
-    pol_info = {}
-    level_conds = {}
-    extra_accounts = []
+def check_cond_tags(locations_df, accounts_df):
+    """Raise if any non-default CondTag referenced by a location is not present
+    in the account file for that acc_id.
+
+    Kept standalone (rather than inlined in get_cond_info) so it can also be
+    run as a cheap, early sanity check on just locations_df/accounts_df -
+    e.g. by validate_account_location_references - before any of the more
+    expensive keys lookup or GUL processing has run.
+
+    Returns (loc_condkey_df, acc_condkey_df).
+    """
     default_cond_tag = '0'
     if 'CondTag' in locations_df.columns:
         fill_empty(locations_df, 'CondTag', default_cond_tag)
@@ -205,7 +213,7 @@ def get_cond_info(locations_df, accounts_df):
 
     if 'CondTag' in accounts_df.columns:
         fill_empty(accounts_df, 'CondTag', default_cond_tag)
-        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['acc_id', 'CondTag']].drop_duplicates()
+        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != default_cond_tag, ['acc_id', 'CondTag']].drop_duplicates()
         condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
         missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['acc_id', 'CondTag']]
     else:
@@ -214,6 +222,73 @@ def get_cond_info(locations_df, accounts_df):
 
     if missing_condkey_df.shape[0]:
         raise OasisException(f'Those condtag are present in locations but missing in the account file:\n{missing_condkey_df}')
+
+    return loc_condkey_df, acc_condkey_df
+
+
+def validate_account_location_references(locations_df, accounts_df):
+    """Validate that every location's PortNumber/AccNumber and CondTag
+    references resolve to a row in the account file.
+
+    Should be called as early as possible in the files-generation pipeline -
+    it only needs locations_df/accounts_df - so a bad portfolio fails in
+    seconds rather than after hours of keys lookup.
+
+    locations_df/accounts_df themselves are never mutated - only fresh frames
+    derived from them (merge results, or minimal column-subset copies) are.
+    """
+    if locations_df is None or accounts_df is None:
+        return
+
+    # Positional numpy arrays throughout (never Series) so the merge below - which resets
+    # the index - can't misalign values when reattached to locations_df/accounts_df.
+    if 'acc_id' in accounts_df.columns:
+        acc_id_col = accounts_df['acc_id'].to_numpy()
+    else:
+        acc_id_col = np.asarray(get_ids(accounts_df, ['PortNumber', 'AccNumber']))
+
+    if 'acc_id' in locations_df.columns:
+        loc_acc_id_col = locations_df['acc_id'].to_numpy()
+    else:
+        acc_id_map = accounts_df[['PortNumber', 'AccNumber']].assign(acc_id=acc_id_col).drop_duplicates()
+        dup_keys = acc_id_map.duplicated(subset=['PortNumber', 'AccNumber'], keep=False)
+        if dup_keys.any():
+            dups = acc_id_map.loc[dup_keys]
+            raise OasisException(
+                'The following PortNumber/AccNumber combinations map to more than one acc_id '
+                f'in the account file (total={len(dups)}):\n{dups.head(20).to_string(index=False)}'
+            )
+        loc_acc_id_col = locations_df[['PortNumber', 'AccNumber']].merge(
+            acc_id_map, how='left', on=['PortNumber', 'AccNumber'])['acc_id'].to_numpy()
+
+    missing_acc_mask = pd.isna(loc_acc_id_col) | ~pd.Series(loc_acc_id_col).isin(acc_id_col).to_numpy()
+    if missing_acc_mask.any():
+        id_cols = [col for col in ['LocNumber', 'PortNumber', 'AccNumber'] if col in locations_df.columns]
+        offending_locations = locations_df.loc[missing_acc_mask, id_cols].drop_duplicates()
+        raise OasisException(
+            'The following locations reference a PortNumber/AccNumber combination that is not present '
+            f'in the account file (total={len(offending_locations)}):\n{offending_locations.head(20).to_string(index=False)}'
+        )
+
+    # Built from plain numpy arrays (copy=True) rather than sliced from locations_df/accounts_df,
+    # so check_cond_tags' in-place fill_empty() calls can't leak back into the caller's data.
+    loc_cond_df = pd.DataFrame({'acc_id': loc_acc_id_col.copy()})
+    if 'CondTag' in locations_df.columns:
+        loc_cond_df['CondTag'] = locations_df['CondTag'].to_numpy(copy=True)
+
+    acc_cond_df = pd.DataFrame({'acc_id': acc_id_col.copy()})
+    if 'CondTag' in accounts_df.columns:
+        acc_cond_df['CondTag'] = accounts_df['CondTag'].to_numpy(copy=True)
+
+    check_cond_tags(loc_cond_df, acc_cond_df)
+
+
+def get_cond_info(locations_df, accounts_df):
+    pol_info = {}
+    level_conds = {}
+    extra_accounts = []
+    _, acc_condkey_df = check_cond_tags(locations_df, accounts_df)
+    default_cond_tag = '0'
 
     if acc_condkey_df.shape[0]:
         if 'CondTag' not in locations_df.columns:
@@ -570,6 +645,15 @@ def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
     )
 
 
+def assign_acc_id(accounts_df):
+    """Ensure accounts_df has an 'acc_id' column, computing it from PortNumber/AccNumber
+    if not already present. Mutates accounts_df in place; idempotent.
+    """
+    if 'acc_id' not in accounts_df.columns:
+        accounts_df['acc_id'] = get_ids(accounts_df, ['PortNumber', 'AccNumber'])
+    return accounts_df
+
+
 @oasis_log
 def prepare_il_source_dataframes(gul_inputs_df, exposure_data):
     """Resolve the acc_id key across gul/location/account frames and fill location defaults.
@@ -590,8 +674,7 @@ def prepare_il_source_dataframes(gul_inputs_df, exposure_data):
     if exposure_data.location is not None:
         locations_df = exposure_data.location.dataframe
         accounts_df = exposure_data.account.dataframe
-        if 'acc_id' not in accounts_df:
-            accounts_df['acc_id'] = get_ids(exposure_data.account.dataframe, ['PortNumber', 'AccNumber'])
+        assign_acc_id(accounts_df)
         acc_id_map = accounts_df[['PortNumber', 'AccNumber', 'acc_id']].drop_duplicates()
         gul_inputs_df = gul_inputs_df.merge(acc_id_map, how='left')
         locations_df = locations_df.merge(acc_id_map, how='left')
