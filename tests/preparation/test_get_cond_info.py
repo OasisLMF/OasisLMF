@@ -266,7 +266,7 @@ def reference_get_cond_info(locations_df, accounts_df):
 
     if 'CondTag' in accounts_df.columns:
         fill_empty(accounts_df, 'CondTag', default_cond_tag)
-        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['acc_id', 'CondTag']].drop_duplicates()
+        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != default_cond_tag, ['acc_id', 'CondTag']].drop_duplicates()
         condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
         missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['acc_id', 'CondTag']]
     else:

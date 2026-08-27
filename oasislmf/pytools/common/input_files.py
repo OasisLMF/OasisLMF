@@ -8,8 +8,7 @@ from pathlib import Path
 
 from oasislmf.pytools.common.data import (
     oasis_int, oasis_float,
-    areaperil_int, load_as_ndarray, nb_oasis_int,
-    correlations_headers, correlations_dtype, coverages_headers,
+    areaperil_int, load_as_ndarray, correlations_headers, correlations_dtype, coverages_headers,
     occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
     quantile_interval_dtype, returnperiods_dtype,
 )
