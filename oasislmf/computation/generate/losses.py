@@ -936,11 +936,12 @@ class GenerateLossesDeterministic(ComputationStep):
 
                         ri_layer_bin_fp = os.path.join(output_dir, f"ri{layer}.bin")
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
+                        if layer == 1:
+                            ri_input_fp = ils_bin_fp
+                        else:
+                            ri_input_fp = os.path.join(output_dir, f'ri{layer - 1}.bin')
+
                         try:
-                            if layer == 1:
-                                ri_input_fp = ils_bin_fp
-                            else:
-                                ri_input_fp = os.path.join(output_dir, f'ri{layer - 1}.bin')
                             fmpy_run(
                                 create_financial_structure_files=False,
                                 allocation_rule=self.kernel_alloc_rule_ri,
@@ -954,7 +955,10 @@ class GenerateLossesDeterministic(ComputationStep):
                             )
                             bintocsv(ri_layer_bin_fp, ri_layer_fp, "fm")
                         except Exception as e:
-                            raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
+                            raise OasisException(
+                                f"Exception raised in 'generate_deterministic_losses' "
+                                f"while calculating reinsurance layer {layer}", e
+                            )
                         rils = get_dataframe(src_fp=ri_layer_fp, lowercase_cols=False)
                         rils.drop(rils[rils['sidx'] < 0].index, inplace=True)
                         if self.include_loss_factor:
