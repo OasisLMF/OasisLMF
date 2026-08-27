@@ -38,13 +38,13 @@ def test_oasis_ping_http_path():
 def test_oasis_ping_http_path_falls_back_to_websocket():
     data = {"analysis_pk": 123}
     with (patch.dict(os.environ, {
-              "OASIS_ANALYSIS_STATUS_URL": "http://fakehost/analysis-status/",
-              "OASIS_WEBSOCKET_URL": "ws://fakehost",
-              "OASIS_WEBSOCKET_PORT": "9999",
-          }, clear=True),
-          patch("oasislmf.utils.ping.oasis_ping_http", return_value=False) as mock_http,
-          patch("oasislmf.utils.ping.oasis_ping_websocket", return_value=True) as mock_ws,
-          patch("oasislmf.utils.ping.oasis_ping_socket") as mock_sock):
+        "OASIS_ANALYSIS_STATUS_URL": "http://fakehost/analysis-status/",
+        "OASIS_WEBSOCKET_URL": "ws://fakehost",
+        "OASIS_WEBSOCKET_PORT": "9999",
+    }, clear=True),
+            patch("oasislmf.utils.ping.oasis_ping_http", return_value=False) as mock_http,
+            patch("oasislmf.utils.ping.oasis_ping_websocket", return_value=True) as mock_ws,
+            patch("oasislmf.utils.ping.oasis_ping_socket") as mock_sock):
         result = oasis_ping(data)
 
     mock_http.assert_called_once()
