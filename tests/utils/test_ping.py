@@ -1,8 +1,11 @@
 import json
 import os
+import threading
+import time
 from unittest.mock import patch, MagicMock
 import requests
-from oasislmf.utils.ping import oasis_ping, oasis_ping_socket, oasis_ping_websocket, oasis_ping_http
+import oasislmf.utils.ping as ping_module
+from oasislmf.utils.ping import oasis_ping, oasis_ping_socket, oasis_ping_websocket, oasis_ping_http, oasis_ping_async
 
 
 def test_oasis_ping_websocket_path():
@@ -110,7 +113,7 @@ def test_oasis_ping_websocket_success():
     with patch("websocket.WebSocket", return_value=fake_ws):
         result = oasis_ping_websocket("ws://fakehost:1234/ws", '{"hello": "world"}')
     assert result is True
-    fake_ws.connect.assert_called_once_with("ws://fakehost:1234/ws", timeout=5)
+    fake_ws.connect.assert_called_once_with("ws://fakehost:1234/ws", timeout=1)
     fake_ws.send.assert_called_once_with('{"hello": "world"}')
     fake_ws.close.assert_called_once()
 
@@ -130,7 +133,7 @@ def test_oasis_ping_http_success():
         result = oasis_ping_http("http://fakehost/analysis-status/", {"hello": "world"})
 
     assert result is True
-    mock_post.assert_called_once_with("http://fakehost/analysis-status/", json={"hello": "world"}, timeout=5)
+    mock_post.assert_called_once_with("http://fakehost/analysis-status/", json={"hello": "world"}, timeout=1)
     fake_response.raise_for_status.assert_called_once()
 
 
@@ -170,3 +173,46 @@ def test_oasis_ping_no_port_override_uses_env():
 
     called_target, _ = mock_sock.call_args[0]
     assert called_target == ("1.2.3.4", 4321)
+
+
+def test_oasis_ping_async_calls_oasis_ping_off_caller_thread():
+    data = {"hello": "world"}
+    caller_thread = threading.current_thread()
+    done = threading.Event()
+    calls = []
+
+    def fake_oasis_ping(d):
+        calls.append((d, threading.current_thread()))
+        done.set()
+
+    with patch("oasislmf.utils.ping.oasis_ping", side_effect=fake_oasis_ping):
+        oasis_ping_async(data)
+        assert done.wait(timeout=2), "oasis_ping_async did not call oasis_ping in time"
+
+    assert calls == [(data, calls[0][1])]
+    assert calls[0][1] is not caller_thread
+
+
+def test_oasis_ping_async_drops_update_when_previous_still_in_flight():
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_oasis_ping(d):
+        started.set()
+        release.wait(timeout=2)
+
+    with patch("oasislmf.utils.ping.oasis_ping", side_effect=slow_oasis_ping) as mock_ping:
+        oasis_ping_async({"events_complete": 1})
+        assert started.wait(timeout=2), "first ping never started"
+
+        # A second update arriving while the first is still in flight is dropped,
+        # not queued behind it.
+        oasis_ping_async({"events_complete": 2})
+
+        release.set()
+        for _ in range(200):
+            if not ping_module._ping_lock.locked():
+                break
+            time.sleep(0.01)
+
+    mock_ping.assert_called_once_with({"events_complete": 1})

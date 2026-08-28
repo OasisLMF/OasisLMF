@@ -47,7 +47,7 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping
+from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
 logger = logging.getLogger(__name__)
@@ -465,7 +465,7 @@ def run(run_dir,
                 ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
                 if ping_port is not None:
                     ping_data['port_override'] = ping_port
-                oasis_ping(ping_data)
+                oasis_ping_async(ping_data)
                 counter = 0
 
     return 0

@@ -8,7 +8,7 @@ from select import select
 import numpy as np
 from numba import njit
 import time
-from oasislmf.utils.ping import oasis_ping
+from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter,
@@ -327,7 +327,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
                 if ping_port is not None:
                     ping_data['port_override'] = ping_port
-                oasis_ping(ping_data)
+                oasis_ping_async(ping_data)
                 counter = 0
                 timer = time.time()
 

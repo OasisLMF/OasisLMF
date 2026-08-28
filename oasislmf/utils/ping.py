@@ -4,9 +4,14 @@ import socket
 import os
 import logging
 import requests
+import threading
 from oasislmf.utils.defaults import SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
 
 logger = logging.getLogger(__name__)
+
+# Guards `oasis_ping_async` so a stuck ping target can never pile up more than
+# one in-flight ping thread within this process.
+_ping_lock = threading.Lock()
 
 
 def oasis_ping(data):
@@ -55,6 +60,38 @@ def oasis_ping(data):
     target = (os.environ.get("OASIS_SOCKET_SERVER_IP", SERVER_DEFAULT_IP), target_port)
     logger.debug(f"Sending ping to {target}: {msg}")
     return oasis_ping_socket(target, msg)
+
+
+def oasis_ping_async(data):
+    """Sends a ping without blocking the caller.
+
+    `oasis_ping` makes a network call (HTTP POST or websocket connect) that can
+    block for up to the configured timeout when the target is unreachable but
+    not actively refusing the connection (wrong hostname, dropped packets, a
+    NetworkPolicy). Calling it directly from a per-event progress ping inside a
+    compute loop means a broken ping target stalls the calculation itself. This
+    runs `oasis_ping` on a background daemon thread instead, so a stuck ping
+    can never block the caller.
+
+    Only one ping is ever in flight at a time per process: if a previous call
+    is still pending when this is invoked, the new update is dropped (a
+    subsequent ping will carry a more up to date `events_complete`) rather than
+    letting a persistently broken target pile up threads.
+
+    Args:
+        data (dict): dictionary of data: JSON serialisable
+    """
+    if not _ping_lock.acquire(blocking=False):
+        logger.debug(f"Skipping ping, previous ping still in flight: {data}")
+        return
+
+    def _send():
+        try:
+            oasis_ping(data)
+        finally:
+            _ping_lock.release()
+
+    threading.Thread(target=_send, daemon=True).start()
 
 
 def oasis_ping_socket(target, data):
