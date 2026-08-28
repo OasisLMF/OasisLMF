@@ -658,6 +658,6 @@ During back-allocation, the process is repeated, but this time it's the parent n
 'compute' queue.
 
 .. note::
-    For a deeper walk-through of the Python/NumPy implementation (the run modes, the financial-structure and
-    computation steps, the policy and stream modules), see :doc:`fm-architecture`. The corresponding API is generated
-    from source under :doc:`../reference/index`.
+    For a deeper walk-through of the Python/NumPy implementation — the sparse data structures, the computation
+    flow and level traversal, aggregation, profile application, back allocation and stream I/O — see
+    :doc:`fm-architecture`. The corresponding API is generated from source under :doc:`../reference/index`.
