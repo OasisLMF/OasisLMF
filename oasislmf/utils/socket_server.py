@@ -11,7 +11,8 @@ import logging
 
 class GulProgressServer:
     def __init__(self, total, host=None, port=None):
-        """
+        """Initialise the progress server.
+
         Args:
             total (int): How many events the server has
             host (str, optional): Non-default host to use. Defaults to `OASIS_SOCKET_SERVER_IP` or SERVER_DEFAULT_IP if unset.

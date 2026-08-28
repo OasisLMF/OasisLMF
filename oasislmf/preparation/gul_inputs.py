@@ -97,8 +97,7 @@ files_write_info = {
 
 
 def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups):
-    """
-    cleans out columns that are not valid oasis group columns.
+    """Cleans out columns that are not valid oasis group columns.
 
     Valid group id columns can be either
     1. exist in the location file
@@ -135,8 +134,7 @@ def get_gul_input_items(
     do_disaggregation=True,
     coverage_dependency_settings=None
 ):
-    """
-    Generates GUL (Ground-Up Loss) input items by combining location and keys data.
+    """Generates GUL (Ground-Up Loss) input items by combining location and keys data.
 
     This function creates the foundational data structure for loss calculations by
     merging exposure (location) data with model keys data. Each resulting row
@@ -333,7 +331,7 @@ def get_gul_input_items(
     # ``modeldata`` column in the keys file, and ignore the area peril
     # and vulnerability ID columns, unless it's the dynamic model generator which
     # uses them
-    if 'model_data' in keys_df and 'areaperil_id' not in keys_df and 'vulnerbaility_id' not in keys_df:
+    if 'model_data' in keys_df and 'areaperil_id' not in keys_df and 'vulnerability_id' not in keys_df:
         keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
     gul_inputs_df = merge_dataframes(
         keys_df,
@@ -434,8 +432,10 @@ def get_gul_input_items(
         repeat_counts = np.maximum(1, gul_inputs_df['NumberOfBuildings'].values).astype(int)
         # Repeat rows using np.repeat + iloc (faster than iterative expansion)
         gul_inputs_df = gul_inputs_df.iloc[np.repeat(np.arange(len(gul_inputs_df)), repeat_counts)].reset_index(drop=True)
-        # Assign building_id: 1, 2, ..., n for each location
-        gul_inputs_df['building_id'] = np.concatenate([np.arange(1, n + 1) for n in repeat_counts])
+        # Assign building_id: 1, 2, ..., n for each location, by numbering the repeated rows
+        # from the position the location's first row was expanded to
+        first_building = np.repeat(np.cumsum(repeat_counts) - repeat_counts, repeat_counts)
+        gul_inputs_df['building_id'] = np.arange(len(gul_inputs_df)) - first_building + 1
     else:
         gul_inputs_df = gul_inputs_df.copy()
         gul_inputs_df['building_id'] = 1
@@ -646,8 +646,7 @@ def write_gul_input_files(
     if correlations_df is None:
         correlations_df = pd.DataFrame(columns=correlations_headers)
     correlations_df.to_csv(f"{output_dir}/correlations.csv", index=False)
-    correlations_df_np_data = np.array([r for r in correlations_df.itertuples(index=False)], dtype=correlations_dtype)
-    correlations_df_np_data.tofile(f"{output_dir}/correlations.bin")
+    df_to_ndarray(correlations_df, correlations_dtype).tofile(f"{output_dir}/correlations.bin")
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size

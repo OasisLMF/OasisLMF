@@ -21,7 +21,7 @@ for cli_module_name in cli_module_names:
 
             tmpl = f"""
             ``{cli_module_name}``
-            {'-'*len(cli_module_name)}
+            {'-' * len(cli_module_name)}
             .. automodule:: oasislmf.cli.{cli_module_name}.{class_name}
             :noindex:
             """

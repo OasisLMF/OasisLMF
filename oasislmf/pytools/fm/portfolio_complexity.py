@@ -135,16 +135,13 @@ def compute_portfolio_complexity(static_path):
     Multiplying by the number of model events gives a per-dimension
     full-run cost proxy.
 
-    Parameters
-    ----------
-    static_path : str
-        Directory containing the Oasis static files.  For IL this is the
-        directory with ``fm_programme.bin`` etc.  RI layer subdirectories
-        are discovered automatically via ``ri_layers.json``.
+    Args:
+        static_path (str): Directory containing the Oasis static files.  For IL this is the
+            directory with ``fm_programme.bin`` etc.  RI layer subdirectories
+            are discovered automatically via ``ri_layers.json``.
 
-    Returns
-    -------
-    dict
+    Returns:
+        dict
     """
     metrics = {}
 
@@ -232,14 +229,11 @@ def compute_portfolio_complexity(static_path):
 def format_complexity_report(metrics):
     """Return a human-readable text summary of portfolio complexity metrics.
 
-    Parameters
-    ----------
-    metrics : dict
-        As returned by :func:`compute_portfolio_complexity`.
+    Args:
+        metrics (dict): As returned by :func:`compute_portfolio_complexity`.
 
-    Returns
-    -------
-    str
+    Returns:
+        str
     """
     pd_ = metrics.get('portfolio_dimensions', {})
     il_ = metrics.get('il')

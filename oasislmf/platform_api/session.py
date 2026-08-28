@@ -218,10 +218,7 @@ class APISession(Session):
 
     # @oasis_log
     def health_check(self):
-        """
-        Checks the health of the server.
-
-        """
+        """Checks the health of the server."""
         try:
             url = urljoin(self.url_base, 'healthcheck/')
             r = super(APISession, self).get(url)

@@ -6,11 +6,12 @@ import numpy as np
 import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
+from oasislmf.pytools.summary.manager import SUMMARY_META_SIZE
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, oasis_int, oasis_float, oasis_int_size, oasis_float_size,
-                                          summary_stream_index_dtype)
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE,
+                                          summary_stream_index_dtype, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_get, read_occurrence, read_periods, read_returnperiods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
@@ -23,6 +24,12 @@ from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
+summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
+sidx_dtype, sidx_size = def_to_type_and_size('sidx')
+loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+
 
 def read_input_files(
     run_dir,
@@ -32,12 +39,14 @@ def read_input_files(
     sample_size
 ):
     """Reads all input files and returns a dict of relevant data
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         use_return_period (bool): Use Return Period file.
         agg_wheatsheaf_mean (bool): Aggregate Wheatsheaf Mean.
         occ_wheatsheaf_mean (bool): Occurrence Wheatsheaf Mean.
         sample_size (int): Sample Size.
+
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
         use_return_period (bool): Use Return Period file.
@@ -79,26 +88,29 @@ def read_input_files(
 @nb.njit(cache=True, error_model="numpy")
 def get_max_summary_id(file_handles):
     """Get max summary_id from all summary files
+
     Args:
         file_handles (List[np.memmap]): List of memmaps for summary files data
+
     Returns:
         max_summary_id (int): Max summary ID
     """
     max_summary_id = 0
     for fin in file_handles:
-        cursor = oasis_int_size * 3
+        cursor = SUMMARY_META_SIZE
 
         valid_buff = len(fin)
         while cursor < valid_buff:
-            _, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-            summary_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-            _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+            # header (event_id, summary_id, exposure_value)
+            _, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
+            summary_id, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)
+            _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
 
             max_summary_id = max(max_summary_id, summary_id)
 
             while cursor < valid_buff:
-                sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-                _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+                sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
+                _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
                 if sidx == 0:
                     break
     return max_summary_id
@@ -118,10 +130,11 @@ def do_lec_output_agg_summary(
     max_summary_id,
 ):
     """Populate outloss_mean and outloss_sample with aggregate and max losses
+
     Args:
-        summary_id (oasis_int): summary_id
-        sidx (oasis_int): Sample ID
-        loss (oasis_float): Loss value
+        summary_id (summary_id_dtype): summary_id
+        sidx (sidx_dtype): Sample ID
+        loss (loss_dtype): Loss value
         filtered_occ_map (ndarray[occ_map_dtype]): Filtered numpy map of event_id, period_no, occ_date_id from the occurrence file_
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
@@ -166,17 +179,17 @@ def process_summary_entries(
     valid_buff = len(fin)
     for offset in offsets:
         cursor = offset
-        event_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-        _, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)    # summary_id known from idx
-        _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)  # expval
+        event_id, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
+        _, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)    # summary_id known from idx
+        _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)  # expval
 
         filtered_occ_map = occ_get(occ_csr, event_id)
         if len(filtered_occ_map) == 0:
             continue
 
         while cursor < valid_buff:
-            sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-            loss, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+            sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
+            loss, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
             if sidx == 0:
                 break
             if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
@@ -228,6 +241,7 @@ def process_input_file(
     max_summary_id,
 ):
     """Process summary file and populate outloss_mean and outloss_sample with losses
+
     Args:
         fin (np.memmap): summary binary memmap
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
@@ -239,26 +253,26 @@ def process_input_file(
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
     """
-    # Set cursor to end of stream header (stream_type, sample_size, summary_set_id)
-    cursor = oasis_int_size * 3
+    # Set cursor to end of stream meta data header
+    cursor = SUMMARY_META_SIZE
 
     valid_buff = len(fin)
     while cursor < valid_buff:
-        event_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-        summary_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-        expval, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+        event_id, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
+        summary_id, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)
+        expval, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
 
         filtered_occ_map = occ_get(occ_csr, event_id)
         if len(filtered_occ_map) == 0:
             while cursor < valid_buff:
-                sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-                _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+                sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
+                _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
                 if sidx == 0:
                     break
             continue
         while cursor < valid_buff:
-            sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
-            loss, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+            sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
+            loss, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
             if sidx == 0:
                 break
             if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
@@ -291,6 +305,7 @@ def run_lec(
     max_summary_id,
 ):
     """Process each summary file and populate outloss_mean and outloss_sample
+
     Args:
         file_handles (List[np.memmap]): List of memmaps for summary files data
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
@@ -358,6 +373,7 @@ def run(
     output_format="csv",
 ):
     """Runs LEC calculations
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         subfolder (str): Workspace subfolder inside <run_dir>/work/<subfolder>

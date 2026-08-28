@@ -64,11 +64,13 @@ def default_tocsv(stack, file_in, file_out, file_type, noheader):
 
 def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
     """Convert bin file to csv file based on file type
+
     Args:
         file_in (str | os.PathLike): Input file path
         file_out (str | os.PathLike): Output file path
         file_type (str): File type str from SUPPORTED_BINTOCSV
         noheader (bool): Bool to not output header. Defaults to False.
+        **kwargs: additional keyword arguments forwarded to the file type specific converter
     """
     with ExitStack() as stack:
         file_out = resolve_file(file_out, "w", stack)

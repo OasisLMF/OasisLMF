@@ -12,8 +12,8 @@ import os
 
 import numpy as np
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import areaperil_int, correlations_dtype, load_as_ndarray
-from oasislmf.pytools.common.input_files import read_coverages, read_correlations
+from oasislmf.pytools.common.data import correlations_dtype, load_as_ndarray
+from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.gul.common import coverage_type
 from oasislmf.pytools.gul.manager import gul_get_items, generate_item_map
@@ -85,12 +85,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     # --- items + peril filter --------------------------------------------------
     logger.debug('import items')
     if peril_filter:
-        keys_dtype = np.dtype([('LocID', np.int32), ('PerilID', 'U3'), ('CoverageTypeID', np.int32),
-                               ('AreaPerilID', areaperil_int), ('VulnerabilityID', np.int32)])
-        keys_tb = load_as_ndarray(input_path, 'keys', keys_dtype)
-        peril_set = set(peril_filter)
-        mask = np.array([p in peril_set for p in keys_tb['PerilID']])
-        valid_area_peril_id = np.unique(keys_tb['AreaPerilID'][mask])
+        keys_tb = load_as_ndarray(input_path, 'keys', KEYS_DTYPE)
+        valid_area_peril_id = filter_area_peril_id(keys_tb, peril_filter)
         logger.debug(
             f'Peril specific run: ({peril_filter}), '
             f'{len(valid_area_peril_id)} AreaPerilID included out of {len(keys_tb)}')

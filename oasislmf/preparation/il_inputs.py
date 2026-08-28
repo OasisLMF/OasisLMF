@@ -4,6 +4,7 @@ __all__ = [
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy',
     'get_il_input_items',
+    'validate_account_location_references',
 ]
 
 import contextlib
@@ -58,6 +59,9 @@ fm_xref_pd_dtype = structured_dtype_to_pandas(fm_xref_dtype)
 # Define a list of all supported OED coverage types in the exposure
 supp_cov_type_ids = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
 
+# peril applied to a condition that does not name one; 'AA1' is the OED all-perils code
+DEFAULT_COND_PERIL = 'AA1'
+
 policytc_cols = ['profile_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
 
 profile_cols_map = {
@@ -103,8 +107,7 @@ def prepare_ded_and_limit(level_df):
 
 
 def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
-    """
-    Merges IL inputs with the correct calc_rule table and returns calc rule IDs.
+    """Merges IL inputs with the correct calc_rule table and returns calc rule IDs.
 
     Args:
         il_inputs_calc_rules_df (pandas.DataFrame): IL input items dataframe.
@@ -165,22 +168,20 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
 
 
 def get_profile_ids(il_inputs_df):
-    """
-    Returns a Numpy array of policy TC IDs from a table of IL input items.
+    """Returns a Numpy array of policy TC IDs from a table of IL input items.
 
     Args:
         il_inputs_df (pandas.DataFrame): IL input items dataframe.
 
     Returns:
-        numpy.ndarray: Numpy array of policy TC IDs.
+        pandas.Series: Series of profile IDs.
     """
     factor_col = list(set(il_inputs_df.columns).intersection(policytc_cols).difference({'profile_id', }))
     return il_inputs_df.groupby(factor_col, sort=False, observed=True, dropna=False).ngroup().astype('int32') + 1
 
 
 def __split_fm_terms_by_risk(df):
-    """
-    Adjusts financial terms by the number of risks.
+    """Adjusts financial terms by the number of risks.
 
     For example, deductible is split into each individual building risk.
 
@@ -195,10 +196,17 @@ def __split_fm_terms_by_risk(df):
             df[term] /= df['NumberOfRisks']
 
 
-def get_cond_info(locations_df, accounts_df):
-    pol_info = {}
-    level_conds = {}
-    extra_accounts = []
+def check_cond_tags(locations_df, accounts_df):
+    """Raise if any non-default CondTag referenced by a location is not present
+    in the account file for that acc_id.
+
+    Kept standalone (rather than inlined in get_cond_info) so it can also be
+    run as a cheap, early sanity check on just locations_df/accounts_df -
+    e.g. by validate_account_location_references - before any of the more
+    expensive keys lookup or GUL processing has run.
+
+    Returns (loc_condkey_df, acc_condkey_df).
+    """
     default_cond_tag = '0'
     if 'CondTag' in locations_df.columns:
         fill_empty(locations_df, 'CondTag', default_cond_tag)
@@ -208,7 +216,7 @@ def get_cond_info(locations_df, accounts_df):
 
     if 'CondTag' in accounts_df.columns:
         fill_empty(accounts_df, 'CondTag', default_cond_tag)
-        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['acc_id', 'CondTag']].drop_duplicates()
+        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != default_cond_tag, ['acc_id', 'CondTag']].drop_duplicates()
         condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
         missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['acc_id', 'CondTag']]
     else:
@@ -218,13 +226,78 @@ def get_cond_info(locations_df, accounts_df):
     if missing_condkey_df.shape[0]:
         raise OasisException(f'Those condtag are present in locations but missing in the account file:\n{missing_condkey_df}')
 
+    return loc_condkey_df, acc_condkey_df
+
+
+def validate_account_location_references(locations_df, accounts_df):
+    """Validate that every location's PortNumber/AccNumber and CondTag
+    references resolve to a row in the account file.
+
+    Should be called as early as possible in the files-generation pipeline -
+    it only needs locations_df/accounts_df - so a bad portfolio fails in
+    seconds rather than after hours of keys lookup.
+
+    locations_df/accounts_df themselves are never mutated - only fresh frames
+    derived from them (merge results, or minimal column-subset copies) are.
+    """
+    if locations_df is None or accounts_df is None:
+        return
+
+    # Positional numpy arrays throughout (never Series) so the merge below - which resets
+    # the index - can't misalign values when reattached to locations_df/accounts_df.
+    if 'acc_id' in accounts_df.columns:
+        acc_id_col = accounts_df['acc_id'].to_numpy()
+    else:
+        acc_id_col = np.asarray(get_ids(accounts_df, ['PortNumber', 'AccNumber']))
+
+    if 'acc_id' in locations_df.columns:
+        loc_acc_id_col = locations_df['acc_id'].to_numpy()
+    else:
+        acc_id_map = accounts_df[['PortNumber', 'AccNumber']].assign(acc_id=acc_id_col).drop_duplicates()
+        dup_keys = acc_id_map.duplicated(subset=['PortNumber', 'AccNumber'], keep=False)
+        if dup_keys.any():
+            dups = acc_id_map.loc[dup_keys]
+            raise OasisException(
+                'The following PortNumber/AccNumber combinations map to more than one acc_id '
+                f'in the account file (total={len(dups)}):\n{dups.head(20).to_string(index=False)}'
+            )
+        loc_acc_id_col = locations_df[['PortNumber', 'AccNumber']].merge(
+            acc_id_map, how='left', on=['PortNumber', 'AccNumber'])['acc_id'].to_numpy()
+
+    missing_acc_mask = pd.isna(loc_acc_id_col) | ~pd.Series(loc_acc_id_col).isin(acc_id_col).to_numpy()
+    if missing_acc_mask.any():
+        id_cols = [col for col in ['LocNumber', 'PortNumber', 'AccNumber'] if col in locations_df.columns]
+        offending_locations = locations_df.loc[missing_acc_mask, id_cols].drop_duplicates()
+        raise OasisException(
+            'The following locations reference a PortNumber/AccNumber combination that is not present '
+            f'in the account file (total={len(offending_locations)}):\n{offending_locations.head(20).to_string(index=False)}'
+        )
+
+    # Built from plain numpy arrays (copy=True) rather than sliced from locations_df/accounts_df,
+    # so check_cond_tags' in-place fill_empty() calls can't leak back into the caller's data.
+    loc_cond_df = pd.DataFrame({'acc_id': loc_acc_id_col.copy()})
+    if 'CondTag' in locations_df.columns:
+        loc_cond_df['CondTag'] = locations_df['CondTag'].to_numpy(copy=True)
+
+    acc_cond_df = pd.DataFrame({'acc_id': acc_id_col.copy()})
+    if 'CondTag' in accounts_df.columns:
+        acc_cond_df['CondTag'] = accounts_df['CondTag'].to_numpy(copy=True)
+
+    check_cond_tags(loc_cond_df, acc_cond_df)
+
+
+def get_cond_info(locations_df, accounts_df):
+    level_conds = {}
+    extra_accounts = []
+    _, acc_condkey_df = check_cond_tags(locations_df, accounts_df)
+    default_cond_tag = '0'
+
     if acc_condkey_df.shape[0]:
         if 'CondTag' not in locations_df.columns:
             locations_df['CondTag'] = default_cond_tag
-        # we get information about cond from accounts_df
-        cond_tags = {}  # information about each cond tag
-        account_layer_exclusion = {}  # for each account and layer, store info about cond class exclusion
         if 'CondPriority' in accounts_df.columns:
+            if not is_numeric_dtype(accounts_df['CondPriority']):
+                accounts_df['CondPriority'] = accounts_df['CondPriority'].astype('object')
             fill_empty(accounts_df, 'CondPriority', 1)
         else:
             accounts_df['CondPriority'] = 1
@@ -232,83 +305,137 @@ def get_cond_info(locations_df, accounts_df):
             fill_empty(accounts_df, 'CondPeril', '')
         else:
             accounts_df['CondPeril'] = ''
-        for acc_rec in accounts_df.to_dict(orient="records"):
-            cond_tag_key = (acc_rec['acc_id'], acc_rec['CondTag'])
-            cond_number_key = (acc_rec['acc_id'], acc_rec['CondTag'], acc_rec['CondNumber'])
-            cond_tag = cond_tags.setdefault(cond_tag_key, {'CondPriority': acc_rec['CondPriority'] or 1, 'CondPeril': acc_rec['CondPeril']})
-            cond_tag.setdefault('layers', {})[acc_rec['layer_id']] = {'CondNumber': cond_number_key}
-            exclusion_cond_tags = account_layer_exclusion.setdefault(acc_rec['acc_id'], {}).setdefault(acc_rec['layer_id'],
-                                                                                                       set())
-            pol_info[(acc_rec['acc_id'], acc_rec['layer_id'])] = [acc_rec['PolNumber'], acc_rec['LayerNumber'], acc_rec['acc_idx']]
-            if acc_rec.get('CondClass') == 1:
-                exclusion_cond_tags.add(acc_rec['CondTag'])
 
-        # we get the list of loc for each cond_tag
-        loc_conds = {}
-        KEY_INDEX = 0
-        PRIORITY_INDEX = 1
-        for loc_rec in locations_df.to_dict(orient="records"):
-            loc_key = loc_rec['loc_id']
-            cond_key = (loc_rec['acc_id'], loc_rec.get('CondTag', default_cond_tag))
-            if cond_key in cond_tags:
-                cond_tag = cond_tags[cond_key]
-            else:
-                cond_tag = {'CondPriority': 1, 'layers': {}}
-                cond_tags[cond_key] = cond_tag
+        # --- per (acc_id, CondTag) attributes taken from the first account row (0/blank priority -> 1) ---
+        tag_first = accounts_df.groupby(['acc_id', 'CondTag'], sort=False, observed=True).agg(
+            CondPriority=('CondPriority', 'first'),
+            CondPeril=('CondPeril', 'first'),
+        ).reset_index()
+        # fill_empty above already mapped every blank to 1, so anything left that will not convert is
+        # not an empty priority but a malformed one, and is rejected rather than silently defaulted
+        prio = pd.to_numeric(tag_first['CondPriority'], errors='coerce')
+        if prio.isna().any():
+            bad_priority_df = tag_first.loc[prio.isna(), ['acc_id', 'CondTag', 'CondPriority']]
+            raise OasisException(f'Those CondPriority values in the account file are not numeric:\n{bad_priority_df}')
+        tag_first['priority'] = prio.mask(prio == 0, 1)
+        peril = tag_first['CondPeril'].astype('object').fillna('')
+        tag_first['cond_peril'] = peril.mask(peril == '', DEFAULT_COND_PERIL)
+        peril_map = tag_first.set_index(['acc_id', 'CondTag'])['cond_peril'].to_dict()
 
-            cond_location = cond_tag.setdefault('locations', set())
-            cond_location.add(loc_key)
-            cond_tag_priority = cond_tag['CondPriority']
-            conds = loc_conds.setdefault(loc_key, [])
+        # per (acc_id, layer_id) policy info + exclusion flag
+        # has_excl is resolved before the groupby so 'max' can take the cython path; a lambda here
+        # forces pandas' per-group pure-python aggregation and dominates the whole function
+        layer_cols = accounts_df[['acc_id', 'layer_id', 'PolNumber', 'LayerNumber', 'acc_idx']].assign(
+            has_excl=(accounts_df['CondClass'].eq(1).fillna(False).astype(bool)
+                      if 'CondClass' in accounts_df.columns else False),
+        )
+        # the exclusion flag is an 'any' over the layer, but the policy columns are literally the
+        # last row's, nulls included, as the row loop overwrote them per row. a groupby 'last' is
+        # last *non-null*, which would put a value on a filler row where the loop emitted NaN, so
+        # they are taken by drop_duplicates and joined onto the groups in first-appearance order.
+        account_layers = layer_cols.groupby(
+            ['acc_id', 'layer_id'], sort=False, observed=True)['has_excl'].max().reset_index()
+        account_layers = account_layers.merge(
+            layer_cols.drop_duplicates(['acc_id', 'layer_id'], keep='last').drop(columns='has_excl'),
+            on=['acc_id', 'layer_id'], how='left')
 
-            for i, cond in enumerate(conds):
-                if cond_tag_priority < cond[PRIORITY_INDEX]:
-                    conds.insert(i, (cond_key, cond_tag_priority))
-                    break
-                elif cond_tag_priority == cond[PRIORITY_INDEX] and cond_key != cond[KEY_INDEX]:
-                    raise OasisException(f"{cond_key} and {cond[KEY_INDEX]} have same priority in {loc_key}")
-            else:
-                conds.append((cond_key, cond_tag_priority))
+        # --- resolve each location's cond priority, detect same-priority conflicts, rank within the location ---
+        loc_conds_df = locations_df[['loc_id', 'acc_id', 'CondTag']].drop_duplicates()
+        loc_conds_df = loc_conds_df.merge(tag_first[['acc_id', 'CondTag', 'priority']], on=['acc_id', 'CondTag'], how='left')
+        # location cond tags absent from accounts (e.g. default '0') -> priority 1
+        loc_conds_df['priority'] = loc_conds_df['priority'].fillna(1)
 
-        # at first we just want condtag for each level
-        for cond_key, cond_info in cond_tags.items():
-            acc_id, cond_tag = cond_key
-            cond_level_start = 1
-            for loc_key in cond_info.get('locations', set()):
-                for i, (cond_key_i, _) in enumerate(loc_conds[loc_key]):
-                    if cond_key_i == cond_key:
-                        cond_level_start = max(cond_level_start, i + 1)
+        # loc_conds_df is unique on (loc_id, acc_id, CondTag), so a repeated (loc_id, priority) is
+        # by construction two different cond tags claiming one priority on one location. taking the
+        # first repeat in row order reports the same pair, in the same order, as the row loop did:
+        # the arriving tag first, then the one already held for that location.
+        collisions = loc_conds_df.duplicated(['loc_id', 'priority'], keep='first').to_numpy()
+        if collisions.any():
+            arriving = int(np.argmax(collisions))
+            loc_key = loc_conds_df['loc_id'].iloc[arriving]
+            prio_val = loc_conds_df['priority'].iloc[arriving]
+            held = int(np.argmax(((loc_conds_df['loc_id'] == loc_key) & (loc_conds_df['priority'] == prio_val)).to_numpy()))
+            keys = [tuple(row) for row in loc_conds_df[['acc_id', 'CondTag']].iloc[[arriving, held]].to_numpy().tolist()]
+            raise OasisException(f"{keys[0]} and {keys[1]} have same priority in {loc_key}")
+
+        # cond_level_start = the longest chain of strictly-inner conditions ending at this cond_tag,
+        # taken over every location it sits on. Ranking within a location and maxing the rank does
+        # not compose across locations: a tag can rank first where it is innermost and second
+        # elsewhere, which lands it on the same level as a lower-priority tag it shares a location
+        # with -- a pair the FM has to nest and cannot express as one node. Priorities are distinct
+        # within a location (checked above), so ordering a location by priority gives a strict
+        # chain, and the longest path over those chains is the shallowest assignment that keeps
+        # every such pair on separate levels. Sorted on a copy: loc_conds_df's row order is
+        # load-bearing, it feeds all_cond_keys below and thence the level_conds and
+        # extra_accounts orderings.
+        chain = loc_conds_df.sort_values(['loc_id', 'priority'], kind='stable')
+        if chain.empty:
+            # an account file can carry cond tags with no locations referencing them; guarded
+            # explicitly because MultiIndex.factorize raises on an empty frame in older pandas
+            level_map = {}
+        else:
+            tag_code, tag_keys = pd.MultiIndex.from_frame(chain[['acc_id', 'CondTag']]).factorize()
+            chain = chain.assign(tag_code=tag_code,
+                                 inner_code=pd.Series(tag_code, index=chain.index)
+                                 .groupby(chain['loc_id'], observed=True).shift())
+
+            levels = np.ones(len(tag_keys), dtype='int64')
+            edges = chain[chain['inner_code'].notna()]
+            if not edges.empty:
+                inner = edges['inner_code'].to_numpy().astype('int64')
+                outer = edges['tag_code'].to_numpy()
+                # relax every edge at once and repeat. Each pass propagates one hop, so this
+                # settles in as many passes as the deepest chain of conditions -- a handful --
+                # rather than once per distinct CondPriority, of which an account file may carry
+                # as many as it has conditions. Every edge runs from a lower priority to a higher
+                # one, so the graph is acyclic and the iteration always terminates; the bound is
+                # a backstop, not the expected exit.
+                for _ in range(len(tag_keys)):
+                    previous = levels.copy()
+                    np.maximum.at(levels, outer, levels[inner] + 1)
+                    if np.array_equal(levels, previous):
                         break
-            cond_info['cond_level_start'] = cond_level_start
-            cond_peril = cond_info.get('CondPeril') or 'AA1'
-            for layer_id, exclusion_conds in account_layer_exclusion[acc_id].items():
-                if layer_id not in cond_info['layers']:
-                    PolNumber, LayerNumber, acc_idx = pol_info[(acc_id, layer_id)]
-                    if exclusion_conds:
-                        extra_accounts.append({
-                            'acc_idx': acc_idx,
-                            'acc_id': acc_id,
-                            'PolNumber': PolNumber,
-                            'LayerNumber': LayerNumber,
-                            'CondTag': cond_tag,
-                            'layer_id': layer_id,
-                            'CondNumber': 'FullFilter',
-                            'CondDed6All': 1,
-                            'CondDedType6All': 1,
-                            'CondPeril': cond_peril,
-                        })
-                    else:
-                        extra_accounts.append({
-                            'acc_idx': acc_idx,
-                            'acc_id': acc_id,
-                            'PolNumber': PolNumber,
-                            'LayerNumber': LayerNumber,
-                            'CondTag': cond_tag,
-                            'layer_id': layer_id,
-                            'CondNumber': '',
-                            'CondPeril': cond_peril,
-                        })
-            level_conds.setdefault(cond_level_start, set()).add(cond_key)
+
+            level_map = {tuple(key): int(level) for key, level in zip(tag_keys, levels)}
+
+        # every cond_tag key to emit results for: those defined on accounts plus those referenced by
+        # locations (the latter adds default-'0' tags, which are synthetic priority-1 conds)
+        all_cond_keys = pd.concat([tag_first[['acc_id', 'CondTag']],
+                                   loc_conds_df[['acc_id', 'CondTag']]]).drop_duplicates()
+
+        # a location acc_id with no account rows has no layers to attach its conds to. the row loop
+        # raised KeyError on account_layer_exclusion[acc_id]; the frame version would drop it on the
+        # merge below and leave the key in level_conds, which get_levels turns into an all-null row
+        missing_acc_df = all_cond_keys.loc[~all_cond_keys['acc_id'].isin(accounts_df['acc_id']), ['acc_id', 'CondTag']]
+        if missing_acc_df.shape[0]:
+            raise OasisException(f'Those acc_id are present in locations but missing in the account file:\n{missing_acc_df}')
+
+        for r in all_cond_keys.itertuples():
+            cond_key = (int(r.acc_id), r.CondTag)
+            level_conds.setdefault(level_map.get((r.acc_id, r.CondTag), 1), set()).add(cond_key)
+
+        # get_levels iterates level_conds and never reads the key, so insertion order *is* the FM
+        # nesting order. The loop above inserts a level the first time a cond_tag carrying it is
+        # seen, which is account-file order, not depth order -- emit innermost level first instead.
+        level_conds = dict(sorted(level_conds.items()))
+
+        # extra 'filler' account rows for every (cond_tag, layer) the cond_tag does not already cover.
+        # the cond_tag x layer coverage check is an anti-join against the account rows; only the
+        # surviving fillers are built row-by-row, since the exclusion ones carry extra keys
+        cond_tag_layers_df = all_cond_keys.merge(account_layers, on='acc_id', how='inner').merge(
+            accounts_df[['acc_id', 'CondTag', 'layer_id']].drop_duplicates(),
+            on=['acc_id', 'CondTag', 'layer_id'], how='left', indicator=True)
+        for r in cond_tag_layers_df.loc[cond_tag_layers_df['_merge'] == 'left_only'].itertuples():
+            extra = {
+                'acc_idx': r.acc_idx, 'acc_id': int(r.acc_id), 'PolNumber': r.PolNumber,
+                'LayerNumber': r.LayerNumber, 'CondTag': r.CondTag, 'layer_id': r.layer_id,
+            }
+            if r.has_excl:
+                extra.update({'CondNumber': 'FullFilter', 'CondDed6All': 1, 'CondDedType6All': 1})
+            else:
+                extra['CondNumber'] = ''
+            extra['CondPeril'] = peril_map.get((r.acc_id, r.CondTag), DEFAULT_COND_PERIL)
+            extra_accounts.append(extra)
     return level_conds, extra_accounts
 
 
@@ -442,8 +569,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
 
 
 def associate_items_peril_to_policy_peril(item_perils, policy_df, fm_peril_col, oed_schema):
-    """
-    Maps item perils to policy perils and merges the mapping with policies.
+    """Maps item perils to policy perils and merges the mapping with policies.
 
     For each peril_id in item_perils, maps it to policy perils so that each line
     will have a peril_id that can be used directly as a key when merging with gul_input_df.
@@ -466,8 +592,7 @@ def associate_items_peril_to_policy_peril(item_perils, policy_df, fm_peril_col, 
 def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
                              level_info, gul_inputs_columns,
                              acc_id_map=None, max_groups=5):
-    """
-    Pre-validate that the right side of the upcoming
+    """Pre-validate that the right side of the upcoming
     `validate='many_to_one'` merge into gul_inputs_df is unique on the actual
     join keys.
 
@@ -575,6 +700,15 @@ def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
     )
 
 
+def assign_acc_id(accounts_df):
+    """Ensure accounts_df has an 'acc_id' column, computing it from PortNumber/AccNumber
+    if not already present. Mutates accounts_df in place; idempotent.
+    """
+    if 'acc_id' not in accounts_df.columns:
+        accounts_df['acc_id'] = get_ids(accounts_df, ['PortNumber', 'AccNumber'])
+    return accounts_df
+
+
 @oasis_log
 def prepare_il_source_dataframes(gul_inputs_df, exposure_data):
     """Resolve the acc_id key across gul/location/account frames and fill location defaults.
@@ -595,8 +729,7 @@ def prepare_il_source_dataframes(gul_inputs_df, exposure_data):
     if exposure_data.location is not None:
         locations_df = exposure_data.location.dataframe
         accounts_df = exposure_data.account.dataframe
-        if 'acc_id' not in accounts_df:
-            accounts_df['acc_id'] = get_ids(exposure_data.account.dataframe, ['PortNumber', 'AccNumber'])
+        assign_acc_id(accounts_df)
         acc_id_map = accounts_df[['PortNumber', 'AccNumber', 'acc_id']].drop_duplicates()
         gul_inputs_df = gul_inputs_df.merge(acc_id_map, how='left')
         locations_df = locations_df.merge(acc_id_map, how='left')
@@ -1015,6 +1148,54 @@ def write_level_policytc_and_programme(gul_inputs_df, level_id, fm_policytc_bin,
                                                                header=False, chunksize=chunksize)
 
 
+def get_sub_step_trigger_types():
+    """Get the sub-step trigger type of every (step trigger type, coverage type) pair that has one.
+
+    Returns:
+        pandas.Series: sub-step trigger type, indexed by (steptriggertype, coverage_type_id)
+    """
+    return pd.Series({
+        (step_trigger_type, coverage_type_id): sub_step_trigger_type
+        for step_trigger_type, step_trigger_info in STEP_TRIGGER_TYPES.items()
+        for coverage_type_id, sub_step_trigger_type in step_trigger_info['sub_step_trigger_types'].items()
+    })
+
+
+def assign_sub_step_trigger_types(level_df, step_filter):
+    """Split each step row's trigger type into its sub-type for that row's coverage type.
+
+    A StepTriggerType can cover several coverage types separately -- type 5 covers buildings and
+    contents apart from one another -- and the calc rule is looked up by the sub-type. A pair with
+    no sub-type keeps the trigger type it already has.
+
+    Args:
+        level_df (pandas.DataFrame): the FM level frame, with `steptriggertype` and
+            `coverage_type_id` columns. Modified in place.
+        step_filter (pandas.Series): boolean mask of the rows that are step rows
+
+    Returns:
+        pandas.DataFrame: `level_df`, with the step rows' `steptriggertype` replaced by its
+        sub-type wherever the (trigger type, coverage type) pair has one
+    """
+    step_rows = level_df.loc[step_filter, ['steptriggertype', 'coverage_type_id']]
+    sub_step_trigger_type = get_sub_step_trigger_types().reindex(pd.MultiIndex.from_frame(step_rows))
+    # positional throughout: level_df's index is not guaranteed unique, and reindexing onto a
+    # duplicated label would raise rather than assign
+    has_sub_type = sub_step_trigger_type.notna().to_numpy()
+    # reindexing onto a MultiIndex introduces NaN and so promotes the lookup to float64. sub-types
+    # are integers, and a float written into an object column would not match the integer key the
+    # calc rules table is merged on, so the integer is restored before the rows are combined
+    sub_types = sub_step_trigger_type.fillna(0).to_numpy().astype('int64')
+    replacement = np.where(has_sub_type, sub_types, step_rows['steptriggertype'].to_numpy())
+    # pd.array rather than ndarray.astype, because the column is a nullable Int32 in the real
+    # pipeline and numpy cannot interpret a pandas extension dtype. assigning an array rather
+    # than a Series keeps the assignment positional.
+    level_df.loc[step_filter, 'steptriggertype'] = pd.array(
+        replacement, dtype=level_df['steptriggertype'].dtype)
+
+    return level_df
+
+
 @oasis_log
 def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, profile_id_offset):
     """Assign calcrule_id and profile_id to a level's terms.
@@ -1044,16 +1225,7 @@ def assign_level_calcrule_and_profile_ids(level_df, level_id, factorize_key, pro
         # coverages are covered separately
         # For example, StepTriggerType = 5 covers buildings and contents separately
 
-        def assign_sub_step_trigger_type(row):
-            try:
-                step_trigger_type = STEP_TRIGGER_TYPES[row['steptriggertype']]['sub_step_trigger_types'][
-                    row['coverage_type_id']]
-                return step_trigger_type
-            except KeyError:
-                return row['steptriggertype']
-        level_df.loc[step_filter, 'steptriggertype'] = level_df[step_filter].apply(
-            lambda row: assign_sub_step_trigger_type(row), axis=1
-        )
+        level_df = assign_sub_step_trigger_types(level_df, step_filter)
         final_step_filter = level_df['steptriggertype'] > 0
         # step part
         level_df.loc[final_step_filter, 'calcrule_id'] = get_calc_rule_ids(level_df[final_step_filter], calc_rule_type='step')
@@ -1152,8 +1324,7 @@ def get_il_input_items(
         chunksize=(2 * 10 ** 5),
         intermediary_csv=False,
 ):
-    """
-    Generates IL (Insured Loss) input items by applying financial terms to GUL items.
+    """Generates IL (Insured Loss) input items by applying financial terms to GUL items.
 
     This function builds the Financial Module (FM) structure by processing insurance
     policy terms across multiple hierarchical levels. It takes GUL (Ground-Up Loss)
@@ -1512,8 +1683,7 @@ def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_c
 
 def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file,
                            step_policies_present, chunksize=100000):
-    """
-    Writes an FM profile file.
+    """Writes an FM profile file.
 
     Args:
         level_df (pandas.DataFrame): FM terms dataframe.

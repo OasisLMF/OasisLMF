@@ -1,6 +1,4 @@
-"""
-This file contains specific functionality to read and process items files.
-"""
+"""This file contains specific functionality to read and process items files."""
 import logging
 import os
 
@@ -301,14 +299,14 @@ def get_dynamic_footprint_adjustments(input_path):
         adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
     else:  # Fall back to the items file (items.bin or items.csv) with zero adjustments.
         items_tb = read_items(input_path)
-        adjustments_tb = np.array([(i['item_id'], 0, 0) for i in items_tb], dtype=ItemAdjustment)
+        adjustments_tb = np.zeros(len(items_tb), dtype=ItemAdjustment)
+        adjustments_tb['item_id'] = items_tb['item_id']
 
     return adjustments_tb
 
 
 def get_peril_id(input_path):
-    """
-    Get peril_id associated with item_id
+    """Get peril_id associated with item_id
 
     Args:
         input_path (str): The directory path where the 'gul_summary_map.csv' file is located.

@@ -1,6 +1,4 @@
-"""
-This file contains general-purpose utilities.
-"""
+"""General-purpose utilities."""
 import logging
 import numpy as np
 import os
@@ -44,8 +42,7 @@ def logging_reset_handlers(logger_name):
 
 
 def redirect_logging(exec_name, log_dir='./log'):
-    """
-    Decorator that redirects logging output to a file.
+    """Decorator that redirects logging output to a file.
 
     Apply to the main run function of a python exec from the pytools directory.
     Only errors will be send to STDERR, all other logging is stored in a file named:
@@ -72,7 +69,6 @@ def redirect_logging(exec_name, log_dir='./log'):
         @redirect_logging(exec_name='my_script', log_dir='./logs', log_level=logging.DEBUG)
         def my_run_function():
             # code here
-
     """
     def inner(func):
         def wrapper(*args, **kwargs):
@@ -145,8 +141,7 @@ def redirect_logging(exec_name, log_dir='./log'):
 
 
 def assert_allclose(x, y, rtol=1e-10, atol=1e-8, x_name="x", y_name="y"):
-    """
-    Drop in replacement for `numpy.testing.assert_allclose` that also shows
+    """Drop in replacement for `numpy.testing.assert_allclose` that also shows
     the nonmatching elements in a nice human-readable format.
 
     Args:
@@ -160,7 +155,6 @@ def assert_allclose(x, y, rtol=1e-10, atol=1e-8, x_name="x", y_name="y"):
     Raises:
         AssertionError: if x and y shapes do not match.
         AssertionError: if x and y data do not match.
-
     """
     if np.isscalar(x) and np.isscalar(y) == 1:
         return np.testing.assert_allclose(x, y, rtol=rtol, atol=atol)

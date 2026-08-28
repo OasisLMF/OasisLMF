@@ -6,12 +6,13 @@ import numba as nb
 import os
 from contextlib import ExitStack
 from pathlib import Path
+from oasislmf.pytools.summary.manager import SUMMARY_META_SIZE
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from oasislmf.pytools.aal.data import AAL_meanonly_dtype, AAL_meanonly_fmt, AAL_meanonly_headers, AAL_dtype, AAL_fmt, AAL_headers, ALCT_dtype, ALCT_fmt, ALCT_headers
-from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
-                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv,
+from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, def_to_type_and_size,
+                                          write_ndarray_to_fmt_csv,
                                           summary_stream_index_dtype)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
@@ -21,6 +22,14 @@ from oasislmf.pytools.utils import redirect_logging
 
 
 logger = logging.getLogger(__name__)
+
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
+summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
+_, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
+sidx_dtype, sidx_size = def_to_type_and_size('sidx')
+loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+
 
 # Total amount of memory AAL summary index should use before raising an error (GB)
 OASIS_AAL_MEMORY = float(os.environ["OASIS_AAL_MEMORY"]) if "OASIS_AAL_MEMORY" in os.environ else 4
@@ -57,6 +66,7 @@ def process_bin_file(
     file_index,
 ):
     """Reads summary<n>.bin file event_ids and summary_ids to populate summaries_data
+
     Args:
         fbin (np.memmap): summary binary memmap
         offset (int): file offset to read from
@@ -64,6 +74,7 @@ def process_bin_file(
         summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
         summaries_idx (int): current index reached in summaries_data
         file_index (int): Summary bin file index
+
     Returns:
         summaries_idx (int): current index reached in summaries_data
         resize_flag (bool): flag to indicate whether to resize summaries_data when full
@@ -71,14 +82,14 @@ def process_bin_file(
     """
     while offset < len(fbin):
         cursor = offset
-        event_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
-        summary_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
+        event_id, cursor = mv_read(fbin, cursor, event_id_dtype, event_id_dtype_size)
+        summary_id, cursor = mv_read(fbin, cursor, summary_id_dtype, summary_id_dtype_size)
 
         occ_rows = occ_get(occ_csr, event_id)
         if len(occ_rows) == 0:
             offset = cursor
             # Skip over Expval and losses
-            _, offset = mv_read(fbin, offset, oasis_float, oasis_float_size)
+            _, offset = mv_read(fbin, offset, loss_dtype, loss_dtype_size)
             offset = skip_losses(fbin, offset)
             continue
 
@@ -105,7 +116,7 @@ def process_bin_file(
 
         offset = cursor
         # Read Expval
-        _, offset = mv_read(fbin, offset, oasis_float, oasis_float_size)
+        eval, offset = mv_read(fbin, offset, loss_dtype, loss_dtype_size)
         # Skip over losses
         offset = skip_losses(fbin, offset)
 
@@ -136,6 +147,7 @@ def process_idx_file(
         summaries_data (ndarray[_SUMMARIES_DTYPE]): output index buffer
         summaries_idx (int): next free slot in summaries_data
         file_index (int): which .bin file this is (used as file_idx in output)
+
     Returns:
         summaries_idx (int): updated cursor into summaries_data
         resize_flag (bool): True if summaries_data is full and must be flushed before resuming
@@ -146,7 +158,7 @@ def process_idx_file(
         summary_id = idx_data[idx_cursor]['summary_id']
         offset = idx_data[idx_cursor]['offset']
 
-        event_id, _ = mv_read(fbin, offset, oasis_int, oasis_int_size)
+        event_id, _ = mv_read(fbin, offset, event_id_dtype, event_id_dtype_size)
 
         occ_rows = occ_get(occ_csr, event_id)
         if len(occ_rows) == 0:
@@ -173,6 +185,7 @@ def process_idx_file(
 
 def sort_and_save_chunk(summaries_data, temp_file_path):
     """Sort a chunk of summaries data and save it to a temporary file.
+
     Args:
         summaries_data (ndarray[_SUMMARIES_DTYPE]): Indexed summary data
         temp_file_path (str | os.PathLike): Path to temporary file
@@ -185,6 +198,16 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
 
 def _save_chunk(summaries_data, summaries_idx, path, chunk_index, temp_files, max_summary_id):
     """Flush summaries_data[:summaries_idx] to a numbered temp file.
+
+    Args:
+        summaries_data (ndarray[_SUMMARIES_DTYPE]): Indexed summary data, of which only the first
+            summaries_idx rows are written
+        summaries_idx (int): number of valid rows in summaries_data
+        path (str | os.PathLike): directory the temp file is written into
+        chunk_index (int): number of the chunk being written, used in the temp file name
+        temp_files (list): list of temp file paths, appended to in place
+        max_summary_id (int): running maximum summary_id seen across the chunks so far
+
     Returns:
         chunk_index (int): incremented chunk counter
         max_summary_id (int): updated running maximum
@@ -198,10 +221,11 @@ def _save_chunk(summaries_data, summaries_idx, path, chunk_index, temp_files, ma
 
 @nb.njit(cache=True, error_model="numpy")
 def merge_sorted_chunks(memmaps):
-    """
-    Merge sorted chunks using a k-way merge algorithm and yield next smallest row
+    """Merge sorted chunks using a k-way merge algorithm and yield next smallest row
+
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
+
     Yields:
         smallest_row (ndarray[_SUMMARIES_DTYPE]): yields the next smallest row from sorted summaries partial files
     """
@@ -254,6 +278,7 @@ def get_summaries_data(
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         aal_max_memory (float): OASIS_AAL_MEMORY value (has to be passed in as numba won't update from environment variable)
         idx_handles (List[np.memmap | None] | None): Per-file .idx memmaps, or None to use sequential scan for all files
+
     Returns:
         memmaps (List[np.memmap]): List of temporary file memmaps
         max_summary_id (int): Max summary ID
@@ -287,7 +312,7 @@ def get_summaries_data(
                 if cursor >= len(idx_data):
                     break
         else:
-            offset = oasis_int_size * 3  # Summary stream header size
+            offset = SUMMARY_META_SIZE  # Summary stream header size
             while True:
                 summaries_idx, resize_flag, offset = process_bin_file(
                     fbin, offset, occ_csr, summaries_data, summaries_idx, file_index,
@@ -317,11 +342,11 @@ def summary_index(path, occ_csr, stack):
     process_idx_file to build the index without scanning sample records. Falls back to
     process_bin_file (full sequential scan) for any .bin without a paired .idx.
 
-
     Args:
         path (os.PathLike): Path to the workspace folder containing summary binaries
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         stack (ExitStack): Exit stack
+
     Returns:
         files_handles (List[np.memmap]): List of memmaps for summary files data
         sample_size (int): Sample size
@@ -372,8 +397,10 @@ def summary_index(path, occ_csr, stack):
 
 def read_input_files(run_dir):
     """Reads all input files and returns a dict of relevant data
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
+
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
@@ -394,15 +421,15 @@ def get_num_subsets(alct, sample_size, max_summary_id):
     """Gets the number of subsets required to generates the Sample AAL np map for subset sizes up to sample_size
     Example: sample_size[10], max_summary_id[2] generates following ndarray
     [
-        #   subset_size, mean,  mean_squared, mean_period
-        [0, 0, 0],  # subset_size = 1 , summary_id = 1
-        [0, 0, 0],  # subset_size = 1 , summary_id = 2
-        [0, 0, 0],  # subset_size = 2 , summary_id = 1
-        [0, 0, 0],  # subset_size = 2 , summary_id = 2
-        [0, 0, 0],  # subset_size = 4 , summary_id = 1
-        [0, 0, 0],  # subset_size = 4 , summary_id = 2
-        [0, 0, 0],  # subset_size = 10 , summary_id = 1, subset_size = sample_size
-        [0, 0, 0],  # subset_size = 10 , summary_id = 2, subset_size = sample_size
+    #   subset_size, mean,  mean_squared, mean_period
+    [0, 0, 0],  # subset_size = 1 , summary_id = 1
+    [0, 0, 0],  # subset_size = 1 , summary_id = 2
+    [0, 0, 0],  # subset_size = 2 , summary_id = 1
+    [0, 0, 0],  # subset_size = 2 , summary_id = 2
+    [0, 0, 0],  # subset_size = 4 , summary_id = 1
+    [0, 0, 0],  # subset_size = 4 , summary_id = 2
+    [0, 0, 0],  # subset_size = 10 , summary_id = 1, subset_size = sample_size
+    [0, 0, 0],  # subset_size = 10 , summary_id = 2, subset_size = sample_size
     ]
     Subset_size is implicit based on position in array, grouped by max_summary_id
     So first two arrays are subset_size 2^0 = 1
@@ -411,10 +438,12 @@ def get_num_subsets(alct, sample_size, max_summary_id):
     The last two arrays are subset_size = sample_size = 10
     Doesn't generate one with subset_size 8 as double that is larger than sample_size
     Therefore this function returns 4, and the sample aal array is 4 * 2
+
     Args:
         alct (bool): Boolean for ALCT output
         sample_size (int): Sample size
         max_summary_id (int): Max summary ID
+
     Returns:
         num_subsets (int): Number of subsets
     """
@@ -433,11 +462,13 @@ def get_weighted_means(
     end_sidx,
 ):
     """Get sum of weighted mean and weighted mean_squared
+
     Args:
         vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
         weighting (float): Weighting value
         sidx (int): start index
         end_sidx (int): end index
+
     Returns:
         weighted_mean (float): Sum weighted mean
         weighted_mean_squared (float): Sum weighted mean squared
@@ -466,6 +497,7 @@ def do_calc_end(
     vec_sample_sum_loss,
 ):
     """Updates Analytical and Sample AAL vectors from sample sum losses
+
     Args:
         period_no (int): Period Number
         no_of_periods (int): Number of periods
@@ -550,20 +582,22 @@ def do_calc_end(
 @nb.njit(cache=True, error_model="numpy")
 def read_losses(summary_fin, cursor, vec_sample_sum_loss):
     """Read losses from summary_fin starting at cursor, populate vec_sample_sum_loss
+
     Args:
         summary_fin (np.memmap): summary file memmap
         cursor (int): data offset for reading binary files
-        (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
+        vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
+
     Returns:
         cursor (int): data offset for reading binary files
     """
     # Max losses is sample_size + num special sidxs
     valid_buff = len(summary_fin)
     while True:
-        if valid_buff - cursor < oasis_int_size + oasis_float_size:
+        if valid_buff - cursor < sidx_size + loss_dtype_size:
             raise RuntimeError("Error: broken summary file, not enough data")
-        sidx, cursor = mv_read(summary_fin, cursor, oasis_int, oasis_int_size)
-        loss, cursor = mv_read(summary_fin, cursor, oasis_float, oasis_float_size)
+        sidx, cursor = mv_read(summary_fin, cursor, sidx_dtype, sidx_size)
+        loss, cursor = mv_read(summary_fin, cursor, loss_dtype, loss_dtype_size)
 
         if sidx == 0:
             break
@@ -578,19 +612,21 @@ def read_losses(summary_fin, cursor, vec_sample_sum_loss):
 @nb.njit(cache=True, error_model="numpy")
 def skip_losses(summary_fin, cursor):
     """Skip through losses in summary_fin starting at cursor
+
     Args:
         summary_fin (np.memmap): summary file memmap
         cursor (int): data offset for reading binary files
+
     Returns:
         cursor (int): data offset for reading binary files
     """
     valid_buff = len(summary_fin)
     sidx = 1
     while sidx:
-        if valid_buff - cursor < oasis_int_size + oasis_float_size:
+        if valid_buff - cursor < sidx_size + loss_dtype_size:
             raise RuntimeError("Error: broken summary file, not enough data")
-        sidx, cursor = mv_read(summary_fin, cursor, oasis_int, oasis_int_size)
-        cursor += oasis_float_size
+        sidx, cursor = mv_read(summary_fin, cursor, sidx_dtype, sidx_size)
+        cursor += loss_dtype_size
     return cursor
 
 
@@ -607,6 +643,7 @@ def run_aal(
     vec_used_summary_id,
 ):
     """Run AAL calculation loop to populate vec data
+
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
         no_of_periods (int): Number of periods
@@ -666,7 +703,7 @@ def run_aal(
         summary_fin = files_handles[file_idx]
 
         # Read summary header values (event_id, summary_id, expval)
-        cursor = file_offset + (2 * oasis_int_size) + oasis_float_size
+        cursor = file_offset + (event_id_dtype_size + summary_id_dtype_size) + loss_dtype_size
 
         read_losses(summary_fin, cursor, vec_sample_sum_loss)
 
@@ -692,10 +729,12 @@ def calculate_mean_stddev(
     number_of_observations
 ):
     """Compute the mean and standard deviation from the sum and squared sum of an observable
+
     Args:
         observable_sum (ndarray[oasis_float]): Observable sum
         observable_squared_sum (ndarray[oasis_float]): Observable squared sum
         number_of_observations (int | ndarray[int]): number of observations
+
     Returns:
         mean (ndarray[oasis_float]): Mean
         std (ndarray[oasis_float]): Standard Deviation
@@ -719,12 +758,14 @@ def get_aal_data(
     no_of_periods
 ):
     """Generate AAL csv data
+
     Args:
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
         vec_used_summary_id (ndarray[bool]): vector to store if summary_id is used
         sample_size (int): Sample Size
         no_of_periods (int): Number of periods
+
     Returns:
         aal_data (List[Tuple]): AAL csv data
     """
@@ -764,12 +805,14 @@ def get_aal_data_meanonly(
     no_of_periods
 ):
     """Generate AAL csv data
+
     Args:
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
         vec_used_summary_id (ndarray[bool]): vector to store if summary_id is used
         sample_size (int): Sample Size
         no_of_periods (int): Number of periods
+
     Returns:
         aal_data (List[Tuple]): AAL csv data
     """
@@ -801,9 +844,11 @@ def get_aal_data_meanonly(
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def calculate_confidence_interval(std_err, confidence_level):
     """Calculate the confidence interval based on standard error and confidence level.
+
     Args:
         std_err (float): The standard error.
         confidence_level (float): The confidence level (e.g., 0.95 for 95%).
+
     Returns:
         confidence interval (float): The confidence interval.
     """
@@ -833,12 +878,14 @@ def get_alct_data(
     confidence,
 ):
     """Generate ALCT csv data
+
     Args:
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
         max_summary_id (int): Max summary_id
         sample_size (int): Sample Size
         no_of_periods (int): Number of periods
         confidence (float): Confidence level between 0 and 1, default 0.95
+
     Returns:
         alct_data (List[List]): ALCT csv data
     """
@@ -906,6 +953,7 @@ def run(
     output_format="csv",
 ):
     """Runs AAL calculations
+
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         subfolder (str): Workspace subfolder inside <run_dir>/work/<subfolder>

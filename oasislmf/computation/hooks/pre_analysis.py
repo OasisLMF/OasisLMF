@@ -14,8 +14,7 @@ from ...utils.exceptions import OasisException
 
 
 class ExposurePreAnalysis(ComputationStep):
-    """
-    Computation step that will be call before the gulcalc.
+    """Computation step that will be call before the gulcalc.
     Add the ability to specify a model specific pre-analysis hook for exposure modification,
     Allows OED to be processed by some custom code.
     Example of usage include geo-coding, exposure enhancement, or dis-aggregation...
@@ -27,7 +26,6 @@ class ExposurePreAnalysis(ComputationStep):
     - return the output of the method
 
     you can find an example of such custom module in OasisPyWind/custom_module/exposure_pre_analysis.py
-
     """
     settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
                        {'name': 'model_settings_json', 'loader': model_settings_loader}]
@@ -87,9 +85,7 @@ class ExposurePreAnalysis(ComputationStep):
         }
 
     def run(self):
-        """
-        import exposure_pre_analysis_module and call the run method
-        """
+        """Import exposure_pre_analysis_module and call the run method"""
         exposure_data = get_exposure_data(self, add_internal_col=True)
         kwargs = dict()
 

@@ -174,10 +174,76 @@ FM_TERMS_PER_REINS_TYPE = {
 }
 
 
-def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id, logger):
+def match_filter_level_scope(filter_df, ri_filter_fields, merge_on):
+    """Work out which rows of the merged filter level dataframe the reinsurance scope applies to.
+
+    A scope row applies to a profile map row when every filter field the scope actually specifies
+    (the ones flagged by the matching '<field>_valid' column) holds the same value on both sides of
+    the merge, and, for a risk attaching treaty, when the policy incepts inside the treaty period.
+
+    Args:
+        filter_df (pd.DataFrame): filter level profile map rows merged with the ri scope rows, so
+            the fields present on both sides carry the '_x' (profile map) and '_y' (scope) suffixes
+        ri_filter_fields (list): filter fields to compare
+        merge_on (list): fields the merge already joined on, which are therefore equal by construction
+
+    Returns:
+        np.ndarray: boolean mask over filter_df, True where the scope applies
+
+    Raises:
+        OasisException: if a risk attaching treaty is missing the dates needed to apply it
     """
-    Create new profile id from reinsurance in ri_df corresponding to reins_type.
+    match = np.ones(len(filter_df), dtype='bool')
+    for field in ri_filter_fields:
+        if field in merge_on:
+            continue
+        # compared as numpy arrays so that categorical columns holding different categories still
+        # compare element wise, the way the previous row wise scalar comparison did
+        match &= ~filter_df[f'{field}_valid'].to_numpy(dtype='bool') | (
+            filter_df[f'{field}_x'].to_numpy() == filter_df[f'{field}_y'].to_numpy()
+        )
+
+    # Risk Attaching filter for reinsurance, applied only to the rows the filter fields kept
+    if "AttachmentBasis" in filter_df:
+        risk_attaching = match & (filter_df["AttachmentBasis"].to_numpy() == "RA")
+        if risk_attaching.any():
+            # dates are compared as numpy arrays too: OED columns often arrive as unordered
+            # categoricals, which pandas refuses to order compare even though their values order fine
+            reins_inception = filter_df["ReinsInceptionDate"].to_numpy()
+            reins_expiry = filter_df["ReinsExpiryDate"].to_numpy()
+            pol_inception = filter_df["PolInceptionDate"].to_numpy()
+
+            no_reins_dates = risk_attaching & ((reins_inception == "") | (reins_expiry == ""))
+            no_pol_date = risk_attaching & ~no_reins_dates & (pol_inception == "")
+
+            # the row wise version raised on the first offending row it reached, so report that
+            # same row rather than any other row that is also missing its dates
+            invalid = no_reins_dates | no_pol_date
+            if invalid.any():
+                first_invalid = int(np.argmax(invalid))
+                if no_reins_dates[first_invalid]:
+                    error_msg = ("Error: ReinsInceptionDate/ReinsExpiryDate missing, cannot use AttachmentBasis [RA]. "
+                                 "Please check the ri_info file")
+                    raise OasisException(error_msg)
+                row = filter_df.iloc[first_invalid]
+                acc_info = {
+                    field: row[f'{field}_x'] if f'{field}_x' in row else row[f'{field}']
+                    for field in RISK_LEVEL_FIELD_MAP[oed.REINS_RISK_LEVEL_ACCOUNT]
+                    if f'{field}_x' in row or f'{field}' in row
+                }
+                error_msg = f"Error: PolInceptionDate missing for {acc_info}, cannot use AttachmentBasis [RA]. Please check the account file"
+                raise OasisException(error_msg)
+
+            # the policy has to incept within the treaty period
+            match &= ~risk_attaching | ((reins_inception <= pol_inception) & (pol_inception <= reins_expiry))
+
+    return match
+
+
+def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id, logger):
+    """Create new profile id from reinsurance in ri_df corresponding to reins_type.
     Add them to fm_profile_df and match the profile_ids in ri_df and profile_map_df
+
     Args:
         ri_df: ri info and scope
         profile_map_df: tree structure df representing each ri fm levels
@@ -185,6 +251,7 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
         reins_type: type of reinsurance (one of oed.REINS_TYPES)
         risk_level: level of the reinsurance terms (one of oed.REINS_RISK_LEVELS)
         fm_level_id: fm level in profile_map_df
+        logger: logger the assigned profile ids are dumped to at debug level
 
     Returns:
         fm_profile_df: updated version of fm_profile_df
@@ -239,31 +306,8 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
             )
         )
 
-        def _match(row):
-            for field in ri_filter_fields:
-                if (field not in merge_on
-                        and row[f'{field}_valid'] and row[f'{field}_x'] != row[f'{field}_y']):
-                    return False
-
-            # Risk Attaching filter for reinsurance
-            if "AttachmentBasis" in row and row["AttachmentBasis"] == "RA":
-                if row["ReinsInceptionDate"] == "" or row["ReinsExpiryDate"] == "":
-                    error_msg = "Error: ReinsInceptionDate/ReinsExpiryDate missing, cannot use AttachmentBasis [RA]. Please check the ri_info file"
-                    raise OasisException(error_msg)
-                elif row["PolInceptionDate"] == "":
-                    acc_info = {
-                        field: row[f'{field}_x'] if f'{field}_x' in row else row[f'{field}']
-                        for field in RISK_LEVEL_FIELD_MAP[oed.REINS_RISK_LEVEL_ACCOUNT]
-                        if f'{field}_x' in row or f'{field}' in row
-                    }
-                    error_msg = f"Error: PolInceptionDate missing for {acc_info}, cannot use AttachmentBasis [RA]. Please check the account file"
-                    raise OasisException(error_msg)
-                else:
-                    if row["PolInceptionDate"] < row["ReinsInceptionDate"] or row["ReinsExpiryDate"] < row["PolInceptionDate"]:
-                        return False
-
-            return True
-        profile_map_df.loc[np.unique(filter_df.loc[filter_df.apply(_match, axis=1), 'index']), 'profile_id'] = PASSTHROUGH_PROFILE_ID
+        match = match_filter_level_scope(filter_df, ri_filter_fields, merge_on)
+        profile_map_df.loc[np.unique(filter_df['index'].to_numpy()[match]), 'profile_id'] = PASSTHROUGH_PROFILE_ID
 
     # Risk level
     layer_filter = reins_type_filter
@@ -305,8 +349,7 @@ def check_ri_scope_filter(ri_df, risk_level):
 
 
 def get_xref_df(xref_descriptions_df, risk_level):
-    """
-    Build the cross-reference dataframe, which serves as a representation
+    """Build the cross-reference dataframe, which serves as a representation
     of the insurance programme depending on the reinsurance risk level.
     Dataframes for programme, risk, filter and items levels are created.
     The fields agg_id, level_id and to_agg_id (agg_id_to), which are used
@@ -314,14 +357,18 @@ def get_xref_df(xref_descriptions_df, risk_level):
     aforementioned dataframes are concatenated to form a single dataframe
     called xref_df, which is returned. The returned dataframe features the
     fields necessary for the assignment of profile IDs.
+
     Args:
         xref_descriptions_df: Fm summary mapping enhanced by relevant information from Loc and Account
         risk_level: risk_level
 
     Returns:
-        df_levels: list of dataframes, one per fm level
+        df_levels: dict of one dataframe per fm level, keyed in level order by
+            'programme_level', 'risk_level', 'filter_level' and 'items_level'.
+            Each dataframe carries the agg_id, level_id and agg_id_to fields
+            used to build the FM Programmes structure. Insertion order matters:
+            the caller concatenates the values into the single xref_df.
     """
-
     xref_descriptions = xref_descriptions_df.sort_values(by=REINS_RISK_LEVEL_XREF_COLUMN_MAP.get(risk_level, XREF_COLUMN_DEFAULT), kind='stable')
     risk_level_fields = RISK_LEVEL_FIELD_MAP[risk_level]
 
@@ -375,8 +422,7 @@ def _log_dataframe(logger, df_dict, ri_name):
 
 @oasis_log
 def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, output_dir, fm_xref_fp, intermediary_csv, logger):
-    """
-    Create the Oasis structures - FM Programmes, FM Profiles and FM Policy
+    """Create the Oasis structures - FM Programmes, FM Profiles and FM Policy
     TCs - that represent the reinsurance structure.
 
     The cross-reference dataframe, which serves as a representation of the
@@ -389,6 +435,21 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
     reinsurance risk level. Individual programme level profile IDs are
     assigned for each row of the reinsurance info dataframe. Finally, the
     Oasis structure is written out.
+
+    Args:
+        ri_info_df (pandas.DataFrame): reinsurance info, one row per contract
+        ri_scope_df (pandas.DataFrame): reinsurance scope, joined to ri_info_df on ReinsNumber
+        xref_descriptions_df (pandas.DataFrame): Fm summary mapping enhanced by relevant
+            information from Loc and Account
+        output_dir (str): directory the per-layer RI_<n> sub-directories are written into
+        fm_xref_fp (str): path to the direct insurance fm_xref binary the RI xref is built from
+        intermediary_csv (bool): If True, also write a csv copy of each Oasis structure alongside
+            the binary
+        logger (logging.Logger): logger the dataframes are dumped to at debug level
+
+    Returns:
+        dict: one entry per written layer, keyed by a 1-based reinsurance index, holding the
+            inuring_priority, risk_level and output directory of that layer
     """
     fm_xref_df = pd.DataFrame(np.fromfile(fm_xref_fp, dtype=fm_xref_dtype))
     fm_xref_df['agg_id'] = range(1, 1 + len(fm_xref_df))

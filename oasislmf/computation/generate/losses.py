@@ -62,19 +62,18 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 class GenerateLossesBase(ComputationStep):
-    """
-    Base class for Loss generation functions
+    """Base class for Loss generation functions
 
     Includes methods useful across all GenerateLoss functions
     intended as a common inherited class
     """
 
     def _get_output_dir(self):
-        """
-        Set the model run directory to '<cwd>/runs/losses-<timestamp>' if not set
+        """Set the model run directory to '<cwd>/runs/losses-<timestamp>' if not set
         in arguments
 
-        :return: (str) the model run directory, either given or generated
+        Returns:
+            (str) the model run directory, either given or generated
         """
         if not self.model_run_dir:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
@@ -84,11 +83,11 @@ class GenerateLossesBase(ComputationStep):
         return self.model_run_dir
 
     def _get_model_runner(self):
-        """
-        Returns the model runner module, by default this is imported from `oasislmf/execution/runner.py`
+        """Returns the model runner module, by default this is imported from `oasislmf/execution/runner.py`
         but can be overridden from the conf option `model_package_dir`
 
-        :return: (object) The model runner module, (str) Package Name
+        Returns:
+            (object) The model runner module, (str) Package Name
         """
         package_name = None
         if self.model_package_dir and os.path.exists(os.path.join(self.model_package_dir, 'supplier_model_runner.py')):
@@ -99,8 +98,7 @@ class GenerateLossesBase(ComputationStep):
             return runner, package_name
 
     def _check_ktool_rules(self):
-        """
-        Check the given ktool allocation rules are within valid ranges
+        """Check the given ktool allocation rules are within valid ranges
         Raises an `OasisException` if a rules is invalid
         """
         rule_ranges = {
@@ -117,30 +115,23 @@ class GenerateLossesBase(ComputationStep):
                 raise OasisException(f'Error: {rule}={rule_val} - Not within valid ranges [0..{rule_ranges[rule]}]')
 
     def _store_run_settings(self, analysis_settings, target_dir):
-        """
-        Writes the analysis settings file to the `target_dir` path
-        """
+        """Writes the analysis settings file to the `target_dir` path"""
         with io.open(os.path.join(target_dir, 'analysis_settings.json'), 'w', encoding='utf-8') as f:
             f.write(json.dumps(analysis_settings, ensure_ascii=False, indent=4))
 
     def _is_run_settings_stored(self, target_dir):
-        """
-        Checks if analysis settings file is under target_dir path
-        """
+        """Checks if analysis settings file is under target_dir path"""
         return os.path.isfile(os.path.join(target_dir, 'analysis_settings.json'))
 
     def _get_num_ri_layers(self, analysis_settings, model_run_fp):
-        """
-        Find the number of Reinsurance layers based on `'ri_layers.json'`, returns pos int()
-        """
+        """Find the number of Reinsurance layers based on `'ri_layers.json'`, returns pos int()"""
         ri_layers = 0
         if analysis_settings.get('ri_output', False) or analysis_settings.get('rl_output', False):
             ri_layers = len(get_json(os.path.join(model_run_fp, 'input', 'ri_layers.json')))
         return ri_layers
 
     def _get_peril_filter(self, analysis_settings):
-        """
-        Check the 'analysis_settings' for user set peril filter, if empty return the MDK peril filter
+        """Check the 'analysis_settings' for user set peril filter, if empty return the MDK peril filter
         option
         """
         user_peril_filter = analysis_settings.get('peril_filter', None)
@@ -148,8 +139,7 @@ class GenerateLossesBase(ComputationStep):
         return peril_filter
 
     def _print_error_logs(self, run_log_fp, e):
-        """
-        Error handling Method: Call if a run error has accursed,
+        """Error handling Method: Call if a run error has accursed,
         * prints ktool log files to logger
         * Raises `OasisException`
         """
@@ -177,15 +167,15 @@ class GenerateLossesBase(ComputationStep):
 
 
 class GenerateLossesDir(GenerateLossesBase):
-    """
-    Prepare the loss generation directory
+    """Prepare the loss generation directory
 
     * converts input `csv` files to kernel binary types
     * links model data to the static directory to the run locations
     * Validates and updates the `analysis_settings.json`
     * Stores the analysis_settings.json in the output directory
 
-    :return: (dict) Updated analysis_settings
+    Returns:
+        (dict) Updated analysis_settings
     """
     settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
                        {'name': 'model_settings_json', 'loader': model_settings_loader}]
@@ -402,9 +392,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
 
 class GenerateLossesPartial(GenerateLossesDir):
-    """
-    Runs a single analysis event chunk
-    """
+    """Runs a single analysis event chunk"""
     step_params = GenerateLossesDir.step_params + [
         {'name': 'kernel_num_processes', 'flag': '-n', 'type': int, 'default': KERNEL_NUM_PROCESSES,
          'help': 'Number of kernel calculation processes to use'},
@@ -533,9 +521,7 @@ class GenerateLossesPartial(GenerateLossesDir):
 
 
 class GenerateLossesOutput(GenerateLossesDir):
-    """
-    Runs the output reports generation on a set of event chunks
-    """
+    """Runs the output reports generation on a set of event chunks"""
     step_params = GenerateLossesDir.step_params + [
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': True,
          'help': 'Analysis settings JSON file path'},
@@ -593,8 +579,7 @@ class GenerateLossesOutput(GenerateLossesDir):
 
 
 class GenerateLosses(GenerateLossesDir):
-    """
-    Runs the GenerateLosses workflow as a single bash script (Default for the MDK)
+    """Runs the GenerateLosses workflow as a single bash script (Default for the MDK)
 
     Generates losses using the installed kernel framework given Oasis files,
     model analysis settings JSON file, model data and model package data.
@@ -693,8 +678,11 @@ class GenerateLosses(GenerateLossesDir):
         with setcwd(model_run_fp):
             socket_server_size = None
             socket_server_port = None
-            if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
-                self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
+            has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
+            has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
+            if 'analysis_pk' in self.kwargs and not (has_websocket or has_http):
+                self.logger.info("Set `OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT` or `OASIS_ANALYSIS_STATUS_URL` "
+                                 "environment variables for run progress updates")
             elif 'analysis_pk' in self.kwargs:
                 oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
             else:
@@ -951,23 +939,12 @@ class GenerateLossesDeterministic(ComputationStep):
 
                         ri_layer_bin_fp = os.path.join(output_dir, f"ri{layer}.bin")
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
+                        if layer == 1:
+                            ri_input_fp = ils_bin_fp
+                        else:
+                            ri_input_fp = os.path.join(output_dir, f'ri{layer - 1}.bin')
+
                         try:
-                            csvtobin(guls_fp, guls_bin_fp, "gul", stream_type=self.il_stream_type, max_sample_index=1)
-                            if layer == 1:
-                                fmpy_run(
-                                    create_financial_structure_files=False,
-                                    allocation_rule=self.kernel_alloc_rule_il,
-                                    static_path=output_dir,
-                                    files_in=[guls_bin_fp],
-                                    files_out=[ils_bin_fp],
-                                    low_memory=self.fmpy_low_memory,
-                                    sort_output=self.fmpy_sort_output,
-                                    net_loss=None,
-                                    storage_method='sparse',
-                                )
-                                ri_input_fp = ils_bin_fp
-                            else:
-                                ri_input_fp = os.path.join(output_dir, f'ri{layer - 1}.bin')
                             fmpy_run(
                                 create_financial_structure_files=False,
                                 allocation_rule=self.kernel_alloc_rule_ri,
@@ -981,7 +958,10 @@ class GenerateLossesDeterministic(ComputationStep):
                             )
                             bintocsv(ri_layer_bin_fp, ri_layer_fp, "fm")
                         except Exception as e:
-                            raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
+                            raise OasisException(
+                                f"Exception raised in 'generate_deterministic_losses' "
+                                f"while calculating reinsurance layer {layer}", e
+                            )
                         rils = get_dataframe(src_fp=ri_layer_fp, lowercase_cols=False)
                         rils.drop(rils[rils['sidx'] < 0].index, inplace=True)
                         if self.include_loss_factor:

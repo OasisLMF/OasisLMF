@@ -1,5 +1,4 @@
-"""
-This file defines the functions that maps the supported perils with the correlation settings. This data is usually
+"""Defines the functions that maps the supported perils with the correlation settings. This data is usually
 obtained from the model_settings.
 """
 from typing import Optional
@@ -10,11 +9,11 @@ from oasislmf.utils.exceptions import OasisException
 
 
 def map_data(data: Optional[dict], logger) -> Optional[pd.DataFrame]:
-    """
-    Maps data from the model settings to to have Peril ID, peril_correlation_group, and damage_correlation_value.
+    """Maps data from the model settings to to have Peril ID, peril_correlation_group, and damage_correlation_value.
 
     Args:
         data: (dict) the data loaded from the model settings
+        logger: logger used to warn when the model settings hold no correlation data
 
     Returns: (pd.DataFrame) the mapped data
     """

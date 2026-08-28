@@ -10,8 +10,7 @@ def change_footprint_apid(path, size_lat):
 
 
 def change_footprint_apid_multi_peril(path, size_lat, size_lon, num_perils):
-    """
-    Reads CSV, applies Z-index conversion for multiple perils and writes
+    """Reads CSV, applies Z-index conversion for multiple perils and writes
     back to file
     """
     df = pd.read_csv(path)

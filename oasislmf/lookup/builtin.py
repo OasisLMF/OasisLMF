@@ -1,9 +1,7 @@
-"""
-Module for the built-in Lookup Class
+"""Module for the built-in Lookup Class
 
 in the future we may want to improve on the management of files used to generate the keys
 tutorial for pandas and parquet https://towardsdatascience.com/a-gentle-introduction-to-apache-arrow-with-apache-spark-and-pandas-bb19ffe0ddae
-
 """
 import warnings
 
@@ -40,8 +38,11 @@ except ImportError:
 
 try:  # needed for h3 lookup
     import h3
+    # the int flavour of the api returns cell indexes as python ints, which saves building
+    # (and re-parsing) the hexadecimal string representation for every location
+    from h3.api import basic_int as h3_int
 except ImportError:
-    h3 = None
+    h3 = h3_int = None
 
 import math
 import re
@@ -59,7 +60,6 @@ def get_nearest(src_points, candidates, k_neighbors=1):
 
     The distances returned are Euclidean distances, not distances on a sphere or ellipsoid.
     """
-
     # Create tree from the candidate points
     tree = BallTree(candidates, leaf_size=15, metric='haversine')
 
@@ -80,8 +80,7 @@ def get_nearest(src_points, candidates, k_neighbors=1):
 
 
 def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
-    """
-    For each point in left_gdf, find closest point in right GeoDataFrame and return them.
+    """For each point in left_gdf, find closest point in right GeoDataFrame and return them.
 
     NOTICE: Assumes that the input Points are in WGS84 projection (lat/lon).
             Distance returned is the Euclidean distance, not the true distance on a sphere or ellipsoid.
@@ -221,9 +220,7 @@ def jit_geo_grid_lookup(
 
 
 def get_step(grid):
-    """
-    Returns the grid size using the max and min long and latitude and arc size
-    """
+    """Returns the grid size using the max and min long and latitude and arc size"""
     length = round((grid["lon_max"] - grid["lon_min"]) / grid["arc_size"])
     width = round((grid["lat_max"] - grid["lat_min"]) / grid["arc_size"])
     return length * width
@@ -261,8 +258,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
 
 
 class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
-    """
-    Built-in Lookup class that implement the OasisLookupInterface
+    """Built-in Lookup class that implement the OasisLookupInterface
     The aim of this class is to provide a data driven lookup capability that will be both flexible and efficient.
 
     it provide several generic function factory that can be define in the config under the "step_definition" key (ex:)
@@ -330,13 +326,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 return modified_locations
 
             return fct
-
     """
     interface_version = "1"
 
     def set_step_function(self, step_name, step_config, function_being_set=None):
-        """
-        set the step as a function of the lookup object if it's not already done and return it.
+        """Set the step as a function of the lookup object if it's not already done and return it.
         if the step is composed of several child steps, it will set the child steps recursively.
 
         Args:
@@ -424,8 +418,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return locations
 
     def to_abs_filepath(self, filepath):
-        """
-        replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
+        """Replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
+
         Args:
             filepath (str): filepath with potentially a placeholder
 
@@ -442,8 +436,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def set_id_columns(df, id_columns):
-        """
-        in Dataframes, only float column can have nan values. So after a left join for example if you have nan values
+        """In Dataframes, only float column can have nan values. So after a left join for example if you have nan values
         that will change the type of the original column into float.
         this function replace the nan value with the OASIS_UNKNOWN_ID and reset the column type to int
         """
@@ -459,9 +452,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return df
 
     def build_interval_to_index(self, value_column_name, sorted_array, index_column_name=None, side='left'):
-        """
-        Allow to map a value column to an index according to it's index in the interval defined by sorted_array.
+        """Allow to map a value column to an index according to it's index in the interval defined by sorted_array.
         nan value are kept as nan
+
         Args:
             value_column_name: name of the column to map
             sorted_array: sorted value that define the interval to map to
@@ -491,8 +484,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_combine(id_columns, strategy, logical_type='or'):
-        """
-        build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
+        """Build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
         for example, finding the correct area_peril_id for a location with one method using (latitude, longitude)
         and one using postcode.
         each strategy will be applied sequentially on the location that steal have OASIS_UNKNOWN_ID in their id_columns after the precedent strategy
@@ -524,7 +516,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             logical_type: if 'or' apply the next strategy only on invalid id_columns
                           if 'and' apply the next strategy only on valid id_columns
                                    id_columns needs to be a list of list of columns that each sublist is checked sequentially
-
 
         Returns:
             function: function combining all strategies
@@ -570,13 +561,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_split_loc_perils_covered(model_perils_covered=None):
-        """
-        split the value of LocPerilsCovered into multiple line, taking peril group into account
+        """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
 
         usefull inspirational code:
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
-
         """
         peril_groups_df = get_peril_groups_df()
 
@@ -611,15 +600,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_prepare(**kwargs):
-        """
-        Prepare the dataframe by setting default, min and max values and type
+        """Prepare the dataframe by setting default, min and max values and type
         support several simple DataFrame preparation:
-            default: create the column if missing and replace the nan value with the default value
-            max: truncate the values in a column to the specified max
-            min: truncate the values in a column to the specified min
-            type: convert the type of the column to the specified numpy dtype
-                Note that we use the string representation of numpy dtype available at
-                https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing
+        default: create the column if missing and replace the nan value with the default value
+        max: truncate the values in a column to the specified max
+        min: truncate the values in a column to the specified min
+        type: convert the type of the column to the specified numpy dtype
+        Note that we use the string representation of numpy dtype available at
+        https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing
         """
         def prepare(locations):
             for column_name, preparations in kwargs.items():
@@ -647,8 +635,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         nearest_neighbor_min_distance=-1,
         nearest_neighbor_max_distance=-1
     ):
-        """
-        Function Factory to associate location to a geometry (e.g. area peril) based on the rtree method
+        """Function Factory to associate location to a geometry (e.g. area peril) based on the rtree method
 
         !!!
         please note that this method is quite time consuming (especially if you use the nearest neighbor option
@@ -681,10 +668,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             distance on a sphere or ellipsoid. It is the maximum accepted distance between the point
             locations and the containing geometry centroids.
 
-        nearest_neighbour_min_distance: deprecated alias for nearest_neighbour_max_distance. May be
+        nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
         """
-
         if nearest_neighbor_min_distance > 0:
             warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
                           "removed in a future version. Please use `nearest_neighbor_max_distance` "
@@ -776,16 +762,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_fixed_size_geo_grid_multi_peril(perils_dict):
-        """
-        Create multiple grids of varying resolution, one per peril, and
+        """Create multiple grids of varying resolution, one per peril, and
         associate an id to each square of the grid using the
         `fixed_size_geo_grid` method.
 
-        Parameters
-        ----------
-        perils_dict: dict
-                     Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
-                     value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
+        Args:
+            perils_dict: dict: Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
+                value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
         """
         def fct(locs_peril):
             start_index = 0
@@ -810,11 +793,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False, lon_first=False):
-        """
-        associate an id to each square of the grid define by the limit of lat and lon
+        """Associate an id to each square of the grid define by the limit of lat and lon
         reverse allow to change the ordering of id from (min to max) to (max to min)
         """
-
         lat_id, lon_id = create_lat_lon_id_functions(
             lat_min, lat_max, lon_min, lon_max, arc_size,
             lat_reverse, lon_reverse
@@ -844,15 +825,12 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_fixed_size_z_index_geo_grid_multi_peril(perils_dict):
-        """
-        Create multiple grids of varying resolution, one per peril, and associate an id to each square of the grid using the
+        """Create multiple grids of varying resolution, one per peril, and associate an id to each square of the grid using the
         `fixed_size_z_index_geo_grid` method.
 
-        Parameters
-        ----------
-        perils_dict: dict
-                     Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
-                     value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
+        Args:
+            perils_dict: dict: Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
+                value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
         """
         def fct(locs_peril):
             locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID
@@ -878,12 +856,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         lat_min, lat_max, lon_min, lon_max, arc_size,
         lat_reverse=False, lon_reverse=False, lon_first=False
     ):
-        """
-        associate an id to each square of the grid defined by z-order indexing.
+        """Associate an id to each square of the grid defined by z-order indexing.
         reverse allow to change the ordering of id from (min to max) to
         (max to min)
         """
-
         lat_id, lon_id = create_lat_lon_id_functions(
             lat_min, lat_max, lon_min, lon_max, arc_size,
             lat_reverse, lon_reverse
@@ -907,7 +883,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return geo_grid_lookup
 
     def build_geotiff(self, file_path, band_info):
-        """
+        """Build a lookup function that assigns geotiff band values to each lat/lon.
 
         Args:
             file_path: path to the geotiff file
@@ -957,8 +933,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return geotiff_lookup
 
     def build_h3(self, resolution, file_path, file_type='csv', **kwargs):
-        """
-        Function factory to look up area_peril_id using H3 hexagonal grid indexing.
+        """Function factory to look up area_peril_id using H3 hexagonal grid indexing.
 
         Converts latitude/longitude to an H3 cell at the specified resolution,
         converts the cell to its int64 representation, then maps to an int32
@@ -967,6 +942,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         The mapping file must contain at least two columns:
             - ``h3_int64``      : H3 cell index as a 64-bit integer
             - ``area_peril_id`` : Oasis area peril ID (int32)
+
+        ``h3_int64`` must be unique: a point falls in exactly one cell at a given resolution, so a
+        repeated cell index is a mapping file error and raises ``OasisException`` at build time.
+        A mapping file with duplicate cells previously emitted one key per duplicate row, which
+        changed the row count of the keys file rather than reporting the problem.
+
+        ``area_peril_id`` must be an exact integer on every row and also raises ``OasisException``
+        at build time otherwise. A single null or fractional value makes pandas read the whole
+        column as ``float64``, which rounds any other id in the file above 2^53 -- so the failure
+        would not be confined to the offending row.
+
+        A location whose coordinates are null, infinite, or absent from the mapping file resolves
+        to ``OASIS_UNKNOWN_ID``, which the lookup reports as a per-location ``fail`` status.
 
         Config example::
 
@@ -979,18 +967,18 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 }
             }
 
-        Parameters
-        ----------
-        resolution : int
-            H3 resolution level (0–15). Higher values produce finer cells.
-        file_path : str
-            Path to the int64→area_peril_id mapping file.
-            Supports the ``%%KEYS_DATA_PATH%%`` placeholder.
-        file_type : str
-            Pandas read function suffix (``'csv'``, ``'parquet'``, etc.).
-            Defaults to ``'csv'``.
-        **kwargs
-            Additional keyword arguments forwarded to the pandas read function.
+        Args:
+            resolution (int): H3 resolution level (0–15). Higher values produce finer cells.
+            file_path (str): Path to the int64→area_peril_id mapping file.
+                Supports the ``%%KEYS_DATA_PATH%%`` placeholder.
+            file_type (str): Pandas read function suffix (``'csv'``, ``'parquet'``, etc.).
+                Defaults to ``'csv'``.
+            **kwargs: Additional keyword arguments forwarded to the pandas read function.
+
+        Returns:
+            function: function assigning an area_peril_id to each location from its latitude and
+                longitude, set to OASIS_UNKNOWN_ID where the H3 cell is missing from the mapping
+                file or the coordinates are null or non-finite.
         """
         if h3 is None:
             raise OasisException(
@@ -1004,41 +992,78 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             h3_mapping_df = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
 
         h3_mapping_df.columns = [c.lower() for c in h3_mapping_df.columns]
-        if 'h3_int64' not in h3_mapping_df.columns:
+        missing_columns = {'h3_int64', 'area_peril_id'}.difference(h3_mapping_df.columns)
+        if missing_columns:
             raise OasisException(
-                f"H3 mapping file must contain an 'h3_int64' column, found: {list(h3_mapping_df.columns)}"
+                f"H3 mapping file must contain {sorted(missing_columns)} column(s), found: {list(h3_mapping_df.columns)}"
             )
         h3_mapping_df['h3_int64'] = h3_mapping_df['h3_int64'].astype('int64')
 
-        def h3_lookup(locations):
-            valid = locations['latitude'].notna() & locations['longitude'].notna()
-            locations['h3_int64'] = 0  # 0 correponds to an invalid H3 index
-
-            if valid.any():
-                locations.loc[valid, 'h3_int64'] = [
-                    h3.str_to_int(h3.latlng_to_cell(lat, lon, resolution))
-                    for lat, lon in zip(
-                        locations.loc[valid, 'latitude'],
-                        locations.loc[valid, 'longitude'],
-                    )
-                ]
-
-            locations = locations.merge(
-                h3_mapping_df[['h3_int64', 'area_peril_id']], on='h3_int64', how='left'
+        # a point falls in exactly one cell at a given resolution, so a repeated cell index is a
+        # mapping file error; fail here rather than silently emitting a key per duplicate row
+        duplicated_cells = h3_mapping_df['h3_int64'].duplicated()
+        if duplicated_cells.any():
+            raise OasisException(
+                f"H3 mapping file must have a unique 'h3_int64' per row, found {duplicated_cells.sum()} "
+                f"duplicate(s), starting with {h3_mapping_df.loc[duplicated_cells, 'h3_int64'].iloc[0]}"
             )
-            locations.drop(columns=['h3_int64'], inplace=True)
+        # a null or fractional area_peril_id means a float64 column, and that rounds every other id
+        # above 2^53 in the same file; only the offending row itself is caught downstream by
+        # set_id_columns, and only because a nan cast to int64 happens to land on a value it treats
+        # as unknown. fail on the whole class here instead
+        area_peril_ids = h3_mapping_df['area_peril_id']
+        if pd.api.types.is_integer_dtype(area_peril_ids.dtype):
+            unusable = area_peril_ids.isna()
+        else:
+            numeric_ids = pd.to_numeric(area_peril_ids, errors='coerce')
+            unusable = numeric_ids.isna() | (numeric_ids % 1 != 0) | (numeric_ids.abs() >= 2 ** 53)
+        if unusable.any():
+            raise OasisException(
+                f"H3 mapping file must have an exact integer 'area_peril_id' per row, found {unusable.sum()} "
+                f"value(s) that are null, fractional or beyond the exactly representable range of the "
+                f"'{area_peril_ids.dtype}' column, starting with "
+                f"'{area_peril_ids[unusable].iloc[0]}' at cell {h3_mapping_df.loc[unusable, 'h3_int64'].iloc[0]}"
+            )
+        area_peril_by_cell = h3_mapping_df.set_index('h3_int64')['area_peril_id'].astype('int64')
+
+        def h3_lookup(locations):
+            latitude = locations['latitude'].to_numpy(dtype='float64', na_value=np.nan)
+            longitude = locations['longitude'].to_numpy(dtype='float64', na_value=np.nan)
+            # isfinite rather than ~isnan: an infinite coordinate would survive an isnan test, and
+            # 1j * inf has a nan real part, so it would reach factorize as an NA and take its -1
+            # sentinel, which indexes back from the end of the mapped array and silently returns
+            # another location's area_peril_id. infinite coordinates are unknown, like null ones.
+            valid = np.isfinite(latitude) & np.isfinite(longitude)
+
+            # int64 throughout: a float64 intermediate would round area_peril_id above 2^53, which
+            # an h3 model keyed on the cell index itself (~6e17) would hit on every row
+            area_peril_id = np.full(len(locations), OASIS_UNKNOWN_ID, dtype='int64')
+            if valid.any():
+                # h3 has no array api, so the conversion stays a python level loop; factorising the
+                # points first means it is paid once per distinct coordinate rather than once per
+                # location. the complex encoding is only a way to hash the (latitude, longitude)
+                # pair in one go, and is safe here because valid guarantees both parts are finite.
+                codes, points = pd.factorize(latitude[valid] + 1j * longitude[valid], sort=False)
+                cells = np.fromiter(
+                    (h3_int.latlng_to_cell(point.real, point.imag, resolution) for point in points.tolist()),
+                    dtype='int64', count=points.size,
+                )
+                # resolving the mapping per distinct cell keeps the join off the per location path
+                area_peril_id[valid] = area_peril_by_cell.reindex(
+                    cells, fill_value=OASIS_UNKNOWN_ID).to_numpy(dtype='int64')[codes]
+
+            locations['area_peril_id'] = area_peril_id
+            locations.reset_index(drop=True, inplace=True)  # as the left join this replaces used to
             return self.set_id_columns(locations, ['area_peril_id'])
 
         return h3_lookup
 
     def build_merge(self, file_path, id_columns=[], file_type='csv', **kwargs):
-        """
-        this method will merge the locations Dataframe with the Dataframe present in file_path
+        """Merges the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
 
         this is an efficient way to map a combination of column that have a finite scope to an idea.
         """
-
         read_func = getattr(pd, f"read_{file_type}", None)
         if callable(read_func):
             df_to_merge = read_func(self.to_abs_filepath(file_path), **kwargs)
@@ -1054,17 +1079,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_simple_pivot(pivots, remove_pivoted_col=True):
-        """
-        allow to pivot columns of the locations dataframe into multiple rows
+        """Allow to pivot columns of the locations dataframe into multiple rows
         each pivot in the pivot list may define:
-            "on": to rename a column into a new one
-            "new_cols": to create a new column with a certain values
+        "on": to rename a column into a new one
+        "new_cols": to create a new column with a certain values
         ex:
         "pivots": [{"on": {"vuln_str": "vulnerability_id"},
-                 "new_cols": {"coverage_type": 1}},
-                {"on": {"vuln_con": "vulnerability_id"},
-                 "new_cols": {"coverage_type": 3}},
-               ],
+        "new_cols": {"coverage_type": 1}},
+        {"on": {"vuln_con": "vulnerability_id"},
+        "new_cols": {"coverage_type": 3}},
+        ],
         loc_id  vuln_str    vuln_con
         1       3           2
         2       18          4
@@ -1075,8 +1099,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         2       18          4           18                  1
         1       3           2           2                   3
         2       18          4           4                   3
-
-
         """
         def simple_pivot(locations):
             pivoted_dfs = []
@@ -1098,9 +1120,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_model_data(columns):
-        """
-        Serialises specified columns from the OED file into a model_data dict
-        """
+        """Serialises specified columns from the OED file into a model_data dict"""
         def model_data(locations):
             locations['model_data'] = locations[columns].to_dict('records')
             return locations
@@ -1109,8 +1129,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_dynamic_model_adjustment(intensity_adjustment_col, return_period_col):
-        """
-        Converts specified columns from the OED file into intensity adjustments and
+        """Converts specified columns from the OED file into intensity adjustments and
         return period protection.
         """
         def adjustments(locations):
