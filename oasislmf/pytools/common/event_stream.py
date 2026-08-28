@@ -259,24 +259,29 @@ def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
 class EventReader:
     """Abstract class to read event stream
 
-    This class provide a generic interface to read multiple event stream using:
-    - selector : handle back pressure, the program is paused and don't use resource if nothing is in the stream buffer
-    - memoryview : read a chuck (PIPE_CAPACITY) of data at a time then work on it using a numpy byte view of this buffer
+    This class provides a generic interface to read multiple event streams using:
 
-    To use those methods need to be implemented:
-    - __init__(self, ...) the constructor with all data structure needed to read and store the event stream
-    - read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id)
-        simply point to a local numba.jit function name read_buffer (a template is provided bellow)
-        this function should implement the specific logic of where and how to store the event information.
+    - **selector**: handle back pressure — the program is paused and doesn't use resources if
+      nothing is in the stream buffer
+    - **memoryview**: read a chunk (PIPE_CAPACITY) of data at a time then work on it using a
+      numpy byte view of this buffer
 
-    Those to method may be overwritten
-    - item_exit(self):
-        specific logic to do when an item is finished (only executed once the stream is finished but no 0,0 closure was present)
+    These methods need to be implemented:
 
-    - event_read_log(self):
-        what kpi to log when a full event is read
+    - ``__init__(self, ...)``: the constructor with all data structures needed to read and store
+      the event stream
+    - ``read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id)``: point to a local
+      numba.jit function named read_buffer (a template is provided below); it should implement
+      the specific logic of where and how to store the event information
 
-    usage snippet:
+    These methods may be overwritten:
+
+    - ``item_exit(self)``: specific logic to do when an item is finished (only executed once the
+      stream is finished but no 0,0 closure was present)
+    - ``event_read_log(self)``: what kpi to log when a full event is read
+
+    Usage snippet::
+
         with ExitStack() as stack:
             streams_in, (stream_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
             reader = CustomReader(<read relevant attributes>)

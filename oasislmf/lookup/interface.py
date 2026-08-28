@@ -21,6 +21,7 @@ class KeyServerInterface(metaclass=abc.ABCMeta):
     """Interface to implement to create a KeyServer
     It define the method to be implemented to be used correctly in lookup.factory.KeyServerFactory
     all classes must:
+
     - specify the version of the interface they use
     - implement the init method
     - implement the generate_key_files method
@@ -81,6 +82,7 @@ class KeyLookupInterface(metaclass=abc.ABCMeta):
     """Interface for KeyLookup
     it define the interface to be used correctly by lookup.factory.BasicKeyServer
     all classes must:
+
     - specify the version of the interface they use
     - implement the init method
     - implement the process_location method

@@ -37,13 +37,13 @@ MEAN_TYPE_SAMPLE = 2
 
 
 def generate_output_metadata(output):
-    """Generates *_header, *_dtype and *_fmt items given a list of tuples describing some output description
+    """Generates ``*_header``, ``*_dtype`` and ``*_fmt`` items given a list of tuples describing some output description
     output description has type List(Tuple({name: str}, {type: Any}, {format: str}))
 
     Args:
         output (list(tuple(str, Any, str))): Dictionary mapping string name to  {output description}_output list
     Returns:
-        result (tuple(list[str], np.dtype, str)): Tuple containing the generated *_header list, *_dtype np.dtype, *_fmt csv format string
+        result (tuple(list[str], np.dtype, str)): Tuple containing the generated ``*_header`` list, ``*_dtype`` np.dtype, ``*_fmt`` csv format string
     """
     headers = [c[0] for c in output]
     dtype = np.dtype([(c[0], c[1]) for c in output])

@@ -419,18 +419,21 @@ def read_input_files(run_dir):
 
 def get_num_subsets(alct, sample_size, max_summary_id):
     """Gets the number of subsets required to generates the Sample AAL np map for subset sizes up to sample_size
-    Example: sample_size[10], max_summary_id[2] generates following ndarray
-    [
-    #   subset_size, mean,  mean_squared, mean_period
-    [0, 0, 0],  # subset_size = 1 , summary_id = 1
-    [0, 0, 0],  # subset_size = 1 , summary_id = 2
-    [0, 0, 0],  # subset_size = 2 , summary_id = 1
-    [0, 0, 0],  # subset_size = 2 , summary_id = 2
-    [0, 0, 0],  # subset_size = 4 , summary_id = 1
-    [0, 0, 0],  # subset_size = 4 , summary_id = 2
-    [0, 0, 0],  # subset_size = 10 , summary_id = 1, subset_size = sample_size
-    [0, 0, 0],  # subset_size = 10 , summary_id = 2, subset_size = sample_size
-    ]
+
+    Example: sample_size[10], max_summary_id[2] generates the following ndarray::
+
+        [
+            #   subset_size, mean,  mean_squared, mean_period
+            [0, 0, 0],  # subset_size = 1 , summary_id = 1
+            [0, 0, 0],  # subset_size = 1 , summary_id = 2
+            [0, 0, 0],  # subset_size = 2 , summary_id = 1
+            [0, 0, 0],  # subset_size = 2 , summary_id = 2
+            [0, 0, 0],  # subset_size = 4 , summary_id = 1
+            [0, 0, 0],  # subset_size = 4 , summary_id = 2
+            [0, 0, 0],  # subset_size = 10 , summary_id = 1, subset_size = sample_size
+            [0, 0, 0],  # subset_size = 10 , summary_id = 2, subset_size = sample_size
+        ]
+
     Subset_size is implicit based on position in array, grouped by max_summary_id
     So first two arrays are subset_size 2^0 = 1
     The next two arrays are subset_size 2^1 = 2

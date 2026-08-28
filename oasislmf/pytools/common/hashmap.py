@@ -10,19 +10,22 @@ allocation.
 All hashmap state is stored in a single packed uint8 buffer ("table") holding
 [info | lookup_table | index_table]. Use unpack(table) to get views.
 
-Public API (convenience — unpacks per call):
+Public API (convenience — unpacks per call)::
+
     init_dict(hint_size)                                -> table
     try_add_key(table, key_storage, key, i_item=None)   -> slot | new_slot_bit, or i_add_key_fail
     find_key(table, key_storage, key)                   -> slot, or NOT_FOUND
     rehash(table, key_storage)                          -> new_table
     unpack(table)                                       -> (info, lookup, index) views
 
-Internal API (hot-path — caller unpacks once):
+Internal API (hot-path — caller unpacks once)::
+
     _try_add_key(info, lookup, index, key_storage, key, i_item=None)
     _find_key(info, lookup, index, key_storage, key)
 
 Performance (indicative — varies with hardware, numba / numpy versions,
-and workload; here on int32 scalar keys, 1M ops, 50% hit / 50% miss):
+and workload; here on int32 scalar keys, 1M ops, 50% hit / 50% miss)::
+
     Public  try_add_key  : a few M ops/s     (unpack overhead per call)
     Public  find_key     : a few M ops/s
     Internal _try_add_key: ~1.5–2x faster than public
@@ -145,9 +148,11 @@ Notes:
     - Float keys (scalar or record field) are hashed AND compared bit-wise:
       IEEE 754 bytes are reinterpreted as a same-width uint for both fnv1a
       and key_eq. Consequences:
+
         * +0.0 and -0.0 are distinct keys (their sign bits differ).
-        * NaN equals NaN iff the bit patterns match (no `NaN != NaN` rule).
+        * NaN equals NaN iff the bit patterns match (no ``NaN != NaN`` rule).
         * Two NaN values with different mantissa/sign bits are distinct keys.
+
       Integer/uint/bool keys keep ordinary value-equality semantics.
     - Fixed-width unicode keys ('U<n>', whether scalar or record field) are
       hashed and compared code-point-by-code-point, with trailing NUL
@@ -420,7 +425,7 @@ def fnv1a_overload_scalar(key, h=init_hash):
 def fnv1a_overload_unichr(key, h=init_hash):
     """Handles unicode scalar keys — both fixed-width ``UnicodeCharSeq``
     (e.g. when indexed inside JIT from a 'U<n>' array) and variable-length
-    ``UnicodeType`` (e.g. when a numpy.str_ scalar is passed in from Python
+    ``UnicodeType`` (e.g. when a ``numpy.str_`` scalar is passed in from Python
     and lowered to a unicode string). ``str(key)`` is a no-op for
     UnicodeType and trims trailing NUL padding for UnicodeCharSeq, so both
     converge on the same hash for the same logical string.
@@ -840,9 +845,11 @@ def factorize(df):
     """pd.factorize-equivalent driver for a pandas DataFrame.
 
     Per-column coercion to a numpy-friendly dtype:
+
         - Nullable integer columns ('Int*') → float32 (NaN-preserving).
         - Other numeric columns → kept as-is.
         - Everything else → fixed-width unicode 'U<max_len>' via astype(str).
+
     The resulting columns are packed into a single structured array and
     handed to ``jit_factorize`` for grouping.
     """

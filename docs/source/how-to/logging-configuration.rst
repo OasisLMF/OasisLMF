@@ -6,9 +6,9 @@ Enhanced logging configuration system for OasisLMF CLI and console output.
 .. versionadded:: 2.4.6
    Configurable logging levels and enhanced formatting support.
 
-.. contents:: Table of Contents
-   :local:
-   :depth: 2
+.. Furo renders an "On this page" table of contents in the right sidebar
+   automatically, and rejects the docutils ``.. contents::`` directive with a
+   hard error, so no in-page contents directive is used here.
 
 Overview
 --------
@@ -34,7 +34,7 @@ replacing the previous binary INFO/DEBUG system with full user control.
 
 **Related Configuration**
 
-See :doc:`options_config_file` for general configuration options and model-specific settings.
+See :doc:`../options_config_file` for general configuration options and model-specific settings.
 
 Quick Start
 -----------
@@ -158,7 +158,7 @@ You can specify custom format strings in the configuration file:
      }
    }
 
-See :doc:`options_config_file` for more configuration file examples and general settings.
+See :doc:`../options_config_file` for more configuration file examples and general settings.
 
 Environment Variables
 ---------------------
@@ -174,7 +174,10 @@ Environment Variables
 
       export OASIS_PACKAGE_LOG_LEVEL=ERROR
       export OASIS_PACKAGE_LOG_LEVEL=DEBUG
-      export OASIS_PACKAGE_LOG_LEVEL=20  # INFO level
+
+   Use a level *name*, not a number. An environment variable is always a string, and
+   the numeric branch accepts only a real integer, so ``OASIS_PACKAGE_LOG_LEVEL=20``
+   raises ``ValueError: Invalid log level: '20'``.
 
 Format Templates
 ----------------
@@ -388,7 +391,7 @@ For Python scripts using OasisLMF as a library:
 See Also
 --------
 
-* :doc:`options_config_file` - General configuration file options
+* :doc:`../options_config_file` - General configuration file options
 * :doc:`building-and-running-models` - Model execution commands
 * :doc:`installation` - Installation and setup guide
 

@@ -12,7 +12,6 @@ __all__ = [
     'HAZARD_GROUP_ID_COLS',
     'CORRELATION_GROUP_ID',
     'API_EXAMPLE_AUTH',
-    'DEFAULT_RTREE_INDEX_PROPS',
     'KERNEL_ALLOC_GUL_MAX',
     'KERNEL_ALLOC_FM_MAX',
     'KERNEL_FIFO_RELATIVE',
@@ -71,33 +70,6 @@ API_EXAMPLE_AUTH = OrderedDict({
     'client_id': 'oasis-service',
     'client_secret': 'serviceNotSoSecret',
 })
-
-DEFAULT_RTREE_INDEX_PROPS = {
-    'buffering_capacity': 10,
-    'custom_storage_callbacks': None,
-    'custom_storage_callbacks_size': 0,
-    'dat_extension': 'dat',
-    'dimension': 2,
-    'filename': '',
-    'fill_factor': 0.7,
-    'idx_extension': 'idx',
-    'index_capacity': 100,
-    'index_id': None,
-    'leaf_capacity': 100,
-    'near_minimum_overlap_factor': 32,
-    'overwrite': True,
-    'pagesize': 4096,
-    'point_pool_capacity': 500,
-    'region_pool_capacity': 1000,
-    'reinsert_factor': 0.3,
-    'split_distribution_factor': 0.4,
-    'storage': 0,
-    'tight_mbr': True,
-    'tpr_horizon': 20.0,
-    'type': 0,
-    'variant': 2,
-    'writethrough': False
-}
 
 MAPPING_FROM_ODS_SPEC = {
     "Type & Description": "desc",

@@ -1199,6 +1199,7 @@ def reconstruct_coverages(compute_info,
 
     For each (areaperil_id, vulnerability_id) pair present in the event footprint, iterates
     over all mapped items and:
+
       1. Computes deterministic hash-based random seeds for hazard and damage sampling,
          using group_id and hazard_group_id respectively. Seeds are deduplicated via
          pre-allocated arrays indexed by sequential group ids.

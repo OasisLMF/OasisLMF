@@ -28,6 +28,8 @@ loss_dtype, loss_dtype_size = def_to_type_and_size("loss")
 
 
 class ELTReader(EventReader):
+    """Read an event loss stream and compute the ELT outputs (SELT, MELT, QELT)."""
+
     def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals):
         self.logger = logger
 

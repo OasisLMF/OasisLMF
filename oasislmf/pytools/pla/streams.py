@@ -110,6 +110,8 @@ def read_buffer_uniform(byte_mv, cursor, valid_buff, event_id, item_id, items_am
 
 
 class PlaReader(EventReader):
+    """Read an event loss stream and apply post-loss amplification factors to each loss."""
+
     def __init__(self, items_amps, plafactors, default_factor):
         self.items_amps = items_amps
         self.plafactors = plafactors

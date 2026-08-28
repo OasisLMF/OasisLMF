@@ -24,12 +24,15 @@ Data is stored using a CSR (Compressed Sparse Row) inspired format:
 Computation Flow
 ----------------
 For each event:
+
 1. Read losses from input stream into sparse arrays
 2. For each level (bottom to top):
+
    a. Aggregate children losses into parent nodes
    b. Apply financial profiles (calc rules) to compute insured loss
    c. Back-allocate results to base children (for allocation rules 1 & 2)
    d. Queue parent nodes for the next level
+
 3. Output final losses to stream
 
 Key Concepts
@@ -311,11 +314,13 @@ def aggregate_children(node, children_count, nodes_array, children, temp_childre
 
     This function sums the losses from all children for each sample index (sidx).
     It handles the sparse-to-dense-to-sparse conversion needed for aggregation:
+
     1. For each child, read its sparse loss values
     2. Accumulate into a dense temporary array (temp_node_loss) indexed by sidx
     3. Convert back to sparse storage for the parent node
 
     Multi-layer handling:
+
     - If the parent has multiple profiles but children only have one layer,
       triggers first_time_layer to create layer storage for children
     - Each profile/layer is processed separately
@@ -402,6 +407,7 @@ def set_parent_next_compute(parent_id, child_id, nodes_array, children, computes
 
     As we process nodes at the current level, we track which parent nodes will
     need to be computed next. This function:
+
     1. Adds the child to the parent's children list
     2. If this is the first child seen for this parent, adds the parent to the
        compute queue for the next level
@@ -481,26 +487,26 @@ def compute_event(compute_info,
 
     Algorithm Overview
     ------------------
-    The computation proceeds bottom-up through the financial structure levels:
+    The computation proceeds bottom-up through the financial structure levels::
 
-    For each level (starting from items, going up to final output):
-        For each node to compute at this level:
-            1. AGGREGATE: Sum losses from children nodes
-               - Multiple children: aggregate into temp arrays, create parent sidx
-               - Single child: reuse child's storage (optimization)
-               - No children (item level): use input losses directly
+        For each level (starting from items, going up to final output):
+            For each node to compute at this level:
+                1. AGGREGATE: Sum losses from children nodes
+                   - Multiple children: aggregate into temp arrays, create parent sidx
+                   - Single child: reuse child's storage (optimization)
+                   - No children (item level): use input losses directly
 
-            2. APPLY PROFILE: Apply financial terms to the aggregated loss
-               - For each profile (may be 1 per layer or 1 cross-layer):
-                 - Run calc/calc_extra with the profile's calc rules
-                 - Handles deductibles, limits, shares, etc.
+                2. APPLY PROFILE: Apply financial terms to the aggregated loss
+                   - For each profile (may be 1 per layer or 1 cross-layer):
+                     - Run calc/calc_extra with the profile's calc rules
+                     - Handles deductibles, limits, shares, etc.
 
-            3. BACK ALLOCATE: Distribute results back to base children
-               - Rule 0: No allocation (output at aggregate level)
-               - Rule 1: Proportional to original input loss
-               - Rule 2: Proportional to computed loss (pro-rata)
+                3. BACK ALLOCATE: Distribute results back to base children
+                   - Rule 0: No allocation (output at aggregate level)
+                   - Rule 1: Proportional to original input loss
+                   - Rule 2: Proportional to computed loss (pro-rata)
 
-            4. QUEUE PARENTS: Register parent nodes for next level computation
+                4. QUEUE PARENTS: Register parent nodes for next level computation
 
     Cross-Layer Profiles
     --------------------
@@ -951,8 +957,9 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
 
     Creates the sparse storage arrays for sample indices, losses, and extras.
     These use a CSR-like format where:
-    - *_indptr arrays point to the start of each node's data
-    - *_val arrays contain the actual values
+
+    - ``*_indptr`` arrays point to the start of each node's data
+    - ``*_val`` arrays contain the actual values
 
     The loss and extras arrays share the same indexing as sidx - each node's
     loss[i] corresponds to sidx[i]. This allows using sidx_indexes to track

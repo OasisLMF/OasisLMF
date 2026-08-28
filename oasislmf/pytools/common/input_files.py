@@ -272,7 +272,8 @@ def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=Fal
         return_empty (bool): return an empty intervals array regardless of the existence of the quantile binary
 
     Returns:
-        intervals (quantile_interval_dtype): Numpy array emulating a dictionary for numba
+        Numpy array of quantile intervals (``quantile_interval_dtype``), emulating a
+        dictionary for numba.
     """
     intervals = []
 
@@ -455,7 +456,7 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
         filename (str | os.PathLike): periods binary file name
 
     Returns:
-        period_weights (ndarray[periods_dtype]): Period weights
+        Period weights as ``ndarray[periods_dtype]``.
     """
     periods_fp = Path(run_dir, filename)
 
