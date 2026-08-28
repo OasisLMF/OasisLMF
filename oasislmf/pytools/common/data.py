@@ -82,9 +82,8 @@ bin_to = ("bin_to", oasis_float, "%f")
 calcrule_id = ("calcrule_id", 'i4', "%d")
 coverage_id = ("coverage_id", 'u4', "%u")
 damage_bin_id = ("damage_bin_id", 'i4', "%d")
-# conditional_vulnerability names its two bin axes for what they are: a source coverage's
-# damage bin selecting a distribution over the dependent's damage bins. Same types and order
-# as vulnerability, so the binary layout is interchangeable.
+# conditional_vulnerability names its bin axes for what they are; same types and order as
+# vulnerability, so the binary layout is interchangeable.
 source_damage_bin = ("source_damage_bin", 'i4', "%d")
 dependent_damage_bin = ("damage_bin", 'i4', "%d")
 damage_correlation_value = ("damage_correlation_value", oasis_float, "%f")

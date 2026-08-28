@@ -275,9 +275,7 @@ def run(run_dir,
         compute_footprint_order = np.zeros(coverages.shape[0] + 1, dtype=items_dtype['coverage_id'])
         # DFS work stack for reordering coverages into (root -> subtree) order: (coverage_id, depth)
         dependency_dfs_stack = np.zeros((coverages.shape[0] + 1, 2), dtype=np.int64)
-        # scratch: per event, each present item's position within its coverage. Only entries
-        # written this event are read back (a dependent's source shares its areaperil, so both
-        # are present together), so it needs no reset.
+        # scratch: each present item's position within its coverage, rewritten every event
         item_idx_to_item_j = np.zeros(items.shape[0], dtype=oasis_int)
         # longest dependency chain: sizes the per-depth parent-result stacks
         max_dependency_depth = compute_max_dependency_depth(coverage_source_id) if do_coverage_dependency else 0
@@ -1245,10 +1243,8 @@ def compute_event_losses(compute_info,
             if compute_info['cursor'] + subtree_item_count * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
                 return False
 
-        # a coverage below a root in the DFS order holds dependent items, whose hazard sampling is
-        # driven by their source item's result on the depth-indexed stacks. Resolved per item
-        # below: such a coverage may also hold items that found no source item (the key server put
-        # them in a different cell from the source), and those are computed independently.
+        # resolved per item below: such a coverage may also hold items that found no source item,
+        # and those are computed independently
         coverage_has_dependents = compute_info['do_coverage_dependency'] == 1 and depth > 0
         # compute losses for each item
         for item_j in range(Nitems):
@@ -1264,20 +1260,14 @@ def compute_event_losses(compute_info,
 
             if dynamic_footprint is not None:
                 intensity_adjustment = item['intensity_adjustment']
-                # RP protection: the event's hazard does not reach this item, so the item takes no
-                # damage at all and is skipped whole — samples and the analytic sidx alike. The
-                # protection is upstream of how the item's damage would be computed, so it applies
-                # to a dependent item too (whose hazard axis is its source's damage bins rather
-                # than the footprint's) and whatever the number of footprint hazard records for its
-                # areaperil: the return period is a per-item-event value, not a per-hazard-bin one.
+                # RP protection skips the item whole, samples and analytic sidx alike. The return
+                # period is per item-event, not per hazard bin, so this needs no per-sample check.
                 if item_event_data['return_period'] > 0 \
                         and item_event_data['event_rp'] < item_event_data['return_period']:
                     losses[:, item_j] = 0
                     if compute_info['do_coverage_dependency'] == 1:
-                        # this item is skipped, but a dependent below it in the DFS still reads the
-                        # source state at (depth, item_j), so record "no damage" (per-sample damage
-                        # bin 0 and a point-mass effective-damage CDF on bin 0) instead of leaving
-                        # the previously processed coverage's values in place.
+                        # a dependent below this one in the DFS still reads (depth, item_j), so
+                        # leave "no damage" there rather than the last coverage's values
                         source_damage_bin_stack[depth, item_j, :] = 0
                         source_eff_damage_cdf_stack[depth, item_j, 0] = 1.
                         source_eff_damage_cdf_len_stack[depth, item_j] = 1
@@ -1665,9 +1655,9 @@ def reconstruct_coverages(compute_info,
 
                 coverage['cur_items'] += 1
 
-    # Pair each dependent item with its source item. Both sit at the same areaperil (the input
-    # preparation only links items that do), so if a dependent item is present this event its
-    # source item is too, and item_idx_to_item_j holds the source's position within its coverage.
+    # Pair each dependent item with its source item. A linked pair shares an areaperil, so both are
+    # present together and item_idx_to_item_j holds a value written this event — which is why it
+    # needs no reset. build_coverage_dependency_forest enforces that.
     if compute_info['do_coverage_dependency'] == 1:
         for position in range(compute_i):
             coverage = coverages[compute[position]]
@@ -1688,13 +1678,9 @@ def reconstruct_coverages(compute_info,
         max_subtree_items = 0
         for position in range(num_present_coverages):
             root_coverage_id = compute_footprint_order[position]
-            # A coverage starts a subtree here when it has no source coverage, or when its source
-            # coverage contributes no item to this event. In the latter case none of this
-            # coverage's present items can be paired — a paired item shares its source item's
-            # areaperil, so the two are present or absent together — and they are all computed
-            # independently, which is what depth 0 gives them. Without this a coverage present
-            # only through unpaired items would be neither emitted as a root nor reached from its
-            # absent source, and the completeness check below would abort the run.
+            # A coverage is a root when it has no source, or when its source coverage contributes
+            # no item to this event: a paired item shares its source item's areaperil, so an absent
+            # source coverage means every present item here is unpaired and belongs at depth 0.
             source_coverage_id = coverage_source_id[root_coverage_id]
             if source_coverage_id != 0 and coverages[source_coverage_id]['cur_items'] > 0:
                 continue  # not a root: emitted as part of an ancestor's subtree
@@ -1721,11 +1707,8 @@ def reconstruct_coverages(compute_info,
             if subtree_item_count > max_subtree_items:
                 max_subtree_items = subtree_item_count
         if write_index != num_present_coverages:
-            # A present coverage was neither emitted as a root nor reached from a present
-            # ancestor. Every present coverage is now reachable: it is a root when its source
-            # coverage is absent, and otherwise its source is present and emits it. So this is a
-            # logic error rather than a data shape, and falling through would leave a coverage
-            # uncomputed, so fail loud.
+            # Every present coverage is reachable (root when its source is absent, emitted by its
+            # source otherwise), so this is a logic error, not a data shape.
             raise RuntimeError(
                 "coverage dependency: a present dependent coverage was not reachable from a "
                 "present source coverage in this event; aborting rather than producing wrong losses."

@@ -152,14 +152,9 @@ def build_coverage_dependency_forest(items, n_coverages):
             )
         source_item_idx[linked] = order[pos]
 
-        # A dependent item and its source item must sit at the same areaperil. Everything
-        # downstream leans on it: the per-event item position map and the depth-indexed source
-        # stacks in the gulmc kernel are reused across events without clearing, which is only
-        # sound because the two items are present or absent together; and a coverage whose source
-        # coverage is absent from an event is computed as a root on the same grounds. File
-        # generation only ever links items that share an areaperil, so this catches malformed or
-        # stale correlations input rather than an expected shape — but silently it would give
-        # event-order-dependent losses, so it is checked like every other link malformation here.
+        # A linked pair must share an areaperil. The kernel's per-event position map and its
+        # depth-indexed source stacks are reused without clearing, which is sound only because the
+        # two items are present or absent together; violated, losses become event-order dependent.
         cross_cell = np.nonzero(items['areaperil_id'][linked]
                                 != items['areaperil_id'][source_item_idx[linked]])[0]
         if cross_cell.size > 0:
@@ -176,11 +171,8 @@ def build_coverage_dependency_forest(items, n_coverages):
     dependent_coverages = items['coverage_id'][linked]
     source_coverages = items['coverage_id'][source_item_idx[linked]]
     if linked.size > 0:
-        # The forest is coverage-level, so all the linked items of one coverage must resolve to the
-        # same source coverage. File generation guarantees it (a coverage's items share loc_id,
-        # building_id and coverage_type_id, so their sources share a coverage_id), so this catches
-        # malformed input; the scatter below would otherwise silently keep whichever write landed
-        # last and drive some items from the wrong coverage's depth row.
+        # The forest is coverage-level, so one coverage's items must resolve to a single source
+        # coverage; the scatter below would otherwise silently keep the last write.
         pairs = np.unique(np.stack([dependent_coverages, source_coverages], axis=1), axis=0)
         dependent_ids, n_sources = np.unique(pairs[:, 0], return_counts=True)
         ambiguous = dependent_ids[n_sources > 1]
@@ -273,9 +265,8 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
     elif "conditional_vulnerability.csv" in input_files and 'csv' not in ignore_file_type:
         with storage.open("conditional_vulnerability.csv") as f:
             lines = [line.decode() if isinstance(line, bytes) else line for line in f.readlines()]
-        # detect the header rather than assuming one, as read_correlations / read_coverages do:
-        # `bintocsv conditionalvulnerability --noheader` writes a headerless file, and skipping a
-        # data row there would silently drop a whole (source bin -> damage bin) transition
+        # detect the header, as read_correlations does: bintocsv --noheader writes a headerless
+        # file, and skipping a data row there would drop a whole transition
         has_header = [h.strip() for h in lines[0].strip().split(',')] == conditionalvulnerability_headers
         recs = np.loadtxt(lines[1:] if has_header else lines,
                           dtype=conditionalvulnerability_dtype, delimiter=',', ndmin=1)
@@ -301,9 +292,8 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
         conditional_vuln_array[id_to_idx[int(r['vulnerability_id'])],
                                int(r['damage_bin']) - 1, int(r['source_damage_bin']) - 1] = r['probability']
 
-    # An undefined source damage bin (all-zero column) means "no dependent damage": make that
-    # explicit as a point mass on the first damage bin, which must therefore be a zero-damage
-    # point bin. Left as zeros the column has no sampleable distribution at all.
+    # An undefined source damage bin means "no dependent damage": make it a point mass on the
+    # no-damage bin, since an all-zero column has no sampleable distribution at all.
     column_total = conditional_vuln_array.sum(axis=1)
     undefined = column_total == 0
     if undefined.any():
@@ -318,11 +308,8 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
             )
         conditional_vuln_array[:, 0, :][undefined] = 1.
 
-    # A column that is defined but does not sum to 1 is a partially specified distribution, which
-    # samples past the top of its last defined damage bin. That is checked where the other
-    # vulnerability integrity checks live — the csv -> bin converter
-    # (oasislmf convert csvtobin conditionalvulnerability) — not here, matching how
-    # vulnerability.bin is treated.
+    # Column sums and duplicate rows are checked by the csv -> bin converter, where the equivalent
+    # vulnerability.csv checks live, not here.
 
     return conditional_vuln_array, cond_vuln_ids.astype(np.int32)
 
@@ -367,10 +354,8 @@ def align_conditional_damage_axis(conditional_vuln_array, Ndamage_bins_max):
             )
         return conditional_vuln_array[:, :Ndamage_bins_max, :].copy()
 
-    # Ndamage_bins_max > num_damage_bins: the vulnerability data declares more damage bins than the
-    # damage_bin_dict, so a source coverage can sample a damage bin with no column in the
-    # conditional matrix (and no entry in the damage_bin_dict). Padding would silently drive the
-    # dependent from an out-of-range bin, so refuse the run.
+    # More vulnerability damage bins than the damage_bin_dict: a source could sample a bin with no
+    # column here, and padding would silently drive the dependent from an out-of-range bin.
     raise OasisException(
         f"coverage dependency: the vulnerability data declares {Ndamage_bins_max} damage bins but "
         f"the damage_bin_dict has {num_damage_bins}; a source coverage's sampled damage bin would "

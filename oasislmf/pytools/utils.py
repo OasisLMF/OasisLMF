@@ -29,13 +29,9 @@ def logging_reset_handlers(logger_name):
     # Remove added handlers
     if 'oasislmf.' in logger_name:
         logger.handlers.clear()
-    # Undo the mutations logging_set_handlers makes to the logger itself. Restoring only the
-    # handlers left every 'oasislmf.*' logger pinned at the run's log level for the rest of the
-    # process, silently suppressing INFO and DEBUG from those modules in anything that runs after
-    # the engine (oasislmf model run continues with output steps).
-    # propagate is restored only for the 'oasislmf.' loggers whose propagate we actually cleared:
-    # redirect_logging walks every logger in the process, so forcing it True everywhere would undo
-    # a host application's or a third-party library's deliberate propagate = False.
+    # Undo what logging_set_handlers did to the logger itself: leaving the level in place pinned
+    # every 'oasislmf.*' logger for the rest of the process. propagate is restored only where we
+    # cleared it — redirect_logging walks every logger, including the host application's.
     if 'oasislmf.' in logger_name:
         logger.propagate = True
     logger.setLevel(logging.NOTSET)
