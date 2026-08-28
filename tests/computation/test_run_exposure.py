@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
+from oasislmf.computation.generate import losses as losses_module
 from oasislmf.computation.run.exposure import RunExposure
 from oasislmf.utils.defaults import KERNEL_ALLOC_FM_MAX
 from oasislmf.utils.exceptions import OasisException
@@ -403,3 +404,61 @@ class TestRunExposureIntegration(_RunExposureIntegrationBase):
 class TestRunExposureIntegrationIntermediaryCsv(_RunExposureIntegrationBase):
     """Integration tests with intermediary_csv=True."""
     extra_kwargs = {'intermediary_csv': True}
+
+
+class TestRunExposureRiLayer(ComputationChecker):
+    """RI layer execution inside GenerateLossesDeterministic."""
+
+    def setUp(self):
+        self.tmp = self.tmp_dir()
+
+    def _run_with_ri(self, **kwargs):
+        return _run_exposure(
+            os.path.join(self.tmp.name, 'output.csv'),
+            oed_location_csv=LOCATION,
+            oed_accounts_csv=ACCOUNTS,
+            oed_info_csv=RI_INFO,
+            oed_scope_csv=RI_SCOPE,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _wrap_fmpy_run(on_call):
+        real_fmpy_run = losses_module.fmpy_run
+
+        def wrapper(*args, **kwargs):
+            on_call(kwargs)
+            return real_fmpy_run(*args, **kwargs)
+
+        return patch('oasislmf.computation.generate.losses.fmpy_run', side_effect=wrapper)
+
+    def test_ri_layer_failure_is_wrapped_with_the_layer_number(self):
+        def fail_on_ri(kwargs):
+            if os.path.basename(kwargs['files_out'][0]).startswith('ri'):
+                raise RuntimeError('fmpy failed')
+
+        with self._wrap_fmpy_run(fail_on_ri):
+            with self.assertRaises(OasisException) as ctx:
+                self._run_with_ri()
+
+        self.assertIn("Exception raised in 'generate_deterministic_losses'", str(ctx.exception))
+        self.assertIn('reinsurance layer 1', str(ctx.exception))
+
+    def test_ri_layer_one_consumes_the_il_output(self):
+        calls = []
+        with self._wrap_fmpy_run(calls.append):
+            self._run_with_ri(loss_factor=[0.5, 1.0])
+
+        ri_calls = [c for c in calls if os.path.basename(c['files_out'][0]) == 'ri1.bin']
+        self.assertEqual(len(ri_calls), 1)
+        self.assertEqual([os.path.basename(f) for f in ri_calls[0]['files_in']], ['ils.bin'])
+
+    def test_ri_losses_cover_every_loss_factor(self):
+        out = os.path.join(self.tmp.name, 'output.csv')
+        self._run_with_ri(loss_factor=[0.5, 1.0])
+
+        df = pd.read_csv(out)
+        ri_rows = df[df['loss_ri'].notna()]
+        self.assertEqual(sorted(ri_rows['loss_factor_idx'].unique()), [0, 1])
+        totals = ri_rows.groupby('loss_factor_idx')['loss_ri'].sum()
+        self.assertLess(totals[0], totals[1])
