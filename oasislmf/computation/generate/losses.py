@@ -678,8 +678,11 @@ class GenerateLosses(GenerateLossesDir):
         with setcwd(model_run_fp):
             socket_server_size = None
             socket_server_port = None
-            if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
-                self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
+            has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
+            has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
+            if 'analysis_pk' in self.kwargs and not (has_websocket or has_http):
+                self.logger.info("Set `OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT` or `OASIS_ANALYSIS_STATUS_URL` "
+                                 "environment variables for run progress updates")
             elif 'analysis_pk' in self.kwargs:
                 oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
             else:

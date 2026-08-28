@@ -3,20 +3,31 @@ import websocket
 import socket
 import os
 import logging
+import requests
+import threading
 from oasislmf.utils.defaults import SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
+
+logger = logging.getLogger(__name__)
+
+# Guards `oasis_ping_async` so a stuck ping target can never pile up more than
+# one in-flight ping thread within this process.
+_ping_lock = threading.Lock()
 
 
 def oasis_ping(data):
-    """Sends a JSON message to either a websocket server or a socket server.
+    """Sends a JSON message to either an HTTP endpoint, a websocket server, or a socket server.
 
-    If `analysis_pk` is in the data, `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` are in environment, sends a websocket message.
-    If `analysis_pk` but missing variables, no message sent.
-    Else, websocket sent to `OASIS_SOCKET_SERVER_IP` `OASIS_SOCKET_SERVER_PORT` defaulted to 127.0.0.1 8888.
+
+    If `analysis_pk` is in the data, targets are tried in order until one succeeds:
+        - if `OASIS_ANALYSIS_STATUS_URL` is in environment, POSTs the message to that URL.
+        - if `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_PORT` are in environment, sends a websocket message.
+        - if neither is configured, or all configured targets fail, no message gets through.
+    Else, a message sent to `OASIS_SOCKET_SERVER_IP` `OASIS_SOCKET_SERVER_PORT` defaulted to 127.0.0.1 8888.
 
     If ``data`` contains a ``port_override`` key, that port is used in place of the default/env-var port
     when connecting to the socket server. The key is stripped before the message is sent.
 
-    For a specific socket or websocket, use `oasis_ping_socket` or `oasis_ping_websocket` with the target location.
+    For a specific target, use `oasis_ping_http`, `oasis_ping_socket` or `oasis_ping_websocket` directly.
 
     Args:
         data (dict): dictionary of data: JSON serialisable
@@ -24,16 +35,63 @@ def oasis_ping(data):
     Returns:
         Boolean: whether attempted call gets through
     """
-    msg = json.dumps(data)
     if data.get('analysis_pk', None) is not None:
+        attempted = False
+        if 'OASIS_ANALYSIS_STATUS_URL' in os.environ:
+            attempted = True
+            url = os.environ['OASIS_ANALYSIS_STATUS_URL']
+            logger.debug(f"Sending ping to {url}: {data}")
+            if oasis_ping_http(url, data):
+                return True
         if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
-            return oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg)
-        logging.error("Missing environment variables `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_PORT`.")
+            attempted = True
+            msg = json.dumps(data)
+            ws_url = f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/"
+            logger.debug(f"Sending ping to {ws_url}: {msg}")
+            if oasis_ping_websocket(ws_url, msg):
+                return True
+        if not attempted:
+            logger.error("Missing environment variables `OASIS_ANALYSIS_STATUS_URL` or "
+                         "`OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT`.")
         return False
     port_override = data.pop('port_override', None)
+    msg = json.dumps(data)
     target_port = int(port_override) if port_override is not None else int(os.environ.get("OASIS_SOCKET_SERVER_PORT", SERVER_DEFAULT_PORT))
     target = (os.environ.get("OASIS_SOCKET_SERVER_IP", SERVER_DEFAULT_IP), target_port)
+    logger.debug(f"Sending ping to {target}: {msg}")
     return oasis_ping_socket(target, msg)
+
+
+def oasis_ping_async(data):
+    """Sends a ping without blocking the caller.
+
+    `oasis_ping` makes a network call (HTTP POST or websocket connect) that can
+    block for up to the configured timeout when the target is unreachable but
+    not actively refusing the connection (wrong hostname, dropped packets, a
+    NetworkPolicy). Calling it directly from a per-event progress ping inside a
+    compute loop means a broken ping target stalls the calculation itself. This
+    runs `oasis_ping` on a background daemon thread instead, so a stuck ping
+    can never block the caller.
+
+    Only one ping is ever in flight at a time per process: if a previous call
+    is still pending when this is invoked, the new update is dropped (a
+    subsequent ping will carry a more up to date `events_complete`) rather than
+    letting a persistently broken target pile up threads.
+
+    Args:
+        data (dict): dictionary of data: JSON serialisable
+    """
+    if not _ping_lock.acquire(blocking=False):
+        logger.debug(f"Skipping ping, previous ping still in flight: {data}")
+        return
+
+    def _send():
+        try:
+            oasis_ping(data)
+        finally:
+            _ping_lock.release()
+
+    threading.Thread(target=_send, daemon=True).start()
 
 
 def oasis_ping_socket(target, data):
@@ -51,8 +109,27 @@ def oasis_ping_socket(target, data):
             oasis_socket.connect(target)
             oasis_socket.sendall(data.encode('utf-8'))
         return True
-    except ConnectionRefusedError as e:
-        logging.error(f"oasis_ping_socket could not connect: {e}")
+    except (ConnectionError, TimeoutError, socket.gaierror) as e:
+        logger.error(f"oasis_ping_socket could not connect: {e}")
+        return False
+
+
+def oasis_ping_http(url, data):
+    """Sends a JSON message to a target HTTP endpoint via POST.
+
+    Args:
+        url (str): URL to hit (e.g. "http://oasis-server:8000/analysis-status/")
+        data (dict): dictionary of data: JSON serialisable
+
+    Returns:
+        Boolean: whether attempted call gets through
+    """
+    try:
+        response = requests.post(url, json=data, timeout=1)
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        logger.error(f"oasis_ping_http could not connect: {e}")
         return False
 
 
@@ -68,11 +145,11 @@ def oasis_ping_websocket(ws_url, data):
     """
     ws = websocket.WebSocket()
     try:
-        ws.connect(ws_url)
+        ws.connect(ws_url, timeout=1)
         ws.send(data)
         return True
     except Exception as e:
-        logging.error(f"oasis_ping_websocket could not connect: {e}")
+        logger.error(f"oasis_ping_websocket could not connect: {e}")
         return False
     finally:
         ws.close()
