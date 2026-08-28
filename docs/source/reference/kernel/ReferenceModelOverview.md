@@ -12,7 +12,7 @@ There are five sub-sections which cover the usage and internal processes of each
 
 The set of **[core components](CoreComponents.md)** provided in this release is as follows;
 * **evepy** is the event distributing utility. Based on the number of events in the input and the number of processes specified as a parameter, evepy outputs subsets of the events as a stream. The output streams into modelpy.
-* **modelpy** generates a stream of effective damageability cdfs for the input stream of events. It generates cdfs from the model files footprint.bin and vulnerability.bin, and the user's exposures file which is called items.bin. modelpy streams into gulmc or can be output to a binary file.
+* **modelpy** generates a stream of effective damageability cdfs for the input stream of events. It generates cdfs from the model files footprint.bin and vulnerability.bin, and the user's exposures file which is called items.bin. modelpy streams into gulpy or can be output to a binary file. It is not needed for gulmc, which reads the event stream directly and samples from the model data itself.
 * **gulmc** performs the ground up loss sampling calculations and numerical integration. The output is a stream of sampled ground up losses. This can be output to a binary file or streamed into  fmpy or summarypy.
 * **fmpy** performs the insurance and reinsurance loss calculations on the ground up loss samples, mean, and total insured value. The output is a stream of loss samples in one of two financial perspectives: net or gross. The result can be output to a binary file or streamed into summarypy.
 * **summarypy** performs a summing of sampled losses according to the user's reporting requirements.  For example this might involve summing coverage losses to regional level, or policy losses to portfolio level.  The output is sampled loss by event_id and summary_id, which represents a meaningful group of losses to the user. 
@@ -48,25 +48,32 @@ The **[stream conversion components](StreamConversionComponents.md)** section ex
 
 The **[validation components](ValidationComponents.md)** section explains how to use the validation components to check the validity of the static and input files in csv format, before they are converted to binary format. There are both validation checks on individual files and cross checks for consistency across files.
 
-The version of the installed components can be found by using the command line parameter -v. For example;
+The installed version can be found with `-V`/`--version`, which prints the `oasislmf` package
+version the component ships in. For example;
 
 ```
-$ gulmc -v
-gulmc : version: 3.0.7
+$ gulmc --version
+2.5.6
 ```
+
+Not every component has a version flag — `fmpy`, for instance, has none.
 
 Component usage guidance is available using the parameter -h
 
 ```
 $ fmpy -h
--a set allocrule (default none)
--M max level (optional)
--p inputpath (relative or full path)
--n feed net value (used for reinsurance)
--O Alloc rule2 optimization off
--d debug
--v version
--h help
+-a, --allocation-rule                 back-allocation rule
+-p, --static-path                     path to the static files
+-i, --files-in                        input stream (default: stdin)
+-o, --files-out                       output stream (default: stdout)
+-n, --net-loss                        output net loss (used for reinsurance)
+-l, --low-memory                      trade speed for memory
+-v, --logging-level                   logging level (debug:10 … critical:50)
+-S, --step-policies                   unused, kept for fmcalc compatibility
+    --sort-output                     sort the output stream
+    --storage-method                  store data as "dense" or "sparse"
+    --create-financial-structure-files  write the financial structure files
+-h, --help                            help
 ```
 
 The components have additional command line parameters depending on their particular function.  These are described in detail in the following pages.

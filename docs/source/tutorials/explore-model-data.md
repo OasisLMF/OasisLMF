@@ -96,8 +96,14 @@ area-peril and a vulnerability function (the join between exposure and model dat
 items = pd.read_csv(DATA / "items.csv")
 coverages = pd.read_csv(DATA / "coverages.csv")
 exposure = items.merge(coverages, on="coverage_id")
-print(f"{len(items)} items across {len(coverages)} coverages; "
-      f"total TIV = {coverages['tiv'].sum():,.0f}")
+
+# TIV of the coverages the items actually reference. Summing `coverages` would include
+# coverages no item points at, and summing the joined frame would count a coverage once
+# per item on it — here every coverage carries two items, so it would double.
+insured = coverages[coverages.coverage_id.isin(items.coverage_id)]
+print(f"{len(items)} items across {len(coverages)} coverages, "
+      f"{insured.coverage_id.nunique()} of them referenced by an item; "
+      f"TIV of those = {insured['tiv'].sum():,.0f}")
 exposure.head()
 ```
 

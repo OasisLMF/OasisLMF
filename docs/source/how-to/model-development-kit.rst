@@ -107,7 +107,9 @@ You can also install from a specific branch ``<branch name>`` using:
     we are **dropping Python 2 (2.7) support** as of this release (1.3.4). The last version which still supports Python 2.7 
     is version ``1.3.3`` (published 12/03/2019).
 
-    Also for this release (and all future releases) a **minimum of Python 3.10 is required**.
+    Current releases require a **minimum of Python 3.10**. (The Python 2 note above is
+    historical, from the 1.3.4 release in 2019; Python 3.10 was not released until
+    October 2021.)
 
 |
 

@@ -174,7 +174,10 @@ Environment Variables
 
       export OASIS_PACKAGE_LOG_LEVEL=ERROR
       export OASIS_PACKAGE_LOG_LEVEL=DEBUG
-      export OASIS_PACKAGE_LOG_LEVEL=20  # INFO level
+
+   Use a level *name*, not a number. An environment variable is always a string, and
+   the numeric branch accepts only a real integer, so ``OASIS_PACKAGE_LOG_LEVEL=20``
+   raises ``ValueError: Invalid log level: '20'``.
 
 Format Templates
 ----------------

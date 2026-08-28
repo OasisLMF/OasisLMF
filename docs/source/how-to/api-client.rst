@@ -144,8 +144,10 @@ All ``api`` subcommands share a common set of connection options:
      - Description
    * - ``--server-url URL``
      - Base URL of the platform (default: ``http://localhost:8000``)
-   * - ``--server-version {v1,v2}``
-     - ``v1`` = single-server run mode; ``v2`` = distributed/chunked run mode (default: ``v2``)
+   * - ``--server-version VERSION``
+     - Version prefix for the platform API: ``v1`` = single-server run mode, ``v2`` =
+       distributed/chunked run mode (default: ``v2``). Not restricted to those two values —
+       any string is passed through.
    * - ``--server-login-json FILE``
      - Path to a JSON file containing credentials (see :ref:`auth_api_client`)
    * - ``--auth-type {simple,oidc,m2m}``

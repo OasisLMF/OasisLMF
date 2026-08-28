@@ -91,11 +91,14 @@ The Python API reference is generated from source docstrings by `sphinx-autoapi`
 which is **AST-based** — it parses the source and never imports the package, so
 the heavy runtime dependencies (numba, etc.) are not imported at build time.
 
-`autoapi_dirs` in `source/conf.py` controls the scope. It is currently **scoped
-to the Financial Module** (`oasislmf/pytools/fm`) so the reference sits beside
-its explanation pages and the build takes ~20 seconds instead of the ~4 minutes
-(and ~500 unstructured pages) of the previous whole-package configuration. Widen
-it per subsystem as each adopts the reference/explanation pattern.
+`autoapi_dirs` in `source/conf.py` controls the scope. It is **scoped per
+subsystem** rather than to the whole package, so each reference sits beside the
+explanation pages that describe it and the build stays fast — the previous
+whole-package configuration took ~4 minutes and produced ~500 unstructured
+pages. It currently covers ten subsystems: `pytools/fm`, `pytools/gulmc`,
+`pytools/common`, the output modules (`elt`, `lec`, `plt`, `aal`, `summary`,
+`pla`) and `lookup`. Add to the list as each further subsystem adopts the
+reference/explanation pattern.
 
 ## Automation
 

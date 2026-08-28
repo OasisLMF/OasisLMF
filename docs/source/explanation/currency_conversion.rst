@@ -25,7 +25,7 @@ File Based Currency Conversion
 DictBasedCurrencyRates is a solution where all the rate are provided via files and stored internally in the package as a dictionary.
 
 Oasis LMF supports csv file (compressed or not) or a parquet file where they will be read as DataFrame.
-The file is referenced using a JSON configuration file with the ``--currency_conversion_json`` flag :
+The file is referenced using a JSON configuration file with the ``--currency-conversion-json`` flag :
 
 .. code-block:: json
 
