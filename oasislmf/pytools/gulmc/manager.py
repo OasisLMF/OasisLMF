@@ -1651,7 +1651,15 @@ def reconstruct_coverages(compute_info,
         max_subtree_items = 0
         for position in range(num_present_coverages):
             root_coverage_id = compute_footprint_order[position]
-            if coverage_source_id[root_coverage_id] != 0:
+            # A coverage starts a subtree here when it has no source coverage, or when its source
+            # coverage contributes no item to this event. In the latter case none of this
+            # coverage's present items can be paired — a paired item shares its source item's
+            # areaperil, so the two are present or absent together — and they are all computed
+            # independently, which is what depth 0 gives them. Without this a coverage present
+            # only through unpaired items would be neither emitted as a root nor reached from its
+            # absent source, and the completeness check below would abort the run.
+            source_coverage_id = coverage_source_id[root_coverage_id]
+            if source_coverage_id != 0 and coverages[source_coverage_id]['cur_items'] > 0:
                 continue  # not a root: emitted as part of an ancestor's subtree
             subtree_item_count = 0
             stack_pointer = 0
@@ -1676,12 +1684,11 @@ def reconstruct_coverages(compute_info,
             if subtree_item_count > max_subtree_items:
                 max_subtree_items = subtree_item_count
         if write_index != num_present_coverages:
-            # A present dependent coverage was not reachable from a present source this event.
-            # This should never happen: a dependent item is only linked to a source item at the
-            # same areaperil, so the two coverages co-occur in every event that includes either,
-            # and the input preparation refuses a partially linked coverage. Falling back to
-            # "independent" would silently give a conditional dependent zero loss (its
-            # vulnerability is not in the hazard-indexed array), so fail loud.
+            # A present coverage was neither emitted as a root nor reached from a present
+            # ancestor. Every present coverage is now reachable: it is a root when its source
+            # coverage is absent, and otherwise its source is present and emits it. So this is a
+            # logic error rather than a data shape, and falling through would leave a coverage
+            # uncomputed, so fail loud.
             raise RuntimeError(
                 "coverage dependency: a present dependent coverage was not reachable from a "
                 "present source coverage in this event; aborting rather than producing wrong losses."

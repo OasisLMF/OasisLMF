@@ -462,9 +462,15 @@ def get_gul_input_items(
     # dependent's vulnerability ids come from different id spaces, so their orders need not agree).
     gul_inputs_df['source_item_id'] = np.zeros(len(gul_inputs_df), dtype='uint32')
     for source_cov_type, dependent_cov_type in (coverage_dependency_settings or []):
+        # A keys file may hold several rows for one (loc_id, peril_id, coverage_type_id): they share
+        # an item_id and the surviving one is the first, chosen by the drop_duplicates(subset=
+        # 'item_id') that runs at the end of this function. Resolve links against that same
+        # first-occurrence view — otherwise a duplicated source row fans this merge out and breaks
+        # the positional assignment below.
         source_items = (
             gul_inputs_df.loc[gul_inputs_df['coverage_type_id'] == source_cov_type,
                               ['loc_id', 'building_id', 'peril_id', 'item_id', 'areaperil_id']]
+            .drop_duplicates(subset='item_id')
             .rename(columns={'item_id': '_src_item_id', 'areaperil_id': '_src_areaperil_id'})
         )
         dep_mask = gul_inputs_df['coverage_type_id'] == dependent_cov_type
@@ -511,7 +517,8 @@ def get_gul_input_items(
     # a conditional one (see validate_coverage_dependency).
     linked_mask = gul_inputs_df['source_item_id'] > 0
     if linked_mask.any():
-        item_to_coverage = gul_inputs_df.set_index('item_id')['coverage_id']
+        # first-occurrence view again: duplicate item_id labels cannot be reindexed against
+        item_to_coverage = gul_inputs_df.drop_duplicates(subset='item_id').set_index('item_id')['coverage_id']
         linked = gul_inputs_df.loc[linked_mask, ['coverage_id', 'source_item_id']].copy()
         linked['_src_cov'] = item_to_coverage.reindex(linked['source_item_id'].to_numpy()).to_numpy()
         multi_source = linked.groupby('coverage_id')['_src_cov'].nunique()

@@ -14,7 +14,8 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import numba as nb
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import (areaperil_int, conditionalvulnerability_dtype, load_as_ndarray,
+from oasislmf.pytools.common.data import (areaperil_int, conditionalvulnerability_dtype,
+                                          conditionalvulnerability_headers, load_as_ndarray,
                                           oasis_int, oasis_float, vulnerability_dtype)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
@@ -152,10 +153,45 @@ def build_coverage_dependency_forest(items, n_coverages):
             )
         source_item_idx[linked] = order[pos]
 
+        # A dependent item and its source item must sit at the same areaperil. Everything
+        # downstream leans on it: the per-event item position map and the depth-indexed source
+        # stacks in the gulmc kernel are reused across events without clearing, which is only
+        # sound because the two items are present or absent together; and a coverage whose source
+        # coverage is absent from an event is computed as a root on the same grounds. File
+        # generation only ever links items that share an areaperil, so this catches malformed or
+        # stale correlations input rather than an expected shape — but silently it would give
+        # event-order-dependent losses, so it is checked like every other link malformation here.
+        cross_cell = np.nonzero(items['areaperil_id'][linked]
+                                != items['areaperil_id'][source_item_idx[linked]])[0]
+        if cross_cell.size > 0:
+            bad_items = items['item_id'][linked][cross_cell]
+            raise OasisException(
+                f"coverage dependency: item(s) {bad_items[:10].tolist()} are linked to a source item "
+                "at a different areaperil; a dependent item must share its source item's areaperil, "
+                "because its damage is driven by damage in that cell. Malformed correlations input."
+            )
+
     # coverage ids are unsigned; reuse the input dtype so the forest matches the items table
     id_dtype = items['coverage_id'].dtype
     coverage_source_id = np.zeros(n_coverages, dtype=id_dtype)
-    coverage_source_id[items['coverage_id'][linked]] = items['coverage_id'][source_item_idx[linked]]
+    dependent_coverages = items['coverage_id'][linked]
+    source_coverages = items['coverage_id'][source_item_idx[linked]]
+    if linked.size > 0:
+        # The forest is coverage-level, so all the linked items of one coverage must resolve to the
+        # same source coverage. File generation guarantees it (a coverage's items share loc_id,
+        # building_id and coverage_type_id, so their sources share a coverage_id), so this catches
+        # malformed input; the scatter below would otherwise silently keep whichever write landed
+        # last and drive some items from the wrong coverage's depth row.
+        pairs = np.unique(np.stack([dependent_coverages, source_coverages], axis=1), axis=0)
+        dependent_ids, n_sources = np.unique(pairs[:, 0], return_counts=True)
+        ambiguous = dependent_ids[n_sources > 1]
+        if ambiguous.size > 0:
+            raise OasisException(
+                f"coverage dependency: coverage_id(s) {ambiguous[:10].tolist()} have items linked to "
+                "items of more than one source coverage; a dependent coverage must have a single "
+                "source. Malformed correlations input."
+            )
+    coverage_source_id[dependent_coverages] = source_coverages
 
     # A source pointing outside the coverage range, or a coverage referencing itself, can only
     # come from malformed/stale input (a valid source is always an in-range coverage_id of a
@@ -237,7 +273,13 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
             recs = np.frombuffer(f.read(), dtype=conditionalvulnerability_dtype)
     elif "conditional_vulnerability.csv" in input_files and 'csv' not in ignore_file_type:
         with storage.open("conditional_vulnerability.csv") as f:
-            recs = np.loadtxt(f, dtype=conditionalvulnerability_dtype, skiprows=1, delimiter=',', ndmin=1)
+            lines = [line.decode() if isinstance(line, bytes) else line for line in f.readlines()]
+        # detect the header rather than assuming one, as read_correlations / read_coverages do:
+        # `bintocsv conditionalvulnerability --noheader` writes a headerless file, and skipping a
+        # data row there would silently drop a whole (source bin -> damage bin) transition
+        has_header = [h.strip() for h in lines[0].strip().split(',')] == conditionalvulnerability_headers
+        recs = np.loadtxt(lines[1:] if has_header else lines,
+                          dtype=conditionalvulnerability_dtype, delimiter=',', ndmin=1)
 
     if recs is None or recs.shape[0] == 0:
         return (np.zeros((0, num_damage_bins, num_damage_bins), dtype=oasis_float),

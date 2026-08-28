@@ -468,6 +468,44 @@ def test_zero_tiv_retention_stops_where_the_chain_is_not_kept():
     assert set(cov.index) == {1}, "only the insured building survives"
 
 
+def test_duplicate_keys_rows_do_not_break_link_resolution():
+    """A keys file may hold several rows for one (loc_id, peril_id, coverage_type_id) — they share
+    an item_id and get deduped at the end of get_gul_input_items. Link resolution must work off the
+    same first-occurrence view: otherwise a duplicated source row fans its merge out and breaks the
+    positional assignment, and duplicate item_id labels cannot be reindexed. Configuring the feature
+    must not turn an input the pipeline already tolerates into a crash."""
+    def build(rows):
+        loc_df = pd.DataFrame({
+            'PortNumber': ['1'], 'AccNumber': ['1'], 'LocNumber': ['1'], 'CountryCode': ['GB'],
+            'LocCurrency': ['GBP'], 'LocPerilsCovered': ['WTC'], 'BuildingTIV': [220000.0],
+            'ContentsTIV': [50000.0], 'OtherTIV': [0.0], 'BITIV': [0.0]})
+        exposure = OedExposure(location=loc_df, use_field=True)
+        prepare_oed_exposure(exposure)
+        keys_df = pd.DataFrame(rows)
+        keys_df['status'], keys_df['message'] = 'success', ''
+        return exposure.location.dataframe, keys_df
+
+    src = {'loc_id': 1, 'peril_id': 'WTC', 'coverage_type_id': 1, 'vulnerability_id': 8}
+    dep = {'loc_id': 1, 'peril_id': 'WTC', 'coverage_type_id': 3, 'vulnerability_id': 101}
+    cases = {
+        # two source rows for one (loc, peril, coverage type) -> one duplicated item_id
+        "duplicate source row": [{**src, 'areaperil_id': 1}, {**src, 'areaperil_id': 2},
+                                 {**dep, 'areaperil_id': 1}],
+        "duplicate dependent row": [{**src, 'areaperil_id': 1}, {**dep, 'areaperil_id': 1},
+                                    {**dep, 'areaperil_id': 2}],
+    }
+    for label, rows in cases.items():
+        loc_df, keys_df = build(rows)
+        configured = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'],
+                                         coverage_dependency_settings=[(1, 3)])
+        loc_df, keys_df = build(rows)
+        unconfigured = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'],
+                                           coverage_dependency_settings=None)
+        assert len(configured) == len(unconfigured), \
+            f"{label}: configuring the dependency changed how duplicates are deduped"
+        assert configured['item_id'].is_unique, f"{label}: duplicate item_id survived"
+
+
 def test_areaperil_mismatch_leaves_dependent_unpaired(caplog):
     """A dependent must share its source's areaperil: its damage is driven by the source's, which
     belongs to the source's cell. Where the key server places the configured pair in different
@@ -561,8 +599,9 @@ def test_source_multiplicity_pairs_on_peril_not_position():
 def test_build_coverage_dependency_forest():
     # coverage 100 root; 101 -> 100; 102 -> 101 (chain); 200 root; 201 -> 200.
     # one item per coverage, item_id = coverage_id, so the item links mirror the coverage links.
-    items = np.array([(100, 100, 0), (101, 101, 100), (102, 102, 101), (200, 200, 0), (201, 201, 200)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4')])
+    items = np.array([(100, 100, 0, 7), (101, 101, 100, 7), (102, 102, 101, 7), (200, 200, 0, 7), (201, 201, 200, 7)],
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                            ('areaperil_id', 'u4')])
     src, off, data, source_item_idx = build_coverage_dependency_forest(items, 203)
     # the resolved source item index points at the row holding that item
     assert source_item_idx.tolist() == [-1, 0, 1, -1, 3]
@@ -578,8 +617,9 @@ def test_build_coverage_dependency_forest():
 
 def test_forest_shared_source():
     # a single source (100) may drive multiple dependents (101, 102): a branch, not a cycle.
-    items = np.array([(100, 100, 0), (101, 101, 100), (102, 102, 100)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4')])
+    items = np.array([(100, 100, 0, 7), (101, 101, 100, 7), (102, 102, 100, 7)],
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                            ('areaperil_id', 'u4')])
     src, off, data, _ = build_coverage_dependency_forest(items, 103)
     assert [int(src[i]) for i in (100, 101, 102)] == [0, 100, 100]
     assert sorted(data[off[100]:off[101]].tolist()) == [101, 102]
@@ -587,10 +627,36 @@ def test_forest_shared_source():
 
 def test_forest_rejects_cycles():
     # a cyclic dependency (coverage 1 -> 2 -> 1) must be rejected when the forest is built
-    items = np.array([(1, 1, 2), (2, 2, 1)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4')])
+    items = np.array([(1, 1, 2, 7), (2, 2, 1, 7)],
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                            ('areaperil_id', 'u4')])
     with pytest.raises(OasisException):
         build_coverage_dependency_forest(items, 3)
+
+
+def test_forest_rejects_a_source_item_at_another_areaperil():
+    """A dependent item must sit at its source item's areaperil. The gulmc kernel reuses its
+    per-event item position map and its depth-indexed source stacks without clearing them, which is
+    only sound because a linked pair is present or absent together; and fix for an absent source
+    coverage treats such a coverage as a root on the same grounds. Violated silently, losses become
+    event-order dependent, so it is rejected like every other link malformation."""
+    items = np.array([(1, 1, 0, 7), (2, 2, 1, 9)],
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                            ('areaperil_id', 'u4')])
+    with pytest.raises(OasisException, match="different areaperil"):
+        build_coverage_dependency_forest(items, 3)
+
+
+def test_forest_rejects_a_coverage_with_two_source_coverages():
+    """The dependency forest is coverage-level, so all the linked items of one coverage must resolve
+    to the same source coverage. File generation guarantees it; malformed input would otherwise be
+    absorbed by the scatter, silently driving some items from the wrong coverage's depth row."""
+    # coverage 3's two items are linked to items of coverage 1 and coverage 2 respectively
+    items = np.array([(1, 1, 0, 7), (2, 2, 0, 7), (3, 3, 1, 7), (4, 3, 2, 7)],
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                            ('areaperil_id', 'u4')])
+    with pytest.raises(OasisException, match="more than one source coverage"):
+        build_coverage_dependency_forest(items, 4)
 
 
 def test_forest_rejects_nonexistent_source_item():
@@ -598,16 +664,18 @@ def test_forest_rejects_nonexistent_source_item():
     # silently demote the dependent to independent. An OasisException, not an assert: the check
     # must survive python -O, where a bad id would reach the njit depth walk and index out of
     # bounds with no boundscheck.
-    items = np.array([(1, 1, 0), (2, 2, 99)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4')])
+    items = np.array([(1, 1, 0, 7), (2, 2, 99, 7)],
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                            ('areaperil_id', 'u4')])
     with pytest.raises(OasisException, match="do not exist"):
         build_coverage_dependency_forest(items, 3)
 
 
 def test_forest_rejects_self_reference():
     # a coverage listing itself as its own source is malformed input -> fail loud
-    items = np.array([(1, 1, 0), (2, 2, 2)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4')])
+    items = np.array([(1, 1, 0, 7), (2, 2, 2, 7)],
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                            ('areaperil_id', 'u4')])
     with pytest.raises(OasisException, match="itself"):
         build_coverage_dependency_forest(items, 3)
 
@@ -796,6 +864,78 @@ def test_zero_tiv_source_reports_no_loss_but_still_drives_dependent(source_damag
 
     # ... and still drives its dependent, which is insured and does have losses
     assert (dep[dep['sidx'] > 0]['loss'] > 0).any()
+
+
+def test_dependent_coverage_runs_when_its_source_coverage_is_absent_from_the_event():
+    """A dependent coverage can be present in an event through unpaired items alone, with its
+    source coverage contributing nothing — the source's areaperil simply is not in that event's
+    footprint. Its present items are all unpaired (a paired item shares its source item's
+    areaperil, so the two are present or absent together), so the coverage is computed as a root.
+    It must not abort the run.
+    """
+    with tempfile.TemporaryDirectory() as t:
+        run_dir = Path(t) / 'assets'
+        shutil.copytree(SRC_MODEL, run_dir)
+        shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
+
+        # coverage 1's only item sits at areaperil 1, which event 1's footprint does not contain;
+        # coverage 2 has a paired item there and an unpaired one at areaperil 4, which it does
+        items = pd.DataFrame({'item_id': [1, 2, 3], 'coverage_id': [1, 2, 2],
+                              'areaperil_id': [1, 1, 4], 'vulnerability_id': [8, 101, 2],
+                              'group_id': [11, 22, 22]})
+        items.to_csv(run_dir / 'input' / 'items.csv', index=False)
+        (run_dir / 'input' / 'items.bin').unlink()
+        pd.DataFrame({'coverage_id': [1, 2], 'tiv': [220000.0, 790000.0]}).to_csv(
+            run_dir / 'input' / 'coverages.csv', index=False)
+        (run_dir / 'input' / 'coverages.bin').unlink()
+
+        n_damage_bins = len(pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv'))
+        with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
+            f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
+            for k in range(1, n_damage_bins + 1):
+                f.write(f'101,{k},{k},1.0\n')
+
+        corr = np.zeros(3, dtype=correlations_dtype)
+        corr['item_id'] = [1, 2, 3]
+        corr['source_item_id'] = [0, 1, 0]          # item 2 paired to item 1; item 3 unpaired
+        corr.tofile(run_dir / 'input' / 'correlations.bin')
+        pd.DataFrame({k: corr[k] for k in corr.dtype.names}).to_csv(
+            run_dir / 'input' / 'correlations.csv', index=False)
+
+        # event 1's footprint holds areaperil 4 but not areaperil 1
+        fp = pd.read_csv(run_dir / 'static' / 'footprint.csv')
+        present = set(fp[fp.event_id == 1]['areaperil_id'])
+        assert 4 in present and 1 not in present, "event 1 is expected to miss areaperil 1"
+        np.array([1], dtype='i4').tofile(run_dir / 'input' / 'events.bin')
+
+        df = _run(run_dir, effective_damageability=False)   # must not raise
+
+    assert sorted(df['item_id'].unique()) == [3], "only the unpaired item is in this event"
+    assert (df[(df['item_id'] == 3) & (df['sidx'] > 0)]['loss'] > 0).any(), \
+        "the unpaired item is sampled from the footprint hazard, not zeroed"
+
+
+def test_conditional_vulnerability_csv_header_is_detected():
+    """A headerless conditional_vulnerability.csv must load identically to a headered one.
+    `bintocsv conditionalvulnerability --noheader` writes one, and unconditionally skipping the
+    first row would silently drop a whole source-bin -> damage-bin transition."""
+    from oasislmf.pytools.gulmc.structure import get_conditional_vulns
+    from oasislmf.pytools.getmodel.manager import get_damage_bins
+    from oasis_data_manager.filestore.backends.local import LocalStorage
+    rows = "7,1,2,1.0\n7,2,2,1.0\n7,3,3,1.0\n"
+    header = "vulnerability_id,source_damage_bin,damage_bin,probability\n"
+    loaded = {}
+    for label, text in (("headered", header + rows), ("headerless", rows)):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / 'damage_bin_dict.csv').write_text(
+                (SRC_MODEL / 'static' / 'damage_bin_dict.csv').read_text())
+            (d / 'conditional_vulnerability.csv').write_text(text)
+            arr, _ = get_conditional_vulns(LocalStorage(str(d)), get_damage_bins(LocalStorage(str(d))))
+            loaded[label] = arr
+    np.testing.assert_array_equal(loaded["headered"], loaded["headerless"])
+    # source damage bin 1 maps to dependent damage bin 2, not bin 1 (which the fill would give)
+    np.testing.assert_allclose(loaded["headerless"][0, :3, 0], [0.0, 1.0, 0.0])
 
 
 def test_mixed_conditional_and_hazard_indexed_on_one_coverage_type():
