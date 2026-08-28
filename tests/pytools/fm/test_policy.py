@@ -1,7 +1,20 @@
 import numpy as np
+import pytest
 from numpy.testing import assert_array_almost_equal
-from oasislmf.pytools.common.data import fm_profile_dtype
+from oasislmf.pytools.common.data import fm_profile_dtype, fm_profile_step_dtype
 from oasislmf.pytools.fm.policy import calc
+
+
+def step_policy(calcrule_id, step_id=1, **fields):
+    policy = np.zeros(1, dtype=fm_profile_step_dtype)[0]
+    policy['calcrule_id'] = calcrule_id
+    policy['step_id'] = step_id
+    policy['trigger_start'] = 0.
+    policy['trigger_end'] = np.inf
+    policy['scale1'] = 1.
+    for name, value in fields.items():
+        policy[name] = value
+    return policy
 
 
 def test_calcrule_1():
@@ -196,3 +209,29 @@ def test_calcrule_34():
     loss_expected = np.array([0., 0., 0., 2.5, 7.5, 12.5, 17.5])
 
     assert_array_almost_equal(loss_out, loss_expected)
+
+
+@pytest.mark.parametrize('calcrule_id', [28, 281])
+def test_step_calcrule_is_dispatched(calcrule_id):
+    loss_in = np.array([0., 10., 20., 30.])
+    loss_out = np.empty_like(loss_in)
+    calc(step_policy(calcrule_id), loss_out, loss_in, True)
+
+
+def test_calcrule_281():
+    loss_in = np.array([0., 10., 20., 30.])
+    loss_out = np.array([0., 10., 20., 30.])
+    policy = step_policy(281, step_id=2, scale2=0.5, limit2=8.)
+    calc(policy, loss_out, loss_in, True)
+
+    assert_array_almost_equal(loss_out, np.array([0., 15., 28., 38.]))
+
+
+def test_calcrule_281_outside_trigger_window():
+    loss_in = np.array([0., 10., 20., 30.])
+    loss_out = np.array([0., 10., 20., 30.])
+    policy = step_policy(281, step_id=2, scale2=0.5, limit2=8.,
+                         trigger_start=15., trigger_end=25.)
+    calc(policy, loss_out, loss_in, True)
+
+    assert_array_almost_equal(loss_out, np.array([0., 10., 28., 30.]))

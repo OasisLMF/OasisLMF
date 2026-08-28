@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import numba as nb
 
-from .data import def_to_type_and_size, oasis_int, oasis_int_size, oasis_float, oasis_float_size
+from .data import def_to_type_and_size
 
 # streams
 PIPE_CAPACITY = 65536  # bytes
@@ -253,23 +253,6 @@ def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
     # print('    ', sidx, loss)
     cursor = mv_write(byte_mv, cursor, sidx_type, sidx_size, sidx)
     cursor = mv_write(byte_mv, cursor, loss_type, loss_size, loss)
-    return cursor
-
-
-@nb.jit(nopython=True, cache=True)
-def mv_write_delimiter(byte_mv, cursor) -> int:
-    """Write the item delimiter (0,0) to the numpy byte view at index cursor, return the index of the end of the object
-
-    Args:
-        byte_mv: numpy byte view
-        cursor: index of where the object start
-
-    Returns:
-        end of delimiter index
-    """
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, 0)
-    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, 0)
-    # print('end', cursor)
     return cursor
 
 
