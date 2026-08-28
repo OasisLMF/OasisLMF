@@ -58,35 +58,38 @@ CDF_CACHE_EMPTY = nb_int64(-1)
 NO_RNG_INDEX = nb_int64(-1)
 
 
-def validate_coverage_dependency(items, coverage_source_id, vuln_idx_to_cond_idx):
+def validate_coverage_dependency(items, vuln_idx_to_cond_idx):
     """Validate a coverage-dependency configuration against the loaded model data (fail-loud).
 
-    A dependent coverage (``coverage_source_id[coverage] > 0``) is driven by its source's sampled
-    damage bin through a conditional (damage-transition) vulnerability. This checks the four
-    invariants the gulmc kernel relies on, raising a clear error rather than silently producing
-    wrong losses:
+    A dependent item (``source_item_id > 0``) is driven by its source item's sampled damage bin
+    through a conditional (damage-transition) vulnerability. This checks the invariants the gulmc
+    kernel relies on, raising a clear error rather than silently producing wrong losses:
 
     1. a dependent must not use an aggregate vulnerability (the aggregate assembly path is not
        wired for the damage-bin-indexed conditional matrix);
     2. a dependent must use a conditional vulnerability (present in conditional_vulnerability, i.e.
        ``vuln_idx_to_cond_idx[vulnerability_idx] >= 0``);
-    3. an independent coverage must NOT use a conditional vulnerability (it has no source to drive
-       it and a conditional vuln cannot be sampled by the footprint hazard).
+    3. an item with no source must NOT use a conditional vulnerability, since there is no source
+       damage bin to index it with and the footprint hazard cannot sample it. An item with no
+       source and a hazard-indexed vulnerability is simply computed independently — file
+       generation leaves such items unpaired deliberately, because only the model's static data
+       says which vulnerabilities are conditional.
 
     The source's sampled damage bin is captured directly during sampling (not re-derived from a
     ratio), so a source coverage may use any damage type (relative / absolute / duration).
 
     Args:
         items (np.ndarray): items table (coverage_id, vulnerability_id, vulnerability_idx,
-            areaperil_agg_vuln_idx).
-        coverage_source_id (np.ndarray): parent coverage_id per coverage_id (0 = independent).
+            areaperil_agg_vuln_idx, source_item_id).
         vuln_idx_to_cond_idx (np.ndarray): dense vuln idx -> conditional row, or -1 if not conditional.
 
     Raises:
         OasisException: if any of the three invariants is violated.
     """
     non_agg = items['areaperil_agg_vuln_idx'] < 0
-    is_dependent_item = coverage_source_id[items['coverage_id']] > 0
+    # per item: an item is dependent only if it resolved to a source item. A coverage may hold a
+    # mix — the key server can place one peril in the same cell as the source and another not.
+    is_dependent_item = items['source_item_id'] > 0
 
     dependent_aggregate = is_dependent_item & ~non_agg
     if np.any(dependent_aggregate):
@@ -114,9 +117,10 @@ def validate_coverage_dependency(items, coverage_source_id, vuln_idx_to_cond_idx
     if np.any(independent_with_conditional):
         bad = np.unique(items['vulnerability_id'][independent_with_conditional])
         raise OasisException(
-            f"coverage dependency: coverage(s) with conditional vulnerability id(s) {bad.tolist()} have no "
-            "source at the same areaperil, so they are independent, but a conditional vulnerability cannot be "
-            "sampled by the footprint hazard. Provide a matching source (same areaperil) or use a "
+            f"coverage dependency: item(s) with conditional vulnerability id(s) {bad.tolist()} have no "
+            "source item at the same areaperil, so they would be computed independently, but a conditional "
+            "vulnerability cannot be sampled by the footprint hazard. Provide a source at the same areaperil "
+            "(check the key server's areaperil for both coverage types), or give these items a "
             "hazard-indexed vulnerability."
         )
 
@@ -232,6 +236,7 @@ def run(run_dir,
         coverage_source_id = structures['coverage_source_id']
         coverage_dependents_ja_offsets = structures['coverage_dependents_ja_offsets']
         coverage_dependents_ja_data = structures['coverage_dependents_ja_data']
+        source_item_idx = structures['source_item_idx']
         n_unique_groups = structures['n_unique_groups']
         n_unique_haz_groups = structures['n_unique_haz_groups']
         del structures
@@ -249,7 +254,7 @@ def run(run_dir,
         if do_coverage_dependency or conditional_vuln_array.shape[0] > 0:
             if do_coverage_dependency:
                 logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
-            validate_coverage_dependency(items, coverage_source_id, vuln_idx_to_cond_idx)
+            validate_coverage_dependency(items, vuln_idx_to_cond_idx)
 
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
@@ -264,6 +269,10 @@ def run(run_dir,
         compute_footprint_order = np.zeros(coverages.shape[0] + 1, dtype=items_dtype['coverage_id'])
         # DFS work stack for reordering coverages into (root -> subtree) order: (coverage_id, depth)
         dependency_dfs_stack = np.zeros((coverages.shape[0] + 1, 2), dtype=np.int64)
+        # scratch: per event, each present item's position within its coverage. Only entries
+        # written this event are read back (a dependent's source shares its areaperil, so both
+        # are present together), so it needs no reset.
+        item_idx_to_item_j = np.zeros(items.shape[0], dtype=oasis_int)
         # longest dependency chain: sizes the per-depth parent-result stacks
         max_dependency_depth = compute_max_dependency_depth(coverage_source_id) if do_coverage_dependency else 0
         # per-depth, per-item stacks holding the source coverage's result while its subtree is
@@ -489,7 +498,9 @@ def run(run_dir,
                     coverage_dependents_ja_data,
                     compute_depth,
                     compute_footprint_order,
-                    dependency_dfs_stack
+                    dependency_dfs_stack,
+                    source_item_idx,
+                    item_idx_to_item_j
                 )
 
                 # since these are never used outside of a sample > 0 branch we can remove the need to
@@ -980,7 +991,7 @@ def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sa
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index,
+def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item_event_data,
                        haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                        eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
                        damage_bins, damage_bin_scaling, losses,
@@ -1004,6 +1015,7 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index,
         item_j (int): column index of this item within the coverage's loss buffer.
         sample_size (int): number of random samples.
         hazard_rng_index (int): index into hazard random values, or < 0 if hazard deterministic.
+        item_event_data (np.void): per-item event data (source_item_j for a dependent item).
         haz_z_unif (np.array[float]): hazard random values for this item.
         vuln_z_unif (np.array[float]): damage random values for this item.
         haz_cdf_prob (np.array[float]): hazard intensity cdf.
@@ -1043,7 +1055,7 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index,
             # coverage dependency: the dependent's "hazard bin" is the source's sampled damage bin,
             # read straight from the stack (no ratio round-trip, so a source of any damage type
             # works). This coverage may itself be a source (chain), so its own bin is recorded too.
-            parent_damage_bin = source_damage_bin_stack[depth - 1, item_j]
+            parent_damage_bin = source_damage_bin_stack[depth - 1, item_event_data['source_item_j']]
             for sample_idx in range(1, sample_size + 1):
                 haz_bin_idx = parent_damage_bin[sample_idx - 1]
                 Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
@@ -1210,9 +1222,11 @@ def compute_event_losses(compute_info,
             if compute_info['cursor'] + subtree_item_count * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
                 return False
 
-        # a dependent coverage (reached below a root in the DFS order) has its hazard sampling
-        # driven by its source coverage's result, held on the depth-indexed stacks.
-        is_dependent = compute_info['do_coverage_dependency'] == 1 and depth > 0
+        # a coverage below a root in the DFS order holds dependent items, whose hazard sampling is
+        # driven by their source item's result on the depth-indexed stacks. Resolved per item
+        # below: such a coverage may also hold items that found no source item (the key server put
+        # them in a different cell from the source), and those are computed independently.
+        coverage_has_dependents = compute_info['do_coverage_dependency'] == 1 and depth > 0
         # compute losses for each item
         for item_j in range(Nitems):
             item_event_data = items_event_data[coverage['start_items'] + item_j]
@@ -1220,6 +1234,8 @@ def compute_event_losses(compute_info,
             hazard_rng_index = item_event_data['hazard_rng_index']
 
             item = items[item_event_data['item_idx']]
+            # an item is dependent only if it resolved to a source item (< 0 means it did not)
+            is_dependent = coverage_has_dependents and item_event_data['source_item_j'] >= 0
             haz_arr_i = item_event_data['haz_arr_i']
             haz_pdf_record = haz_pdf[haz_arr_ptr[haz_arr_i]:haz_arr_ptr[haz_arr_i + 1]]
 
@@ -1266,7 +1282,8 @@ def compute_event_losses(compute_info,
                 # is kept defined (as an empty view) only so numba sees it on all paths.
                 Nhaz_bins = n_damage_bins_total
                 haz_cdf_prob = haz_cdf_empty[:0]
-                parent_eff_cdf = source_eff_damage_cdf_stack[depth - 1, item_j, :source_eff_damage_cdf_len_stack[depth - 1, item_j]]
+                src_j = item_event_data['source_item_j']
+                parent_eff_cdf = source_eff_damage_cdf_stack[depth - 1, src_j, :source_eff_damage_cdf_len_stack[depth - 1, src_j]]
                 haz_pdf_prob = source_damage_pmf_empty
                 prev_cdf = 0.0
                 for damage_bin_k in range(Nhaz_bins):
@@ -1322,7 +1339,7 @@ def compute_event_losses(compute_info,
                                          norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
                                          haz_z_unif, vuln_z_unif)
 
-                sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index,
+                sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item_event_data,
                                    haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                                    eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
                                    damage_bins, damage_bin_scaling, losses,
@@ -1463,7 +1480,9 @@ def reconstruct_coverages(compute_info,
                           coverage_dependents_ja_data,
                           compute_depth,
                           compute_footprint_order,
-                          dependency_dfs_stack):
+                          dependency_dfs_stack,
+                          source_item_idx,
+                          item_idx_to_item_j):
     """Register each item to its coverage and prepare per-item event data for loss computation.
 
     For each (areaperil_id, vulnerability_id) pair present in the event footprint, iterates
@@ -1593,6 +1612,9 @@ def reconstruct_coverages(compute_info,
 
                 # append the data of this item
                 item_i = coverage['start_items'] + coverage['cur_items']
+                # remember where this item landed within its coverage, so a dependent item can be
+                # paired with its own source item rather than with whatever shares its position
+                item_idx_to_item_j[item_idx] = coverage['cur_items']
                 items_event_data[item_i]['item_idx'] = item_idx
                 items_event_data[item_i]['item_id'] = items[item_idx]['item_id']
                 items_event_data[item_i]['haz_arr_i'] = ap_i
@@ -1605,6 +1627,18 @@ def reconstruct_coverages(compute_info,
                     items_event_data[item_i]['event_rp'] = event_rps[ap_i]
 
                 coverage['cur_items'] += 1
+
+    # Pair each dependent item with its source item. Both sit at the same areaperil (the input
+    # preparation only links items that do), so if a dependent item is present this event its
+    # source item is too, and item_idx_to_item_j holds the source's position within its coverage.
+    if compute_info['do_coverage_dependency'] == 1:
+        for position in range(compute_i):
+            coverage = coverages[compute[position]]
+            for item_j in range(coverage['cur_items']):
+                item_i = coverage['start_items'] + item_j
+                src_idx = source_item_idx[items_event_data[item_i]['item_idx']]
+                items_event_data[item_i]['source_item_j'] = (
+                    item_idx_to_item_j[src_idx] if src_idx >= 0 else -1)
 
     # Order the coverages to be computed. When coverage dependency is active, reorder the
     # present coverages (currently in footprint order) into DFS order: each root coverage
@@ -1643,10 +1677,11 @@ def reconstruct_coverages(compute_info,
                 max_subtree_items = subtree_item_count
         if write_index != num_present_coverages:
             # A present dependent coverage was not reachable from a present source this event.
-            # This should never happen: source and dependent share areaperils, so they co-occur,
-            # and the input preparation demotes any dependent that does not line up with its
-            # source. Falling back to "independent" would silently give a conditional dependent
-            # zero loss (its vulnerability is not in the hazard-indexed array), so fail loud.
+            # This should never happen: a dependent item is only linked to a source item at the
+            # same areaperil, so the two coverages co-occur in every event that includes either,
+            # and the input preparation refuses a partially linked coverage. Falling back to
+            # "independent" would silently give a conditional dependent zero loss (its
+            # vulnerability is not in the hazard-indexed array), so fail loud.
             raise RuntimeError(
                 "coverage dependency: a present dependent coverage was not reachable from a "
                 "present source coverage in this event; aborting rather than producing wrong losses."

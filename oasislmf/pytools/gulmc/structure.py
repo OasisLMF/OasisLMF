@@ -14,7 +14,8 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import numba as nb
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import areaperil_int, load_as_ndarray, oasis_int, oasis_float, vulnerability_dtype
+from oasislmf.pytools.common.data import (areaperil_int, conditionalvulnerability_dtype, load_as_ndarray,
+                                          oasis_int, oasis_float, vulnerability_dtype)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import read_coverages, read_correlations
@@ -70,6 +71,7 @@ ARRAY_FILES = [
     'coverage_source_id',
     'coverage_dependents_ja_offsets',
     'coverage_dependents_ja_data',
+    'source_item_idx',
 ]
 
 
@@ -107,33 +109,53 @@ def _validate_acyclic_coverage_dependency(coverage_source_id):
 
 
 def build_coverage_dependency_forest(items, n_coverages):
-    """Build the coverage dependency forest from per-item ``source_coverage_id``.
+    """Build the coverage dependency forest from the per-item ``source_item_id`` links.
 
     Produces ``coverage_source_id`` (indexed by coverage_id, 0 = independent/root) and the
     parent -> dependents jagged array (``coverage_dependents_ja_offsets`` /
-    ``coverage_dependents_ja_data``) used by the gulmc DFS push. All items of a coverage
-    carry the same source, so a scatter suffices.
+    ``coverage_dependents_ja_data``) used by the gulmc DFS push, plus ``source_item_idx``: the
+    index into ``items`` of each item's source item, or -1 when it has none. The input
+    preparation guarantees every item of a dependent coverage links to an item of the same
+    source coverage, so the coverage-level forest is a scatter of the resolved coverages.
 
     Args:
         items (np.ndarray): items table containing 'coverage_id' and 'source_coverage_id'.
         n_coverages (int): number of coverage slots (coverages.shape[0] == max coverage_id + 1).
 
     Returns:
-        tuple(np.ndarray, np.ndarray, np.ndarray):
+        tuple(np.ndarray, np.ndarray, np.ndarray, np.ndarray):
         coverage_source_id (len n_coverages),
         coverage_dependents_ja_offsets (len n_coverages + 1),
-        coverage_dependents_ja_data (len = number of dependent coverages).
+        coverage_dependents_ja_data (len = number of dependent coverages),
+        source_item_idx (len items, -1 where the item has no source).
 
     Raises:
-        OasisException: if a source_coverage_id is out of range, self-referencing, or cyclic.
-          These are raised rather than asserted so the checks survive ``python -O``, where a
-          bad id would otherwise reach the njit ``compute_max_dependency_depth`` and index out
-          of bounds with no boundscheck.
+        OasisException: if a source_item_id does not exist, or resolves to a coverage that is out
+          of range, self-referencing or cyclic. These are raised rather than asserted so the
+          checks survive ``python -O``, where a bad id would otherwise reach the njit
+          ``compute_max_dependency_depth`` and index out of bounds with no boundscheck.
     """
+    # resolve each source_item_id to its position in the items table
+    source_item_idx = np.full(items.shape[0], -1, dtype=np.int64)
+    linked = np.nonzero(items['source_item_id'] > 0)[0]
+    if linked.size > 0:
+        order = np.argsort(items['item_id'], kind='stable')
+        sorted_ids = items['item_id'][order]
+        pos = np.searchsorted(sorted_ids, items['source_item_id'][linked])
+        missing = (pos >= sorted_ids.shape[0]) | (sorted_ids[np.minimum(pos, sorted_ids.shape[0] - 1)]
+                                                  != items['source_item_id'][linked])
+        if missing.any():
+            raise OasisException(
+                f"coverage dependency: source_item_id(s) "
+                f"{np.unique(items['source_item_id'][linked][missing]).tolist()} do not exist in the "
+                "items table; malformed correlations input."
+            )
+        source_item_idx[linked] = order[pos]
+
     # coverage ids are unsigned; reuse the input dtype so the forest matches the items table
-    id_dtype = items['source_coverage_id'].dtype
+    id_dtype = items['coverage_id'].dtype
     coverage_source_id = np.zeros(n_coverages, dtype=id_dtype)
-    coverage_source_id[items['coverage_id']] = items['source_coverage_id']
+    coverage_source_id[items['coverage_id'][linked]] = items['coverage_id'][source_item_idx[linked]]
 
     # A source pointing outside the coverage range, or a coverage referencing itself, can only
     # come from malformed/stale input (a valid source is always an in-range coverage_id of a
@@ -163,7 +185,7 @@ def build_coverage_dependency_forest(items, n_coverages):
     coverage_dependents_ja_offsets = np.zeros(n_coverages + 1, dtype=oasis_int)
     coverage_dependents_ja_offsets[1:] = np.cumsum(np.bincount(parents, minlength=n_coverages))
 
-    return coverage_source_id, coverage_dependents_ja_offsets, coverage_dependents_ja_data
+    return coverage_source_id, coverage_dependents_ja_offsets, coverage_dependents_ja_data, source_item_idx
 
 
 def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
@@ -173,9 +195,11 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
     damage bin)``: it drives a dependent coverage from its source coverage's sampled damage bin
     instead of from the footprint hazard. It is a distinct model input from ``vulnerability`` and
     is correctly sized ``num_damage_bins x num_damage_bins`` (independent of the footprint's
-    intensity resolution). The file reuses the vulnerability schema, with ``intensity_bin_id``
-    read as the *source damage bin* (1..num_damage_bins). The file is optional; when absent, no
-    coverage may be a (conditional) dependent.
+    intensity resolution). Its columns are ``vulnerability_id, source_damage_bin, damage_bin,
+    probability``, and its binary layout is interchangeable with a flat vulnerability file (a
+    4-byte int32 header, then one record per row), so the ``csvtobin`` / ``bintocsv``
+    tools handle it as the ``conditionalvulnerability`` file type. The file is optional; when absent, no coverage may be
+    a (conditional) dependent.
 
     Completeness is not required: a source damage bin the source can never reach may be left with
     no rows. Such a column is filled here with a point mass on the first damage bin — the
@@ -210,22 +234,22 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
         # header value is skipped. An .idx/compressed conditional file is not supported.
         with storage.open("conditional_vulnerability.bin", 'rb') as f:
             f.read(4)
-            recs = np.frombuffer(f.read(), dtype=vulnerability_dtype)
+            recs = np.frombuffer(f.read(), dtype=conditionalvulnerability_dtype)
     elif "conditional_vulnerability.csv" in input_files and 'csv' not in ignore_file_type:
         with storage.open("conditional_vulnerability.csv") as f:
-            recs = np.loadtxt(f, dtype=vulnerability_dtype, skiprows=1, delimiter=',', ndmin=1)
+            recs = np.loadtxt(f, dtype=conditionalvulnerability_dtype, skiprows=1, delimiter=',', ndmin=1)
 
     if recs is None or recs.shape[0] == 0:
         return (np.zeros((0, num_damage_bins, num_damage_bins), dtype=oasis_float),
                 np.zeros(0, dtype=np.int32))
 
-    source_bin = recs['intensity_bin_id']  # the intensity axis is reused as the source damage bin
-    damage_bin = recs['damage_bin_id']
+    source_bin = recs['source_damage_bin']
+    damage_bin = recs['damage_bin']
     if source_bin.min() < 1 or source_bin.max() > num_damage_bins \
             or damage_bin.min() < 1 or damage_bin.max() > num_damage_bins:
         raise OasisException(
             f"conditional_vulnerability bins must be in 1..{num_damage_bins}: source damage bin "
-            f"(intensity_bin_id) range [{int(source_bin.min())}, {int(source_bin.max())}], damage bin "
+            f"range [{int(source_bin.min())}, {int(source_bin.max())}], damage bin "
             f"range [{int(damage_bin.min())}, {int(damage_bin.max())}]."
         )
 
@@ -234,7 +258,7 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
     conditional_vuln_array = np.zeros((cond_vuln_ids.shape[0], num_damage_bins, num_damage_bins), dtype=oasis_float)
     for r in recs:
         conditional_vuln_array[id_to_idx[int(r['vulnerability_id'])],
-                               int(r['damage_bin_id']) - 1, int(r['intensity_bin_id']) - 1] = r['probability']
+                               int(r['damage_bin']) - 1, int(r['source_damage_bin']) - 1] = r['probability']
 
     # An undefined source damage bin (all-zero column) means "no dependent damage": make that
     # explicit as a point mass on the first damage bin, which must therefore be a zero-damage
@@ -253,17 +277,11 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
             )
         conditional_vuln_array[:, 0, :][undefined] = 1.
 
-    # a column that is defined but does not sum to 1 is a partially specified distribution: the
-    # kernel pushes the missing probability onto that column's top defined damage bin. Flag it
-    # rather than silently reweighting, which would change the modeller's intent.
-    partial = (column_total > 0) & (column_total < 0.999999)
-    if partial.any():
-        cond_i, source_bin_i = np.nonzero(partial)
-        logger.warning(
-            f"conditional_vulnerability: source damage bin(s) {(source_bin_i + 1).tolist()} of "
-            f"conditional vulnerability index/indices {cond_i.tolist()} have probabilities summing to "
-            "less than 1; the shortfall is absorbed by the highest damage bin defined for that column."
-        )
+    # A column that is defined but does not sum to 1 is a partially specified distribution, which
+    # samples past the top of its last defined damage bin. That is checked where the other
+    # vulnerability integrity checks live — the csv -> bin converter
+    # (oasislmf convert csvtobin conditionalvulnerability) — not here, matching how
+    # vulnerability.bin is treated.
 
     return conditional_vuln_array, cond_vuln_ids.astype(np.int32)
 
@@ -443,7 +461,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                   'damage_correlation_value': 0.,
                   'hazard_group_id': 0,
                   'hazard_correlation_value': 0.,
-                  'source_coverage_id': 0}
+                  'source_item_id': 0}
     )
     if valid_areaperil_id is not None:
         items = items[np.isin(items['areaperil_id'], valid_areaperil_id)]
@@ -519,7 +537,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # --- coverage dependency forest --------------------------------------------
     # NB the dependent-vulnerability guard (each dependent vuln must have one intensity bin per
     # damage bin) is applied per vulnerability in the gulmc manager, where the vuln array is loaded.
-    coverage_source_id, coverage_dependents_ja_offsets, coverage_dependents_ja_data = \
+    coverage_source_id, coverage_dependents_ja_offsets, coverage_dependents_ja_data, source_item_idx = \
         build_coverage_dependency_forest(items, coverages.shape[0])
 
     # --- footprint (temporary open to get num_intensity_bins) ------------------
@@ -596,6 +614,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'coverage_source_id': coverage_source_id,
         'coverage_dependents_ja_offsets': coverage_dependents_ja_offsets,
         'coverage_dependents_ja_data': coverage_dependents_ja_data,
+        'source_item_idx': source_item_idx,
         # scalars
         'n_cdf_groups': n_cdf_groups,
         'n_unique_groups': n_unique_groups,

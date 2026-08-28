@@ -43,11 +43,53 @@ corresponding column of its conditional vulnerability.
    **marginal only** — the dependent's damage distribution is the source's damage
    distribution pushed through the conditional vulnerability, without a per-sample tie.
 
+Random draws and the conditional probabilities
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A dependent draws its damage sample from the same per-item random stream as any other item. Its
+source used that stream to position itself *within* its own damage bin, so where the two items'
+draws are coupled, the dependent's position within its conditional column is coupled to the
+source's too — and the conditional probabilities the engine realises are then **not** the ones
+written in ``conditional_vulnerability``.
+
+Two settings control that coupling, and both are the modeller's choice:
+
+- **Damage group id.** Items sharing a ``group_id`` share a random stream. The default
+  ``damage_group_id_cols`` is ``["PortNumber", "AccNumber", "LocNumber"]``, which does **not**
+  include coverage type, so every coverage at a location shares one stream — the source and its
+  dependent draw the identical number every sample. Adding the coverage field to
+  ``damage_group_id_cols`` gives them separate streams.
+- **Damage correlation.** A non-zero ``damage_correlation_value`` on a source and its dependent in
+  the same ``peril_correlation_group`` couples their draws through the copula, even when their
+  group ids differ.
+
+Measured deviation of ``P(dependent bin k | source bin k)`` from a file authored at ``0.500`` for
+every bin, over 20 000 samples:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Configuration
+     - Worst deviation
+   * - distinct group ids, no damage correlation
+     - 0.019
+   * - distinct group ids, ``damage_correlation_value = 0.3``
+     - 0.142
+   * - distinct group ids, ``damage_correlation_value = 0.7``
+     - 0.343
+   * - shared group id (the default columns)
+     - 0.461
+
+To have the engine reproduce the probabilities in the file, give the source and dependent distinct
+damage group ids and leave damage correlation off between them. Coverage dependency is itself a
+correlation mechanism, so combining it with damage correlation on the same coverages double-counts
+the dependence.
+
 Enabling and configuring
 -------------------------
 
 Three inputs work together. Only the model settings entry is required to *declare* the
-dependency; the ``source_coverage_id`` column is populated automatically during file
+dependency; the ``source_item_id`` column is populated automatically during file
 generation, and the conditional vulnerability is model-provided static data.
 
 1. Declare the dependency in model settings
@@ -70,24 +112,31 @@ Add a ``coverage_dependency_settings`` block to ``model_settings.json``, listing
 Each dependent coverage type may appear only once (it has exactly one source), and a
 coverage type cannot depend on itself; violations are rejected when the settings are read.
 
-2. The ``source_coverage_id`` column on the correlations input
+2. The ``source_item_id`` column on the correlations input
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The per-item link is carried on the **correlations** file as a new ``source_coverage_id``
-column (``0`` = independent). You do not author this by hand: it is resolved automatically
-during Oasis file generation from ``coverage_dependency_settings``, by matching a
-dependent coverage to the source coverage of the configured type at the same location and
-areaperil. A ``correlations.csv`` fragment then looks like:
+The link is carried on the **correlations** file as a new ``source_item_id`` column
+(``0`` = independent), and it is resolved per **item**: a dependent item names the source
+item it is driven by. You do not author this by hand — it is resolved automatically during
+Oasis file generation from ``coverage_dependency_settings``, by matching a dependent item to
+the item of the configured source coverage type at the same location, building and **peril**.
+A ``correlations.csv`` fragment then looks like:
 
 .. code-block:: text
 
-   item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value,source_coverage_id
+   item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value,source_item_id
    1,0,0.0,0,0.0,0
    2,0,0.0,0,0.0,0
    3,0,0.0,0,0.0,1
 
-Here item ``3`` (a contents item) is driven by source coverage ``1`` (the building at the
-same location); items ``1`` and ``2`` are independent (``source_coverage_id = 0``).
+Here item ``3`` (a contents item) is driven by source item ``1`` (the building at the same
+location and peril); items ``1`` and ``2`` are independent (``source_item_id = 0``).
+
+The link is per item rather than per coverage because a coverage can hold several items at one
+areaperil — two perils geocoded to the same cell — and the source's and dependent's
+vulnerability ids come from different id spaces, so their orders need not agree. Naming the
+source item removes any need for the engine to infer the pairing from item ordering. gulmc
+derives the coverage-level dependency forest from these item links.
 
 3. The conditional vulnerability (damage-transition matrix)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -123,9 +172,32 @@ no rows, and is read as "that source damage produces no dependent damage". Such 
 filled with a point mass on **damage bin 1**, which the damage_bin_dict must therefore define
 as the no-damage bin ``[0, 0]`` — the usual convention. If it does not, an undefined source
 damage bin cannot mean "no damage" and the run fails, asking for the column to be authored
-explicitly. A column that *is* defined but whose probabilities sum to less than 1 is left as
-authored, with a warning: the engine absorbs the shortfall into the highest damage bin defined
-for that column rather than reweighting.
+explicitly. A column that *is* defined must have its probabilities sum to 1, and a
+``(vulnerability_id, source_damage_bin, damage_bin)`` triple must not be repeated. Both are
+checked by the csv-to-binary converter (below), which is where the equivalent ``vulnerability``
+checks live; the engine does not re-check them. A column short of 1 would sample past the top of
+its last defined damage bin — extrapolating, not clamping, so a loss can exceed the coverage's
+TIV — and a repeated triple would be silently reduced to its last row, leaving the column short
+in the same way.
+
+Converting between csv and binary
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The file is registered with the standard converters as the ``conditionalvulnerability`` type. Its
+binary layout is interchangeable with a flat vulnerability file — a 4-byte ``int32`` header
+holding the maximum damage bin index, then one record per row:
+
+.. code-block:: sh
+
+   csvtobin conditionalvulnerability -i conditional_vulnerability.csv \
+       -o conditional_vulnerability.bin -d 12
+   bintocsv conditionalvulnerability -i conditional_vulnerability.bin \
+       -o conditional_vulnerability.csv
+
+``-d`` is the maximum damage bin index. ``csvtobin`` validates ids ascending, damage bins
+strictly increasing within a source damage bin, and each defined column summing to 1 (within
+1e-6); ``-N`` skips validation. A source damage bin left out entirely is allowed, as described
+above.
 
 Rules and constraints
 ---------------------
@@ -134,7 +206,7 @@ The engine validates the configuration up front and fails loudly rather than sil
 producing wrong losses:
 
 - **Dependents must use a conditional vulnerability.** A coverage linked to a source
-  (``source_coverage_id > 0``) must use a ``vulnerability_id`` present in
+  (``source_item_id > 0``) must use a ``vulnerability_id`` present in
   ``conditional_vulnerability``; otherwise the run is aborted.
 - **Independents must not use a conditional vulnerability.** A coverage with no source
   cannot use a conditional vulnerability, because a damage-transition matrix has no meaning
@@ -148,15 +220,33 @@ producing wrong losses:
   fine (the unreachable top of the conditional matrix is dropped), unless those rows carry
   probability, which is also rejected.
 
-Per-location activation
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Per-item activation
+~~~~~~~~~~~~~~~~~~~~~
 
-The dependency is activated **per location**, only where the source and dependent share the
-same areaperil with **item counts that line up** (the same multiset of areaperils, so each
-dependent item pairs with the corresponding source item). Where the keys server returns the
-dependent at a different areaperil from the source, or the item counts do not align, the
-dependent is **demoted to independent** and a warning is logged — the run continues, it is
-simply no longer driven by the source at that location.
+The dependency is resolved **per item**, and a dependent item must share its source's
+areaperil: its damage is driven by the source's damage, which belongs to the source's cell.
+
+A coverage type configured as a dependent may carry a **conditional vulnerability where the
+dependency applies and a hazard-indexed one where it does not** — this is supported, not a
+fallback. Contents can be driven by the building at locations where the key server places both in
+the same cell, and sampled from the footprint hazard elsewhere, in a single run.
+
+An item that finds no source item — because the location holds the dependent coverage but not the
+source, or because the key server placed the configured pair in **different areaperils** (logged
+at INFO) — is left **unpaired** and computed independently. File generation deliberately does not
+decide whether that is acceptable: only the model's static data says which vulnerability ids are
+conditional. gulmc holds both halves and resolves it per item:
+
+- an unpaired item using an ordinary **hazard-indexed** vulnerability is simply computed
+  independently, exactly as it would be without the feature;
+- an unpaired item using a **conditional** vulnerability is refused, because there is no source
+  damage bin to index the transition matrix with and the footprint hazard cannot sample it.
+
+So a model may supply a conditional vulnerability where the cells align and a hazard-indexed one
+where they do not, and both locations run. A coverage may hold a mix of paired and unpaired items
+— the key server can place one peril in the same cell as the source and another not — and each
+item is computed accordingly. A source coverage may likewise hold items that drive nothing (an
+extra peril the dependent does not have).
 
 Zero-TIV (uninsured) sources
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

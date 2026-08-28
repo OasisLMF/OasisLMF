@@ -28,8 +28,23 @@ the sampling kernel, the DFS ordering or the conditional-CDF assembly shows up a
 | 3 | 160000 | 103 / 104 (conditional B) | 2 | dependent at depth 2 (chain) |
 | 4 | 250000 | 8 / 2 (hazard-indexed) | — | independent, computed alongside the chain |
 
-Within each coverage the two items sit at areaperils 154 and 54, so source and dependent share
-the same areaperil multiset and pair up item by item.
+Within each coverage the two items sit at areaperils 154 and 54, and each dependent item names the
+source item at its own areaperil (`source_item_id` on the correlations file).
+
+### Damage group ids
+
+The group ids deliberately **mix**, so the expected results cover both cases:
+
+| coverages | group id | effect |
+|---|---|---|
+| 1 and 2 | shared (`833720067`) | source and dependent draw from the same damage random stream, as the default `damage_group_id_cols` produces (they do not include coverage type). Their draws are rank-coupled, so the realised conditional probabilities differ from those authored in the matrix. |
+| 3 | distinct (`335506702`) | coverage 3's draw is independent of its source's, so the matrix it was authored with is reproduced. |
+| 4 | distinct (`2030714556`) | independent coverage. |
+
+A model with a single group id everywhere would hide the coupling; one with all-distinct ids would
+not represent what the MDK actually generates. Mixing them means a change to either behaviour shows
+up as a loss diff. See the "Random draws and the conditional probabilities" section of
+`docs/source/explanation/coverage-dependency.rst`.
 
 Together this exercises: a dependency chain two levels deep (so the DFS ordering and the
 depth-indexed source stacks are used non-trivially), an insured coverage that is both a dependent
@@ -60,7 +75,9 @@ two models. The modifications are:
 
  - `input/items.csv`: 8 items over 4 coverages; coverages 2 and 3 use conditional vulnerability ids
  - `input/coverages.csv`: 4 coverages, the first with zero TIV
- - `input/correlations.csv`: `source_coverage_id` set to build the chain 1 -> 2 -> 3
+ - `input/correlations.csv`: `source_item_id` set to build the chain 1 -> 2 -> 3, per item (each
+   dependent item names the source item at its own areaperil)
+ - `input/items.csv`: damage group ids mixed as described above
  - `static/conditional_vulnerability.csv`: new file (see above)
 
 ## Generating the binary files
@@ -73,19 +90,21 @@ At the time of writing there is no command line tool to convert `correlations.cs
 `correlations.bin` can be created by executing the following Python code within the `input/`
 directory:
 ```py
-from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
-
-CorrelationsData.from_csv("correlations.csv").to_bin("correlations.bin")
-```
-`conditional_vulnerability.bin` is a fixed 4-byte `int32` header holding the number of damage
-bins, followed by `vulnerability_dtype` records:
-```py
 import numpy as np, pandas as pd
-from oasislmf.pytools.common.data import vulnerability_dtype
+from oasislmf.pytools.common.data import correlations_dtype, correlations_headers
 
-df = pd.read_csv("conditional_vulnerability.csv")
-recs = np.array(list(df.itertuples(index=False, name=None)), dtype=vulnerability_dtype)
-with open("conditional_vulnerability.bin", "wb") as f:
-    np.array([12], dtype=np.int32).tofile(f)
-    recs.tofile(f)
+df = pd.read_csv("correlations.csv")
+rec = np.zeros(len(df), dtype=correlations_dtype)
+for col in correlations_headers:
+    rec[col] = df[col].to_numpy()
+rec.tofile("correlations.bin")
 ```
+`conditional_vulnerability.bin` is produced by the standard converter:
+```sh
+csvtobin conditionalvulnerability \
+    -i conditional_vulnerability.csv -o conditional_vulnerability.bin -d 12
+```
+`-d` is the maximum damage bin index. The converter validates that each source damage bin's
+probabilities sum to 1 (within 1e-6), the same check it applies to `vulnerability.csv`; a source
+damage bin left out entirely is allowed and is read by the engine as "that source damage produces
+no dependent damage". `bintocsv conditionalvulnerability` converts back.

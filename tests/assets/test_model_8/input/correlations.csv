@@ -1,9 +1,9 @@
-item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value,source_coverage_id
+item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value,source_item_id
 1,1,0.7,123451,0.0,0
 2,1,0.7,123451,0.0,0
 3,1,0.7,123452,0.0,1
-4,1,0.7,123452,0.0,1
-5,2,0.3,123453,0.5,2
-6,2,0.3,123453,0.5,2
+4,1,0.7,123452,0.0,2
+5,2,0.3,123453,0.5,3
+6,2,0.3,123453,0.5,4
 7,2,0.3,123454,0.5,0
 8,2,0.3,123454,0.5,0

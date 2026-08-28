@@ -518,7 +518,8 @@ def test_rp_protection_only_affects_protected_items():
     vuln_array = np.zeros((1, Ndamage_bins, Nintensity_bins), dtype=oasis_float)
     vuln_array[0, 1, 0] = 1.0
     conditional_vuln_array = np.zeros((0, Ndamage_bins, Ndamage_bins), dtype=oasis_float)
-    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=np.int32)
+    # int64 as build_structures produces it, so this exercises the specialisation the engine compiles
+    vuln_idx_to_cond_idx = np.full(vuln_array.shape[0], -1, dtype=np.int64)
 
     damage_bins = np.zeros(Ndamage_bins, dtype=damagebin_dtype)
     damage_bins[0] = (0, 0.0, 0.5, 0.25, 0)

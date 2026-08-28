@@ -388,24 +388,32 @@ def get_gul_input_items(
     # configured chain building -> contents -> BI with only BI insured keeps contents (a source for
     # BI) but drops the building, leaving contents with a conditional vulnerability and no source —
     # which gulmc rejects outright.
-    # Computed at loc_id level (building_id is assigned at disaggregation below, which replicates
-    # uniformly).
+    # Retention is tested on (loc_id, peril_id, areaperil_id) — exactly the triple a dependent item
+    # pairs its source on — so a zero-TIV source row that no dependent can pair with (the dependent
+    # is at another areaperil, or does not carry that peril) drives nothing and is dropped like any
+    # other empty coverage. Whether the dependent's vulnerability is genuinely a conditional one is
+    # not knowable here: conditional_vulnerability is model static data, which is bound at run time,
+    # not at file generation. The configured pair is taken as the model's declaration of intent.
+    # Computed before disaggregation, which replicates uniformly across building_id.
     keep_zero_tiv_source = pd.Series(False, index=gul_inputs_df.index)
     if coverage_dependency_settings:
         tiv_positive = gul_inputs_df['tiv'] > 0
+        pair_key = pd.MultiIndex.from_arrays(
+            [gul_inputs_df['loc_id'], gul_inputs_df['peril_id'], gul_inputs_df['areaperil_id']])
         # each pass can only extend the chain by one link, so len(pairs) passes always suffice
         for _ in range(len(coverage_dependency_settings)):
             kept = tiv_positive | keep_zero_tiv_source
             newly_kept = pd.Series(False, index=gul_inputs_df.index)
             for source_cov_type, dependent_cov_type in coverage_dependency_settings:
-                kept_dependent_locs = gul_inputs_df.loc[
-                    kept & (gul_inputs_df['coverage_type_id'] == dependent_cov_type), 'loc_id'].unique()
-                if len(kept_dependent_locs) == 0:
+                dependent_rows = (kept & (gul_inputs_df['coverage_type_id'] == dependent_cov_type)).to_numpy()
+                if not dependent_rows.any():
                     continue
+                drives_a_kept_dependent = pd.Series(
+                    pair_key.isin(pair_key[dependent_rows]), index=gul_inputs_df.index)
                 newly_kept |= (
                     (gul_inputs_df['coverage_type_id'] == source_cov_type)
                     & (~kept)
-                    & gul_inputs_df['loc_id'].isin(kept_dependent_locs)
+                    & drives_a_kept_dependent
                 )
             if not newly_kept.any():
                 break
@@ -445,52 +453,75 @@ def get_gul_input_items(
     gul_inputs_df['coverage_id'] = gul_inputs_df.groupby(
         ['loc_id', 'building_id', 'coverage_type_id'], sort=False, observed=True).ngroup().astype('int32') + 1
 
-    # coverage dependency: link each dependent coverage to its source coverage at the same
-    # (loc_id, building_id) with the configured source coverage_type. 0 = independent.
-    # This per-item value rides on the correlations file and is inverted into a dependency
-    # forest in gulmc. Each configured pair maps a source coverage_type to a dependent one.
-    gul_inputs_df['source_coverage_id'] = np.zeros(len(gul_inputs_df), dtype='uint32')
+    # coverage dependency: link each dependent ITEM to its source item — the item at the same
+    # (loc_id, building_id, peril_id) belonging to the configured source coverage_type.
+    # 0 = independent. This per-item value rides on the correlations file; gulmc derives the
+    # coverage-level dependency forest from it and uses it to pair a dependent item with its
+    # source item directly, rather than inferring the pairing from item ordering (a coverage can
+    # hold several items at one areaperil — two perils in one cell — and the source's and
+    # dependent's vulnerability ids come from different id spaces, so their orders need not agree).
+    gul_inputs_df['source_item_id'] = np.zeros(len(gul_inputs_df), dtype='uint32')
     for source_cov_type, dependent_cov_type in (coverage_dependency_settings or []):
-        source_cov = (
+        source_items = (
             gul_inputs_df.loc[gul_inputs_df['coverage_type_id'] == source_cov_type,
-                              ['loc_id', 'building_id', 'coverage_id']]
-            .drop_duplicates(['loc_id', 'building_id'])
-            .rename(columns={'coverage_id': '_src_cov_id'})
+                              ['loc_id', 'building_id', 'peril_id', 'item_id', 'areaperil_id']]
+            .rename(columns={'item_id': '_src_item_id', 'areaperil_id': '_src_areaperil_id'})
         )
         dep_mask = gul_inputs_df['coverage_type_id'] == dependent_cov_type
-        if source_cov.empty or not dep_mask.any():
+        if source_items.empty or not dep_mask.any():
             continue
         # left merge preserves the order of the dependent rows, so the result aligns
         # positionally with gul_inputs_df.loc[dep_mask]
-        merged = gul_inputs_df.loc[dep_mask, ['loc_id', 'building_id']].merge(
-            source_cov, on=['loc_id', 'building_id'], how='left')
-        gul_inputs_df.loc[dep_mask, 'source_coverage_id'] = merged['_src_cov_id'].fillna(0).to_numpy().astype('uint32')
+        merged = gul_inputs_df.loc[dep_mask, ['loc_id', 'building_id', 'peril_id', 'areaperil_id']].merge(
+            source_items, on=['loc_id', 'building_id', 'peril_id'], how='left')
+        # A source item at a different areaperil cannot drive this dependent: its hazard, and so
+        # its damage, belong to another cell. Leave those items unpaired rather than mispairing
+        # them. Unpaired is not an error here: whether the item can run independently depends on
+        # its vulnerability, which is model static data this stage cannot see. gulmc holds both
+        # halves and decides — an unpaired item using a hazard-indexed vulnerability simply runs
+        # independently, one using a conditional (damage-transition) vulnerability is refused.
+        mismatch = merged['_src_item_id'].notna() & (merged['_src_areaperil_id'] != merged['areaperil_id'])
+        if mismatch.any():
+            bad = (merged.loc[mismatch, ['loc_id', 'peril_id', 'areaperil_id', '_src_areaperil_id']]
+                   .drop_duplicates().head(5))
+            detail = "; ".join(
+                f"loc_id {int(loc)} peril {peril}: dependent areaperil {int(dep_ap)} "
+                f"vs source areaperil {int(src_ap)}"
+                for loc, peril, dep_ap, src_ap in zip(
+                    bad['loc_id'], bad['peril_id'], bad['areaperil_id'], bad['_src_areaperil_id']))
+            merged.loc[mismatch, '_src_item_id'] = np.nan
+            # Informational, not a warning: a coverage type may deliberately carry a conditional
+            # vulnerability where the cells align and a hazard-indexed one where they do not, and
+            # both run correctly. The one broken combination — no source item AND a conditional
+            # vulnerability — is refused by gulmc (validate_coverage_dependency), so nothing silent
+            # rests on this message.
+            logger.info(
+                "coverage dependency: coverage type %d is configured to depend on coverage type %d; "
+                "the key server returned them at different areaperils for %d item(s), which are "
+                "therefore computed independently (%s)",
+                dependent_cov_type, source_cov_type, int(mismatch.sum()), detail)
+        gul_inputs_df.loc[dep_mask, 'source_item_id'] = merged['_src_item_id'].fillna(0).to_numpy().astype('uint32')
 
-    # A dependency is only valid if the dependent coverage's items line up one-to-one with its
-    # source's, because gulmc drives the dependent per item by index-aligned position. That
-    # requires the same multiset of areaperils (same areaperils AND the same item count per
-    # areaperil) — not merely the same set: a source with two vulnerabilities at one areaperil
-    # would otherwise silently misalign against a single-item dependent. Compare the sorted
-    # areaperil sequence (with multiplicity) and demote any mismatch to independent, with a log.
-    linked_mask = gul_inputs_df['source_coverage_id'] > 0
+    # gulmc derives a coverage-level dependency forest from these per-item links, so all the
+    # linked items of one coverage must point at items of the SAME source coverage. That holds by
+    # construction — a coverage's items share (loc_id, building_id, coverage_type_id), so their
+    # sources share (loc_id, building_id, source coverage_type) and hence a coverage_id — so this
+    # is a guard against malformed input rather than an expected outcome. Items left unpaired are
+    # fine: they are computed independently, and gulmc refuses them only if their vulnerability is
+    # a conditional one (see validate_coverage_dependency).
+    linked_mask = gul_inputs_df['source_item_id'] > 0
     if linked_mask.any():
-        involved = pd.unique(pd.concat([
-            gul_inputs_df.loc[linked_mask, 'coverage_id'],
-            gul_inputs_df.loc[linked_mask, 'source_coverage_id'],
-        ]))
-        areaperils_by_coverage = (
-            gul_inputs_df[gul_inputs_df['coverage_id'].isin(involved)]
-            .groupby('coverage_id')['areaperil_id'].agg(lambda s: tuple(sorted(s)))
-        ).to_dict()
-        links = gul_inputs_df.loc[linked_mask, ['coverage_id', 'source_coverage_id']].drop_duplicates()
-        demoted = [int(coverage) for coverage, source in links.itertuples(index=False)
-                   if areaperils_by_coverage.get(coverage) != areaperils_by_coverage.get(source)]
-        if demoted:
-            gul_inputs_df.loc[gul_inputs_df['coverage_id'].isin(demoted), 'source_coverage_id'] = 0
-            logger.warning(
-                "coverage dependency: %d dependent coverage(s) demoted to independent because their "
-                "areaperils do not line up one-to-one with their source coverage (e.g. coverage_ids %s)",
-                len(demoted), sorted(demoted)[:10])
+        item_to_coverage = gul_inputs_df.set_index('item_id')['coverage_id']
+        linked = gul_inputs_df.loc[linked_mask, ['coverage_id', 'source_item_id']].copy()
+        linked['_src_cov'] = item_to_coverage.reindex(linked['source_item_id'].to_numpy()).to_numpy()
+        multi_source = linked.groupby('coverage_id')['_src_cov'].nunique()
+        bad_coverages = multi_source.index[multi_source != 1]
+        if len(bad_coverages):
+            raise OasisException(
+                f"coverage dependency: dependent coverage(s) "
+                f"{sorted(int(c) for c in bad_coverages)[:10]} have items linked to items of more "
+                "than one source coverage; a dependent coverage must have a single source."
+            )
 
     # group_id and hazard_group_id: Correlation groups for damage/hazard sampling
     # If the group id is set according to the correlation group field then map this field
@@ -535,7 +566,7 @@ def get_gul_input_items(
         ['group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] +
         tiv_cols +
         ["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value",
-         "source_coverage_id"]
+         "source_item_id"]
     )
 
     usecols = [col for col in usecols if col in gul_inputs_df]
