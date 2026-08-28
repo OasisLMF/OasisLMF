@@ -88,7 +88,7 @@ def oasis_ping_http(url, data):
         Boolean: whether attempted call gets through
     """
     try:
-        response = requests.post(url, json=data, timeout=5)
+        response = requests.post(url, json=data, timeout=1)
         response.raise_for_status()
         return True
     except requests.exceptions.RequestException as e:
@@ -108,7 +108,7 @@ def oasis_ping_websocket(ws_url, data):
     """
     ws = websocket.WebSocket()
     try:
-        ws.connect(ws_url, timeout=5)
+        ws.connect(ws_url, timeout=1)
         ws.send(data)
         return True
     except Exception as e:
