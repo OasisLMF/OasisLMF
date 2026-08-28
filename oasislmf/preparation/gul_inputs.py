@@ -190,6 +190,11 @@ def get_gul_input_items(
             via hashing. Default: ['loc_id'].
         do_disaggregation (bool, optional): If True, split aggregate locations by
             NumberOfBuildings. Default True.
+        coverage_dependency_settings (list[tuple[int, int]], optional): coverage dependency pairs
+            as (source_coverage_type, dependent_coverage_type), from
+            model_settings.coverage_dependency_settings. Each dependent item is linked to the
+            source item at its own location, building and peril via source_item_id, and a zero-TIV
+            source is retained where it has a dependent to drive. Empty or None disables it.
 
     Returns:
         pandas.DataFrame: GUL inputs with columns including item_id, coverage_id,

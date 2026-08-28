@@ -1033,6 +1033,12 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item
         damage_bins (np.array): damage bin dictionary.
         damage_bin_scaling (float): tiv scaling factor.
         losses (np.array[oasis_float]): loss buffer written in place at column item_j.
+        is_dependent (bool): True if this item is driven by a source item's sampled damage bin.
+        store_source_bin (bool): True if this coverage's own sampled damage bin must be recorded
+          for the dependents below it in the DFS.
+        source_damage_bin_stack (np.array[int32]): per-depth, per-item sampled damage bins, read at
+          the parent depth for a dependent item and written at this coverage's depth.
+        depth (int): this coverage's depth in the dependency forest (0 for a root).
     """
     if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
         if hazard_rng_index >= 0:
@@ -1181,6 +1187,17 @@ def compute_event_losses(compute_info,
         intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids (length n_perils).
         intensity_bins (np.array[int32, 2d]): shape (n_perils, max_intensity + 1) mapping
           [peril_idx, intensity_value] -> intensity_bin_id.
+        conditional_vuln_array (np.array[oasis_float]): damage-transition matrices, indexed
+          [cond_idx, dependent damage bin - 1, source damage bin - 1]. Empty when no dependency.
+        vuln_idx_to_cond_idx (np.array[int64]): dense vuln index -> conditional row, or -1.
+        compute_depth (np.array[int32]): per entry of ``coverage_ids``, its depth in the dependency
+          forest (0 for a root), matching the DFS order the caller put them in.
+        source_damage_bin_stack (np.array[int32]): per-depth, per-item sampled damage bins, holding
+          a source coverage's result while its dependent subtree is computed.
+        source_eff_damage_cdf_stack (np.array[oasis_float]): per-depth, per-item effective damage
+          cdfs, the effective-damageability counterpart of the sampled bins.
+        source_eff_damage_cdf_len_stack (np.array[int64]): valid length of each entry of
+          ``source_eff_damage_cdf_stack``.
 
     Returns:
         bool: True if all coverages have been processed, False if the buffer is full and
@@ -1529,6 +1546,20 @@ def reconstruct_coverages(compute_info,
         byte_mv (numpy.array[byte]): output byte buffer, may be resized if needed.
         group_seq_rng_index (numpy.array[int64]): pre-allocated array of size n_unique_groups,
           used for O(1) group_id to rng_index mapping (reset to NO_RNG_INDEX each event).
+        coverage_source_id (numpy.array): source coverage_id per coverage_id, 0 for a root.
+        coverage_dependents_ja_offsets (numpy.array[oasis_int]): CSR offsets into
+          ``coverage_dependents_ja_data``, indexed by source coverage_id.
+        coverage_dependents_ja_data (numpy.array): dependent coverage ids, grouped by source.
+        compute_depth (numpy.array[int32]): written per emitted coverage: its depth in the
+          dependency forest, 0 for a root.
+        compute_footprint_order (numpy.array): scratch holding the present coverages in footprint
+          order while ``compute`` is rewritten into DFS order.
+        dependency_dfs_stack (numpy.array[int64]): scratch (coverage_id, depth) work stack for the
+          DFS reorder.
+        source_item_idx (numpy.array[int64]): per item, the index into ``items`` of its source item,
+          or -1 when it has none.
+        item_idx_to_item_j (numpy.array[oasis_int]): scratch mapping an item index to its position
+          within its coverage for this event, used to pair a dependent item with its source item.
         hazard_group_seq_rng_index (numpy.array[int64]): pre-allocated array of size
           n_unique_haz_groups, for hazard_group_id to rng_index mapping.
 
