@@ -38,8 +38,11 @@ except ImportError:
 
 try:  # needed for h3 lookup
     import h3
+    # the int flavour of the api returns cell indexes as python ints, which saves building
+    # (and re-parsing) the hexadecimal string representation for every location
+    from h3.api import basic_int as h3_int
 except ImportError:
-    h3 = None
+    h3 = h3_int = None
 
 import math
 import re
@@ -956,6 +959,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             - ``h3_int64``      : H3 cell index as a 64-bit integer
             - ``area_peril_id`` : Oasis area peril ID (int32)
 
+        ``h3_int64`` must be unique: a point falls in exactly one cell at a given resolution, so a
+        repeated cell index is a mapping file error and raises ``OasisException`` at build time.
+        A mapping file with duplicate cells previously emitted one key per duplicate row, which
+        changed the row count of the keys file rather than reporting the problem.
+
+        ``area_peril_id`` must be an exact integer on every row and also raises ``OasisException``
+        at build time otherwise. A single null or fractional value makes pandas read the whole
+        column as ``float64``, which rounds any other id in the file above 2^53 -- so the failure
+        would not be confined to the offending row.
+
+        A location whose coordinates are null, infinite, or absent from the mapping file resolves
+        to ``OASIS_UNKNOWN_ID``, which the lookup reports as a per-location ``fail`` status.
+
         Config example::
 
             "h3_area_peril": {
@@ -978,7 +994,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         Returns:
             function: function assigning an area_peril_id to each location from its latitude and
                 longitude, set to OASIS_UNKNOWN_ID where the H3 cell is missing from the mapping
-                file or the coordinates are null.
+                file or the coordinates are null or non-finite.
         """
         if h3 is None:
             raise OasisException(
@@ -992,29 +1008,68 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             h3_mapping_df = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
 
         h3_mapping_df.columns = [c.lower() for c in h3_mapping_df.columns]
-        if 'h3_int64' not in h3_mapping_df.columns:
+        missing_columns = {'h3_int64', 'area_peril_id'}.difference(h3_mapping_df.columns)
+        if missing_columns:
             raise OasisException(
-                f"H3 mapping file must contain an 'h3_int64' column, found: {list(h3_mapping_df.columns)}"
+                f"H3 mapping file must contain {sorted(missing_columns)} column(s), found: {list(h3_mapping_df.columns)}"
             )
         h3_mapping_df['h3_int64'] = h3_mapping_df['h3_int64'].astype('int64')
 
-        def h3_lookup(locations):
-            valid = locations['latitude'].notna() & locations['longitude'].notna()
-            locations['h3_int64'] = 0  # 0 correponds to an invalid H3 index
-
-            if valid.any():
-                locations.loc[valid, 'h3_int64'] = [
-                    h3.str_to_int(h3.latlng_to_cell(lat, lon, resolution))
-                    for lat, lon in zip(
-                        locations.loc[valid, 'latitude'],
-                        locations.loc[valid, 'longitude'],
-                    )
-                ]
-
-            locations = locations.merge(
-                h3_mapping_df[['h3_int64', 'area_peril_id']], on='h3_int64', how='left'
+        # a point falls in exactly one cell at a given resolution, so a repeated cell index is a
+        # mapping file error; fail here rather than silently emitting a key per duplicate row
+        duplicated_cells = h3_mapping_df['h3_int64'].duplicated()
+        if duplicated_cells.any():
+            raise OasisException(
+                f"H3 mapping file must have a unique 'h3_int64' per row, found {duplicated_cells.sum()} "
+                f"duplicate(s), starting with {h3_mapping_df.loc[duplicated_cells, 'h3_int64'].iloc[0]}"
             )
-            locations.drop(columns=['h3_int64'], inplace=True)
+        # a null or fractional area_peril_id means a float64 column, and that rounds every other id
+        # above 2^53 in the same file; only the offending row itself is caught downstream by
+        # set_id_columns, and only because a nan cast to int64 happens to land on a value it treats
+        # as unknown. fail on the whole class here instead
+        area_peril_ids = h3_mapping_df['area_peril_id']
+        if pd.api.types.is_integer_dtype(area_peril_ids.dtype):
+            unusable = area_peril_ids.isna()
+        else:
+            numeric_ids = pd.to_numeric(area_peril_ids, errors='coerce')
+            unusable = numeric_ids.isna() | (numeric_ids % 1 != 0) | (numeric_ids.abs() >= 2 ** 53)
+        if unusable.any():
+            raise OasisException(
+                f"H3 mapping file must have an exact integer 'area_peril_id' per row, found {unusable.sum()} "
+                f"value(s) that are null, fractional or beyond the exactly representable range of the "
+                f"'{area_peril_ids.dtype}' column, starting with "
+                f"'{area_peril_ids[unusable].iloc[0]}' at cell {h3_mapping_df.loc[unusable, 'h3_int64'].iloc[0]}"
+            )
+        area_peril_by_cell = h3_mapping_df.set_index('h3_int64')['area_peril_id'].astype('int64')
+
+        def h3_lookup(locations):
+            latitude = locations['latitude'].to_numpy(dtype='float64', na_value=np.nan)
+            longitude = locations['longitude'].to_numpy(dtype='float64', na_value=np.nan)
+            # isfinite rather than ~isnan: an infinite coordinate would survive an isnan test, and
+            # 1j * inf has a nan real part, so it would reach factorize as an NA and take its -1
+            # sentinel, which indexes back from the end of the mapped array and silently returns
+            # another location's area_peril_id. infinite coordinates are unknown, like null ones.
+            valid = np.isfinite(latitude) & np.isfinite(longitude)
+
+            # int64 throughout: a float64 intermediate would round area_peril_id above 2^53, which
+            # an h3 model keyed on the cell index itself (~6e17) would hit on every row
+            area_peril_id = np.full(len(locations), OASIS_UNKNOWN_ID, dtype='int64')
+            if valid.any():
+                # h3 has no array api, so the conversion stays a python level loop; factorising the
+                # points first means it is paid once per distinct coordinate rather than once per
+                # location. the complex encoding is only a way to hash the (latitude, longitude)
+                # pair in one go, and is safe here because valid guarantees both parts are finite.
+                codes, points = pd.factorize(latitude[valid] + 1j * longitude[valid], sort=False)
+                cells = np.fromiter(
+                    (h3_int.latlng_to_cell(point.real, point.imag, resolution) for point in points.tolist()),
+                    dtype='int64', count=points.size,
+                )
+                # resolving the mapping per distinct cell keeps the join off the per location path
+                area_peril_id[valid] = area_peril_by_cell.reindex(
+                    cells, fill_value=OASIS_UNKNOWN_ID).to_numpy(dtype='int64')[codes]
+
+            locations['area_peril_id'] = area_peril_id
+            locations.reset_index(drop=True, inplace=True)  # as the left join this replaces used to
             return self.set_id_columns(locations, ['area_peril_id'])
 
         return h3_lookup

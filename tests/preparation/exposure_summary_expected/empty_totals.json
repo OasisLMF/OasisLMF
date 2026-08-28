@@ -1,0 +1,22 @@
+{
+"totals": {
+"modelled": {
+"number_of_buildings": 0,
+"number_of_locations": 0,
+"number_of_risks": 0,
+"tiv": 0.0
+},
+"not-modelled": {
+"number_of_buildings": 0,
+"number_of_locations": 0,
+"number_of_risks": 0,
+"tiv": 0.0
+},
+"portfolio": {
+"number_of_buildings": 0,
+"number_of_locations": 0,
+"number_of_risks": 0,
+"tiv": 0.0
+}
+}
+}
