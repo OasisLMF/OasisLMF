@@ -45,7 +45,7 @@ def map_data(data: Optional[dict], logger) -> Optional[pd.DataFrame]:
             return mapped_data
 
 
-def get_coverage_dependency_settings(data: Optional[dict], logger) -> list:
+def get_coverage_dependency_settings(data: Optional[dict]) -> list:
     """Extract coverage dependency pairs from the model settings.
 
     Reads ``model_settings.coverage_dependency_settings``. Each entry links a source
@@ -55,19 +55,47 @@ def get_coverage_dependency_settings(data: Optional[dict], logger) -> list:
 
     Args:
         data (dict): the model settings dictionary (may be None).
-        logger: logger.
 
     Returns:
         list[tuple[int, int]]: list of (source_coverage_type, dependent_coverage_type) pairs.
 
     Raises:
-        OasisException: if an entry is malformed, is a self-reference, or lists a dependent
-            coverage type more than once (each dependent must have exactly one source).
+        OasisException: if an entry is malformed, is a self-reference, lists a dependent coverage
+            type more than once (each dependent must have exactly one source), or closes a
+            dependency cycle.
+
+    Examples:
+        Contents (3) driven by buildings (1):
+
+        >>> get_coverage_dependency_settings({"model_settings": {"coverage_dependency_settings": [
+        ...     {"source_coverage_type": 1, "dependent_coverage_type": 3}]}})
+        [(1, 3)]
+
+        A source may drive several dependents, and a dependent may itself be a source, so the pairs
+        form a forest — here buildings drive contents (3) and other (2), and contents drive BI (4):
+
+        >>> get_coverage_dependency_settings({"model_settings": {"coverage_dependency_settings": [
+        ...     {"source_coverage_type": 1, "dependent_coverage_type": 3},
+        ...     {"source_coverage_type": 3, "dependent_coverage_type": 4},
+        ...     {"source_coverage_type": 1, "dependent_coverage_type": 2}]}})
+        [(1, 3), (3, 4), (1, 2)]
+
+        A cycle is refused, naming the entry that closes it and the types it runs through. Every
+        entry here is individually valid — no self-reference, no repeated dependent — so the cycle
+        only becomes visible when the third entry closes 1 -> 3 -> 4 -> 1:
+
+        >>> from oasislmf.utils.exceptions import OasisException
+        >>> try:
+        ...     get_coverage_dependency_settings({"model_settings": {"coverage_dependency_settings": [
+        ...         {"source_coverage_type": 1, "dependent_coverage_type": 3},
+        ...         {"source_coverage_type": 3, "dependent_coverage_type": 4},
+        ...         {"source_coverage_type": 4, "dependent_coverage_type": 1}]}})
+        ... except OasisException as e:
+        ...     print(e)  # doctest: +ELLIPSIS
+        Invalid coverage_dependency_settings entry ... closes a dependency cycle over coverage types [1, 4, 3]; ...
     """
     if not data:
         return []
-    # canonical location is the nested model_settings block (where correlation_settings now
-    # lives; its top-level form is deprecated legacy). No legacy fallback for this new setting.
     settings = data.get("model_settings", {}).get("coverage_dependency_settings", [])
 
     pairs = []
@@ -87,7 +115,7 @@ def get_coverage_dependency_settings(data: Optional[dict], logger) -> list:
                 "more than once; each dependent coverage type must have exactly one source.")
 
         # Each dependent has exactly one source, so the pairs form a functional graph and this entry
-        # closes a cycle iff its source already reaches its dependent. Walking up from the source
+        # closes a cycle if its source already reaches its dependent. Walking up from the source
         # terminates because the dependent is not yet a key. gulmc rejects cycles too, but by
         # coverage_id, which does not point back at the entry that caused it.
         chain, node = [dependent_cov_type], source_cov_type

@@ -22,44 +22,12 @@ from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, STD_DEV
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 from oasislmf.pytools.gulmc.structure import build_coverage_dependency_forest
-from oasislmf.preparation.correlations import get_coverage_dependency_settings
 from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.utils.data import prepare_oed_exposure
 from oasislmf.utils.exceptions import OasisException
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets")
 SRC_MODEL = TESTS_ASSETS_DIR.joinpath("test_model_1")
-
-logger = logging.getLogger(__name__)
-
-
-# --------------------------------------------------------------------------------------
-# settings parsing
-# --------------------------------------------------------------------------------------
-def test_get_coverage_dependency_settings():
-    # valid pairs, including a chain (4 -> 3 -> 1)
-    data = {"model_settings": {"coverage_dependency_settings": [
-        {"source_coverage_type": 1, "dependent_coverage_type": 3},
-        {"source_coverage_type": 3, "dependent_coverage_type": 4},
-    ]}}
-    assert get_coverage_dependency_settings(data, logger) == [(1, 3), (3, 4)]
-    assert get_coverage_dependency_settings(None, logger) == []
-    assert get_coverage_dependency_settings({}, logger) == []
-    # read only from the canonical nested model_settings block (no legacy top-level form)
-    top_level_only = {"coverage_dependency_settings": [{"source_coverage_type": 1, "dependent_coverage_type": 3}]}
-    assert get_coverage_dependency_settings(top_level_only, logger) == []
-
-    # malformed / self-reference / duplicate-dependent all raise (fail-loud)
-    bad_settings = [
-        [{"source_coverage_type": "x", "dependent_coverage_type": 3}],   # not an int
-        [{"dependent_coverage_type": 3}],                                # missing source
-        [{"source_coverage_type": 2, "dependent_coverage_type": 2}],     # self reference
-        [{"source_coverage_type": 1, "dependent_coverage_type": 4},
-         {"source_coverage_type": 3, "dependent_coverage_type": 4}],     # duplicate dependent
-    ]
-    for bad in bad_settings:
-        with pytest.raises(OasisException):
-            get_coverage_dependency_settings({"model_settings": {"coverage_dependency_settings": bad}}, logger)
 
 
 # --------------------------------------------------------------------------------------

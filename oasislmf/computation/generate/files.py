@@ -348,7 +348,7 @@ class GenerateFiles(ComputationStep):
             damage_group_id_cols=damage_group_id_cols,
             hazard_group_id_cols=hazard_group_id_cols,
             do_disaggregation=self.do_disaggregation,
-            coverage_dependency_settings=get_coverage_dependency_settings(data=model_settings, logger=self.logger)
+            coverage_dependency_settings=get_coverage_dependency_settings(data=model_settings)
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
