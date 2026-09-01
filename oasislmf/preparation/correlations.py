@@ -87,4 +87,19 @@ def get_coverage_dependency_settings(data: Optional[dict], logger) -> list:
                 "more than once; each dependent coverage type must have exactly one source.")
         seen_dependents.add(dependent_cov_type)
         pairs.append((source_cov_type, dependent_cov_type))
+
+    # Each dependent has one source, so the pairs form a functional graph: a cycle is a coverage
+    # type reachable from itself by following sources. gulmc catches this too, but by coverage_id,
+    # which does not point back at the setting that caused it.
+    source_of = {dependent: source for source, dependent in pairs}
+    for start in source_of:
+        seen, node = {start}, source_of[start]
+        while node in source_of:
+            if node in seen:
+                raise OasisException(
+                    f"Invalid coverage_dependency_settings: coverage types {sorted(seen)} form a "
+                    "dependency cycle; the source/dependent pairs must form a directed acyclic graph."
+                )
+            seen.add(node)
+            node = source_of[node]
     return pairs

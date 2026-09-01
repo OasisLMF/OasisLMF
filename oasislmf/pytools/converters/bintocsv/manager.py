@@ -17,7 +17,6 @@ from oasislmf.pytools.converters.bintocsv.utils import (
     lossfactors_tocsv,
     occurrence_tocsv,
     vulnerability_tocsv,
-    conditional_vulnerability_tocsv,
 )
 from oasislmf.pytools.common.data import resolve_file
 from oasislmf.pytools.converters.data import TOOL_INFO
@@ -36,7 +35,8 @@ TOCSV_FUNC_MAP = {
     "lossfactors": lossfactors_tocsv,
     "occurrence": occurrence_tocsv,
     "vulnerability": vulnerability_tocsv,
-    "conditionalvulnerability": conditional_vulnerability_tocsv,
+    # flat layout only, so the no-idx branch of the vulnerability converter covers it
+    "conditionalvulnerability": vulnerability_tocsv,
 }
 
 

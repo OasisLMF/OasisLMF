@@ -14,14 +14,13 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import numba as nb
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import (conditionalvulnerability_dtype, conditionalvulnerability_headers,
-                                          load_as_ndarray, oasis_int, oasis_float)
+from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, oasis_float)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import (
-    get_damage_bins, get_vulns, get_intensity_bin_dict,
+    get_damage_bins, get_vulns, get_intensity_bin_dict, read_conditional_vulnerability,
 )
 from oasislmf.pytools.gul.random import (
     compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
@@ -252,24 +251,7 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
           is left undefined while the first damage bin is not a zero-damage point bin.
     """
     num_damage_bins = damage_bins.shape[0]
-    input_files = set(storage.listdir())
-    recs = None
-    if "conditional_vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
-        # flat (non-indexed, uncompressed) vulnerability layout: a fixed 4-byte int32 header
-        # (num_damage_bins, matching vulnerability.bin's max_damage_bin header — NOT oasis_int-
-        # sized) followed by vulnerability_dtype records. We size from the damage_bin_dict, so the
-        # header value is skipped. An .idx/compressed conditional file is not supported.
-        with storage.open("conditional_vulnerability.bin", 'rb') as f:
-            f.read(4)
-            recs = np.frombuffer(f.read(), dtype=conditionalvulnerability_dtype)
-    elif "conditional_vulnerability.csv" in input_files and 'csv' not in ignore_file_type:
-        with storage.open("conditional_vulnerability.csv") as f:
-            lines = [line.decode() if isinstance(line, bytes) else line for line in f.readlines()]
-        # detect the header, as read_correlations does: bintocsv --noheader writes a headerless
-        # file, and skipping a data row there would drop a whole transition
-        has_header = [h.strip() for h in lines[0].strip().split(',')] == conditionalvulnerability_headers
-        recs = np.loadtxt(lines[1:] if has_header else lines,
-                          dtype=conditionalvulnerability_dtype, delimiter=',', ndmin=1)
+    recs = read_conditional_vulnerability(storage, ignore_file_type)
 
     if recs is None or recs.shape[0] == 0:
         return (np.zeros((0, num_damage_bins, num_damage_bins), dtype=oasis_float),
@@ -286,11 +268,11 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
         )
 
     cond_vuln_ids = np.unique(recs['vulnerability_id'])
-    id_to_idx = {int(v): i for i, v in enumerate(cond_vuln_ids)}
     conditional_vuln_array = np.zeros((cond_vuln_ids.shape[0], num_damage_bins, num_damage_bins), dtype=oasis_float)
-    for r in recs:
-        conditional_vuln_array[id_to_idx[int(r['vulnerability_id'])],
-                               int(r['damage_bin']) - 1, int(r['source_damage_bin']) - 1] = r['probability']
+    # cond_vuln_ids is ascending (np.unique), so searchsorted gives each record's row
+    conditional_vuln_array[np.searchsorted(cond_vuln_ids, recs['vulnerability_id']),
+                           recs['damage_bin'] - 1,
+                           recs['source_damage_bin'] - 1] = recs['probability']
 
     # An undefined source damage bin means "no dependent damage": make it a point mass on the
     # no-damage bin, since an all-zero column has no sampleable distribution at all.

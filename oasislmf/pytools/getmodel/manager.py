@@ -27,6 +27,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.utils.data import validate_vulnerability_replacements, analysis_settings_loader
 from oasislmf.pytools.common.data import (
+    conditionalvulnerability_dtype, conditionalvulnerability_headers,
     areaperil_int, areaperil_int_size, nb_areaperil_int,
     oasis_float, oasis_float_size,
     oasis_int, oasis_int_size,
@@ -673,6 +674,48 @@ def get_mean_damage_bins(storage: BaseStorage, ignore_file_type=set()):
         List[Union[damagebindictionary]]: the interpolation column of the damage_bin_dict file
     """
     return get_damage_bins(storage, ignore_file_type)['interpolation']
+
+
+def read_conditional_vulnerability(storage: BaseStorage, ignore_file_type=set()):
+    """Read the conditional (damage-transition) vulnerability records.
+
+    Args:
+        storage (BaseStorage): the storage manager for fetching model data
+        ignore_file_type (set(str)): file extension to ignore when loading
+
+    Returns:
+        np.ndarray or None: conditionalvulnerability_dtype records, or None when no file exists.
+    """
+    input_files = set(storage.listdir())
+    if "conditional_vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
+        # flat vulnerability layout: a 4-byte int32 header, then one record per row
+        with storage.open("conditional_vulnerability.bin", 'rb') as f:
+            f.read(vulnerability_bin_header_type.itemsize)
+            return np.frombuffer(f.read(), dtype=conditionalvulnerability_dtype)
+    if "conditional_vulnerability.csv" in input_files and 'csv' not in ignore_file_type:
+        with storage.open("conditional_vulnerability.csv") as f:
+            lines = [line.decode() if isinstance(line, bytes) else line for line in f.readlines()]
+        # detect the header, as read_correlations does: bintocsv --noheader writes a headerless file
+        has_header = [h.strip() for h in lines[0].strip().split(',')] == conditionalvulnerability_headers
+        return np.loadtxt(lines[1:] if has_header else lines,
+                          dtype=conditionalvulnerability_dtype, delimiter=',', ndmin=1)
+    return None
+
+
+def get_conditional_vuln_ids(storage: BaseStorage, ignore_file_type=set()):
+    """Return the vulnerability ids defined in conditional_vulnerability, ascending.
+
+    Args:
+        storage (BaseStorage): the storage manager for fetching model data
+        ignore_file_type (set(str)): file extension to ignore when loading
+
+    Returns:
+        np.ndarray[int32]: the ids, empty when the file is absent or holds no rows.
+    """
+    recs = read_conditional_vulnerability(storage, ignore_file_type)
+    if recs is None or recs.shape[0] == 0:
+        return np.zeros(0, dtype=np.int32)
+    return np.unique(recs['vulnerability_id']).astype(np.int32)
 
 
 def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
