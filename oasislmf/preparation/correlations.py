@@ -71,7 +71,7 @@ def get_coverage_dependency_settings(data: Optional[dict], logger) -> list:
     settings = data.get("model_settings", {}).get("coverage_dependency_settings", [])
 
     pairs = []
-    seen_dependents = set()
+    source_of = {}                        # dependent coverage type -> its source
     for entry in settings:
         try:
             source_cov_type = int(entry["source_coverage_type"])
@@ -81,25 +81,26 @@ def get_coverage_dependency_settings(data: Optional[dict], logger) -> list:
         if source_cov_type == dependent_cov_type:
             raise OasisException(
                 f"Invalid coverage_dependency_settings entry {entry}: a coverage type cannot depend on itself.")
-        if dependent_cov_type in seen_dependents:
+        if dependent_cov_type in source_of:
             raise OasisException(
                 f"Invalid coverage_dependency_settings: coverage type {dependent_cov_type} is listed as a dependent "
                 "more than once; each dependent coverage type must have exactly one source.")
-        seen_dependents.add(dependent_cov_type)
-        pairs.append((source_cov_type, dependent_cov_type))
 
-    # Each dependent has one source, so the pairs form a functional graph: a cycle is a coverage
-    # type reachable from itself by following sources. gulmc catches this too, but by coverage_id,
-    # which does not point back at the setting that caused it.
-    source_of = {dependent: source for source, dependent in pairs}
-    for start in source_of:
-        seen, node = {start}, source_of[start]
-        while node in source_of:
-            if node in seen:
-                raise OasisException(
-                    f"Invalid coverage_dependency_settings: coverage types {sorted(seen)} form a "
-                    "dependency cycle; the source/dependent pairs must form a directed acyclic graph."
-                )
-            seen.add(node)
+        # Each dependent has exactly one source, so the pairs form a functional graph and this entry
+        # closes a cycle iff its source already reaches its dependent. Walking up from the source
+        # terminates because the dependent is not yet a key. gulmc rejects cycles too, but by
+        # coverage_id, which does not point back at the entry that caused it.
+        chain, node = [dependent_cov_type], source_cov_type
+        while node != dependent_cov_type:
+            chain.append(node)
+            if node not in source_of:
+                break
             node = source_of[node]
+        else:
+            raise OasisException(
+                f"Invalid coverage_dependency_settings entry {entry} closes a dependency cycle over "
+                f"coverage types {chain}; the source/dependent pairs must form a directed acyclic graph.")
+
+        source_of[dependent_cov_type] = source_cov_type
+        pairs.append((source_cov_type, dependent_cov_type))
     return pairs
