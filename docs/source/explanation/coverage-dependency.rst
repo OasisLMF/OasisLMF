@@ -205,10 +205,10 @@ Rules and constraints
 The engine validates the configuration up front and fails loudly rather than silently
 producing wrong losses:
 
-- **Dependents must use a conditional vulnerability.** A coverage linked to a source
+- **Dependents must use a conditional vulnerability.** An item linked to a source
   (``source_item_id > 0``) must use a ``vulnerability_id`` present in
   ``conditional_vulnerability``; otherwise the run is aborted.
-- **Independents must not use a conditional vulnerability.** A coverage with no source
+- **Independents must not use a conditional vulnerability.** An item with no source
   cannot use a conditional vulnerability, because a damage-transition matrix has no meaning
   without a source damage bin to index it.
 - **No aggregate dependents.** A dependent coverage may not use an aggregate vulnerability.
@@ -241,6 +241,15 @@ conditional. gulmc holds both halves and resolves it per item:
   independently, exactly as it would be without the feature;
 - an unpaired item using a **conditional** vulnerability is refused, because there is no source
   damage bin to index the transition matrix with and the footprint hazard cannot sample it.
+
+Because the keys lookup returns an item's areaperil **and** its vulnerability id together, which
+of those two outcomes applies is the key server's own decision, not an accident of the data. A
+mismatch carrying a conditional vulnerability is a genuine misconfiguration and stops the run; a
+mismatch carrying a hazard-indexed vulnerability is the key server declaring that item
+independent, so there is no dependency to lose. That is why the mismatch is reported at INFO
+rather than as a warning: the one broken combination fails loudly, and the other is a supported
+configuration that any model mixing conditional and hazard-indexed vulnerabilities across
+locations will hit routinely.
 
 So a model may supply a conditional vulnerability where the cells align and a hazard-indexed one
 where they do not, and both locations run. A coverage may hold a mix of paired and unpaired items
