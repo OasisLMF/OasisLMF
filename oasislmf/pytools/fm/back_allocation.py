@@ -55,13 +55,16 @@ def back_alloc_extra_a2(base_children_count, temp_children_queue, nodes_array, p
     relationships between how financial terms affect loss at aggregate vs item level.
 
     Algorithm:
+
     1. For single child: Direct assignment (no allocation needed)
     2. For multiple children:
+
        a. Compute allocation factors for loss and each extra type
        b. Store factors in temp arrays (temp_node_loss, temp_node_extras)
        c. Apply factors to each child's loss and extras
 
     The factor computation handles four cases for each extra type:
+
     - Increase: New amount allocated proportionally to loss
     - Decrease to underlimit: Reallocated based on remaining underlimit
     - Decrease to deductible: Reallocated based on existing deductible
@@ -70,6 +73,7 @@ def back_alloc_extra_a2(base_children_count, temp_children_queue, nodes_array, p
     Negative factors indicate multiplicative scaling rather than additive allocation.
 
     Modifies in-place:
+
     - loss_in: Updated to loss_out values
     - loss_val: Child losses scaled by allocation factor
     - extras_val: Child extras adjusted by their factors
@@ -207,10 +211,10 @@ def back_alloc_a2(base_children_count, temp_children_queue, nodes_array, profile
     Simpler version of back_alloc_extra_a2 when extras tracking is not needed.
     Computes a single loss factor = loss_out / loss_in and applies it to all children.
 
-    For single child: Direct assignment (loss_in = loss_out)
-    For multiple children:
-    1. Compute factor for each sidx: factor[sidx] = loss_out[sidx] / loss_in[sidx]
-    2. For each child: child_loss[sidx] *= factor[sidx]
+    For single child: Direct assignment (loss_in = loss_out). For multiple children:
+
+    1. Compute factor for each sidx: ``factor[sidx] = loss_out[sidx] / loss_in[sidx]``
+    2. For each child: ``child_loss[sidx] *= factor[sidx]``
 
     Modifies in-place:
     - loss_in: Updated to loss_out values
@@ -264,12 +268,12 @@ def back_alloc_layer(layer_count, node_val_count, node_loss_ptr_i,
     """Back-allocate cross-layer profile results to individual layers (loss only).
 
     When a cross-layer profile is applied, it operates on the sum of all layers.
-    This function distributes the result back to each layer proportionally:
+    This function distributes the result back to each layer proportionally::
 
-    For each sample:
-        factor = loss_out[sidx] / loss_in[sidx]  (where loss_in = sum of all layers)
-        For each layer:
-            layer_loss_after = layer_loss_before * factor
+        For each sample:
+            factor = loss_out[sidx] / loss_in[sidx]  (where loss_in = sum of all layers)
+            For each layer:
+                layer_loss_after = layer_loss_before * factor
 
     The results are stored in temp_node_loss_layer_ba for later use in
     per-layer profile application.

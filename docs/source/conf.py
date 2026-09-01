@@ -49,18 +49,46 @@ from oasislmf.computation.run.platform import PlatformBase, PlatformRun
 
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
+    'sphinx.ext.napoleon',   # Google-style docstrings (per project style guide)
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
     'autoapi.extension',
+    'myst_nb',               # Markdown (MyST) + executable notebooks (bundles myst_parser)
+    'sphinx_design',         # Grids / cards for the Diataxis + audience landing page
+    'sphinx_copybutton',     # Copy button on code blocks
 ]
 
 
-# API Generation
-autoapi_dirs = ['../../oasislmf']
+# -- Auto-generated API reference (sphinx-autoapi) ---------------------------
+# NOTE (docs restructure POC): autoapi is AST-based, so it never imports the
+# package and never pulls in the heavy runtime dependencies. Historically this
+# was pointed at the whole package (``['../../oasislmf']``), producing ~500
+# unstructured pages and a ~4 minute build. For this proof-of-concept it is
+# scoped per-subsystem (currently FM + gulmc) so the API reference sits directly
+# beside its explanation pages and the build stays fast. The consolidation plan is
+# to widen this per-subsystem as each adopts the reference/explanation pattern --
+# not to go back to a single whole-package dump. See
+# docs/source/explanation/documentation-strategy.md.
+autoapi_dirs = [
+    '../../oasislmf/pytools/fm',
+    '../../oasislmf/pytools/gulmc',
+    # shared stream/data layer (event_stream: stream ids, headers, special sidx)
+    '../../oasislmf/pytools/common',
+    # output modules (results / ORD outputs)
+    '../../oasislmf/pytools/elt',
+    '../../oasislmf/pytools/lec',
+    '../../oasislmf/pytools/plt',
+    '../../oasislmf/pytools/aal',
+    '../../oasislmf/pytools/summary',
+    '../../oasislmf/pytools/pla',
+    # keys / lookup framework
+    '../../oasislmf/lookup',
+]
+autoapi_root = 'reference/api'
+autoapi_add_toctree_entry = False   # placed under the Reference section by hand
 autoapi_options = [
     "members",
     # "inherited-members",  # errors
@@ -70,14 +98,46 @@ autoapi_options = [
 ]
 autoapi_keep_files = False
 
+# When autoapi is scoped to a subpackage, its AST resolver cannot see sibling
+# packages (e.g. ``oasislmf.pytools.common``), which is harmless but noisy. Once
+# autoapi is widened per the strategy these resolve naturally.
+suppress_warnings = [
+    'autoapi.python_import_resolution',
+    # ktools Markdown (drained into reference/kernel) uses non-consecutive heading
+    # levels (e.g. H1 -> H3); inherited and cosmetic. Revisit in the UPDATE pass.
+    'myst.header',
+]
+
 # Add any paths that contain templates here, relative to this directory.
 # templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+# Accept both reStructuredText and Markdown (MyST). New pages prefer Markdown;
+# existing .rst is migrated incrementally rather than in a big bang.
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'myst-nb',
+    '.ipynb': 'myst-nb',
+}
+
+# -- MyST (Markdown) configuration ------------------------------------------
+myst_enable_extensions = [
+    'colon_fence',   # ::: fenced directives (used by the landing-page cards)
+    'deflist',
+    'substitution',
+    'tasklist',
+]
+myst_heading_anchors = 6
+
+# -- Executable notebooks (myst-nb) -----------------------------------------
+# Notebooks are executed at build time; a cell error FAILS the build, so the docs
+# build doubles as a notebook smoke test ("does this example still run against the
+# current code"). For output-assertion/regression testing use nbmake in CI.
+nb_execution_mode = "cache"          # execute, cache results between builds
+nb_execution_raise_on_error = True   # fail the build if any notebook errors
+nb_execution_timeout = 180
 
 # The master toctree document.
 master_doc = 'index'
@@ -156,7 +216,15 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-# html_static_path = ['_static']
+html_static_path = ['_static']
+
+# -- Link checking -----------------------------------------------------------
+# ``make linkcheck`` catches dead external links (e.g. the historic
+# simplitium/oed link). Anchor checks on GitHub blobs are noisy, so ignore them.
+linkcheck_ignore = [
+    r'https://github\.com/.*#.*',
+]
+linkcheck_timeout = 15
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -257,6 +325,11 @@ epub_exclude_files = ['search.html']
 intersphinx_mapping = {'python': ('https://docs.python.org/', None)}
 
 
+def _rst_escape(text):
+    """Escape reStructuredText inline markup chars in free-text (option help)."""
+    return str(text).replace('\\', '\\\\').replace('*', '\\*').replace('`', '\\`')
+
+
 def list_options():
     # Get params from RunCmd
     cmd_opts = RunCmd().arg_parser._actions
@@ -328,7 +401,7 @@ def list_options():
             f'{param_name}',
             '=' * len(param_name),
             '',
-            f'Description: {cmd_opt["help"]}',
+            f'Description: {_rst_escape(cmd_opt["help"])}',
             '',
             f'Expected type: {cmd_opt["expected_type"]}',
             '',
@@ -354,3 +427,45 @@ class CliDocumenter(autodoc.ClassDocumenter):
 def setup(app):
     app.add_autodocumenter(CliDocumenter)
     list_options()
+
+
+# -- Cross-component links (intersphinx, aggregated site) --------------------
+# The GenerateDocs orchestrator sets OASIS_INTERSPHINX_MAP (JSON) to point cross-references at
+# the other components' built inventories; standalone builds add nothing. Use explicit roles,
+# e.g. {external+ord:doc}`reference/tables` or :external+oed:ref:`some-label`.
+import json as _ix_json
+import os as _ix_os
+if "sphinx.ext.intersphinx" not in extensions:
+    extensions = list(extensions) + ["sphinx.ext.intersphinx"]
+try:
+    intersphinx_mapping
+except NameError:
+    intersphinx_mapping = {}
+intersphinx_mapping.update({
+    _k: (_v[0], _v[1])
+    for _k, _v in _ix_json.loads(_ix_os.environ.get("OASIS_INTERSPHINX_MAP") or "{}").items()
+})
+# -- Oasis shared branding (logo, palette, GitHub footer) -------------------
+if globals().get("html_theme") == "furo":
+    if "_static" not in (globals().get("html_static_path") or []):
+        html_static_path = list(globals().get("html_static_path") or []) + ["_static"]
+    try:
+        html_theme_options
+    except NameError:
+        html_theme_options = {}
+    html_theme_options.setdefault("light_logo", "OASIS_LMF_COLOUR.png")
+    html_theme_options.setdefault("dark_logo", "OASIS_LMF_WHITE.png")
+    _lcv = html_theme_options.setdefault("light_css_variables", {})
+    _lcv.setdefault("color-brand-primary", "#862633")
+    _lcv.setdefault("color-brand-content", "#d22630")
+    _lcv.setdefault("font-stack", "Raleway, sans-serif")
+    _dcv = html_theme_options.setdefault("dark_css_variables", {})
+    _dcv.setdefault("color-brand-primary", "#e2919b")
+    _dcv.setdefault("color-brand-content", "#ef8b93")
+    # GitHub link — Furo's conventional spot is the footer icons (bottom of every page)
+    html_theme_options.setdefault("footer_icons", [{
+        "name": "GitHub", "url": "https://github.com/OasisLMF", "class": "",
+        "html": '<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>',
+    }])
+    if "https://fonts.googleapis.com/css?family=Raleway" not in (globals().get("html_css_files") or []):
+        html_css_files = list(globals().get("html_css_files") or []) + ["https://fonts.googleapis.com/css?family=Raleway"]

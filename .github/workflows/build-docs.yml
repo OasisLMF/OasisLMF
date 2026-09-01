@@ -6,11 +6,11 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
-    concurrency: ci-${{ github.ref }} # Recommended if you intend to make multiple deployments in quick succession.
+    concurrency: ci-${{ github.ref }}   # one docs build per branch at a time
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,7 +32,8 @@ jobs:
             uv pip install --system furo
       - name: Build
         run: ./docs/build.sh
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload the built docs (for review; nothing is deployed from here)
+        uses: actions/upload-artifact@v4
         with:
+          name: docs-html
           path: './docs/build/html/'

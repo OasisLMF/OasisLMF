@@ -258,74 +258,86 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
 
 
 class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
-    """Built-in Lookup class that implement the OasisLookupInterface
-    The aim of this class is to provide a data driven lookup capability that will be both flexible and efficient.
+    """Built-in Lookup class that implements the OasisLookupInterface.
 
-    it provide several generic function factory that can be define in the config under the "step_definition" key (ex:)
-    "step_definition": {
-        "split_loc_perils_covered":{
-            "type": "split_loc_perils_covered" ,
-            "columns": ["locperilscovered"],
-            "parameters": {
-                "model_perils_covered": ["WTC", "WSS"]
+    The aim of this class is to provide a data-driven lookup capability that is both flexible
+    and efficient.
+
+    It provides several generic function factories that can be defined in the config under the
+    ``step_definition`` key, for example::
+
+        "step_definition": {
+            "split_loc_perils_covered": {
+                "type": "split_loc_perils_covered",
+                "columns": ["locperilscovered"],
+                "parameters": {
+                    "model_perils_covered": ["WTC", "WSS"]
+                }
+            },
+            "vulnerability": {
+                "type": "merge",
+                "columns": ["peril_id", "coverage_type", "occupancycode"],
+                "parameters": {
+                    "file_path": "%%KEYS_DATA_PATH%%/vulnerability_dict.csv",
+                    "id_columns": ["vulnerability_id"]
+                }
             }
-        },
-        "vulnerability": {
-            "type": "merge",
-            "columns": ["peril_id", "coverage_type", "occupancycode"],
-            "parameters": {"file_path": "%%KEYS_DATA_PATH%%/vulnerability_dict.csv",
-                           "id_columns": ["vulnerability_id"]
-                          }
         }
-    }
-    mapper key: is called the step_name,
-        it will be added the the lookup object method once the function has been built
-        it can take any value but make sure it doesn't collide with already existing method
-    type: define the function factory to call.
-        in the class for type <fct_type> the function factory called will be build_<fct_type>
-        ex: "type": "merge" => build_merge
-    columns: are the column required to be able to apply the step.
-        those are quite important as any column (except 'loc_id')
-        from the original Locations Dataframe that is not in any step will be drop to reduce memory consumption
-    parameters: the parameter passed the the function factory.
 
-    Once all the functions have been defined, the order in which they must be applied is defined in the config
-    under the "strategy" key (ex:)
+    Where each entry means:
+
+    - **mapper key**: the ``step_name``; it is added to the lookup object as a method once the
+      function has been built. It can take any value but must not collide with an existing method.
+    - **type**: the function factory to call. For ``type`` ``<fct_type>`` the factory called is
+      ``build_<fct_type>`` (e.g. ``"type": "merge"`` calls ``build_merge``).
+    - **columns**: the columns required to apply the step. These matter because any column
+      (except ``loc_id``) from the original Locations DataFrame that is not used by any step is
+      dropped to reduce memory consumption.
+    - **parameters**: the parameters passed to the function factory.
+
+    Once all the functions have been defined, the order in which they are applied is set in the
+    config under the ``strategy`` key, for example::
+
         "strategy": ["split_loc_perils_covered", "vulnerability"]
 
-    It is totally possible to subclass Lookup in order to create your custom step or function factory
-    for custom step:
-        add your function definition to the "mapper"with no parameters
-    "my_custom_step": {
-            "type": "custom_type" ,
-            "columns": [...],
-    }
-    simply add it to your "strategy": ["split_loc_perils_covered", "vulnerability", "my_custom_step"]
-    and code the function in your subclass
-    class MyLookup(Lookup):
-        @staticmethod
-        def my_custom_step(locations):
-            <do something on locations>
-            return modified_locations
+    It is possible to subclass ``Lookup`` to create a custom step or function factory.
 
-    for function factory:
-    add your function definition to the "step_definition" with the required parameters
-    "my_custom_step": {
-            "type": "custom_type" ,
+    For a custom **step**, add its definition to the ``mapper`` with no parameters::
+
+        "my_custom_step": {
+            "type": "custom_type",
+            "columns": [...]
+        }
+
+    add it to your strategy —
+    ``["split_loc_perils_covered", "vulnerability", "my_custom_step"]`` — and code the function
+    in your subclass::
+
+        class MyLookup(Lookup):
+            @staticmethod
+            def my_custom_step(locations):
+                # do something on locations
+                return modified_locations
+
+    For a custom **function factory**, add its definition to ``step_definition`` with the
+    required parameters::
+
+        "my_custom_step": {
+            "type": "custom_type",
             "columns": [...],
             "parameters": {
                 "param1": "value1"
             }
-    }
-    add your step to "strategy": ["split_loc_perils_covered", "vulnerability", "my_custom_step"]
-    and code the function factory in your subclass
-    class MyLookup(Lookup):
-        def build_custom_type(self, param1):
-            def fct(locations):
-                <do something on locations that depend on param1>
-                return modified_locations
+        }
 
-            return fct
+    add the step to your strategy and code the factory in your subclass::
+
+        class MyLookup(Lookup):
+            def build_custom_type(self, param1):
+                def fct(locations):
+                    # do something on locations that depends on param1
+                    return modified_locations
+                return fct
     """
     interface_version = "1"
 
@@ -489,18 +501,20 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         and one using postcode.
         each strategy will be applied sequentially on the location that steal have OASIS_UNKNOWN_ID in their id_columns after the precedent strategy
 
-        'or' example: (note: "id_columns" is a list)
-            "vulnerability":{
+        'or' example (note: ``id_columns`` is a list)::
+
+            "vulnerability": {
                 "type": "combine",
                 "parameters": {
                     "id_columns": ["vulnerability_id"],
-                    "strategy": ["vuln_cov_Building_Content", "vuln_cov_car"]
+                    "strategy": ["vuln_cov_Building_Content", "vuln_cov_car"],
                     "logical_type": "or"
                 }
             }
 
-        'and' example: (note: that "id_columns" is a list of list)
-            "vuln_cov_car":{
+        'and' example (note: ``id_columns`` is a list of list)::
+
+            "vuln_cov_car": {
                 "type": "combine",
                 "columns": ["autocode"],
                 "parameters": {
@@ -508,14 +522,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     "strategy": ["vulnerability_car", "coverage_type_car"],
                     "logical_type": "and"
                 }
-            },
+            }
 
         Args:
             id_columns (list): columns that will be checked to determine if a strategy has succeeded
             strategy (list): list of strategy to apply
-            logical_type: if 'or' apply the next strategy only on invalid id_columns
-                          if 'and' apply the next strategy only on valid id_columns
-                                   id_columns needs to be a list of list of columns that each sublist is checked sequentially
+            logical_type: if 'or' apply the next strategy only on invalid id_columns;
+                if 'and' apply the next strategy only on valid id_columns (id_columns needs to be
+                a list of list of columns so that each sublist is checked sequentially)
 
         Returns:
             function: function combining all strategies
@@ -564,7 +578,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
 
-        usefull inspirational code:
+        Useful inspirational code:
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
         """
         peril_groups_df = get_peril_groups_df()
@@ -600,14 +614,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_prepare(**kwargs):
-        """Prepare the dataframe by setting default, min and max values and type
-        support several simple DataFrame preparation:
-        default: create the column if missing and replace the nan value with the default value
-        max: truncate the values in a column to the specified max
-        min: truncate the values in a column to the specified min
-        type: convert the type of the column to the specified numpy dtype
-        Note that we use the string representation of numpy dtype available at
-        https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing
+        """Prepare the dataframe by setting default, min and max values and type.
+
+        Supports several simple DataFrame preparations:
+
+        - **default**: create the column if missing and replace the nan value with the default value
+        - **max**: truncate the values in a column to the specified max
+        - **min**: truncate the values in a column to the specified min
+        - **type**: convert the type of the column to the specified numpy dtype. Note that we use
+          the string representation of numpy dtype available at
+          https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing
         """
         def prepare(locations):
             for column_name, preparations in kwargs.items():
@@ -646,7 +662,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             this file must be a geopandas Dataframe with a valid geometry.
             an example on how to create such dataframe is available in PiWind
             if you are new to geo data (in python) and want to learn more, you may have a look at this excellent course:
-            https://automating-gis-processes.github.io/site/index.html
+            https://autogis-site.readthedocs.io/
 
         file_type: can be any format readable by geopandas ('file', 'parquet', ...)
             see: https://geopandas.readthedocs.io/en/latest/docs/reference/io.html
@@ -767,8 +783,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         `fixed_size_geo_grid` method.
 
         Args:
-            perils_dict: dict: Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
-                value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
+            perils_dict (dict): Dictionary with ``peril_id`` as key and ``fixed_size_geo_grid``
+                parameter dict as value, i.e. ``{'peril_id': {fixed_size_geo_grid parameters}}``
         """
         def fct(locs_peril):
             start_index = 0
@@ -829,8 +845,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         `fixed_size_z_index_geo_grid` method.
 
         Args:
-            perils_dict: dict: Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
-                value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
+            perils_dict (dict): Dictionary with ``peril_id`` as key and ``fixed_size_geo_grid``
+                parameter dict as value, i.e. ``{'peril_id': {fixed_size_geo_grid parameters}}``
         """
         def fct(locs_peril):
             locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID
@@ -1080,25 +1096,32 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     @staticmethod
     def build_simple_pivot(pivots, remove_pivoted_col=True):
         """Allow to pivot columns of the locations dataframe into multiple rows
-        each pivot in the pivot list may define:
-        "on": to rename a column into a new one
-        "new_cols": to create a new column with a certain values
-        ex:
-        "pivots": [{"on": {"vuln_str": "vulnerability_id"},
-        "new_cols": {"coverage_type": 1}},
-        {"on": {"vuln_con": "vulnerability_id"},
-        "new_cols": {"coverage_type": 3}},
-        ],
-        loc_id  vuln_str    vuln_con
-        1       3           2
-        2       18          4
 
-        =>
-        loc_id  vuln_str    vuln_con    vulnerability_id    coverage_type
-        1       3           2           3                   1
-        2       18          4           18                  1
-        1       3           2           2                   3
-        2       18          4           4                   3
+        each pivot in the pivot list may define:
+
+        - **on**: to rename a column into a new one
+        - **new_cols**: to create a new column with a certain values
+
+        For example, with::
+
+            "pivots": [{"on": {"vuln_str": "vulnerability_id"},
+                        "new_cols": {"coverage_type": 1}},
+                       {"on": {"vuln_con": "vulnerability_id"},
+                        "new_cols": {"coverage_type": 3}}]
+
+        the input::
+
+            loc_id  vuln_str    vuln_con
+            1       3           2
+            2       18          4
+
+        becomes::
+
+            loc_id  vuln_str    vuln_con    vulnerability_id    coverage_type
+            1       3           2           3                   1
+            2       18          4           18                  1
+            1       3           2           2                   3
+            2       18          4           4                   3
         """
         def simple_pivot(locations):
             pivoted_dfs = []

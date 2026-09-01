@@ -27,6 +27,8 @@ loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
 
 
 class PLTReader(EventReader):
+    """Read an event loss stream and compute the PLT outputs (SPLT, MPLT, QPLT)."""
+
     def __init__(
         self,
         len_sample,

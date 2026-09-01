@@ -108,6 +108,7 @@ class KeyServerFactory(object):
     The factory now return a KeyServer object and not a KeyLookup.
     The parameter to pass has also been simplified
     usage of all the below parameter are now deprecated
+
       - complex_lookup_config_fp => pass the path to your complex lookup config directly in lookup_config_fg
       - lookup_module_path => set as key 'lookup_module_path' in the lookup config
       - model_keys_data_path => set as key 'keys_data_path' in the lookup config
