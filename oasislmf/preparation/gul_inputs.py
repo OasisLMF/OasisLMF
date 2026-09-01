@@ -391,22 +391,22 @@ def get_gul_input_items(
             [gul_inputs_df['loc_id'], gul_inputs_df['peril_id'], gul_inputs_df['areaperil_id']])
         # each pass can only extend the chain by one link, so len(pairs) passes always suffice
         for _ in range(len(coverage_dependency_settings)):
-            kept = tiv_positive | keep_zero_tiv_source
-            newly_kept = pd.Series(False, index=gul_inputs_df.index)
+            kept_before = keep_zero_tiv_source.sum()
             for source_cov_type, dependent_cov_type in coverage_dependency_settings:
+                # recomputed per pair, so a pair settled earlier in this pass is already visible
+                kept = tiv_positive | keep_zero_tiv_source
                 dependent_rows = (kept & (gul_inputs_df['coverage_type_id'] == dependent_cov_type)).to_numpy()
                 if not dependent_rows.any():
                     continue
                 drives_a_kept_dependent = pd.Series(
                     pair_key.isin(pair_key[dependent_rows]), index=gul_inputs_df.index)
-                newly_kept |= (
+                keep_zero_tiv_source |= (
                     (gul_inputs_df['coverage_type_id'] == source_cov_type)
                     & (~kept)
                     & drives_a_kept_dependent
                 )
-            if not newly_kept.any():
+            if keep_zero_tiv_source.sum() == kept_before:
                 break
-            keep_zero_tiv_source |= newly_kept
 
     # Filter out rows with zero TIV, except retained dependency sources
     gul_inputs_df = gul_inputs_df[(gul_inputs_df['tiv'] > 0) | keep_zero_tiv_source]
