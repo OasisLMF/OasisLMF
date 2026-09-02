@@ -1663,7 +1663,7 @@ def reset_gul_inputs(gul_inputs_df):
 
 def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_csv, fm_policytc_bin,
                              fm_programme_csv, fm_programme_bin, chunksize):
-    gul_inputs_df["agg_id"] = gul_inputs_df.groupby(agg_key, sort=False, observed=True).ngroup().astype('int32') + 1
+    gul_inputs_df["agg_id"] = gul_inputs_df.groupby(agg_key, sort=False, observed=True, dropna=False).ngroup().astype('int32') + 1
     gul_inputs_df["profile_id"] = 1
     gul_inputs_df["level_id"] = cur_level_id
     fm_policytc_df = gul_inputs_df.loc[:, fm_policytc_headers]
