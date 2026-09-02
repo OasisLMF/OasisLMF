@@ -47,7 +47,7 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping
+from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ def run(run_dir,
 
     Args:
         run_dir (str): the directory of where the process is running
-        ignore_file_type set(str): file extension to ignore when loading
+        ignore_file_type (set(str)): file extension to ignore when loading
         sample_size (int): number of random samples to draw.
         loss_threshold (float): threshold above which losses are printed to the output stream.
         alloc_rule (int): back-allocation rule.
@@ -92,10 +92,16 @@ def run(run_dir,
         file_out (str, optional): filename of output stream. Defaults to None.
         data_server (bool, optional): if True, run the data server. Defaults to None.
         ignore_correlation (bool, optional): if True, do not compute correlated random samples. Defaults to False.
+        ignore_haz_correlation (bool, optional): if True, do not compute correlated hazard intensity samples. Defaults to False.
         effective_damageability (bool, optional): if True, it uses effective damageability to draw damage samples instead of
           using the full monte carlo approach (i.e., to draw hazard intensity first, then damage).
         max_cached_vuln_cdf_size_MB (int, optional): size in MB of the in-memory cache to store and reuse vulnerability cdf. Defaults to 200.
-        model_df_engine: (str) The engine to use when loading model dataframes
+        model_df_engine (str, optional): The engine to use when loading model dataframes. Defaults to OasisPandasReader.
+        dynamic_footprint (bool, optional): if True, load the dynamic footprint data and adjust hazard intensities at
+          runtime. Defaults to False.
+        **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
+          the port to override; analysis_pk is reported with each ping.
+
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
         ValueError: if alloc_rule is 1, 2, or 3 when debug is 1 or 2.
@@ -459,7 +465,7 @@ def run(run_dir,
                 ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
                 if ping_port is not None:
                     ping_data['port_override'] = ping_port
-                oasis_ping(ping_data)
+                oasis_ping_async(ping_data)
                 counter = 0
 
     return 0
@@ -467,8 +473,8 @@ def run(run_dir,
 
 @nb.njit(cache=True, fastmath=True)
 def get_last_non_empty(cdf, bin_i):
-    """
-    remove empty bucket from the end
+    """Remove empty bucket from the end
+
     Args:
         cdf: cumulative distribution
         bin_i: last valid bin index
@@ -484,8 +490,8 @@ def get_last_non_empty(cdf, bin_i):
 
 @nb.njit(cache=True, fastmath=True)
 def pdf_to_cdf(pdf, empty_cdf):
-    """
-    return the cumulative distribution from the probality distribution
+    """Return the cumulative distribution from the probality distribution
+
     Args:
         pdf (np.array[float]): probality distribution
         empty_cdf (np.array[float]): cumulative distribution buffer for output
@@ -506,8 +512,8 @@ def pdf_to_cdf(pdf, empty_cdf):
 
 @nb.njit(cache=True, fastmath=True)
 def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
-    """
-    calculate the covoluted cumulative distribution between vulnerability damage and hazard probability distribution
+    """Calculate the covoluted cumulative distribution between vulnerability damage and hazard probability distribution
+
     Args:
         vuln_pdf (np.array[float]) : vulnerability damage probability distribution
         haz_pdf (np.array[float]): hazard probability distribution
@@ -1106,7 +1112,7 @@ def process_areaperils_in_footprint(event_footprint,
     Args:
         event_footprint (np.array[Event or footprint_event_dtype]): footprint entries.
         areaperil_id_ind (np.array): id_index structure for known areaperil_ids.
-        dynamic_footprint (boolean): true if there is dynamic_footprint.
+        dynamic_footprint (bool): true if there is dynamic_footprint.
         ap_inds (np.array[uint32]): pre-allocated output buffer for dense areaperil indices.
         event_rps (np.array[int32]): pre-allocated output buffer for return periods (dynamic only).
         haz_arr_ptr (np.array[int64]): pre-allocated output buffer for hazard pdf offsets.
@@ -1193,6 +1199,7 @@ def reconstruct_coverages(compute_info,
 
     For each (areaperil_id, vulnerability_id) pair present in the event footprint, iterates
     over all mapped items and:
+
       1. Computes deterministic hash-based random seeds for hazard and damage sampling,
          using group_id and hazard_group_id respectively. Seeds are deduplicated via
          pre-allocated arrays indexed by sequential group ids.

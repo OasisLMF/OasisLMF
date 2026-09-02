@@ -1,7 +1,6 @@
-"""
-    Python utilities used for setting up the structure of the run directory
-    in which to prepare the inputs to run a model or generate deterministic
-    losses, and store the outputs.
+"""Python utilities used for setting up the structure of the run directory
+in which to prepare the inputs to run a model or generate deterministic
+losses, and store the outputs.
 """
 __all__ = [
     'check_binary_tar_file',
@@ -61,8 +60,7 @@ def prepare_run_directory(
     copy_model_data=False,
     model_storage_config_fp=None
 ):
-    """
-    Ensures that the model run directory has the correct folder structure in
+    """Ensures that the model run directory has the correct folder structure in
     order for the model run script (kernel) to be executed. Without the RI
     flag the model run directory will have the following structure
 
@@ -77,7 +75,6 @@ def prepare_run_directory(
         |-- work/
         |-- analysis_settings.json
         `-- run_kernel.sh
-
 
     where the direct GUL and/or FM input files exist in the ``input/csv``
     subfolder and the corresponding binaries exist in the ``input`` subfolder.
@@ -115,31 +112,19 @@ def prepare_run_directory(
     Darwin or Linux, otherwise the source folder tree is recursively
     copied into the ``static`` subfolder.
 
-    :param run_dir: the model run directory
-    :type run_dir: str
-
-    :param oasis_src_fp: path to a set of Oasis files
-    :type oasis_src_fp: str
-
-    :param ri: Boolean flag for RI mode
-    :type ri: bool
-
-    :param analysis_settings_fp: analysis settings JSON file path
-    :type analysis_settings_fp: str
-
-    :param model_data_fp: model data source path, if this is a file it will be loaded as a
-        custom storage class
-    :type model_data_fp: str
-
-    :param inputs_archive: path to a tar file containing input files
-    :type inputs_archive: str
-
-    :param user_data_dir: path to a directory containing additional user-supplied model data
-    :type user_data_dir: str
-
-    :param model_storage_config_fp: path to the model storage configuration, if not present
-        the model data will be copied to the static directory
-    :type model_storage_config_fp: str
+    Args:
+        run_dir (str): the model run directory
+        oasis_src_fp (str): path to a set of Oasis files
+        ri (bool): Boolean flag for RI mode
+        analysis_settings_fp (str): analysis settings JSON file path
+        model_data_fp (str): model data source path, if this is a file it will be loaded as a
+            custom storage class
+        inputs_archive (str): path to a tar file containing input files
+        user_data_dir (str): path to a directory containing additional user-supplied model data
+        copy_model_data (bool): copy the model data into ``static`` instead of symlinking it.
+            Always copied on Windows regardless of this flag
+        model_storage_config_fp (str): path to the model storage configuration, if not present
+            the model data will be copied to the static directory
     """
     try:
         for subdir in ['fifo', 'output', 'static', 'work']:
@@ -311,11 +296,11 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, storage: BaseStorage, 
 
 
 def _calc_selected(analysis_settings, calc_type_list):
-    """
-    Return True, if any options in "calc_type_list" are set in the analysis settings file
+    """Return True, if any options in "calc_type_list" are set in the analysis settings file
 
-    :param calc_type_list: List of string values or kernel outputs, e.g. `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
-    :type  calc_type_list: list
+    Args:
+        analysis_settings (dict): model analysis settings dict, whose gul/il/ri summaries sections are searched
+        calc_type_list (list): List of string values or kernel outputs, e.g. `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
     """
     gul_section = analysis_settings.get('gul_summaries')
     il_section = analysis_settings.get('il_summaries')
@@ -336,8 +321,7 @@ def _calc_selected(analysis_settings, calc_type_list):
 
 
 def _leccalc_selected(analysis_settings):
-    """ return True if either 'leccalc' or 'ordleccalc' is referenced in the analysis settings file
-    """
+    """Return True if either 'leccalc' or 'ordleccalc' is referenced in the analysis settings file"""
     is_in_gul = False
     is_in_il = False
     is_in_ri = False
@@ -357,11 +341,10 @@ def _leccalc_selected(analysis_settings):
 
 
 def get_event_range(event_range):
-    """
-    Parses event range string and returns a list of event ids.
+    """Parses event range string and returns a list of event ids.
 
-    :param event_range: string representation of event range in format '1-5,10,89-100'
-    :type event_range: str
+    Args:
+        event_range (str): string representation of event range in format '1-5,10,89-100'
     """
     lst_event_range = event_range.split(",")
     lst_events = []
@@ -381,14 +364,13 @@ def get_event_range(event_range):
 
 @oasis_log
 def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, ri=False):
-    """
-    Sets up binary files in the model inputs directory.
+    """Sets up binary files in the model inputs directory.
 
-    :param analysis_settings: model analysis settings dict
-    :type analysis_settings: dict
-
-    :param run_dir: model run directory
-    :type run_dir: str
+    Args:
+        analysis_settings (dict): model analysis settings dict
+        run_dir (str): model run directory
+        model_storage (BaseStorage): storage connector the model data files are fetched from
+        ri (bool): Boolean flag for RI mode
     """
     try:
         model_settings = analysis_settings.get('model_settings', {})
@@ -449,15 +431,12 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, r
 
 @oasis_log
 def set_footprint_set(setting_val, run_dir):
-    """
-    Create symbolic link to footprint file set that will be used for output
+    """Create symbolic link to footprint file set that will be used for output
     calculation.
 
-    :param setting_val: identifier for footprint set
-    :type setting_val: string
-
-    :param run_dir: model run directory
-    :type run_dir: string
+    Args:
+        setting_val (str): identifier for footprint set
+        run_dir (str): model run directory
     """
     priorities = Footprint.get_footprint_fmt_priorities()
     setting_val = str(setting_val)
@@ -488,17 +467,13 @@ def set_footprint_set(setting_val, run_dir):
 
 @oasis_log
 def set_vulnerability_set(setting_val, run_dir):
-    """
-    Create symbolic link to vulnerability file set that will be used for output
+    """Create symbolic link to vulnerability file set that will be used for output
     calculation.
 
-    :param setting_val: identifier for vulnerability set
-    :type setting_val: string
-
-    :param run_dir: model run directory
-    :type run_dir: string
+    Args:
+        setting_val (str): identifier for vulnerability set
+        run_dir (str): model run directory
     """
-
     vulnerability_formats = ['bin', 'parquet', 'csv']
     setting_val = str(setting_val)
 
@@ -579,17 +554,14 @@ def _set_dynamic_footprint_dataset(filename, setting_val, run_dir):
 
 @oasis_log
 def set_hazard_case_set(setting_val, run_dir):
-    """
-    Create symbolic links to the hazard case and event definition datasets
+    """Create symbolic links to the hazard case and event definition datasets
     that will be used for dynamic footprint calculation. Both datasets are
     linked using the same identifier, so they always stay in sync with
     each other.
 
-    :param setting_val: identifier for hazard case / event definition set
-    :type setting_val: str
-
-    :param run_dir: model run directory
-    :type run_dir: str
+    Args:
+        setting_val (str): identifier for hazard case / event definition set
+        run_dir (str): model run directory
     """
     setting_val = str(setting_val)
     for filename in (hazard_case_filename, event_defintion_filename):
@@ -598,20 +570,13 @@ def set_hazard_case_set(setting_val, run_dir):
 
 @oasis_log
 def check_inputs_directory(directory_to_check, il=False, ri=False, check_binaries=True):
-    """
-    Check that all the required files are present in the directory.
+    """Check that all the required files are present in the directory.
 
-    :param directory_to_check: directory containing the CSV files
-    :type directory_to_check: string
-
-    :param il: check insuured loss files
-    :type il: bool
-
-    :param il: check resinsurance sub-folders
-    :type il: bool
-
-    :param check_binaries: check binary files are not present
-    :type check_binaries: bool
+    Args:
+        directory_to_check (str): directory containing the CSV files
+        il (bool): check insuured loss files
+        ri (bool): check resinsurance sub-folders
+        check_binaries (bool): check binary files are not present
     """
     # Check the top level directory, that containes the core files and any direct FM files
     _check_each_inputs_directory(directory_to_check, il=il, check_binaries=check_binaries)
@@ -622,14 +587,12 @@ def check_inputs_directory(directory_to_check, il=False, ri=False, check_binarie
 
 
 def _check_each_inputs_directory(directory_to_check, il=False, check_binaries=True):
-    """
-    Detailed check of a specific directory.
+    """Detailed check of a specific directory.
 
     Accepts either .csv or .bin for each required input file.
     When check_binaries is True, raises if both .csv and .bin exist
     for the same file (ambiguous state).
     """
-
     if il:
         input_files = (f['name'] for f in INPUT_FILES.values() if f['type'] != 'optional')
     else:
@@ -650,7 +613,7 @@ def _check_each_inputs_directory(directory_to_check, il=False, check_binaries=Tr
 
 
 def move_bin(src, dst):
-    """select binary files from src and move them to dst folder"""
+    """Select binary files from src and move them to dst folder"""
     def move_single_folder(src, dst):
         os.makedirs(dst, exist_ok=True)
         for input_file in INPUT_FILES.values():
@@ -671,19 +634,17 @@ def move_bin(src, dst):
 
 @oasis_log
 def check_binary_tar_file(tar_file_path, check_il=False):
-    """
-    Checks that all required files are present
+    """Checks that all required files are present
 
-    :param tar_file_path: Path to the tar file to check
-    :type tar_file_path: str
+    Args:
+        tar_file_path (str): Path to the tar file to check
+        check_il (bool): Flag whether to check insured loss files
 
-    :param check_il: Flag whether to check insured loss files
-    :type check_il: bool
+    Returns:
+        bool: True if all required files are present, False otherwise
 
-    :raises OasisException: If a required file is missing
-
-    :return: True if all required files are present, False otherwise
-    :rtype: bool
+    Raises:
+        OasisException: If a required file is missing
     """
     expected_members = ('{}.bin'.format(f['name']) for f in GUL_INPUT_FILES.values())
 
@@ -702,11 +663,10 @@ def check_binary_tar_file(tar_file_path, check_il=False):
 
 @oasis_log
 def create_binary_tar_file(directory):
-    """
-    Package the binaries in a gzipped tar.
+    """Package the binaries in a gzipped tar.
 
-    :param directory: Path containing the binaries
-    :type tar_file_path: str
+    Args:
+        directory (str): Path containing the binaries
     """
     with tarfile.open(os.path.join(directory, TAR_FILE), "w:gz") as tar:
         for f in glob.glob('{}*{}*.bin'.format(directory, os.sep)):
@@ -721,14 +681,13 @@ def create_binary_tar_file(directory):
 
 @oasis_log
 def check_conversion_tools(il=False):
-    """
-    Check that the conversion tools are available
+    """Check that the conversion tools are available
 
-    :param il: Flag whether to check insured loss tools
-    :type il: bool
+    Args:
+        il (bool): Flag whether to check insured loss tools
 
-    :return: True if all required tools are present, False otherwise
-    :rtype: bool
+    Returns:
+        bool: True if all required tools are present, False otherwise
     """
     if il:
         input_files = INPUT_FILES.values()
@@ -747,9 +706,7 @@ def check_conversion_tools(il=False):
 
 @oasis_log
 def cleanup_bin_directory(directory):
-    """
-    Clean the tar and binary files.
-    """
+    """Clean the tar and binary files."""
     for file in chain([TAR_FILE], (f + '.bin' for f in INPUT_FILES.keys())):
         file_path = os.path.join(directory, file)
         if os.path.exists(file_path):

@@ -25,8 +25,7 @@ MODEL_LOG_PATH = str(os.getcwd()) + f"/{randint(1, 900)}_model_log.txt"
 
 
 class OperationEnum(Enum):
-    """
-    Defines the different types of operations supported via bytes. To be passed through TCP port first to tell the
+    """Defines the different types of operations supported via bytes. To be passed through TCP port first to tell the
     server what type of operation is required.
     """
     GET_DATA = (1).to_bytes(4, byteorder='big')
@@ -37,8 +36,7 @@ class OperationEnum(Enum):
 
 
 class FootprintLayer:
-    """
-    This class is responsible for accessing the footprint data via TCP ports.
+    """Class to accessing the footprint data via TCP ports.
 
     Attributes:
         static_path (str): path to the static file to load the data
@@ -57,13 +55,13 @@ class FootprintLayer:
         ignore_file_type: Set[str] = set(),
         df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     ) -> None:
-        """
-        The constructor for the FootprintLayer class.
+        """The constructor for the FootprintLayer class.
 
         Args:
-            ignore_file_type: (Set[str]) collection of file types to ignore when loading
-            total_expected: (int) the total number of reliant processes expected
-
+            storage (BaseStorage): the storage connector the footprint data is loaded from
+            total_expected (int): the total number of reliant processes expected
+            ignore_file_type (Set[str]): collection of file types to ignore when loading
+            df_engine (str): the engine to use when loading dataframes
         """
         self.storage = storage
         self.ignore_file_type: Set[str] = ignore_file_type
@@ -76,8 +74,7 @@ class FootprintLayer:
         self._define_socket()
 
     def _define_socket(self) -> None:
-        """
-        Defines the self.socket attribute to the port and localhost.
+        """Defines the self.socket attribute to the port and localhost.
 
         Returns: None
         """
@@ -89,26 +86,22 @@ class FootprintLayer:
         self.socket.listen(PROCESSES_SUPPORTED)
 
     def _establish_shutdown_procedure(self) -> None:
-        """
-        Establishes the steps for shutdown, writing the pointer, and making sure that the pointer will be deleted
+        """Establishes the steps for shutdown, writing the pointer, and making sure that the pointer will be deleted
         and the self.socket is shutdown once the process running the server is exited.
 
         Returns: None
         """
         logging.info(f"establishing shutdown procedure: {datetime.datetime.now()}")
-        # atexit.register(_shutdown_port, self.socket)
-        pass
 
     @staticmethod
     def _stream_footprint_data(event_data: np.array, connection: socket.socket, event_id: int) -> None:
-        """
-        Serialises data then splits it into chunks of 500 in turn streaming through a connection.
+        """Serialises data then splits it into chunks of 500 in turn streaming through a connection.
 
         Args:
-            event_data: (np.array) the data to be serialised and streamed through a connection
-            connection: (socket.socket) the connection that the data is going to be streamed through
-
-        Returns: None
+            event_data (np.array): the data to be serialised and streamed through a connection
+            connection (socket.socket): the connection that the data is going to be streamed through
+            event_id (int): the id of the event the data belongs to, currently not used by the
+                streaming itself
         """
         raw_data: bytes = pickle.dumps(event_data)
 
@@ -119,8 +112,7 @@ class FootprintLayer:
 
     @staticmethod
     def _extract_header(header_data: bytes) -> Tuple[OperationEnum, Optional[int]]:
-        """
-        Extracts the operation type and event_id from the header.
+        """Extracts the operation type and event_id from the header.
 
         Args:
             header_data: (bytes) header data sent from the client and recieved via TCP
@@ -140,8 +132,7 @@ class FootprintLayer:
         return operation, event_id
 
     def listen(self) -> None:
-        """
-        Fires off the process with an event loop serving footprint data.
+        """Fires off the process with an event loop serving footprint data.
 
         Returns: None
         """
@@ -196,13 +187,10 @@ class FootprintLayer:
 
 
 class FootprintLayerClient:
-    """
-    This class is responsible for connecting to the footprint server via TCP.
-    """
+    """Connects to the footprint server via TCP."""
     @classmethod
     def poll(cls) -> bool:
-        """
-        Checks to see if data server is running.
+        """Checks to see if data server is running.
 
         Returns: (bool)
         """
@@ -215,8 +203,7 @@ class FootprintLayerClient:
 
     @classmethod
     def _get_socket(cls) -> socket.socket:
-        """
-        Gets the socket using the cls.TCP_IP and cls.TCP_PORT.
+        """Gets the socket using the cls.TCP_IP and cls.TCP_PORT.
 
         Returns: (socket.socket) a connected socket
         """
@@ -226,18 +213,8 @@ class FootprintLayerClient:
         return current_socket
 
     @classmethod
-    def _define_shutdown_procedure(cls) -> None:
-        """
-        Unregisters the client to the server on exit of the process.
-
-        Returns: None
-        """
-        atexit.register(cls.unregister)
-
-    @classmethod
     def register(cls) -> None:
-        """
-        Registers the client with the server.
+        """Registers the client with the server.
 
         Returns: None
         """
@@ -249,12 +226,10 @@ class FootprintLayerClient:
         data: bytes = OperationEnum.REGISTER.value
         current_socket.sendall(data)
         current_socket.close()
-        # cls._define_shutdown_procedure()
 
     @classmethod
     def unregister(cls) -> None:
-        """
-        Unregisters the client with the data server.
+        """Unregisters the client with the data server.
 
         Returns: None
         """
@@ -266,8 +241,7 @@ class FootprintLayerClient:
 
     @classmethod
     def get_number_of_intensity_bins(cls) -> int:
-        """
-        Gets the number of intensity bins from the footprint data.
+        """Gets the number of intensity bins from the footprint data.
 
         Returns: (int) the number of intensity bins
         """
@@ -281,8 +255,7 @@ class FootprintLayerClient:
 
     @classmethod
     def get_event(cls, event_id: int) -> np.array:
-        """
-        Gets the footprint data from the footprint based off the event_id.
+        """Gets the footprint data from the footprint based off the event_id.
 
         Args:
             event_id: (int) the event ID of the data required
@@ -304,11 +277,6 @@ class FootprintLayerClient:
 
         if raw_data_buffer:
             return pickle.loads(b"".join(raw_data_buffer))
-
-
-def _shutdown_port(connection: socket.socket) -> None:
-    logging.info(f"socket is shutting down: {datetime.datetime.now()}")
-    connection.shutdown(socket.SHUT_RDWR)
 
 
 def main() -> None:

@@ -37,7 +37,8 @@ from oasislmf.preparation.gul_inputs import (get_gul_input_items,
                                              process_group_id_cols,
                                              write_gul_input_files)
 from oasislmf.preparation.il_inputs import (get_il_input_items,
-                                            get_oed_hierarchy)
+                                            get_oed_hierarchy,
+                                            validate_account_location_references)
 from oasislmf.preparation.reinsurance_layer import write_files_for_reinsurance
 from oasislmf.preparation.summaries import (get_summary_mapping,
                                             merge_oed_to_mapping,
@@ -77,8 +78,7 @@ def compute_ri_inuring_priority_output_levels(ri_layers):
 
 
 class GenerateFiles(ComputationStep):
-    """
-    Generates the standard Oasis GUL input files + optionally the IL/FM input
+    """Generates the standard Oasis GUL input files + optionally the IL/FM input
     files and the RI input files.
     """
     settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
@@ -224,6 +224,12 @@ class GenerateFiles(ComputationStep):
         if il:
             exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
             account_df = exposure_data.account.dataframe
+            # Validate location/account referential integrity now, before the (potentially very
+            # long) keys lookup stage, so a bad portfolio fails fast instead of after hours of work.
+            # exposure_data.location can be None (e.g. cyber, marine - no location file), in which
+            # case there's nothing to validate against accounts.
+            true_location_df = exposure_data.location.dataframe if exposure_data.location is not None else None
+            validate_account_location_references(true_location_df, exposure_data.account.dataframe)
         else:
             account_df = None
 
@@ -467,9 +473,7 @@ class GenerateFiles(ComputationStep):
 
 
 class GenerateDummyModelFiles(ComputationStep):
-    """
-    Generates dummy model files.
-    """
+    """Generates dummy model files."""
 
     # Command line options
     step_params = [
@@ -608,8 +612,7 @@ class GenerateDummyModelFiles(ComputationStep):
 
 
 class GenerateDummyOasisFiles(GenerateDummyModelFiles):
-    """
-    Generates dummy model and Oasis GUL input files + optionally the IL/FM
+    """Generates dummy model and Oasis GUL input files + optionally the IL/FM
     input files.
     """
 

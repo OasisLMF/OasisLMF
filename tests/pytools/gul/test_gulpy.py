@@ -142,8 +142,9 @@ def test_gulpy_periodic_ping():
     """The in-loop periodic ping fires once more than SERVER_UPDATE_TIME elapses between events.
 
     Feeds gulpy a real getmodel stream (so the event loop runs) and forces the threshold
-    negative, so the periodic ping fires per event -> oasis_ping is called more than once
-    (periodic pings + the end-of-run ping).
+    negative, so the periodic ping fires per event. The periodic ping is dispatched through
+    `oasis_ping_async` (fire-and-forget, so a stuck ping target can't stall the compute loop)
+    while the end-of-run ping still calls `oasis_ping` directly.
     """
     test_model_dir = Path(test_models_dirs[0][1])
     with TemporaryDirectory() as tmp_result_dir_str:
@@ -156,12 +157,14 @@ def test_gulpy_periodic_ping():
             with open(stream, 'wb') as fout:
                 subprocess.run("evepy 1 1 | modelpy", cwd=test_model_dir, shell=True, check=True, stdout=fout)
             with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
+                  patch('oasislmf.pytools.gul.manager.oasis_ping_async') as mock_ping_async,
                   patch('oasislmf.pytools.gul.manager.SERVER_UPDATE_TIME', -1)):
                 gulpy_run(run_dir=tmp_result_dir, ignore_file_type=set(), sample_size=10, loss_threshold=0.,
                           alloc_rule=1, debug=False, random_generator=1,
                           file_in=str(stream), file_out=str(out_bin),
                           socket_server='True')
-            assert mock_ping.call_count > 1
+            assert mock_ping_async.call_count > 1
+            mock_ping.assert_called_once()
         finally:
             for scratch in (stream, out_bin):
                 if scratch.exists():

@@ -38,9 +38,7 @@ from ..base import ComputationStep
 
 
 class PlatformBase(ComputationStep):
-    """
-    Base platform class to handle opening a client connection
-    """
+    """Base platform class to handle opening a client connection"""
     step_params = [
         {'name': 'server_login_json', 'required': False, 'default': None, 'is_path': True,
             'pre_exist': False, 'help': 'Server login credentials json string'},
@@ -60,8 +58,7 @@ class PlatformBase(ComputationStep):
         self.server = self.open_connection()
 
     def load_credentials(self, login_arg, auth_type=None):
-        """
-        Load credentials from JSON file or prompt interactively.
+        """Load credentials from JSON file or prompt interactively.
 
         Options:
             1.'--server-login ./APIcredentials.json'
@@ -137,8 +134,7 @@ class PlatformBase(ComputationStep):
         return kwargs
 
     def open_connection(self):
-        """
-        Attempts connection in this order:
+        """Attempts connection in this order:
         1. API_EXAMPLE_AUTH username/password  (skipped when auth_type is oidc or m2m)
         2. API_EXAMPLE_AUTH client_id/client_secret  (skipped when auth_type is simple)
         3. Prompt or load credentials
@@ -241,8 +237,7 @@ class PlatformBase(ComputationStep):
         return data
 
     def print_portfolios_summary(self, items):
-        """
-        The portfolios list endpoint doesn't include `validation_status`/
+        """The portfolios list endpoint doesn't include `validation_status`/
         `exposure_status` - those are only present on the per-portfolio
         detail GET, so fetch each one individually to fill them in.
         """
@@ -258,9 +253,7 @@ class PlatformBase(ComputationStep):
         return data
 
     def require_api_v2(self, feature_name):
-        """
-        Guard for endpoints only available on the v2 (distributed) Platform API.
-        """
+        """Guard for endpoints only available on the v2 (distributed) Platform API."""
         if self.server_version.lower() == 'v1':
             raise OasisException(
                 f"'{feature_name}' requires the v2 Oasis Platform API, "
@@ -290,8 +283,7 @@ class PlatformBase(ComputationStep):
     pending_states = ['NONE', 'STARTED']
 
     def poll_portfolio_field(self, portfolio_id, status_field, poll_interval, action_name):
-        """
-        Poll a portfolio's async status field (e.g. `validation_status`,
+        """Poll a portfolio's async status field (e.g. `validation_status`,
         `exposure_status`) until it settles on a terminal value.
 
         A re-triggered run can end up back at the same terminal status it
@@ -319,8 +311,7 @@ class PlatformBase(ComputationStep):
 
 
 class PlatformServerInfo(PlatformBase):
-    """ Print version/info details of the connected Oasis Platform API server
-    """
+    """Print version/info details of the connected Oasis Platform API server"""
 
     def run(self):
         rsp = self.server.server_info()
@@ -330,8 +321,7 @@ class PlatformServerInfo(PlatformBase):
 
 
 class PlatformList(PlatformBase):
-    """ Return status and details from an Oasis Platform API server
-    """
+    """Return status and details from an Oasis Platform API server"""
     step_params = PlatformBase.step_params + [
         {'name': 'models', 'flag': '-m', 'type': int, 'nargs': '+', 'help': 'List of model ids to print in detail'},
         {'name': 'portfolios', 'flag': '-p', 'type': int, 'nargs': '+', 'help': 'List of portfolio ids to print in detail'},
@@ -385,8 +375,7 @@ class PlatformList(PlatformBase):
 
 
 class PlatformRunInputs(PlatformBase):
-    """ run generate inputs via the Oasis Platoform API
-    """
+    """run generate inputs via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'model_id', 'type': int, 'help': 'API `id` of a model to run an analysis with'},
         {'name': 'portfolio_id', 'type': int, 'help': 'API `id` of a portfolio to run an analysis with'},
@@ -470,8 +459,7 @@ class PlatformRunInputs(PlatformBase):
 
 
 class PlatformRunLosses(PlatformBase):
-    """ run generate losses via the Oasis Platoform API
-    """
+    """run generate losses via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
@@ -491,8 +479,7 @@ class PlatformRunLosses(PlatformBase):
 
 
 class PlatformRun(PlatformBase):
-    """ End to End - run model via the Oasis Platoform API
-    """
+    """End to End - run model via the Oasis Platform API"""
     chained_commands = [PlatformRunInputs, PlatformRunLosses]
 
     def run(self):
@@ -501,7 +488,7 @@ class PlatformRun(PlatformBase):
 
 
 class PlatformReconnect(PlatformBase):
-    """ Reconnect to an in-progress (or finished) analysis and resume polling for status,
+    """Reconnect to an in-progress (or finished) analysis and resume polling for status,
     without re-triggering input generation or the run itself.
     """
     step_params = PlatformBase.step_params + [
@@ -515,8 +502,7 @@ class PlatformReconnect(PlatformBase):
 
 
 class PlatformDelete(PlatformBase):
-    """ Delete either a 'model', 'portfolio' or an 'analysis' from the API's Database
-    """
+    """Delete either a 'model', 'portfolio' or an 'analysis' from the API's Database"""
     step_params = PlatformBase.step_params + [
         {'name': 'models', 'flag': '-m', 'type': int, 'nargs': '+', 'help': 'List of model ids to Delete.'},
         {'name': 'portfolios', 'flag': '-p', 'type': int, 'nargs': '+', 'help': 'List of Portfolio ids to Delete'},
@@ -554,8 +540,7 @@ class PlatformDelete(PlatformBase):
 
 
 class PlatformGet(PlatformBase):
-    """ Download file(s) from the api
-    """
+    """Download file(s) from the api"""
     step_params = PlatformBase.step_params + [
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
             'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
@@ -628,7 +613,7 @@ class PlatformGet(PlatformBase):
 
 
 class PlatformPost(PlatformBase):
-    """ Upload file(s) to the api
+    """Upload file(s) to the api
 
     Portfolio files are uploaded to a single portfolio per invocation - give
     `--portfolio-id` to update an existing portfolio, or omit it (optionally
@@ -697,8 +682,7 @@ class PlatformPost(PlatformBase):
 
 
 class PlatformValidate(PlatformBase):
-    """ Validate a portfolio's OED exposure files via the Oasis Platform API
-    """
+    """Validate a portfolio's OED exposure files via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to validate'},
         {'name': 'get_status', 'action': 'store_true',
@@ -725,8 +709,7 @@ class PlatformValidate(PlatformBase):
 
 
 class PlatformExposureRun(PlatformBase):
-    """ Run `oasislmf exposure run` on the server against a portfolio's exposure files
-    """
+    """Run `oasislmf exposure run` on the server against a portfolio's exposure files"""
     step_params = PlatformBase.step_params + [
         {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to run exposure calculations against'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True, 'default': './',
@@ -784,8 +767,7 @@ class PlatformExposureRun(PlatformBase):
 
 
 class PlatformExposureTransform(PlatformBase):
-    """ Convert a portfolio's exposure data between OED and AIR via the Oasis Platform API
-    """
+    """Convert a portfolio's exposure data between OED and AIR via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to transform'},
         {'name': 'file_type', 'choices': ['location', 'accounts', 'ri_info', 'ri_scope'], 'required': True,
@@ -807,8 +789,7 @@ class PlatformExposureTransform(PlatformBase):
 
 
 class PlatformCombine(PlatformBase):
-    """ Combine the ORD output of multiple RUN_COMPLETED analyses via the Oasis Platform API
-    """
+    """Combine the ORD output of multiple RUN_COMPLETED analyses via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'analysis_ids', 'type': int, 'nargs': '+', 'required': True, 'help': 'List of RUN_COMPLETED analyses ids to combine'},
         {'name': 'combine_settings_json', 'is_path': True, 'pre_exist': True, 'required': True,
@@ -828,8 +809,7 @@ class PlatformCombine(PlatformBase):
 
 
 class PlatformCancel(PlatformBase):
-    """ Cancel a running analysis (input generation or execution) via the Oasis Platform API
-    """
+    """Cancel a running analysis (input generation or execution) via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to cancel'},
     ]
@@ -840,8 +820,7 @@ class PlatformCancel(PlatformBase):
 
 
 class PlatformSubTasks(PlatformBase):
-    """ List the sub-tasks of an analysis run via the Oasis Platform API
-    """
+    """List the sub-tasks of an analysis run via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to list sub-tasks for'},
     ]
@@ -854,8 +833,7 @@ class PlatformSubTasks(PlatformBase):
 
 
 class PlatformPlot(PlatformBase):
-    """ Plot a Gantt chart of an analysis's sub-tasks, with a status summary, via the Oasis Platform API
-    """
+    """Plot a Gantt chart of an analysis's sub-tasks, with a status summary, via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
         {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to plot'},
         {'name': 'output_file', 'flag': '-o', 'is_path': True, 'pre_exist': False,

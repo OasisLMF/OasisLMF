@@ -1,7 +1,4 @@
-"""
-This file contains specific functionality needed for aggregate vulnerabilities.
-
-"""
+"""This file contains specific functionality needed for aggregate vulnerabilities."""
 import logging
 import os
 
@@ -35,7 +32,7 @@ def read_aggregate_vulnerability(storage: BaseStorage, ignore_file_type=set()):
     """Load the aggregate vulnerability definitions from file.
 
     Args:
-        storage: (BaseStorage) the storage manager for fetching model data
+        storage (BaseStorage): the storage manager for fetching model data
         ignore_file_type (Set[str]): file extension to ignore when loading.
 
     Returns:
@@ -99,10 +96,13 @@ def process_aggregate_vulnerability(aggregate_vulnerability):
         aggregate_vulnerability (np.array[AggregateVulnerability]): aggregate vulnerability table.
 
     Returns:
-        agg_vuln_ids (np.array[oasis_int]): sorted array of aggregate vulnerability ids.
-        agg_vuln_id_ja_offsets (np.array[oasis_int]): jagged array offsets. Row i spans
-            agg_vuln_id_ja_vuln_ids[agg_vuln_id_ja_offsets[i]:agg_vuln_id_ja_offsets[i+1]].
-        agg_vuln_id_ja_vuln_ids (np.array[oasis_int]): flat jagged array of constituent vulnerability ids.
+        Tuple of three arrays describing the aggregate vulnerabilities as a jagged array.
+
+        - ``agg_vuln_ids`` (np.array[oasis_int]): sorted array of aggregate vulnerability ids.
+        - ``agg_vuln_id_ja_offsets`` (np.array[oasis_int]): jagged array offsets. Row ``i``
+          spans ``agg_vuln_id_ja_vuln_ids[agg_vuln_id_ja_offsets[i]:agg_vuln_id_ja_offsets[i+1]]``.
+        - ``agg_vuln_id_ja_vuln_ids`` (np.array[oasis_int]): flat jagged array of constituent
+          vulnerability ids.
     """
     if aggregate_vulnerability is not None and len(aggregate_vulnerability) > 0:
         agg_vuln_df = pd.DataFrame(aggregate_vulnerability)
@@ -138,8 +138,7 @@ def process_aggregate_vulnerability(aggregate_vulnerability):
 @nb.njit(cache=True)
 def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_data,
                                   vuln_map, vuln_map_keys, aggregate_weights):
-    """
-    Populate the weight field in the merged data array by matching aggregate_weights records.
+    """Populate the weight field in the merged data array by matching aggregate_weights records.
 
     Builds a (areaperil_id, vuln_idx) -> weight hashmap from aggregate_weights once, then
     iterates entries with one O(1) lookup each. Total cost: O(W + E).
@@ -204,15 +203,16 @@ def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areap
 
 
 def get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys):
-    """
-    Loads vulnerability adjustments from the analysis settings file.
+    """Loads vulnerability adjustments from the analysis settings file.
 
     Args:
         run_dir (str): path to the run directory (used to load the analysis settings)
         vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
         vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids (hashmap keys).
 
-    Returns: (np.ndarray[oasis_float]) vulnerability adjustments array, indexed by dense vuln index.
+    Returns:
+        Vulnerability adjustments array (``np.ndarray[oasis_float]``), indexed by dense
+        vuln index.
     """
     settings_path = os.path.join(run_dir, "analysis_settings.json")
     vuln_adj = np.ones(len(vuln_map_keys), dtype=oasis_float)

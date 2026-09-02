@@ -38,7 +38,7 @@ Enhanced logging configuration is available with configurable levels and output 
 Related Configuration
 ---------------------
 
-See :doc:`logging-configuration` for detailed logging setup, including:
+See :doc:`how-to/logging-configuration` for detailed logging setup, including:
 
 * CLI arguments (``--log-level``, ``--log-format``)
 * Environment variables (``OASIS_PACKAGE_LOG_LEVEL``)

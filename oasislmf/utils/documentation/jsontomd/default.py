@@ -4,8 +4,7 @@ from oasislmf.utils.documentation.jsontomd import BaseJsonToMarkdownGenerator
 
 
 class DefaultJsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
-    """
-    Default JSON to Markdown Generator class.
+    """Default JSON to Markdown Generator class.
     Naively iterates through the dict and outputs with limited formatting.
     """
 
