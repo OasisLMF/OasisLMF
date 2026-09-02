@@ -521,18 +521,13 @@ def set_loss_factors_set(setting_val, run_dir):
 
 
 def _set_dynamic_footprint_dataset(filename, setting_val, run_dir):
-    """
-    Create a symbolic link to a suffixed dynamic footprint dataset
+    """Create a symbolic link to a suffixed dynamic footprint dataset
     (a directory of partitioned parquet files).
 
-    :param filename: canonical dataset filename, e.g. 'hazard_case.parquet'
-    :type filename: str
-
-    :param setting_val: identifier used as the dataset suffix
-    :type setting_val: str
-
-    :param run_dir: model run directory
-    :type run_dir: str
+    Args:
+        filename (str): canonical dataset filename, e.g. 'hazard_case.parquet'
+        setting_val (str): identifier used as the dataset suffix
+        run_dir (str): model run directory
     """
     stem, extension = filename.split('.', 1)
     dataset_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
