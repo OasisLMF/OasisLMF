@@ -22,8 +22,7 @@ import json
 
 
 class OasisBaseCommand(BaseCommand):
-    """
-    The base command to inherit from for each command.
+    """The base command to inherit from for each command.
 
     2 additional arguments (``--verbose`` and ``--config``) are added to
     the parser so that they are available for all commands.
@@ -36,15 +35,14 @@ class OasisBaseCommand(BaseCommand):
         super(OasisBaseCommand, self).__init__(*args, **kwargs)
 
     def add_args(self, parser):
-        """
-        Adds arguments to the argument parser. This is used to modify
+        """Adds arguments to the argument parser. This is used to modify
         which arguments are processed by the command.
 
         Enhanced logging arguments (--log-level, --log-format) added.
         Legacy --verbose flag maintained for backward compatibility.
 
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
+        Args:
+            parser (ArgumentParser): The argument parser object
         """
         # Create temporary log config instance for dynamic choices
         log_config = OasisLogConfig()
@@ -82,10 +80,10 @@ class OasisBaseCommand(BaseCommand):
         )
 
     def parse_args(self):
-        """
-        Parses the command line arguments and sets them in ``self.args``
+        """Parses the command line arguments and sets them in ``self.args``
 
-        :return: The arguments taken from the command line
+        Returns:
+            The arguments taken from the command line
         """
         try:
             self.args = super(OasisBaseCommand, self).parse_args()
@@ -106,8 +104,7 @@ class OasisBaseCommand(BaseCommand):
             raise
 
     def _load_config_dict(self) -> Dict[str, Any]:
-        """
-        Load configuration dictionary from file if available.
+        """Load configuration dictionary from file if available.
 
         Returns:
             Configuration dictionary or empty dict if loading fails
@@ -143,8 +140,7 @@ class OasisBaseCommand(BaseCommand):
             return {}
 
     def setup_logger(self):
-        """
-        Setup logger using OasisLogConfig for enhanced logging configuration.
+        """Setup logger using OasisLogConfig for enhanced logging configuration.
 
         Supports configurable log levels, formats, and maintains backward compatibility.
         """
@@ -233,17 +229,15 @@ class OasisBaseCommand(BaseCommand):
 
 
 class OasisComputationCommand(OasisBaseCommand):
-    """
-    Eventually, the Parent class for all Oasis Computation Command
+    """Eventually, the Parent class for all Oasis Computation Command
     create the command line interface from parameter define in the associated computation step
     """
 
     def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
+        """Adds arguments to the argument parser.
 
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
+        Args:
+            parser (ArgumentParser): The argument parser object
         """
         super().add_args(parser)
 
@@ -313,11 +307,10 @@ class OasisComputationCommand(OasisBaseCommand):
         }
 
     def action(self, args):
-        """
-        Generic method that call the correct manager method from the child class computation_name
+        """Generic method that call the correct manager method from the child class computation_name
 
-        :param args: The arguments from the command line
-        :type args: Namespace
+        Args:
+            args (Namespace): The arguments from the command line
         """
         manager_method = getattr(
             om(), om.computation_name_to_method(self.computation_name)

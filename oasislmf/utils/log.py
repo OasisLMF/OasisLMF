@@ -57,9 +57,7 @@ def set_rotating_logger(
 
 
 def read_log_config(config_parser):
-    """
-    Read an Oasis standard logging config
-    """
+    """Read an Oasis standard logging config"""
     log_file = config_parser['LOG_FILE']
     log_level = config_parser['LOG_LEVEL']
     log_max_size_in_bytes = int(config_parser['LOG_MAX_SIZE_IN_BYTES'])
@@ -86,9 +84,7 @@ def read_log_config(config_parser):
 
 
 def oasis_log(*args, **kwargs):
-    """
-    Decorator that logs the entry, exit and execution time.
-    """
+    """Decorator that logs the entry, exit and execution time."""
     logger = logging.getLogger('oasislmf')
 
     def actual_oasis_log(func):

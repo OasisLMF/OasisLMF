@@ -1,7 +1,11 @@
 import json
 import os
+import threading
+import time
 from unittest.mock import patch, MagicMock
-from oasislmf.utils.ping import oasis_ping, oasis_ping_socket, oasis_ping_websocket
+import requests
+import oasislmf.utils.ping as ping_module
+from oasislmf.utils.ping import oasis_ping, oasis_ping_socket, oasis_ping_websocket, oasis_ping_http, oasis_ping_async
 
 
 def test_oasis_ping_websocket_path():
@@ -18,6 +22,38 @@ def test_oasis_ping_websocket_path():
     called_url, called_msg = mock_ws.call_args[0]
     assert called_url == "ws://fakehost:9999/ws/analysis-status/"
     assert json.loads(called_msg) == data
+
+
+def test_oasis_ping_http_path():
+    data = {"analysis_pk": 123}
+    with (patch.dict(os.environ, {"OASIS_ANALYSIS_STATUS_URL": "http://fakehost/analysis-status/"}, clear=True),
+          patch("oasislmf.utils.ping.oasis_ping_http", return_value=True) as mock_http,
+          patch("oasislmf.utils.ping.oasis_ping_websocket") as mock_ws,
+          patch("oasislmf.utils.ping.oasis_ping_socket") as mock_sock):
+        result = oasis_ping(data)
+
+    mock_http.assert_called_once_with("http://fakehost/analysis-status/", data)
+    mock_ws.assert_not_called()
+    mock_sock.assert_not_called()
+    assert result is True
+
+
+def test_oasis_ping_http_path_falls_back_to_websocket():
+    data = {"analysis_pk": 123}
+    with (patch.dict(os.environ, {
+        "OASIS_ANALYSIS_STATUS_URL": "http://fakehost/analysis-status/",
+        "OASIS_WEBSOCKET_URL": "ws://fakehost",
+        "OASIS_WEBSOCKET_PORT": "9999",
+    }, clear=True),
+            patch("oasislmf.utils.ping.oasis_ping_http", return_value=False) as mock_http,
+            patch("oasislmf.utils.ping.oasis_ping_websocket", return_value=True) as mock_ws,
+            patch("oasislmf.utils.ping.oasis_ping_socket") as mock_sock):
+        result = oasis_ping(data)
+
+    mock_http.assert_called_once()
+    mock_ws.assert_called_once()
+    mock_sock.assert_not_called()
+    assert result is True
 
 
 def test_oasis_ping_analysis_pk_missing_env():
@@ -77,7 +113,7 @@ def test_oasis_ping_websocket_success():
     with patch("websocket.WebSocket", return_value=fake_ws):
         result = oasis_ping_websocket("ws://fakehost:1234/ws", '{"hello": "world"}')
     assert result is True
-    fake_ws.connect.assert_called_once_with("ws://fakehost:1234/ws")
+    fake_ws.connect.assert_called_once_with("ws://fakehost:1234/ws", timeout=1)
     fake_ws.send.assert_called_once_with('{"hello": "world"}')
     fake_ws.close.assert_called_once()
 
@@ -89,6 +125,32 @@ def test_oasis_ping_websocket_failure():
         result = oasis_ping_websocket("ws://fakehost:1234/ws", '{"hello": "world"}')
     assert result is False
     fake_ws.send.assert_not_called()
+
+
+def test_oasis_ping_http_success():
+    fake_response = MagicMock()
+    with patch("requests.post", return_value=fake_response) as mock_post:
+        result = oasis_ping_http("http://fakehost/analysis-status/", {"hello": "world"})
+
+    assert result is True
+    mock_post.assert_called_once_with("http://fakehost/analysis-status/", json={"hello": "world"}, timeout=1)
+    fake_response.raise_for_status.assert_called_once()
+
+
+def test_oasis_ping_http_failure():
+    with patch("requests.post", side_effect=requests.exceptions.ConnectionError("boom")):
+        result = oasis_ping_http("http://fakehost/analysis-status/", {"hello": "world"})
+
+    assert result is False
+
+
+def test_oasis_ping_http_bad_status():
+    fake_response = MagicMock()
+    fake_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500")
+    with patch("requests.post", return_value=fake_response):
+        result = oasis_ping_http("http://fakehost/analysis-status/", {"hello": "world"})
+
+    assert result is False
 
 
 def test_oasis_ping_port_override():
@@ -111,3 +173,46 @@ def test_oasis_ping_no_port_override_uses_env():
 
     called_target, _ = mock_sock.call_args[0]
     assert called_target == ("1.2.3.4", 4321)
+
+
+def test_oasis_ping_async_calls_oasis_ping_off_caller_thread():
+    data = {"hello": "world"}
+    caller_thread = threading.current_thread()
+    done = threading.Event()
+    calls = []
+
+    def fake_oasis_ping(d):
+        calls.append((d, threading.current_thread()))
+        done.set()
+
+    with patch("oasislmf.utils.ping.oasis_ping", side_effect=fake_oasis_ping):
+        oasis_ping_async(data)
+        assert done.wait(timeout=2), "oasis_ping_async did not call oasis_ping in time"
+
+    assert calls == [(data, calls[0][1])]
+    assert calls[0][1] is not caller_thread
+
+
+def test_oasis_ping_async_drops_update_when_previous_still_in_flight():
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_oasis_ping(d):
+        started.set()
+        release.wait(timeout=2)
+
+    with patch("oasislmf.utils.ping.oasis_ping", side_effect=slow_oasis_ping) as mock_ping:
+        oasis_ping_async({"events_complete": 1})
+        assert started.wait(timeout=2), "first ping never started"
+
+        # A second update arriving while the first is still in flight is dropped,
+        # not queued behind it.
+        oasis_ping_async({"events_complete": 2})
+
+        release.set()
+        for _ in range(200):
+            if not ping_module._ping_lock.locked():
+                break
+            time.sleep(0.01)
+
+    mock_ping.assert_called_once_with({"events_complete": 1})

@@ -21,9 +21,7 @@ from ...utils.path import empty_dir
 
 
 class RunModel(ComputationStep):
-    """
-    Run models end to end.
-    """
+    """Run models end to end."""
 
     # Override params
     step_params = [

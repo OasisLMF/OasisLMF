@@ -1,5 +1,4 @@
-"""
-Financial Module (FM) Sparse Computation Engine
+"""Financial Module (FM) Sparse Computation Engine
 ================================================
 
 This module implements the core loss computation for the Oasis Financial Module using
@@ -25,12 +24,15 @@ Data is stored using a CSR (Compressed Sparse Row) inspired format:
 Computation Flow
 ----------------
 For each event:
+
 1. Read losses from input stream into sparse arrays
 2. For each level (bottom to top):
+
    a. Aggregate children losses into parent nodes
    b. Apply financial profiles (calc rules) to compute insured loss
    c. Back-allocate results to base children (for allocation rules 1 & 2)
    d. Queue parent nodes for the next level
+
 3. Output final losses to stream
 
 Key Concepts
@@ -58,8 +60,7 @@ logger = logging.getLogger(__name__)
 
 @njit(cache=True)
 def get_base_children(node, children, nodes_array, temp_children_queue):
-    """
-    Find all leaf-level (base) descendants of a node using breadth-first traversal.
+    """Find all leaf-level (base) descendants of a node using breadth-first traversal.
 
     Base children are the nodes at the lowest level that have no children themselves.
     These are needed for back allocation - when we apply financial terms at a higher
@@ -113,8 +114,7 @@ def first_time_layer(profile_count, base_children_count, temp_children_queue, co
                      sidx_indptr, sidx_indexes,
                      loss_indptr, loss_val
                      ):
-    """
-    Initialize multi-layer loss storage for base children when first encountering layered computation.
+    """Initialize multi-layer loss storage for base children when first encountering layered computation.
 
     When a node has multiple layers but its children were computed with only one layer,
     we need to create separate loss arrays for each layer. This copies the layer 0 loss
@@ -151,8 +151,7 @@ def first_time_layer_extra(profile_count, base_children_count, temp_children_que
                            loss_indptr, loss_val,
                            extras_indptr, extras_val,
                            ):
-    """
-    Initialize multi-layer loss AND extras storage for base children.
+    """Initialize multi-layer loss AND extras storage for base children.
 
     Same as first_time_layer but also handles the extras array (deductible, overlimit, underlimit).
     For aggregation cases (single base child), extras are copied from layer 0.
@@ -199,8 +198,7 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
                               temp_node_sidx, sidx_indexes, sidx_indptr, sidx_val, all_sidx,
                               temp_node_loss, loss_indptr, loss_val,
                               temp_node_extras, extras_indptr, extras_val):
-    """
-    Aggregate losses AND extras from multiple children into a parent node.
+    """Aggregate losses AND extras from multiple children into a parent node.
 
     Similar to aggregate_children but also tracks the "extras" - deductible amount,
     overlimit, and underlimit values that are needed for back allocation when
@@ -312,16 +310,17 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
 def aggregate_children(node, children_count, nodes_array, children, temp_children_queue, compute_idx,
                        temp_node_sidx, sidx_indexes, sidx_indptr, sidx_val, all_sidx,
                        temp_node_loss, loss_indptr, loss_val):
-    """
-    Aggregate losses from multiple children into a parent node (without extras tracking).
+    """Aggregate losses from multiple children into a parent node (without extras tracking).
 
     This function sums the losses from all children for each sample index (sidx).
     It handles the sparse-to-dense-to-sparse conversion needed for aggregation:
+
     1. For each child, read its sparse loss values
     2. Accumulate into a dense temporary array (temp_node_loss) indexed by sidx
     3. Convert back to sparse storage for the parent node
 
     Multi-layer handling:
+
     - If the parent has multiple profiles but children only have one layer,
       triggers first_time_layer to create layer storage for children
     - Each profile/layer is processed separately
@@ -404,11 +403,11 @@ def aggregate_children(node, children_count, nodes_array, children, temp_childre
 
 @njit(cache=True)
 def set_parent_next_compute(parent_id, child_id, nodes_array, children, computes, compute_idx):
-    """
-    Register a parent node for computation at the next level.
+    """Register a parent node for computation at the next level.
 
     As we process nodes at the current level, we track which parent nodes will
     need to be computed next. This function:
+
     1. Adds the child to the parent's children list
     2. If this is the first child seen for this parent, adds the parent to the
        compute queue for the next level
@@ -438,8 +437,7 @@ def set_parent_next_compute(parent_id, child_id, nodes_array, children, computes
 def load_net_value(computes, compute_idx, nodes_array,
                    sidx_indptr, sidx_indexes,
                    loss_indptr, loss_val):
-    """
-    Convert gross losses to net losses for output streaming.
+    """Convert gross losses to net losses for output streaming.
 
     Net loss = input loss - insured loss (what remains after insurance pays)
 
@@ -481,8 +479,7 @@ def compute_event(compute_info,
                   item_parent_i,
                   fm_profile,
                   stepped):
-    """
-    Compute insured losses for a single event through the entire financial structure.
+    """Compute insured losses for a single event through the entire financial structure.
 
     This is the main computation function that processes one event's losses through
     all levels of the insurance/reinsurance hierarchy. Results are stored in-place
@@ -490,26 +487,26 @@ def compute_event(compute_info,
 
     Algorithm Overview
     ------------------
-    The computation proceeds bottom-up through the financial structure levels:
+    The computation proceeds bottom-up through the financial structure levels::
 
-    For each level (starting from items, going up to final output):
-        For each node to compute at this level:
-            1. AGGREGATE: Sum losses from children nodes
-               - Multiple children: aggregate into temp arrays, create parent sidx
-               - Single child: reuse child's storage (optimization)
-               - No children (item level): use input losses directly
+        For each level (starting from items, going up to final output):
+            For each node to compute at this level:
+                1. AGGREGATE: Sum losses from children nodes
+                   - Multiple children: aggregate into temp arrays, create parent sidx
+                   - Single child: reuse child's storage (optimization)
+                   - No children (item level): use input losses directly
 
-            2. APPLY PROFILE: Apply financial terms to the aggregated loss
-               - For each profile (may be 1 per layer or 1 cross-layer):
-                 - Run calc/calc_extra with the profile's calc rules
-                 - Handles deductibles, limits, shares, etc.
+                2. APPLY PROFILE: Apply financial terms to the aggregated loss
+                   - For each profile (may be 1 per layer or 1 cross-layer):
+                     - Run calc/calc_extra with the profile's calc rules
+                     - Handles deductibles, limits, shares, etc.
 
-            3. BACK ALLOCATE: Distribute results back to base children
-               - Rule 0: No allocation (output at aggregate level)
-               - Rule 1: Proportional to original input loss
-               - Rule 2: Proportional to computed loss (pro-rata)
+                3. BACK ALLOCATE: Distribute results back to base children
+                   - Rule 0: No allocation (output at aggregate level)
+                   - Rule 1: Proportional to original input loss
+                   - Rule 2: Proportional to computed loss (pro-rata)
 
-            4. QUEUE PARENTS: Register parent nodes for next level computation
+                4. QUEUE PARENTS: Register parent nodes for next level computation
 
     Cross-Layer Profiles
     --------------------
@@ -956,13 +953,13 @@ def compute_event(compute_info,
 
 
 def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
-    """
-    Initialize all arrays needed for FM computation.
+    """Initialize all arrays needed for FM computation.
 
     Creates the sparse storage arrays for sample indices, losses, and extras.
     These use a CSR-like format where:
-    - *_indptr arrays point to the start of each node's data
-    - *_val arrays contain the actual values
+
+    - ``*_indptr`` arrays point to the start of each node's data
+    - ``*_val`` arrays contain the actual values
 
     The loss and extras arrays share the same indexing as sidx - each node's
     loss[i] corresponds to sidx[i]. This allows using sidx_indexes to track
@@ -1012,8 +1009,8 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
 
 @njit(cache=True)
 def reset_variable(children, compute_idx, computes):
-    """
-    reset the per event array
+    """Reset the per event array
+
     Args:
         children: array of all the children with loss value for each node
         compute_idx: single element named array containing all the pointer needed to tract the computation (compute_idx_dtype)

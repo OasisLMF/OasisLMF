@@ -7,12 +7,12 @@ import numpy as np
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (
-    load_as_ndarray, nb_oasis_int,
-    correlations_headers, correlations_dtype, coverages_headers,
+    oasis_int, oasis_float,
+    areaperil_int, load_as_ndarray, correlations_headers, correlations_dtype, coverages_headers,
     occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
     quantile_interval_dtype, returnperiods_dtype,
 )
-from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
+from oasislmf.pytools.common.event_stream import mv_read
 from oasislmf.pytools.common.id_index import build as _id_index_build, get_idx as _id_index_get_idx, NOT_FOUND as _OCC_IDX_NOT_FOUND
 
 
@@ -39,6 +39,26 @@ QUANTILE_FILE = "quantile.bin"
 RETURNPERIODS_FILE = "returnperiods.bin"
 
 
+KEYS_DTYPE = np.dtype([('LocID', np.int32), ('PerilID', 'U3'), ('CoverageTypeID', np.int32),
+                       ('AreaPerilID', areaperil_int), ('VulnerabilityID', np.int32)])
+
+
+def filter_area_peril_id(keys_tb, peril_filter):
+    """Select the area perils a peril specific run covers.
+
+    Args:
+        keys_tb (numpy.ndarray): the keys table, in `KEYS_DTYPE`
+        peril_filter (iterable): the peril ids the run is restricted to
+
+    Returns:
+        numpy.ndarray: the distinct AreaPerilIDs of the keys rows whose PerilID is in
+        `peril_filter`, in ascending order. Empty rather than absent when nothing matches.
+    """
+    # peril_filter is listed because np.isin treats a bare string as a sequence of characters,
+    # and an empty keys table must still give an integer array for the indexing below to work
+    return np.unique(keys_tb['AreaPerilID'][np.isin(keys_tb['PerilID'], list(peril_filter))])
+
+
 @nb.njit(cache=True)
 def _check_amplifications_contiguous(item_ids):
     """Early-exit contiguity check — O(1) memory, no temporaries."""
@@ -49,8 +69,7 @@ def _check_amplifications_contiguous(item_ids):
 
 
 def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=False, raw=False):
-    """
-    Get array of amplification IDs from amplifications.bin, where index
+    """Get array of amplification IDs from amplifications.bin, where index
     corresponds to item ID.
 
     amplifications.bin is binary file with layout:
@@ -66,6 +85,7 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
         raw (bool): If True, return the validated flat int32 array (zero-copy memmap for file
             inputs) instead of building the 1-based lookup copy. Intended for sequential
             read paths (e.g. bintocsv) where random access by item_id is not needed.
+
     Returns:
         items_amps (numpy.ndarray): If raw=False (default), a 1-based lookup array of
             amplification IDs where index corresponds to item ID. If raw=True, the flat
@@ -99,16 +119,20 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
 
 def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FILENAME):
     """Load the correlations from the correlations file.
+
     Args:
         run_dir (str): path to correlations file
         ignore_file_type (Set[str]): file extension to ignore when loading.
         filename (str | os.PathLike): correlations file name
-    Returns:
-        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
-        vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-        areaperil ID to vulnerability index array, areaperil ID to vulnerability array
-    """
 
+    Returns:
+        numpy.array[correlations_dtype]: one row per item, holding item_id,
+            peril_correlation_group, damage_correlation_value, hazard_group_id and
+            hazard_correlation_value. A memmap when read from the binary file.
+
+    Raises:
+        FileNotFoundError: if no correlations file is found with a non-ignored extension
+    """
     for ext in ["bin", "csv"]:
         if ext in ignore_file_type:
             continue
@@ -144,11 +168,13 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
 
 def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, use_stdin=False):
     """Load the coverages from the coverages file.
+
     Args:
         run_dir (str): path to coverages file
         ignore_file_type (Set[str]): file extension to ignore when loading.
         filename (str | os.PathLike): coverages file name
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
+
     Returns:
         numpy.array[oasis_float]: array with the coverage values for each coverage_id.
     """
@@ -206,9 +232,11 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
 
 def read_event_rates(run_dir, filename=EVENTRATES_FILE):
     """Reads event rates from a CSV file
+
     Args:
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): event rates csv file name
+
     Returns:
         unique_event_ids (ndarray[oasis_int]): unique event ids
         event_rates (ndarray[oasis_float]): event rates
@@ -236,13 +264,16 @@ def read_event_rates(run_dir, filename=EVENTRATES_FILE):
 
 def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=False):
     """Generate a quantile interval Dictionary based on sample size and quantile binary file
+
     Args:
         sample_size (int): Sample size
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): quantile binary file name
         return_empty (bool): return an empty intervals array regardless of the existence of the quantile binary
+
     Returns:
-        intervals (quantile_interval_dtype): Numpy array emulating a dictionary for numba
+        Numpy array of quantile intervals (``quantile_interval_dtype``), emulating a
+        dictionary for numba.
     """
     intervals = []
 
@@ -263,13 +294,23 @@ def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=Fal
 
 
 def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
-    """Read the occurrence binary file and returns an occurrence map
+    """Read the occurrence binary file and returns the occurrence records with their header options
+
     Args:
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): occurrence binary file name
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
+
     Returns:
-        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        Tuple[numpy.array, int, int, int]:
+            - occ_arr: the occurrence records, of occurrence_dtype or, when the dates are granular,
+              occurrence_granular_dtype
+            - date_algorithm: date algorithm flag read from the file header
+            - granular_date: granular date flag read from the file header
+            - no_of_periods: number of periods read from the file header
+
+    Raises:
+        RuntimeError: if the file is truncated or the date algorithm is unknown
     """
     occurrence_fp = Path(run_dir, filename)
     if use_stdin:
@@ -315,37 +356,6 @@ def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
         occ_arr = np.frombuffer(fin[cursor:cursor + num_records * record_size], dtype=occ_dtype)
 
     return occ_arr, date_algorithm, granular_date, no_of_periods
-
-
-@nb.njit(cache=True, error_model="numpy")
-def _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype):
-    """Reads occurrence file array and returns an occurrence map of event_id to list of (period_no, occ_date_id)
-    """
-    occ_map = nb.typed.Dict.empty(nb_oasis_int, NB_occ_map_valtype)
-    occ_map_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
-    for row in occ_arr:
-        event_id = row["event_id"]
-        if event_id not in occ_map:
-            occ_map[event_id] = np.zeros(8, dtype=occ_map_valtype)
-            occ_map_sizes[event_id] = 0
-        array = occ_map[event_id]
-        current_size = occ_map_sizes[event_id]
-
-        if current_size >= len(array):  # Resize if the array is full
-            new_array = np.empty(len(array) * 2, dtype=occ_map_valtype)
-            new_array[:len(array)] = array
-            array = new_array
-
-        occ_map_current_size = occ_map_sizes[event_id]
-        array[occ_map_current_size]["period_no"] = row["period_no"]
-        array[occ_map_current_size]["occ_date_id"] = row["occ_date_id"]
-        occ_map[event_id] = array
-        occ_map_sizes[event_id] += 1
-
-    for event_id in occ_map:
-        occ_map[event_id] = occ_map[event_id][:occ_map_sizes[event_id]]
-
-    return occ_map
 
 
 def _occ_flat_valtype(granular_date):
@@ -437,38 +447,16 @@ def occ_get_date(occ_date_id, granular_date):
     return y, mm, dd, occ_hour, occ_minutes
 
 
-@nb.njit(cache=True)
-def occ_get_date_id(granular_date, occ_year, occ_month, occ_day, occ_hour=0, occ_minute=0):
-    """Returns the occ_date_id from year, month, day, hour, minute and whether it is a granular date
-    Args:
-        granular_date (bool): boolean for whether granular date should be extracted or not
-        occ_year (int): Occurrence Year.
-        occ_month (int): Occurrence Month.
-        occ_day (int): Occurrence Day.
-        occ_hour (int): Occurrence Hour. Defaults to 0.
-        occ_minute (int): Occurrence Minute. Defaults to 0.
-    Returns:
-        occ_date_id (np.int64): occurrence file date id (int64 for granular dates)
-    """
-    occ_month = (occ_month + 9) % 12
-    occ_year = occ_year - occ_month // 10
-    occ_date_id = np.int64(
-        365 * occ_year + occ_year // 4 - occ_year // 100 + occ_year // 400 + (occ_month * 306 + 5) // 10 + (occ_day - 1)
-    )
-
-    occ_date_id *= (1440 // (1440 - 1439 * granular_date))
-    occ_date_id += (60 * occ_hour + occ_minute)
-    return occ_date_id
-
-
 def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     """Returns an array of period weights for each period between 1 and no_of_periods inclusive (with no gaps).
+
     Args:
         no_of_periods (int): Number of periods
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): periods binary file name
+
     Returns:
-        period_weights (ndarray[periods_dtype]): Period weights
+        Period weights as ``ndarray[periods_dtype]``.
     """
     periods_fp = Path(run_dir, filename)
 
@@ -500,10 +488,12 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
 
 def read_returnperiods(use_return_period_file, run_dir, filename=RETURNPERIODS_FILE):
     """Returns an array of return periods decreasing order with no duplicates.
+
     Args:
         use_return_period_file (bool): Bool to use Return Period File
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): return periods binary file name
+
     Returns:
         return_periods (ndarray[np.int32]): Return Periods
         use_return_period_file (bool): Bool to use Return Period File

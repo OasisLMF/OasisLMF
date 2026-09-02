@@ -50,5 +50,5 @@ running any ``oasislmf`` command or importing the package.
 Logging
 -------
 
-See :doc:`logging-configuration` for the ``OASIS_PACKAGE_LOG_LEVEL`` and
+See :doc:`how-to/logging-configuration` for the ``OASIS_PACKAGE_LOG_LEVEL`` and
 related logging environment variables.

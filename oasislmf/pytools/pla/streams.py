@@ -2,17 +2,19 @@ import numba as nb
 import numpy as np
 import logging
 
-from oasislmf.pytools.common.data import oasis_int, oasis_int_size, loss_pair_dtype, loss_pair_size
+from oasislmf.pytools.common.data import loss_pair_dtype, loss_pair_size, def_to_type_and_size
 from oasislmf.pytools.common.event_stream import (EventReader, get_and_check_header_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, PIPE_CAPACITY)
 
 logger = logging.getLogger(__name__)
 
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
+
 
 @nb.jit(nopython=True, cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
-    """
-    read the gul loss stream, apply the post loss amplification factor and load it into out_byte_mv buffer
+    """Read the gul loss stream, apply the post loss amplification factor and load it into out_byte_mv buffer
     This modified version of the read_buffer template return result when the whole input buffer is read and not when an event is read.
     therefore it cannot be used to read multiple stream at a time because events would be mixed up.
 
@@ -27,7 +29,6 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
         default_factor (float): post loss reduction/amplification factor to be used if loss factor not found in plafactors
         out_byte_mv: output byte arrau
         out_cursor: single value array to store valid part of out_byte_mv
-
     """
     if item_id:
         factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
@@ -59,10 +60,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
             else:
                 cursor += n_pairs * loss_pair_size
         else:
-            if valid_buff - cursor < 2 * oasis_int_size:
+            if valid_buff - cursor < event_id_dtype_size + item_id_dtype_size:
                 break
-            event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            event_id, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
+            item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
             ##### do new item setup #####
             factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
             ##########
@@ -99,16 +100,18 @@ def read_buffer_uniform(byte_mv, cursor, valid_buff, event_id, item_id, items_am
             else:
                 cursor += n_pairs * loss_pair_size
         else:
-            if valid_buff - cursor < 2 * oasis_int_size:
+            if valid_buff - cursor < event_id_dtype_size + item_id_dtype_size:
                 break
-            event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-            item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            event_id, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
+            item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
     out_byte_mv[:cursor] = byte_mv[:cursor]
     out_cursor[0] = cursor
     return cursor, event_id, item_id, 1
 
 
 class PlaReader(EventReader):
+    """Read an event loss stream and apply post-loss amplification factors to each loss."""
+
     def __init__(self, items_amps, plafactors, default_factor):
         self.items_amps = items_amps
         self.plafactors = plafactors
@@ -137,8 +140,7 @@ class PlaReader(EventReader):
 def read_and_write_streams(
     stream_in, stream_out, items_amps, plafactors, default_factor
 ):
-    """
-    Read input stream from gulpy or gulcalc, determine amplification ID from
+    """Read input stream from gulpy or gulcalc, determine amplification ID from
     item ID, determine loss factor from event ID and amplification ID pair,
     multiply losses by relevant factors, and write to output stream.
 
@@ -165,7 +167,6 @@ def read_and_write_streams(
         items_amps (numpy array): amplification IDs where indexes correspond to item IDs
         plafactors (dict): event ID and amplification ID pairs mapped to loss factors
         default_factor (float): post loss reduction/amplification factor to be used if loss factor not found in plafactors
-
     """
     stream_source_type, stream_agg_type, len_sample = get_and_check_header_in(stream_in)
     stream_out.write(stream_info_to_bytes(stream_source_type, stream_agg_type))

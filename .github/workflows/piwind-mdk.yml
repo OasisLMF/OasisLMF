@@ -9,6 +9,14 @@ on:
 
   workflow_dispatch:
     inputs:
+      oasislmf_repo:
+        description: 'GitHub owner/repo to test oasislmf from (for external/fork PRs). Leave empty to use this repo at the dispatch ref.'
+        required: false
+        default: ''
+      oasislmf_ref:
+        description: 'Git ref (branch/tag/sha) in that repo to test. Leave empty to use the dispatch ref.'
+        required: false
+        default: ''
       oasis_models_branch:
         description: 'OasisModels branch to test against'
         required: false
@@ -37,6 +45,8 @@ jobs:
       - name: Checkout oasislmf
         uses: actions/checkout@v4
         with:
+          repository: ${{ inputs.oasislmf_repo || github.repository }}
+          ref: ${{ inputs.oasislmf_ref || github.event.pull_request.head.sha || github.ref }}
           path: oasislmf
 
       - name: Clone OasisModels

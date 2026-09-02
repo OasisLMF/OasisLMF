@@ -12,9 +12,7 @@ from .files import GENERAL_SETTINGS_FILE, GUL_SUMMARIES_FILE, IL_SUMMARIES_FILE,
 
 
 def _get_summaries(summary_file):
-    """
-    Get a list representation of a summary file.
-    """
+    """Get a list representation of a summary file."""
     summaries_dict = defaultdict(lambda: {'leccalc': {}})
 
     with io.open(summary_file, 'r', encoding='utf-8') as csvfile:
@@ -37,11 +35,12 @@ def _get_summaries(summary_file):
 
 @oasis_log
 def create_analysis_settings_json(directory):
-    """
-    Generate an analysis settings JSON from a set of
+    """Generate an analysis settings JSON from a set of
     CSV files in a specified directory.
+
     Args:
-        ``directory`` (string): the directory containing the CSV files.
+        directory (str): the directory containing the CSV files.
+
     Returns:
         The analysis settings JSON.
     """

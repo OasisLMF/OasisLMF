@@ -1,6 +1,33 @@
 OasisLMF Changelog
 ==================
 
+`2.5.7`_
+ ---------
+* [#2065](https://github.com/OasisLMF/OasisLMF/pull/2065) - docs: Diátaxis restructure + ktools→pytools kernel + executable notebooks
+* [#2067](https://github.com/OasisLMF/OasisLMF/pull/2067) - ci: allow OasisModels CLI workflow to target an external oasislmf fork
+* [#2073](https://github.com/OasisLMF/OasisLMF/pull/2073) - refactor(gulmc): split compute_event_losses into inlined njit helpers
+* [#2076](https://github.com/OasisLMF/OasisLMF/pull/2076) - fix/run with env dtype
+* [#2079](https://github.com/OasisLMF/OasisLMF/pull/2079) - vectorisation of cond_info
+* [#2080](https://github.com/OasisLMF/OasisLMF/pull/2080) - google style docstrings (1356)
+* [#2083](https://github.com/OasisLMF/OasisLMF/pull/2083) - Fix CI codecov uploads
+* [#2085](https://github.com/OasisLMF/OasisLMF/pull/2085) - Issue 2084 cyber loc_idx bug
+* [#2087](https://github.com/OasisLMF/OasisLMF/pull/2087) - Fix typo: 'vulnerbaility_id' -> 'vulnerability_id' in gul_inputs.py
+* [#2092](https://github.com/OasisLMF/OasisLMF/pull/2092) - issue 2090 sparse event definition
+* [#2094](https://github.com/OasisLMF/OasisLMF/pull/2094) - h3 vectorise
+* [#2095](https://github.com/OasisLMF/OasisLMF/pull/2095) - ri filter vectorise
+* [#2099](https://github.com/OasisLMF/OasisLMF/pull/2099) - Hubspot ticket tracking
+* [#2102](https://github.com/OasisLMF/OasisLMF/pull/2102) - Removing dead code
+* [#2105](https://github.com/OasisLMF/OasisLMF/pull/2105) - Feature/decouple websocket
+* [#2106](https://github.com/OasisLMF/OasisLMF/pull/2106) - Fix for flaky test
+* [#2107](https://github.com/OasisLMF/OasisLMF/pull/2107) - Exposure summary vectorise
+* [#2110](https://github.com/OasisLMF/OasisLMF/pull/2110) - gul input vectorise
+* [#2111](https://github.com/OasisLMF/OasisLMF/pull/2111) - Array operations speedup
+* [#2112](https://github.com/OasisLMF/OasisLMF/pull/2112) - feat/validate_before_keys
+* [#2117](https://github.com/OasisLMF/OasisLMF/pull/2117) - Issue 2109 repeated exposure run header issue
+* [#2119](https://github.com/OasisLMF/OasisLMF/pull/2119) - RI in exposure run propagation
+* [#2120](https://github.com/OasisLMF/OasisLMF/pull/2120) - fix/exposure_run_preanalysis
+.. _`2.5.7`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.6...2.5.7
+
 `2.5.6`_
  ---------
 * [#2048](https://github.com/OasisLMF/OasisLMF/pull/2048) - Add linear interpolation lookup for correlation functions

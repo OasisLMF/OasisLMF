@@ -1,5 +1,4 @@
-"""
-FM Stream I/O with Sparse Array Storage
+"""FM Stream I/O with Sparse Array Storage
 ========================================
 
 This module handles reading loss data from the input stream (GUL or previous FM)
@@ -53,24 +52,26 @@ import logging
 
 from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY, EventReader,
                                                   MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, MEAN_IDX,
-                                                  mv_read, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter, write_mv_to_stream)
-from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float_size, loss_pair_dtype, loss_pair_size
+                                                  mv_read, mv_write_item_header, mv_write_sidx_loss, write_mv_to_stream)
+from oasislmf.pytools.common.data import loss_pair_dtype, loss_pair_size, def_to_type_and_size
 
 logger = logging.getLogger(__name__)
 
 
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
+
 # Special sidx values: -5, -4, -3, -2, -1, 0 (delimiter)
 SPECIAL_SIDX_COUNT = 6
 # Size of item header: event_id + output_id + 6 special (sidx, loss) pairs
-ITEM_HEADER_SIZE = 2 * oasis_int_size + SPECIAL_SIDX_COUNT * (oasis_int_size + oasis_float_size)
+ITEM_HEADER_SIZE = event_id_dtype_size + item_id_dtype_size + SPECIAL_SIDX_COUNT * (loss_pair_size)
 # Size of one (sidx, loss) pair
-SIDX_LOSS_WRITE_SIZE = oasis_int_size + oasis_float_size
+SIDX_LOSS_WRITE_SIZE = loss_pair_size
 
 
 @nb.jit(cache=True, nopython=True)
 def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
-    """
-    Handle items that received no loss data (all samples were zero).
+    """Handle items that received no loss data (all samples were zero).
 
     If an item's sidx range is empty (no non-zero losses), we still need
     a placeholder entry to maintain array consistency. This adds a single
@@ -84,8 +85,7 @@ def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
 
 @nb.jit(cache=True, nopython=True)
 def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
-    """
-    Insert a (sidx, loss) pair into the sparse arrays, maintaining sorted sidx order.
+    """Insert a (sidx, loss) pair into the sparse arrays, maintaining sorted sidx order.
 
     The sidx values must be stored in sorted order for efficient lookup during
     computation. This function handles three cases:
@@ -130,8 +130,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                 computes, compute_idx
                 ):
-    """
-    Parse a buffer of stream data, populating sparse loss arrays.
+    """Parse a buffer of stream data, populating sparse loss arrays.
 
     This is the core stream parsing function. It handles the state machine for
     reading the Oasis binary stream format:
@@ -209,18 +208,18 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 cursor += n_pairs * loss_pair_size
         else:
             # --- Reading event_id + item_id header ---
-            if valid_buff - cursor < 2 * oasis_int_size:
+            if valid_buff - cursor < item_id_dtype_size + event_id_dtype_size:
                 break  # Need more data
-            event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            event_id, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
             if event_id != last_event_id:
                 if last_event_id:
                     # New event started - return to process the completed event
                     # Rewind cursor so the new event_id is read again next time
-                    return cursor - oasis_int_size, last_event_id, 0, 1
+                    return cursor - event_id_dtype_size, last_event_id, 0, 1
                 else:
                     # First event in stream - record it
                     last_event_id = event_id
-            item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
 
             # Initialize storage for this item
             node = nodes_array[item_id]
@@ -238,8 +237,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 
 
 class FMReader(EventReader):
-    """
-    when reading the stream we store relenvant value into a slithly modified version of the CSR sparse matrix where
+    """when reading the stream we store relenvant value into a slithly modified version of the CSR sparse matrix where
     the column indices for row i are stored in indices[indptr[i]:indptr[i+1]]
     and their corresponding values are stored in data[indptr[i]:indptr[i+1]].
 
@@ -338,7 +336,7 @@ def load_event(byte_mv, event_id, nodes_array,
 
                 while cursor < PIPE_CAPACITY - SIDX_LOSS_WRITE_SIZE:
                     if val_i == node_val_count:
-                        cursor = mv_write_delimiter(byte_mv, cursor)
+                        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
                         val_i = -1
                         layer_i = 0
                         break

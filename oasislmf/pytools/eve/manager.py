@@ -19,6 +19,9 @@ def read_events(input_file):
 
     Args:
         input_file (str | os.PathLike): Path to binary events file.
+
+    Returns:
+        np.array[oasis_int]: the event IDs, in the order they are held in the file.
     """
     return np.fromfile(input_file, dtype=oasis_int)
 
@@ -35,8 +38,7 @@ def stream_events(events, stream_out):
 
 
 def calculate_events_per_process(n_events, total_processes):
-    """Calculate number of events per process.
-    """
+    """Calculate number of events per process."""
     events_per_process, remainder = divmod(n_events, total_processes)
     return events_per_process + bool(remainder)  # add 1 if remainder
 
@@ -82,6 +84,9 @@ def partition_events__random(events, process_number, total_processes):
         events (np.array): Array of ordered event IDs.
         process_number (int): The process number to receive a partition of events.
         total_processes (int): Total number of processes to distribute the events over.
+
+    Yields:
+        int: each event ID allocated to `process_number`, in shuffled order
     """
     rng = np.random.default_rng(NUMPY_RANDOM_SEED)
 

@@ -1,5 +1,4 @@
-"""
-Resource monitor for pytools processes during model runs.
+"""Resource monitor for pytools processes during model runs.
 
 Uses ``psutil`` to poll all active pytools processes at a configurable
 interval, capturing CPU%, cumulative CPU time (user + system), RSS,
@@ -66,6 +65,10 @@ class ResourceMonitor:
     Args:
         output_dir (str): Directory to write resource_monitor.csv into.
         poll_interval (float): Seconds between polls (default 1.0).
+        generate_report (bool): Whether stop() writes a report from the collected CSVs (default True).
+        log_root (str): Directory whose immediate sub-directories are scanned for
+            resource_monitor.csv files, so several monitors can be combined into one report written
+            to log_root/resource_report/. When None only this monitor's own CSV is reported on.
     """
 
     def __init__(self, output_dir, poll_interval=1.0, generate_report=True, log_root=None):

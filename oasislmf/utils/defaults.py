@@ -12,7 +12,6 @@ __all__ = [
     'HAZARD_GROUP_ID_COLS',
     'CORRELATION_GROUP_ID',
     'API_EXAMPLE_AUTH',
-    'DEFAULT_RTREE_INDEX_PROPS',
     'KERNEL_ALLOC_GUL_MAX',
     'KERNEL_ALLOC_FM_MAX',
     'KERNEL_FIFO_RELATIVE',
@@ -23,6 +22,7 @@ __all__ = [
     'SUMMARY_MAPPING',
     'SUMMARY_OUTPUT',
     'SOURCE_IDX',
+    'SAR_ID',
     'STATIC_DATA_FP',
     'WRITE_CHUNKSIZE',
     'KERNEL_ALLOC_IL_DEFAULT',
@@ -71,33 +71,6 @@ API_EXAMPLE_AUTH = OrderedDict({
     'client_secret': 'serviceNotSoSecret',
 })
 
-DEFAULT_RTREE_INDEX_PROPS = {
-    'buffering_capacity': 10,
-    'custom_storage_callbacks': None,
-    'custom_storage_callbacks_size': 0,
-    'dat_extension': 'dat',
-    'dimension': 2,
-    'filename': '',
-    'fill_factor': 0.7,
-    'idx_extension': 'idx',
-    'index_capacity': 100,
-    'index_id': None,
-    'leaf_capacity': 100,
-    'near_minimum_overlap_factor': 32,
-    'overwrite': True,
-    'pagesize': 4096,
-    'point_pool_capacity': 500,
-    'region_pool_capacity': 1000,
-    'reinsert_factor': 0.3,
-    'split_distribution_factor': 0.4,
-    'storage': 0,
-    'tight_mbr': True,
-    'tpr_horizon': 20.0,
-    'type': 0,
-    'variant': 2,
-    'writethrough': False
-}
-
 MAPPING_FROM_ODS_SPEC = {
     "Type & Description": "desc",
     "Required Field": "require_field",
@@ -144,8 +117,7 @@ STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__fil
 
 
 def store_exposure_fp(fp, exposure_type):
-    """
-    Preserve original exposure file extention if its in a pandas supported
+    """Preserve original exposure file extention if its in a pandas supported
     compressed format
 
     compression : {‘infer’, ‘gzip’, ‘bz2’, ‘zip’, ‘xz’, None}, default ‘infer’
@@ -168,8 +140,7 @@ def store_exposure_fp(fp, exposure_type):
 
 
 def find_exposure_fp(input_dir, exposure_type, required=True):
-    """
-    Find an OED exposure file stored in the oasis inputs dir
+    """Find an OED exposure file stored in the oasis inputs dir
     while preserving the compressed ext
     """
     fp = glob.glob(os.path.join(input_dir, SOURCE_FILENAMES[exposure_type].rsplit(".", 1)[0] + '*'))
@@ -178,14 +149,13 @@ def find_exposure_fp(input_dir, exposure_type, required=True):
 
 
 def get_default_json(src_fp):
-    """
-    Loads JSON from file.
+    """Loads JSON from file.
 
-    :param src_fp: Source JSON file path
-    :type src_fp: str
+    Args:
+        src_fp (str): Source JSON file path
 
-    :return: dict
-    :rtype: dict
+    Returns:
+        dict: dict
     """
     try:
         with io.open(src_fp, 'r', encoding='utf-8') as f:

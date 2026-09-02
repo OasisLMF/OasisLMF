@@ -392,11 +392,14 @@ def test_gulmc_socket_server_periodic_ping():
     """The in-loop periodic ping fires once more than SERVER_UPDATE_TIME elapses between events.
 
     Forcing the threshold below zero makes the periodic ping (distinct from the
-    end-of-run ping) fire on every event, so oasis_ping is called more than once.
+    end-of-run ping) fire on every event. The periodic ping is dispatched through
+    `oasis_ping_async` (fire-and-forget, so a stuck ping target can't stall the compute
+    loop), while the end-of-run ping still calls `oasis_ping` directly.
     """
     test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
     with (TemporaryDirectory() as tmp_result_dir_str,
           patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping,
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping_async') as mock_ping_async,
           patch('oasislmf.pytools.gulmc.manager.SERVER_UPDATE_TIME', -1)):
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
         os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
@@ -416,8 +419,9 @@ def test_gulmc_socket_server_periodic_ping():
                 effective_damageability=False,
                 socket_server='True',
             )
-            # periodic ping (per event, threshold forced negative) + end-of-run ping -> >1 call
-            assert mock_ping.call_count > 1
+            # periodic ping (per event, threshold forced negative) fires more than once
+            assert mock_ping_async.call_count > 1
+            mock_ping.assert_called_once()
         finally:
             if file_out.exists():
                 file_out.unlink()
