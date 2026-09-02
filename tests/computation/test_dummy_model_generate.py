@@ -1,0 +1,260 @@
+"""Pin the array generation of the dummy model files against the row by row generation."""
+
+import os
+import struct
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from oasislmf.computation.data.dummy_model import generate
+from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile, CoveragesFile,
+                                                            DamageBinDictFile, EventsFile,
+                                                            FMPolicyTCFile, FMProfileFile,
+                                                            FMProgrammeFile, FMSummaryXrefFile,
+                                                            FMXrefFile, FootprintBinFile,
+                                                            GULSummaryXrefFile, ItemsFile,
+                                                            LossFactorsFile, OccurrenceFile,
+                                                            RandomFile, VulnerabilityFile)
+
+RANDOM_SEED = -1
+
+
+def model_files(directory, **kwargs):
+    """Build every dummy model file class, at a size that exercises more than one chunk."""
+    settings = {
+        'num_vulnerabilities': 5, 'num_intensity_bins': 4, 'num_damage_bins': 6,
+        'vulnerability_sparseness': 0.6, 'num_events': 7, 'num_areaperils': 8,
+        'areaperils_per_event': 8, 'intensity_sparseness': 0.7, 'no_intensity_uncertainty': False,
+        'num_periods': 20, 'num_locations': 9, 'coverages_per_location': 3, 'num_layers': 2,
+        'num_amplifications': 4, 'min_pla_factor': 0.875, 'max_pla_factor': 1.5, 'num_randoms': 11,
+        **kwargs,
+    }
+    seed, out = RANDOM_SEED, str(directory)
+
+    return {
+        'vulnerability': VulnerabilityFile(
+            settings['num_vulnerabilities'], settings['num_intensity_bins'],
+            settings['num_damage_bins'], settings['vulnerability_sparseness'], seed, out),
+        'events': EventsFile(settings['num_events'], out),
+        'footprint': FootprintBinFile(
+            settings['num_events'], settings['num_areaperils'], settings['areaperils_per_event'],
+            settings['num_intensity_bins'], settings['intensity_sparseness'],
+            settings['no_intensity_uncertainty'], seed, out),
+        'damage_bin_dict': DamageBinDictFile(settings['num_damage_bins'], out),
+        'occurrence': OccurrenceFile(
+            settings['num_events'], settings['num_periods'], seed, out, mean=2, stddev=1.0),
+        'loss_factors': LossFactorsFile(
+            settings['num_events'], settings['num_amplifications'], settings['min_pla_factor'],
+            settings['max_pla_factor'], seed, out),
+        'random': RandomFile(settings['num_randoms'], seed, out),
+        'coverages': CoveragesFile(
+            settings['num_locations'], settings['coverages_per_location'], seed, out),
+        'items': ItemsFile(
+            settings['num_locations'], settings['coverages_per_location'],
+            settings['num_areaperils'], settings['num_vulnerabilities'], seed, out),
+        'amplifications': AmplificationsFile(
+            settings['num_locations'], settings['coverages_per_location'],
+            settings['num_amplifications'], seed, out),
+        'gulsummaryxref': GULSummaryXrefFile(
+            settings['num_locations'], settings['coverages_per_location'], out),
+        'fm_programme': FMProgrammeFile(
+            settings['num_locations'], settings['coverages_per_location'], out),
+        'fm_policytc': FMPolicyTCFile(
+            settings['num_locations'], settings['coverages_per_location'], settings['num_layers'], out),
+        'fm_profile': FMProfileFile(settings['num_layers'], out),
+        'fm_xref': FMXrefFile(
+            settings['num_locations'], settings['coverages_per_location'], settings['num_layers'], out),
+        'fmsummaryxref': FMSummaryXrefFile(
+            settings['num_locations'], settings['coverages_per_location'], settings['num_layers'], out),
+    }
+
+
+def rows_of(model_file):
+    """Pack the rows from the row by row generation into the file's dtype."""
+    return np.fromiter(model_file.generate_data(), dtype=model_file.array_dtype)
+
+
+def arrays_of(model_file):
+    return np.concatenate(list(model_file.generate_arrays()))
+
+
+FILE_NAMES = list(model_files('.'))
+
+
+@pytest.mark.parametrize('file_name', FILE_NAMES)
+def test_arrays_match_rows(file_name, tmp_path):
+    # a fresh object per path, as generating the data advances the footprint file's offset
+    expected = rows_of(model_files(tmp_path)[file_name])
+    generated = arrays_of(model_files(tmp_path)[file_name])
+
+    assert generated.dtype == expected.dtype
+    np.testing.assert_array_equal(generated, expected)
+
+
+@pytest.mark.parametrize('file_name', FILE_NAMES)
+def test_arrays_match_rows_over_several_chunks(file_name, tmp_path):
+    # enough vulnerabilities and events that the chunked generators yield more than once
+    sizes = {'num_damage_bins': 400, 'num_events': 300, 'num_amplifications': 5000}
+    expected = rows_of(model_files(tmp_path, **sizes)[file_name])
+    generated = arrays_of(model_files(tmp_path, **sizes)[file_name])
+
+    np.testing.assert_array_equal(generated, expected)
+
+
+@pytest.mark.parametrize('sparseness', [0.0, 0.5, 1.0])
+def test_vulnerability_matches_rows_at_any_sparseness(sparseness, tmp_path):
+    # 0.0 leaves every vulnerability with no impacted bin, taking the zero-loss fallback
+    settings = {'vulnerability_sparseness': sparseness}
+    expected = rows_of(model_files(tmp_path, **settings)['vulnerability'])
+    generated = arrays_of(model_files(tmp_path, **settings)['vulnerability'])
+
+    np.testing.assert_array_equal(generated, expected)
+
+
+@pytest.mark.parametrize('sparseness', [0.0, 0.5, 1.0])
+@pytest.mark.parametrize('no_intensity_uncertainty', [False, True])
+@pytest.mark.parametrize('areaperils_per_event', [4, 8])
+def test_footprint_matches_rows(sparseness, no_intensity_uncertainty, areaperils_per_event, tmp_path):
+    settings = {
+        'intensity_sparseness': sparseness,
+        'no_intensity_uncertainty': no_intensity_uncertainty,
+        'areaperils_per_event': areaperils_per_event,
+    }
+    expected = rows_of(model_files(tmp_path, **settings)['footprint'])
+    generated = arrays_of(model_files(tmp_path, **settings)['footprint'])
+
+    np.testing.assert_array_equal(generated, expected)
+
+
+def test_footprint_index_matches_the_rows_written_per_event(tmp_path):
+    footprint = model_files(tmp_path)['footprint']
+    events = list(footprint.generate_arrays())
+
+    index = footprint.index
+    assert len(index) == footprint.num_events
+    np.testing.assert_array_equal(index['event_id'], np.arange(1, footprint.num_events + 1))
+    # every event's data sits at the offset the index gives, and is as long as it claims
+    assert index['offset'][0] == footprint.initial_offset
+    np.testing.assert_array_equal(
+        index['size'], [event.nbytes for event in events]
+    )
+    np.testing.assert_array_equal(
+        index['offset'], footprint.initial_offset + np.cumsum([0] + [event.nbytes for event in events[:-1]])
+    )
+
+
+@pytest.mark.parametrize('chunk_rows', [1, 2, 3, 7, 13])
+@pytest.mark.parametrize('no_intensity_uncertainty', [False, True])
+def test_footprint_chunking_does_not_change_the_output(chunk_rows, no_intensity_uncertainty, monkeypatch, tmp_path):
+    """Taking an event's areaperils in chunks takes the same numbers from the generator.
+
+    An event is unbounded in areaperils_per_event x num_intensity_bins, so it is generated in
+    chunks rather than all at once. The draws stay contiguous per areaperil, so the rows must come
+    out identical however the chunk boundaries fall, and the index must still describe whole events.
+    """
+    # more areaperils than the largest chunk size, so every parametrisation really does chunk
+    settings = {'no_intensity_uncertainty': no_intensity_uncertainty, 'num_areaperils': 30,
+                'areaperils_per_event': 30, 'num_intensity_bins': 4}
+    unchunked = model_files(tmp_path, **settings)['footprint']
+    expected = arrays_of(unchunked)
+
+    monkeypatch.setattr(generate, 'CHUNK_ROWS', chunk_rows)
+    chunked = model_files(tmp_path, **settings)['footprint']
+    generated = arrays_of(chunked)
+
+    np.testing.assert_array_equal(generated, expected)
+    np.testing.assert_array_equal(chunked.index, unchunked.index)
+    # the chunking is real: the event is yielded as more than one array
+    assert len(list(model_files(tmp_path, **settings)['footprint'].generate_arrays())) > unchunked.num_events
+
+
+def test_footprint_index_describes_whole_events_when_chunked(monkeypatch, tmp_path):
+    """The index holds one entry per event, sized for the whole event, not per chunk."""
+    monkeypatch.setattr(generate, 'CHUNK_ROWS', 2)
+    footprint = model_files(tmp_path, num_areaperils=12, areaperils_per_event=12)['footprint']
+    chunks = list(footprint.generate_arrays())
+
+    index = footprint.index
+    assert len(index) == footprint.num_events < len(chunks)
+    np.testing.assert_array_equal(index['event_id'], np.arange(1, footprint.num_events + 1))
+    assert index['size'].sum() == sum(chunk.nbytes for chunk in chunks)
+    np.testing.assert_array_equal(
+        index['offset'], footprint.initial_offset + np.cumsum(np.append(0, index['size'][:-1]))
+    )
+
+
+def test_footprint_with_no_events_writes_a_header_and_an_empty_index(tmp_path):
+    """A footprint with no events still writes both files, the index simply holding no records.
+
+    The row by row version only ever opened footprint.idx from inside the per event loop, so with
+    no events it left no index file at all -- and a footprint with no index is not readable, where
+    an empty one is well formed. This is the single case where the array output is not byte for
+    byte what the row output was, so it is pinned rather than left to be rediscovered.
+    """
+    footprint = model_files(tmp_path, num_events=0)['footprint']
+    footprint.write_file()
+
+    idx_path = Path(footprint.idx_file.file_name)
+    assert idx_path.exists()
+    assert np.fromfile(idx_path, dtype=footprint.idx_file.array_dtype).size == 0
+    assert len(footprint.index) == 0
+
+    # the bin file is the 8 byte header and nothing else
+    start_stats_size = sum(struct.calcsize(stat['dtype']) for stat in footprint.start_stats or [])
+    assert os.path.getsize(footprint.file_name) == start_stats_size
+    assert np.fromfile(footprint.file_name, dtype=footprint.array_dtype,
+                       offset=start_stats_size).size == 0
+
+
+def test_footprint_index_written_to_file(tmp_path):
+    footprint = model_files(tmp_path)['footprint']
+    footprint.write_file()
+
+    written = np.fromfile(footprint.idx_file.file_name, dtype=footprint.idx_file.array_dtype)
+    np.testing.assert_array_equal(written, footprint.index)
+
+
+@pytest.mark.parametrize('file_name', FILE_NAMES)
+def test_array_dtype_is_packed_like_the_struct_format(file_name, tmp_path):
+    """Every row written as an array occupies exactly the bytes its struct format declares.
+
+    The files are read back by struct format characters, so the dtype has to stay packed. Building
+    it with align=True, or adding a format character to STRUCT_TO_NUMPY_FORMAT whose numpy width
+    does not match, would insert padding and shift every field after it -- producing a file of
+    plausible size that no assertion on the generated rows would notice.
+    """
+    model_file = model_files(tmp_path)[file_name]
+    array_dtype = model_file.array_dtype
+
+    assert array_dtype.itemsize == struct.calcsize('=' + ''.join(model_file.dtypes.values()))
+    assert array_dtype.names == tuple(model_file.dtypes)
+    # no gaps: each field starts where the previous one ended
+    offsets = [array_dtype.fields[name][1] for name in array_dtype.names]
+    widths = [array_dtype.fields[name][0].itemsize for name in array_dtype.names]
+    assert offsets == list(np.cumsum([0] + widths[:-1]))
+
+
+def test_footprint_index_dtype_is_packed_like_the_struct_format(tmp_path):
+    """The index record is 20 bytes, not the 24 an aligned dtype would give it.
+
+    getmodel reads footprint.idx with EventIndexBin_dtype, so a padded record here would be
+    silently misread rather than rejected.
+    """
+    idx_file = model_files(tmp_path)['footprint'].idx_file
+
+    assert idx_file.array_dtype.itemsize == struct.calcsize('=' + ''.join(idx_file.dtypes.values()))
+    assert idx_file.array_dtype.itemsize == 20
+
+
+@pytest.mark.parametrize('file_name', FILE_NAMES)
+def test_written_file_holds_the_generated_rows(file_name, tmp_path):
+    model_file = model_files(tmp_path)[file_name]
+    model_file.write_file()
+
+    expected = arrays_of(model_files(tmp_path)[file_name])
+    start_stats_size = sum(struct.calcsize(stat['dtype']) for stat in model_file.start_stats or [])
+    written = np.fromfile(model_file.file_name, dtype=model_file.array_dtype,
+                          offset=start_stats_size)
+
+    np.testing.assert_array_equal(written, expected)
