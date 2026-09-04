@@ -235,7 +235,7 @@ def _dependency_arrays():
     validate_coverage_dependency, which individual tests perturb to trip one guard."""
     items = np.zeros(2, dtype=[('item_id', 'i4'), ('coverage_id', 'i4'), ('vulnerability_id', 'i4'),
                                ('vulnerability_idx', 'i4'), ('areaperil_agg_vuln_idx', 'i4'),
-                               ('source_item_id', 'u4')])
+                               ('source_item_id', 'i4')])
     items['item_id'] = [1, 2]
     items['coverage_id'] = [1, 2]
     items['vulnerability_id'] = [10, 20]
@@ -568,7 +568,7 @@ def test_build_coverage_dependency_forest():
     # coverage 100 root; 101 -> 100; 102 -> 101 (chain); 200 root; 201 -> 200.
     # one item per coverage, item_id = coverage_id, so the item links mirror the coverage links.
     items = np.array([(100, 100, 0, 7), (101, 101, 100, 7), (102, 102, 101, 7), (200, 200, 0, 7), (201, 201, 200, 7)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'i4'),
                             ('areaperil_id', 'u4')])
     src, off, data, source_item_idx = build_coverage_dependency_forest(items, 203)
     # the resolved source item index points at the row holding that item
@@ -586,7 +586,7 @@ def test_build_coverage_dependency_forest():
 def test_forest_shared_source():
     # a single source (100) may drive multiple dependents (101, 102): a branch, not a cycle.
     items = np.array([(100, 100, 0, 7), (101, 101, 100, 7), (102, 102, 100, 7)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'i4'),
                             ('areaperil_id', 'u4')])
     src, off, data, _ = build_coverage_dependency_forest(items, 103)
     assert [int(src[i]) for i in (100, 101, 102)] == [0, 100, 100]
@@ -596,7 +596,7 @@ def test_forest_shared_source():
 def test_forest_rejects_cycles():
     # a cyclic dependency (coverage 1 -> 2 -> 1) must be rejected when the forest is built
     items = np.array([(1, 1, 2, 7), (2, 2, 1, 7)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'i4'),
                             ('areaperil_id', 'u4')])
     with pytest.raises(OasisException):
         build_coverage_dependency_forest(items, 3)
@@ -609,7 +609,7 @@ def test_forest_rejects_a_source_item_at_another_areaperil():
     coverage treats such a coverage as a root on the same grounds. Violated silently, losses become
     event-order dependent, so it is rejected like every other link malformation."""
     items = np.array([(1, 1, 0, 7), (2, 2, 1, 9)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'i4'),
                             ('areaperil_id', 'u4')])
     with pytest.raises(OasisException, match="different areaperil"):
         build_coverage_dependency_forest(items, 3)
@@ -621,7 +621,7 @@ def test_forest_rejects_a_coverage_with_two_source_coverages():
     absorbed by the scatter, silently driving some items from the wrong coverage's depth row."""
     # coverage 3's two items are linked to items of coverage 1 and coverage 2 respectively
     items = np.array([(1, 1, 0, 7), (2, 2, 0, 7), (3, 3, 1, 7), (4, 3, 2, 7)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'i4'),
                             ('areaperil_id', 'u4')])
     with pytest.raises(OasisException, match="more than one source coverage"):
         build_coverage_dependency_forest(items, 4)
@@ -633,7 +633,7 @@ def test_forest_rejects_nonexistent_source_item():
     # must survive python -O, where a bad id would reach the njit depth walk and index out of
     # bounds with no boundscheck.
     items = np.array([(1, 1, 0, 7), (2, 2, 99, 7)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'i4'),
                             ('areaperil_id', 'u4')])
     with pytest.raises(OasisException, match="do not exist"):
         build_coverage_dependency_forest(items, 3)
@@ -642,7 +642,7 @@ def test_forest_rejects_nonexistent_source_item():
 def test_forest_rejects_self_reference():
     # a coverage listing itself as its own source is malformed input -> fail loud
     items = np.array([(1, 1, 0, 7), (2, 2, 2, 7)],
-                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'u4'),
+                     dtype=[('item_id', 'i4'), ('coverage_id', 'u4'), ('source_item_id', 'i4'),
                             ('areaperil_id', 'u4')])
     with pytest.raises(OasisException, match="itself"):
         build_coverage_dependency_forest(items, 3)

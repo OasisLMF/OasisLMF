@@ -122,7 +122,6 @@ def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_gr
     return group_id_cols
 
 
-@oasis_log
 def resolve_zero_tiv_dependency_sources(gul_inputs_df, coverage_dependency_settings):
     """Mark zero-TIV coverages that must be kept because they drive a kept dependent.
 
@@ -205,6 +204,7 @@ def validate_single_source_per_coverage(gul_inputs_df):
         )
 
 
+@oasis_log
 def get_gul_input_items(
     location_df,
     keys_df,
@@ -503,7 +503,7 @@ def get_gul_input_items(
     # 0 = independent. Per item, not per coverage: a coverage can hold several items at one
     # areaperil, and the source's and dependent's vulnerability ids sort independently, so the
     # engine cannot infer the pairing from item ordering.
-    gul_inputs_df['source_item_id'] = np.zeros(len(gul_inputs_df), dtype='uint32')
+    gul_inputs_df['source_item_id'] = np.zeros(len(gul_inputs_df), dtype='int32')
     for source_cov_type, dependent_cov_type in (coverage_dependency_settings or []):
         # A keys file may hold several rows for one (loc_id, peril_id, coverage_type_id): they share
         # an item_id and the surviving one is the first, chosen by the drop_duplicates(subset=
@@ -544,7 +544,7 @@ def get_gul_input_items(
                 "the key server returned them at different areaperils for %d item(s), which are "
                 "therefore computed independently (%s)",
                 dependent_cov_type, source_cov_type, int(mismatch.sum()), detail)
-        gul_inputs_df.loc[dep_mask, 'source_item_id'] = merged['_src_item_id'].fillna(0).to_numpy().astype('uint32')
+        gul_inputs_df.loc[dep_mask, 'source_item_id'] = merged['_src_item_id'].fillna(0).to_numpy().astype('int32')
 
     validate_single_source_per_coverage(gul_inputs_df)
 
