@@ -148,6 +148,9 @@ def make_correlations(num_items):
         'damage_correlation_value': np.linspace(0, 1, num_items),
         'hazard_group_id': np.arange(num_items, dtype='uint32') % 7,
         'hazard_correlation_value': np.linspace(1, 0, num_items),
+        # coverage dependency: 0 = independent. A distinct pattern from the columns above, so the
+        # by-name-keying test below can still tell the columns apart.
+        'source_item_id': np.arange(num_items, dtype='int32') % 5,
     })[correlations_headers]
 
 

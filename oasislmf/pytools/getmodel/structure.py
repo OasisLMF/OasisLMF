@@ -15,8 +15,9 @@ import pandas as pd
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.manager import (
-    get_items, get_vulns, get_mean_damage_bins, convert_vuln_id_to_index,
+    get_items, get_vulns, get_mean_damage_bins, convert_vuln_id_to_index, get_conditional_vuln_ids,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,21 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
         num_intensity_bins = footprint_obj.num_intensity_bins
 
     # --- vulnerabilities -------------------------------------------------------
+    # A conditional (damage-transition) vulnerability is indexed by a source coverage's damage bin,
+    # so this engine cannot sample it from the footprint hazard. If an item uses one, coverage
+    # dependency is configured for this analysis and only gulmc can run it. Checked here because
+    # get_vulns would otherwise fail with a bare "Vulnerability_ids ... are missing".
+    conditional_vuln_ids = get_conditional_vuln_ids(model_storage, ignore_file_type)
+    if conditional_vuln_ids.size:
+        used = np.intersect1d(np.asarray(vuln_map_keys), conditional_vuln_ids)
+        if used.size:
+            raise OasisException(
+                f"coverage dependency: item(s) use conditional vulnerability id(s) "
+                f"{used[:10].tolist()} from conditional_vulnerability, which is indexed by a source "
+                "coverage's damage bin and cannot be sampled from the footprint hazard. Run this "
+                "analysis with the gulmc engine."
+            )
+
     logger.debug('import vulnerabilities')
     vuln_array, vulns_id, num_damage_bins = get_vulns(
         model_storage, run_dir, vuln_map, vuln_map_keys,

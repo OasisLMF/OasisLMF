@@ -82,6 +82,10 @@ bin_to = ("bin_to", oasis_float, "%f")
 calcrule_id = ("calcrule_id", 'i4', "%d")
 coverage_id = ("coverage_id", 'u4', "%u")
 damage_bin_id = ("damage_bin_id", 'i4', "%d")
+# conditional_vulnerability names its bin axes for what they are; same types and order as
+# vulnerability, so the binary layout is interchangeable.
+source_damage_bin = ("source_damage_bin", 'i4', "%d")
+dependent_damage_bin = ("damage_bin", 'i4', "%d")
 damage_correlation_value = ("damage_correlation_value", oasis_float, "%f")
 damage_type = ("damage_type", 'i4', "%d")
 deductible1 = ("deductible1", oasis_float, "%f")
@@ -128,6 +132,7 @@ share1 = ("share1", oasis_float, "%f")
 share2 = ("share2", oasis_float, "%f")
 share3 = ("share3", oasis_float, "%f")
 sidx = ("sidx", 'i4', "%d")
+source_item_id = ("source_item_id", 'i4', "%d")
 step_id = ("step_id", 'i4', "%d")
 summary_id = ("summary_id", 'i4', "%d")
 summaryset_id = ("summaryset_id", 'i4', "%d")
@@ -180,6 +185,7 @@ correlations_output = [
     damage_correlation_value,
     hazard_group_id,
     hazard_correlation_value,
+    source_item_id,
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
 
@@ -371,6 +377,15 @@ vulnerability_output = [
     probability,
 ]
 vulnerability_headers, vulnerability_dtype, vulnerability_fmt = generate_output_metadata(vulnerability_output)
+
+conditionalvulnerability_output = [
+    vulnerability_id,
+    source_damage_bin,
+    dependent_damage_bin,
+    probability,
+]
+(conditionalvulnerability_headers, conditionalvulnerability_dtype,
+ conditionalvulnerability_fmt) = generate_output_metadata(conditionalvulnerability_output)
 
 vulnerability_weight_output = [
     areaperil_id,
