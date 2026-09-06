@@ -718,6 +718,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 UserWarning,
             )
             gdf_geometry = gdf_geometry.set_crs("EPSG:4326")
+        elif gdf_geometry.crs != "EPSG:4326":
+            # The OED locations are always built in EPSG:4326 (see get_geometry below) and
+            # nearest_neighbor assumes WGS84, so reproject the geometry to match before the
+            # spatial join and nearest-neighbour search (issue #2134).
+            gdf_geometry = gdf_geometry.to_crs("EPSG:4326")
 
         if nearest_neighbor_max_distance > 0:
             if BallTree is None:
