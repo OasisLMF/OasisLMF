@@ -1,13 +1,15 @@
+import os
 import struct
 import numpy as np
 import pandas as pd
 import pytest
 from pathlib import Path
 import shutil
+from contextlib import ExitStack
 from tempfile import TemporaryDirectory
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
-from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin, default_tobin
 from oasislmf.pytools.converters.bintoparquet.manager import bintoparquet
 from oasislmf.pytools.converters.parquettobin.manager import parquettobin
 from oasislmf.pytools.converters.data import TOOL_INFO
@@ -538,6 +540,24 @@ def test_coverages():
 def test_eve():
     case_runner("bintocsv", "eve", "input")
     case_runner("csvtobin", "eve", "input")
+
+
+def test_csvtobin_non_seekable_stream():
+    """default_tobin() must work when file_out is a pipe, not just a seekable file —
+    this is what execution/runner.py's rerun() pipes csvtobin's output into, and a
+    plain ndarray.tofile() call fails on a non-seekable destination."""
+    infile = Path(TESTS_ASSETS_DIR, "input", "eve.csv")
+    expected_outfile = Path(TESTS_ASSETS_DIR, "input", "eve.bin")
+    dtype = TOOL_INFO["eve"]["dtype"]
+
+    read_fd, write_fd = os.pipe()
+    with ExitStack() as stack, os.fdopen(write_fd, "wb") as file_out, os.fdopen(read_fd, "rb") as file_in:
+        default_tobin(stack, infile, file_out, "eve")
+        file_out.close()
+        actual_bytes = file_in.read()
+
+    assert actual_bytes == expected_outfile.read_bytes()
+    assert np.array_equal(np.frombuffer(actual_bytes, dtype=dtype), np.fromfile(expected_outfile, dtype=dtype))
 
 
 def test_fm_policytc():
