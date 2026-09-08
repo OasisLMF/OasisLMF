@@ -319,6 +319,7 @@ def read_buffer(
                                 mi += 1
                                 if mi >= mplt_data.shape[0]:
                                     # Output array full
+                                    _reset_state()
                                     _update_idxs()
                                     return cursor, event_id, item_id, 1
 
@@ -348,6 +349,7 @@ def read_buffer(
                             qi += 1
                             if qi >= qplt_data.shape[0]:
                                 # Output array full
+                                _reset_state()
                                 _update_idxs()
                                 return cursor, event_id, item_id, 1
                 _reset_state()
