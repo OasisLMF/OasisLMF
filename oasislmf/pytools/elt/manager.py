@@ -287,6 +287,7 @@ def read_buffer(
 
                         if mi >= melt_data.shape[0]:
                             # Output array is full
+                            _reset_state()
                             _update_idxs()
                             return cursor, event_id, item_id, 1
 
@@ -315,6 +316,7 @@ def read_buffer(
                             qi += 1
                             if qi >= qelt_data.shape[0]:
                                 # Output array is full
+                                _reset_state()
                                 _update_idxs()
                                 return cursor, event_id, item_id, 1
 
