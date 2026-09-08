@@ -142,6 +142,10 @@ def rerun():
     gul_cmd = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('gul'))].pop(0)
     fm_cmds = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('fm'))]
 
+    # strip any stale output redirect from the extracted command (e.g. to a fifo whose
+    # reader has already exited in the main run) before pointing it at our own output file
+    gul_cmd = re.sub(r'>\s*\S+', '', gul_cmd).strip()
+
     pipe_output = "/tmp/il_P1"
     summary_output = "/tmp/il_S1_summary_P1"
     gul_output = f"{event_error}_gul.bin"
