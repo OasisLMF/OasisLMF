@@ -184,6 +184,35 @@ def test_build_rtree_associates_correctly(locations_by_name, expected_ids, reque
     )
 
 
+def test_build_rtree_reprojects_non_4326_geometry(rtree_locations_all_coordinates, tmp_path):
+    """Test that the rtree builtin associates correctly when the geometry file is not in EPSG:4326.
+
+    The OED locations are always built in EPSG:4326, so a geometry file in any other CRS must be
+    reprojected before the spatial join, otherwise no locations match (issue #2134). This reprojects
+    the WGS84 fixture to EPSG:27700 and expects the same associations as the EPSG:4326 case.
+    """
+    gpd = pytest.importorskip("geopandas", reason="geopandas not installed")
+
+    projected_file = tmp_path / "rtree_areas_epsg27700.parquet"
+    gpd.read_parquet(FILES_DIR / "rtree_areas.parquet").to_crs("EPSG:27700").to_parquet(projected_file)
+
+    rtree = Lookup(config={}).build_rtree(
+        file_path=projected_file.as_posix(),
+        file_type="parquet",
+        id_columns="poly_id",
+        nearest_neighbor_max_distance=12000,  # Euclidean distance in metres, not spherical distance.
+    )
+    output = rtree(rtree_locations_all_coordinates)
+    expected = rtree_locations_all_coordinates.copy().assign(poly_id=[1, 2, 1, OASIS_UNKNOWN_ID])
+
+    # Sort values so order doesn't matter.
+    pd.testing.assert_frame_equal(
+        output.sort_values("locname"),
+        expected.sort_values("locname"),
+        check_dtype=False,
+    )
+
+
 def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinates):
     """Test that the rtree builtin still works with the deprecated parameter."""
     with pytest.warns(DeprecationWarning):
