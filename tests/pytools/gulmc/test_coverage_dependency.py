@@ -117,10 +117,8 @@ def test_get_conditional_vulns_rejects_undefined_bin_without_a_no_damage_bin():
             get_conditional_vulns(LocalStorage(d), _damage_bins(3, first_bin_is_zero_damage=False))
 
 
-# NB a column that is DEFINED but does not sum to 1, and a duplicated
-# (vulnerability_id, source_damage_bin, damage_bin) triple, are both rejected by the csv -> bin
-# converter -- see tests/pytools/converters/test_converters.py, where the equivalent
-# vulnerability.csv checks live. The loader does not re-check them.
+# NB a defined column not summing to 1, and a duplicated triple, are both rejected by the
+# csv -> bin converter (see tests/pytools/converters/test_converters.py), not by the loader.
 def test_get_conditional_vulns_bin_matches_csv():
     """The binary loader (fixed 4-byte int32 header, then vulnerability_dtype records) yields the
     same transition matrix as the CSV loader."""

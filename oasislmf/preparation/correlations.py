@@ -114,10 +114,9 @@ def get_coverage_dependency_settings(data: Optional[dict]) -> list:
                 f"Invalid coverage_dependency_settings: coverage type {dependent_cov_type} is listed as a dependent "
                 "more than once; each dependent coverage type must have exactly one source.")
 
-        # Each dependent has exactly one source, so the pairs form a functional graph and this entry
-        # closes a cycle if its source already reaches its dependent. Walking up from the source
-        # terminates because the dependent is not yet a key. gulmc rejects cycles too, but by
-        # coverage_id, which does not point back at the entry that caused it.
+        # Each dependent has exactly one source, so this entry closes a cycle iff its source
+        # already reaches its dependent; the walk terminates as the dependent is not yet a key.
+        # gulmc also rejects cycles, but by coverage_id, which cannot name the offending entry.
         chain, node = [dependent_cov_type], source_cov_type
         while node != dependent_cov_type:
             chain.append(node)

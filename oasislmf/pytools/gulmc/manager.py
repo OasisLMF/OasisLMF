@@ -247,16 +247,10 @@ def run(run_dir,
         n_unique_haz_groups = structures['n_unique_haz_groups']
         del structures
 
-        # coverage dependency is active only when at least one dependent coverage exists;
-        # otherwise the forest is empty and gulmc behaves exactly as before.
         do_coverage_dependency = bool(coverage_dependents_ja_data.shape[0] > 0)
 
-        # Dependency is opt-in per location via the keys: a coverage is a dependent only when the
-        # key server returns its source coverage type at the same areaperil (resolved in
-        # gul_inputs; a mismatched/absent source demotes the coverage to independent). A dependent
-        # coverage must use a conditional (damage-transition) vulnerability from the
-        # conditional_vulnerability file; an independent coverage must use a normal hazard-indexed
-        # one. `vuln_idx_to_cond_idx[vulnerability_idx] >= 0` iff the vulnerability is conditional.
+        # gate on the file as well as the forest: if every dependent ends up unpaired the forest is
+        # empty, but an item still carrying a conditional vuln has to be caught
         if do_coverage_dependency or conditional_vuln_array.shape[0] > 0:
             if do_coverage_dependency:
                 logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
@@ -279,10 +273,8 @@ def run(run_dir,
         item_idx_to_item_j = np.zeros(items.shape[0], dtype=oasis_int)
         # longest dependency chain: sizes the per-depth parent-result stacks
         max_dependency_depth = compute_max_dependency_depth(coverage_source_id) if do_coverage_dependency else 0
-        # per-depth, per-item stacks holding the source coverage's result while its subtree is
-        # computed. Indexed [depth, item_j] so a dependent item reads its source's matching peril
-        # (same item column, since source and dependent span the same areaperils in the same order).
-        # Full MC stores the per-sample sampled damage bin; effective damageability stores the eff-damage CDF.
+        # per-depth stacks holding a source's result while its subtree is computed, indexed
+        # [depth, item_j] so a dependent reads its source's matching peril
         max_items_per_coverage = int(np.max(coverages[1:]['max_items']))
         source_damage_bin_stack = np.zeros(
             (max_dependency_depth + 1, max_items_per_coverage, sample_size if sample_size > 0 else 1), dtype=np.int32)
@@ -1062,9 +1054,8 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item
                 if store_source_bin:
                     source_damage_bin_stack[depth, item_j, sample_idx - 1] = src_bin
         elif is_dependent:
-            # coverage dependency: the dependent's "hazard bin" is the source's sampled damage bin,
-            # read straight from the stack (no ratio round-trip, so a source of any damage type
-            # works). This coverage may itself be a source (chain), so its own bin is recorded too.
+            # the dependent's "hazard bin" is the source's sampled damage bin, read straight from
+            # the stack — no ratio round-trip, so a source of any damage type works
             parent_damage_bin = source_damage_bin_stack[depth - 1, item_event_data['source_item_j']]
             for sample_idx in range(1, sample_size + 1):
                 haz_bin_idx = parent_damage_bin[sample_idx - 1]
@@ -1202,9 +1193,8 @@ def compute_event_losses(compute_info,
           the caller should flush and call again.
     """
     cdf_cache_size = nb_int64(cdf_cache_mask + 1)
-    # coverage dependency: a dependent's "hazard bins" are the source's damage bins, so its number
-    # of hazard bins is num_damage_bins rather than the footprint's num_intensity_bins. The
-    # per-hazard-bin scratch buffers must therefore be sized to the larger of the two.
+    # a dependent's "hazard bins" are its source's damage bins, so the per-hazard-bin scratch
+    # buffers must be sized to the larger of num_damage_bins and num_intensity_bins
     n_damage_bins_total = damage_bins.shape[0]
     max_haz_bins = max(vuln_array.shape[2], n_damage_bins_total)
     haz_cdf_empty = np.empty(max_haz_bins, dtype=oasis_float)
@@ -1218,9 +1208,8 @@ def compute_event_losses(compute_info,
     # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
     compute_info['cursor'] = 0
 
-    # loop through all the coverages that remain to be computed. `compute` is in DFS order:
-    # each root coverage (compute_depth == 0) is immediately followed by its dependent
-    # subtree, so a source is always processed before the dependents that use its result.
+    # loop through all the coverages that remain to be computed. `compute` is in DFS order — a
+    # root (compute_depth == 0) is followed by its subtree — so a source precedes its dependents.
     for coverage_i in range(compute_info['coverage_i'], compute_info['coverage_n']):
         coverage_id = coverage_ids[coverage_i]
         coverage = coverages[coverage_id]
@@ -1243,8 +1232,6 @@ def compute_event_losses(compute_info,
             if compute_info['cursor'] + subtree_item_count * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
                 return False
 
-        # resolved per item below: such a coverage may also hold items that found no source item,
-        # and those are computed independently
         coverage_has_dependents = compute_info['do_coverage_dependency'] == 1 and depth > 0
         # compute losses for each item
         for item_j in range(Nitems):
@@ -1283,17 +1270,12 @@ def compute_event_losses(compute_info,
 
             cdf_group = nb_int64(item_event_data['eff_cdf_id'])
 
-            # coverage dependency: replace this dependent's hazard bins with the source's
-            # damage bins and its hazard pdf with the source's damage pmf, so the dependent's
-            # vulnerability (authored over damage-bin-indexed intensities) is driven directly
-            # by the source's damage. The downstream assembly / CDF / sampling is reused.
+            # drive a dependent from its source's damage instead of the footprint hazard: hazard
+            # bins become the source's damage bins, the hazard pdf its damage pmf (derived from the
+            # source's stored eff-damage CDF), so the assembly / CDF / sampling below is reused
             if is_dependent:
-                # the dependent's "hazard bins" are the source's damage bins; its vulnerability is
-                # the conditional matrix (assembled below), and its hazard pdf is the source's
-                # damage pmf (derived here from the source's stored effective-damage CDF). The
-                # footprint hazard CDF is unused for a dependent, so it is not computed; the name
-                # is kept defined (as an empty view) only so numba sees it on all paths.
                 Nhaz_bins = n_damage_bins_total
+                # unused on this path, but stays defined so numba sees it everywhere
                 haz_cdf_prob = haz_cdf_empty[:0]
                 src_j = item_event_data['source_item_j']
                 parent_eff_cdf = source_eff_damage_cdf_stack[depth - 1, src_j, :source_eff_damage_cdf_len_stack[depth - 1, src_j]]
@@ -1309,9 +1291,8 @@ def compute_event_losses(compute_info,
                 haz_cdf_prob = pdf_to_cdf(haz_pdf_prob, haz_cdf_empty)
                 Nhaz_bins = haz_cdf_prob.shape[0]
 
-            # determine if the CDFs for this CDF group are cached. Dependent CDFs are
-            # event-specific (they depend on the source's damage this event), so they always
-            # miss the (event-independent) cache and are recomputed.
+            # determine if the CDFs for this CDF group are cached. A dependent's CDF is
+            # event-specific, so it is always recomputed.
             stored = cdf_cache_tag[cdf_group]
             do_calc_vuln_ptf = is_dependent or (
                 stored < 0) or (compute_info['cdf_cache_ctr'] - stored >= cdf_cache_size)
@@ -1342,9 +1323,8 @@ def compute_event_losses(compute_info,
             losses[MEAN_IDX, item_j] = gul_mean
 
             if sample_size > 0:  # compute random losses
-                # coverage dependency (full Monte Carlo): record each coverage's per-sample sampled
-                # damage bin so a dependent below it in the DFS can index its conditional vulnerability
-                # directly (a dependent in turn consumes its source's stored bins in sample_item_losses).
+                # full Monte Carlo: record this coverage's per-sample damage bin for any dependent
+                # below it in the DFS
                 store_source_bin = compute_info['do_coverage_dependency'] == 1 and not compute_info['effective_damageability']
 
                 draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sample_size,
@@ -1358,17 +1338,15 @@ def compute_event_losses(compute_info,
                                    damage_bins, damage_bin_scaling, losses,
                                    is_dependent, store_source_bin, source_damage_bin_stack, depth)
 
-            # coverage dependency (effective damageability): record this coverage's effective-damage
-            # CDF at (depth, item_j) so a dependent below it in the DFS order can build its damage pmf
-            # from it. (Full Monte Carlo instead uses the per-sample damage bin captured above.)
+            # effective damageability: record the eff-damage CDF instead, for a dependent below
+            # to build its damage pmf from
             if compute_info['do_coverage_dependency'] == 1:
                 num_damage_bins = eff_damage_cdf.shape[0]
                 source_eff_damage_cdf_stack[depth, item_j, :num_damage_bins] = eff_damage_cdf
                 source_eff_damage_cdf_len_stack[depth, item_j] = num_damage_bins
 
-        # write the losses to the output memoryview. A zero-TIV coverage (e.g. an uninsured
-        # dependency source, retained only to drive its dependents) yields zero losses and is
-        # written like any other coverage — it is not special-cased.
+        # write the losses to the output memoryview. A zero-TIV coverage (an uninsured dependency
+        # source) yields zero losses and is written like any other — not special-cased.
         compute_info['cursor'] = write_losses(
             compute_info['event_id'],
             sample_size,
@@ -1625,9 +1603,8 @@ def reconstruct_coverages(compute_info,
                 coverage = coverages[coverage_id]
                 if coverage['cur_items'] == 0:
                     # no items were collected for this coverage yet: set up the structure.
-                    # All present coverages are appended here in footprint order; when
-                    # coverage dependency is active this list is reordered into DFS order
-                    # (root followed by its dependent subtree) below.
+                    # Appended in footprint order; reordered into DFS order below when
+                    # coverage dependency is active.
                     compute[compute_i], compute_i = coverage_id, compute_i + 1
 
                     while items_event_data.shape[0] < items_data_i + coverage['max_items']:

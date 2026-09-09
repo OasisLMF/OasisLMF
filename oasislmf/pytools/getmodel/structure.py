@@ -98,10 +98,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
         num_intensity_bins = footprint_obj.num_intensity_bins
 
     # --- vulnerabilities -------------------------------------------------------
-    # A conditional (damage-transition) vulnerability is indexed by a source coverage's damage bin,
-    # so this engine cannot sample it from the footprint hazard. If an item uses one, coverage
-    # dependency is configured for this analysis and only gulmc can run it. Checked here because
-    # get_vulns would otherwise fail with a bare "Vulnerability_ids ... are missing".
+    # A conditional vulnerability is indexed by a source's damage bin, so this engine cannot
+    # sample it from the footprint hazard — only gulmc can run such an analysis. Checked here
+    # because get_vulns would otherwise fail with a bare "Vulnerability_ids ... are missing".
     conditional_vuln_ids = get_conditional_vuln_ids(model_storage, ignore_file_type)
     if conditional_vuln_ids.size:
         used = np.intersect1d(np.asarray(vuln_map_keys), conditional_vuln_ids)

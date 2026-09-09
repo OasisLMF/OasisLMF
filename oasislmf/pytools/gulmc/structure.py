@@ -183,11 +183,9 @@ def build_coverage_dependency_forest(items, n_coverages):
             )
     coverage_source_id[dependent_coverages] = source_coverages
 
-    # A source pointing outside the coverage range, or a coverage referencing itself, can only
-    # come from malformed/stale input (a valid source is always an in-range coverage_id of a
-    # different coverage at the same location). Fail loudly rather than silently demoting the
-    # dependent to independent, which would change losses with no signal. (source == 0 means
-    # independent and is excluded from both checks.)
+    # A source outside the coverage range, or a coverage referencing itself, can only come from
+    # malformed/stale input. Fail loudly rather than silently demote the dependent to independent,
+    # which would change losses with no signal. (source == 0 means independent, excluded here.)
     out_of_range = np.nonzero(coverage_source_id >= n_coverages)[0]
     if out_of_range.size > 0:
         raise OasisException(
@@ -290,8 +288,7 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
             )
         conditional_vuln_array[:, 0, :][undefined] = 1.
 
-    # Column sums and duplicate rows are checked by the csv -> bin converter, where the equivalent
-    # vulnerability.csv checks live, not here.
+    # Column sums and duplicate rows are checked by the csv -> bin converter, not here.
 
     return conditional_vuln_array, cond_vuln_ids.astype(np.int32)
 
@@ -557,10 +554,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     logger.debug('import vulnerabilities')
     vuln_adj = get_vuln_rngadj(run_dir, vuln_map, vuln_map_keys)
     # --- conditional (dependent) vulnerabilities -------------------------------
-    # A dependent coverage is driven by its source's damage bin via a separate damage-transition
-    # matrix P(dependent damage bin | source damage bin), correctly sized num_damage_bins^2 (not
-    # the footprint intensity resolution). Loaded before the hazard-indexed vulnerabilities so its
-    # ids can be excluded from get_vulns' presence check (they are absent from vulnerability.bin).
+    # Loaded before the hazard-indexed vulnerabilities so its ids can be excluded from get_vulns'
+    # presence check — conditional ids are absent from vulnerability.bin.
     conditional_vuln_array, cond_vuln_ids = get_conditional_vulns(
         model_storage, damage_bins, ignore_file_type)
 

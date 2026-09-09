@@ -30,9 +30,8 @@ items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('return_period', oasis_int),
                                              ('event_rp', oasis_int),
                                              ('eff_cdf_id', oasis_int),
-                                             # signed: -1 means this item has no source item, so
-                                             # it is computed independently even inside a coverage
-                                             # that holds dependent items
+                                             # signed: -1 means no source item, so this item is
+                                             # independent even inside a dependent coverage
                                              ('source_item_j', np.int32)
                                              ]))
 
