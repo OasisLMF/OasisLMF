@@ -43,7 +43,7 @@ TOBIN_FUNC_MAP = {
 def default_tobin(stack, file_in, file_out, file_type):
     dtype = TOOL_INFO[file_type]["dtype"]
     for chunk in iter_csv_as_ndarray(stack, file_in, dtype):
-        chunk.tofile(file_out)
+        file_out.write(chunk.tobytes())
 
 
 def csvtobin(file_in, file_out, file_type, **kwargs):

@@ -35,8 +35,8 @@ def fm_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index)
 
     stream_agg_type = 1
     stream_info = (stream_type << 24 | stream_agg_type)
-    np.array([stream_info], dtype="i4").tofile(file_out)
-    np.array([max_sample_index], dtype="i4").tofile(file_out)
+    file_out.write(np.array([stream_info], dtype="i4").tobytes())
+    file_out.write(np.array([max_sample_index], dtype="i4").tobytes())
 
     buf = np.empty(_CHUNK_OUT_SIZE, dtype='b')
     prev_event_id = event_id_dtype.type(-1)
@@ -53,7 +53,7 @@ def fm_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index)
             max_sample_index, buf, np.int64(0),
             prev_event_id, prev_item_id, event_id_dtype,
         )
-        buf[:cursor].tofile(file_out)
+        file_out.write(buf[:cursor].tobytes())
 
     if prev_event_id != event_id_dtype.type(-1):
-        np.array([0], dtype=loss_pair_dtype).tofile(file_out)  # final delimiter
+        file_out.write(np.array([0], dtype=loss_pair_dtype).tobytes())  # final delimiter
