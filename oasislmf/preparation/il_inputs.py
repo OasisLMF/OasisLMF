@@ -1456,9 +1456,8 @@ def get_il_input_items(
                                   'tiv_buildings_site', 'tiv_buildings_above']
                                  + get_useful_summary_cols(oed_hierarchy)).union(tiv_terms)
                              - {'profile_id', 'item_id', 'output_id'}, key=str.lower)
-        # Capture the packing shape before the column filter below drops these columns. Only items
-        # whose buildings stay separate reach the financial module packed, so only they size its
-        # arrays; everything else is summed at source by the ground-up tool.
+        # Captured before the column filter drops these. Only items whose buildings stay separate reach
+        # the financial module packed, so only they size its arrays.
         if disaggregation == DISAGGREGATION_SAMPLES and 'keep_buildings_separate' in gul_inputs_df.columns:
             separate = gul_inputs_df.loc[gul_inputs_df['keep_buildings_separate'] == 1, 'number_of_buildings']
             max_buildings = int(separate.max()) if len(separate) else 1
@@ -1466,9 +1465,9 @@ def get_il_input_items(
             max_buildings = 1
 
         # How many buildings' TIV each node covers, for percentage-of-TIV terms. Under row
-        # disaggregation every row is one building and both are 1. Under packing one row stands
-        # for N: a node above the site levels covers all of them, while a site node covers one
-        # only where the buildings are kept separate, since then each is its own risk.
+        # disaggregation every row is one building and both are 1. Under packing one row stands for N:
+        # a node above the site levels covers all of them, a site node covers one only where the
+        # buildings are kept separate, since then each is its own risk.
         n_buildings_col = (gul_inputs_df['number_of_buildings']
                            if 'number_of_buildings' in gul_inputs_df.columns else 1)
         keep_separate_col = (gul_inputs_df['keep_buildings_separate']
@@ -1701,10 +1700,8 @@ def get_il_input_items(
                                            fm_xref_bin, fm_xref_csv, chunksize)
 
         if disaggregation == DISAGGREGATION_SAMPLES:
-            # The financial module cannot work out where the site levels end: fm_programme levels
-            # are compacted (only levels carrying terms get one), so the numbering varies per
-            # portfolio. Record it next to the other fm inputs; an input set without this file
-            # reads as 0, meaning "no packed buildings to collapse".
+            # The financial module cannot derive this: fm_programme levels are compacted, so only levels
+            # carrying terms get one and the numbering varies per portfolio.
             write_fm_structure_info(target_dir, site_collapse_level, max_buildings)
 
         return gul_inputs_df, il_input_files

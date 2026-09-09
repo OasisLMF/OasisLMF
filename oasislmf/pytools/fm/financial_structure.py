@@ -874,22 +874,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     compute_info['max_layer'] = max(nodes_array['layer_len'][1:])
     compute_info['site_collapse_level'] = site_collapse_level
     compute_info['max_buildings'] = max_buildings
-    # Nodes at or below the collapse level are the ones that can carry a building dimension;
-    # everything above sees the collapsed loss and keeps its ordinary size.
-    #
-    # The item nodes sit at ``start_level``, which is 1 for a single-peril structure -- not 0. So
-    # a collapse level below start_level means no level applies terms per building at all, which
-    # an input set with no site-level terms produces. Nothing in the tree would ever collapse
-    # those buildings, so the reader sums them away instead (``collapse_on_read``) and no node
-    # carries a building dimension.
-    #
-    # max(1, start_level), not start_level: 0 is the "no risk-keyed level exists" marker, so it
-    # means nothing to collapse for whichever start_level applies. Under multi-peril start_level
-    # is 0 and a bare ``0 >= 0`` would mark the item nodes packable and inflate the arena for a
-    # collapse that never happens -- which then overran the loss arena under allocation rule 1.
-    #
-    # Count from index 1: nodes_array is allocated with np.empty and node 0 is a never-written
-    # sentinel, so reading its level_id would add an uninitialised value to the count.
+    # Nodes at or below the collapse level carry a building dimension; everything above sees the
+    # collapsed loss. The item nodes sit at start_level, which is 1 for a single-peril structure,
+    # and 0 is the "no risk-keyed level" marker -- hence max(1, start_level). Below that, nothing
+    # would ever collapse the buildings, so the reader sums them away (collapse_on_read) instead.
+    # Count from index 1: nodes_array is np.empty and node 0 is a never-written sentinel.
     compute_info['packable_node_len'] = (
         int(np.count_nonzero(nodes_array[1:node_i]['level_id'] <= site_collapse_level))
         if max_buildings > 1 and site_collapse_level >= max(1, start_level) else 0

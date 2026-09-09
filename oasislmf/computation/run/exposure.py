@@ -129,17 +129,11 @@ class RunExposure(ComputationStep):
         disaggregation = resolve_disaggregation(
             self.disaggregation, self.do_disaggregation, logger=self.logger)
 
-        # Packing multiplexes the N buildings of a location into the sample dimension, and file
-        # generation divides that location's TIV by N to match. Only the ground-up tools
-        # (gulmc/gulpy) write that dimension; GenerateLossesDeterministic derives its loss straight
-        # from the coverage TIV and has nothing to unpack, so packed files here would understate
-        # every loss by a factor of NumberOfBuildings.
-        #
-        # This step is routinely used to check a portfolio before launching the real run, so the
-        # same settings have to be usable: fall back to the whole-location representation, which
-        # gives the correct location totals, and say so rather than failing. The difference to be
-        # aware of is that site terms then apply once to the location instead of once per
-        # building, so an IsAggregate=1 location's per-building terms are not exercised here.
+        # Generation divides a location's TIV by N for packing, and only the ground-up tools write the
+        # sample dimension to put the buildings back -- so packed files here would understate every
+        # loss by a factor of NumberOfBuildings. This step is routinely used to check a portfolio
+        # before the real run, so fall back rather than fail. Site terms then apply once to the
+        # location instead of once per building.
         if disaggregation == DISAGGREGATION_SAMPLES:
             self.logger.info(
                 "disaggregation='samples' has no deterministic equivalent: 'exposure run' produces "

@@ -218,21 +218,14 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 
                 # Process the (sidx, loss) pair
                 if loss != 0:
-                    # A sidx outside [-NUM_SPECIAL_SIDX, max_sidx_val] belongs to building b>1 of
-                    # a building-packed item. Those buildings are kept apart here: the site levels
-                    # apply their terms per building and the collapse happens afterwards, at
-                    # compute_info['site_collapse_level']. Only items whose buildings nothing
-                    # downstream can tell apart reach this reader, and the ground-up tool has
-                    # already summed those at source, so anything still packed must survive.
-                    #
-                    # The decoded local sidx is used only to classify the record; what gets stored
-                    # is the packed sidx as it arrived. For a normal stream the two are identical.
+                    # A sidx outside [-NUM_SPECIAL_SIDX, max_sidx_val] is building b>1 of a packed item. The
+                    # blocks are kept apart here so the site levels can apply their terms per building; the
+                    # collapse happens later, at site_collapse_level. The decode only CLASSIFIES the record --
+                    # what gets stored is the packed sidx as it arrived, identical for a normal stream.
                     if sidx > max_sidx_val or sidx < -NUM_SPECIAL_SIDX:
                         if not building_packing:
-                            # The arrays were sized without a building dimension, and numba does
-                            # not bounds-check, so carrying on would corrupt memory rather than
-                            # fail. This means fm_structure_info.bin did not reach the folder the
-                            # financial module reads.
+                            # The arrays were sized without a building dimension and numba does not bounds-check, so
+                            # carrying on would corrupt memory rather than fail.
                             raise ValueError(
                                 "packed sidx in the stream but the financial structure declares no "
                                 f"packed buildings: {FM_STRUCTURE_INFO_FILE} is missing from the input folder")
@@ -240,10 +233,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     else:
                         local_sidx = sidx
 
-                    # No level applies terms per building, so there is nothing for the building
-                    # dimension to do downstream: sum it away here and hand the financial module
-                    # an ordinary stream. Storing the packed index instead would leak it all the
-                    # way to the output, since no aggregation would ever collapse it.
+                    # No level applies terms per building, so sum them away here and hand the financial module an
+                    # ordinary stream. Storing the packed index would leak it to the output uncollapsed.
                     if collapse_on_read:
                         store_sidx = local_sidx
                     else:

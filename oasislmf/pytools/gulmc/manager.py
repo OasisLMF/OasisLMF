@@ -1163,14 +1163,10 @@ def compute_event_losses(compute_info,
                                    damage_bins, damage_bin_scaling, losses[1:, item_j])
 
             elif sample_size > 0 and building_packing:  # building-packed: N buildings in the sample dim
-                # The special statistics computed above are building-independent; only the random
-                # samples are redrawn. Building b (1-based) reads [(b-1)*S : b*S] of this group's
-                # flat block, so building 1 reproduces the legacy draw byte-for-byte.
-                #
-                # Same two routines as the unpacked path above -- they take the item's random
-                # values and its output column as views, so a building is just a different pair of
-                # views. Keeping one implementation matters: the per-sample return-period
-                # protection inside sample_item_losses would otherwise exist twice.
+                # The specials computed above are building-independent; only the samples are redrawn.
+                # Building b reads [(b-1)*S : b*S] of this group's block, so building 1 reproduces the
+                # legacy draw byte-for-byte. Same two routines as the unpacked path above -- they take the
+                # random values and the output column as views, so a building is just a different pair.
                 vuln_base_off0 = vuln_offsets[rng_index]
                 haz_base_off0 = haz_offsets[hazard_rng_index] if hazard_rng_index >= 0 else 0
                 for b in range(1, n_buildings + 1):
@@ -1425,10 +1421,9 @@ def reconstruct_coverages(compute_info,
                 # and that only 1 event_id is processed at a time.
                 # Use sequential index for array-based lookup instead of Dict
                 group_seq_id = items[item_idx]['group_seq_id']
-                # Signed: magnitude is the building count, negative means "keep the buildings
-                # separate". Unpack both forms here -- the signed value is carried on to
-                # items_event_data for the writer, while n_buildings_by_rng sizes the random draw
-                # and must never see the sign.
+                # Signed: magnitude is the count, negative means keep the buildings separate. The signed
+                # form goes on to items_event_data for the writer; n_buildings_by_rng sizes the random
+                # draw and must never see the sign.
                 item_n_buildings_signed = items[item_idx]['number_of_buildings']
                 item_n_buildings = abs(item_n_buildings_signed)
                 if group_seq_rng_index[group_seq_id] == NO_RNG_INDEX:

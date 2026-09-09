@@ -43,11 +43,10 @@ VALID_OASIS_GROUP_COLS = [
     'risk_id',
 ]
 
-# 'building_id' / 'risk_id' are the building-level identifiers. Under row disaggregation
-# (DISAGGREGATION_ITEMS) there is one row per building, so listing one of them in the damage or
-# hazard group_id columns gives every building its own correlation group; omitting them keeps a
-# location's buildings perfectly correlated. That choice is the user's, not the engine's.
-# Under the other two modes both columns are constant 1, so including them shifts no grouping.
+# 'building_id' / 'risk_id' are building-level identifiers. Under DISAGGREGATION_ITEMS there is
+# one row per building, so listing one of them here gives every building its own correlation
+# group and omitting them keeps a location's buildings correlated -- the user's choice, not the
+# engine's. Under the other two modes both columns are constant 1, so they shift no grouping.
 
 PERIL_CORRELATION_GROUP_COL = 'peril_correlation_group'
 
@@ -265,17 +264,11 @@ def get_gul_input_items(
     else:
         location_df['NumberOfBuildings'] = location_df['NumberOfBuildings'].fillna(1)
 
-    # building-packing: decide per location whether the buildings must stay separate downstream.
-    # The site FM levels aggregate on ('loc_id', 'risk_id') and `assign_risk_ids` sets
-    # risk_id = building_id when IsAggregate == 1 and 1 otherwise, so:
-    #   IsAggregate == 1 -> one site node per building, each carrying term/NumberOfRisks: the
-    #     buildings must reach the financial module separately and collapse only after the site
-    #     levels have been applied.
-    #   IsAggregate == 0 -> every building shares risk_id 1, so they land in a single site node
-    #     and are summed before any term is applied: the building dimension is dead downstream
-    #     and the buildings can be collapsed at source.
-    # Terms above the location (special conditions, policy/layer, step) act on the location
-    # aggregate either way and so do not affect the choice.
+    # Whether a location's buildings must stay separate downstream. The site fm levels aggregate on
+    # ('loc_id', 'risk_id') and assign_risk_ids only gives a building its own risk_id when
+    # IsAggregate == 1, so only then does each building get its own site node carrying
+    # term/NumberOfRisks. Otherwise they share one node and are summed before any term applies, so
+    # the building dimension is already dead and the ground-up tool sums them at source.
     if disaggregation == DISAGGREGATION_SAMPLES:
         location_df['keep_buildings_separate'] = (
             (location_df['IsAggregate'] == 1) & (location_df['NumberOfBuildings'] > 1)
@@ -422,15 +415,8 @@ def get_gul_input_items(
     # For aggregate locations (NumberOfBuildings > 1), create one row per building
     # Each building gets a unique building_id and its share of the TIV
     if disaggregation == DISAGGREGATION_SAMPLES:
-        # Building-packing keeps one item per (loc, peril, coverage_type) and never expands rows:
-        # every location's N buildings are multiplexed into the sample dimension downstream
-        # (gulmc/gulpy). The per-item building count rides on the correlations table.
-        #
-        # keep_buildings_separate says how far that dimension has to survive. Buildings of an
-        # IsAggregate == 1 location are separate risks carrying term/NumberOfRisks each, so they
-        # must reach the financial module apart and collapse only once the site levels have been
-        # applied. Buildings of an IsAggregate == 0 location all share risk_id 1, so the site
-        # levels sum them before applying any term and the dimension can be collapsed at source.
+        # One item per (loc, peril, coverage_type); the buildings ride in the sample dimension
+        # downstream and the per-item count rides on the correlations table.
         gul_inputs_df = gul_inputs_df.copy()
         gul_inputs_df['number_of_buildings'] = np.maximum(
             1, gul_inputs_df['NumberOfBuildings'].values).astype('int32')
@@ -447,10 +433,8 @@ def get_gul_input_items(
         gul_inputs_df = gul_inputs_df.copy()
         gul_inputs_df['building_id'] = 1
 
-    # number_of_buildings and keep_buildings_separate are part of the correlations table
-    # (correlations_headers), so they must exist on every path. Outside building-packing each item
-    # is a single building (legacy / disaggregated rows are already one building per row) and so
-    # there is no building dimension to keep separate.
+    # Both are correlations columns, so they must exist on every path. Outside packing each item is
+    # a single building.
     if 'number_of_buildings' not in gul_inputs_df.columns:
         gul_inputs_df['number_of_buildings'] = np.int32(1)
     if 'keep_buildings_separate' not in gul_inputs_df.columns:

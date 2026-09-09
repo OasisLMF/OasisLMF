@@ -165,21 +165,16 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
         norm_cdf = np.zeros(1, dtype='float64')
 
     # --- building packing ------------------------------------------------------
-    # The per-item building count, and whether those buildings must reach the financial module as
-    # separate blocks, ride on the correlations table (1:1 with items by item_id) as ONE signed
-    # field: magnitude is the count, a negative sign marks "keep separate". It is kept signed all
-    # the way into the compute, and unpacked into (count, flag) locals at the top of each loop
-    # that consumes it -- see the readers in gul/io.py, gul/manager.py and gulmc/manager.py.
-    # NOTHING may use the raw value as a loop bound: range() over a negative silently does nothing.
-    # Packing is derived, not configured: an item carrying more than one building is the signal.
+    # The per-item building count and the keep-separate flag ride on the correlations table as ONE
+    # signed field, kept signed into the compute and unpacked into (count, flag) at the top of each
+    # consuming loop. NOTHING may use the raw value as a bound: range() over a negative silently
+    # does nothing. Packing is derived, not configured: more than one building is the signal.
     packed_buildings = np.abs(data['number_of_buildings']) if len(data) else data['number_of_buildings']
     if len(data) and packed_buildings.max() > 1:
         building_packing = True
         max_item_id = int(data['item_id'].max())
-        # The lookups below are indexed by item_id straight from items.bin inside njit code, which
-        # does not bounds-check, so an items table reaching past the correlations table would be a
-        # silent out-of-range read rather than an error. The two are written together and 1:1, so
-        # this only fires on a mismatched input set -- check it once here instead of per item.
+        # Indexed by item_id inside njit, which does not bounds-check, so an items table reaching past
+        # the correlations table would be a silent out-of-range read. Checked once here.
         if len(items) and int(items['item_id'].max()) > max_item_id:
             raise OasisException(
                 f"items.bin holds item_id up to {int(items['item_id'].max())} but correlations "

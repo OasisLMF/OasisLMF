@@ -235,9 +235,8 @@ KERNEL_DISABLE_ERR_GUARD = False
 # 2 = total loss is maximum subperil loss
 # 1 = default with back allocation
 # 0 = default without back allocation
-# Where a location's NumberOfBuildings is separated. One value threaded from the CLI through
-# generation; the ground-up tools and the financial module do not read it, they derive whether a
-# stream is packed from number_of_buildings / max_buildings.
+# Where a location's NumberOfBuildings is separated. Threaded from the CLI through generation;
+# the ground-up tools and the financial module derive packing from the data, not from this.
 DISAGGREGATION_NONE = 'none'        # one item holding the whole location
 DISAGGREGATION_ITEMS = 'items'      # one item per building
 DISAGGREGATION_SAMPLES = 'samples'  # buildings multiplexed into the sample dimension

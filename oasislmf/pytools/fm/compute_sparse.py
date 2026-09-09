@@ -751,22 +751,17 @@ def compute_event(compute_info,
     # Working queue for BFS traversal to find base children
     temp_children_queue = np.empty(nodes_array.shape[0], dtype=oasis_int)
 
-    # Scratch for collapsing a packed leaf. Indexed by the *collapsed* sample index, so it spans
-    # only max_sidx_val + 6 rather than the packed range -- negative specials wrap onto the tail.
+    # Scratch for collapsing a packed leaf, indexed by the COLLAPSED sample index, so it spans
+    # max_sidx_val + 6 rather than the packed range.
     collapse_len = max_sidx_val + 6
     collapse_loss = np.zeros((compute_info['max_layer'], collapse_len), dtype=np.float64)
     collapse_extras = np.zeros((compute_info['max_layer'], collapse_len, 3), dtype=oasis_float)
     collapse_net = np.zeros(collapse_len, dtype=np.float64)
 
-    # Ordered list of all sidx values a node can carry, ascending: the stored special indices
-    # (-5, -3, -1) then the samples. Iterating it is what fixes the order of a parent's sidx
-    # array during sparse-to-dense conversion, so it must be ascending and must cover every
-    # value that can arrive.
-    #
-    # Under building-packing a node below the collapse level carries one block per building:
-    # building b's specials sit NUM_SPECIAL_SIDX lower than building b-1's, so the blocks run
-    # most-negative first, and its samples occupy (b-1)*S+1 .. b*S. max_buildings is 1 for an
-    # ordinary run, which reduces this to the plain (-5, -3, -1, 1..S).
+    # Every sidx a node can carry, ascending -- iterating it is what orders a parent's sidx
+    # array, so it must cover every value that can arrive. Under packing that includes each
+    # building's block: specials NUM_SPECIAL_SIDX lower per building, samples at (b-1)*S+1..b*S.
+    # max_buildings is 1 for an ordinary run, reducing this to (-5, -3, -1, 1..S).
     n_buildings = max(1, int(compute_info['max_buildings']))
     all_sidx = np.empty(n_buildings * (max_sidx_val + EXTRA_SIDX_COUNT), dtype=oasis_int)
     i = 0
@@ -778,9 +773,8 @@ def compute_event(compute_info,
         i += EXTRA_SIDX_COUNT
     all_sidx[i:] = np.arange(1, n_buildings * max_sidx_val + 1)  # sample indices, building-major
 
-    # Building-packing: the level whose terms are the last to apply per building. Children at or
-    # below it merge their building blocks as they are aggregated into a node above it. 0 for an
-    # ordinary run, which turns every check below into a no-op.
+    # Last level whose terms apply per building; children at or below it merge their blocks when
+    # aggregated into a node above it. 0 for an ordinary run, making the checks below no-ops.
     site_collapse_level = compute_info['site_collapse_level']
     building_packing = compute_info['max_buildings'] > 1
 
@@ -814,11 +808,8 @@ def compute_event(compute_info,
             # - children_count == 1: Single child, can reuse its storage
             # - children_count == 0: Item level, losses already loaded from stream
             if children_count:
-                # A single child is normally adopted wholesale rather than aggregated, but that
-                # path would carry the child's storage through untouched -- and with it its
-                # building blocks, silently skipping the collapse. A site node over a single
-                # coverage type has exactly one child, so this is a common shape, not an edge
-                # case. Force the aggregation when the boundary is being crossed.
+                # A single child is normally adopted wholesale, which would carry its building blocks
+                # through and skip the collapse. Common shape: a site node over one coverage type.
                 if children_count == 1 and building_packing:
                     only_child = nodes_array[children[compute_node['children'] + 1]]
                     must_collapse = collapses_buildings(compute_node, only_child, site_collapse_level,
@@ -849,17 +840,10 @@ def compute_event(compute_info,
 
                     if (building_packing and not is_allocation_rule_a0
                             and compute_node['level_id'] > site_collapse_level):
-                        # The aggregation above merged the building blocks into this node, but the
-                        # leaves underneath still hold theirs and back-allocation writes to them.
-                        # Collapse them now, while their terms have been applied and before any
-                        # factor is computed against this node's (collapsed) sample indices.
-                        #
-                        # Only once this node is ABOVE the collapse level, though. A site node is
-                        # itself still packed, and back-allocates by looking its factors up at its
-                        # own packed indices -- collapsing its leaves first would have them read
-                        # building 1's factors. A site node with more than one item child is the
-                        # ordinary shape, since the site levels merge every coverage and peril of
-                        # a location.
+                        # This node is collapsed but the leaves under it are not, and back-allocation writes to
+                        # them. Collapse them before any factor is computed against this node's indices. Only
+                        # above the collapse level: a site node is itself still packed and looks its factors up
+                        # at packed indices, so collapsing its leaves first would read building 1's.
                         collapse_packed_leaves(
                             compute_node, children, nodes_array, temp_children_queue, compute_idx,
                             site_collapse_level, max_sidx_val, keep_input_loss,
@@ -1072,11 +1056,9 @@ def compute_event(compute_info,
                         if not base_children_count:
                             base_children_count = get_base_children(storage_node, children, nodes_array,
                                                                     temp_children_queue)
-                            # The one-base-child shortcut in back_alloc assigns the post-profile loss
-                            # straight to loss_in, which is only the child's storage when the child IS
-                            # the storage node. Under building packing a node above the collapse level
-                            # with a single child is forced to aggregate, so the loss lands on the
-                            # parent and the child must still be back-allocated to.
+                            # back_alloc's one-base-child shortcut writes the post-profile loss straight to loss_in,
+                            # valid only when that child IS the storage node. The forced aggregation above breaks
+                            # that, so tell it which case this is.
                             storage_is_base_child = (
                                 base_children_count == 1
                                 and nodes_array[temp_children_queue[0]]['node_id'] == storage_node['node_id'])
@@ -1104,11 +1086,9 @@ def compute_event(compute_info,
                         if not base_children_count:
                             base_children_count = get_base_children(storage_node, children, nodes_array,
                                                                     temp_children_queue)
-                            # The one-base-child shortcut in back_alloc assigns the post-profile loss
-                            # straight to loss_in, which is only the child's storage when the child IS
-                            # the storage node. Under building packing a node above the collapse level
-                            # with a single child is forced to aggregate, so the loss lands on the
-                            # parent and the child must still be back-allocated to.
+                            # back_alloc's one-base-child shortcut writes the post-profile loss straight to loss_in,
+                            # valid only when that child IS the storage node. The forced aggregation above breaks
+                            # that, so tell it which case this is.
                             storage_is_base_child = (
                                 base_children_count == 1
                                 and nodes_array[temp_children_queue[0]]['node_id'] == storage_node['node_id'])
@@ -1229,12 +1209,10 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
     Returns:
         Tuple of all initialized arrays needed by compute_event
     """
-    # Building-packing: nodes up to the collapse level hold one block per building rather than
-    # one, so they need max_buildings times the room. The arrays are a single arena used as a
-    # bump allocator -- sidx_indptr records where each node's slice starts -- so this is a
-    # capacity bound rather than a per-node stride, and only the packable share of the nodes is
-    # inflated. It has to be right: numba does not bounds-check, so an arena too small corrupts
-    # the heap instead of raising.
+    # Nodes up to the collapse level hold one block per building, so they need max_buildings
+    # times the room. The arrays are one arena filled by a bump allocator, so this is a
+    # capacity bound, not a per-node stride. It has to be right: numba does not bounds-check,
+    # so an arena too small corrupts the heap instead of raising.
     max_buildings = max(1, int(compute_info['max_buildings']))
     packable_nodes = int(compute_info['packable_node_len'])
 

@@ -31,10 +31,8 @@ null_index = oasis_int.type(-1)
 # A default buffer size for nd arrays to be initialised to
 DEFAULT_BUFFER_SIZE = 1_000_000
 
-# Written next to the fm input files by IL generation, read by the financial module.
-# Carries the building-packing collapse level; absent means no packed buildings.
-# A .bin so it travels with the other fm inputs: create_binary_tar_file globs *.bin, and this
-# file going missing turns building packing silently off rather than failing.
+# Written beside the fm input files by IL generation, read by the financial module. Absent means
+# no packed buildings. A .bin so the *.bin globs that stage and tar the fm inputs pick it up.
 FM_STRUCTURE_INFO_FILE = 'fm_structure_info.bin'
 
 # Mean type numbers for outputs (SampleType)
@@ -189,38 +187,19 @@ correlations_output = [
     damage_correlation_value,
     hazard_group_id,
     hazard_correlation_value,
-    # Building packing, carried as ONE signed field to keep the record small. The correlations
-    # table is already 1:1 with items and joined into the items array by item_id downstream, so it
-    # is where the per-item building data rides.
-    #
-    #   magnitude -- the number of buildings multiplexed into the item's sample dimension.
-    #                Always >= 1; 1 means one building per item (legacy behaviour).
-    #   sign      -- NEGATIVE marks the buildings that must reach the financial module as
-    #                separate blocks, POSITIVE that the ground-up tool may sum them at source.
-    #
-    # Buildings of an IsAggregate == 1 location are separate risks carrying term/NumberOfRisks
-    # each, so they have to stay apart (negative); buildings of an IsAggregate == 0 location are
-    # summed by the site levels before any term is applied, so nothing downstream can tell them
-    # apart and they are summed straight away (positive). The distinction has to be recorded here
-    # because a packed stream is otherwise ambiguous: the financial module sees only sidx values
-    # and cannot tell which kind of packed item it is reading.
-    #
-    # Negative is the marked case on purpose: the overwhelmingly common record is one building,
-    # no packing, which stays +1 exactly as it was before packing existed.
-    #
-    # The signed form exists ONLY on the wire. Every reader splits it into an unsigned count and a
-    # flag at load (gul/structure.py, gulmc/structure.py) and nothing downstream sees the sign --
-    # a negative count reaching a range() would silently iterate zero times.
+    # Building packing. Magnitude is the number of buildings multiplexed into the item's sample
+    # dimension (>= 1). A NEGATIVE sign means those buildings must reach the financial module as
+    # separate blocks -- true for IsAggregate == 1 locations, whose buildings are separate risks
+    # carrying term/NumberOfRisks each. Positive means the ground-up tool sums them at source.
+    # Readers unpack the sign into a count and a flag: a negative reaching a range() would
+    # silently iterate zero times.
     number_of_buildings,
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
 
-# One record, written by IL generation and read by the financial module.
-#   site_collapse_level -- last fm level whose aggregation key includes risk_id; packed buildings
-#                          stay apart until it has applied its terms, and collapse after it.
-#                          0 means there is no such level.
-#   max_buildings       -- largest number of buildings any one packed item carries. Sizes the
-#                          computation arrays.
+# One record. site_collapse_level is the last fm level whose aggregation key includes risk_id --
+# packed buildings collapse after it, and 0 means there is no such level. max_buildings sizes the
+# computation arrays.
 fm_structure_info_output = [
     site_collapse_level,
     max_buildings,

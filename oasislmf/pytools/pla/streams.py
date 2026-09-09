@@ -51,14 +51,11 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
                     item_id = 0
                     break
 
-                # Chance-of-loss is a probability, not a loss: amplifying it is meaningless and
-                # can push it above 1. Every other special scales with the loss (mean, std, max),
-                # and tiv is scaled deliberately so an amplified loss is not clipped by the cap.
-                #
-                # Decoded rather than compared to -4, because a building-packed item carries one
-                # chance-of-loss PER BUILDING, at -4, -9, -14 ... Only a negative sidx can be a
-                # special, and decode_local_sidx does not use the sample size for those, so this
-                # needs to know nothing about the stream's sample count.
+                # Chance-of-loss is a probability, not a loss -- amplifying it can push it above 1. Every other
+                # special scales with the loss, and tiv is scaled deliberately so an amplified loss is not
+                # clipped by the cap. Decoded rather than compared to -4 because a packed item carries one per
+                # building, at -4, -9, -14 ...; only negatives can be specials and the decode ignores the
+                # sample size for those.
                 if sidx < 0 and decode_local_sidx(sidx, 0) == CHANCE_OF_LOSS_IDX:
                     continue
 

@@ -178,18 +178,14 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
     """Read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
-    # A building-packed item carries one block per building in the sample dimension. A summary is
-    # per item, so the item's buildings belong in the same bucket: decode a packed index onto the
-    # sample it represents and let the accumulation below add them up. For an ordinary stream the
-    # decode is the identity and nothing changes.
+    # A summary is per item, so a packed item's buildings belong in one bucket: decode the packed
+    # index onto the sample it represents and let the accumulation below add them up. For an
+    # ordinary stream the decode is the identity.
     #
-    # Known limitation -- the affected-risk count. Risks are keyed on (loc_id, building_id) in
-    # nb_extract_risk_info, and building packing writes one item per location with building_id 1,
-    # so a packed location counts as one risk where the same portfolio run with row
-    # disaggregation counts NumberOfBuildings of them. Losses are unaffected; only the risk count
-    # is. Restoring it needs per-building identity downstream of the item table -- the summary map
-    # would have to carry the building count and is_risk_affected be tracked per building -- which
-    # is the same gap that stops packing from producing building-level summaries.
+    # Known limitation: risks are keyed on (loc_id, building_id) and packing writes building_id 1,
+    # so a packed location counts as one affected risk where row disaggregation counts
+    # NumberOfBuildings. Losses are unaffected. Same gap that stops packing producing
+    # building-level summaries.
     max_sidx_val = loss_summary.shape[1] - SPECIAL_SIDX_COUNT
     while True:
         if item_id:
@@ -211,9 +207,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
-                # Only the positive branch of decode_local_sidx divides by the sample size, and a
-                # zero-sample stream carries no positive sidx -- but it does carry per-building
-                # specials, which must still be decoded or buildings 2..N are dropped silently.
+                # Only the positive branch divides by the sample size, and a zero-sample stream carries no
+                # positive sidx -- but it does carry per-building specials, which must still be decoded.
                 if (max_sidx_val > 0 and sidx > max_sidx_val) or sidx < -NUM_SPECIAL_SIDX:
                     sidx = decode_local_sidx(sidx, max_sidx_val)
                 if sidx > 0 or sidx in [-1, -3, -5]:

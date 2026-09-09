@@ -473,9 +473,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             losses[MEAN_IDX, item_i] = gul_mean
 
             if sample_size > 0 and building_packing:
-                # Per building, read that building's block from this seed's slice and sample the
-                # cdf with it. Building 1 reads the first block, which is the legacy draw, so a
-                # single-building item is unchanged. The specials above are building-independent.
+                # Per building, read that building's block from this seed's slice. Building 1 reads the
+                # first block, which is the legacy draw. The specials above are building-independent.
                 item_n_buildings = abs(n_buildings_by_item_id[item['item_id']])
                 base_off = rndm_offsets[rng_index]
                 for building_i in range(item_n_buildings):
@@ -633,9 +632,9 @@ def write_losses_packed(event_id, sample_size, loss_threshold, losses, building_
     Returns:
         int: updated cursor.
     """
-    # n_buildings is SIGNED (magnitude = count, negative = keep the buildings separate). Take the
-    # magnitude for anything used as a bound: comparing the raw value would leave max_nb at 0 for
-    # exactly the keep-separate items, and ranging over it would index building_losses negatively.
+    # n_buildings is SIGNED. Take the magnitude for anything used as a bound: comparing the raw
+    # value would leave max_nb at 0 for the keep-separate items, and ranging over it would index
+    # building_losses negatively.
     max_nb = 0
     for item_j in range(item_ids.shape[0]):
         nb = abs(n_buildings[item_j])
@@ -679,9 +678,8 @@ def write_losses_packed(event_id, sample_size, loss_threshold, losses, building_
 
     for item_j in range(item_ids.shape[0]):
         cursor = mv_write_item_header(byte_mv, cursor, event_id, item_ids[item_j])
-        # Unpack the signed count once, here, into an unsigned bound and a flag. Everything below
-        # uses nb_item; the raw signed value must never reach a range(), which would silently
-        # iterate zero times and drop the item's buildings without an error.
+        # Unpack the signed count into an unsigned bound and a flag. The raw value must never reach
+        # a range(), which would silently iterate zero times and drop the item's buildings.
         packed_item = n_buildings[item_j]
         nb_item = abs(packed_item)
         keep_separate = packed_item < 0
