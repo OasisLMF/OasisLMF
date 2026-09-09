@@ -28,7 +28,9 @@ import numpy as np
 from oasislmf.preparation.il_inputs import write_fm_structure_info
 from oasislmf.pytools.common.data import (fm_policytc_dtype, fm_profile_dtype,
                                           fm_programme_dtype, fm_xref_dtype, oasis_float, oasis_int)
-from oasislmf.pytools.common.event_stream import LOSS_STREAM_ID, ITEM_STREAM, encode_sidx, stream_info_to_bytes
+from oasislmf.pytools.common.event_stream import (LOSS_STREAM_ID, ITEM_STREAM, MAX_LOSS_IDX,
+                                                  MEAN_IDX, TIV_IDX, encode_sidx,
+                                                  stream_info_to_bytes)
 from oasislmf.pytools.fm.manager import run as run_fm
 
 S = 4
@@ -253,6 +255,71 @@ class TestBackAllocationOntoThePackedItem(TestCase):
                 self.assertGreaterEqual(sidx, -5)
 
 
+class TestTermsAboveTheCollapseSurviveBackAllocation(TestCase):
+    """A financial term above the collapse level must reach the back-allocated output.
+
+    back_alloc takes a shortcut when a node has one base child: it assigns the post-profile loss
+    straight to ``loss_in``, which is the child's own storage because the child IS the storage
+    node. Building packing breaks that: a node above the collapse level with a single child is
+    forced to aggregate (otherwise the child's building blocks are carried through uncollapsed),
+    so the loss lands on the PARENT while the child keeps its pre-profile value -- and under
+    allocation rules 2 and 3 the output is read from the child. Every term above the collapse
+    level then vanishes from the output.
+
+    ``TestBackAllocationOntoThePackedItem`` misses this because its top node uses profile 0, a
+    pass-through, so ``loss_out == loss_in`` and the missing write cannot be seen. This fixture
+    gives that node a limit that actually binds.
+    """
+
+    LIMIT = 300.0
+
+    @staticmethod
+    def _profiles():
+        profile = np.zeros(3, dtype=fm_profile_dtype)
+        profile[0]['profile_id'], profile[0]['calcrule_id'] = 0, 12
+        profile[1]['profile_id'], profile[1]['calcrule_id'] = 1, 12
+        profile[1]['deductible1'] = DEDUCTIBLE
+        profile[2]['profile_id'], profile[2]['calcrule_id'] = 2, 1
+        profile[2]['limit1'] = TestTermsAboveTheCollapseSurviveBackAllocation.LIMIT
+        return profile
+
+    def _packed(self, d):
+        """One packed item -> site node (per-building deductible) -> top node WITH a limit."""
+        np.array([(1, 1, 1), (1, 2, 1)], dtype=fm_programme_dtype).tofile(os.path.join(d, 'fm_programme.bin'))
+        np.array([(1, 1, 1, 1), (2, 1, 1, 2)], dtype=fm_policytc_dtype).tofile(os.path.join(d, 'fm_policytc.bin'))
+        self._profiles().tofile(os.path.join(d, 'fm_profile.bin'))
+        np.array([(1, 1, 1)], dtype=fm_xref_dtype).tofile(os.path.join(d, 'fm_xref.bin'))
+        write_fm_structure_info(d, 1, 2)
+
+    def _disaggregated(self, d):
+        """Two items, a site node each, same limit above them."""
+        np.array([(1, 1, 1), (2, 1, 2), (1, 2, 1), (2, 2, 1)],
+                 dtype=fm_programme_dtype).tofile(os.path.join(d, 'fm_programme.bin'))
+        np.array([(1, 1, 1, 1), (1, 2, 1, 1), (2, 1, 1, 2)],
+                 dtype=fm_policytc_dtype).tofile(os.path.join(d, 'fm_policytc.bin'))
+        self._profiles().tofile(os.path.join(d, 'fm_profile.bin'))
+        np.array([(1, 1, 1)], dtype=fm_xref_dtype).tofile(os.path.join(d, 'fm_xref.bin'))
+
+    def test_the_limit_is_applied_under_every_allocation_rule(self):
+        for allocation_rule in (0, 2, 3):
+            with self.subTest(allocation_rule=allocation_rule):
+                xref_p = None if allocation_rule == 0 else np.array([(1, 1, 1)], dtype=fm_xref_dtype)
+                xref_d = None if allocation_rule == 0 else np.array([(1, 1, 1), (2, 2, 1)], dtype=fm_xref_dtype)
+                packed = _total_per_sample(
+                    _run(self._packed, packed_stream_items(), allocation_rule, xref_p))
+                disaggregated = _total_per_sample(
+                    _run(self._disaggregated, disaggregated_stream_items(), allocation_rule, xref_d))
+                self.assertEqual(packed, disaggregated)
+
+    def test_the_limit_actually_binds(self):
+        """Without this the comparison above would hold for the wrong reason."""
+        packed = _total_per_sample(_run(self._packed, packed_stream_items(), 0, None))
+        for sample_idx in range(1, S + 1):
+            self.assertLessEqual(packed.get(sample_idx, 0.0), self.LIMIT + 1e-6)
+        self.assertTrue(any(abs(packed.get(s, 0.0) - self.LIMIT) < 1e-6 for s in range(1, S + 1)),
+                        "no sample reaches the limit, so it never binds")
+
+
 class TestNoSiteLevelStillCollapses(TestCase):
     """A packed item with no site-level terms must still have its buildings merged.
 
@@ -309,6 +376,61 @@ class TestNoSiteLevelStillCollapses(TestCase):
             for sidx in records:
                 self.assertLessEqual(sidx, S)
                 self.assertGreaterEqual(sidx, -5)
+
+    @staticmethod
+    def _stream_with_specials():
+        """As _stream, plus each building's specials.
+
+        The specials are what make this reproduce: they are per building in a packed item, so
+        they are the records that push arena consumption up to capacity. Without them the run
+        fits and the defect stays hidden.
+        """
+        items = []
+        for item_id in (1, 2):
+            records = []
+            for building, losses in BUILDING_LOSSES.items():
+                for special_idx in (MAX_LOSS_IDX, TIV_IDX, MEAN_IDX):
+                    records.append((encode_sidx(building, special_idx, S), 50.0 * building))
+                for s, loss in enumerate(losses, start=1):
+                    records.append((encode_sidx(building, s, S), loss))
+            items.append((item_id, sorted(records)))
+        return items
+
+    def test_it_survives_back_allocation_and_net_loss(self):
+        """site_collapse_level 0 must mean "nothing to collapse" whatever start_level is.
+
+        This shape is multi-peril, so start_level is 0, and the guard used to read
+        ``site_collapse_level < start_level`` -- ``0 < 0`` is false, so the item nodes were marked
+        packable and the arena inflated for a collapse that never happens. Under allocation rule 1,
+        or any net-loss output, consumption then landed exactly on capacity and the run aborted
+        with "loss index is out of range". Allocation rule 0 alone does not reach it, which is why
+        the tests above missed it.
+        """
+        xref = np.array([(1, 1, 1), (2, 2, 1)], dtype=fm_xref_dtype)
+        for allocation_rule in (1, 2, 3):
+            with self.subTest(allocation_rule=allocation_rule):
+                out = _run(self._structure, self._stream_with_specials(), allocation_rule, xref)
+                self.assertTrue(out, "no output produced")
+                for records in out.values():
+                    for sidx in records:
+                        self.assertLessEqual(sidx, S)
+
+    def test_it_survives_a_net_loss_run(self):
+        """The reinsurance path: net-loss output sets keep_input_loss at any allocation rule."""
+        xref = np.array([(1, 1, 1), (2, 2, 1)], dtype=fm_xref_dtype)
+        for allocation_rule in (1, 2, 3):
+            with self.subTest(allocation_rule=allocation_rule):
+                with TemporaryDirectory() as d:
+                    self._structure(d)
+                    xref.tofile(os.path.join(d, 'fm_xref.bin'))
+                    gul = os.path.join(d, 'gul.bin')
+                    out = os.path.join(d, 'fm.bin')
+                    write_gul_stream(gul, self._stream_with_specials())
+                    run_fm(True, allocation_rule=allocation_rule, static_path=d)
+                    run_fm(False, allocation_rule=allocation_rule, static_path=d, files_in=[gul],
+                           files_out=[out], net_loss=os.path.join(d, 'net.bin'),
+                           storage_method='sparse', low_memory=False, sort_output=False)
+                    self.assertTrue(read_fm_stream(out), "no output produced")
 
 
 # Per (building, peril) losses for the multi-item shape below. Building 1 sits mostly under the

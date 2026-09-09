@@ -1072,12 +1072,20 @@ def compute_event(compute_info,
                         if not base_children_count:
                             base_children_count = get_base_children(storage_node, children, nodes_array,
                                                                     temp_children_queue)
+                            # The one-base-child shortcut in back_alloc assigns the post-profile loss
+                            # straight to loss_in, which is only the child's storage when the child IS
+                            # the storage node. Under building packing a node above the collapse level
+                            # with a single child is forced to aggregate, so the loss lands on the
+                            # parent and the child must still be back-allocated to.
+                            storage_is_base_child = (
+                                base_children_count == 1
+                                and nodes_array[temp_children_queue[0]]['node_id'] == storage_node['node_id'])
                             if is_allocation_rule_a2:
                                 ba_children_count = base_children_count
                             else:
                                 ba_children_count = 1
 
-                        back_alloc_extra_a2(ba_children_count, temp_children_queue, nodes_array, profile_i,
+                        back_alloc_extra_a2(ba_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
                                             node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                                             loss_in, loss_out, temp_node_loss, loss_indptr, loss_val,
                                             extra, temp_node_extras, extras_indptr, extras_val)
@@ -1096,12 +1104,20 @@ def compute_event(compute_info,
                         if not base_children_count:
                             base_children_count = get_base_children(storage_node, children, nodes_array,
                                                                     temp_children_queue)
+                            # The one-base-child shortcut in back_alloc assigns the post-profile loss
+                            # straight to loss_in, which is only the child's storage when the child IS
+                            # the storage node. Under building packing a node above the collapse level
+                            # with a single child is forced to aggregate, so the loss lands on the
+                            # parent and the child must still be back-allocated to.
+                            storage_is_base_child = (
+                                base_children_count == 1
+                                and nodes_array[temp_children_queue[0]]['node_id'] == storage_node['node_id'])
                             if is_allocation_rule_a2:
                                 ba_children_count = base_children_count
                             else:
                                 ba_children_count = 1
 
-                        back_alloc_a2(ba_children_count, temp_children_queue, nodes_array, profile_i,
+                        back_alloc_a2(ba_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
                                       node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                                       loss_in, loss_out, temp_node_loss, loss_indptr, loss_val)
 

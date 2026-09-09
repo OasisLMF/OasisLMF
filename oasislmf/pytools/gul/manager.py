@@ -11,7 +11,8 @@ import time
 from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, encode_sidx, mv_write_item_header,
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_sidx_fits, encode_sidx,
+                                                  mv_write_item_header,
                                                   mv_write_sidx_loss,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
 from oasislmf.pytools.getmodel.common import oasis_float
@@ -240,6 +241,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         max_buildings = 1
         if building_packing:
             max_buildings = int(np.abs(n_buildings_by_item_id).max())
+            check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
             generate_rndm_packed = get_random_generator_packed(random_generator)
 
         if alloc_rule not in [0, 1, 2, 3]:

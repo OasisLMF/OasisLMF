@@ -6,6 +6,8 @@ from select import select
 import sys
 
 import numpy as np
+
+from oasislmf.utils.exceptions import OasisException
 import numba as nb
 
 from .data import def_to_type_and_size
@@ -67,6 +69,37 @@ def encode_sidx(building, local_sidx, sample_size):
     else:
         # local_sidx in [-NUM_SPECIAL_SIDX, -1]; shift by whole special blocks per building
         return local_sidx - (building - 1) * NUM_SPECIAL_SIDX
+
+
+def check_packed_sidx_fits(max_buildings, sample_size, oasis_int_dtype):
+    """Fail if building packing would push a sidx past what the stream can carry.
+
+    ``encode_sidx`` computes ``(b - 1) * sample_size + s`` in Python/int64, but a sidx is written
+    to the stream as ``oasis_int`` (int32). Inside njit the store wraps silently rather than
+    raising, and the wrapped value is frequently NEGATIVE -- which the readers classify as a
+    packed special, not a sample. So an overflow here is not a loud failure but corrupt output.
+
+    Checked once, where both numbers are first known together, rather than per record.
+
+    Args:
+        max_buildings (int): largest number of buildings packed into one item.
+        sample_size (int): the run's sample size (``S``).
+        oasis_int_dtype (numpy.dtype): the stream's sidx type, whose maximum is the bound.
+
+    Raises:
+        OasisException: if the largest encodable sidx would not fit.
+    """
+    if max_buildings <= 1:
+        return
+    highest = int(max_buildings) * int(max(1, sample_size))
+    limit = int(np.iinfo(oasis_int_dtype).max)
+    if highest > limit:
+        raise OasisException(
+            f"building packing would overflow the stream's sample index: {max_buildings} "
+            f"buildings x {sample_size} samples needs sidx up to {highest:,}, but a sidx is "
+            f"{np.dtype(oasis_int_dtype).name} with a maximum of {limit:,}. Reduce the sample "
+            f"size, or run with disaggregation='items' for this portfolio."
+        )
 
 
 @nb.njit(cache=True, inline='always')

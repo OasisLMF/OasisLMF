@@ -18,7 +18,9 @@ from unittest import TestCase
 import numpy as np
 import pytest
 
-from oasislmf.pytools.common.data import correlations_dtype
+from oasislmf.pytools.common.data import correlations_dtype, oasis_int
+from oasislmf.pytools.common.event_stream import check_packed_sidx_fits
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.gul.structure import build_structures
 
 MODEL = Path(__file__).parents[2] / "assets" / "test_model_1"
@@ -37,6 +39,40 @@ def _with_correlations(dst, number_of_buildings, keep_separate):
     if os.path.isdir(cache):
         shutil.rmtree(cache)
     return corr
+
+
+class TestPackedSidxMustFitTheStream(TestCase):
+    """Packing must not push a sidx past what an int32 stream field can hold.
+
+    ``encode_sidx`` computes ``(b - 1) * S + s`` in int64, but a sidx is written as int32. Inside
+    njit that store wraps silently instead of raising, and the wrapped value is often NEGATIVE --
+    which every reader classifies as a packed special rather than a sample. The result is corrupt
+    output rather than a failure, so the bound is checked once up front.
+    """
+
+    def test_ordinary_configurations_are_allowed(self):
+        for max_buildings, sample_size in ((1, 10 ** 9), (1000, 100_000), (5, 1000), (0, 10)):
+            with self.subTest(max_buildings=max_buildings, sample_size=sample_size):
+                check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
+
+    def test_an_overflowing_configuration_is_rejected(self):
+        with self.assertRaises(OasisException) as caught:
+            check_packed_sidx_fits(300_000, 10_000, oasis_int)
+        message = str(caught.exception)
+        self.assertIn("300000", message)
+        self.assertIn("10000", message)
+
+    def test_the_boundary(self):
+        """Exactly at the limit is fine; one sample more is not."""
+        limit = np.iinfo(oasis_int).max
+        check_packed_sidx_fits(2, limit // 2, oasis_int)
+        with self.assertRaises(OasisException):
+            check_packed_sidx_fits(2, limit // 2 + 1, oasis_int)
+
+    def test_what_would_happen_without_it(self):
+        """The value the guard prevents being written -- negative, so read as a special."""
+        wrapped = np.array([300_000 * 10_000], dtype=np.int64).astype(oasis_int)[0]
+        self.assertLess(int(wrapped), 0)
 
 
 @pytest.mark.skipif(not MODEL.exists(), reason="test_model_1 assets not available")

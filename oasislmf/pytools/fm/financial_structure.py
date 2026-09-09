@@ -883,11 +883,16 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     # those buildings, so the reader sums them away instead (``collapse_on_read``) and no node
     # carries a building dimension.
     #
+    # max(1, start_level), not start_level: 0 is the "no risk-keyed level exists" marker, so it
+    # means nothing to collapse for whichever start_level applies. Under multi-peril start_level
+    # is 0 and a bare ``0 >= 0`` would mark the item nodes packable and inflate the arena for a
+    # collapse that never happens -- which then overran the loss arena under allocation rule 1.
+    #
     # Count from index 1: nodes_array is allocated with np.empty and node 0 is a never-written
     # sentinel, so reading its level_id would add an uninitialised value to the count.
     compute_info['packable_node_len'] = (
         int(np.count_nonzero(nodes_array[1:node_i]['level_id'] <= site_collapse_level))
-        if max_buildings > 1 and site_collapse_level >= start_level else 0
+        if max_buildings > 1 and site_collapse_level >= max(1, start_level) else 0
     )
 
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile

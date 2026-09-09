@@ -130,9 +130,14 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
         fm_reader = FMReader(nodes_array, sidx_indexes, sidx_indptr, sidx_val,
                              loss_indptr, loss_val, pass_through, len_array, computes, compute_idx, max_sidx_val,
                              compute_info['max_buildings'] > 1,
-                             # packed input, but no level applies terms per building
+                             # packed input, but no level applies terms per building.
+                             # site_collapse_level 0 is the "no risk-keyed level exists" marker,
+                             # so it means nothing to collapse for whatever start_level is --
+                             # hence max(1, ...), not a bare comparison. Under multi-peril
+                             # start_level is 0, and 0 < 0 would wrongly defer to a collapse that
+                             # never comes, leaving the item nodes packable for nothing.
                              compute_info['max_buildings'] > 1
-                             and compute_info['site_collapse_level'] < compute_info['start_level'])
+                             and compute_info['site_collapse_level'] < max(1, compute_info['start_level']))
         try:
             for event_i, event_id in enumerate(fm_reader.read_streams(streams_in)):
                 compute_event_sparse(
