@@ -292,7 +292,7 @@ def random_MersenneTwister_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
     Args:
         seeds (array[int64]): one seed per group.
         n (int): logical number of samples per building (``S``).
-        n_buildings (array[int]): number of buildings for each seed/group.
+        n_buildings (array[int]): buildings per seed/group, as a magnitude.
         offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
             flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
         skip_seeds (int): number of leading seeds to skip (left as zeros).
@@ -319,12 +319,12 @@ def build_packed_rndm_offsets(n_buildings, n):
     """Prefix-sum offsets for building-packed random draws.
 
     Args:
-        n_buildings (array[int]): number of buildings for each seed/group.
+        n_buildings (array[int]): buildings per seed/group, as a magnitude. The signed
+          ``packed_buildings`` must never reach here -- a negative would size the draw short.
         n (int): logical number of samples per building (``S``).
 
     Returns:
-        offsets (array[int64]): length ``len(n_buildings) + 1`` with
-          ``offsets[0] == 0`` and ``offsets[i + 1] == offsets[i] + n_buildings[i] * n``.
+        offsets (array[int64]): start of each seed's block, length ``len(n_buildings) + 1``.
     """
     offsets = np.zeros(len(n_buildings) + 1, dtype=np.int64)
     for i in range(len(n_buildings)):

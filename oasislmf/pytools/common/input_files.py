@@ -122,14 +122,7 @@ CORRELATIONS_ITEMSIZE_BEFORE_PACKING = 20
 
 
 def _stale_correlations_msg(path):
-    """Message for a correlations.bin written before the building-packing fields existed.
-
-    Args:
-        path (pathlib.Path): the offending file.
-
-    Returns:
-        str: the exception message.
-    """
+    """Message for a correlations.bin written before the building-packing fields existed."""
     return (
         f"{path} does not match the current correlations record layout "
         f"({correlations_dtype.itemsize} bytes: {', '.join(correlations_headers)}). It was most "

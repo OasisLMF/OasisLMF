@@ -1087,9 +1087,6 @@ def _warn_deprecated(message):
     Python ignores DeprecationWarning by default outside __main__, and this fires from inside the
     computation layer, so ``simplefilter`` is what makes it reach the user -- the same approach
     the deprecated module aliases in ``oasislmf/__init__.py`` take.
-
-    Args:
-        message (str): the notice.
     """
     with warnings.catch_warnings():
         warnings.simplefilter("always", DeprecationWarning)
