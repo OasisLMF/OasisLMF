@@ -128,17 +128,15 @@ class RunExposure(ComputationStep):
 
         disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation)
 
-        # Generation divides a location's TIV by N for packing, and only the ground-up tools write the
-        # sample dimension to put the buildings back -- so packed files here would understate every
-        # loss by a factor of NumberOfBuildings. This step is routinely used to check a portfolio
-        # before the real run, so fall back rather than fail. Site terms then apply once to the
-        # location instead of once per building.
         if disaggregation == DISAGGREGATION_SAMPLES:
             self.logger.info(
-                "disaggregation='samples' has no deterministic equivalent: 'exposure run' produces "
-                "no sample dimension for the buildings to ride in. Running as 'none' instead -- "
-                "location totals are correct, but site terms apply to the location rather than "
-                "per building.")
+                "disaggregation='samples' has no deterministic equivalent: generation divides a "
+                "location's TIV by NumberOfBuildings for packing, and only the ground-up tools "
+                "write the sample dimension that puts the buildings back, so packed inputs here "
+                "would understate every loss by that factor. Running as 'none' instead, which "
+                "gives the correct location totals -- but site terms then apply once to the "
+                "location rather than once per building, so an IsAggregate=1 location's "
+                "per-building terms are not exercised on this step.")
             disaggregation = DISAGGREGATION_NONE
 
         self._check_alloc_rules()
