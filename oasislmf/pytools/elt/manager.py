@@ -213,9 +213,8 @@ def read_buffer(
         if not state["reading_losses"]:
             # Reserve room for the next summary's worst-case output before reading
             # anything of it, so writes below can never run past the end of a buffer.
-            # +2 (not +1) since both MEAN_IDX and NUMBER_OF_AFFECTED_RISK_IDX can each
-            # add one extra SELT row on top of the len_sample real samples (see
-            # elt_selt_special_sidx_issue.md - a separate, pre-existing issue).
+            # +2 (not +1): both MEAN_IDX and NUMBER_OF_AFFECTED_RISK_IDX can each add
+            # one extra SELT row on top of the len_sample real samples.
             if state["compute_selt"] and si + state["len_sample"] + 2 > selt_data.shape[0]:
                 _update_idxs()
                 return cursor, state["current_event_id"], item_id, 1
