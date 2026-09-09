@@ -102,10 +102,12 @@ preview = true
 # D*: structural Google-docstring rules that the codebase satisfies without
 # rewording (see CONTRIBUTING.md). Prose rules (D1xx missing docstrings,
 # D205 blank line, D400/D415 punctuation) are excluded.
-# D417 + DOC*: signature/docstring agreement - a documented parameter list that
-# matches the signature, and Yields/Returns sections that match what the body
-# actually does. Note D411 does NOT catch a missing blank line before a section;
-# DOC201 is what surfaces that, because the section stops parsing as a section.
+# D417 + DOC*: signature/docstring agreement. D417 is all-or-nothing - it fires
+# only once an Args section exists, and then requires it to list every parameter,
+# so a partial Args block fails where no Args block passes. DOC202/DOC402 reject a
+# Returns/Yields section the body never makes; the reverse is not checked, as
+# DOC201 is deliberately not selected. D410/D411 catch a section missing its blank
+# line before/after.
 # F*: the pyflakes checks previously gated by flake8.
 select = [
     "D200", "D201", "D202", "D206", "D207", "D208", "D209", "D210", "D212",
