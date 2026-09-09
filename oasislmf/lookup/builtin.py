@@ -501,6 +501,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 UserWarning,
             )
             gdf_area_peril = gdf_area_peril.set_crs("EPSG:4326")
+        elif gdf_area_peril.crs != "EPSG:4326":
+            gdf_area_peril = gdf_area_peril.to_crs("EPSG:4326")
 
         if nearest_neighbor_min_distance > 0:
             if BallTree is None:
