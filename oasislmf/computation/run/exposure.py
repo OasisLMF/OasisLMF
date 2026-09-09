@@ -12,7 +12,7 @@ from itertools import chain
 
 import pandas as pd
 
-from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.base import DISAGGREGATION_HELP, ComputationStep
 from oasislmf.computation.generate.files import GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
@@ -21,9 +21,10 @@ from oasislmf.preparation.il_inputs import get_oed_hierarchy
 from oasislmf.preparation.summaries import calculated_summary_cols
 from oasislmf.pytools.fm.portfolio_complexity import (
     compute_portfolio_complexity, format_complexity_report)
-from oasislmf.utils.data import (get_dataframe, get_exposure_data,
+from oasislmf.utils.data import (get_dataframe, get_exposure_data, resolve_disaggregation,
                                  print_dataframe)
-from oasislmf.utils.defaults import (KERNEL_ALLOC_FM_MAX,
+from oasislmf.utils.defaults import (DISAGGREGATION_MODES, DISAGGREGATION_NONE,
+                                     DISAGGREGATION_SAMPLES, KERNEL_ALLOC_FM_MAX,
                                      KERNEL_ALLOC_IL_DEFAULT,
                                      KERNEL_ALLOC_RI_DEFAULT,
                                      OASIS_FILES_PREFIXES,
@@ -65,12 +66,12 @@ class RunExposure(ComputationStep):
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
-        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
-         'help': 'if True run the oasis disaggregation.'},
-        {'name': 'building_packing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
-         'help': 'not supported on this step -- building packing multiplexes buildings into the sample '
-                 'dimension, which the deterministic loss generator does not produce. Rejected rather '
-                 'than silently dividing every loss by NumberOfBuildings.'},
+        {'name': 'disaggregation', 'type': str, 'default': None, 'choices': DISAGGREGATION_MODES,
+         'help': DISAGGREGATION_HELP + " 'samples' has no deterministic equivalent and is run as "
+                 "'none' here, so the same settings can be used to check a run before launching "
+                 "it."},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
+         'help': 'DEPRECATED, use --disaggregation. if True run the oasis disaggregation.'},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
@@ -125,18 +126,27 @@ class RunExposure(ComputationStep):
 
         include_loss_factor = not (len(self.loss_factor) == 1)
 
-        # Building packing multiplexes the N buildings of a location into the sample dimension of a
-        # single item, and file generation divides that location's TIV by N to match. Only the
-        # ground-up tools (gulmc/gulpy) write that dimension; GenerateLossesDeterministic derives
-        # its loss straight from the coverage TIV and has no sample dimension to unpack, so the
-        # buildings are never put back and every loss comes out at 1/N. Fail rather than report it.
-        if self.building_packing:
-            raise OasisException(
-                "building_packing is not supported by 'exposure run': the deterministic loss "
-                "generator does not produce a sample dimension, so the packed buildings would "
-                "never be recombined and every loss would be understated by a factor of "
-                "NumberOfBuildings. Use do_disaggregation for a deterministic run."
-            )
+        disaggregation = resolve_disaggregation(
+            self.disaggregation, self.do_disaggregation, logger=self.logger)
+
+        # Packing multiplexes the N buildings of a location into the sample dimension, and file
+        # generation divides that location's TIV by N to match. Only the ground-up tools
+        # (gulmc/gulpy) write that dimension; GenerateLossesDeterministic derives its loss straight
+        # from the coverage TIV and has nothing to unpack, so packed files here would understate
+        # every loss by a factor of NumberOfBuildings.
+        #
+        # This step is routinely used to check a portfolio before launching the real run, so the
+        # same settings have to be usable: fall back to the whole-location representation, which
+        # gives the correct location totals, and say so rather than failing. The difference to be
+        # aware of is that site terms then apply once to the location instead of once per
+        # building, so an IsAggregate=1 location's per-building terms are not exercised here.
+        if disaggregation == DISAGGREGATION_SAMPLES:
+            self.logger.info(
+                "disaggregation='samples' has no deterministic equivalent: 'exposure run' produces "
+                "no sample dimension for the buildings to ride in. Running as 'none' instead -- "
+                "location totals are correct, but site terms apply to the location rather than "
+                "per building.")
+            disaggregation = DISAGGREGATION_NONE
 
         self._check_alloc_rules()
 
@@ -167,8 +177,10 @@ class RunExposure(ComputationStep):
             oasis_files_dir=run_dir,
             exposure_data=exposure_data,
             keys_data_path=keys_fp,
-            do_disaggregation=self.do_disaggregation,
-            building_packing=self.building_packing,
+            # pass the resolved mode, not the deprecated boolean: GenerateFiles resolves
+            # disaggregation itself, and a stale do_disaggregation here would trigger its
+            # deprecation warning on every deterministic run
+            disaggregation=disaggregation,
             intermediary_csv=self.intermediary_csv,
         ).run()
 

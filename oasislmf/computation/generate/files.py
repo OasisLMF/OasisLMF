@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List
 import pandas as pd
 
-from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.base import DISAGGREGATION_HELP, ComputationStep
 from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
                                                             CoveragesFile,
                                                             DamageBinDictFile,
@@ -46,13 +46,14 @@ from oasislmf.preparation.summaries import (get_summary_mapping,
                                             write_exposure_summary,
                                             write_mapping_file,
                                             write_summary_levels)
-from oasislmf.utils.data import (establish_correlations, get_dataframe,
+from oasislmf.utils.data import (establish_correlations, get_dataframe, resolve_disaggregation,
                                  get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df,
                                  prepare_reinsurance_df, validate_analysis_oed_fields, validate_vulnerability_replacements,
                                  analysis_settings_loader, model_settings_loader)
 
-from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
+from oasislmf.utils.defaults import (DISAGGREGATION_MODES,
+                                     DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
                                      OASIS_FILES_PREFIXES, WRITE_CHUNKSIZE,
                                      get_default_accounts_profile,
@@ -109,12 +110,10 @@ class GenerateFiles(ComputationStep):
          'help': 'Disables creation of an exposure summary report'},
         {'name': 'damage_group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': DAMAGE_GROUP_ID_COLS},
         {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
-        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
-        {'name': 'building_packing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
-         'help': 'if True keep one item per (location, peril, coverage_type) and carry NumberOfBuildings '
-                 'per item (on the correlations table) so buildings are multiplexed into the sample dimension '
-                 'downstream (pure-Python gulmc/gulpy pipeline) instead of expanding one row per building. '
-                 'Supersedes do_disaggregation when set.'},
+        {'name': 'disaggregation', 'type': str, 'default': None, 'choices': DISAGGREGATION_MODES,
+         'help': DISAGGREGATION_HELP},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
+         'help': 'DEPRECATED, use --disaggregation. if True run the oasis disaggregation.'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -182,6 +181,9 @@ class GenerateFiles(ComputationStep):
                 'version file path + lookup package path must be provided'
             )
         self.oasis_files_dir = self._get_output_dir()
+        disaggregation = resolve_disaggregation(
+            self.disaggregation, self.do_disaggregation, logger=self.logger)
+
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
         oed_compression = 'csv' if self.intermediary_csv else 'parquet'
@@ -352,8 +354,7 @@ class GenerateFiles(ComputationStep):
             exposure_profile=location_profile,
             damage_group_id_cols=damage_group_id_cols,
             hazard_group_id_cols=hazard_group_id_cols,
-            do_disaggregation=self.do_disaggregation,
-            building_packing=self.building_packing
+            disaggregation=disaggregation,
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
@@ -401,8 +402,7 @@ class GenerateFiles(ComputationStep):
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile,
-            do_disaggregation=self.do_disaggregation,
-            building_packing=self.building_packing,
+            disaggregation=disaggregation,
             target_dir=target_dir,
             oasis_files_prefixes=files_prefixes['il'],
             chunksize=self.write_chunksize,

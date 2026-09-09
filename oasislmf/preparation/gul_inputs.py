@@ -16,8 +16,10 @@ from oasislmf.pytools.common.data import (correlations_headers, correlations_dty
                                           DTYPE_IDX)
 from oasislmf.pytools.converters.csvtobin.utils import complex_items_write_bin, amplifications_write_bin
 from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
-from oasislmf.utils.data import assign_risk_ids, merge_dataframes, structured_dtype_to_pandas
-from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
+from oasislmf.utils.data import (assign_risk_ids, merge_dataframes, resolve_disaggregation,
+                                 structured_dtype_to_pandas)
+from oasislmf.utils.defaults import (CORRELATION_GROUP_ID, DISAGGREGATION_ITEMS,
+                                     DISAGGREGATION_NONE, DISAGGREGATION_SAMPLES,
                                      DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
                                      OASIS_FILES_PREFIXES, SOURCE_IDX,
@@ -42,7 +44,7 @@ VALID_OASIS_GROUP_COLS = [
 ]
 
 # 'building_id' / 'risk_id' are the building-level identifiers. Under row disaggregation
-# (do_disaggregation) there is one row per building, so listing one of them in the damage or
+# (DISAGGREGATION_ITEMS) there is one row per building, so listing one of them in the damage or
 # hazard group_id columns gives every building its own correlation group; omitting them keeps a
 # location's buildings perfectly correlated. That choice is the user's, not the engine's.
 # Under the other two modes both columns are constant 1, so including them shifts no grouping.
@@ -136,8 +138,9 @@ def get_gul_input_items(
     exposure_profile=get_default_exposure_profile(),
     damage_group_id_cols=None,
     hazard_group_id_cols=None,
-    do_disaggregation=True,
-    building_packing=False
+    disaggregation=None,
+    do_disaggregation=None,
+    building_packing=None,
 ):
     """Generates GUL (Ground-Up Loss) input items by combining location and keys data.
 
@@ -173,7 +176,7 @@ def get_gul_input_items(
 
     Disaggregation:
     ==============
-    When do_disaggregation=True and NumberOfBuildings > 1:
+    When disaggregation=DISAGGREGATION_ITEMS and NumberOfBuildings > 1:
     - TIV is divided by NumberOfBuildings
     - Rows are repeated NumberOfBuildings times
     - Each repeated row gets a unique building_id (1 to NumberOfBuildings)
@@ -193,13 +196,14 @@ def get_gul_input_items(
             via hashing. Default: ['loc_id', 'peril_correlation_group'].
         hazard_group_id_cols (list[str], optional): Columns used to compute hazard_group_id
             via hashing. Default: ['loc_id'].
-        do_disaggregation (bool, optional): If True, split aggregate locations by
-            NumberOfBuildings into one item row per building. Default True.
-        building_packing (bool, optional): If True, keep one item per
-            (location, peril, coverage_type) and carry NumberOfBuildings per item (as the
-            number_of_buildings column on the correlations table) so the buildings can be
-            multiplexed into the sample dimension downstream instead of expanding rows.
-            Mutually exclusive with row disaggregation. Default False.
+        disaggregation (str, optional): where a location's NumberOfBuildings is separated.
+            ``DISAGGREGATION_NONE`` keeps one item holding the whole location;
+            ``DISAGGREGATION_ITEMS`` expands one item per building; ``DISAGGREGATION_SAMPLES``
+            keeps one item per (location, peril, coverage_type) and carries NumberOfBuildings per
+            item (on the correlations table) so the buildings can be multiplexed into the sample
+            dimension downstream. Default ``DISAGGREGATION_ITEMS``.
+        do_disaggregation (bool, optional): DEPRECATED, use ``disaggregation``.
+        building_packing (bool, optional): DEPRECATED, use ``disaggregation``.
 
     Returns:
         pandas.DataFrame: GUL inputs with columns including item_id, coverage_id,
@@ -211,6 +215,8 @@ def get_gul_input_items(
         OasisException: If merge of location and keys data produces empty result.
         OasisException: If all rows have zero TIV after filtering.
     """
+    disaggregation = resolve_disaggregation(disaggregation, do_disaggregation, building_packing)
+
     # =========================================================================
     # SETUP PHASE: Load profiles and extract configuration
     # =========================================================================
@@ -270,7 +276,7 @@ def get_gul_input_items(
     #     and the buildings can be collapsed at source.
     # Terms above the location (special conditions, policy/layer, step) act on the location
     # aggregate either way and so do not affect the choice.
-    if building_packing:
+    if disaggregation == DISAGGREGATION_SAMPLES:
         location_df['keep_buildings_separate'] = (
             (location_df['IsAggregate'] == 1) & (location_df['NumberOfBuildings'] > 1)
         ).astype('int8')
@@ -278,7 +284,7 @@ def get_gul_input_items(
     # Select only the columns required. This reduces memory use significantly for portfolios
     # that include many OED columns.
     exposure_df_gul_inputs_cols = ['loc_id', portfolio_num, acc_num, loc_num, 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] + tiv_cols
-    if building_packing:
+    if disaggregation == DISAGGREGATION_SAMPLES:
         exposure_df_gul_inputs_cols.append('keep_buildings_separate')
     if SOURCE_IDX['loc'] in location_df:
         exposure_df_gul_inputs_cols += [SOURCE_IDX['loc']]
@@ -394,7 +400,7 @@ def get_gul_input_items(
     # If disaggregating (or packing), divide TIV by NumberOfBuildings so each building
     # carries an equal share. In packing mode the single item holds the per-building TIV
     # and gulmc replicates it across the N building blocks it generates.
-    if do_disaggregation or building_packing:
+    if disaggregation != DISAGGREGATION_NONE:
         # split TIV
         gul_inputs_df[tiv_cols] = gul_inputs_df[tiv_cols].div(np.maximum(1, gul_inputs_df['NumberOfBuildings']), axis=0)
 
@@ -415,7 +421,7 @@ def get_gul_input_items(
     # =========================================================================
     # For aggregate locations (NumberOfBuildings > 1), create one row per building
     # Each building gets a unique building_id and its share of the TIV
-    if building_packing:
+    if disaggregation == DISAGGREGATION_SAMPLES:
         # Building-packing keeps one item per (loc, peril, coverage_type) and never expands rows:
         # every location's N buildings are multiplexed into the sample dimension downstream
         # (gulmc/gulpy). The per-item building count rides on the correlations table.
@@ -429,7 +435,7 @@ def get_gul_input_items(
         gul_inputs_df['number_of_buildings'] = np.maximum(
             1, gul_inputs_df['NumberOfBuildings'].values).astype('int32')
         gul_inputs_df['building_id'] = 1
-    elif do_disaggregation:
+    elif disaggregation == DISAGGREGATION_ITEMS:
         repeat_counts = np.maximum(1, gul_inputs_df['NumberOfBuildings'].values).astype(int)
         # Repeat rows using np.repeat + iloc (faster than iterative expansion)
         gul_inputs_df = gul_inputs_df.iloc[np.repeat(np.arange(len(gul_inputs_df)), repeat_counts)].reset_index(drop=True)

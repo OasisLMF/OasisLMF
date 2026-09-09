@@ -61,7 +61,8 @@ import chardet
 from chardet import UniversalDetector
 from tabulate import tabulate
 
-from oasislmf.utils.defaults import SOURCE_IDX, SAR_ID
+from oasislmf.utils.defaults import (SOURCE_IDX, SAR_ID, DISAGGREGATION_MODES, DISAGGREGATION_NONE,
+                                     DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -1078,6 +1079,54 @@ def structured_dtype_to_pandas(np_dtype):
         dict: mapping of each field name to its numpy dtype.
     """
     return {col: dtype for col, (dtype, _) in np_dtype.fields.items()}
+
+
+def resolve_disaggregation(disaggregation, do_disaggregation=None, building_packing=None, logger=None):
+    """Resolve how a location's buildings are separated, accepting the deprecated booleans.
+
+    ``disaggregation`` is one string -- :data:`DISAGGREGATION_NONE`, ``_ITEMS`` or ``_SAMPLES`` --
+    threaded from the command line all the way through generation. It replaces the pair of
+    booleans ``do_disaggregation`` / ``building_packing``, which encoded three states in four
+    combinations and left ``(True, True)`` meaningless.
+
+    Args:
+        disaggregation (str | None): the mode, or None when not given.
+        do_disaggregation (bool | None): deprecated. True means one item per building.
+        building_packing (bool | None): deprecated. True means the sample dimension.
+        logger (logging.Logger, optional): where the deprecation notice goes.
+
+    Returns:
+        str: one of :data:`DISAGGREGATION_MODES`.
+
+    Raises:
+        OasisException: if ``disaggregation`` is not a recognised mode.
+    """
+    log = logger or logging.getLogger(__name__)
+
+    if disaggregation is not None and disaggregation not in DISAGGREGATION_MODES:
+        raise OasisException(
+            f"disaggregation must be one of {', '.join(DISAGGREGATION_MODES)}, "
+            f"got '{disaggregation}'")
+
+    deprecated_given = do_disaggregation is not None or building_packing is not None
+
+    if disaggregation is None:
+        if not deprecated_given:
+            return DISAGGREGATION_ITEMS
+        if building_packing:
+            disaggregation = DISAGGREGATION_SAMPLES
+        else:
+            disaggregation = DISAGGREGATION_ITEMS if do_disaggregation else DISAGGREGATION_NONE
+        log.warning(
+            "do_disaggregation/building_packing are deprecated; use disaggregation=%s instead. "
+            "A pair of booleans cannot name three options, which is why they are being replaced.",
+            disaggregation)
+    elif deprecated_given:
+        log.warning(
+            "both disaggregation and the deprecated do_disaggregation/building_packing were "
+            "given; disaggregation=%s wins and the booleans are ignored.", disaggregation)
+
+    return disaggregation
 
 
 def assign_risk_ids(df):

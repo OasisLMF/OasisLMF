@@ -30,8 +30,10 @@ from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_i
 from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
 from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import assign_risk_ids, get_ids, structured_dtype_to_pandas, DEFAULT_LOC_FIELD_TYPES
-from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
+from oasislmf.utils.data import (assign_risk_ids, get_ids, resolve_disaggregation,
+                                 structured_dtype_to_pandas, DEFAULT_LOC_FIELD_TYPES)
+from oasislmf.utils.defaults import (DISAGGREGATION_NONE, DISAGGREGATION_SAMPLES,
+                                     OASIS_FILES_PREFIXES,
                                      get_default_accounts_profile, get_default_exposure_profile,
                                      get_default_fm_aggregation_profile, SOURCE_IDX)
 from oasislmf.utils.exceptions import OasisException
@@ -849,8 +851,7 @@ def configure_step_policies(accounts_df, gul_inputs_df, level_column_mapper, oas
 
 @oasis_log
 def build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_fm_col,
-                         useful_cols, gul_inputs_columns, oed_schema, do_disaggregation,
-                         building_packing=False):
+                         useful_cols, gul_inputs_columns, oed_schema, disaggregation):
     """Build the level_df of financial terms for one FM level from its source rows.
 
     For each term group, filters the source rows to those carrying non-default term values,
@@ -868,10 +869,9 @@ def build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_
         useful_cols (list): the union of columns useful downstream.
         gul_inputs_columns (pandas.Index): columns already present on gul_inputs_df.
         oed_schema: OED schema (for per-term default lookups).
-        do_disaggregation (bool): if True, split aggregate terms by NumberOfRisks.
-        building_packing (bool): if True the buildings ride in the sample dimension instead of
-            separate rows, but the site levels still apply their terms per building, so the terms
-            must be split by NumberOfRisks exactly as under row disaggregation.
+        disaggregation (str): where a location's buildings are separated. Both
+            ``DISAGGREGATION_ITEMS`` and ``DISAGGREGATION_SAMPLES`` give a site level one node per
+            building, so the terms are split by NumberOfRisks either way.
 
     Returns:
         pandas.DataFrame: the level's terms (level_df).
@@ -923,7 +923,7 @@ def build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_
     for term, default in valid_term_default.items():
         level_df[term] = level_df[term].fillna(default)
 
-    if (do_disaggregation or building_packing) and 'risk_id' in agg_key:
+    if disaggregation != DISAGGREGATION_NONE and 'risk_id' in agg_key:
         level_df['NumberOfRisks'] = level_df['NumberOfBuildings'].mask(level_df['IsAggregate'] == 0, 1)
         __split_fm_terms_by_risk(level_df)
         level_df = level_df.drop(columns=['NumberOfBuildings', 'IsAggregate', 'NumberOfRisks'])
@@ -1332,8 +1332,9 @@ def get_il_input_items(
         exposure_profile=get_default_exposure_profile(),
         accounts_profile=get_default_accounts_profile(),
         fm_aggregation_profile=get_default_fm_aggregation_profile(),
-        do_disaggregation=True,
-        building_packing=False,
+        disaggregation=None,
+        do_disaggregation=None,
+        building_packing=None,
         oasis_files_prefixes=OASIS_FILES_PREFIXES['il'],
         chunksize=(2 * 10 ** 5),
         intermediary_csv=False,
@@ -1405,12 +1406,12 @@ def get_il_input_items(
         exposure_profile (dict, optional): Maps OED fields to FM term types for locations.
         accounts_profile (dict, optional): Maps OED fields to FM term types for accounts.
         fm_aggregation_profile (dict, optional): Defines aggregation keys for each FM level.
-        do_disaggregation (bool, optional): If True, split aggregate exposure terms
-            by NumberOfRisks. Default True.
-        building_packing (bool, optional): If True the buildings of a location ride in the sample
-            dimension of one item rather than in separate rows. The site levels still apply their
-            terms per building, so aggregate terms are split by NumberOfRisks as they are under
-            row disaggregation. Default False.
+        disaggregation (str, optional): where a location's buildings are separated; see
+            :data:`DISAGGREGATION_MODES`. Both ``DISAGGREGATION_ITEMS`` and
+            ``DISAGGREGATION_SAMPLES`` give a site level one node per building, so aggregate terms
+            are split by NumberOfRisks either way. Default ``DISAGGREGATION_ITEMS``.
+        do_disaggregation (bool, optional): DEPRECATED, use ``disaggregation``.
+        building_packing (bool, optional): DEPRECATED, use ``disaggregation``.
         oasis_files_prefixes (dict, optional): File name prefixes for output files.
         chunksize (int, optional): Rows per chunk when writing CSVs. Default 200,000.
         intermediary_csv (bool, optional): If True, also write CSV files alongside
@@ -1425,6 +1426,8 @@ def get_il_input_items(
     # =========================================================================
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
     il_input_files = {}
+    disaggregation = resolve_disaggregation(disaggregation, do_disaggregation, building_packing)
+
     with contextlib.ExitStack() as stack:
         gul_inputs_df, locations_df, accounts_df, acc_id_map = prepare_il_source_dataframes(gul_inputs_df, exposure_data)
 
@@ -1456,7 +1459,7 @@ def get_il_input_items(
         # Capture the packing shape before the column filter below drops these columns. Only items
         # whose buildings stay separate reach the financial module packed, so only they size its
         # arrays; everything else is summed at source by the ground-up tool.
-        if building_packing and 'keep_buildings_separate' in gul_inputs_df.columns:
+        if disaggregation == DISAGGREGATION_SAMPLES and 'keep_buildings_separate' in gul_inputs_df.columns:
             separate = gul_inputs_df.loc[gul_inputs_df['keep_buildings_separate'] == 1, 'number_of_buildings']
             max_buildings = int(separate.max()) if len(separate) else 1
         else:
@@ -1570,8 +1573,7 @@ def get_il_input_items(
 
                 # get all rows with terms in term_df_source and determine the correct FMTermGroupID
                 level_df = build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_fm_col,
-                                                useful_cols, gul_inputs_df.columns, oed_schema, do_disaggregation,
-                                                building_packing)
+                                                useful_cols, gul_inputs_df.columns, oed_schema, disaggregation)
                 agg_id_merge_col = agg_key + ['FMTermGroupID']
                 agg_id_merge_col_extra = ['need_tiv']
                 if step_level:
@@ -1698,7 +1700,7 @@ def get_il_input_items(
         gul_inputs_df = finalize_il_inputs(gul_inputs_df, fm_aggregation_profile, accounts_df,
                                            fm_xref_bin, fm_xref_csv, chunksize)
 
-        if building_packing:
+        if disaggregation == DISAGGREGATION_SAMPLES:
             # The financial module cannot work out where the site levels end: fm_programme levels
             # are compacted (only levels carrying terms get one), so the numbering varies per
             # portfolio. Record it next to the other fm inputs; an input set without this file

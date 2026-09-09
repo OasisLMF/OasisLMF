@@ -423,8 +423,8 @@ class TestGenFiles(ComputationChecker):
 
     @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
     def test_files__building_packing_packs_number_of_buildings(self, mock_output_dir):
-        """building_packing=True keeps one item per (loc,peril,cov) and carries NumberOfBuildings
-        on correlations.bin, instead of expanding one row per building (do_disaggregation)."""
+        """disaggregation='samples' keeps one item per (loc,peril,cov) and carries NumberOfBuildings
+        on correlations.bin, instead of expanding one item per building ('items')."""
         import io
         import numpy as np
         from oasislmf.pytools.common.input_files import read_correlations
@@ -438,7 +438,7 @@ class TestGenFiles(ComputationChecker):
         with self.tmp_dir() as t_dir:
             run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
             mock_output_dir.return_value = run_dir
-            self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir, 'building_packing': True})
+            self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir, 'disaggregation': 'samples'})
             packed = read_correlations(run_dir)
             self.assertIn('number_of_buildings', packed.dtype.names)
             self.assertTrue(np.all(np.asarray(packed['number_of_buildings']) == 3))
@@ -506,8 +506,8 @@ class TestGenFiles(ComputationChecker):
         # (site term, policy term): the policy term covers all three buildings either way
         for is_aggregate, expected in ((1, (10.0, 60.0)), (0, (30.0, 60.0))):
             with self.subTest(IsAggregate=is_aggregate):
-                packed, packed_tiv = _deductibles(is_aggregate, building_packing=True)
-                disagg, disagg_tiv = _deductibles(is_aggregate, do_disaggregation=True)
+                packed, packed_tiv = _deductibles(is_aggregate, disaggregation='samples')
+                disagg, disagg_tiv = _deductibles(is_aggregate, disaggregation='items')
 
                 # the premise: packing carries one coverage at the per-building tiv, row
                 # disaggregation carries one per building
