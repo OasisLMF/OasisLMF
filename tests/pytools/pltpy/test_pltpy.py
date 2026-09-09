@@ -1,15 +1,55 @@
 from io import BufferedReader
+import struct
 import sys
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 import numpy as np
 import shutil
 import pandas as pd
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
+from oasislmf.pytools.common.id_index import build as id_index_build
+from oasislmf.pytools.common.input_files import OccurrenceCSR
 from oasislmf.pytools.plt.manager import main
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_pltpy")
+
+
+def _build_summary_stream(sample_size, summaries):
+    """Build a minimal summary-stream binary, same layout as eltpy's test helper.
+
+    summaries: list of (event_id, summary_id, impacted_exposure, [(sidx, loss), ...])
+    """
+    buf = bytearray()
+    buf += struct.pack("<i", np.frombuffer(stream_info_to_bytes(SUMMARY_STREAM_ID, sample_size), dtype=np.int32)[0])
+    buf += struct.pack("<i", sample_size)
+    buf += struct.pack("<i", 1)  # summaryset_id, read once
+    for event_id, summary_id, impacted_exposure, samples in summaries:
+        buf += struct.pack("<i", event_id)
+        buf += struct.pack("<i", summary_id)
+        buf += struct.pack("<f", impacted_exposure)
+        for sidx, loss in samples:
+            buf += struct.pack("<i", sidx)
+            buf += struct.pack("<f", loss)
+        buf += struct.pack("<i", 0)
+        buf += struct.pack("<f", 0.0)
+    return bytes(buf)
+
+
+def _make_occ_csr(event_to_periods):
+    """event_to_periods: dict event_id -> list of period_no (occ_date_id fixed at 1)"""
+    event_ids = sorted(event_to_periods.keys())
+    valtype = np.dtype([("period_no", np.int32), ("occ_date_id", np.int32)])
+    occ_flat = np.empty(sum(len(v) for v in event_to_periods.values()), dtype=valtype)
+    occ_offsets = np.zeros(len(event_ids) + 1, dtype=np.int64)
+    pos = 0
+    for i, eid in enumerate(event_ids):
+        for p in event_to_periods[eid]:
+            occ_flat[pos] = (p, 1)
+            pos += 1
+        occ_offsets[i + 1] = pos
+    return OccurrenceCSR(id_index_build(np.array(event_ids, dtype=np.int64)), occ_offsets, occ_flat)
 
 
 def case_runner(sub_folder, test_name, out_ext="csv"):
@@ -204,3 +244,45 @@ def test_splt_stdin(monkeypatch):
                             Path(error_path, "py_splt.csv"))
             arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
             raise Exception(f"running 'pltpy {arg_str}' led to diff, see files at {error_path}") from e
+
+
+def test_mplt_qplt_buffer_full_across_summaries():
+    """An MPLT/QPLT output buffer filling up mid-run must not skip, duplicate, or
+    misattribute rows for any summary, including ones that don't trigger the overflow
+    themselves. Uses a tiny DEFAULT_BUFFER_SIZE to force this deterministically.
+    """
+    sample_size = 3
+    occ_csr = _make_occ_csr({999: [1]})
+    period_weights = np.array([(1, 1.0)], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
+    intervals = np.array([(0.5, 2, 0.0)], dtype=np.dtype(
+        [("quantile", "f4"), ("integer_part", "i4"), ("fractional_part", "f4")]))
+    summaries = [
+        (999, 101, 1000.0, [(1, 10.0), (2, 20.0), (3, 30.0)]),
+        (999, 102, 2000.0, [(1, 40.0), (2, 50.0), (3, 60.0)]),
+        (999, 103, 3000.0, [(1, 70.0), (2, 80.0), (3, 90.0)]),
+    ]
+    stream_bytes = _build_summary_stream(sample_size, summaries)
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = tmp_dir / "summary.bin"
+        stream_file.write_bytes(stream_bytes)
+        mplt_out = tmp_dir / "mplt.csv"
+        qplt_out = tmp_dir / "qplt.csv"
+
+        with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 2), \
+             patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
+             patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights), \
+             patch('oasislmf.pytools.plt.manager.read_quantile', return_value=intervals):
+            main(run_dir=tmp_dir, files_in=stream_file, mplt=mplt_out, qplt=qplt_out, ext="csv")
+
+        mplt = pd.read_csv(mplt_out)
+        qplt = pd.read_csv(qplt_out)
+
+        assert len(mplt) == 3, f"expected 3 MPLT rows (3 summaries x 1 period sample-mean), got {len(mplt)}"
+        assert list(mplt["SummaryId"]) == [101, 102, 103]
+        assert (mplt["EventId"] == 999).all()
+
+        assert len(qplt) == 3, f"expected 3 QPLT rows (3 summaries x 1 period x 1 interval), got {len(qplt)} - MPLT's overflow must not skip QPLT"
+        assert list(qplt["SummaryId"]) == [101, 102, 103]
+        assert (qplt["EventId"] == 999).all()

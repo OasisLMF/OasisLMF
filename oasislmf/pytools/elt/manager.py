@@ -52,6 +52,7 @@ class ELTReader(EventReader):
             ('compute_selt', np.bool_),
             ('compute_melt', np.bool_),
             ('compute_qelt', np.bool_),
+            ('current_event_id', event_id_dtype),
             ('summary_id', summary_id_dtype),
             ('impacted_exposure', oasis_float),
             ('non_zero_samples', oasis_int),
@@ -172,7 +173,8 @@ def read_buffer(
         unique_event_ids, event_rates
 ):
     # Initialise idxs
-    last_event_id = event_id
+    # Read from state, not the event_id param: the caller always passes 0 on a fresh call.
+    last_event_id = state["current_event_id"]
     si = selt_idx[0]
     mi = melt_idx[0]
     qi = qelt_idx[0]
@@ -209,6 +211,21 @@ def read_buffer(
 
     while cursor < valid_buff:
         if not state["reading_losses"]:
+            # Reserve room for the next summary's worst-case output before reading
+            # anything of it, so writes below can never run past the end of a buffer.
+            # +2 (not +1) since both MEAN_IDX and NUMBER_OF_AFFECTED_RISK_IDX can each
+            # add one extra SELT row on top of the len_sample real samples (see
+            # elt_selt_special_sidx_issue.md - a separate, pre-existing issue).
+            if state["compute_selt"] and si + state["len_sample"] + 2 > selt_data.shape[0]:
+                _update_idxs()
+                return cursor, state["current_event_id"], item_id, 1
+            if state["compute_melt"] and mi + 2 > melt_data.shape[0]:
+                _update_idxs()
+                return cursor, state["current_event_id"], item_id, 1
+            if state["compute_qelt"] and qi + len(intervals) > qelt_data.shape[0]:
+                _update_idxs()
+                return cursor, state["current_event_id"], item_id, 1
+
             # Read summary header
             if valid_buff - cursor >= summaryset_id_dtype_size + event_id_dtype_size + summary_id_dtype_size + loss_dtype_size:
                 # Need to read summary_set_id from summary info first
@@ -217,10 +234,14 @@ def read_buffer(
                     state["read_summary_set_id"] = True
                 event_id_new, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
-                    # New event, return to process the previous event
+                    # New event, return to process the previous event. Clear current_event_id
+                    # so the resumed call (event_id param resets to 0) doesn't re-detect this
+                    # same boundary and loop forever.
+                    state["current_event_id"] = 0
                     _update_idxs()
                     return cursor - event_id_dtype_size, last_event_id, item_id, 1
                 event_id = event_id_new
+                state["current_event_id"] = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, summary_id_dtype, summary_id_dtype_size)
                 state["impacted_exposure"], cursor = mv_read(byte_mv, cursor, loss_dtype, loss_dtype_size)
                 state["reading_losses"] = True
@@ -285,12 +306,6 @@ def read_buffer(
                         )
                         mi += 1
 
-                        if mi >= melt_data.shape[0]:
-                            # Output array is full
-                            _reset_state()
-                            _update_idxs()
-                            return cursor, event_id, item_id, 1
-
                 # Update QELT data
                 if state["compute_qelt"]:
                     if state["impacted_exposure"] > 0:
@@ -314,11 +329,6 @@ def read_buffer(
                                 loss=loss
                             )
                             qi += 1
-                            if qi >= qelt_data.shape[0]:
-                                # Output array is full
-                                _reset_state()
-                                _update_idxs()
-                                return cursor, event_id, item_id, 1
 
                 # Reset variables
                 _reset_state()
@@ -340,10 +350,6 @@ def read_buffer(
                         impacted_exposure=state["impacted_exposure"] if loss != 0 else 0
                     )
                     si += 1
-                    if si >= selt_data.shape[0]:
-                        # Output array is full
-                        _update_idxs()
-                        return cursor, event_id, item_id, 1
 
                 if sidx > 0:
                     if loss > 0:
@@ -357,7 +363,7 @@ def read_buffer(
 
     # Update the indices
     _update_idxs()
-    return cursor, event_id, item_id, 0
+    return cursor, state["current_event_id"], item_id, 0
 
 
 def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
