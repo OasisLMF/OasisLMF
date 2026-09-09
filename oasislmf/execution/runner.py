@@ -142,9 +142,9 @@ def rerun():
     gul_cmd = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('gul'))].pop(0)
     fm_cmds = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('fm'))]
 
-    # strip any stale output redirect from the extracted command (e.g. to a fifo whose
+    # strip a trailing output redirect from the extracted command (e.g. to a fifo whose
     # reader has already exited in the main run) before pointing it at our own output file
-    gul_cmd = re.sub(r'>\s*\S+', '', gul_cmd).strip()
+    gul_cmd = re.sub(r'\s*\d*>>?\s*\S+$', '', gul_cmd).strip()
 
     pipe_output = "/tmp/il_P1"
     summary_output = "/tmp/il_S1_summary_P1"
@@ -156,7 +156,7 @@ def rerun():
 
     fm_input = gul_output
     for i in range(len(fm_cmds)):
-        fm_cmd = re.sub(r"-\s*>\s*\S+", f"-o 64_ri{i + 1}.bin", fm_cmds[i])
+        fm_cmd = re.sub(r'\s*\d*>>?\s*\S+$', '', fm_cmds[i]).strip()
         fm_output = f"{event_error}_fm{i + 1}.bin"
         fm_pipe = f"{fm_cmd} -o {fm_output} -i {fm_input}"
         with open("fm_errors.log", "a") as error_log:
