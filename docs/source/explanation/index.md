@@ -33,6 +33,7 @@ modelling-methodology
 sampling-methodology
 correlation
 disaggregation
+coverage-dependency
 ```
 
 ## Adjustments & methodology

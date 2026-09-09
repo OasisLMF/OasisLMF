@@ -26,12 +26,15 @@ def logging_reset_handlers(logger_name):
     # revert all handlers to NOTSET
     for handler in logger.handlers:
         handler.setLevel(logging.NOTSET)
-        logger.propagate = True
     # Remove added handlers
     if 'oasislmf.' in logger_name:
         logger.handlers.clear()
-    else:
-        logger.setLevel(logging.NOTSET)
+    # Undo what logging_set_handlers did to the logger itself: leaving the level in place pinned
+    # every 'oasislmf.*' logger for the rest of the process. propagate is restored only where we
+    # cleared it — redirect_logging walks every logger, including the host application's.
+    if 'oasislmf.' in logger_name:
+        logger.propagate = True
+    logger.setLevel(logging.NOTSET)
 
 
 def redirect_logging(exec_name, log_dir='./log'):
