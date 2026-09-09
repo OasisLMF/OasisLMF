@@ -4,7 +4,7 @@ import logging
 
 from oasislmf.pytools.common.data import loss_pair_dtype, loss_pair_size, def_to_type_and_size
 from oasislmf.pytools.common.event_stream import (EventReader, get_and_check_header_in, stream_info_to_bytes, write_mv_to_stream,
-                                                  mv_read, PIPE_CAPACITY)
+                                                  mv_read, decode_local_sidx, CHANCE_OF_LOSS_IDX, PIPE_CAPACITY)
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,17 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
                     item_id = 0
                     break
 
+                # Chance-of-loss is a probability, not a loss: amplifying it is meaningless and
+                # can push it above 1. Every other special scales with the loss (mean, std, max),
+                # and tiv is scaled deliberately so an amplified loss is not clipped by the cap.
+                #
+                # Decoded rather than compared to -4, because a building-packed item carries one
+                # chance-of-loss PER BUILDING, at -4, -9, -14 ... Only a negative sidx can be a
+                # special, and decode_local_sidx does not use the sample size for those, so this
+                # needs to know nothing about the stream's sample count.
+                if sidx < 0 and decode_local_sidx(sidx, 0) == CHANCE_OF_LOSS_IDX:
+                    continue
+
                 loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
@@ -90,6 +101,10 @@ def read_buffer_uniform(byte_mv, cursor, valid_buff, event_id, item_id, items_am
                     cursor += (k + 1) * loss_pair_size
                     item_id = 0
                     break
+
+                # a probability, not a loss -- see read_buffer
+                if sidx < 0 and decode_local_sidx(sidx, 0) == CHANCE_OF_LOSS_IDX:
+                    continue
 
                 loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss

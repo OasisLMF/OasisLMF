@@ -16,12 +16,14 @@ from numba import types
 from numba.typed import Dict
 
 from oasislmf.pytools.common.data import loss_pair_dtype, oasis_int
-from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, PIPE_CAPACITY, encode_sidx
+from oasislmf.pytools.common.event_stream import (CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, MEAN_IDX,
+                                                  PIPE_CAPACITY, encode_sidx)
 from oasislmf.pytools.pla.streams import read_buffer
 
 EVENT_ID = 1
 AMPLIFICATION_ID = 7
 FACTOR = 1.25
+CHANCE_OF_LOSS = 0.8
 S = 4
 N_BUILDINGS = 3
 
@@ -87,3 +89,61 @@ class TestPackedAmplification(TestCase):
         self.assertEqual(sorted(got.keys()), sorted(sidx for sidx, _ in records))
         self.assertTrue(any(sidx > S for sidx in got), "expected packed sample indices")
         self.assertTrue(any(sidx < -5 for sidx in got), "expected packed special indices")
+
+
+def _packed_item_with_chance_of_loss(item_id):
+    """Like _packed_item, plus each building's chance-of-loss.
+
+    Kept separate from _packed_item because the tests above assert that every record it contains
+    is amplified, which is exactly what must NOT happen to chance-of-loss.
+    """
+    records = _packed_item(item_id)
+    for building in range(1, N_BUILDINGS + 1):
+        records.append((encode_sidx(building, CHANCE_OF_LOSS_IDX, S), CHANCE_OF_LOSS))
+    return sorted(records)
+
+
+class TestChanceOfLossIsNotAmplified(TestCase):
+    """Chance-of-loss is a probability, so an amplification factor must not touch it.
+
+    Every other special scales with the loss -- mean and max obviously, and tiv deliberately, so
+    that an amplified loss is not clipped by the coverage cap. Chance-of-loss is P(loss > 0);
+    multiplying it is meaningless and pushes it above 1 for any factor above 1/p.
+
+    plapy sits directly on the ground-up item stream, before the financial module, and the
+    financial module passes -4 through untouched, so a corrupted value survives the whole
+    pipeline.
+    """
+
+    def test_it_survives_a_factor_unchanged(self):
+        records = _packed_item_with_chance_of_loss(item_id=1)
+        out = _amplify(1, records)
+        for building in range(1, N_BUILDINGS + 1):
+            with self.subTest(building=building):
+                self.assertAlmostEqual(out[encode_sidx(building, CHANCE_OF_LOSS_IDX, S)],
+                                       CHANCE_OF_LOSS, places=5)
+
+    def test_every_other_special_still_scales(self):
+        """The guard must be surgical: only chance-of-loss is spared."""
+        records = _packed_item_with_chance_of_loss(item_id=1)
+        out = _amplify(1, records)
+        for building in range(1, N_BUILDINGS + 1):
+            for special_idx in (MAX_LOSS_IDX, MEAN_IDX):
+                with self.subTest(building=building, special=special_idx):
+                    sidx = encode_sidx(building, special_idx, S)
+                    self.assertAlmostEqual(out[sidx], (100.0 * building - special_idx) * FACTOR, places=4)
+
+    def test_it_is_spared_for_every_building_not_just_the_first(self):
+        """The reason the check decodes rather than comparing to -4.
+
+        A packed item carries one chance-of-loss PER BUILDING, at -4, -9, -14 ... Testing
+        ``sidx == CHANCE_OF_LOSS_IDX`` would spare building 1 and amplify all the others, which
+        is the shape of bug this guards.
+        """
+        records = _packed_item_with_chance_of_loss(item_id=1)
+        out = _amplify(1, records)
+        packed_sidx = [encode_sidx(b, CHANCE_OF_LOSS_IDX, S) for b in range(2, N_BUILDINGS + 1)]
+        self.assertNotIn(CHANCE_OF_LOSS_IDX, packed_sidx)   # they really are different indices
+        for sidx in packed_sidx:
+            with self.subTest(sidx=sidx):
+                self.assertAlmostEqual(out[sidx], CHANCE_OF_LOSS, places=5)
