@@ -120,10 +120,6 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
 
 CORRELATIONS_ITEMSIZE_BEFORE_PACKING = 20
 
-# Upper bound used only to spot a mis-parsed record; NumberOfBuildings above this is not a real
-# exposure, it is another field's bytes read as this one.
-MAX_PLAUSIBLE_BUILDINGS_PER_ITEM = 1_000_000
-
 
 def _stale_correlations_msg(path):
     """Message for a correlations.bin written before the building-packing fields existed.
@@ -149,9 +145,11 @@ def _check_correlations_layout(correlations, path):
     ``correlations_dtype.itemsize`` bytes. A size mismatch usually makes ``np.memmap`` raise, but
     when an old file's record count is a multiple of 6 the byte count divides evenly by the new
     itemsize as well and the mis-parse succeeds silently -- returning the wrong number of records
-    with other fields' bytes reinterpreted as the new one. That can read as a huge or zero
-    building count and switch building packing on for a run that has none, so check the new field
-    holds a value its writer could actually have produced.
+    with other fields' bytes reinterpreted as the new one.
+
+    item_id is assigned ``ngroup() + 1`` over the whole frame, so a correctly parsed table always
+    holds a dense 1..N. Checking the bounds is enough to catch the shifted read, and cannot reject
+    a file the current writer produced.
 
     Args:
         correlations (numpy.ndarray): the records just read.
@@ -162,12 +160,8 @@ def _check_correlations_layout(correlations, path):
     """
     if correlations.shape[0] == 0:
         return
-    # packed_buildings is signed: the magnitude is max(1, NumberOfBuildings) and the sign marks
-    # whether the buildings stay separate, so 0 is the one value the writer can never produce.
-    # A float or an id reinterpreted as this field is overwhelmingly likely to land outside the
-    # plausible range as well.
-    magnitude = np.abs(correlations["packed_buildings"])
-    if magnitude.min() < 1 or magnitude.max() > MAX_PLAUSIBLE_BUILDINGS_PER_ITEM:
+    item_id = correlations["item_id"]
+    if item_id.min() != 1 or item_id.max() != correlations.shape[0]:
         raise OasisException(_stale_correlations_msg(path))
 
 
