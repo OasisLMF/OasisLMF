@@ -78,7 +78,10 @@ Agreed but **not yet implemented** — worth knowing before you assume a safety 
 - **`linkcheck` in CI.** Dead external links build perfectly cleanly. There is no job
   running it today.
 - **Docstring-coverage gate** (e.g. `interrogate`), to keep the generated reference
-  honest as the autoapi scope widens.
+  honest as the autoapi scope widens. Note the tension: a coverage gate counts
+  docstrings, so it pushes back toward a docstring on everything, which is what
+  CONTRIBUTING.md's scoping rule exists to temper. Any such gate should exempt
+  small private helpers rather than reward filler.
 - **Mermaid diagrams.** Diagrams-as-text would diff cleanly and avoid stale binary
   assets, but the extension is not configured.
 - **A render check.** See the first gotcha below: "builds clean" is not "renders clean".
