@@ -288,10 +288,8 @@ def test_melt_buffer_full_immediately_before_new_event():
 def test_selt_reservation_holds_with_mean_and_affected_risk_idx():
     """The SELT buffer-capacity reservation must account for every sidx that currently
     reaches SELT's write path: the len_sample real samples, plus MEAN_IDX, plus
-    NUMBER_OF_AFFECTED_RISK_IDX (both of the latter still fall into SELT's "normal data
-    record" branch - a separate, pre-existing issue tracked in
-    elt_selt_special_sidx_issue.md, not fixed here). Undersizing the reservation is a
-    silent out-of-bounds write under numba, not a catchable Python exception.
+    NUMBER_OF_AFFECTED_RISK_IDX. Undersizing the reservation is a silent out-of-bounds
+    write under numba, not a catchable Python exception.
     """
     sample_size = 2
     summaries = [
