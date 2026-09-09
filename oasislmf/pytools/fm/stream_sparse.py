@@ -54,7 +54,8 @@ from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, LOSS_STR
                                                   MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, MEAN_IDX, NUM_SPECIAL_SIDX,
                                                   decode_local_sidx,
                                                   mv_read, mv_write_item_header, mv_write_sidx_loss, write_mv_to_stream)
-from oasislmf.pytools.common.data import loss_pair_dtype, loss_pair_size, def_to_type_and_size
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, loss_pair_dtype, loss_pair_size,
+                                          def_to_type_and_size)
 
 logger = logging.getLogger(__name__)
 
@@ -230,11 +231,11 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                         if not building_packing:
                             # The arrays were sized without a building dimension, and numba does
                             # not bounds-check, so carrying on would corrupt memory rather than
-                            # fail. This means fm_structure_info.json did not reach the folder the
+                            # fail. This means fm_structure_info.bin did not reach the folder the
                             # financial module reads.
                             raise ValueError(
                                 "packed sidx in the stream but the financial structure declares no "
-                                "packed buildings: fm_structure_info.json is missing from the input folder")
+                                f"packed buildings: {FM_STRUCTURE_INFO_FILE} is missing from the input folder")
                         local_sidx = decode_local_sidx(sidx, max_sidx_val)
                     else:
                         local_sidx = sidx

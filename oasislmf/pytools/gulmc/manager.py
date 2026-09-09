@@ -810,8 +810,8 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sample_size,
-                             haz_rndms_base, vuln_rndms_base, haz_eps_ij, damage_eps_ij,
+def draw_correlation_samples(compute_info, item, hazard_rng_index, sample_size,
+                             haz_rndms_item, vuln_rndms_item, haz_eps_ij, damage_eps_ij,
                              norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
                              haz_z_unif, vuln_z_unif):
     """Draw the (optionally correlated) hazard and damage random values for one item.
@@ -826,11 +826,13 @@ def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sa
     Args:
         compute_info (gulmc_compute_info_type): computation state (do_haz_correlation, do_correlation).
         item (np.void): the item record (correlation values, peril_correlation_group, vuln idx).
-        hazard_rng_index (int): index into haz_rndms_base, or < 0 if hazard is deterministic.
-        rng_index (int): index into vuln_rndms_base for damage sampling.
+        hazard_rng_index (int): < 0 when the hazard is deterministic, in which case no hazard
+            values are drawn. Only its sign is used; the caller has already sliced the values.
         sample_size (int): number of random samples to draw.
-        haz_rndms_base (np.array[float64]): base random values for hazard sampling.
-        vuln_rndms_base (np.array[float64]): base random values for damage sampling.
+        haz_rndms_item (np.array[float64]): this item's ``sample_size`` hazard random values.
+            Under building packing this is one building's slice of the group's block, which is
+            what lets the same routine serve both the packed and unpacked paths.
+        vuln_rndms_item (np.array[float64]): this item's ``sample_size`` damage random values.
         haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
         damage_eps_ij (np.array[float]): correlated random values for damage sampling.
         norm_inv_parameters (NormInversionParameters): parameters for Gaussian inversion.
@@ -846,35 +848,35 @@ def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sa
         if compute_info['do_haz_correlation'] and item['hazard_correlation_value'] > 0:
             # use correlation definitions to draw correlated random values into haz_z_unif
             get_corr_rval(
-                haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], item['hazard_correlation_value'],
+                haz_eps_ij[item['peril_correlation_group']], haz_rndms_item, item['hazard_correlation_value'],
                 norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
                 norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
                 sample_size, haz_z_unif
             )
         else:
-            haz_z_unif[:] = haz_rndms_base[hazard_rng_index]
+            haz_z_unif[:] = haz_rndms_item
 
     if compute_info['do_correlation'] and item['damage_correlation_value'] > 0:
         # use correlation definitions to draw correlated random values into vuln_z_unif
         get_corr_rval(
-            damage_eps_ij[item['peril_correlation_group']], vuln_rndms_base[rng_index], item['damage_correlation_value'],
+            damage_eps_ij[item['peril_correlation_group']], vuln_rndms_item, item['damage_correlation_value'],
             norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
             norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
             sample_size, vuln_z_unif
         )
     else:
         # do not use correlation
-        vuln_z_unif[:] = vuln_rndms_base[rng_index]
+        vuln_z_unif[:] = vuln_rndms_item
 
     if item['areaperil_agg_vuln_idx'] < 0:  # single vuln id (non-aggregate)
         vuln_z_unif *= vuln_adj[item['vulnerability_idx']]
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dynamic_footprint,
+def sample_item_losses(compute_info, sample_size, hazard_rng_index, dynamic_footprint,
                        item_event_data, haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                        eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
-                       damage_bins, damage_bin_scaling, losses):
+                       damage_bins, damage_bin_scaling, out):
     """Write the per-sample gul (or debug random values) for one item into ``losses``.
 
     In debug modes 1/2 the drawn hazard/damage random values are stored directly. Otherwise the
@@ -900,29 +902,33 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dyna
         haz_i_to_vuln_cdf (np.array): per-hazard-bin vulnerability cdfs.
         damage_bins (np.array): damage bin dictionary.
         damage_bin_scaling (float): tiv scaling factor.
-        losses (np.array[oasis_float]): loss buffer written in place at column item_j.
+        out (np.array[oasis_float]): 1-d view of length ``sample_size`` written in place, holding
+            this item's samples only. The unpacked path passes the item's column of ``losses``
+            past the special indices; the packed path passes one building's column of
+            ``building_losses``. Taking a view rather than (buffer, index) is what lets both use
+            this routine.
     """
     if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
         if hazard_rng_index >= 0:
-            losses[1:, item_j] = haz_z_unif[:]
+            out[:] = haz_z_unif[:]
         else:
             # deterministic hazard / effective damageability: no hazard intensity sampled
-            losses[1:, item_j] = 0
+            out[:] = 0
 
     elif compute_info['debug'] == 2:  # store the random value used for the damage sampling instead of the loss
-        losses[1:, item_j] = vuln_z_unif[:]
+        out[:] = vuln_z_unif[:]
 
     else:  # calculate gul
         if compute_info['effective_damageability']:
             for sample_idx in range(1, sample_size + 1):
-                losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
-                                                                   Neff_damage_bins, damage_bins, damage_bin_scaling)
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
+                                                            Neff_damage_bins, damage_bins, damage_bin_scaling)
         elif Nhaz_bins == 1:  # only one hazard possible
             Ndamage_bins = haz_i_to_Ndamage_bins[0]
             vuln_cdf = haz_i_to_vuln_cdf[0][:Ndamage_bins]
             for sample_idx in range(1, sample_size + 1):
-                losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                   Ndamage_bins, damage_bins, damage_bin_scaling)
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling)
         else:
             for sample_idx in range(1, sample_size + 1):
                 # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
@@ -934,15 +940,15 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dyna
                 # per-sample RP protection: the drawn bin carries its own return period
                 if dynamic_footprint is not None and item_event_data['return_period'] > 0 \
                         and item_event_data['event_rp'] < item_event_data['return_period']:
-                    losses[sample_idx, item_j] = 0
+                    out[sample_idx - 1] = 0
                     continue
 
                 # get the individual vulnerability cdf
                 Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
                 vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
 
-                losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                   Ndamage_bins, damage_bins, damage_bin_scaling)
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling)
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -1139,83 +1145,52 @@ def compute_event_losses(compute_info,
             losses[MEAN_IDX, item_j] = gul_mean
 
             if sample_size > 0 and not building_packing:  # compute random losses (legacy, one item == one risk)
-                draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sample_size,
-                                         haz_rndms_base, vuln_rndms_base, haz_eps_ij, damage_eps_ij,
+                # hazard values are only read when hazard_rng_index >= 0; otherwise haz_rndms_base
+                # can legitimately have no rows at all, so pass the damage slice as an unused
+                # placeholder rather than indexing it
+                haz_rndms_item = (haz_rndms_base[hazard_rng_index] if hazard_rng_index >= 0
+                                  else vuln_rndms_base[rng_index])
+                draw_correlation_samples(compute_info, item, hazard_rng_index, sample_size,
+                                         haz_rndms_item,
+                                         vuln_rndms_base[rng_index], haz_eps_ij, damage_eps_ij,
                                          norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
                                          haz_z_unif, vuln_z_unif)
 
-                sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dynamic_footprint,
+                sample_item_losses(compute_info, sample_size, hazard_rng_index, dynamic_footprint,
                                    item_event_data, haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                                    eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
-                                   damage_bins, damage_bin_scaling, losses)
+                                   damage_bins, damage_bin_scaling, losses[1:, item_j])
 
-            elif sample_size > 0 and building_packing:  # building-packed: N buildings multiplexed into the sample dim
-                # The special statistics (computed above into losses[special, item_j]) are
-                # building-independent. Per building we redraw the random samples from this group's
-                # flat slice: building b (1-based) reads [(b-1)*S : b*S] within the group's block,
-                # so building 1 reproduces the legacy draw byte-for-byte.
+            elif sample_size > 0 and building_packing:  # building-packed: N buildings in the sample dim
+                # The special statistics computed above are building-independent; only the random
+                # samples are redrawn. Building b (1-based) reads [(b-1)*S : b*S] of this group's
+                # flat block, so building 1 reproduces the legacy draw byte-for-byte.
+                #
+                # Same two routines as the unpacked path above -- they take the item's random
+                # values and its output column as views, so a building is just a different pair of
+                # views. Keeping one implementation matters: the per-sample return-period
+                # protection inside sample_item_losses would otherwise exist twice.
                 vuln_base_off0 = vuln_offsets[rng_index]
                 haz_base_off0 = haz_offsets[hazard_rng_index] if hazard_rng_index >= 0 else 0
                 for b in range(1, n_buildings + 1):
-                    vuln_base_b = vuln_rndms_flat[vuln_base_off0 + (b - 1) * sample_size: vuln_base_off0 + b * sample_size]
-
-                    # hazard random values only exist (hazard_rng_index >= 0) when this areaperil's
-                    # hazard intensity is non-deterministic and we are running full Monte Carlo.
+                    vuln_base_b = vuln_rndms_flat[vuln_base_off0 + (b - 1) * sample_size:
+                                                  vuln_base_off0 + b * sample_size]
                     if hazard_rng_index >= 0:
-                        haz_base_b = haz_rndms_flat[haz_base_off0 + (b - 1) * sample_size: haz_base_off0 + b * sample_size]
-                        if compute_info['do_haz_correlation'] and item['hazard_correlation_value'] > 0:
-                            get_corr_rval(
-                                haz_eps_ij[item['peril_correlation_group']], haz_base_b, item['hazard_correlation_value'],
-                                norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
-                                norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
-                                sample_size, haz_z_unif
-                            )
-                        else:
-                            haz_z_unif[:] = haz_base_b
-
-                    if compute_info['do_correlation'] and item['damage_correlation_value'] > 0:
-                        get_corr_rval(
-                            damage_eps_ij[item['peril_correlation_group']], vuln_base_b, item['damage_correlation_value'],
-                            norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
-                            norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
-                            sample_size, vuln_z_unif
-                        )
+                        haz_base_b = haz_rndms_flat[haz_base_off0 + (b - 1) * sample_size:
+                                                    haz_base_off0 + b * sample_size]
                     else:
-                        vuln_z_unif[:] = vuln_base_b
+                        haz_base_b = vuln_base_b  # unused; keeps the argument type stable
 
-                    if item['areaperil_agg_vuln_idx'] < 0:  # single vuln id (non-aggregate)
-                        vuln_z_unif *= vuln_adj[item['vulnerability_idx']]
+                    draw_correlation_samples(compute_info, item, hazard_rng_index, sample_size,
+                                             haz_base_b, vuln_base_b, haz_eps_ij, damage_eps_ij,
+                                             norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
+                                             haz_z_unif, vuln_z_unif)
 
-                    if compute_info['debug'] == 1:  # store the hazard sampling random value instead of the loss
-                        if hazard_rng_index >= 0:
-                            building_losses[:, item_j, b - 1] = haz_z_unif[:]
-                        else:
-                            building_losses[:, item_j, b - 1] = 0
-                    elif compute_info['debug'] == 2:  # store the damage sampling random value instead of the loss
-                        building_losses[:, item_j, b - 1] = vuln_z_unif[:]
-                    else:  # calculate gul
-                        if compute_info['effective_damageability']:
-                            for sample_idx in range(1, sample_size + 1):
-                                building_losses[sample_idx - 1, item_j, b - 1] = get_gul_from_vuln_cdf(
-                                    vuln_z_unif[sample_idx - 1], eff_damage_cdf, Neff_damage_bins, damage_bins, damage_bin_scaling)
-                        elif Nhaz_bins == 1:  # only one hazard possible
-                            Ndamage_bins = haz_i_to_Ndamage_bins[0]
-                            vuln_cdf = haz_i_to_vuln_cdf[0][:Ndamage_bins]
-                            for sample_idx in range(1, sample_size + 1):
-                                building_losses[sample_idx - 1, item_j, b - 1] = get_gul_from_vuln_cdf(
-                                    vuln_z_unif[sample_idx - 1], vuln_cdf, Ndamage_bins, damage_bins, damage_bin_scaling)
-                        else:
-                            for sample_idx in range(1, sample_size + 1):
-                                haz_bin_idx = binary_search(haz_z_unif[sample_idx - 1], haz_cdf_prob, Nhaz_bins - 1)
-                                # per-sample RP protection: the drawn bin carries its own return period
-                                if dynamic_footprint is not None and item_event_data['return_period'] > 0 \
-                                        and item_event_data['event_rp'] < item_event_data['return_period']:
-                                    building_losses[sample_idx - 1, item_j, b - 1] = 0
-                                    continue
-                                Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
-                                vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
-                                building_losses[sample_idx - 1, item_j, b - 1] = get_gul_from_vuln_cdf(
-                                    vuln_z_unif[sample_idx - 1], vuln_cdf, Ndamage_bins, damage_bins, damage_bin_scaling)
+                    sample_item_losses(compute_info, sample_size, hazard_rng_index, dynamic_footprint,
+                                       item_event_data, haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
+                                       eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins,
+                                       haz_i_to_vuln_cdf, damage_bins, damage_bin_scaling,
+                                       building_losses[:, item_j, b - 1])
 
         # write the losses to the output memoryview
         if not compute_info['building_packing']:
