@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import OccurrenceCSR
+import oasislmf.pytools.plt.manager as plt_manager
 from oasislmf.pytools.plt.manager import main
 from oasislmf.utils.exceptions import OasisStreamException
 
@@ -411,3 +412,62 @@ def test_splt_reservation_impossible_raises_instead_of_hanging():
                 patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights):
             with pytest.raises(OasisStreamException, match="SPLT reservation"):
                 main(run_dir=tmp_dir, files_in=stream_file, splt=splt_out, ext="csv")
+
+
+def test_multifile_current_event_id_not_leaked_across_files():
+    """current_event_id (and the rest of read_buffer's per-record state) is tracked
+    per input file, not reader-wide. Without that, switching from file A to file B
+    could compare file B's first header against file A's last event id, spuriously
+    re-yielding file A's already-reported event with zero new rows whenever the two
+    files' event ids happen to differ. Verify each file's first read_buffer call
+    starts with current_event_id == 0 (no leakage), and output content is unaffected.
+    """
+    sample_size = 2
+    occ_csr = _make_occ_csr({999: [1], 1000: [1]})
+    period_weights = np.array([(1, 1.0)], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
+    stream_a = _build_summary_stream(sample_size, [
+        (999, 101, 1000.0, [(1, 10.0), (2, 20.0)]),
+        (999, 102, 2000.0, [(1, 30.0), (2, 40.0)]),
+    ])
+    stream_b = _build_summary_stream(sample_size, [
+        (1000, 201, 3000.0, [(1, 50.0), (2, 60.0)]),
+        (1000, 202, 4000.0, [(1, 70.0), (2, 80.0)]),
+    ])
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        file_a = tmp_dir / "a.bin"
+        file_b = tmp_dir / "b.bin"
+        file_a.write_bytes(stream_a)
+        file_b.write_bytes(stream_b)
+        mplt_out = tmp_dir / "mplt.csv"
+
+        calls = []
+        orig_read_buffer = plt_manager.PLTReader.read_buffer
+
+        def spy_read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
+            current_event_id_before = int(self.state[file_idx]["current_event_id"])
+            result = orig_read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx)
+            calls.append((file_idx, current_event_id_before, result[3]))
+            return result
+
+        with patch.object(plt_manager.PLTReader, "read_buffer", spy_read_buffer), \
+                patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
+                patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights):
+            main(run_dir=tmp_dir, files_in=[file_a, file_b], mplt=mplt_out, ext="csv")
+
+        # Each file's very first read_buffer call must start with current_event_id == 0 -
+        # not just the reader's first-ever call across all files.
+        first_call_per_file = {}
+        for file_idx, current_event_id_before, _ret in calls:
+            first_call_per_file.setdefault(file_idx, current_event_id_before)
+        assert all(v == 0 for v in first_call_per_file.values()), first_call_per_file
+
+        # No spurious extra yield: exactly one read_buffer call per file (each file
+        # is small enough to finish in one call with no event boundary inside it).
+        assert len(calls) == 2, f"expected 1 read_buffer call per file (2 total), got {len(calls)}: {calls}"
+
+        mplt = pd.read_csv(mplt_out)
+        assert len(mplt) == 4, f"expected 4 MPLT rows (4 summaries x 1 period), got {len(mplt)}"
+        assert list(mplt["EventId"]) == [999, 999, 1000, 1000]
+        assert list(mplt["SummaryId"]) == [101, 102, 201, 202]
