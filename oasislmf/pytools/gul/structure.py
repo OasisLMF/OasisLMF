@@ -51,33 +51,32 @@ METADATA_FIELDS = ['do_correlation', 'building_packing']
 
 
 def gulpy_structure_exists(run_dir):
-    """Check whether pre-computed gulpy structures exist AND match what this version reads.
+    """Check whether a usable pre-computed gulpy structure cache is present.
 
-    A cache written by an earlier version is missing whatever arrays and metadata have been added
-    since, and reporting it as present makes the load fail rather than fall back. Treating an
-    incomplete cache as absent rebuilds it instead, which is always safe.
+    The cache is built once per run by ``create_gulpy_structure`` and memory-mapped by every
+    parallel gulpy process, so it is always written and read by the same version -- there is no
+    version skew to defend against. What can happen is a partially written cache, if the build was
+    interrupted. The caller falls back to building the structures itself, so anything unreadable
+    counts as absent and is rebuilt, which is always safe.
+
+    The metadata width is checked because it is read positionally (see ``METADATA_FIELDS``): a
+    short one would be an IndexError at load rather than a fallback.
 
     Args:
         run_dir (str): path to the run directory.
 
     Returns:
-        bool: True when a complete cache is present.
+        bool: True when a usable cache is present.
     """
-    structure_path = _structure_path(run_dir)
-    metadata_path = os.path.join(structure_path, 'metadata.npy')
+    metadata_path = os.path.join(_structure_path(run_dir), 'metadata.npy')
     if not os.path.isfile(metadata_path):
-        return False
-    if not all(os.path.isfile(os.path.join(structure_path, f'{name}.npy')) for name in ARRAY_FILES):
-        logger.info('pre-computed gulpy structures are incomplete: rebuilding')
         return False
     try:
         if np.load(metadata_path).shape[0] < len(METADATA_FIELDS):
-            logger.info('pre-computed gulpy structures predate the current metadata: rebuilding')
+            logger.info('pre-computed gulpy structures are incomplete: rebuilding')
             return False
     except Exception:
-        # a truncated or half-written metadata.npy raises EOFError, a 0-d one IndexError. The
-        # point of this function is to fall back to a rebuild rather than fail the run, so
-        # anything unreadable counts as absent.
+        # a truncated or half-written metadata.npy raises EOFError, a 0-d one IndexError
         logger.info('pre-computed gulpy structures are unreadable: rebuilding')
         return False
     return True

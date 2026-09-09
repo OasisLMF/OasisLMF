@@ -81,13 +81,17 @@ class TestGulpyPackingStructures(TestCase):
             self.assertEqual(s['building_packing'], 1)
             self.assertEqual(s['n_buildings_by_item_id'][corr['item_id'][0]], -5)
 
-    def test_an_incomplete_cache_reads_as_absent(self):
-        """A cache written before these arrays existed must rebuild, not fail the run.
+    def test_an_unusable_cache_reads_as_absent(self):
+        """A cache that cannot be read must rebuild, not fail the run.
 
         run() prefers a cached structure whenever one is reported present, so reporting an
-        incomplete one present makes the load raise instead of falling back. Rebuilding is always
-        safe, and the standard pipeline masks this by always writing the cache first -- invoking
-        gulpy against a re-used run directory does not.
+        unusable one present makes the load raise instead of falling back to building it. The
+        cache is written and read by the same version -- it is built once per run and then
+        memory-mapped by the parallel gulpy processes -- so the case to survive is a partially
+        written one, from a build that was interrupted.
+
+        The metadata is read positionally, so a short array is the one shape that would fail at
+        load rather than fall back.
         """
         from oasislmf.pytools.gul.structure import (METADATA_FIELDS, create_gulpy_structure,
                                                     gulpy_structure_exists)
@@ -97,14 +101,16 @@ class TestGulpyPackingStructures(TestCase):
             cache = os.path.join(d, 'input', 'gulpy_structure')
             self.assertTrue(gulpy_structure_exists(d))
 
-            # an array added since the cache was written
-            missing = os.path.join(cache, 'n_buildings_by_item_id.npy')
-            os.rename(missing, missing + '.hidden')
+            # too few scalars to index positionally
+            metadata = os.path.join(cache, 'metadata.npy')
+            np.save(metadata, np.zeros(len(METADATA_FIELDS) - 1, dtype=np.int64))
             self.assertFalse(gulpy_structure_exists(d))
-            os.rename(missing + '.hidden', missing)
-            self.assertTrue(gulpy_structure_exists(d))
 
-            # metadata from before a scalar was added
-            np.save(os.path.join(cache, 'metadata'),
-                    np.zeros(len(METADATA_FIELDS) - 1, dtype=np.int64))
+            # truncated mid-write
+            with open(metadata, 'r+b') as f:
+                f.truncate(8)
+            self.assertFalse(gulpy_structure_exists(d))
+
+            # absent entirely
+            os.remove(metadata)
             self.assertFalse(gulpy_structure_exists(d))

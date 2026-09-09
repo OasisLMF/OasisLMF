@@ -646,7 +646,8 @@ def write_losses_packed(event_id, sample_size, loss_threshold, losses, building_
     # here: n_buildings per item, and max_nb, past which nothing is read at all.
     if alloc_rule != 0:
         for item_j in range(item_ids.shape[0]):
-            for b in range(abs(n_buildings[item_j]), max_nb):
+            nb = abs(n_buildings[item_j])
+            for b in range(nb, max_nb):
                 for sample_idx in range(sample_size):
                     building_losses[sample_idx, item_j, b] = 0
 

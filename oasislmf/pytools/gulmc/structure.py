@@ -73,34 +73,28 @@ def _structure_path(run_dir):
 
 
 def gulmc_structure_exists(run_dir):
-    """Check whether pre-computed gulmc structures exist AND match what this version reads.
+    """Check whether a usable pre-computed gulmc structure cache is present.
 
-    A cache written by an earlier version is missing whatever has been added since -- arrays,
-    metadata entries, or fields on an existing array, as ``items`` gained ``number_of_buildings``
-    for building packing, each ``.npy`` carrying its own dtype. Reporting such a cache as present
-    makes the run fail on the missing piece rather than fall back, so an incomplete or unreadable
-    one counts as absent and is rebuilt, which is always safe.
+    Built once per run and memory-mapped by every parallel gulmc process, so it is always written
+    and read by the same version. What can happen is a partially written cache, if the build was
+    interrupted; the caller falls back to building the structures itself, so anything unreadable
+    counts as absent and is rebuilt.
+
+    The metadata width is checked because it is read positionally: a short one would be an
+    IndexError at load rather than a fallback.
 
     Args:
         run_dir (str): path to the run directory.
 
     Returns:
-        bool: True when a complete, readable cache is present.
+        bool: True when a usable cache is present.
     """
-    structure_path = _structure_path(run_dir)
-    metadata_path = os.path.join(structure_path, 'metadata.npy')
+    metadata_path = os.path.join(_structure_path(run_dir), 'metadata.npy')
     if not os.path.isfile(metadata_path):
-        return False
-    if not all(os.path.isfile(os.path.join(structure_path, f'{name}.npy')) for name in ARRAY_FILES):
-        logger.info('pre-computed gulmc structures are incomplete: rebuilding')
         return False
     try:
         if np.load(metadata_path).shape[0] < N_METADATA_FIELDS:
-            logger.info('pre-computed gulmc structures predate the current metadata: rebuilding')
-            return False
-        items = np.load(os.path.join(structure_path, 'items.npy'), mmap_mode='r')
-        if 'number_of_buildings' not in items.dtype.names:
-            logger.info('pre-computed gulmc structures predate building packing: rebuilding')
+            logger.info('pre-computed gulmc structures are incomplete: rebuilding')
             return False
     except Exception:
         logger.info('pre-computed gulmc structures are unreadable: rebuilding')
