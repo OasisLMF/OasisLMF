@@ -20,7 +20,7 @@ def default_tobin(stack, file_in, file_out, file_type):
         data = np.empty(len(batch), dtype=dtype)
         for col in dtype.names:
             data[col] = batch.column(col).to_numpy(zero_copy_only=False)
-        data.tofile(file_out)
+        file_out.write(data.tobytes())
 
 
 def parquettobin(file_in, file_out, file_type, **kwargs):
