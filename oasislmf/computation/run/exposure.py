@@ -126,8 +126,7 @@ class RunExposure(ComputationStep):
 
         include_loss_factor = not (len(self.loss_factor) == 1)
 
-        disaggregation = resolve_disaggregation(
-            self.disaggregation, self.do_disaggregation, logger=self.logger)
+        disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation)
 
         # Generation divides a location's TIV by N for packing, and only the ground-up tools write the
         # sample dimension to put the buildings back -- so packed files here would understate every

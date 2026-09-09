@@ -1081,7 +1081,22 @@ def structured_dtype_to_pandas(np_dtype):
     return {col: dtype for col, (dtype, _) in np_dtype.fields.items()}
 
 
-def resolve_disaggregation(disaggregation, do_disaggregation=None, building_packing=None, logger=None):
+def _warn_deprecated(message):
+    """Raise a DeprecationWarning that ambient filters cannot hide.
+
+    Python ignores DeprecationWarning by default outside __main__, and this fires from inside the
+    computation layer, so ``simplefilter`` is what makes it reach the user -- the same approach
+    the deprecated module aliases in ``oasislmf/__init__.py`` take.
+
+    Args:
+        message (str): the notice.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("always", DeprecationWarning)
+        warnings.warn(message, DeprecationWarning, stacklevel=3)
+
+
+def resolve_disaggregation(disaggregation, do_disaggregation=None, building_packing=None):
     """Resolve how a location's buildings are separated, accepting the deprecated booleans.
 
     ``disaggregation`` is one string -- :data:`DISAGGREGATION_NONE`, ``_ITEMS`` or ``_SAMPLES`` --
@@ -1093,7 +1108,6 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None, building_pack
         disaggregation (str | None): the mode, or None when not given.
         do_disaggregation (bool | None): deprecated. True means one item per building.
         building_packing (bool | None): deprecated. True means the sample dimension.
-        logger (logging.Logger, optional): where the deprecation notice goes.
 
     Returns:
         str: one of :data:`DISAGGREGATION_MODES`.
@@ -1101,8 +1115,6 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None, building_pack
     Raises:
         OasisException: if ``disaggregation`` is not a recognised mode.
     """
-    log = logger or logging.getLogger(__name__)
-
     if disaggregation is not None and disaggregation not in DISAGGREGATION_MODES:
         raise OasisException(
             f"disaggregation must be one of {', '.join(DISAGGREGATION_MODES)}, "
@@ -1117,14 +1129,14 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None, building_pack
             disaggregation = DISAGGREGATION_SAMPLES
         else:
             disaggregation = DISAGGREGATION_ITEMS if do_disaggregation else DISAGGREGATION_NONE
-        log.warning(
-            "do_disaggregation/building_packing are deprecated; use disaggregation=%s instead. "
-            "A pair of booleans cannot name three options, which is why they are being replaced.",
-            disaggregation)
+        _warn_deprecated(
+            f"do_disaggregation/building_packing are deprecated and may be removed in a future "
+            f"version. Use disaggregation='{disaggregation}' instead: a pair of booleans cannot "
+            f"name the three ways buildings can be represented.")
     elif deprecated_given:
-        log.warning(
-            "both disaggregation and the deprecated do_disaggregation/building_packing were "
-            "given; disaggregation=%s wins and the booleans are ignored.", disaggregation)
+        _warn_deprecated(
+            f"both disaggregation and the deprecated do_disaggregation/building_packing were "
+            f"given; disaggregation='{disaggregation}' wins and the booleans are ignored.")
 
     return disaggregation
 

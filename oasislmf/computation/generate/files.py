@@ -181,8 +181,7 @@ class GenerateFiles(ComputationStep):
                 'version file path + lookup package path must be provided'
             )
         self.oasis_files_dir = self._get_output_dir()
-        disaggregation = resolve_disaggregation(
-            self.disaggregation, self.do_disaggregation, logger=self.logger)
+        disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
