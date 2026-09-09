@@ -39,7 +39,7 @@ class AbstractBasicKeyLookup:
         self.output_dir = output_dir
 
         keys_data_path = config.get('keys_data_path')
-        keys_data_path = os.path.join(config_dir, keys_data_path) if keys_data_path else ''
+        keys_data_path = os.path.join(config_dir, keys_data_path) if keys_data_path else self.config_dir
         config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
 
         if config.get("keys_data_storage"):
