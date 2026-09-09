@@ -187,12 +187,8 @@ correlations_output = [
     damage_correlation_value,
     hazard_group_id,
     hazard_correlation_value,
-    # Building packing. Magnitude is the number of buildings multiplexed into the item's sample
-    # dimension (>= 1). A NEGATIVE sign means those buildings must reach the financial module as
-    # separate blocks -- true for IsAggregate == 1 locations, whose buildings are separate risks
-    # carrying term/NumberOfRisks each. Positive means the ground-up tool sums them at source.
-    # Readers unpack the sign into a count and a flag: a negative reaching a range() would
-    # silently iterate zero times.
+    # signed: magnitude is the count, negative means the buildings stay separate (see
+    # gul/structure.py, which unpacks it)
     number_of_buildings,
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
