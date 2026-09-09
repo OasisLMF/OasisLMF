@@ -133,8 +133,6 @@ def get_gul_input_items(
     damage_group_id_cols=None,
     hazard_group_id_cols=None,
     disaggregation=None,
-    do_disaggregation=None,
-    building_packing=None,
 ):
     """Generates GUL (Ground-Up Loss) input items by combining location and keys data.
 
@@ -196,8 +194,6 @@ def get_gul_input_items(
             keeps one item per (location, peril, coverage_type) and carries NumberOfBuildings per
             item (on the correlations table) so the buildings can be multiplexed into the sample
             dimension downstream. Default ``DISAGGREGATION_ITEMS``.
-        do_disaggregation (bool, optional): DEPRECATED, use ``disaggregation``.
-        building_packing (bool, optional): DEPRECATED, use ``disaggregation``.
 
     Returns:
         pandas.DataFrame: GUL inputs with columns including item_id, coverage_id,
@@ -209,7 +205,7 @@ def get_gul_input_items(
         OasisException: If merge of location and keys data produces empty result.
         OasisException: If all rows have zero TIV after filtering.
     """
-    disaggregation = resolve_disaggregation(disaggregation, do_disaggregation, building_packing)
+    disaggregation = resolve_disaggregation(disaggregation)
 
     # =========================================================================
     # SETUP PHASE: Load profiles and extract configuration

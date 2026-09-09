@@ -1333,8 +1333,6 @@ def get_il_input_items(
         accounts_profile=get_default_accounts_profile(),
         fm_aggregation_profile=get_default_fm_aggregation_profile(),
         disaggregation=None,
-        do_disaggregation=None,
-        building_packing=None,
         oasis_files_prefixes=OASIS_FILES_PREFIXES['il'],
         chunksize=(2 * 10 ** 5),
         intermediary_csv=False,
@@ -1410,8 +1408,6 @@ def get_il_input_items(
             :data:`DISAGGREGATION_MODES`. Both ``DISAGGREGATION_ITEMS`` and
             ``DISAGGREGATION_SAMPLES`` give a site level one node per building, so aggregate terms
             are split by NumberOfRisks either way. Default ``DISAGGREGATION_ITEMS``.
-        do_disaggregation (bool, optional): DEPRECATED, use ``disaggregation``.
-        building_packing (bool, optional): DEPRECATED, use ``disaggregation``.
         oasis_files_prefixes (dict, optional): File name prefixes for output files.
         chunksize (int, optional): Rows per chunk when writing CSVs. Default 200,000.
         intermediary_csv (bool, optional): If True, also write CSV files alongside
@@ -1426,7 +1422,7 @@ def get_il_input_items(
     # =========================================================================
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
     il_input_files = {}
-    disaggregation = resolve_disaggregation(disaggregation, do_disaggregation, building_packing)
+    disaggregation = resolve_disaggregation(disaggregation)
 
     with contextlib.ExitStack() as stack:
         gul_inputs_df, locations_df, accounts_df, acc_id_map = prepare_il_source_dataframes(gul_inputs_df, exposure_data)

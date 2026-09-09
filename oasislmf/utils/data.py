@@ -62,7 +62,7 @@ from chardet import UniversalDetector
 from tabulate import tabulate
 
 from oasislmf.utils.defaults import (SOURCE_IDX, SAR_ID, DISAGGREGATION_MODES, DISAGGREGATION_NONE,
-                                     DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
+                                     DISAGGREGATION_ITEMS)
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -1096,18 +1096,16 @@ def _warn_deprecated(message):
         warnings.warn(message, DeprecationWarning, stacklevel=3)
 
 
-def resolve_disaggregation(disaggregation, do_disaggregation=None, building_packing=None):
+def resolve_disaggregation(disaggregation, do_disaggregation=None):
     """Resolve how a location's buildings are separated, accepting the deprecated booleans.
 
     ``disaggregation`` is one string -- :data:`DISAGGREGATION_NONE`, ``_ITEMS`` or ``_SAMPLES`` --
-    threaded from the command line all the way through generation. It replaces the pair of
-    booleans ``do_disaggregation`` / ``building_packing``, which encoded three states in four
-    combinations and left ``(True, True)`` meaningless.
+    threaded from the command line all the way through generation. It replaces the boolean
+    ``do_disaggregation``, which could only name two of the three.
 
     Args:
         disaggregation (str | None): the mode, or None when not given.
         do_disaggregation (bool | None): deprecated. True means one item per building.
-        building_packing (bool | None): deprecated. True means the sample dimension.
 
     Returns:
         str: one of :data:`DISAGGREGATION_MODES`.
@@ -1120,23 +1118,20 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None, building_pack
             f"disaggregation must be one of {', '.join(DISAGGREGATION_MODES)}, "
             f"got '{disaggregation}'")
 
-    deprecated_given = do_disaggregation is not None or building_packing is not None
+    deprecated_given = do_disaggregation is not None
 
     if disaggregation is None:
         if not deprecated_given:
             return DISAGGREGATION_ITEMS
-        if building_packing:
-            disaggregation = DISAGGREGATION_SAMPLES
-        else:
-            disaggregation = DISAGGREGATION_ITEMS if do_disaggregation else DISAGGREGATION_NONE
+        disaggregation = DISAGGREGATION_ITEMS if do_disaggregation else DISAGGREGATION_NONE
         _warn_deprecated(
-            f"do_disaggregation/building_packing are deprecated and may be removed in a future "
-            f"version. Use disaggregation='{disaggregation}' instead: a pair of booleans cannot "
-            f"name the three ways buildings can be represented.")
+            f"do_disaggregation is deprecated and may be removed in a future version. Use "
+            f"disaggregation='{disaggregation}' instead: a boolean cannot name the three ways a "
+            f"location's buildings can be represented.")
     elif deprecated_given:
         _warn_deprecated(
-            f"both disaggregation and the deprecated do_disaggregation/building_packing were "
-            f"given; disaggregation='{disaggregation}' wins and the booleans are ignored.")
+            f"both disaggregation and the deprecated do_disaggregation were given; "
+            f"disaggregation='{disaggregation}' wins and do_disaggregation is ignored.")
 
     return disaggregation
 

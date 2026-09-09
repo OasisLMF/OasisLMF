@@ -41,12 +41,6 @@ class TestResolveDisaggregation(TestCase):
             resolve_disaggregation('samples', None)
         self.assertEqual(raised, [])
 
-    def test_the_deprecated_packing_boolean_maps_to_samples(self):
-        """building_packing was the unreleased second boolean; still accepted, still warns."""
-        with self.assertWarns(DeprecationWarning):
-            self.assertEqual(
-                resolve_disaggregation(None, None, building_packing=True), 'samples')
-
     def test_the_warning_survives_a_hostile_filter(self):
         """DeprecationWarning is ignored by default outside __main__, and this fires from inside
         the computation layer, so the notice has to force its own visibility."""

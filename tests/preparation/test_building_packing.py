@@ -187,28 +187,6 @@ class TestBuildingPacking(TestCase):
                 self.assertEqual(sorted(np.asarray(corr['number_of_buildings']).tolist()), expected)
 
 
-class TestDeprecatedBooleans(TestCase):
-    """The old do_disaggregation / building_packing kwargs still work on the public API.
-
-    get_gul_input_items is exported, so callers outside this repo may still pass the booleans.
-    They are accepted for now and warn; this is the only test that exercises that path.
-    """
-
-    def test_the_booleans_still_select_the_same_modes(self):
-        for kwargs, equivalent in (({'do_disaggregation': True}, DISAGGREGATION_ITEMS),
-                                   ({'do_disaggregation': False}, DISAGGREGATION_NONE),
-                                   ({'building_packing': True}, DISAGGREGATION_SAMPLES)):
-            with self.subTest(**kwargs):
-                legacy = get_gul_input_items(_loc_df(), _keys_df(),
-                                             damage_group_id_cols=['loc_id'], **kwargs)
-                modern = get_gul_input_items(_loc_df(), _keys_df(),
-                                             damage_group_id_cols=['loc_id'],
-                                             disaggregation=equivalent)
-                self.assertEqual(len(legacy), len(modern))
-                self.assertEqual(legacy['number_of_buildings'].tolist(),
-                                 modern['number_of_buildings'].tolist())
-
-
 class TestWhichLocationsArePacked(TestCase):
     """What decides packing is IsAggregate, not the presence of location terms.
 
@@ -281,7 +259,7 @@ class TestThreeDisaggregationModes(TestCase):
                                    damage_group_id_cols=['loc_id', 'building_id'], **kwargs)
 
     def test_no_disaggregation_keeps_one_item_holding_the_whole_location(self):
-        gul = self._run(do_disaggregation=False)
+        gul = self._run(disaggregation=DISAGGREGATION_NONE)
         self.assertEqual(len(gul), 2)
         self.assertEqual(gul['number_of_buildings'].max(), 1)
         self.assertEqual(gul['building_id'].unique().tolist(), [1])
@@ -293,7 +271,7 @@ class TestThreeDisaggregationModes(TestCase):
 
     def test_packing_keeps_the_rows_and_carries_the_count(self):
         """Every location keeps one item, whatever its IsAggregate."""
-        gul = self._run(do_disaggregation=False, disaggregation=DISAGGREGATION_SAMPLES)
+        gul = self._run(disaggregation=DISAGGREGATION_SAMPLES)
         self.assertEqual(len(gul), 2)
         self.assertEqual(sorted(gul['number_of_buildings'].tolist()), [2, 3])
         # only the aggregate location needs its buildings kept apart downstream
@@ -305,9 +283,9 @@ class TestThreeDisaggregationModes(TestCase):
         totals = {
             name: (gul['tiv'] * gul['number_of_buildings']).sum()
             for name, gul in (
-                ('nothing', self._run(do_disaggregation=False)),
+                ('nothing', self._run(disaggregation=DISAGGREGATION_NONE)),
                 ('today', self._run(disaggregation=DISAGGREGATION_ITEMS)),
-                ('packing', self._run(do_disaggregation=False, disaggregation=DISAGGREGATION_SAMPLES)),
+                ('packing', self._run(disaggregation=DISAGGREGATION_SAMPLES)),
             )
         }
         self.assertAlmostEqual(totals['nothing'], totals['today'], places=4)
@@ -320,8 +298,8 @@ class TestThreeDisaggregationModes(TestCase):
         it legitimately gives one group per building -- that is the whole point of listing the
         column, and TestBuildingLevelGroupCols covers it.
         """
-        for loc, kwargs in ((_mixed_loc_df(), dict(do_disaggregation=False)),
-                            (_mixed_loc_df(), dict(do_disaggregation=False, disaggregation=DISAGGREGATION_SAMPLES))):
+        for loc, kwargs in ((_mixed_loc_df(), dict(disaggregation=DISAGGREGATION_NONE)),
+                            (_mixed_loc_df(), dict(disaggregation=DISAGGREGATION_SAMPLES))):
             with self.subTest(**kwargs):
                 with_col = get_gul_input_items(loc.copy(), _keys_df(),
                                                damage_group_id_cols=['loc_id', 'building_id'], **kwargs)
