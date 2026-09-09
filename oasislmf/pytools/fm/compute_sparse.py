@@ -63,23 +63,10 @@ logger = logging.getLogger(__name__)
 def collapses_buildings(node, child, site_collapse_level, building_packing):
     """Whether aggregating ``child`` into ``node`` crosses the building-packing collapse point.
 
-    Building-packed items keep one block per building up to and including the site levels, so
-    that those levels apply their terms per building. The blocks merge the first time such a node
-    is aggregated into one above the collapse level: indexing the dense accumulator by the local
-    sidx instead of the packed one sums the buildings, and the parent's sidx array comes out
-    unpacked because it is built by iterating ``all_sidx`` over the entries that were flagged.
-
-    Args:
-        node: the parent node doing the aggregating.
-        child: the child node being aggregated.
-        site_collapse_level (int): last level whose terms apply per building. 0 means no level
-          does -- an input set with no location terms writes no risk-keyed level at all -- and the
-          buildings then merge as soon as the items are aggregated, level 0 being the items.
-        building_packing (bool): whether this input set has packed items. It is what decides
-          whether any of this applies, not site_collapse_level, which is legitimately 0.
-
-    Returns:
-        bool: True when the child's building blocks must be merged as it is aggregated.
+    ``site_collapse_level`` is the last level whose terms apply per building, and 0 is a
+    legitimate value, not a sentinel: an input set with no location terms writes no risk-keyed
+    level, so the buildings merge as soon as the items are aggregated. That is why
+    ``building_packing`` gates this rather than a truthiness test on the level.
     """
     return (building_packing
             and child['level_id'] <= site_collapse_level < node['level_id'])
