@@ -96,10 +96,10 @@ def test_read_correlations():
     filename = "correlations.csv"
 
     correlations_expected = np.array([
-        (1, 1, 0.700000, 123451, 0.000000),
-        (2, 2, 0.500000, 123451, 0.300000),
-        (3, 1, 0.700000, 123452, 0.000000),
-        (4, 2, 0.500000, 123452, 0.300000),
+        (1, 1, 0.700000, 123451, 0.000000, 1),
+        (2, 2, 0.500000, 123451, 0.300000, 1),
+        (3, 1, 0.700000, 123452, 0.000000, 1),
+        (4, 2, 0.500000, 123452, 0.300000, 1),
     ], dtype=correlations_dtype)
     correlations_actual = read_correlations(run_dir, filename=filename)
 

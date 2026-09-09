@@ -67,6 +67,10 @@ class RunExposure(ComputationStep):
         {'name': 'print_summary', 'default': True},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
          'help': 'if True run the oasis disaggregation.'},
+        {'name': 'building_packing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'not supported on this step -- building packing multiplexes buildings into the sample '
+                 'dimension, which the deterministic loss generator does not produce. Rejected rather '
+                 'than silently dividing every loss by NumberOfBuildings.'},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
@@ -121,6 +125,19 @@ class RunExposure(ComputationStep):
 
         include_loss_factor = not (len(self.loss_factor) == 1)
 
+        # Building packing multiplexes the N buildings of a location into the sample dimension of a
+        # single item, and file generation divides that location's TIV by N to match. Only the
+        # ground-up tools (gulmc/gulpy) write that dimension; GenerateLossesDeterministic derives
+        # its loss straight from the coverage TIV and has no sample dimension to unpack, so the
+        # buildings are never put back and every loss comes out at 1/N. Fail rather than report it.
+        if self.building_packing:
+            raise OasisException(
+                "building_packing is not supported by 'exposure run': the deterministic loss "
+                "generator does not produce a sample dimension, so the packed buildings would "
+                "never be recombined and every loss would be understated by a factor of "
+                "NumberOfBuildings. Use do_disaggregation for a deterministic run."
+            )
+
         self._check_alloc_rules()
 
         self.oasis_files_dir = src_dir
@@ -151,6 +168,7 @@ class RunExposure(ComputationStep):
             exposure_data=exposure_data,
             keys_data_path=keys_fp,
             do_disaggregation=self.do_disaggregation,
+            building_packing=self.building_packing,
             intermediary_csv=self.intermediary_csv,
         ).run()
 

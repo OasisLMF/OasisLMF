@@ -11,7 +11,8 @@ import time
 from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss,
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, encode_sidx, mv_write_item_header,
+                                                  mv_write_sidx_loss,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
 from oasislmf.pytools.getmodel.common import oasis_float
 from oasislmf.pytools.common.data import areaperil_int, oasis_int
@@ -26,11 +27,14 @@ from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX,
                                          gulSampleslevelHeader_size,
                                          gulSampleslevelRec_size)
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss,
+                                       setmaxloss_items,
                                        split_tiv_classic,
                                        split_tiv_multiplicative)
 from oasislmf.pytools.gul.io import read_getmodel_stream
-from oasislmf.pytools.gul.random import (cdf_min, generate_correlated_hash_vector,
+from oasislmf.pytools.gul.random import (build_packed_rndm_offsets, cdf_min,
+                                         generate_correlated_hash_vector,
                                          get_corr_rval, get_random_generator,
+                                         get_random_generator_packed,
                                          inv_factor, norm_factor, x_min)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
@@ -226,6 +230,18 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
+        # building packing: an item carrying more than one building is the signal, derived in
+        # build_structures from the correlations table. Each building draws its own samples, so
+        # the packed generator hands back one block per building per seed.
+        building_packing = bool(structures['building_packing'])
+        # signed: magnitude is the building count, a negative sign means "keep the buildings
+        # separate". Unpacked into locals wherever it is consumed -- never used raw as a bound.
+        n_buildings_by_item_id = structures['n_buildings_by_item_id']
+        max_buildings = 1
+        if building_packing:
+            max_buildings = int(np.abs(n_buildings_by_item_id).max())
+            generate_rndm_packed = get_random_generator_packed(random_generator)
+
         if alloc_rule not in [0, 1, 2, 3]:
             raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
 
@@ -268,11 +284,20 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             z_unif = np.zeros(1, dtype='float64')
 
         # create buffer to be reused to store all losses for one coverage
-        losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
+        max_items_per_coverage = np.max(coverages[1:]['max_items'])
+        losses_buffer = np.zeros((sample_size + NUM_IDX + 1, max_items_per_coverage), dtype=oasis_float)
+        # per-building samples: the specials stay on losses_buffer, being building-independent
+        building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buildings),
+                                   dtype=oasis_float)
         byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
 
         # maximum bytes to be written in the output stream for 1 item
         max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
+        # a packed item writes one block of that per building
+        max_bytes_per_item *= max_buildings
+
+        # one entry per seed, holding the largest building count in its group
+        n_buildings_by_rng = np.ones(seeds.shape[0] + 1, dtype='i4')
 
         counter = 0
         timer = time.time()
@@ -282,11 +307,21 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         for event_data in read_getmodel_stream(streams_in, items,
                                                item_map_hm, item_map_hm_keys,
                                                item_map_ja_offsets,
-                                               coverages, compute, seeds):
+                                               coverages, compute, seeds,
+                                               n_buildings_by_item_id, n_buildings_by_rng):
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
             # generation of "base" random values is done as before
-            rndms_base = generate_rndm(seeds[:rng_index], sample_size)
+            if building_packing:
+                # flat, ragged: seed i owns n_buildings_by_rng[i] blocks of sample_size
+                rndm_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index], sample_size)
+                rndms_flat = generate_rndm_packed(
+                    seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index], rndm_offsets)
+                rndms_base = np.zeros((1, 1), dtype='float64')
+            else:
+                rndms_base = generate_rndm(seeds[:rng_index], sample_size)
+                rndm_offsets = np.zeros(1, dtype=np.int64)
+                rndms_flat = np.zeros(1, dtype='float64')
 
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
@@ -309,6 +344,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                     arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
+                    building_packing, building_losses, rndms_flat, rndm_offsets,
+                    n_buildings_by_item_id,
                     max_bytes_per_item, byte_mv, cursor
                 )
 
@@ -344,7 +381,9 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
                          loss_threshold, losses, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                          arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
-                         z_unif, debug, max_bytes_per_item, byte_mv, cursor):
+                         z_unif, debug, building_packing, building_losses, rndms_flat, rndm_offsets,
+                         n_buildings_by_item_id,
+                         max_bytes_per_item, byte_mv, cursor):
     """Compute losses for an event.
 
     Args:
@@ -375,6 +414,17 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         z_unif (np.array[float]): reusable buffer for correlated random values.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
+        building_packing (bool): if True, items carry more than one building and each building
+          draws its own samples.
+        building_losses (numpy.array[oasis_float]): 3d (sample_size, max_items, max_buildings)
+          reusable buffer for the per-building samples.
+        rndms_flat (numpy.array[float64]): flat packed random values, seed-major then building.
+        rndm_offsets (numpy.array[int64]): prefix-sum offsets into ``rndms_flat`` per seed.
+        n_buildings_by_item_id (numpy.array[int]): per item, the signed building count. The
+            magnitude is how many buildings the item carries; a negative sign means those
+            buildings must reach the financial module as separate blocks, positive that they are
+            summed here. Unpack it before use -- a negative value as a loop bound silently does
+            nothing.
         max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.
         byte_mv (numpy.array): byte view of where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
@@ -420,7 +470,51 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             losses[STD_DEV_IDX, item_i] = std_dev
             losses[MEAN_IDX, item_i] = gul_mean
 
-            if sample_size > 0:
+            if sample_size > 0 and building_packing:
+                # Per building, read that building's block from this seed's slice and sample the
+                # cdf with it. Building 1 reads the first block, which is the legacy draw, so a
+                # single-building item is unchanged. The specials above are building-independent.
+                item_n_buildings = abs(n_buildings_by_item_id[item['item_id']])
+                base_off = rndm_offsets[rng_index]
+                for building_i in range(item_n_buildings):
+                    rndms = rndms_flat[base_off + building_i * sample_size:
+                                       base_off + (building_i + 1) * sample_size]
+                    if do_correlation and corr_data_by_item_id[item['item_id']]['damage_correlation_value'] > 0:
+                        item_corr_data = corr_data_by_item_id[item['item_id']]
+                        get_corr_rval(
+                            eps_ij[item_corr_data['peril_correlation_group']], rndms,
+                            item_corr_data['damage_correlation_value'], arr_min, norm_inv_cdf, arr_inv_factor,
+                            arr_min_cdf, norm_cdf, arr_norm_factor, sample_size, z_unif
+                        )
+                        rndms = z_unif
+
+                    for sample_idx in range(1, sample_size + 1):
+                        rval = rndms[sample_idx - 1]
+                        if debug:
+                            building_losses[sample_idx - 1, item_i, building_i] = rval
+                            continue
+
+                        if rval >= prob_to[Nbins - 1]:
+                            rval = prob_to[Nbins - 1] - 0.00000003
+                            bin_idx = Nbins - 1
+                        else:
+                            bin_idx = binary_search(rval, prob_to, Nbins)
+
+                        gul = get_gul(
+                            damage_bins['bin_from'][bin_idx],
+                            damage_bins['bin_to'][bin_idx],
+                            bin_mean[bin_idx],
+                            prob_to[bin_idx - 1] * (bin_idx > 0),
+                            prob_to[bin_idx],
+                            rval,
+                            tiv
+                        )
+                        if gul >= loss_threshold:
+                            building_losses[sample_idx - 1, item_i, building_i] = gul
+                        else:
+                            building_losses[sample_idx - 1, item_i, building_i] = 0
+
+            elif sample_size > 0:
                 if do_correlation and corr_data_by_item_id[item['item_id']]['damage_correlation_value'] > 0:
                     item_corr_data = corr_data_by_item_id[item['item_id']]
                     get_corr_rval(
@@ -466,13 +560,158 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         else:
                             losses[sample_idx, item_i] = 0
 
-        cursor = write_losses(event_id, sample_size, loss_threshold, losses[:, :items.shape[0]], items['item_id'], alloc_rule, tiv,
-                              byte_mv, cursor)
+        if building_packing:
+            cursor = write_losses_packed(
+                event_id, sample_size, loss_threshold, losses[:, :items.shape[0]],
+                building_losses[:, :items.shape[0], :], items['item_id'],
+                n_buildings_by_item_id[items['item_id']],
+                alloc_rule, tiv, byte_mv, cursor)
+        else:
+            cursor = write_losses(event_id, sample_size, loss_threshold, losses[:, :items.shape[0]], items['item_id'], alloc_rule, tiv,
+                                  byte_mv, cursor)
 
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
 
     return cursor, last_processed_coverage_ids_idx
+
+
+@njit(cache=True, fastmath=True)
+def write_losses_packed(event_id, sample_size, loss_threshold, losses, building_losses,
+                        item_ids, n_buildings, alloc_rule, tiv,
+                        byte_mv, cursor):
+    """Write building-packed losses for one coverage to the output byte buffer.
+
+    A single item multiplexes its N buildings into the sample dimension via ``encode_sidx``:
+    one stream item (header + delimiter) carries, per building ``b`` (1-based), that building's
+    5 special records followed by its random samples. The special statistics (mean, std, tiv,
+    chance-of-loss, max) are building-independent (they derive from the CDF, not the random
+    draw), so the same ``losses[special, item_j]`` value is emitted for every building, only
+    at building-shifted special sidx. The logical ``sample_size`` (S) written in the stream
+    header is unchanged; the building index is recovered by consumers from the sidx.
+
+    An item whose buildings nothing downstream can tell apart (a positive ``n_buildings``,
+    i.e. the site levels sum them before applying any term) is written **summed** instead, as an
+    ordinary unpacked item. Doing it here rather than in the financial module's reader is what
+    keeps a packed stream unambiguous: the reader discriminates only on the sidx range, so if both
+    kinds were emitted packed it could not tell which to collapse. Summing reproduces what the
+    reader used to do on its behalf -- the additive specials (max, tiv, mean, and the std the
+    financial module ignores) are scaled by the building count, chance-of-loss is
+    building-independent and taken once -- so the result matches the aggregate of the same
+    buildings as separate items.
+
+    ``alloc_rule`` caps a coverage's item losses at its TIV. The coverage TIV here is the
+    **per-building** share, because generation divides the location TIV by the building count, so
+    the cap applies within each building block rather than across the location — which is exactly
+    what row disaggregation does, where each building is its own coverage. The building-independent
+    specials are capped once across items. Blocks are capped before they are summed, so a
+    summed-at-source item comes out capped at ``n_buildings * tiv``, the location's TIV.
+
+    Args:
+        event_id (int32): event id.
+        sample_size (int): logical number of random samples per building (S).
+        loss_threshold (float): threshold above which random samples are written.
+        losses (numpy.array[oasis_float]): 2d (S + NUM_IDX + 1, max_items) buffer; only the
+          special rows (negative sidx) are read here.
+        building_losses (numpy.array[oasis_float]): 3d (S, max_items, max_buildings) buffer of
+          per-building random sample losses. Only the first ``n_buildings[item_j]`` slots of each
+          item are read as written; the rest are zeroed here before the alloc-rule passes, so a
+          caller need not clear the buffer between coverages.
+        item_ids (numpy.array): item ids for the coverage being written.
+        n_buildings (numpy.array[int]): per item in ``item_ids``, the SIGNED building count. The
+            magnitude is how many buildings the item carries; a negative sign means they must be
+            emitted as separate blocks, positive that they are summed into one ordinary item. It
+            is unpacked into ``nb_item``/``keep_separate`` at the top of the write loop -- never
+            use it raw as a bound.
+        alloc_rule (int): back-allocation rule, deciding how the per-coverage TIV cap applies.
+        tiv (oasis_float): the coverage's total insured value, per building.
+        byte_mv (numpy.ndarray): byte view of the output buffer.
+        cursor (int): index in byte_mv at which to start writing.
+
+    Returns:
+        int: updated cursor.
+    """
+    # n_buildings is SIGNED (magnitude = count, negative = keep the buildings separate). Take the
+    # magnitude for anything used as a bound: comparing the raw value would leave max_nb at 0 for
+    # exactly the keep-separate items, and ranging over it would index building_losses negatively.
+    max_nb = 0
+    for item_j in range(item_ids.shape[0]):
+        nb = abs(n_buildings[item_j])
+        if nb > max_nb:
+            max_nb = nb
+
+    # The alloc-rule passes below work across items at a fixed building index, so a slot no item
+    # on this coverage wrote must read 0 rather than whatever a previous coverage left in the
+    # reused buffer. Done here rather than in each compute loop because both bounds are known
+    # here: n_buildings per item, and max_nb, past which nothing is read at all.
+    if alloc_rule != 0:
+        for item_j in range(item_ids.shape[0]):
+            for b in range(abs(n_buildings[item_j]), max_nb):
+                for sample_idx in range(sample_size):
+                    building_losses[sample_idx, item_j, b] = 0
+
+    if alloc_rule == 2:
+        setmaxloss_items(losses[TIV_IDX])
+        setmaxloss_items(losses[MAX_LOSS_IDX])
+        setmaxloss_items(losses[MEAN_IDX])
+        for b in range(max_nb):
+            for sample_idx in range(sample_size):
+                setmaxloss_items(building_losses[sample_idx, :, b])
+
+    if tiv > 0:
+        if alloc_rule == 1 or alloc_rule == 2:
+            split_tiv_classic(losses[TIV_IDX], tiv)
+            split_tiv_classic(losses[MAX_LOSS_IDX], tiv)
+            split_tiv_classic(losses[MEAN_IDX], tiv)
+            for b in range(max_nb):
+                for sample_idx in range(sample_size):
+                    split_tiv_classic(building_losses[sample_idx, :, b], tiv)
+        elif alloc_rule == 3:
+            split_tiv_multiplicative(losses[TIV_IDX], tiv)
+            split_tiv_multiplicative(losses[MAX_LOSS_IDX], tiv)
+            split_tiv_multiplicative(losses[MEAN_IDX], tiv)
+            for b in range(max_nb):
+                for sample_idx in range(sample_size):
+                    split_tiv_multiplicative(building_losses[sample_idx, :, b], tiv)
+
+    for item_j in range(item_ids.shape[0]):
+        cursor = mv_write_item_header(byte_mv, cursor, event_id, item_ids[item_j])
+        # Unpack the signed count once, here, into an unsigned bound and a flag. Everything below
+        # uses nb_item; the raw signed value must never reach a range(), which would silently
+        # iterate zero times and drop the item's buildings without an error.
+        packed_item = n_buildings[item_j]
+        nb_item = abs(packed_item)
+        keep_separate = packed_item < 0
+
+        if keep_separate:
+            for b in range(1, nb_item + 1):
+                # special (negative) sidx — same value for every building, shifted per building
+                for special_idx in SPECIAL_SIDX:
+                    cursor = mv_write_sidx_loss(byte_mv, cursor, encode_sidx(b, special_idx, sample_size),
+                                                losses[special_idx, item_j])
+                # random samples for this building
+                for sample_idx in range(1, sample_size + 1):
+                    loss = building_losses[sample_idx - 1, item_j, b - 1]
+                    if loss >= loss_threshold:
+                        cursor = mv_write_sidx_loss(byte_mv, cursor, encode_sidx(b, sample_idx, sample_size), loss)
+        else:
+            # summed at source: an ordinary unpacked item covering all nb_item buildings
+            for special_idx in SPECIAL_SIDX:
+                value = losses[special_idx, item_j]
+                if special_idx != CHANCE_OF_LOSS_IDX:
+                    value = value * nb_item
+                cursor = mv_write_sidx_loss(byte_mv, cursor, special_idx, value)
+            for sample_idx in range(1, sample_size + 1):
+                loss = 0.
+                for b in range(nb_item):
+                    loss += building_losses[sample_idx - 1, item_j, b]
+                if loss >= loss_threshold:
+                    cursor = mv_write_sidx_loss(byte_mv, cursor, sample_idx, loss)
+
+        # one delimiter terminates the whole (multi-building) item
+        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)  # item delimiter
+
+    return cursor
 
 
 @njit(cache=True, fastmath=True)

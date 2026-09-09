@@ -42,6 +42,9 @@ logger = logging.getLogger(__name__)
 STRUCTURE_DIR = 'gulmc_structure'
 
 # (variable_name, filename) pairs for all arrays that are saved/loaded.
+# number of scalars load_gulmc_structure reads out of metadata.npy
+N_METADATA_FIELDS = 3
+
 ARRAY_FILES = [
     'items',
     'coverages',
@@ -70,8 +73,39 @@ def _structure_path(run_dir):
 
 
 def gulmc_structure_exists(run_dir):
-    """Check whether pre-computed gulmc structures exist."""
-    return os.path.isfile(os.path.join(_structure_path(run_dir), 'metadata.npy'))
+    """Check whether pre-computed gulmc structures exist AND match what this version reads.
+
+    A cache written by an earlier version is missing whatever has been added since -- arrays,
+    metadata entries, or fields on an existing array, as ``items`` gained ``number_of_buildings``
+    for building packing, each ``.npy`` carrying its own dtype. Reporting such a cache as present
+    makes the run fail on the missing piece rather than fall back, so an incomplete or unreadable
+    one counts as absent and is rebuilt, which is always safe.
+
+    Args:
+        run_dir (str): path to the run directory.
+
+    Returns:
+        bool: True when a complete, readable cache is present.
+    """
+    structure_path = _structure_path(run_dir)
+    metadata_path = os.path.join(structure_path, 'metadata.npy')
+    if not os.path.isfile(metadata_path):
+        return False
+    if not all(os.path.isfile(os.path.join(structure_path, f'{name}.npy')) for name in ARRAY_FILES):
+        logger.info('pre-computed gulmc structures are incomplete: rebuilding')
+        return False
+    try:
+        if np.load(metadata_path).shape[0] < N_METADATA_FIELDS:
+            logger.info('pre-computed gulmc structures predate the current metadata: rebuilding')
+            return False
+        items = np.load(os.path.join(structure_path, 'items.npy'), mmap_mode='r')
+        if 'number_of_buildings' not in items.dtype.names:
+            logger.info('pre-computed gulmc structures predate building packing: rebuilding')
+            return False
+    except Exception:
+        logger.info('pre-computed gulmc structures are unreadable: rebuilding')
+        return False
+    return True
 
 
 def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint, model_df_engine):
@@ -149,7 +183,13 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         defaults={'peril_correlation_group': 0,
                   'damage_correlation_value': 0.,
                   'hazard_group_id': 0,
-                  'hazard_correlation_value': 0.}
+                  'hazard_correlation_value': 0.,
+                  # building-packing, signed: magnitude is the number of buildings multiplexed
+                  # into each item's sample dimension, a negative sign marks the ones that must
+                  # reach the financial module as separate blocks. Carried signed all the way to
+                  # the compute and unpacked into locals there. 1 == one building per item
+                  # (legacy / disaggregation).
+                  'number_of_buildings': 1}
     )
     if valid_areaperil_id is not None:
         items = items[np.isin(items['areaperil_id'], valid_areaperil_id)]

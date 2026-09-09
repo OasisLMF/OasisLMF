@@ -20,7 +20,8 @@ from pandas.api.types import is_numeric_dtype
 from ods_tools.oed import fill_empty, BLANK_VALUES
 
 from oasislmf.preparation.summaries import get_useful_summary_cols
-from oasislmf.pytools.common.data import (fm_policytc_headers, fm_policytc_dtype,
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_info_dtype,
+                                          fm_policytc_headers, fm_policytc_dtype,
                                           fm_profile_headers, fm_profile_dtype,
                                           fm_profile_step_headers, fm_profile_step_dtype,
                                           fm_programme_headers, fm_programme_dtype,
@@ -848,7 +849,8 @@ def configure_step_policies(accounts_df, gul_inputs_df, level_column_mapper, oas
 
 @oasis_log
 def build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_fm_col,
-                         useful_cols, gul_inputs_columns, oed_schema, do_disaggregation):
+                         useful_cols, gul_inputs_columns, oed_schema, do_disaggregation,
+                         building_packing=False):
     """Build the level_df of financial terms for one FM level from its source rows.
 
     For each term group, filters the source rows to those carrying non-default term values,
@@ -867,6 +869,9 @@ def build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_
         gul_inputs_columns (pandas.Index): columns already present on gul_inputs_df.
         oed_schema: OED schema (for per-term default lookups).
         do_disaggregation (bool): if True, split aggregate terms by NumberOfRisks.
+        building_packing (bool): if True the buildings ride in the sample dimension instead of
+            separate rows, but the site levels still apply their terms per building, so the terms
+            must be split by NumberOfRisks exactly as under row disaggregation.
 
     Returns:
         pandas.DataFrame: the level's terms (level_df).
@@ -918,7 +923,7 @@ def build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_
     for term, default in valid_term_default.items():
         level_df[term] = level_df[term].fillna(default)
 
-    if do_disaggregation and 'risk_id' in agg_key:
+    if (do_disaggregation or building_packing) and 'risk_id' in agg_key:
         level_df['NumberOfRisks'] = level_df['NumberOfBuildings'].mask(level_df['IsAggregate'] == 0, 1)
         __split_fm_terms_by_risk(level_df)
         level_df = level_df.drop(columns=['NumberOfBuildings', 'IsAggregate', 'NumberOfRisks'])
@@ -928,7 +933,7 @@ def build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_
 
 
 @oasis_log
-def apply_percent_tiv_terms(gul_inputs_df, level_df, fm_group_tiv, agg_id_merge_col):
+def apply_percent_tiv_terms(gul_inputs_df, level_df, fm_group_tiv, agg_id_merge_col, is_risk_level=False):
     """Compute aggregate TIV per agg_id and convert percentage-of-TIV terms to absolute values.
 
     Some deductibles/limits are specified as a percentage of TIV (type 2) or as business
@@ -940,10 +945,15 @@ def apply_percent_tiv_terms(gul_inputs_df, level_df, fm_group_tiv, agg_id_merge_
         level_df (pandas.DataFrame): current level's terms (ded/lim converted in place).
         fm_group_tiv (dict): FMTermGroupID -> coverage_type_ids contributing to TIV.
         agg_id_merge_col (list): aggregation merge columns retained during TIV aggregation.
+        is_risk_level (bool): whether this level aggregates on risk_id. It decides how many
+            buildings' TIV a packed row contributes: a risk-keyed node covers one building where
+            the buildings are kept separate, everything else covers all of them. Both factors are
+            1 under row disaggregation, where each row is already one building.
 
     Returns:
         tuple: (gul_inputs_df, level_df) with agg_tiv populated and pctiv/BI terms made absolute.
     """
+    buildings_col = 'tiv_buildings_site' if is_risk_level else 'tiv_buildings_above'
     tiv_df_list = []
     for FMTermGroupID, coverage_type_ids in fm_group_tiv.items():
         tiv_key = '_'.join(map(str, sorted(coverage_type_ids)))
@@ -951,10 +961,13 @@ def apply_percent_tiv_terms(gul_inputs_df, level_df, fm_group_tiv, agg_id_merge_
             gul_inputs_df[tiv_key] = gul_inputs_df[list(
                 set(gul_inputs_df.columns).intersection(map(str, sorted(coverage_type_ids))))].sum(axis=1)
 
-        tiv_df_list.append(gul_inputs_df[(gul_inputs_df["need_tiv"] == True) &
-                                         (gul_inputs_df["FMTermGroupID"] == FMTermGroupID)]
-                           .drop_duplicates(subset=['agg_id', 'loc_id', 'building_id'])
-                           .rename(columns={tiv_key: 'agg_tiv'})
+        group_df = (gul_inputs_df[(gul_inputs_df["need_tiv"] == True) &
+                                  (gul_inputs_df["FMTermGroupID"] == FMTermGroupID)]
+                    .drop_duplicates(subset=['agg_id', 'loc_id', 'building_id'])
+                    .rename(columns={tiv_key: 'agg_tiv'}))
+        if buildings_col in group_df.columns:
+            group_df['agg_tiv'] = group_df['agg_tiv'] * group_df[buildings_col]
+        tiv_df_list.append(group_df
                            .groupby("agg_id", observed=True)
                            .agg({**{col: 'first' for col in agg_id_merge_col}, **{'agg_tiv': 'sum'}})
                            )
@@ -1320,6 +1333,7 @@ def get_il_input_items(
         accounts_profile=get_default_accounts_profile(),
         fm_aggregation_profile=get_default_fm_aggregation_profile(),
         do_disaggregation=True,
+        building_packing=False,
         oasis_files_prefixes=OASIS_FILES_PREFIXES['il'],
         chunksize=(2 * 10 ** 5),
         intermediary_csv=False,
@@ -1393,6 +1407,10 @@ def get_il_input_items(
         fm_aggregation_profile (dict, optional): Defines aggregation keys for each FM level.
         do_disaggregation (bool, optional): If True, split aggregate exposure terms
             by NumberOfRisks. Default True.
+        building_packing (bool, optional): If True the buildings of a location ride in the sample
+            dimension of one item rather than in separate rows. The site levels still apply their
+            terms per building, so aggregate terms are split by NumberOfRisks as they are under
+            row disaggregation. Default False.
         oasis_files_prefixes (dict, optional): File name prefixes for output files.
         chunksize (int, optional): Rows per chunk when writing CSVs. Default 200,000.
         intermediary_csv (bool, optional): If True, also write CSV files alongside
@@ -1431,9 +1449,30 @@ def get_il_input_items(
         oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
         tiv_terms = {v['tiv']['ProfileElementName']: str(v['tiv']['CoverageTypeID']) for k, v in
                      profile[FM_LEVELS['site coverage']['id']].items()}
-        useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'tiv', 'NumberOfRisks']
+        useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'tiv', 'NumberOfRisks',
+                                  'tiv_buildings_site', 'tiv_buildings_above']
                                  + get_useful_summary_cols(oed_hierarchy)).union(tiv_terms)
                              - {'profile_id', 'item_id', 'output_id'}, key=str.lower)
+        # Capture the packing shape before the column filter below drops these columns. Only items
+        # whose buildings stay separate reach the financial module packed, so only they size its
+        # arrays; everything else is summed at source by the ground-up tool.
+        if building_packing and 'keep_buildings_separate' in gul_inputs_df.columns:
+            separate = gul_inputs_df.loc[gul_inputs_df['keep_buildings_separate'] == 1, 'number_of_buildings']
+            max_buildings = int(separate.max()) if len(separate) else 1
+        else:
+            max_buildings = 1
+
+        # How many buildings' TIV each node covers, for percentage-of-TIV terms. Under row
+        # disaggregation every row is one building and both are 1. Under packing one row stands
+        # for N: a node above the site levels covers all of them, while a site node covers one
+        # only where the buildings are kept separate, since then each is its own risk.
+        n_buildings_col = (gul_inputs_df['number_of_buildings']
+                           if 'number_of_buildings' in gul_inputs_df.columns else 1)
+        keep_separate_col = (gul_inputs_df['keep_buildings_separate']
+                             if 'keep_buildings_separate' in gul_inputs_df.columns else 0)
+        gul_inputs_df['tiv_buildings_above'] = n_buildings_col
+        gul_inputs_df['tiv_buildings_site'] = np.where(keep_separate_col == 1, 1, n_buildings_col)
+
         gul_inputs_df = gul_inputs_df.rename(columns={'item_id': 'gul_input_id'})
         # adjust tiv columns and name them as their coverage id
         gul_inputs_df = assign_risk_ids(gul_inputs_df)
@@ -1496,6 +1535,7 @@ def get_il_input_items(
 
         profile_id_offset = 1  # profile_id 1 is the passthrough policy (calcrule 100)
         cur_level_id = 0
+        site_collapse_level = 0
 
         # =========================================================================
         # LEVEL PROCESSING LOOP: Process each FM level from bottom to top
@@ -1530,7 +1570,8 @@ def get_il_input_items(
 
                 # get all rows with terms in term_df_source and determine the correct FMTermGroupID
                 level_df = build_level_terms_df(term_df_source, terms_maps, step_level, agg_key, extra_fm_col,
-                                                useful_cols, gul_inputs_df.columns, oed_schema, do_disaggregation)
+                                                useful_cols, gul_inputs_df.columns, oed_schema, do_disaggregation,
+                                                building_packing)
                 agg_id_merge_col = agg_key + ['FMTermGroupID']
                 agg_id_merge_col_extra = ['need_tiv']
                 if step_level:
@@ -1604,7 +1645,8 @@ def get_il_input_items(
                 # =====================================================================
                 # Some terms (ded_type=2, lim_type=2) are specified as % of TIV
                 # We need the aggregate TIV for each agg_id to convert to absolute values
-                gul_inputs_df, level_df = apply_percent_tiv_terms(gul_inputs_df, level_df, fm_group_tiv, agg_id_merge_col)
+                gul_inputs_df, level_df = apply_percent_tiv_terms(
+                    gul_inputs_df, level_df, fm_group_tiv, agg_id_merge_col, 'risk_id' in agg_key)
 
                 level_df, profile_id_offset = assign_level_calcrule_and_profile_ids(
                     level_df, level_id, factorize_key, profile_id_offset)
@@ -1632,6 +1674,12 @@ def get_il_input_items(
 
                 cur_level_id += 1
                 gul_inputs_df['level_id'] = cur_level_id
+                if 'risk_id' in agg_key:
+                    # The site levels are the ones keyed on risk_id. Under building-packing the
+                    # buildings of an aggregate location carry their own terms (term/NumberOfRisks)
+                    # and so must stay separate until the last such level has been applied; record
+                    # it so the financial module knows where to collapse them.
+                    site_collapse_level = cur_level_id
 
                 # =====================================================================
                 # WRITE FM OUTPUT FILES FOR THIS LEVEL
@@ -1650,7 +1698,37 @@ def get_il_input_items(
         gul_inputs_df = finalize_il_inputs(gul_inputs_df, fm_aggregation_profile, accounts_df,
                                            fm_xref_bin, fm_xref_csv, chunksize)
 
+        if building_packing:
+            # The financial module cannot work out where the site levels end: fm_programme levels
+            # are compacted (only levels carrying terms get one), so the numbering varies per
+            # portfolio. Record it next to the other fm inputs; an input set without this file
+            # reads as 0, meaning "no packed buildings to collapse".
+            write_fm_structure_info(target_dir, site_collapse_level, max_buildings)
+
         return gul_inputs_df, il_input_files
+
+
+def write_fm_structure_info(target_dir, site_collapse_level, max_buildings=1):
+    """Write the building-packing structure info consumed by the financial module.
+
+    Args:
+        target_dir (str): directory holding the generated fm input files.
+        site_collapse_level (int): the last fm level whose aggregation key includes ``risk_id``.
+            Under building-packing the buildings must stay separate until this level has applied
+            its terms, and collapse immediately after it. ``0`` means nothing to collapse.
+        max_buildings (int): the largest number of buildings any one packed item carries into the
+            financial module. It sizes the computation arrays, which have to hold
+            ``max_buildings`` times as many entries per node up to the collapse level.
+
+    Returns:
+        str: path of the file written.
+    """
+    fp = os.path.join(target_dir, FM_STRUCTURE_INFO_FILE)
+    record = np.zeros(1, dtype=fm_structure_info_dtype)
+    record[0]['site_collapse_level'] = int(site_collapse_level)
+    record[0]['max_buildings'] = int(max_buildings)
+    record.tofile(fp)
+    return fp
 
 
 def reset_gul_inputs(gul_inputs_df):

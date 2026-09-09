@@ -13,6 +13,7 @@ from oasislmf.pytools.common.data import (
     quantile_interval_dtype, returnperiods_dtype,
 )
 from oasislmf.pytools.common.event_stream import mv_read
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as _id_index_build, get_idx as _id_index_get_idx, NOT_FOUND as _OCC_IDX_NOT_FOUND
 
 
@@ -117,6 +118,59 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
     return result
 
 
+CORRELATIONS_ITEMSIZE_BEFORE_PACKING = 20
+
+# Upper bound used only to spot a mis-parsed record; NumberOfBuildings above this is not a real
+# exposure, it is another field's bytes read as this one.
+MAX_PLAUSIBLE_BUILDINGS_PER_ITEM = 1_000_000
+
+
+def _stale_correlations_msg(path):
+    """Message for a correlations.bin written before the building-packing fields existed.
+
+    Args:
+        path (pathlib.Path): the offending file.
+
+    Returns:
+        str: the exception message.
+    """
+    return (
+        f"{path} does not match the current correlations record layout "
+        f"({correlations_dtype.itemsize} bytes: {', '.join(correlations_headers)}). It was most "
+        f"likely written before building packing added number_of_buildings to the record "
+        f"({CORRELATIONS_ITEMSIZE_BEFORE_PACKING} bytes). Regenerate the oasis files."
+    )
+
+
+def _check_correlations_layout(correlations, path):
+    """Reject a correlations.bin written against the pre-building-packing record layout.
+
+    The record grew from ``CORRELATIONS_ITEMSIZE_BEFORE_PACKING`` to
+    ``correlations_dtype.itemsize`` bytes. A size mismatch usually makes ``np.memmap`` raise, but
+    when an old file's record count is a multiple of 6 the byte count divides evenly by the new
+    itemsize as well and the mis-parse succeeds silently -- returning the wrong number of records
+    with other fields' bytes reinterpreted as the new one. That can read as a huge or zero
+    building count and switch building packing on for a run that has none, so check the new field
+    holds a value its writer could actually have produced.
+
+    Args:
+        correlations (numpy.ndarray): the records just read.
+        path (pathlib.Path): the file they came from, for the error message.
+
+    Raises:
+        OasisException: if the records cannot have been written by the current layout.
+    """
+    if correlations.shape[0] == 0:
+        return
+    # number_of_buildings is signed: the magnitude is max(1, NumberOfBuildings) and the sign marks
+    # whether the buildings stay separate, so 0 is the one value the writer can never produce.
+    # A float or an id reinterpreted as this field is overwhelmingly likely to land outside the
+    # plausible range as well.
+    magnitude = np.abs(correlations["number_of_buildings"])
+    if magnitude.min() < 1 or magnitude.max() > MAX_PLAUSIBLE_BUILDINGS_PER_ITEM:
+        raise OasisException(_stale_correlations_msg(path))
+
+
 def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FILENAME):
     """Load the correlations from the correlations file.
 
@@ -144,8 +198,12 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
                 try:
                     correlations = np.memmap(correlations_file, dtype=correlations_dtype, mode='r')
                 except ValueError:
+                    if correlations_file.stat().st_size:
+                        raise OasisException(_stale_correlations_msg(correlations_file))
                     logger.debug("binary file is empty, numpy.memmap failed. trying to read correlations.csv.")
                     correlations = read_correlations(run_dir, ignore_file_type={'bin'}, filename=correlations_file.with_suffix(".csv").name)
+                else:
+                    _check_correlations_layout(correlations, correlations_file)
             elif ext == "csv":
                 # Check for header
                 with open(correlations_file, "r") as fin:

@@ -42,6 +42,75 @@ sidx_type, sidx_size = def_to_type_and_size("sidx")
 loss_type, loss_size = def_to_type_and_size("loss")
 
 
+@nb.njit(cache=True, inline='always')
+def encode_sidx(building, local_sidx, sample_size):
+    """Pack a (building, local sidx) pair into a single stream sidx.
+
+    Buildings of one location are multiplexed into the sample dimension of a single
+    stream item. Positive (random) samples occupy contiguous blocks of ``sample_size``;
+    the negative special indices (``MEAN_IDX`` .. ``MAX_LOSS_IDX``) occupy contiguous
+    blocks of ``NUM_SPECIAL_SIDX``. Building 1 maps to the identity encoding so that
+    single-building streams are byte-for-byte unchanged.
+
+    Args:
+        building (int): 1-based building index within the item.
+        local_sidx (int): per-building sample index. Positive in ``[1, sample_size]``
+            for random samples, or a negative special index in
+            ``[-NUM_SPECIAL_SIDX, -1]``. ``0`` (the item delimiter) is not encoded.
+        sample_size (int): logical number of random samples per building (``S``).
+
+    Returns:
+        int: the packed stream sidx.
+    """
+    if local_sidx > 0:
+        return (building - 1) * sample_size + local_sidx
+    else:
+        # local_sidx in [-NUM_SPECIAL_SIDX, -1]; shift by whole special blocks per building
+        return local_sidx - (building - 1) * NUM_SPECIAL_SIDX
+
+
+@nb.njit(cache=True, inline='always')
+def decode_building(sidx, sample_size):
+    """Recover the 1-based building index from a packed stream sidx.
+
+    Args:
+        sidx (int): packed stream sidx (positive sample, negative special, or ``0``).
+        sample_size (int): logical number of random samples per building (``S``).
+
+    Returns:
+        int: 1-based building index, or ``0`` for the delimiter (``sidx == 0``).
+    """
+    if sidx > 0:
+        return (sidx - 1) // sample_size + 1
+    elif sidx < 0:
+        return (-sidx - 1) // NUM_SPECIAL_SIDX + 1
+    else:
+        return 0
+
+
+@nb.njit(cache=True, inline='always')
+def decode_local_sidx(sidx, sample_size):
+    """Recover the per-building local sidx from a packed stream sidx.
+
+    Inverse of the building dimension applied by :func:`encode_sidx`: positive results
+    lie in ``[1, sample_size]`` (random samples) and negative results in
+    ``[-NUM_SPECIAL_SIDX, -1]`` (special indices, e.g. ``MEAN_IDX``).
+
+    Args:
+        sidx (int): packed stream sidx (positive sample, negative special, or ``0``).
+        sample_size (int): logical number of random samples per building (``S``).
+
+    Returns:
+        int: per-building local sidx, or ``0`` for the delimiter (``sidx == 0``).
+    """
+    if sidx > 0:
+        return (sidx - 1) % sample_size + 1
+    elif sidx < 0:
+        return -(((-sidx - 1) % NUM_SPECIAL_SIDX) + 1)
+    else:
+        return 0
+
+
 def stream_info_to_bytes(stream_source_type, stream_agg_type):
     """From Stream source type and aggregation type produce the stream header
 

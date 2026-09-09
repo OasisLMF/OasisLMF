@@ -106,6 +106,42 @@ def get_random_generator(random_generator):
         raise ValueError(f"No random generator exists for random_generator={random_generator}.")
 
 
+def get_random_generator_packed(random_generator):
+    """Get the building-packed random generator function.
+
+    Building-packing draws ``n_buildings * n`` random numbers per seed (flat layout with
+    prefix-sum offsets). Every generator has a packed variant, and in all three building 1
+    reproduces the unpacked draw byte-for-byte, so the single-building case is unchanged.
+    The per-building stream coordinate differs by generator: the Mersenne Twister ones continue
+    the group's single seeded stream, while Philox uses a counter word and so keeps random
+    access. For the two Latin Hypercube generators each building gets a Latin Hypercube of its
+    own rather than a slice of a larger one.
+
+    Args:
+        random_generator (int): random generator function id.
+
+    Returns:
+        The packed random generator function.
+
+    Raises:
+        ValueError: if no generator exists for the requested id.
+    """
+    if random_generator == 0:
+        logger.info("Random generator (building-packed): MersenneTwister")
+        return random_MersenneTwister_packed
+
+    elif random_generator == 1:
+        logger.info("Random generator (building-packed): Latin Hypercube")
+        return random_LatinHypercube_packed
+
+    elif random_generator == 2:
+        logger.info("Random generator (building-packed): Latin Hypercube on Philox4x32-7 (counter-based)")
+        return random_LatinHypercube_Philox7_packed
+
+    else:
+        raise ValueError(f"No random generator exists for random_generator={random_generator}.")
+
+
 EVENT_ID_HASH_CODE = np.int64(1943_272_559)
 PERIL_CORRELATION_GROUP_HASH = np.int64(1836311903)
 HASH_MOD_CODE = np.int64(2147483648)
@@ -240,6 +276,63 @@ def random_MersenneTwister(seeds, n, skip_seeds=0):
 
 
 @njit(cache=True, fastmath=True)
+def random_MersenneTwister_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
+    """Draw building-packed random numbers from each seed (Mersenne Twister).
+
+    For building-packing mode each seed (one per correlation group / location) must yield
+    ``n_buildings[seed] * n`` random numbers instead of ``n``: building ``b`` (1-based),
+    sample ``s`` (1-based) of seed ``seed_i`` is stored at
+    ``rndms[offsets[seed_i] + (b - 1) * n + (s - 1)]``.
+
+    Because the Mersenne Twister produces a single sequential stream per seed, the first
+    ``n`` draws are byte-for-byte identical to ``random_MersenneTwister`` — so building 1
+    (and the whole single-building case) reproduces the legacy draw exactly; buildings
+    2..N consume the continuation of the same seeded sequence.
+
+    Args:
+        seeds (array[int64]): one seed per group.
+        n (int): logical number of samples per building (``S``).
+        n_buildings (array[int]): number of buildings for each seed/group.
+        offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
+            flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
+        skip_seeds (int): number of leading seeds to skip (left as zeros).
+
+    Returns:
+        rndms (array[float]): flat 1-d array of length ``offsets[-1]`` holding the
+          per-(group, building) random draws.
+    """
+    rndms = np.zeros(offsets[len(seeds)], dtype='float64')
+
+    for seed_i in range(skip_seeds, len(seeds), 1):
+        count = n_buildings[seed_i] * n
+        if count == 0:
+            continue
+        # set the seed and draw the whole (buildings x samples) block at once
+        np.random.seed(seeds[seed_i])
+        rndms[offsets[seed_i]: offsets[seed_i] + count] = np.random.random(count)
+
+    return rndms
+
+
+@njit(cache=True, fastmath=True)
+def build_packed_rndm_offsets(n_buildings, n):
+    """Prefix-sum offsets for building-packed random draws.
+
+    Args:
+        n_buildings (array[int]): number of buildings for each seed/group.
+        n (int): logical number of samples per building (``S``).
+
+    Returns:
+        offsets (array[int64]): length ``len(n_buildings) + 1`` with
+          ``offsets[0] == 0`` and ``offsets[i + 1] == offsets[i] + n_buildings[i] * n``.
+    """
+    offsets = np.zeros(len(n_buildings) + 1, dtype=np.int64)
+    for i in range(len(n_buildings)):
+        offsets[i + 1] = offsets[i] + n_buildings[i] * n
+    return offsets
+
+
+@njit(cache=True, fastmath=True)
 def random_LatinHypercube(seeds, n, skip_seeds=0):
     """Generate random numbers using the Latin Hypercube algorithm.
 
@@ -289,6 +382,52 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
 
 
 @njit(cache=True, fastmath=True)
+def random_LatinHypercube_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
+    """Building-packed Latin Hypercube on the Mersenne Twister (random_generator=1).
+
+    The Latin Hypercube body is re-run once per building against the **continuing** Mersenne
+    Twister stream of the group's single seed, so every building gets a full Latin Hypercube of
+    ``n`` samples of its own. Drawing ``n_buildings * n`` values and slicing them would instead
+    leave each building with a random subset of the strata, which is ordinary Monte Carlo. The
+    first block consumes the stream exactly as `random_LatinHypercube` does, so building 1 (and
+    the whole single-building case) reproduces the unpacked draw.
+
+    Continuing the stream is also why no per-building seed is derived: seeds must fit the 31-bit
+    hash space that `numpy.random.seed` accepts, and folding a building index into it would
+    multiply seed collisions by ``n_buildings``.
+
+    Args:
+        seeds (array[int64]): one seed per group.
+        n (int): logical number of samples per building (``S``).
+        n_buildings (array[int]): number of buildings for each seed/group.
+        offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
+            flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
+        skip_seeds (int): number of leading seeds to skip (left as zeros).
+
+    Returns:
+        rndms (array[float]): flat 1-d array of length ``offsets[-1]`` holding the
+          per-(group, building) LH samples, building-major within each group.
+    """
+    rndms = np.zeros(offsets[len(seeds)], dtype='float64')
+    samples = np.zeros(n, dtype='float64')
+    perms = np.zeros(n, dtype='float64')
+
+    for seed_i in range(skip_seeds, len(seeds), 1):
+        nb = n_buildings[seed_i]
+        if nb == 0:
+            continue
+        np.random.seed(seeds[seed_i])
+        base = offsets[seed_i]
+        for b in range(nb):
+            samples[:] = np.random.random(n)
+            perms[:] = np.arange(1., np.float64(n + 1))
+            np.random.shuffle(perms)
+            rndms[base + b * n: base + (b + 1) * n] = (perms - samples) / float(n)
+
+    return rndms
+
+
+@njit(cache=True, fastmath=True)
 def _philox4x32_7(c0, c1, c2, c3, k0, k1):
     """Compute one Philox4x32-7 block (4 uint32 outputs) for a counter and key.
 
@@ -330,6 +469,113 @@ def _philox4x32_7(c0, c1, c2, c3, k0, k1):
 # is a valid Latin Hypercube sample (exactly one point per stratum), deterministic and
 # order-independent per seed (= per group_id/event_id), and NOT bit-identical to the
 # Mersenne-Twister-based generators.
+#
+# A third counter word carries the building index under building-packing, so each building
+# of a location gets its own independently stratified block from the same key (see
+# `_lh_philox_block`). Because Philox is counter-based this keeps random access: a building's
+# block does not depend on the others being computed. The index goes in the counter and not
+# in the key deliberately — the key already carries only the 31 bits `generate_hash` produces,
+# whereas the counter has 2**64 unused.
+
+
+@njit(cache=True, fastmath=True)
+def _lh_philox_block(k0, k1, building, n, perms, out):
+    """Write one Latin Hypercube block of ``n`` values for a (key, building) pair.
+
+    The block is a valid Latin Hypercube sample on its own: a Fisher-Yates permutation of the
+    ``n`` strata (shuffle stream) combined with a within-stratum jitter (jitter stream). The
+    ``building`` index is a third counter coordinate, so every building gets its own independent
+    and separately stratified block from the same key. ``building == 0`` is the plain
+    single-building stream, byte-for-byte what the generator produced before the coordinate
+    existed.
+
+    Args:
+        k0 (uint32): low word of the Philox key (the seed).
+        k1 (uint32): high word of the Philox key.
+        building (int): 0-based building coordinate, written to counter word ``c2``.
+        n (int): number of samples in the block (``S``).
+        perms (array[float64]): scratch buffer of length ``n``, overwritten.
+        out (array[float64]): output buffer of length ``n``, overwritten with values in (0, 1].
+    """
+    zero = np.uint32(0)
+    bldg = np.uint32(building)
+    inv_n = np.float64(1.0) / np.float64(n)
+    nfull = n - (n & 3)
+
+    for k in range(n):
+        perms[k] = np.float64(k + 1)
+
+    # Fisher-Yates permutation of perms, driven by the shuffle stream (4 swaps/block).
+    # Head/tail split (mirrors the jitter loop below): the nfull_shuf bulk swaps run
+    # guard-free in groups of 4; only the final partial block needs the idx>=1 guards.
+    # The (Philox word -> idx) pairing is identical to a flat per-swap loop, so the
+    # permutation (and therefore the output) is unchanged.
+    nshuf = n - 1
+    nfull_shuf = nshuf - (nshuf & 3)
+    ctr = np.uint32(0)
+    idx = n - 1
+    c = 0
+    while c < nfull_shuf:
+        w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_SHUFFLE, bldg, zero, k0, k1)
+        ctr = np.uint32(ctr + 1)
+        jj = int(np.float64(w0) * PHILOX_INV32 * np.float64(idx + 1))
+        t = perms[idx]
+        perms[idx] = perms[jj]
+        perms[jj] = t
+        jj = int(np.float64(w1) * PHILOX_INV32 * np.float64(idx))
+        t = perms[idx - 1]
+        perms[idx - 1] = perms[jj]
+        perms[jj] = t
+        jj = int(np.float64(w2) * PHILOX_INV32 * np.float64(idx - 1))
+        t = perms[idx - 2]
+        perms[idx - 2] = perms[jj]
+        perms[jj] = t
+        jj = int(np.float64(w3) * PHILOX_INV32 * np.float64(idx - 2))
+        t = perms[idx - 3]
+        perms[idx - 3] = perms[jj]
+        perms[jj] = t
+        idx -= 4
+        c += 4
+    if idx >= 1:
+        w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_SHUFFLE, bldg, zero, k0, k1)
+        jj = int(np.float64(w0) * PHILOX_INV32 * np.float64(idx + 1))
+        t = perms[idx]
+        perms[idx] = perms[jj]
+        perms[jj] = t
+        idx -= 1
+        if idx >= 1:
+            jj = int(np.float64(w1) * PHILOX_INV32 * np.float64(idx + 1))
+            t = perms[idx]
+            perms[idx] = perms[jj]
+            perms[jj] = t
+            idx -= 1
+        if idx >= 1:
+            jj = int(np.float64(w2) * PHILOX_INV32 * np.float64(idx + 1))
+            t = perms[idx]
+            perms[idx] = perms[jj]
+            perms[jj] = t
+            idx -= 1
+
+    # combine perms with the jitter stream (4 outputs/block)
+    ctr = np.uint32(0)
+    k = 0
+    while k < nfull:
+        w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_JITTER, bldg, zero, k0, k1)
+        ctr = np.uint32(ctr + 1)
+        out[k] = (perms[k] - np.float64(w0) * PHILOX_INV32) * inv_n
+        out[k + 1] = (perms[k + 1] - np.float64(w1) * PHILOX_INV32) * inv_n
+        out[k + 2] = (perms[k + 2] - np.float64(w2) * PHILOX_INV32) * inv_n
+        out[k + 3] = (perms[k + 3] - np.float64(w3) * PHILOX_INV32) * inv_n
+        k += 4
+    if k < n:
+        w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_JITTER, bldg, zero, k0, k1)
+        out[k] = (perms[k] - np.float64(w0) * PHILOX_INV32) * inv_n
+        k += 1
+        if k < n:
+            out[k] = (perms[k] - np.float64(w1) * PHILOX_INV32) * inv_n
+            k += 1
+        if k < n:
+            out[k] = (perms[k] - np.float64(w2) * PHILOX_INV32) * inv_n
 
 
 @njit(cache=True, fastmath=True)
@@ -350,87 +596,46 @@ def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
     Nseeds = len(seeds)
     rndms = np.zeros((Nseeds, n), dtype=np.float64)
     perms = np.empty(n, dtype=np.float64)
-    inv_n = np.float64(1.0) / np.float64(n)
-    nfull = n - (n & 3)
-    zero = np.uint32(0)
     for i in range(skip_seeds, Nseeds):
         s = np.uint64(seeds[i])
         k0 = np.uint32(s & PHILOX_U32_MASK)
         k1 = np.uint32(s >> PHILOX_SHIFT32)
+        _lh_philox_block(k0, k1, 0, n, perms, rndms[i])
+    return rndms
 
-        for k in range(n):
-            perms[k] = np.float64(k + 1)
 
-        # Fisher-Yates permutation of perms, driven by the shuffle stream (4 swaps/block).
-        # Head/tail split (mirrors the jitter loop below): the nfull_shuf bulk swaps run
-        # guard-free in groups of 4; only the final partial block needs the idx>=1 guards.
-        # The (Philox word -> idx) pairing is identical to a flat per-swap loop, so the
-        # permutation (and therefore the output) is unchanged.
-        nshuf = n - 1
-        nfull_shuf = nshuf - (nshuf & 3)
-        ctr = np.uint32(0)
-        idx = n - 1
-        c = 0
-        while c < nfull_shuf:
-            w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_SHUFFLE, zero, zero, k0, k1)
-            ctr = np.uint32(ctr + 1)
-            jj = int(np.float64(w0) * PHILOX_INV32 * np.float64(idx + 1))
-            t = perms[idx]
-            perms[idx] = perms[jj]
-            perms[jj] = t
-            jj = int(np.float64(w1) * PHILOX_INV32 * np.float64(idx))
-            t = perms[idx - 1]
-            perms[idx - 1] = perms[jj]
-            perms[jj] = t
-            jj = int(np.float64(w2) * PHILOX_INV32 * np.float64(idx - 1))
-            t = perms[idx - 2]
-            perms[idx - 2] = perms[jj]
-            perms[jj] = t
-            jj = int(np.float64(w3) * PHILOX_INV32 * np.float64(idx - 2))
-            t = perms[idx - 3]
-            perms[idx - 3] = perms[jj]
-            perms[jj] = t
-            idx -= 4
-            c += 4
-        if idx >= 1:
-            w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_SHUFFLE, zero, zero, k0, k1)
-            jj = int(np.float64(w0) * PHILOX_INV32 * np.float64(idx + 1))
-            t = perms[idx]
-            perms[idx] = perms[jj]
-            perms[jj] = t
-            idx -= 1
-            if idx >= 1:
-                jj = int(np.float64(w1) * PHILOX_INV32 * np.float64(idx + 1))
-                t = perms[idx]
-                perms[idx] = perms[jj]
-                perms[jj] = t
-                idx -= 1
-            if idx >= 1:
-                jj = int(np.float64(w2) * PHILOX_INV32 * np.float64(idx + 1))
-                t = perms[idx]
-                perms[idx] = perms[jj]
-                perms[jj] = t
-                idx -= 1
+@njit(cache=True, fastmath=True)
+def random_LatinHypercube_Philox7_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
+    """Building-packed Latin Hypercube on Philox4x32-7 (random_generator=2).
 
-        # combine perms with the jitter stream (4 outputs/block)
-        ctr = np.uint32(0)
-        k = 0
-        while k < nfull:
-            w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_JITTER, zero, zero, k0, k1)
-            ctr = np.uint32(ctr + 1)
-            rndms[i, k] = (perms[k] - np.float64(w0) * PHILOX_INV32) * inv_n
-            rndms[i, k + 1] = (perms[k + 1] - np.float64(w1) * PHILOX_INV32) * inv_n
-            rndms[i, k + 2] = (perms[k + 2] - np.float64(w2) * PHILOX_INV32) * inv_n
-            rndms[i, k + 3] = (perms[k + 3] - np.float64(w3) * PHILOX_INV32) * inv_n
-            k += 4
-        if k < n:
-            w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_JITTER, zero, zero, k0, k1)
-            rndms[i, k] = (perms[k] - np.float64(w0) * PHILOX_INV32) * inv_n
-            k += 1
-            if k < n:
-                rndms[i, k] = (perms[k] - np.float64(w1) * PHILOX_INV32) * inv_n
-                k += 1
-            if k < n:
-                rndms[i, k] = (perms[k] - np.float64(w2) * PHILOX_INV32) * inv_n
-                k += 1
+    Each building gets a **separate** Latin Hypercube of ``n`` samples, selected by the Philox
+    counter coordinate rather than by carving up one large sample: slicing an ``n_buildings * n``
+    Latin Hypercube into per-building blocks would leave each building with a random subset of
+    the strata, which is ordinary Monte Carlo. Building 1 (coordinate 0) reproduces the unpacked
+    draw exactly, so the single-building case is unchanged.
+
+    Args:
+        seeds (array[int]): one seed per group.
+        n (int): logical number of samples per building (``S``).
+        n_buildings (array[int]): number of buildings for each seed/group.
+        offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
+            flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
+        skip_seeds (int): number of leading seeds to skip (left as zeros).
+
+    Returns:
+        rndms (array[float64]): flat 1-d array of length ``offsets[-1]`` holding the
+          per-(group, building) LH samples, building-major within each group.
+    """
+    rndms = np.zeros(offsets[len(seeds)], dtype=np.float64)
+    perms = np.empty(n, dtype=np.float64)
+    for seed_i in range(skip_seeds, len(seeds)):
+        nb = n_buildings[seed_i]
+        if nb == 0:
+            continue
+        s = np.uint64(seeds[seed_i])
+        k0 = np.uint32(s & PHILOX_U32_MASK)
+        k1 = np.uint32(s >> PHILOX_SHIFT32)
+        base = offsets[seed_i]
+        for b in range(nb):
+            _lh_philox_block(k0, k1, b, n, perms, rndms[base + b * n: base + (b + 1) * n])
     return rndms

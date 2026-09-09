@@ -33,7 +33,8 @@ def gen_structs():
 def read_getmodel_stream(stream_in, items,
                          item_map_hm, item_map_hm_keys,
                          item_map_ja_offsets,
-                         coverages, compute, seeds, buff_size=PIPE_CAPACITY):
+                         coverages, compute, seeds, n_buildings_by_item_id, n_buildings_by_rng,
+                         buff_size=PIPE_CAPACITY):
     """Read the getmodel output stream yielding data event by event.
 
     Args:
@@ -45,6 +46,11 @@ def read_getmodel_stream(stream_in, items,
         coverages (numpy.ndarray[coverage_type]): array with coverage data.
         compute (numpy.array[int]): list of coverages to be computed.
         seeds (numpy.array[int]): the random seeds for each coverage_id.
+        n_buildings_by_item_id (numpy.array[int]): per item, the signed building count (the sign
+            marks whether the buildings stay separate; only the magnitude is used here). All
+          ones when nothing is packed.
+        n_buildings_by_rng (numpy.array[int]): filled here with the largest building count in each
+          seed group, which is how many blocks of samples that seed owes.
         buff_size (int): size in bytes of the read buffer. Defaults to PIPE_CAPACITY.
 
     Raises:
@@ -117,6 +123,7 @@ def read_getmodel_stream(stream_in, items,
             item_map_hm, item_map_hm_keys, item_map_ja_offsets,
             coverages,
             compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
+            n_buildings_by_item_id, n_buildings_by_rng,
             damagecdf_i, rec_idx_ptr
         )
 
@@ -158,7 +165,8 @@ def read_getmodel_stream(stream_in, items,
 def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
                    item_map_hm, item_map_hm_keys, item_map_ja_offsets,
                    coverages,
-                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
+                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
+                   n_buildings_by_item_id, n_buildings_by_rng, damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
 
     Args:
@@ -177,6 +185,10 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
         items_data (numpy.array[items_data_type]): item-related data.
         seeds (numpy.array[int]): the random seeds for each coverage_id.
         rng_index (int): number of unique random seeds computed so far.
+        n_buildings_by_item_id (numpy.array[int]): per item, the signed building count; only the
+            magnitude is used here.
+        n_buildings_by_rng (numpy.array[int]): filled here with the largest building count in each
+          seed group; a seed must yield that many blocks of samples.
         group_id_rng_index (Dict([int,int])): map of group ids to random seeds.
         damagecdf_i (int): index of the last cdf record that has been read from stream and stored in `rec`.
         rec_idx_ptr (numpy.array[int]): array with the indices of `rec` where each cdf record starts.
@@ -282,14 +294,24 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
             # if this group_id was not seen yet, process it.
             # it assumes that hash only depends on event_id and group_id
             # and that only 1 event_id is processed at a time.
+            if item_id < n_buildings_by_item_id.shape[0]:
+                # signed on the wire and in the array; only the magnitude matters here
+                item_n_buildings = abs(n_buildings_by_item_id[item_id])
+            else:
+                item_n_buildings = 1
+
             if group_id not in group_id_rng_index:
                 group_id_rng_index[group_id] = rng_index
                 seeds[rng_index] = generate_hash(group_id, last_event_id)
                 this_rng_index = rng_index
+                n_buildings_by_rng[this_rng_index] = item_n_buildings
                 rng_index += 1
 
             else:
                 this_rng_index = group_id_rng_index[group_id]
+                # a seed serves every item of its group, so it owes the largest of their counts
+                if item_n_buildings > n_buildings_by_rng[this_rng_index]:
+                    n_buildings_by_rng[this_rng_index] = item_n_buildings
 
             coverage = coverages[coverage_id]
             if coverage['cur_items'] == 0:

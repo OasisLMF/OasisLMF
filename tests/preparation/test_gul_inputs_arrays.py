@@ -148,6 +148,10 @@ def make_correlations(num_items):
         'damage_correlation_value': np.linspace(0, 1, num_items),
         'hazard_group_id': np.arange(num_items, dtype='uint32') % 7,
         'hazard_correlation_value': np.linspace(1, 0, num_items),
+        # building-packed streams carry the per-item building count here, plus whether those
+        # buildings have to reach the financial module separately
+        'number_of_buildings': np.arange(num_items, dtype='int32') % 4 + 1,
+        'keep_buildings_separate': (np.arange(num_items, dtype='int32') % 2),
     })[correlations_headers]
 
 

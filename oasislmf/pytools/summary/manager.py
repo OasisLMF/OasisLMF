@@ -39,7 +39,8 @@ from oasislmf.pytools.common.data import (def_to_type_and_size, load_as_ndarray,
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
-                                                  MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
+                                                  MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX,
+                                                  NUM_SPECIAL_SIDX, decode_local_sidx)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
 from oasislmf.pytools.utils import redirect_logging
 
@@ -177,6 +178,19 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
     """Read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
+    # A building-packed item carries one block per building in the sample dimension. A summary is
+    # per item, so the item's buildings belong in the same bucket: decode a packed index onto the
+    # sample it represents and let the accumulation below add them up. For an ordinary stream the
+    # decode is the identity and nothing changes.
+    #
+    # Known limitation -- the affected-risk count. Risks are keyed on (loc_id, building_id) in
+    # nb_extract_risk_info, and building packing writes one item per location with building_id 1,
+    # so a packed location counts as one risk where the same portfolio run with row
+    # disaggregation counts NumberOfBuildings of them. Losses are unaffected; only the risk count
+    # is. Restoring it needs per-building identity downstream of the item table -- the summary map
+    # would have to carry the building count and is_risk_affected be tracked per building -- which
+    # is the same gap that stops packing from producing building-level summaries.
+    max_sidx_val = loss_summary.shape[1] - SPECIAL_SIDX_COUNT
     while True:
         if item_id:
             n_sidx_loss = (valid_buff - cursor) // loss_pair_size
@@ -197,6 +211,11 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
+                # Only the positive branch of decode_local_sidx divides by the sample size, and a
+                # zero-sample stream carries no positive sidx -- but it does carry per-building
+                # specials, which must still be decoded or buildings 2..N are dropped silently.
+                if (max_sidx_val > 0 and sidx > max_sidx_val) or sidx < -NUM_SPECIAL_SIDX:
+                    sidx = decode_local_sidx(sidx, max_sidx_val)
                 if sidx > 0 or sidx in [-1, -3, -5]:
                     for summary_set_index in range(summary_sets_id.shape[0]):
                         loss_summary[loss_index[summary_set_index], sidx] += loss

@@ -59,25 +59,35 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, bin_scaling):
 
 
 @njit(cache=True, fastmath=True)
-def setmaxloss_i(losses, sidx):
+def setmaxloss_items(item_losses):
+    """Keep only the largest loss across items, shared evenly where it ties.
+
+    Args:
+        item_losses (numpy.array[oasis_float]): one loss per item, edited in place.
+    """
     loss_max = 0.
     max_loss_count = 0
 
     # find maximum losses and count occurrences
-    for j in range(losses.shape[1]):
-        if losses[sidx, j] > loss_max:
-            loss_max = losses[sidx, j]
+    for j in range(item_losses.shape[0]):
+        if item_losses[j] > loss_max:
+            loss_max = item_losses[j]
             max_loss_count = 1
-        elif losses[sidx, j] == loss_max:
+        elif item_losses[j] == loss_max:
             max_loss_count += 1
     # distribute maximum losses evenly among highest
     # contributing subperils and set other losses to 0
     loss_max_normed = loss_max / max_loss_count
-    for j in range(losses.shape[1]):
-        if losses[sidx, j] == loss_max:
-            losses[sidx, j] = loss_max_normed
+    for j in range(item_losses.shape[0]):
+        if item_losses[j] == loss_max:
+            item_losses[j] = loss_max_normed
         else:
-            losses[sidx, j] = 0.
+            item_losses[j] = 0.
+
+
+@njit(cache=True, fastmath=True)
+def setmaxloss_i(losses, sidx):
+    setmaxloss_items(losses[sidx])
 
 
 @njit(cache=True, fastmath=True)

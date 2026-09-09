@@ -33,7 +33,8 @@ from oasislmf.computation.generate.keys import GenerateKeys
 from oasislmf.preparation.correlations import map_data
 from oasislmf.preparation.dir_inputs import (create_target_directory,
                                              prepare_input_files_directory)
-from oasislmf.preparation.gul_inputs import (get_gul_input_items,
+from oasislmf.preparation.gul_inputs import (build_correlations_frame,
+                                             get_gul_input_items,
                                              process_group_id_cols,
                                              write_gul_input_files)
 from oasislmf.preparation.il_inputs import (get_il_input_items,
@@ -45,7 +46,6 @@ from oasislmf.preparation.summaries import (get_summary_mapping,
                                             write_exposure_summary,
                                             write_mapping_file,
                                             write_summary_levels)
-from oasislmf.pytools.common.data import correlations_headers
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df,
@@ -110,6 +110,11 @@ class GenerateFiles(ComputationStep):
         {'name': 'damage_group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': DAMAGE_GROUP_ID_COLS},
         {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
+        {'name': 'building_packing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'if True keep one item per (location, peril, coverage_type) and carry NumberOfBuildings '
+                 'per item (on the correlations table) so buildings are multiplexed into the sample dimension '
+                 'downstream (pure-Python gulmc/gulpy pipeline) instead of expanding one row per building. '
+                 'Supersedes do_disaggregation when set.'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -347,7 +352,8 @@ class GenerateFiles(ComputationStep):
             exposure_profile=location_profile,
             damage_group_id_cols=damage_group_id_cols,
             hazard_group_id_cols=hazard_group_id_cols,
-            do_disaggregation=self.do_disaggregation
+            do_disaggregation=self.do_disaggregation,
+            building_packing=self.building_packing
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
@@ -372,7 +378,7 @@ class GenerateFiles(ComputationStep):
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
-            correlations_df=gul_inputs_df[correlations_headers],
+            correlations_df=build_correlations_frame(gul_inputs_df),
             output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
@@ -396,6 +402,7 @@ class GenerateFiles(ComputationStep):
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile,
             do_disaggregation=self.do_disaggregation,
+            building_packing=self.building_packing,
             target_dir=target_dir,
             oasis_files_prefixes=files_prefixes['il'],
             chunksize=self.write_chunksize,

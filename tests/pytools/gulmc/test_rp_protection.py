@@ -218,6 +218,13 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 
     dynamic_footprint = True  # truthy, enables dynamic footprint path
 
+    # building-packing buffers (unused here: compute_info['building_packing'] == 0)
+    building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
+    vuln_rndms_flat = np.empty(1, dtype='float64')
+    haz_rndms_flat = np.empty(1, dtype='float64')
+    vuln_offsets = np.zeros(2, dtype=np.int64)
+    haz_offsets = np.zeros(2, dtype=np.int64)
+
     args = (
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
@@ -227,6 +234,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
+        building_losses, vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
     )
     return args, losses
 
@@ -508,6 +516,13 @@ def test_rp_protection_only_affects_protected_items():
     intensity_bins = np.zeros((1, int(HAZ_INTENSITY) + 1), dtype=np.int32)
     intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
 
+    # building-packing buffers (unused here: compute_info['building_packing'] == 0)
+    building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
+    vuln_rndms_flat = np.empty(1, dtype='float64')
+    haz_rndms_flat = np.empty(1, dtype='float64')
+    vuln_offsets = np.zeros(2, dtype=np.int64)
+    haz_offsets = np.zeros(2, dtype=np.int64)
+
     compute_event_losses(
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
@@ -517,6 +532,7 @@ def test_rp_protection_only_affects_protected_items():
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
+        building_losses, vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
     )
 
     # Item 0 (RP-protected): all losses must be zero
