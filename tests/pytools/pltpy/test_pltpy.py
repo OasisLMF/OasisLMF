@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import shutil
 import pandas as pd
+import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -12,6 +13,7 @@ from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import OccurrenceCSR
 from oasislmf.pytools.plt.manager import main
+from oasislmf.utils.exceptions import OasisStreamException
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_pltpy")
 
@@ -271,9 +273,9 @@ def test_mplt_qplt_buffer_full_across_summaries():
         qplt_out = tmp_dir / "qplt.csv"
 
         with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 2), \
-             patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
-             patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights), \
-             patch('oasislmf.pytools.plt.manager.read_quantile', return_value=intervals):
+                patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
+                patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights), \
+                patch('oasislmf.pytools.plt.manager.read_quantile', return_value=intervals):
             main(run_dir=tmp_dir, files_in=stream_file, mplt=mplt_out, qplt=qplt_out, ext="csv")
 
         mplt = pd.read_csv(mplt_out)
@@ -286,3 +288,126 @@ def test_mplt_qplt_buffer_full_across_summaries():
         assert len(qplt) == 3, f"expected 3 QPLT rows (3 summaries x 1 period x 1 interval), got {len(qplt)} - MPLT's overflow must not skip QPLT"
         assert list(qplt["SummaryId"]) == [101, 102, 103]
         assert (qplt["EventId"] == 999).all()
+
+
+def test_splt_buffer_full_across_summaries():
+    """An SPLT output buffer filling up mid-run must not skip, duplicate, or
+    misattribute rows for any summary. Uses a tiny DEFAULT_BUFFER_SIZE to force
+    this deterministically.
+    """
+    sample_size = 2
+    occ_csr = _make_occ_csr({999: [1]})
+    period_weights = np.array([(1, 1.0)], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
+    summaries = [
+        (999, 101, 1000.0, [(1, 10.0), (2, 20.0)]),
+        (999, 102, 2000.0, [(1, 40.0), (2, 50.0)]),
+        (999, 103, 3000.0, [(1, 70.0), (2, 80.0)]),
+    ]
+    stream_bytes = _build_summary_stream(sample_size, summaries)
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = tmp_dir / "summary.bin"
+        stream_file.write_bytes(stream_bytes)
+        splt_out = tmp_dir / "splt.csv"
+
+        with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 4), \
+                patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
+                patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights):
+            main(run_dir=tmp_dir, files_in=stream_file, splt=splt_out, ext="csv")
+
+        splt = pd.read_csv(splt_out)
+        assert len(splt) == 6, f"expected 6 SPLT rows (3 summaries x 1 period x 2 samples), got {len(splt)}"
+        assert list(splt["SummaryId"]) == [101, 101, 102, 102, 103, 103]
+        assert (splt["EventId"] == 999).all()
+
+
+def test_mplt_buffer_full_immediately_before_new_event():
+    """An MPLT buffer-full flush that happens to land right before a genuine new event
+    must still detect that event boundary correctly (not merge or lose it).
+    """
+    sample_size = 2
+    occ_csr = _make_occ_csr({1000719084: [1], 1100028063: [1]})
+    period_weights = np.array([(1, 1.0)], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
+    summaries = [
+        (1000719084, 3820941, 100.0, [(1, 1.0), (2, 2.0)]),
+        (1000719084, 3820948, 200.0, [(1, 3.0), (2, 4.0)]),
+        (1100028063, 111, 300.0, [(1, 5.0), (2, 6.0)]),
+    ]
+    stream_bytes = _build_summary_stream(sample_size, summaries)
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = tmp_dir / "summary.bin"
+        stream_file.write_bytes(stream_bytes)
+        mplt_out = tmp_dir / "mplt.csv"
+
+        with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 2), \
+                patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
+                patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights):
+            main(run_dir=tmp_dir, files_in=stream_file, mplt=mplt_out, ext="csv")
+
+        mplt = pd.read_csv(mplt_out)
+        assert len(mplt) == 3
+        assert list(mplt["EventId"]) == [1000719084, 1000719084, 1100028063]
+        assert list(mplt["SummaryId"]) == [3820941, 3820948, 111]
+
+
+def test_qplt_buffer_full_across_summaries():
+    """A QPLT output buffer filling up mid-run (without MPLT also overflowing) must
+    not skip, duplicate, or misattribute rows for any summary.
+    """
+    sample_size = 3
+    occ_csr = _make_occ_csr({999: [1]})
+    period_weights = np.array([(1, 1.0)], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
+    intervals = np.array([(0.25, 3, 0.0), (0.75, 3, 0.0)], dtype=np.dtype(
+        [("quantile", "f4"), ("integer_part", "i4"), ("fractional_part", "f4")]))
+    summaries = [
+        (999, 101, 1000.0, [(1, 10.0), (2, 20.0), (3, 30.0)]),
+        (999, 102, 2000.0, [(1, 40.0), (2, 50.0), (3, 60.0)]),
+        (999, 103, 3000.0, [(1, 70.0), (2, 80.0), (3, 90.0)]),
+    ]
+    stream_bytes = _build_summary_stream(sample_size, summaries)
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = tmp_dir / "summary.bin"
+        stream_file.write_bytes(stream_bytes)
+        qplt_out = tmp_dir / "qplt.csv"
+
+        with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 3), \
+                patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
+                patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights), \
+                patch('oasislmf.pytools.plt.manager.read_quantile', return_value=intervals):
+            main(run_dir=tmp_dir, files_in=stream_file, qplt=qplt_out, ext="csv")
+
+        qplt = pd.read_csv(qplt_out)
+        assert len(qplt) == 6, f"expected 6 QPLT rows (3 summaries x 1 period x 2 intervals), got {len(qplt)}"
+        assert list(qplt["SummaryId"]) == [101, 101, 102, 102, 103, 103]
+        assert (qplt["EventId"] == 999).all()
+
+
+def test_splt_reservation_impossible_raises_instead_of_hanging():
+    """If a single summary's worst-case SPLT output can never fit in the buffer
+    (e.g. max_records_per_event x sample size too large for DEFAULT_BUFFER_SIZE),
+    read_buffer must raise rather than repeatedly yield a "buffer full" signal with
+    zero progress, which would otherwise hang run() in an infinite loop.
+    """
+    sample_size = 5
+    occ_csr = _make_occ_csr({999: [1]})
+    period_weights = np.array([(1, 1.0)], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
+    summaries = [(999, 101, 1000.0, [(i, float(i)) for i in range(1, sample_size + 1)])]
+    stream_bytes = _build_summary_stream(sample_size, summaries)
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = tmp_dir / "summary.bin"
+        stream_file.write_bytes(stream_bytes)
+        splt_out = tmp_dir / "splt.csv"
+
+        # Buffer smaller than a single summary's worst case (1 period x (5 + 1) = 6).
+        with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 3), \
+                patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
+                patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights):
+            with pytest.raises(OasisStreamException, match="SPLT reservation"):
+                main(run_dir=tmp_dir, files_in=stream_file, splt=splt_out, ext="csv")

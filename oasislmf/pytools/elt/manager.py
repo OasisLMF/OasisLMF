@@ -209,19 +209,32 @@ def read_buffer(
             sdloss = np.float64(0.0)
         return meanloss, sdloss
 
+    def _reservation_overflows(idx, reservation, capacity, name):
+        # Buffer genuinely too small for even one summary (idx == 0, i.e. buffer is
+        # already empty): flushing can never make room, so return would loop forever.
+        if idx + reservation > capacity:
+            if idx == 0:
+                raise ValueError(
+                    f"{name} reservation of {reservation} rows for a single summary exceeds the "
+                    f"output buffer capacity of {capacity}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                )
+            return True
+        return False
+
     while cursor < valid_buff:
         if not state["reading_losses"]:
             # Reserve room for the next summary's worst-case output before reading
             # anything of it, so writes below can never run past the end of a buffer.
             # +2 (not +1): both MEAN_IDX and NUMBER_OF_AFFECTED_RISK_IDX can each add
             # one extra SELT row on top of the len_sample real samples.
-            if state["compute_selt"] and si + state["len_sample"] + 2 > selt_data.shape[0]:
-                _update_idxs()
-                return cursor, state["current_event_id"], item_id, 1
-            if state["compute_melt"] and mi + 2 > melt_data.shape[0]:
-                _update_idxs()
-                return cursor, state["current_event_id"], item_id, 1
-            if state["compute_qelt"] and qi + len(intervals) > qelt_data.shape[0]:
+            buffer_full = False
+            if state["compute_selt"] and _reservation_overflows(si, state["len_sample"] + 2, selt_data.shape[0], "SELT"):
+                buffer_full = True
+            if state["compute_melt"] and _reservation_overflows(mi, 2, melt_data.shape[0], "MELT"):
+                buffer_full = True
+            if state["compute_qelt"] and _reservation_overflows(qi, len(intervals), qelt_data.shape[0], "QELT"):
+                buffer_full = True
+            if buffer_full:
                 _update_idxs()
                 return cursor, state["current_event_id"], item_id, 1
 

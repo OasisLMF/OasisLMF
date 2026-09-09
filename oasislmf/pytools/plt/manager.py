@@ -277,6 +277,18 @@ def read_buffer(
             sdloss = np.float64(0.0)
         return meanloss, sdloss
 
+    def _reservation_overflows(idx, reservation, capacity, name):
+        # Buffer genuinely too small for even one summary (idx == 0, i.e. buffer is
+        # already empty): flushing can never make room, so return would loop forever.
+        if idx + reservation > capacity:
+            if idx == 0:
+                raise ValueError(
+                    f"{name} reservation of {reservation} rows for a single summary exceeds the "
+                    f"output buffer capacity of {capacity}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                )
+            return True
+        return False
+
     # Read input loop
     while cursor < valid_buff:
         if not state["reading_losses"]:
@@ -284,13 +296,16 @@ def read_buffer(
             # anything of it, so writes below can never run past the end of a buffer.
             # MPLT/QPLT can write up to max_records_per_event rows per record loop;
             # MPLT does this twice per summary (analytical mean, then sample mean).
-            if state["compute_splt"] and si + max_records_per_event * (state["len_sample"] + 1) > splt_data.shape[0]:
-                _update_idxs()
-                return cursor, state["current_event_id"], item_id, 1
-            if state["compute_mplt"] and mi + 2 * max_records_per_event > mplt_data.shape[0]:
-                _update_idxs()
-                return cursor, state["current_event_id"], item_id, 1
-            if state["compute_qplt"] and qi + max_records_per_event * len(intervals) > qplt_data.shape[0]:
+            buffer_full = False
+            if state["compute_splt"] and _reservation_overflows(
+                    si, max_records_per_event * (state["len_sample"] + 1), splt_data.shape[0], "SPLT"):
+                buffer_full = True
+            if state["compute_mplt"] and _reservation_overflows(mi, 2 * max_records_per_event, mplt_data.shape[0], "MPLT"):
+                buffer_full = True
+            if state["compute_qplt"] and _reservation_overflows(
+                    qi, max_records_per_event * len(intervals), qplt_data.shape[0], "QPLT"):
+                buffer_full = True
+            if buffer_full:
                 _update_idxs()
                 return cursor, state["current_event_id"], item_id, 1
 
