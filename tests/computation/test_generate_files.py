@@ -422,7 +422,7 @@ class TestGenFiles(ComputationChecker):
             self.assertEqual(EXPECTED_CORRELATION_CSV, correlations_csv_data)
 
     @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
-    def test_files__building_packing_packs_number_of_buildings(self, mock_output_dir):
+    def test_files__building_packing_packs_the_building_count(self, mock_output_dir):
         """disaggregation='samples' keeps one item per (loc,peril,cov) and carries NumberOfBuildings
         on correlations.bin, instead of expanding one item per building ('items')."""
         import io
@@ -440,8 +440,8 @@ class TestGenFiles(ComputationChecker):
             mock_output_dir.return_value = run_dir
             self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir, 'disaggregation': 'samples'})
             packed = read_correlations(run_dir)
-            self.assertIn('number_of_buildings', packed.dtype.names)
-            self.assertTrue(np.all(np.asarray(packed['number_of_buildings']) == 3))
+            self.assertIn('packed_buildings', packed.dtype.names)
+            self.assertTrue(np.all(np.asarray(packed['packed_buildings']) == 3))
             n_packed = len(packed)
 
         # disaggregation run (default): one row per building -> 3x the items, count == 1
@@ -450,7 +450,7 @@ class TestGenFiles(ComputationChecker):
             mock_output_dir.return_value = run_dir
             self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir})
             disagg = read_correlations(run_dir)
-            self.assertTrue(np.all(np.asarray(disagg['number_of_buildings']) == 1))
+            self.assertTrue(np.all(np.asarray(disagg['packed_buildings']) == 1))
             self.assertEqual(len(disagg), n_packed * 3)
 
     @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')

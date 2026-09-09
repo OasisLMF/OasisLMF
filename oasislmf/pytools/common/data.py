@@ -108,7 +108,7 @@ limit1 = ("limit1", oasis_float, "%f")
 limit2 = ("limit2", oasis_float, "%f")
 loss = ("loss", oasis_float, "%.2f")
 model_data_len = ("model_data_len", 'u4', "%u")
-number_of_buildings = ("number_of_buildings", 'i4', "%d")
+packed_buildings = ("packed_buildings", 'i4', "%d")
 site_collapse_level = ("site_collapse_level", 'i4', "%d")
 max_buildings = ("max_buildings", 'i4', "%d")
 occ_date_id = ("occ_date_id", 'i4', "%d")
@@ -189,7 +189,7 @@ correlations_output = [
     hazard_correlation_value,
     # signed: magnitude is the count, negative means the buildings stay separate (see
     # gul/structure.py, which unpacks it)
-    number_of_buildings,
+    packed_buildings,
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
 

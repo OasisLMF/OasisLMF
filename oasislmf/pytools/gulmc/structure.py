@@ -183,7 +183,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                   # reach the financial module as separate blocks. Carried signed all the way to
                   # the compute and unpacked into locals there. 1 == one building per item
                   # (legacy / disaggregation).
-                  'number_of_buildings': 1}
+                  'packed_buildings': 1}
     )
     if valid_areaperil_id is not None:
         items = items[np.isin(items['areaperil_id'], valid_areaperil_id)]

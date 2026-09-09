@@ -32,7 +32,7 @@ items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('eff_cdf_id', oasis_int),
                                              # signed: magnitude is the building count, negative
                                              # means the buildings stay separate
-                                             ('number_of_buildings', oasis_int),
+                                             ('packed_buildings', oasis_int),
                                              ]))
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),

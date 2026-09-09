@@ -137,7 +137,7 @@ def _stale_correlations_msg(path):
     return (
         f"{path} does not match the current correlations record layout "
         f"({correlations_dtype.itemsize} bytes: {', '.join(correlations_headers)}). It was most "
-        f"likely written before building packing added number_of_buildings to the record "
+        f"likely written before building packing added packed_buildings to the record "
         f"({CORRELATIONS_ITEMSIZE_BEFORE_PACKING} bytes). Regenerate the oasis files."
     )
 
@@ -162,11 +162,11 @@ def _check_correlations_layout(correlations, path):
     """
     if correlations.shape[0] == 0:
         return
-    # number_of_buildings is signed: the magnitude is max(1, NumberOfBuildings) and the sign marks
+    # packed_buildings is signed: the magnitude is max(1, NumberOfBuildings) and the sign marks
     # whether the buildings stay separate, so 0 is the one value the writer can never produce.
     # A float or an id reinterpreted as this field is overwhelmingly likely to land outside the
     # plausible range as well.
-    magnitude = np.abs(correlations["number_of_buildings"])
+    magnitude = np.abs(correlations["packed_buildings"])
     if magnitude.min() < 1 or magnitude.max() > MAX_PLAUSIBLE_BUILDINGS_PER_ITEM:
         raise OasisException(_stale_correlations_msg(path))
 

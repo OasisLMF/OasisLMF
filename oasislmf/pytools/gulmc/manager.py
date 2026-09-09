@@ -184,7 +184,7 @@ def run(run_dir,
         # item losses at its TIV; write_losses_packed applies that cap within each building block,
         # the coverage TIV being the per-building share.
         # signed field: take the magnitude, or the keep-separate items (negative) are skipped
-        max_buildings = int(np.abs(items['number_of_buildings']).max()) if items.shape[0] > 0 else 1
+        max_buildings = int(np.abs(items['packed_buildings']).max()) if items.shape[0] > 0 else 1
         check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
         building_packing = max_buildings > 1
         if building_packing:
@@ -232,7 +232,7 @@ def run(run_dir,
         group_seq_rng_index = np.empty(n_unique_groups, dtype=np.int64)
         hazard_group_seq_rng_index = np.empty(n_unique_haz_groups, dtype=np.int64)
         # Pre-allocated per-rng-group building counts (building-packing); filled per event by
-        # reconstruct_coverages with the max number_of_buildings over each rng group. Sized to the
+        # reconstruct_coverages with the max building count over each rng group. Sized to the
         # rng index space (one entry per unique group), reused across events without resetting since
         # every used entry is written on rng-group creation.
         n_buildings_by_rng = np.ones(n_unique_groups, dtype=np.int64)
@@ -1088,7 +1088,7 @@ def compute_event_losses(compute_info,
             hazard_rng_index = item_event_data['hazard_rng_index']
             building_packing = compute_info['building_packing']
             # signed; this loop only needs how many buildings to draw for
-            n_buildings = abs(item_event_data['number_of_buildings']) if building_packing else 1
+            n_buildings = abs(item_event_data['packed_buildings']) if building_packing else 1
 
             item = items[item_event_data['item_idx']]
             haz_arr_i = item_event_data['haz_arr_i']
@@ -1209,7 +1209,7 @@ def compute_event_losses(compute_info,
                 losses[:, :Nitems],
                 building_losses[:, :Nitems, :],
                 items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
-                items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['number_of_buildings'],
+                items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['packed_buildings'],
                 compute_info['alloc_rule'],
                 tiv,
                 byte_mv,
@@ -1369,7 +1369,7 @@ def reconstruct_coverages(compute_info,
         hazard_group_seq_rng_index (numpy.array[int64]): pre-allocated array of size
           n_unique_haz_groups, for hazard_group_id to rng_index mapping.
         n_buildings_by_rng (numpy.array[int64]): pre-allocated array of size n_unique_groups;
-          on return, entry rng_index holds the maximum number_of_buildings over all items
+          on return, entry rng_index holds the maximum building count over all items
           sharing that damage rng group. Drives the per-group packed random draw size. Because
           damage groups can be coarser than location, the maximum is taken so every item in the
           group has enough building slices (extra slices are simply unused).
@@ -1424,7 +1424,7 @@ def reconstruct_coverages(compute_info,
                 # Signed: magnitude is the count, negative means keep the buildings separate. The signed
                 # form goes on to items_event_data for the writer; n_buildings_by_rng sizes the random
                 # draw and must never see the sign.
-                item_n_buildings_signed = items[item_idx]['number_of_buildings']
+                item_n_buildings_signed = items[item_idx]['packed_buildings']
                 item_n_buildings = abs(item_n_buildings_signed)
                 if group_seq_rng_index[group_seq_id] == NO_RNG_INDEX:
                     group_seq_rng_index[group_seq_id] = rng_index
@@ -1477,7 +1477,7 @@ def reconstruct_coverages(compute_info,
                 items_event_data[item_i]['hazard_rng_index'] = this_hazard_rng_index
                 items_event_data[item_i]['eff_cdf_id'] = item_cdf_group_idx[item_idx]
                 # stored signed: the writer needs the sign to decide separate-vs-summed
-                items_event_data[item_i]['number_of_buildings'] = item_n_buildings_signed
+                items_event_data[item_i]['packed_buildings'] = item_n_buildings_signed
                 if dynamic_footprint is not None:
                     items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
                     items_event_data[item_i]['return_period'] = items[item_idx]['return_period']

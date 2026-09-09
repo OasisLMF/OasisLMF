@@ -32,7 +32,7 @@ def _with_correlations(dst, number_of_buildings, keep_separate):
     path = os.path.join(dst, 'input', 'correlations.bin')
     corr = np.fromfile(path, dtype=correlations_dtype)
     # one signed field on the wire: magnitude is the count, negative means "keep separate"
-    corr['number_of_buildings'] = -number_of_buildings if keep_separate else number_of_buildings
+    corr['packed_buildings'] = -number_of_buildings if keep_separate else number_of_buildings
     corr.tofile(path)
     # a stale cached structure would be loaded in preference to the files
     cache = os.path.join(dst, 'input', 'gulpy_structure')

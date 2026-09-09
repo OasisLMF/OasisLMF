@@ -92,8 +92,8 @@ files_write_info = {
                  "required_col": {'section_id'}},
     'item_adjustments': {"csv_dtype": structured_dtype_to_pandas(item_adjustment_dtype),
                          "required_col": {'intensity_adjustment'}},
-    # number_of_buildings is no longer a side file: it rides along on correlations.bin (see
-    # correlations_output in common/data.py), written via gul_inputs_df[correlations_headers].
+    # the building count is no longer a side file: it rides along on correlations.bin as the
+    # signed packed_buildings (see build_correlations_frame).
 }
 
 
@@ -529,23 +529,26 @@ def build_correlations_frame(gul_inputs_df):
     record at 24 bytes: the magnitude is the number of buildings, and a negative sign marks the
     buildings that have to reach the financial module as separate blocks. In memory the two stay
     separate columns -- ``number_of_buildings`` and ``keep_buildings_separate`` -- because
-    ``il_inputs`` reads them independently to split the terms; only the wire form is packed.
+    ``il_inputs`` reads them independently to split the terms; only the wire form is packed, which
+    is why the column is renamed to ``packed_buildings`` on the way out.
 
     Args:
         gul_inputs_df (pd.DataFrame): the GUL inputs frame. ``number_of_buildings`` and
             ``keep_buildings_separate`` are defaulted upstream, so both are always present.
 
     Returns:
-        pd.DataFrame: the correlations columns, with ``number_of_buildings`` signed.
+        pd.DataFrame: the correlations columns, carrying the signed ``packed_buildings``.
     """
-    correlations_df = gul_inputs_df[correlations_headers].copy()
+    in_memory_headers = ['number_of_buildings' if h == 'packed_buildings' else h for h in correlations_headers]
+    correlations_df = gul_inputs_df[in_memory_headers].copy()
+    correlations_df.columns = correlations_headers
     if 'keep_buildings_separate' in gul_inputs_df.columns:
         # negative marks "keep separate"; a plain single-building record stays +1, exactly as it
         # was before packing existed
-        correlations_df['number_of_buildings'] = np.where(
+        correlations_df['packed_buildings'] = np.where(
             gul_inputs_df['keep_buildings_separate'] == 1,
-            -correlations_df['number_of_buildings'],
-            correlations_df['number_of_buildings'],
+            -correlations_df['packed_buildings'],
+            correlations_df['packed_buildings'],
         ).astype('i4')
     return correlations_df
 

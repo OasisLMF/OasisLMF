@@ -148,7 +148,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     if do_correlation:
         corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=correlations_dtype)
         # sentinel row 0 (item_id, peril_correlation_group, damage_correlation_value,
-        # hazard_group_id, hazard_correlation_value, number_of_buildings)
+        # hazard_group_id, hazard_correlation_value, packed_buildings)
         corr_data_by_item_id[0] = (0, 0, 0., 0, 0., 1)
         corr_data_by_item_id[1:]['peril_correlation_group'] = data['peril_correlation_group']
         corr_data_by_item_id[1:]['damage_correlation_value'] = data['damage_correlation_value']
@@ -169,8 +169,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     # signed field, kept signed into the compute and unpacked into (count, flag) at the top of each
     # consuming loop. NOTHING may use the raw value as a bound: range() over a negative silently
     # does nothing. Packing is derived, not configured: more than one building is the signal.
-    packed_buildings = np.abs(data['number_of_buildings']) if len(data) else data['number_of_buildings']
-    if len(data) and packed_buildings.max() > 1:
+    building_counts = np.abs(data['packed_buildings']) if len(data) else data['packed_buildings']
+    if len(data) and building_counts.max() > 1:
         building_packing = True
         max_item_id = int(data['item_id'].max())
         # Indexed by item_id inside njit, which does not bounds-check, so an items table reaching past
@@ -183,8 +183,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
             )
         # stored signed, exactly as it arrived on the wire
         n_buildings_by_item_id = np.ones(max_item_id + 1, dtype='i4')
-        n_buildings_by_item_id[data['item_id']] = data['number_of_buildings']
-        logger.info(f'building-packing ENABLED: up to {packed_buildings.max()} buildings packed per item.')
+        n_buildings_by_item_id[data['item_id']] = data['packed_buildings']
+        logger.info(f'building-packing ENABLED: up to {building_counts.max()} buildings packed per item.')
     else:
         building_packing = False
         n_buildings_by_item_id = np.ones(1, dtype='i4')

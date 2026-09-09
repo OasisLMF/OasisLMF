@@ -9,7 +9,7 @@ their own stream coordinate and must be present and genuinely distinct.
 Run for each generator, including 2 (Latin Hypercube on Philox), which is the default.
 
 The test runs gulmc twice on a real copy of test_model_1: once with no side file (legacy),
-once with a number_of_buildings side file assigning two buildings to every item.
+once with a per-item building count on correlations assigning two buildings to every item.
 """
 import shutil
 from pathlib import Path
@@ -92,7 +92,7 @@ def test_building_packing_building1_matches_legacy(tmp_path, random_generator):
     packed_dir = tmp_path / "packed"
     _fresh_copy(packed_dir)
     corr = np.array(read_correlations(packed_dir / "input"), dtype=correlations_dtype)
-    corr['number_of_buildings'] = -2
+    corr['packed_buildings'] = -2
     corr.tofile(packed_dir / "input" / "correlations.bin")
     packed_out = packed_dir / "packed.bin"
     _run(packed_dir, packed_out, random_generator)
