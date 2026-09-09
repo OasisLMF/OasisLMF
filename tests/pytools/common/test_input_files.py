@@ -4,9 +4,10 @@ import pytest
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (
-    oasis_int, oasis_float, coverages_dtype, correlations_dtype, periods_dtype,
-    quantile_interval_dtype, returnperiods_dtype
+    oasis_int, oasis_float, coverages_dtype, correlations_dtype, correlations_fmt,
+    correlations_headers, periods_dtype, quantile_interval_dtype, returnperiods_dtype
 )
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as OCC_IDX_NOT_FOUND
 from oasislmf.pytools.common.input_files import (
     read_amplifications,
@@ -120,6 +121,83 @@ def test_read_correlations():
     np.testing.assert_array_almost_equal(damage_correlation_value_expected, damage_correlation_value_actual, decimal=3, verbose=True)
     np.testing.assert_array_almost_equal(hazard_group_id_expected, hazard_group_id_actual, decimal=3, verbose=True)
     np.testing.assert_array_almost_equal(hazard_correlation_value_expected, hazard_correlation_value_actual, decimal=3, verbose=True)
+
+
+def _write_correlations_bin(run_dir, num_items):
+    """Write a well-formed correlations.bin holding ``num_items`` records."""
+    correlations = np.zeros(num_items, dtype=correlations_dtype)
+    correlations["item_id"] = np.arange(1, num_items + 1)
+    correlations["packed_buildings"] = 1
+    correlations.tofile(Path(run_dir, "correlations.bin"))
+    return correlations
+
+
+def _write_correlations_csv(run_dir, num_items):
+    """Write a well-formed correlations.csv holding ``num_items`` records."""
+    correlations = np.zeros(num_items, dtype=correlations_dtype)
+    correlations["item_id"] = np.arange(1, num_items + 1)
+    correlations["packed_buildings"] = 1
+    np.savetxt(Path(run_dir, "correlations.csv"), correlations, delimiter=",",
+               fmt=correlations_fmt, header=",".join(correlations_headers), comments="")
+    return correlations
+
+
+def test_read_correlations_bin__well_formed_file_is_read():
+    with TemporaryDirectory() as d:
+        _write_correlations_bin(d, 10)
+        assert len(read_correlations(d)) == 10
+
+
+def test_read_correlations_bin__partial_record_is_rejected():
+    """A byte count that is not a whole number of records cannot be this layout."""
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").write_bytes(b"\x01" * (correlations_dtype.itemsize + 5))
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
+
+
+@pytest.mark.parametrize("num_items", [6, 12, 60])
+def test_read_correlations_bin__pre_packing_file_that_divides_evenly_is_rejected(num_items):
+    """The silent mis-parse: 20-byte records, a count that is a multiple of 6, so the byte count
+    divides by the current itemsize too and numpy.memmap accepts it.
+    """
+    pre_packing_dtype = np.dtype([("item_id", "<i4"), ("peril_correlation_group", "<i4"),
+                                  ("damage_correlation_value", "<f4"), ("hazard_group_id", "<i4"),
+                                  ("hazard_correlation_value", "<f4")])
+    assert pre_packing_dtype.itemsize * num_items % correlations_dtype.itemsize == 0, "not the case under test"
+    old = np.zeros(num_items, dtype=pre_packing_dtype)
+    old["item_id"] = np.arange(1, num_items + 1)
+    old["peril_correlation_group"] = 1
+    old["damage_correlation_value"] = 0.5
+    old["hazard_group_id"] = 2
+    old["hazard_correlation_value"] = 0.5
+    with TemporaryDirectory() as d:
+        old.tofile(Path(d, "correlations.bin"))
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
+
+
+def test_read_correlations_bin__empty_file_falls_back_to_the_csv():
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").touch()
+        _write_correlations_csv(d, 7)
+        assert len(read_correlations(d)) == 7
+
+
+def test_read_correlations_bin__empty_file_with_no_csv_is_not_found():
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").touch()
+        with pytest.raises(FileNotFoundError):
+            read_correlations(d)
+
+
+def test_read_correlations_bin__fallback_still_honours_ignore_file_type():
+    """Falling back off an empty bin must not read a csv the caller excluded."""
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").touch()
+        _write_correlations_csv(d, 7)
+        with pytest.raises(FileNotFoundError):
+            read_correlations(d, ignore_file_type={"csv"})
 
 
 def test_read_coverages():
