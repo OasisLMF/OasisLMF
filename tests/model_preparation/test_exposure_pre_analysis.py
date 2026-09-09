@@ -1,6 +1,7 @@
 import os
 from tempfile import TemporaryDirectory
 
+import pandas as pd
 import pytest
 
 from oasislmf.manager import OasisManager
@@ -89,6 +90,50 @@ def test_exposure_pre_analysis_class_name():
         with open(os.path.join(d, SOURCE_FILENAMES['oed_location_csv'])) as new_oed_location_csv:
             new_oed_location_csv_data = new_oed_location_csv.read()
             assert new_oed_location_csv_data == output_oed_location
+
+
+def write_oed_location_parquet(oed_location_parquet):
+    pd.DataFrame({
+        'PortNumber': [1, 1, 1, 1, 1],
+        'AccNumber': ['A11111'] * 5,
+        'LocNumber': [10002082046 + i for i in range(5)],
+        'BuildingTIV': [1, 2, 3, 4, 5],
+        'CountryCode': ['UK'] * 5,
+        'LocPerilsCovered': ['AA1'] * 5,
+        'LocCurrency': ['GBP'] * 5,
+    }).to_parquet(oed_location_parquet, index=False)
+
+
+def test_exposure_pre_analysis_preserves_parquet_source_format():
+    """
+    Regression test: when the original location source is parquet, the
+    pre-analysis raw/adjusted exposure snapshots should also be written as
+    parquet rather than being silently downgraded to csv, which is much
+    slower for large portfolios (see get_source_compression).
+    """
+    with TemporaryDirectory() as d:
+        oed_location_parquet = os.path.join(d, 'input_location.parquet')
+        kwargs = {'oasis_files_dir': d,
+                  'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple.py'),
+                  'oed_location_csv': oed_location_parquet,
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
+                  'check_oed': False}
+
+        write_simple_epa_module(kwargs['exposure_pre_analysis_module'])
+        write_oed_location_parquet(oed_location_parquet)
+        write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
+
+        OasisManager().exposure_pre_analysis(**kwargs)
+
+        assert os.path.isfile(os.path.join(d, 'raw_location.parquet')), \
+            'expected raw exposure snapshot to be saved as parquet, not csv'
+        assert os.path.isfile(os.path.join(d, 'location.parquet')), \
+            'expected adjusted exposure snapshot to be saved as parquet, not csv'
+        assert not os.path.isfile(os.path.join(d, 'raw_location.csv'))
+        assert not os.path.isfile(os.path.join(d, 'location.csv'))
+
+        new_oed_location = pd.read_parquet(os.path.join(d, 'location.parquet'))
+        assert list(new_oed_location['BuildingTIV']) == [2.0, 4.0, 6.0, 8.0, 10.0]
 
 
 def test_missing_module():

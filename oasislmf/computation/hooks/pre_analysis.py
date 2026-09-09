@@ -4,13 +4,48 @@ __all__ = [
 
 import json
 import pathlib
-from ods_tools.oed import UnknownColumnSaveOption
+from pathlib import Path
+from ods_tools.oed import UnknownColumnSaveOption, PANDAS_COMPRESSION_MAP
 
 from ..base import ComputationStep
 from ...utils.data import get_exposure_data, prepare_oed_exposure, analysis_settings_loader, model_settings_loader
 from ...utils.inputs import str2bool
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
+
+
+def get_source_compression(exposure_data):
+    """
+    Derive the compression/format to use when persisting the pre-analysis
+    exposure snapshots, based on the original location source file's extension.
+
+    Exposure.save() defaults to csv whenever no explicit compression is given
+    and the current source version has no recorded 'extension' (which is
+    always true for a freshly loaded source - see ods_tools
+    OedSource.from_filepath). Without this, the raw/adjusted exposure
+    snapshots below are silently written as csv even when the original input
+    was e.g. parquet, which can be drastically slower for large portfolios.
+
+    Args:
+        exposure_data (OedExposure): the loaded exposure data
+
+    Returns:
+        str or None: a key of ods_tools.oed.common.PANDAS_COMPRESSION_MAP
+                      matching the original location file's extension, or
+                      None if it can't be determined (Exposure.save() then
+                      falls back to its default of csv, unchanged from
+                      current behaviour).
+    """
+    if not exposure_data.location:
+        return None
+    source = exposure_data.location.current_source
+    if source.get('source_type') != 'filepath':
+        return None
+    suffix = Path(source['filepath']).suffix.lstrip('.')
+    for compression, mapped_suffix in PANDAS_COMPRESSION_MAP.items():
+        if mapped_suffix.lstrip('.') == suffix:
+            return compression
+    return None
 
 
 class ExposurePreAnalysis(ComputationStep):
@@ -98,7 +133,8 @@ class ExposurePreAnalysis(ComputationStep):
 
         ids_option = {'loc_id': UnknownColumnSaveOption.DELETE,
                       'loc_idx': UnknownColumnSaveOption.DELETE}
-        exposure_data.save(path=input_dir, version_name='raw', save_config=True, unknown_columns=ids_option)
+        source_compression = get_source_compression(exposure_data)
+        exposure_data.save(path=input_dir, version_name='raw', compression=source_compression, save_config=True, unknown_columns=ids_option)
         kwargs['exposure_data'] = exposure_data
         kwargs['input_dir'] = input_dir
         kwargs['model_data_dir'] = self.model_data_dir
@@ -126,7 +162,7 @@ class ExposurePreAnalysis(ComputationStep):
         print(_class(**kwargs))
         _class_return = _class(**kwargs).run()
 
-        exposure_data.save(path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
+        exposure_data.save(path=input_dir, version_name='', compression=source_compression, save_config=True, unknown_columns=ids_option)
         # regenerate ids
         exposure_data.location.dataframe = exposure_data.location.dataframe.drop(columns=['loc_id', 'loc_idx'])
         prepare_oed_exposure(exposure_data)
