@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import shutil
 import pandas as pd
+import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -12,6 +13,7 @@ from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import OccurrenceCSR
 from oasislmf.pytools.plt.manager import main
+from oasislmf.utils.exceptions import OasisStreamException
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_pltpy")
 
@@ -383,3 +385,29 @@ def test_qplt_buffer_full_across_summaries():
         assert len(qplt) == 6, f"expected 6 QPLT rows (3 summaries x 1 period x 2 intervals), got {len(qplt)}"
         assert list(qplt["SummaryId"]) == [101, 101, 102, 102, 103, 103]
         assert (qplt["EventId"] == 999).all()
+
+
+def test_splt_reservation_impossible_raises_instead_of_hanging():
+    """If a single summary's worst-case SPLT output can never fit in the buffer
+    (e.g. max_records_per_event x sample size too large for DEFAULT_BUFFER_SIZE),
+    read_buffer must raise rather than repeatedly yield a "buffer full" signal with
+    zero progress, which would otherwise hang run() in an infinite loop.
+    """
+    sample_size = 5
+    occ_csr = _make_occ_csr({999: [1]})
+    period_weights = np.array([(1, 1.0)], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
+    summaries = [(999, 101, 1000.0, [(i, float(i)) for i in range(1, sample_size + 1)])]
+    stream_bytes = _build_summary_stream(sample_size, summaries)
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = tmp_dir / "summary.bin"
+        stream_file.write_bytes(stream_bytes)
+        splt_out = tmp_dir / "splt.csv"
+
+        # Buffer smaller than a single summary's worst case (1 period x (5 + 1) = 6).
+        with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 3), \
+                patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
+                patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights):
+            with pytest.raises(OasisStreamException, match="SPLT reservation"):
+                main(run_dir=tmp_dir, files_in=stream_file, splt=splt_out, ext="csv")

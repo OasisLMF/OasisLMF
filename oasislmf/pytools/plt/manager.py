@@ -285,12 +285,27 @@ def read_buffer(
             # MPLT/QPLT can write up to max_records_per_event rows per record loop;
             # MPLT does this twice per summary (analytical mean, then sample mean).
             if state["compute_splt"] and si + max_records_per_event * (state["len_sample"] + 1) > splt_data.shape[0]:
+                if si == 0:
+                    raise ValueError(
+                        f"SPLT reservation of {max_records_per_event * (state['len_sample'] + 1)} rows for a single "
+                        f"summary exceeds the output buffer capacity of {splt_data.shape[0]}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                    )
                 _update_idxs()
                 return cursor, state["current_event_id"], item_id, 1
             if state["compute_mplt"] and mi + 2 * max_records_per_event > mplt_data.shape[0]:
+                if mi == 0:
+                    raise ValueError(
+                        f"MPLT reservation of {2 * max_records_per_event} rows for a single summary exceeds the "
+                        f"output buffer capacity of {mplt_data.shape[0]}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                    )
                 _update_idxs()
                 return cursor, state["current_event_id"], item_id, 1
             if state["compute_qplt"] and qi + max_records_per_event * len(intervals) > qplt_data.shape[0]:
+                if qi == 0:
+                    raise ValueError(
+                        f"QPLT reservation of {max_records_per_event * len(intervals)} rows for a single summary "
+                        f"exceeds the output buffer capacity of {qplt_data.shape[0]}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                    )
                 _update_idxs()
                 return cursor, state["current_event_id"], item_id, 1
 

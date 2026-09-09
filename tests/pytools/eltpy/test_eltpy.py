@@ -5,6 +5,7 @@ import sys
 from tempfile import TemporaryDirectory
 import numpy as np
 import pandas as pd
+import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -12,6 +13,7 @@ from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_
 from oasislmf.pytools.common.input_files import read_event_rates
 from oasislmf.pytools.elt.manager import main
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, quantile_interval_dtype)
+from oasislmf.utils.exceptions import OasisStreamException
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_eltpy")
 
@@ -373,3 +375,26 @@ def test_qelt_buffer_full_across_summaries():
         assert len(qelt) == 6, f"expected 6 QELT rows (3 summaries x 2 intervals), got {len(qelt)}"
         assert list(qelt["SummaryId"]) == [101, 101, 102, 102, 103, 103]
         assert (qelt["EventId"] == 999).all()
+
+
+def test_selt_reservation_impossible_raises_instead_of_hanging():
+    """If a single summary's worst-case SELT output can never fit in the buffer
+    (e.g. sample size too large for DEFAULT_BUFFER_SIZE), read_buffer must raise
+    rather than repeatedly yield a "buffer full" signal with zero progress, which
+    would otherwise hang run() in an infinite loop.
+    """
+    sample_size = 5
+    summaries = [(999, 101, 1000.0, [(i, float(i)) for i in range(1, sample_size + 1)])]
+    stream_bytes = _build_summary_stream(sample_size, summaries)
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = tmp_dir / "summary.bin"
+        stream_file.write_bytes(stream_bytes)
+        selt_out = tmp_dir / "selt.csv"
+
+        # Buffer smaller than a single summary's worst case (len_sample + 2 = 7).
+        with patch('oasislmf.pytools.elt.manager.DEFAULT_BUFFER_SIZE', 3), \
+                patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            with pytest.raises(OasisStreamException, match="SELT reservation"):
+                main(run_dir=tmp_dir, files_in=stream_file, selt=selt_out, ext="csv")

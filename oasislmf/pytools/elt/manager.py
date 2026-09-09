@@ -216,12 +216,27 @@ def read_buffer(
             # +2 (not +1): both MEAN_IDX and NUMBER_OF_AFFECTED_RISK_IDX can each add
             # one extra SELT row on top of the len_sample real samples.
             if state["compute_selt"] and si + state["len_sample"] + 2 > selt_data.shape[0]:
+                if si == 0:
+                    raise ValueError(
+                        f"SELT reservation of {state['len_sample'] + 2} rows for a single summary exceeds the "
+                        f"output buffer capacity of {selt_data.shape[0]}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                    )
                 _update_idxs()
                 return cursor, state["current_event_id"], item_id, 1
             if state["compute_melt"] and mi + 2 > melt_data.shape[0]:
+                if mi == 0:
+                    raise ValueError(
+                        f"MELT reservation of 2 rows for a single summary exceeds the output buffer "
+                        f"capacity of {melt_data.shape[0]}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                    )
                 _update_idxs()
                 return cursor, state["current_event_id"], item_id, 1
             if state["compute_qelt"] and qi + len(intervals) > qelt_data.shape[0]:
+                if qi == 0:
+                    raise ValueError(
+                        f"QELT reservation of {len(intervals)} rows for a single summary exceeds the "
+                        f"output buffer capacity of {qelt_data.shape[0]}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                    )
                 _update_idxs()
                 return cursor, state["current_event_id"], item_id, 1
 
