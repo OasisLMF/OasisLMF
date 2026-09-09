@@ -40,13 +40,8 @@ VALID_OASIS_GROUP_COLS = [
     'coverage_type_id',
     'peril_correlation_group',
     'building_id',
-    'risk_id',
+    'risk_id'
 ]
-
-# 'building_id' / 'risk_id' are building-level identifiers. Under DISAGGREGATION_ITEMS there is
-# one row per building, so listing one of them here gives every building its own correlation
-# group and omitting them keeps a location's buildings correlated -- the user's choice, not the
-# engine's. Under the other two modes both columns are constant 1, so they shift no grouping.
 
 PERIL_CORRELATION_GROUP_COL = 'peril_correlation_group'
 
@@ -416,7 +411,8 @@ def get_gul_input_items(
     # Each building gets a unique building_id and its share of the TIV
     if disaggregation == DISAGGREGATION_SAMPLES:
         # One item per (loc, peril, coverage_type); the buildings ride in the sample dimension
-        # downstream and the per-item count rides on the correlations table.
+        # downstream and the per-item count rides on the correlations table. building_id stays 1,
+        # so listing it in the group_id columns no longer separates a location's buildings.
         gul_inputs_df = gul_inputs_df.copy()
         gul_inputs_df['number_of_buildings'] = np.maximum(
             1, gul_inputs_df['NumberOfBuildings'].values).astype('int32')

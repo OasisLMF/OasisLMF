@@ -38,7 +38,6 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
-from ..pytools.common.data import FM_STRUCTURE_INFO_FILE
 from .bash import ord_enabled, ORD_LECCALC
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
@@ -597,13 +596,6 @@ def move_bin(src, dst):
     """Select binary files from src and move them to dst folder"""
     def move_single_folder(src, dst):
         os.makedirs(dst, exist_ok=True)
-        # A .bin, but not one of the INPUT_FILES the loop below walks, so it needs moving
-        # explicitly. The financial module sizes its arrays from it and leaving it behind turns
-        # building-packing silently off. (create_binary_tar_file needs no such special case --
-        # its *.bin globs pick this up like any other input.)
-        info_src = os.path.join(src, FM_STRUCTURE_INFO_FILE)
-        if os.path.isfile(info_src):
-            shutil.move(info_src, os.path.join(dst, FM_STRUCTURE_INFO_FILE))
         for input_file in INPUT_FILES.values():
             if "step_flag" in input_file and os.path.isfile(os.path.join(src, f"{input_file['name']}_step.bin")):
                 extension = "_step.bin"
@@ -683,7 +675,9 @@ def check_conversion_tools(il=False):
         input_files = (f for f in INPUT_FILES.values() if f['type'] != 'il')
 
     for input_file in input_files:
-        tool = input_file['conversion_tool']
+        tool = input_file.get('conversion_tool')
+        if tool is None:  # binary-only input, nothing to convert from
+            continue
         if shutil.which(tool) is None:
             error_message = "Failed to find conversion tool: {}".format(tool)
             logging.error(error_message)

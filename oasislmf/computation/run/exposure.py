@@ -168,9 +168,7 @@ class RunExposure(ComputationStep):
             oasis_files_dir=run_dir,
             exposure_data=exposure_data,
             keys_data_path=keys_fp,
-            # pass the resolved mode, not the deprecated boolean: GenerateFiles resolves
-            # disaggregation itself, and a stale do_disaggregation here would trigger its
-            # deprecation warning on every deterministic run
+            # the resolved mode, not the deprecated boolean, which would warn again downstream
             disaggregation=disaggregation,
             intermediary_csv=self.intermediary_csv,
         ).run()

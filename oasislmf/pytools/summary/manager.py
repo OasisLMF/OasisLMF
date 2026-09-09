@@ -178,14 +178,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
     """Read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
-    # A summary is per item, so a packed item's buildings belong in one bucket: decode the packed
-    # index onto the sample it represents and let the accumulation below add them up. For an
-    # ordinary stream the decode is the identity.
-    #
-    # Known limitation: risks are keyed on (loc_id, building_id) and packing writes building_id 1,
-    # so a packed location counts as one affected risk where row disaggregation counts
-    # NumberOfBuildings. Losses are unaffected. Same gap that stops packing producing
-    # building-level summaries.
+    # A summary is per item, so a packed item's buildings share a bucket: decode onto the sample the
+    # index represents and let the accumulation below add them. Identity for an ordinary stream.
+    # Known gap: risks are keyed on (loc_id, building_id) and packing writes building_id 1, so a
+    # packed location counts as one affected risk where row disaggregation counts N.
     max_sidx_val = loss_summary.shape[1] - SPECIAL_SIDX_COUNT
     while True:
         if item_id:
