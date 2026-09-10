@@ -195,8 +195,6 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     losses = np.zeros((sample_size + 6, 1), dtype=oasis_float)  # 6 = NUM_IDX + 1
 
     # --- stub random arrays (not accessed with sample_size=0) ---
-    haz_rndms_base = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
-    vuln_rndms_base = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
     vuln_adj = np.ones(1, dtype=oasis_float)
     haz_eps_ij = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
     damage_eps_ij = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
@@ -218,7 +216,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 
     dynamic_footprint = True  # truthy, enables dynamic footprint path
 
-    # building-packing buffers (unused here: compute_info['building_packing'] == 0)
+    # per-building buffers; unused here because sample_size == 0 skips the sampling loop
     building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
     vuln_rndms_flat = np.empty(1, dtype='float64')
     haz_rndms_flat = np.empty(1, dtype='float64')
@@ -230,7 +228,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
-        losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
+        losses, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
@@ -500,8 +498,6 @@ def test_rp_protection_only_affects_protected_items():
 
     losses = np.zeros((sample_size + 6, 2), dtype=oasis_float)
 
-    haz_rndms_base = np.zeros((1, 1), dtype=np.float64)
-    vuln_rndms_base = np.zeros((1, 1), dtype=np.float64)
     vuln_adj = np.ones(1, dtype=oasis_float)
     haz_eps_ij = np.zeros((1, 1), dtype=np.float64)
     damage_eps_ij = np.zeros((1, 1), dtype=np.float64)
@@ -516,7 +512,7 @@ def test_rp_protection_only_affects_protected_items():
     intensity_bins = np.zeros((1, int(HAZ_INTENSITY) + 1), dtype=np.int32)
     intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
 
-    # building-packing buffers (unused here: compute_info['building_packing'] == 0)
+    # per-building buffers; unused here because sample_size == 0 skips the sampling loop
     building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
     vuln_rndms_flat = np.empty(1, dtype='float64')
     haz_rndms_flat = np.empty(1, dtype='float64')
@@ -528,7 +524,7 @@ def test_rp_protection_only_affects_protected_items():
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
-        losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
+        losses, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,

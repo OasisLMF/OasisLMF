@@ -27,7 +27,7 @@ from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX,
                                          TIV_IDX,
                                          gulSampleslevelHeader_size,
                                          gulSampleslevelRec_size)
-from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss,
+from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul,
                                        setmaxloss_items,
                                        split_tiv_classic,
                                        split_tiv_multiplicative)
@@ -656,66 +656,5 @@ def write_losses_packed(event_id, sample_size, loss_threshold, losses, building_
 
         # one delimiter terminates the whole (multi-building) item
         cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)  # item delimiter
-
-    return cursor
-
-
-@njit(cache=True, fastmath=True)
-def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_rule, tiv,
-                 byte_mv, cursor):
-    """Write the computed losses.
-
-    Args:
-        event_id (int32): event id.
-        sample_size (int): number of random samples to draw.
-        loss_threshold (float): threshold above which losses are printed to the output stream.
-        losses (numpy.array[oasis_float]): losses for all item_ids
-        item_ids (numpy.array[ITEM_ID_TYPE]): ids of items whose losses are in `losses`.
-        alloc_rule (int): back-allocation rule.
-        tiv (oasis_float): total insured value.
-        byte_mv (numpy.ndarray): byte view of where the output is buffered.
-        cursor (int): index of int32_mv where to start writing.
-
-    Returns:
-        int: updated values of cursor
-    """
-    if alloc_rule == 2:
-        setmaxloss(losses)
-
-    if tiv > 0:
-        # check whether the sum of losses-per-sample exceeds TIV
-        # if so, split TIV in proportion to the losses
-
-        if alloc_rule in [1, 2]:
-            split_tiv_classic(losses[TIV_IDX], tiv)
-            split_tiv_classic(losses[MAX_LOSS_IDX], tiv)
-            split_tiv_classic(losses[MEAN_IDX], tiv)
-            for sample_i in range(1, losses.shape[0] - NUM_IDX):
-                split_tiv_classic(losses[sample_i], tiv)
-
-        elif alloc_rule == 3:
-            split_tiv_multiplicative(losses[TIV_IDX], tiv)
-            split_tiv_multiplicative(losses[MAX_LOSS_IDX], tiv)
-            split_tiv_multiplicative(losses[MEAN_IDX], tiv)
-            for sample_i in range(1, losses.shape[0] - NUM_IDX):
-                split_tiv_multiplicative(losses[sample_i], tiv)
-
-    # output the losses for all the items
-    for item_j in range(item_ids.shape[0]):
-
-        # write header
-        cursor = mv_write_item_header(byte_mv, cursor, event_id, item_ids[item_j])
-
-        # write negative sidx
-        for sample_idx in SPECIAL_SIDX:
-            cursor = mv_write_sidx_loss(byte_mv, cursor, sample_idx, losses[sample_idx, item_j])
-
-        # write the random samples (only those with losses above the threshold)
-        for sample_idx in range(1, sample_size + 1):
-            if losses[sample_idx, item_j] >= loss_threshold:
-                cursor = mv_write_sidx_loss(byte_mv, cursor, sample_idx, losses[sample_idx, item_j])
-
-        # write terminator for the samples for this item
-        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
 
     return cursor
