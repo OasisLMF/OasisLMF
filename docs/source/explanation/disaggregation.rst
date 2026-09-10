@@ -5,10 +5,11 @@ On this page
 ------------
 
 * :ref:`intro_disaggregation`
-* :ref:`disaggregation_features_by_version`
-* :ref:`available_1.15`
-* :ref:`available_1.27`
-* :ref:`available_1.28`
+* :ref:`disaggregation_approaches`
+* :ref:`pre_analysis_hooks`
+* :ref:`aggregate_footprints`
+* :ref:`blended_vulnerability`
+* :ref:`number_of_buildings`
 
 .. _intro_disaggregation:
 
@@ -31,39 +32,34 @@ disaggregation features of Oasis. This model is availible to use from `here
 
 |
 
-.. _disaggregation_features_by_version:
+.. _disaggregation_approaches:
 
-Disaggregation features by version
-**********************************
+Approaches
+**********
 
-There are a few options in Oasis to handle disaggregation, and more features have been added in the more recent oasislmf package versions.
+Oasis offers several ways to handle uncertainty in the exposure inputs. They are independent of one
+another and can be combined:
 
-These can be summarized as follows;
-
-*  1.15 and later 
-    *   Pre-analysis hooks for model-specific disaggregation
-    *   Aggregate footprints to represent exposure location uncertainty
-
-*  1.27 and later
-    *   On-the-fly blended vulnerability for unknown risk attributes
-
-*  1.28 and later
-    *   Number of buildings disaggregation
-    *   Financial terms disaggregation
+* **Pre-analysis hooks** — model-specific manipulation of the OED location file before the run.
+* **Aggregate footprints** — represent location uncertainty in the model's hazard footprint.
+* **Blended vulnerability** — weight damage distributions on the fly for unknown risk attributes.
+* **Number of buildings disaggregation** — represent a location's ``NumberOfBuildings`` in the
+  kernel inputs, controlled by ``--disaggregation``.
 
 |
 
-.. _available_1.15:
+.. _pre_analysis_hooks:
 
-Available in OasisLMF 1.15
-##########################
+Pre-analysis hooks
+******************
 
-**Pre-analysis hooks**
-
-For versions of OasisLMF before 1.28, aggregate exposure data must be converted into detailed data, one building per row in 
-the location file, before being imported into the platform for analysis. This can be done outside of the system or the 
-model developer, as part of the Oasis model assets, may provide a pre-analysis routine to generate a modified OED location 
-file from an input OED location file which splits aggregate risk records into detailed risk records.
+Aggregate exposure data can be converted into detailed data, one building per row in the location
+file, before being imported into the platform for analysis. This can be done outside of the system,
+or the model developer, as part of the Oasis model assets, may provide a pre-analysis routine to
+generate a modified OED location file from an input OED location file which splits aggregate risk
+records into detailed risk records. This is an alternative to the built-in
+:ref:`number of buildings disaggregation <number_of_buildings>` below, and gives the modeller full
+control over how a location is split.
 
 The purpose of pre-analysis routines are to provide flexibility to manipulate the OED input files before the model is run, 
 for augmentation as required by the model. 
@@ -84,9 +80,10 @@ See the pre-analysis hooks section for more information about how to use them.
 
 |
 
-**Aggregate footprints to represent exposure location uncertainty**
+.. _aggregate_footprints:
 
-|
+Aggregate footprints to represent exposure location uncertainty
+***************************************************************
 
 If the geographical location of an exposure known at a lower resolution than the model’s hazard footprint (which typically 
 requires street address or latitude-longitude precision) then whether it can be modelled or not depends on the model. Each 
@@ -144,14 +141,10 @@ Both fine-grid hazard intensity footprints and aggregate footprints for the low 
 
 |
 
-.. _available_1.27:
+.. _blended_vulnerability:
 
-Available in OasisLMF 1.27
-##########################
-
-**On-the-fly blended vulnerability for unknown risk attributes**
-
-|
+On-the-fly blended vulnerability for unknown risk attributes
+************************************************************
 
 Vulnerability attributes that determine the damage response to a given level of hazard intensity in a vulnerability module 
 are typically peril, coverage type, occupancy and/or construction type. There is a long list of other data fields that are 
@@ -223,27 +216,61 @@ It is necessary to use the gulmc calculation module to use this feature. For mor
 
 |  
 
-.. _available_1.28:
+.. _number_of_buildings:
 
-Available in OasisLMF 1.28
-##########################
+Number of buildings disaggregation
+**********************************
 
-**Number of buildings disaggregation**
+Oasis implements a default rule to split each exposure location into a number of 'subrisks' based
+on the **NumberOfBuildings** field in the OED location file, for the purposes of ground up loss
+modelling. This is an alternative to both manual disaggregation by the user pre-import and having
+to rely on the modeller to provide a pre-analysis disaggregation (which they may not do). This
+logic applies when running against any model in the Oasis platform.
 
-Oasis has implemented a default dissaggregation rule to split each exposure location into a number of 'subrisks' based on the **NumberOfBuildings** field in the OED location file for the purposes of ground up loss modelling. This is as an alternative to both manual disaggregation by the user pre-import and having to rely on the modeller to provide a pre-analysis disaggregation (which they may not do). This logic will apply when running against any model in the Oasis platform.
+The user location file is not disaggregated itself, as it would be by a pre-analysis hook. Instead
+the disaggregation is performed as a final step in the exposure file preparation stage, which is a
+more space-efficient way of expanding the number of risks to be modelled.
 
-The user location file is not disaggregated itself, as it would be using a pre-analysis hook, but instead the disaggregation is performed as a final step in the exposure file preparation stage. This is a more space-efficient way of expanding the number of risks to be modelled.
-
-The total insured value for each coverage is split equally by the value in the NumberOfBuildings field.
+The total insured value for each coverage is split equally by the value in the NumberOfBuildings
+field.
 
 |
 
-**Expanded items file**
+Choosing how buildings are represented
+######################################
 
-Multiple records will be created in the kernel inputs files for each disaggregated risk. The reference information is 
-kept in the gul_summary_map file as normal.
+``--disaggregation`` selects how a location's buildings appear in the kernel inputs. There are
+three modes, and every one of them conserves the location's total insured value.
 
-The following example shows the disaggregated kernel files for two aggregate locations represents 5 individual risks.
+.. csv-table::
+    :header: "Mode", "Items written", "TIV per item", "Where the buildings live"
+
+    "``none``", "one per location", "the whole location TIV", "nowhere — the buildings are implicitly perfectly correlated, so they need no dimension of their own"
+    "``items`` (default)", "one per building", "location TIV ÷ N", "one item row each"
+    "``samples``", "one per location", "location TIV ÷ N", "the sample dimension of that single item"
+
+For example, to model each location as a single risk regardless of its NumberOfBuildings:
+
+.. code-block:: bash
+
+    oasislmf model run --disaggregation none -C oasislmf.json
+
+The older ``--do-disaggregation`` switch is **deprecated** and emits a ``DeprecationWarning``. It
+could only name two of the three modes: ``True`` is equivalent to ``--disaggregation items`` and
+``False`` to ``--disaggregation none``. If both are given, ``--disaggregation`` wins.
+
+|
+
+.. _disaggregation_items:
+
+``items``: one item per building
+################################
+
+This is the default. Multiple records are created in the kernel input files for each disaggregated
+risk, and the reference information is kept in the gul_summary_map file as normal.
+
+The following example shows the disaggregated kernel files for two aggregate locations
+representing 5 individual risks.
 
 |
 
@@ -283,11 +310,63 @@ gul_summary_map:
 
 |
 
-**Financial terms disaggregation**
+.. _disaggregation_samples:
+
+``samples``: buildings in the sample dimension
+##############################################
+
+Under ``items`` the number of item records grows with the number of buildings: a portfolio of
+aggregate locations averaging 10 buildings each produces ten times the items, and every stage of
+the kernel carries that cost.
+
+``samples`` represents the same buildings without expanding the items file. Each location keeps
+**one item per (location, peril, coverage type)**, and its buildings are multiplexed into the
+*sample* dimension of that item: for a run of ``S`` samples, an item covering ``N`` buildings
+carries ``N × S`` samples, laid out as building 1's ``S`` samples, then building 2's, and so on.
+Each building draws its own random numbers, so the buildings are independent by construction.
+
+The per-building count travels with the item on the **correlations** file, in the
+``packed_buildings`` column, which is 1:1 with the items file. No separate side file is written.
+
+Building 1 uses the same encoding as an unpacked run, so a location with a single building
+produces a byte-for-byte identical stream to the one it would produce without packing.
+
+**What it requires**
+
+* The Python ground-up engines, ``gulmc`` or ``gulpy``. They are what write the packed sample
+  dimension; an engine that does not understand the encoding would misread the sample indices.
+* Nothing in the model files. Packing is derived from the exposure, not configured by the modeller.
+
+**Interaction with the financial module**
+
+Whether the buildings may be summed straight away depends on ``IsAggregate``, because that is what
+decides whether each building gets its own site node in the financial structure:
+
+* ``IsAggregate = 0`` — the buildings share one site node and are summed before any term applies,
+  so the ground-up tool sums them at source and the financial module never sees them apart. This
+  holds whether or not the location carries location-level terms.
+* ``IsAggregate = 1`` — each building has its own site node carrying its share of the terms, so
+  the buildings are kept apart until the site levels have applied those terms, and are collapsed
+  immediately afterwards.
+
+Generation records what the financial module needs to do this in ``fm_structure_info.bin``,
+alongside the other fm input files.
+
+**Not available for deterministic runs**
+
+``oasislmf exposure run`` performs a deterministic calculation with no ground-up sampling stage, so
+there is no sample dimension to put the buildings back into. Passing ``--disaggregation samples``
+there logs an informational message and runs as ``none`` instead, which gives the correct location
+totals. Note that site terms then apply once to the location rather than once per building, so an
+``IsAggregate = 1`` location's per-building terms are not exercised on that step.
 
 |
 
-When the number of buildings in the OED input location file is greater than 1, there are two main situations which distinguish how location level financial terms should apply;
+Financial terms
+###############
+
+When the number of buildings in the OED input location file is greater than 1, there are two main
+situations which distinguish how location level financial terms should apply;
 
 1) The row represents a single site of multiple buildings, such as a campus or caravan park.
 2) The row represents aggregate exposure, i.e. multiple separate risks/sites of a similar risk type and geographical location.
@@ -303,7 +382,7 @@ The IsAggregate field in the OED location file can be used to distinguish betwee
 1) IsAggregate = 0 (default) means that the row represents a single site with multiple buildings.
 2) IsAggregate = 1 means that the row represents aggregate data.
 
-In both cases ground up losses will be modelled for each individual building.  However, for campus sites the insurance policy terms will generally be applicable at the site level, so that ground up losses should be aggregated back up to the site level before policy ‘location’ level deductibles and limits are applied (all the financial fields that begin with 'Loc'). 
+In both cases ground up losses will be modelled for each individual building.  However, for campus sites the insurance policy terms will generally be applicable at the site level, so that ground up losses should be aggregated back up to the site level before policy ‘location’ level deductibles and limits are applied (all the financial fields that begin with 'Loc').
 
 For aggregate data, location financial terms are treated the same as TIV, they are split and applied to each disaggregated risk.
 
@@ -339,19 +418,33 @@ The disaggregation and financial terms treatment for each case are as follows;
 
 |
 
-Monetary financial deductibles and limits are split equally by the number of buildings for case 2 to be applied to each subrisk in the financial calculations.  Percentage deductibles and limits are unchanged and apply to each subrisk. 
+Monetary financial deductibles and limits are split equally by the number of buildings for case 2 to be applied to each subrisk in the financial calculations.  Percentage deductibles and limits are unchanged and apply to each subrisk.
 
-The calculation logic is driven directly from the user input location data on a record by record basis, depending on which of the six cases above it matches.  There is no command switch to stop the number of risks disaggregation from occurring.
+The calculation logic is driven directly from the user input location data on a record by record
+basis, depending on which of the six cases above it matches. The table above describes the
+``items`` and ``samples`` modes, which differ in how the subrisks are represented but not in the
+financial terms treatment. Under ``--disaggregation none`` no location is disaggregated, so every
+case behaves as case 1.
 
 It is necessary to use the gulmc calculation module to use this feature. For more details please see :doc:`the gulmc reference <../reference/index>`
 
-**Correlation of disaggregated risks**
+|
 
-There is also a difference between the two IsAggregate cases in how disaggregated risks are grouped for the purposes of correlating hazard and damage in the ground up loss calculation. 
+Correlation of disaggregated risks
+##################################
+
+There is also a difference between the two IsAggregate cases in how disaggregated risks are grouped for the purposes of correlating hazard and damage in the ground up loss calculation.
 
 The model provider can control this through the model settings json.
 
 In case it is not specified, the default setting in Oasis is to fully correlate the subrisks for campus sites in case 3 (same correlation group id is assigned) and to make the subrisks for aggregate data independent in case 2 (different correlation group_id per subrisk).
 
-For more details on model provider controls for correlation, please see :doc:`Correlation <correlation>`
+This applies to ``--disaggregation items``, where each building is its own item and therefore its
+own row to group on. Under ``--disaggregation samples`` there is one item per location, so
+``group_id`` is necessarily location level and listing a building-level field such as
+``building_id`` in the group columns has nothing to differentiate — it is a no-op rather than an
+error. Nothing is lost by this: packing separates the buildings at sampling time instead, giving
+each its own draws, and buildings that should be perfectly correlated need no building dimension
+at all, which is what ``--disaggregation none`` provides.
 
+For more details on model provider controls for correlation, please see :doc:`Correlation <correlation>`

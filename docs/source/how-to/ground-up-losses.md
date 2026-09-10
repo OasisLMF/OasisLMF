@@ -67,12 +67,30 @@ between damage and hazard correlation.
 
 ## Disaggregation
 
-Disaggregation — splitting aggregate locations into individual buildings before
-sampling — is **on by default**. To turn it off:
+A location's `NumberOfBuildings` is represented in the kernel inputs in one of
+three ways, chosen with `--disaggregation`:
+
+| Mode | What it does |
+|---|---|
+| `none` | One item holding the whole location TIV. No building dimension. |
+| `items` *(default)* | One item per building, TIV split between them. |
+| `samples` | One item per location, buildings multiplexed into the sample dimension. |
 
 ```bash
-oasislmf model run --do-disaggregation False -C oasislmf.json
+# model each location as a single risk
+oasislmf model run --disaggregation none -C oasislmf.json
+
+# keep one item per location and put the buildings in the sample dimension
+oasislmf model run --disaggregation samples -C oasislmf.json
 ```
+
+`samples` keeps the items file from growing with the building count, and needs
+`gulmc` or `gulpy` — the engines that write the sample dimension. It has no
+deterministic equivalent, so `oasislmf exposure run` logs a notice and runs it
+as `none`.
+
+The older `--do-disaggregation` flag is deprecated: `True` means `items` and
+`False` means `none`.
 
 See {doc}`../explanation/disaggregation`.
 

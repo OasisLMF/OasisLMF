@@ -520,9 +520,17 @@ With these settings, damage and hazard groups are the same, representing each ex
 
 **Correlation groups for disaggregated risks**
 
-OasisLMF 1.28 supports disaggregation of exposure locations when the **NumberOfBuildings** value is greater than 1. This means that one exposure location is split into multiple locations for the purposes of ground up loss sampling and financial module calculations.
+Oasis disaggregates exposure locations when the **NumberOfBuildings** value is greater than 1. This means that one exposure location is split into multiple locations for the purposes of ground up loss sampling and financial module calculations.
 
 The default behaviour is that disaggregated risks will be fully correlated for both hazard and damage if not otherwise specified in model settings using the internal Oasis fields **building_id** or **risk_id** in data settings.
+
+.. note::
+
+    This section describes ``--disaggregation items``, the default, where each building is its own
+    item and so its own row to group on. Under ``--disaggregation samples`` a location keeps a
+    single item and its buildings are separated in the sample dimension instead, so ``group_id``
+    is location level and building-level group fields have nothing to differentiate. See
+    :ref:`disaggregation_samples`.
 
 |
 
