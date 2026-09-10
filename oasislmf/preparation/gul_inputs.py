@@ -92,8 +92,6 @@ files_write_info = {
                  "required_col": {'section_id'}},
     'item_adjustments': {"csv_dtype": structured_dtype_to_pandas(item_adjustment_dtype),
                          "required_col": {'intensity_adjustment'}},
-    # the building count is no longer a side file: it rides along on correlations.bin as the
-    # signed packed_buildings (see build_correlations_frame).
 }
 
 

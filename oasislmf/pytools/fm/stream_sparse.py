@@ -243,9 +243,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     if local_sidx == -2:
                         pass  # Standard deviation - ignored in FM
                     elif local_sidx == -4:
-                        # Chance of loss - store separately for pass-through. It is a property of
-                        # the risk, so every packed building carries the same value and the
-                        # overwrite is idempotent.
+                        # Chance of loss - store separately for pass-through
                         pass_through[compute_idx['next_compute_i']] = loss
                     else:
                         # Regular sample or special index, at its packed sidx where packed
