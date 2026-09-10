@@ -39,6 +39,7 @@ class PLTReader(EventReader):
         period_weights,
         granular_date,
         intervals,
+        n_files=1,
     ):
         self.logger = logger
 
@@ -61,6 +62,7 @@ class PLTReader(EventReader):
             ('compute_splt', np.bool_),
             ('compute_mplt', np.bool_),
             ('compute_qplt', np.bool_),
+            ('current_event_id', event_id_dtype),
             ('summary_id', summary_id_dtype),
             ('exposure_value', loss_dtype),
             ('max_loss', loss_dtype),
@@ -71,7 +73,10 @@ class PLTReader(EventReader):
             ('hasrec', np.bool_),
         ])
 
-        self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
+        # One state row per input file/stream (indexed by file_idx in read_buffer below) -
+        # tracking (reading_losses, current_event_id, ...) per-stream, not reader-wide, so
+        # interleaved multi-file reads can't leak one file's last event id into another's.
+        self.state = np.zeros(n_files, dtype=read_buffer_state_dtype)
         self.state["reading_losses"] = False  # Set to true after reading header in read_buffer
         self.state["read_summary_set_id"] = False
         self.state["len_sample"] = len_sample
@@ -84,7 +89,12 @@ class PLTReader(EventReader):
         self.granular_date = granular_date
         self.intervals = intervals
 
-        self.curr_file_idx = None  # Current summary file idx being read
+        # Worst-case number of periods any single event maps to, used to reserve
+        # output buffer capacity for a summary before reading it (see read_buffer).
+        if len(occ_csr.occ_offsets) > 1:
+            self.max_records_per_event = int(np.diff(occ_csr.occ_offsets).max())
+        else:
+            self.max_records_per_event = 0
 
     def get_data(self, out_type):
         if out_type == "splt":
@@ -107,18 +117,11 @@ class PLTReader(EventReader):
             raise RuntimeError(f"Unknown out_type {out_type}")
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
-        # Check for new file idx to read summary_set_id at the start of each summary file stream
-        # This is not done by init_streams_in as the summary_set_id is unique to the summary_stream only
-        if self.curr_file_idx is not None and self.curr_file_idx != file_idx:
-            self.curr_file_idx = file_idx
-            self.state["read_summary_set_id"] = False
-        else:
-            self.curr_file_idx = file_idx
-
-        # Pass state variables to read_buffer
+        # Each file gets its own state row (see __init__), so read_summary_set_id
+        # naturally starts False per-file - no reset-on-file-switch needed here.
         cursor, event_id, item_id, ret = read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id,
-            self.state,
+            self.state[file_idx],
             self.splt_data, self.splt_idx,
             self.mplt_data, self.mplt_idx,
             self.qplt_data, self.qplt_idx,
@@ -126,6 +129,7 @@ class PLTReader(EventReader):
             self.period_weights,
             self.granular_date,
             self.intervals,
+            self.max_records_per_event,
         )
         return cursor, event_id, item_id, ret
 
@@ -227,9 +231,14 @@ def read_buffer(
         period_weights,
         granular_date,
         intervals,
+        max_records_per_event,
 ):
     # Initialise idxs
-    last_event_id = event_id
+    # Read from state, not the event_id param: the caller always passes 0 on a fresh call,
+    # including a resume where reading_losses is already True and no header gets read below
+    # (so event_id would otherwise stay at the caller's 0 for every write this call).
+    last_event_id = state["current_event_id"]
+    event_id = state["current_event_id"]
     si = splt_idx[0]
     mi = mplt_idx[0]
     qi = qplt_idx[0]
@@ -266,9 +275,38 @@ def read_buffer(
             sdloss = np.float64(0.0)
         return meanloss, sdloss
 
+    def _reservation_overflows(idx, reservation, capacity, name):
+        # Buffer genuinely too small for even one summary (idx == 0, i.e. buffer is
+        # already empty): flushing can never make room, so return would loop forever.
+        if idx + reservation > capacity:
+            if idx == 0:
+                raise ValueError(
+                    f"{name} reservation of {reservation} rows for a single summary exceeds the "
+                    f"output buffer capacity of {capacity}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                )
+            return True
+        return False
+
     # Read input loop
     while cursor < valid_buff:
         if not state["reading_losses"]:
+            # Reserve room for the next summary's worst-case output before reading
+            # anything of it, so writes below can never run past the end of a buffer.
+            # MPLT/QPLT can write up to max_records_per_event rows per record loop;
+            # MPLT does this twice per summary (analytical mean, then sample mean).
+            buffer_full = False
+            if state["compute_splt"] and _reservation_overflows(
+                    si, max_records_per_event * (state["len_sample"] + 1), splt_data.shape[0], "SPLT"):
+                buffer_full = True
+            if state["compute_mplt"] and _reservation_overflows(mi, 2 * max_records_per_event, mplt_data.shape[0], "MPLT"):
+                buffer_full = True
+            if state["compute_qplt"] and _reservation_overflows(
+                    qi, max_records_per_event * len(intervals), qplt_data.shape[0], "QPLT"):
+                buffer_full = True
+            if buffer_full:
+                _update_idxs()
+                return cursor, state["current_event_id"], item_id, 1
+
             # Read summary header
             if valid_buff - cursor >= event_id_dtype_size + summary_id_dtype_size + summaryset_id_dtype_size + loss_dtype_size:
                 # Need to read summary_set_id from summary info first
@@ -277,10 +315,14 @@ def read_buffer(
                     state["read_summary_set_id"] = True
                 event_id_new, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
-                    # New event, return to process the previous event
+                    # New event, return to process the previous event. Clear current_event_id
+                    # so the resumed call (event_id param resets to 0) doesn't re-detect this
+                    # same boundary and loop forever.
+                    state["current_event_id"] = 0
                     _update_idxs()
                     return cursor - event_id_dtype_size, last_event_id, item_id, 1
                 event_id = event_id_new
+                state["current_event_id"] = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, summary_id_dtype, summary_id_dtype_size)
                 state["exposure_value"], cursor = mv_read(byte_mv, cursor, loss_dtype, loss_dtype_size)
                 state["reading_losses"] = True
@@ -317,10 +359,6 @@ def read_buffer(
                                     max_impacted_exposure=state["max_impacted_exposure"],
                                 )
                                 mi += 1
-                                if mi >= mplt_data.shape[0]:
-                                    # Output array full
-                                    _update_idxs()
-                                    return cursor, event_id, item_id, 1
 
                 # Update QPLT data
                 if state["compute_qplt"]:
@@ -346,10 +384,6 @@ def read_buffer(
                                 loss=loss
                             )
                             qi += 1
-                            if qi >= qplt_data.shape[0]:
-                                # Output array full
-                                _update_idxs()
-                                return cursor, event_id, item_id, 1
                 _reset_state()
                 continue
 
@@ -374,10 +408,6 @@ def read_buffer(
                             impacted_exposure=impacted_exposure,
                         )
                         si += 1
-                        if si >= splt_data.shape[0]:
-                            # Output array full
-                            _update_idxs()
-                            return cursor, event_id, item_id, 1
             if sidx == MAX_LOSS_IDX:
                 state["max_loss"] = loss
             elif sidx == MEAN_IDX:
@@ -401,10 +431,6 @@ def read_buffer(
                             max_impacted_exposure=state["exposure_value"],
                         )
                         mi += 1
-                        if mi >= mplt_data.shape[0]:
-                            # Output array full
-                            _update_idxs()
-                            return cursor, event_id, item_id, 1
             else:
                 # Update state variables
                 if sidx > 0:
@@ -419,7 +445,7 @@ def read_buffer(
 
     # Update the indices
     _update_idxs()
-    return cursor, event_id, item_id, 0
+    return cursor, state["current_event_id"], item_id, 0
 
 
 def read_input_files(run_dir, compute_qplt, sample_size):
@@ -532,6 +558,7 @@ def run(
             file_data["period_weights"],
             file_data["granular_date"],
             file_data["intervals"],
+            n_files=len(streams_in),
         )
 
         # Initialise output files PLT

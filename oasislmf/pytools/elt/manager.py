@@ -30,7 +30,7 @@ loss_dtype, loss_dtype_size = def_to_type_and_size("loss")
 class ELTReader(EventReader):
     """Read an event loss stream and compute the ELT outputs (SELT, MELT, QELT)."""
 
-    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals):
+    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals, n_files=1):
         self.logger = logger
 
         # Buffer for SELT data
@@ -52,6 +52,7 @@ class ELTReader(EventReader):
             ('compute_selt', np.bool_),
             ('compute_melt', np.bool_),
             ('compute_qelt', np.bool_),
+            ('current_event_id', event_id_dtype),
             ('summary_id', summary_id_dtype),
             ('impacted_exposure', oasis_float),
             ('non_zero_samples', oasis_int),
@@ -60,7 +61,10 @@ class ELTReader(EventReader):
             ('losses_vec', oasis_float, (len_sample,)),
         ])
 
-        self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
+        # One state row per input file/stream (indexed by file_idx in read_buffer below) -
+        # tracking (reading_losses, current_event_id, ...) per-stream, not reader-wide, so
+        # interleaved multi-file reads can't leak one file's last event id into another's.
+        self.state = np.zeros(n_files, dtype=read_buffer_state_dtype)
         self.state["len_sample"] = len_sample
         self.state["reading_losses"] = False
         self.state["read_summary_set_id"] = False
@@ -70,8 +74,6 @@ class ELTReader(EventReader):
         self.unique_event_ids = unique_event_ids.astype(oasis_int)
         self.event_rates = event_rates.astype(oasis_float)
         self.intervals = intervals
-
-        self.curr_file_idx = None  # Current summary file idx being read
 
     def get_data(self, out_type):
         if out_type == "selt":
@@ -94,18 +96,11 @@ class ELTReader(EventReader):
             raise RuntimeError(f"Unknown out_type {out_type}")
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
-        # Check for new file idx to read summary_set_id at the start of each summary file stream
-        # This is not done by init_streams_in as the summary_set_id is unique to the summary_stream only
-        if self.curr_file_idx is not None and self.curr_file_idx != file_idx:
-            self.curr_file_idx = file_idx
-            self.state["read_summary_set_id"] = False
-        else:
-            self.curr_file_idx = file_idx
-
-        # Pass state variables to read_buffer
+        # Each file gets its own state row (see __init__), so read_summary_set_id
+        # naturally starts False per-file - no reset-on-file-switch needed here.
         cursor, event_id, item_id, ret = read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id, self.selt_data, self.selt_idx,
-            self.state, self.melt_data, self.melt_idx, self.qelt_data, self.qelt_idx, self.intervals,
+            self.state[file_idx], self.melt_data, self.melt_idx, self.qelt_data, self.qelt_idx, self.intervals,
             self.unique_event_ids, self.event_rates
         )
         return cursor, event_id, item_id, ret
@@ -172,7 +167,11 @@ def read_buffer(
         unique_event_ids, event_rates
 ):
     # Initialise idxs
-    last_event_id = event_id
+    # Read from state, not the event_id param: the caller always passes 0 on a fresh call,
+    # including a resume where reading_losses is already True and no header gets read below
+    # (so event_id would otherwise stay at the caller's 0 for every write this call).
+    last_event_id = state["current_event_id"]
+    event_id = state["current_event_id"]
     si = selt_idx[0]
     mi = melt_idx[0]
     qi = qelt_idx[0]
@@ -207,8 +206,35 @@ def read_buffer(
             sdloss = np.float64(0.0)
         return meanloss, sdloss
 
+    def _reservation_overflows(idx, reservation, capacity, name):
+        # Buffer genuinely too small for even one summary (idx == 0, i.e. buffer is
+        # already empty): flushing can never make room, so return would loop forever.
+        if idx + reservation > capacity:
+            if idx == 0:
+                raise ValueError(
+                    f"{name} reservation of {reservation} rows for a single summary exceeds the "
+                    f"output buffer capacity of {capacity}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                )
+            return True
+        return False
+
     while cursor < valid_buff:
         if not state["reading_losses"]:
+            # Reserve room for the next summary's worst-case output before reading
+            # anything of it, so writes below can never run past the end of a buffer.
+            # +2 (not +1): both MEAN_IDX and NUMBER_OF_AFFECTED_RISK_IDX can each add
+            # one extra SELT row on top of the len_sample real samples.
+            buffer_full = False
+            if state["compute_selt"] and _reservation_overflows(si, state["len_sample"] + 2, selt_data.shape[0], "SELT"):
+                buffer_full = True
+            if state["compute_melt"] and _reservation_overflows(mi, 2, melt_data.shape[0], "MELT"):
+                buffer_full = True
+            if state["compute_qelt"] and _reservation_overflows(qi, len(intervals), qelt_data.shape[0], "QELT"):
+                buffer_full = True
+            if buffer_full:
+                _update_idxs()
+                return cursor, state["current_event_id"], item_id, 1
+
             # Read summary header
             if valid_buff - cursor >= summaryset_id_dtype_size + event_id_dtype_size + summary_id_dtype_size + loss_dtype_size:
                 # Need to read summary_set_id from summary info first
@@ -217,10 +243,14 @@ def read_buffer(
                     state["read_summary_set_id"] = True
                 event_id_new, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
-                    # New event, return to process the previous event
+                    # New event, return to process the previous event. Clear current_event_id
+                    # so the resumed call (event_id param resets to 0) doesn't re-detect this
+                    # same boundary and loop forever.
+                    state["current_event_id"] = 0
                     _update_idxs()
                     return cursor - event_id_dtype_size, last_event_id, item_id, 1
                 event_id = event_id_new
+                state["current_event_id"] = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, summary_id_dtype, summary_id_dtype_size)
                 state["impacted_exposure"], cursor = mv_read(byte_mv, cursor, loss_dtype, loss_dtype_size)
                 state["reading_losses"] = True
@@ -285,11 +315,6 @@ def read_buffer(
                         )
                         mi += 1
 
-                        if mi >= melt_data.shape[0]:
-                            # Output array is full
-                            _update_idxs()
-                            return cursor, event_id, item_id, 1
-
                 # Update QELT data
                 if state["compute_qelt"]:
                     if state["impacted_exposure"] > 0:
@@ -313,10 +338,6 @@ def read_buffer(
                                 loss=loss
                             )
                             qi += 1
-                            if qi >= qelt_data.shape[0]:
-                                # Output array is full
-                                _update_idxs()
-                                return cursor, event_id, item_id, 1
 
                 # Reset variables
                 _reset_state()
@@ -338,10 +359,6 @@ def read_buffer(
                         impacted_exposure=state["impacted_exposure"] if loss != 0 else 0
                     )
                     si += 1
-                    if si >= selt_data.shape[0]:
-                        # Output array is full
-                        _update_idxs()
-                        return cursor, event_id, item_id, 1
 
                 if sidx > 0:
                     if loss > 0:
@@ -355,7 +372,7 @@ def read_buffer(
 
     # Update the indices
     _update_idxs()
-    return cursor, event_id, item_id, 0
+    return cursor, state["current_event_id"], item_id, 0
 
 
 def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
@@ -470,7 +487,8 @@ def run(
             outmap["qelt"]["compute"],
             file_data["unique_event_ids"],
             file_data["event_rates"],
-            file_data["intervals"]
+            file_data["intervals"],
+            n_files=len(streams_in)
         )
 
         # Initialise output files ELT
