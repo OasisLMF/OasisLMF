@@ -15,6 +15,7 @@ from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
 from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError
 from oasislmf.utils.log import oasis_log
+from ..utils.log_config import OasisLogConfig
 
 
 class ComputationStep:
@@ -27,6 +28,18 @@ class ComputationStep:
 
     step_params = []
     chained_commands = []
+
+    # Params shared by every Computation Step, regardless of step_params.
+    # Not exposed as their own CLI flags (no 'help' key) since OasisBaseCommand
+    # already registers -V/--verbose, -L/--log-level and --log-format directly;
+    # declaring them here just makes them collectable via get_params() so they
+    # can be set from a computation settings JSON file and appear in the
+    # generated computation_settings_schema.json.
+    global_params = [
+        {'name': 'verbose', 'default': False},
+        {'name': 'log_level', 'choices': OasisLogConfig.STANDARD_LEVELS},
+        {'name': 'log_format', 'choices': list(OasisLogConfig.FORMAT_TEMPLATES.keys())},
+    ]
 
     def __init__(self, **kwargs):
         """Initialise the ComputationStep objects:
@@ -102,6 +115,9 @@ class ComputationStep:
         params = {}
 
         def all_params():
+            if param_type == "step":
+                for _param in ComputationStep.global_params:
+                    yield _param
             for _param in getattr(cls, f"{param_type}_params", []):
                 yield _param
             for command in cls.chained_commands:

@@ -86,9 +86,6 @@ class GenerateKeys(KeyComputationStep):
          'help': 'Flag to enable/disable conversion to latest compatible OED version. Must be present in model settings.'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
          'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
-
-        # Manager only options
-        {'name': 'verbose', 'default': False},
     ]
 
     def _get_output_dir(self):

@@ -48,7 +48,7 @@ from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KERNEL_N_FM
                                SERVER_DEFAULT_IP, SERVER_DEFAULT_PORT,
                                KERNEL_N_GUL_PER_LB, KERNEL_ALLOC_FM_MAX, KERNEL_ALLOC_GUL_DEFAULT,
                                KERNEL_ALLOC_GUL_MAX, KERNEL_ALLOC_IL_DEFAULT,
-                               KERNEL_ALLOC_RI_DEFAULT, KERNEL_DEBUG,
+                               KERNEL_ALLOC_RI_DEFAULT,
                                KERNEL_MEAN_SAMPLE_IDX, KERNEL_NUM_PROCESSES,
                                KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_TIV_SAMPLE_IDX)
 from ...utils.exceptions import OasisException
@@ -205,10 +205,6 @@ class GenerateLossesDir(GenerateLossesBase):
          'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
-
-        # Manager only options (pass data directy instead of filepaths)
-        {'name': 'verbose', 'default': KERNEL_DEBUG},
-
     ]
 
     def _get_storage_manager(self):
