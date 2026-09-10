@@ -253,6 +253,9 @@ def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
 def random_MersenneTwister(seeds, n, skip_seeds=0):
     """Generate random numbers using the default Mersenne Twister algorithm.
 
+    The single-building case of :func:`random_MersenneTwister_packed`, which is
+    byte-for-byte identical to drawing them directly, reshaped to the 2d form this axis wants.
+
     Args:
         seeds (List[int64]): List of seeds.
         n (int): number of random samples to generate for each seed.
@@ -264,20 +267,11 @@ def random_MersenneTwister(seeds, n, skip_seeds=0):
     Returns:
         rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the
-          row in rndms that stores the corresponding random values.
     """
-    Nseeds = len(seeds)
-    rndms = np.zeros((Nseeds, n), dtype='float64')
-
-    for seed_i in range(skip_seeds, Nseeds, 1):
-        # set the seed
-        np.random.seed(seeds[seed_i])
-
-        # draw all random numbers at once (vectorized)
-        rndms[seed_i, :] = np.random.random(n)
-
-    return rndms
+    one_building = np.ones(len(seeds), dtype='i4')
+    offsets = build_packed_rndm_offsets(one_building, n)
+    flat = random_MersenneTwister_packed(seeds, n, one_building, offsets, skip_seeds)
+    return flat.reshape(len(seeds), n)
 
 
 @njit(cache=True, fastmath=True)
@@ -341,6 +335,9 @@ def build_packed_rndm_offsets(n_buildings, n):
 def random_LatinHypercube(seeds, n, skip_seeds=0):
     """Generate random numbers using the Latin Hypercube algorithm.
 
+    The single-building case of :func:`random_LatinHypercube_packed`, which is
+    byte-for-byte identical to drawing them directly, reshaped to the 2d form this axis wants.
+
     Args:
         seeds (List[int64]): List of seeds.
         n (int): number of random samples to generate for each seed.
@@ -352,38 +349,11 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
     Returns:
         rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the
-          row in rndms that stores the corresponding random values.
-
-    Notes:
-        Implementation follows scipy.stats.qmc.LatinHypercube v1.8.0.
-        Following scipy notation, here we assume `centered=False` all the times:
-        instead of taking `samples=0.5*np.ones(n)`, here we always
-        draw uniform random samples in order to initialise `samples`.
     """
-    Nseeds = len(seeds)
-    rndms = np.zeros((Nseeds, n), dtype='float64')
-    # define arrays here and re-use them later
-    samples = np.zeros(n, dtype='float64')
-    perms = np.zeros(n, dtype='float64')
-
-    for seed_i in range(skip_seeds, Nseeds, 1):
-        # set the seed
-        np.random.seed(seeds[seed_i])
-
-        # draw all random numbers at once (vectorized)
-        samples[:] = np.random.random(n)
-
-        # re-generate permutations array
-        perms[:] = np.arange(1., np.float64(n + 1))
-
-        # in-place shuffle permutations
-        np.random.shuffle(perms)
-
-        # vectorized Latin Hypercube transformation
-        rndms[seed_i, :] = (perms - samples) / float(n)
-
-    return rndms
+    one_building = np.ones(len(seeds), dtype='i4')
+    offsets = build_packed_rndm_offsets(one_building, n)
+    flat = random_LatinHypercube_packed(seeds, n, one_building, offsets, skip_seeds)
+    return flat.reshape(len(seeds), n)
 
 
 @njit(cache=True, fastmath=True)
@@ -585,28 +555,27 @@ def _lh_philox_block(k0, k1, building, n, perms, out):
 
 @njit(cache=True, fastmath=True)
 def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
-    """Latin Hypercube on Philox4x32-7 (random_generator=2).
+    """Generate random numbers using Latin Hypercube on the counter-based Philox4x32-7.
 
-    See the module comment above `random_LatinHypercube_Philox7` for the algorithm.
+    The single-building case of :func:`random_LatinHypercube_Philox7_packed`, which is
+    byte-for-byte identical to drawing them directly, reshaped to the 2d form this axis wants.
 
     Args:
-        seeds (array[int]): per-row seeds (a hash of group_id/event_id).
-        n (int): number of samples to generate for each seed.
-        skip_seeds (int): number of leading rows to skip (left as zeros); correlation
-          arrays pass 1.
+        seeds (List[int64]): List of seeds.
+        n (int): number of random samples to generate for each seed.
+        skip_seeds (int): number of seeds to skip starting from the beginning
+          of the `seeds` array. For skipped seeds no random numbers are generated
+          and the output rndms will contain zeros at their corresponding row.
+          Default is 0, i.e. no seeds are skipped.
 
     Returns:
-        rndms (array[float64]): 2-d array of shape (len(seeds), n) of LH samples in (0, 1].
+        rndms (array[float]): 2-d array of shape (number of seeds, n)
+          containing the random values generated for each seed.
     """
-    Nseeds = len(seeds)
-    rndms = np.zeros((Nseeds, n), dtype=np.float64)
-    perms = np.empty(n, dtype=np.float64)
-    for i in range(skip_seeds, Nseeds):
-        s = np.uint64(seeds[i])
-        k0 = np.uint32(s & PHILOX_U32_MASK)
-        k1 = np.uint32(s >> PHILOX_SHIFT32)
-        _lh_philox_block(k0, k1, 0, n, perms, rndms[i])
-    return rndms
+    one_building = np.ones(len(seeds), dtype='i4')
+    offsets = build_packed_rndm_offsets(one_building, n)
+    flat = random_LatinHypercube_Philox7_packed(seeds, n, one_building, offsets, skip_seeds)
+    return flat.reshape(len(seeds), n)
 
 
 @njit(cache=True, fastmath=True)
