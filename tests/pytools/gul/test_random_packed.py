@@ -22,8 +22,8 @@ import numpy as np
 
 from oasislmf.pytools.gul.random import (
     build_packed_rndm_offsets,
-    get_random_generator,
-    get_random_generator_packed,
+    get_correlation_generator,
+    get_sample_generator,
     random_MersenneTwister,
     random_MersenneTwister_packed,
 )
@@ -106,7 +106,7 @@ class TestPackedGeneratorsAgree(TestCase):
         self.offsets = build_packed_rndm_offsets(self.N_BUILDINGS, self.S)
 
     def _packed(self, gen):
-        return get_random_generator_packed(gen)(self.SEEDS, self.S, self.N_BUILDINGS, self.offsets)
+        return get_sample_generator(gen)(self.SEEDS, self.S, self.N_BUILDINGS, self.offsets)
 
     def _block(self, packed, seed_i, b):
         start = self.offsets[seed_i] + b * self.S
@@ -115,17 +115,17 @@ class TestPackedGeneratorsAgree(TestCase):
     def test_every_generator_has_a_packed_variant(self):
         for gen in (0, 1, 2):
             with self.subTest(generator=gen):
-                self.assertIsNotNone(get_random_generator_packed(gen))
+                self.assertIsNotNone(get_sample_generator(gen))
 
     def test_unknown_generator_is_rejected(self):
         with self.assertRaises(ValueError):
-            get_random_generator_packed(3)
+            get_sample_generator(3)
 
     def test_building_one_reproduces_the_unpacked_draw(self):
         """The single-building case must be unchanged by packing, for every generator."""
         for gen in (0, 1, 2):
             with self.subTest(generator=gen):
-                unpacked = get_random_generator(gen)(self.SEEDS, self.S)
+                unpacked = get_correlation_generator(gen)(self.SEEDS, self.S)
                 packed = self._packed(gen)
                 for seed_i in range(len(self.SEEDS)):
                     np.testing.assert_array_equal(self._block(packed, seed_i, 0), unpacked[seed_i])
@@ -150,7 +150,7 @@ class TestPackedGeneratorsAgree(TestCase):
     def test_skip_seeds_leaves_the_head_zeroed(self):
         for gen in (0, 1, 2):
             with self.subTest(generator=gen):
-                packed = get_random_generator_packed(gen)(
+                packed = get_sample_generator(gen)(
                     self.SEEDS, self.S, self.N_BUILDINGS, self.offsets, skip_seeds=1)
                 self.assertTrue((packed[self.offsets[0]: self.offsets[1]] == 0).all())
                 self.assertTrue((packed[self.offsets[1]:] != 0).any())
@@ -174,7 +174,7 @@ class TestPackedGeneratorsAgree(TestCase):
         """
         for gen in (1, 2):
             with self.subTest(generator=gen):
-                big = get_random_generator(gen)(np.array([22], dtype=np.int64), 3 * self.S)[0]
+                big = get_correlation_generator(gen)(np.array([22], dtype=np.int64), 3 * self.S)[0]
                 stratified = all(
                     np.array_equal(_strata(big[b * self.S:(b + 1) * self.S], self.S), np.arange(self.S))
                     for b in range(3)
@@ -203,12 +203,12 @@ class TestPackedLatinHypercubeStreams(TestCase):
         """
         n_buildings = np.array([3], dtype=np.int64)
         offsets = build_packed_rndm_offsets(n_buildings, self.S)
-        packed = get_random_generator_packed(1)(self.SEED, self.S, n_buildings, offsets)
+        packed = get_sample_generator(1)(self.SEED, self.S, n_buildings, offsets)
 
         for b in range(1, 3):
             block = packed[b * self.S:(b + 1) * self.S]
             for derived in (self.SEED[0] + b, self.SEED[0] * (b + 1), self.SEED[0] ^ b):
-                candidate = get_random_generator(1)(np.array([derived], dtype=np.int64), self.S)[0]
+                candidate = get_correlation_generator(1)(np.array([derived], dtype=np.int64), self.S)[0]
                 self.assertFalse(np.array_equal(block, candidate),
                                  f"building {b + 1} looks like it was seeded with {derived}")
 
@@ -219,16 +219,16 @@ class TestPackedLatinHypercubeStreams(TestCase):
         """
         wide = build_packed_rndm_offsets(np.array([4], dtype=np.int64), self.S)
         narrow = build_packed_rndm_offsets(np.array([2], dtype=np.int64), self.S)
-        four = get_random_generator_packed(2)(self.SEED, self.S, np.array([4], dtype=np.int64), wide)
-        two = get_random_generator_packed(2)(self.SEED, self.S, np.array([2], dtype=np.int64), narrow)
+        four = get_sample_generator(2)(self.SEED, self.S, np.array([4], dtype=np.int64), wide)
+        two = get_sample_generator(2)(self.SEED, self.S, np.array([2], dtype=np.int64), narrow)
         np.testing.assert_array_equal(four[:2 * self.S], two)
 
     def test_mt_stream_is_sequential_not_random_access(self):
         """The counterpart: MT blocks also come out the same, because the stream is replayed."""
         wide = build_packed_rndm_offsets(np.array([4], dtype=np.int64), self.S)
         narrow = build_packed_rndm_offsets(np.array([2], dtype=np.int64), self.S)
-        four = get_random_generator_packed(1)(self.SEED, self.S, np.array([4], dtype=np.int64), wide)
-        two = get_random_generator_packed(1)(self.SEED, self.S, np.array([2], dtype=np.int64), narrow)
+        four = get_sample_generator(1)(self.SEED, self.S, np.array([4], dtype=np.int64), wide)
+        two = get_sample_generator(1)(self.SEED, self.S, np.array([2], dtype=np.int64), narrow)
         np.testing.assert_array_equal(four[:2 * self.S], two)
 
 

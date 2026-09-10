@@ -33,8 +33,8 @@ from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_ID
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul)
 from oasislmf.pytools.gul.manager import write_losses_packed, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
-                                         generate_hash_hazard, get_corr_rval, get_random_generator,
-                                         get_random_generator_packed, build_packed_rndm_offsets)
+                                         generate_hash_hazard, get_corr_rval, get_correlation_generator,
+                                         get_sample_generator, build_packed_rndm_offsets)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
@@ -189,7 +189,7 @@ def run(run_dir,
         # Packing is the N > 1 case of one mechanism, not a second path: an unpacked run is every
         # item carrying one building, and the packed generator's first block per seed is the legacy
         # draw byte-for-byte. So the compute always takes the packed route.
-        generate_rndm_packed = get_random_generator_packed(random_generator)
+        generate_rndm_packed = get_sample_generator(random_generator)
         if max_buildings > 1:
             logger.info(f"building-packing ENABLED: up to {max_buildings} buildings packed per item.")
 
@@ -224,7 +224,7 @@ def run(run_dir,
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function
-        generate_rndm = get_random_generator(random_generator)
+        generate_rndm = get_correlation_generator(random_generator)
         # create the array to store the seeds
         haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])

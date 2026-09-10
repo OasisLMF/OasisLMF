@@ -34,8 +34,8 @@ from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul,
 from oasislmf.pytools.gul.io import read_getmodel_stream
 from oasislmf.pytools.gul.random import (build_packed_rndm_offsets, cdf_min,
                                          generate_correlated_hash_vector,
-                                         get_corr_rval, get_random_generator,
-                                         get_random_generator_packed,
+                                         get_corr_rval, get_correlation_generator,
+                                         get_sample_generator,
                                          inv_factor, norm_factor, x_min)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
@@ -229,7 +229,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function
-        generate_rndm = get_random_generator(random_generator)
+        generate_rndm = get_correlation_generator(random_generator)
 
         # Building packing is the N > 1 case of one mechanism, not a second path: an unpacked run
         # is every item carrying one building, and the packed generator's first block per seed is
@@ -239,7 +239,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         n_buildings_by_item_id = structures['n_buildings_by_item_id']
         max_buildings = int(np.abs(n_buildings_by_item_id).max())
         check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
-        generate_rndm_packed = get_random_generator_packed(random_generator)
+        generate_rndm_packed = get_sample_generator(random_generator)
 
         if alloc_rule not in [0, 1, 2, 3]:
             raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")

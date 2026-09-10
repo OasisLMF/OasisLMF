@@ -80,8 +80,13 @@ def generate_hash_hazard(hazard_group_id, event_id, base_seed=0):
     return hash
 
 
-def get_random_generator(random_generator):
-    """Get the random generator function.
+def get_correlation_generator(random_generator):
+    """Get the generator for the per-correlation-group draws.
+
+    One row of ``n`` values per correlation group, returned 2d. This axis has no building
+    dimension: a location's buildings share their group's correlated component and differ only
+    in their own sample draw, so packing never widens it. :func:`get_sample_generator` is the
+    per-(seed, building) axis.
 
     Args:
         random_generator (int): random generator function id.
@@ -106,8 +111,8 @@ def get_random_generator(random_generator):
         raise ValueError(f"No random generator exists for random_generator={random_generator}.")
 
 
-def get_random_generator_packed(random_generator):
-    """Get the building-packed random generator function.
+def get_sample_generator(random_generator):
+    """Get the generator for the per-(seed, building) sample draws.
 
     Building-packing draws ``n_buildings * n`` random numbers per seed (flat layout with
     prefix-sum offsets). Every generator has a packed variant, and in all three building 1
