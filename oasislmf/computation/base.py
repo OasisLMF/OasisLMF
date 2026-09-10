@@ -58,6 +58,8 @@ class ComputationStep:
             param_value = self._get_init_value(param, kwargs)
             setattr(self, param['name'], param_value)
 
+        self._apply_log_config()
+
         # read and merge settings files
         settings = Settings()
         for settings_info in self.get_params(param_type="settings"):
@@ -100,6 +102,39 @@ class ComputationStep:
                     pathlib.Path(os.path.dirname(param_value)).mkdir(parents=True, exist_ok=True)
             param_value = str(param_value)
         return param_value
+
+    def _apply_log_config(self):
+        """Re-apply an explicitly resolved log_level/log_format to the 'oasislmf' logger.
+
+        By the time a ComputationStep is constructed, 'log_level'/'log_format' may have
+        come from a 'computation_settings' block inside an analysis settings file - which
+        is only read and merged in here (via OasisComputationCommand.get_arguments), after
+        the CLI already configured logging in setup_logger() using just the raw CLI args /
+        MDK config file. Without this, a value set only via computation settings would be
+        recorded on self.log_level/self.log_format but never actually change the logger's
+        behaviour.
+
+        Only acts when self.log_level/self.log_format are explicitly set (not None). It
+        deliberately ignores self.verbose: that legacy flag is already fully and correctly
+        resolved by setup_logger() (which has access to the nested MDK config "logging"
+        block this class never sees), so re-deriving a level from it here - with none of
+        that context - would risk silently overriding a correctly resolved level.
+        """
+        if self.log_level is None and self.log_format is None:
+            return
+
+        log_config = OasisLogConfig()
+        logger = logging.getLogger('oasislmf')
+
+        if self.log_level is not None:
+            level = log_config.get_log_level(self.log_level)
+            logger.setLevel(level)
+            logging.getLogger('ods_tools').setLevel(log_config.get_ods_tools_level(level))
+
+        if self.log_format is not None:
+            formatter = log_config.create_formatter(self.log_format)
+            for handler in logger.handlers:
+                handler.setFormatter(formatter)
 
     @classmethod
     def get_default_run_dir(cls):
