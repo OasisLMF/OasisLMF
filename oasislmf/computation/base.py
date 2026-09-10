@@ -15,6 +15,7 @@ from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
 from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError
 from oasislmf.utils.log import oasis_log
+from ..utils.log_config import OasisLogConfig
 
 
 class ComputationStep:
@@ -27,6 +28,18 @@ class ComputationStep:
 
     step_params = []
     chained_commands = []
+
+    # Params shared by every Computation Step, regardless of step_params.
+    # Not exposed as their own CLI flags (no 'help' key) since OasisBaseCommand
+    # already registers -V/--verbose, -L/--log-level and --log-format directly;
+    # declaring them here just makes them collectable via get_params() so they
+    # can be set from a computation settings JSON file and appear in the
+    # generated computation_settings_schema.json.
+    global_params = [
+        {'name': 'verbose', 'default': False},
+        {'name': 'log_level', 'choices': OasisLogConfig.STANDARD_LEVELS},
+        {'name': 'log_format', 'choices': list(OasisLogConfig.FORMAT_TEMPLATES.keys())},
+    ]
 
     def __init__(self, **kwargs):
         """Initialise the ComputationStep objects:
@@ -44,6 +57,8 @@ class ComputationStep:
         for param in self.get_params():
             param_value = self._get_init_value(param, kwargs)
             setattr(self, param['name'], param_value)
+
+        self._apply_log_config()
 
         # read and merge settings files
         settings = Settings()
@@ -88,6 +103,39 @@ class ComputationStep:
             param_value = str(param_value)
         return param_value
 
+    def _apply_log_config(self):
+        """Re-apply an explicitly resolved log_level/log_format to the 'oasislmf' logger.
+
+        By the time a ComputationStep is constructed, 'log_level'/'log_format' may have
+        come from a 'computation_settings' block inside an analysis settings file - which
+        is only read and merged in here (via OasisComputationCommand.get_arguments), after
+        the CLI already configured logging in setup_logger() using just the raw CLI args /
+        MDK config file. Without this, a value set only via computation settings would be
+        recorded on self.log_level/self.log_format but never actually change the logger's
+        behaviour.
+
+        Only acts when self.log_level/self.log_format are explicitly set (not None). It
+        deliberately ignores self.verbose: that legacy flag is already fully and correctly
+        resolved by setup_logger() (which has access to the nested MDK config "logging"
+        block this class never sees), so re-deriving a level from it here - with none of
+        that context - would risk silently overriding a correctly resolved level.
+        """
+        if self.log_level is None and self.log_format is None:
+            return
+
+        log_config = OasisLogConfig()
+        logger = logging.getLogger('oasislmf')
+
+        if self.log_level is not None:
+            level = log_config.get_log_level(self.log_level)
+            logger.setLevel(level)
+            logging.getLogger('ods_tools').setLevel(log_config.get_ods_tools_level(level))
+
+        if self.log_format is not None:
+            formatter = log_config.create_formatter(self.log_format)
+            for handler in logger.handlers:
+                handler.setFormatter(formatter)
+
     @classmethod
     def get_default_run_dir(cls):
         return os.path.join(os.getcwd(), 'runs', f'{cls.run_dir_key}-{get_utctimestamp(fmt="%Y%m%d%H%M%S")}')
@@ -102,6 +150,9 @@ class ComputationStep:
         params = {}
 
         def all_params():
+            if param_type == "step":
+                for _param in ComputationStep.global_params:
+                    yield _param
             for _param in getattr(cls, f"{param_type}_params", []):
                 yield _param
             for command in cls.chained_commands:
