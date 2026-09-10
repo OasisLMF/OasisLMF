@@ -81,11 +81,26 @@ class TestGulpyPackingStructures(TestCase):
     def test_one_building_reads_as_no_packing(self):
         """The default, and every input set generated without building packing."""
         with TemporaryDirectory() as d:
-            _with_correlations(d, 1, 0)
+            corr = _with_correlations(d, 1, 0)
             s = build_structures(d, set(), [])
             self.assertEqual(s['building_packing'], 0)
-            # signed: +1 == one building, summed at source
-            self.assertEqual(s['n_buildings_by_item_id'].tolist(), [1])
+            # The array always spans every item, so the compute can index it unconditionally:
+            # an unpacked run is the all-ones case, +1 being one building summed at source.
+            self.assertEqual(len(s['n_buildings_by_item_id']), int(corr['item_id'].max()) + 1)
+            self.assertTrue((s['n_buildings_by_item_id'] == 1).all())
+
+    def test_every_item_is_addressable_even_with_no_packing(self):
+        """The compute indexes by item_id with no bounds check, so the array must cover them all.
+
+        It used to be a length-1 sentinel when nothing was packed, which is why the reader
+        carried an ``item_id < shape[0]`` guard. Collapsing the packed and unpacked paths
+        removed that guard, so the sizing is now load-bearing.
+        """
+        with TemporaryDirectory() as d:
+            corr = _with_correlations(d, 1, 0)
+            s = build_structures(d, set(), [])
+            for item_id in corr['item_id']:
+                self.assertEqual(s['n_buildings_by_item_id'][item_id], 1)
 
     def test_several_buildings_turn_packing_on(self):
         with TemporaryDirectory() as d:

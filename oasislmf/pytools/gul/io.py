@@ -294,11 +294,8 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
             # if this group_id was not seen yet, process it.
             # it assumes that hash only depends on event_id and group_id
             # and that only 1 event_id is processed at a time.
-            if item_id < n_buildings_by_item_id.shape[0]:
-                # signed on the wire and in the array; only the magnitude matters here
-                item_n_buildings = abs(n_buildings_by_item_id[item_id])
-            else:
-                item_n_buildings = 1
+            # signed on the wire and in the array; only the magnitude matters here
+            item_n_buildings = abs(n_buildings_by_item_id[item_id])
 
             if group_id not in group_id_rng_index:
                 group_id_rng_index[group_id] = rng_index

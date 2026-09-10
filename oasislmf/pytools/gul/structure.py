@@ -170,24 +170,29 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     # consuming loop. NOTHING may use the raw value as a bound: range() over a negative silently
     # does nothing. Packing is derived, not configured: more than one building is the signal.
     building_counts = np.abs(data['packed_buildings']) if len(data) else data['packed_buildings']
-    if len(data) and building_counts.max() > 1:
-        building_packing = True
-        max_item_id = int(data['item_id'].max())
-        # Indexed by item_id inside njit, which does not bounds-check, so an items table reaching past
-        # the correlations table would be a silent out-of-range read. Checked once here.
-        if len(items) and int(items['item_id'].max()) > max_item_id:
+
+    # Always indexed by item_id, so it always spans every item: an unpacked run is the all-ones
+    # case, which is what lets the compute treat packing as N == 1 rather than as a second path.
+    max_item_id = 0
+    if len(items):
+        max_item_id = int(items['item_id'].max())
+    if len(data):
+        max_item_id = max(max_item_id, int(data['item_id'].max()))
+    n_buildings_by_item_id = np.ones(max_item_id + 1, dtype='i4')
+
+    building_packing = bool(len(data) and building_counts.max() > 1)
+    if building_packing:
+        # The two files are 1:1. An item past the end of correlations would silently keep the
+        # default of 1 building rather than the count it was generated with, so reject the pair.
+        if len(items) and int(items['item_id'].max()) > int(data['item_id'].max()):
             raise OasisException(
                 f"items.bin holds item_id up to {int(items['item_id'].max())} but correlations "
-                f"only covers up to {max_item_id}; the two files are 1:1 and must be regenerated "
-                f"together."
+                f"only covers up to {int(data['item_id'].max())}; the two files are 1:1 and must "
+                f"be regenerated together."
             )
         # stored signed, exactly as it arrived on the wire
-        n_buildings_by_item_id = np.ones(max_item_id + 1, dtype='i4')
         n_buildings_by_item_id[data['item_id']] = data['packed_buildings']
         logger.info(f'building-packing ENABLED: up to {building_counts.max()} buildings packed per item.')
-    else:
-        building_packing = False
-        n_buildings_by_item_id = np.ones(1, dtype='i4')
 
     # --- pack everything into a dict -------------------------------------------
     return {

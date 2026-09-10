@@ -231,18 +231,15 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
-        # building packing: an item carrying more than one building is the signal, derived in
-        # build_structures from the correlations table. Each building draws its own samples, so
-        # the packed generator hands back one block per building per seed.
-        building_packing = bool(structures['building_packing'])
-        # signed: magnitude is the building count, a negative sign means "keep the buildings
+        # Building packing is the N > 1 case of one mechanism, not a second path: an unpacked run
+        # is every item carrying one building, and the packed generator's first block per seed is
+        # the legacy draw byte-for-byte. So the compute always takes the packed route.
+        # Signed: magnitude is the building count, a negative sign means "keep the buildings
         # separate". Unpacked into locals wherever it is consumed -- never used raw as a bound.
         n_buildings_by_item_id = structures['n_buildings_by_item_id']
-        max_buildings = 1
-        if building_packing:
-            max_buildings = int(np.abs(n_buildings_by_item_id).max())
-            check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
-            generate_rndm_packed = get_random_generator_packed(random_generator)
+        max_buildings = int(np.abs(n_buildings_by_item_id).max())
+        check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
+        generate_rndm_packed = get_random_generator_packed(random_generator)
 
         if alloc_rule not in [0, 1, 2, 3]:
             raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
@@ -313,17 +310,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                                                n_buildings_by_item_id, n_buildings_by_rng):
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
-            # generation of "base" random values is done as before
-            if building_packing:
-                # flat, ragged: seed i owns n_buildings_by_rng[i] blocks of sample_size
-                rndm_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index], sample_size)
-                rndms_flat = generate_rndm_packed(
-                    seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index], rndm_offsets)
-                rndms_base = np.zeros((1, 1), dtype='float64')
-            else:
-                rndms_base = generate_rndm(seeds[:rng_index], sample_size)
-                rndm_offsets = np.zeros(1, dtype=np.int64)
-                rndms_flat = np.zeros(1, dtype='float64')
+            # flat, ragged: seed i owns n_buildings_by_rng[i] blocks of sample_size, which is
+            # one block of the legacy draw when nothing is packed
+            rndm_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index], sample_size)
+            rndms_flat = generate_rndm_packed(
+                seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index], rndm_offsets)
 
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
@@ -344,9 +335,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 cursor, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
-                    damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
+                    damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                     arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
-                    building_packing, building_losses, rndms_flat, rndm_offsets,
+                    building_losses, rndms_flat, rndm_offsets,
                     n_buildings_by_item_id,
                     max_bytes_per_item, byte_mv, cursor
                 )
@@ -381,9 +372,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
-                         loss_threshold, losses, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
+                         loss_threshold, losses, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                          arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
-                         z_unif, debug, building_packing, building_losses, rndms_flat, rndm_offsets,
+                         z_unif, debug, building_losses, rndms_flat, rndm_offsets,
                          n_buildings_by_item_id,
                          max_bytes_per_item, byte_mv, cursor):
     """Compute losses for an event.
@@ -403,8 +394,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for all item_ids.
         alloc_rule (int): back-allocation rule.
         do_correlation (bool): if True, compute correlated random samples.
-        rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
-          drawn for each seed.
         eps_ij (np.array[float]): correlated random values for damage sampling.
         corr_data_by_item_id (np.array[correlations_dtype]): correlation values by item id.
         arr_min (float): minimum value of the inverse Gaussian cdf lookup table.
@@ -416,8 +405,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         z_unif (np.array[float]): reusable buffer for correlated random values.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
-        building_packing (bool): if True, items carry more than one building and each building
-          draws its own samples.
         building_losses (numpy.array[oasis_float]): 3d (sample_size, max_items, max_buildings)
           reusable buffer for the per-building samples.
         rndms_flat (numpy.array[float64]): flat packed random values, seed-major then building.
@@ -472,9 +459,9 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             losses[STD_DEV_IDX, item_i] = std_dev
             losses[MEAN_IDX, item_i] = gul_mean
 
-            if sample_size > 0 and building_packing:
-                # Per building, read that building's block from this seed's slice. Building 1 reads the
-                # first block, which is the legacy draw. The specials above are building-independent.
+            if sample_size > 0:
+                # One block per building. An unpacked item is the N == 1 case, whose single block
+                # is the legacy draw byte-for-byte. The specials above are building-independent.
                 item_n_buildings = abs(n_buildings_by_item_id[item['item_id']])
                 base_off = rndm_offsets[rng_index]
                 for building_i in range(item_n_buildings):
@@ -489,49 +476,11 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         )
                         rndms = z_unif
 
-                    for sample_idx in range(1, sample_size + 1):
-                        rval = rndms[sample_idx - 1]
-                        if debug:
-                            building_losses[sample_idx - 1, item_i, building_i] = rval
-                            continue
+                    if debug:
+                        for sample_idx in range(1, sample_size + 1):
+                            building_losses[sample_idx - 1, item_i, building_i] = rndms[sample_idx - 1]
+                        continue
 
-                        if rval >= prob_to[Nbins - 1]:
-                            rval = prob_to[Nbins - 1] - 0.00000003
-                            bin_idx = Nbins - 1
-                        else:
-                            bin_idx = binary_search(rval, prob_to, Nbins)
-
-                        gul = get_gul(
-                            damage_bins['bin_from'][bin_idx],
-                            damage_bins['bin_to'][bin_idx],
-                            bin_mean[bin_idx],
-                            prob_to[bin_idx - 1] * (bin_idx > 0),
-                            prob_to[bin_idx],
-                            rval,
-                            tiv
-                        )
-                        if gul >= loss_threshold:
-                            building_losses[sample_idx - 1, item_i, building_i] = gul
-                        else:
-                            building_losses[sample_idx - 1, item_i, building_i] = 0
-
-            elif sample_size > 0:
-                if do_correlation and corr_data_by_item_id[item['item_id']]['damage_correlation_value'] > 0:
-                    item_corr_data = corr_data_by_item_id[item['item_id']]
-                    get_corr_rval(
-                        eps_ij[item_corr_data['peril_correlation_group']], rndms_base[rng_index],
-                        item_corr_data['damage_correlation_value'], arr_min, norm_inv_cdf, arr_inv_factor,
-                        arr_min_cdf, norm_cdf, arr_norm_factor, sample_size, z_unif
-                    )
-                    rndms = z_unif
-                else:
-                    rndms = rndms_base[rng_index]
-
-                if debug:
-                    for sample_idx in range(1, sample_size + 1):
-                        rval = rndms[sample_idx - 1]
-                        losses[sample_idx, item_i] = rval
-                else:
                     for sample_idx in range(1, sample_size + 1):
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
                         rval = rndms[sample_idx - 1]
@@ -557,19 +506,15 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         )
 
                         if gul >= loss_threshold:
-                            losses[sample_idx, item_i] = gul
+                            building_losses[sample_idx - 1, item_i, building_i] = gul
                         else:
-                            losses[sample_idx, item_i] = 0
+                            building_losses[sample_idx - 1, item_i, building_i] = 0
 
-        if building_packing:
-            cursor = write_losses_packed(
-                event_id, sample_size, loss_threshold, losses[:, :items.shape[0]],
-                building_losses[:, :items.shape[0], :], items['item_id'],
-                n_buildings_by_item_id[items['item_id']],
-                alloc_rule, tiv, byte_mv, cursor)
-        else:
-            cursor = write_losses(event_id, sample_size, loss_threshold, losses[:, :items.shape[0]], items['item_id'], alloc_rule, tiv,
-                                  byte_mv, cursor)
+        cursor = write_losses_packed(
+            event_id, sample_size, loss_threshold, losses[:, :items.shape[0]],
+            building_losses[:, :items.shape[0], :], items['item_id'],
+            n_buildings_by_item_id[items['item_id']],
+            alloc_rule, tiv, byte_mv, cursor)
 
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
