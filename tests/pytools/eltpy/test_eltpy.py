@@ -451,7 +451,11 @@ def test_multifile_current_event_id_not_leaked_across_files():
         # is small enough to finish in one call with no event boundary inside it).
         assert len(calls) == 2, f"expected 1 read_buffer call per file (2 total), got {len(calls)}: {calls}"
 
+        # read_streams interleaves files via a selector, so file processing order isn't
+        # guaranteed (confirmed: CI processed file B before file A here) - compare content
+        # order-independently rather than assuming file A's rows come first.
         melt = pd.read_csv(melt_out)
         assert len(melt) == 8, f"expected 8 MELT rows (4 summaries x 2), got {len(melt)}"
-        assert list(melt["EventId"]) == [999, 999, 999, 999, 1000, 1000, 1000, 1000]
-        assert list(melt["SummaryId"]) == [101, 101, 102, 102, 201, 201, 202, 202]
+        expected = sorted([(999, 101), (999, 101), (999, 102), (999, 102),
+                           (1000, 201), (1000, 201), (1000, 202), (1000, 202)])
+        assert sorted(zip(melt["EventId"], melt["SummaryId"])) == expected

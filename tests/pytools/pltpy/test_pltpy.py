@@ -467,7 +467,10 @@ def test_multifile_current_event_id_not_leaked_across_files():
         # is small enough to finish in one call with no event boundary inside it).
         assert len(calls) == 2, f"expected 1 read_buffer call per file (2 total), got {len(calls)}: {calls}"
 
+        # read_streams interleaves files via a selector, so file processing order isn't
+        # guaranteed - compare content order-independently rather than assuming file A's
+        # rows come first.
         mplt = pd.read_csv(mplt_out)
         assert len(mplt) == 4, f"expected 4 MPLT rows (4 summaries x 1 period), got {len(mplt)}"
-        assert list(mplt["EventId"]) == [999, 999, 1000, 1000]
-        assert list(mplt["SummaryId"]) == [101, 102, 201, 202]
+        expected = sorted([(999, 101), (999, 102), (1000, 201), (1000, 202)])
+        assert sorted(zip(mplt["EventId"], mplt["SummaryId"])) == expected
