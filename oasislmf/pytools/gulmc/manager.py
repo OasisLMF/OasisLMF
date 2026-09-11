@@ -31,7 +31,7 @@ from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul)
-from oasislmf.pytools.gul.manager import write_losses_packed, adjust_byte_mv_size
+from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval, get_correlation_generator,
                                          get_sample_generator, build_packed_rndm_offsets)
@@ -179,9 +179,9 @@ def run(run_dir,
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
         # building-packing: a single stream item per (loc, peril, coverage_type) multiplexes its
-        # N buildings into the sample dimension (see write_losses_packed / encode_sidx). Packing is
+        # N buildings into the sample dimension (see write_losses / encode_sidx). Packing is
         # enabled only when some item carries more than one building. alloc_rule caps a coverage's
-        # item losses at its TIV; write_losses_packed applies that cap within each building block,
+        # item losses at its TIV; write_losses applies that cap within each building block,
         # the coverage TIV being the per-building share.
         # signed field: take the magnitude, or the keep-separate items (negative) are skipped
         max_buildings = int(np.abs(items['packed_buildings']).max()) if items.shape[0] > 0 else 1
@@ -189,7 +189,7 @@ def run(run_dir,
         # Packing is the N > 1 case of one mechanism, not a second path: an unpacked run is every
         # item carrying one building, and the packed generator's first block per seed is the legacy
         # draw byte-for-byte. So the compute always takes the packed route.
-        generate_rndm_packed = get_sample_generator(random_generator)
+        generate_sample_rndm = get_sample_generator(random_generator)
         if max_buildings > 1:
             logger.info(f"building-packing ENABLED: up to {max_buildings} buildings packed per item.")
 
@@ -224,7 +224,7 @@ def run(run_dir,
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function
-        generate_rndm = get_correlation_generator(random_generator)
+        generate_correlation_rndm = get_correlation_generator(random_generator)
         # create the array to store the seeds
         haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
@@ -434,14 +434,14 @@ def run(run_dir,
                     # per-group draw byte-for-byte (see random_MersenneTwister_packed), so an unpacked
                     # run is the all-N==1 case of this rather than a separate draw.
                     vuln_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index], sample_size)
-                    vuln_rndms_flat = generate_rndm_packed(
+                    vuln_rndms_flat = generate_sample_rndm(
                         vuln_seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index], vuln_offsets)
                     haz_offsets = build_packed_rndm_offsets(n_buildings_by_haz_rng[:hazard_rng_index], sample_size)
-                    haz_rndms_flat = generate_rndm_packed(
+                    haz_rndms_flat = generate_sample_rndm(
                         haz_seeds[:hazard_rng_index], sample_size, n_buildings_by_haz_rng[:hazard_rng_index], haz_offsets)
                     if hazard_rng_index > 0:
-                        haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
-                    damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
+                        haz_eps_ij = generate_correlation_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
+                    damage_eps_ij = generate_correlation_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
                 # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
                 cdf_cache_tag[:] = CDF_CACHE_EMPTY
@@ -1154,7 +1154,7 @@ def compute_event_losses(compute_info,
                                        building_losses[:, item_j, b - 1])
 
         # write the losses to the output memoryview
-        compute_info['cursor'] = write_losses_packed(
+        compute_info['cursor'] = write_losses(
             compute_info['event_id'],
             sample_size,
             compute_info['loss_threshold'],

@@ -1,7 +1,7 @@
 """End-to-end parity test for gulmc building-packing.
 
 Building-packing multiplexes N buildings per item into the sample dimension of a single
-stream item (see ``write_losses_packed`` / ``encode_sidx``). Every random generator gives
+stream item (see ``write_losses`` / ``encode_sidx``). Every random generator gives
 building 1 the unpacked draw byte-for-byte, so with alloc_rule=0 building 1 of a packed run
 must reproduce a legacy run value-for-value on all three; the remaining buildings draw from
 their own stream coordinate and must be present and genuinely distinct.

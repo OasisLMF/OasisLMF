@@ -1,4 +1,4 @@
-"""Tests for gulmc building-packed stream writing (write_losses_packed).
+"""Tests for gulmc building-packed stream writing (write_losses).
 
 Verifies the on-wire layout: one stream item (header + single delimiter) per item_id, with
 each building's 5 special records (identical values, building-shifted sidx) followed by its
@@ -16,7 +16,7 @@ import numpy as np
 from oasislmf.pytools.common.data import oasis_float, oasis_int
 from oasislmf.pytools.common.event_stream import decode_building, decode_local_sidx, encode_sidx
 from oasislmf.pytools.gul.common import SPECIAL_SIDX, NUM_IDX, CHANCE_OF_LOSS_IDX
-from oasislmf.pytools.gulmc.manager import write_losses_packed
+from oasislmf.pytools.gulmc.manager import write_losses
 
 record_dtype = np.dtype([('sidx', '<i4'), ('loss', oasis_float)])
 
@@ -70,9 +70,9 @@ class TestWriteLossesPacked(TestCase):
     def _write(self, loss_threshold=0.0, keep_separate=True):
         # n_buildings is signed: negative means "keep the buildings separate"
         signed = -np.abs(self.n_buildings) if keep_separate else np.abs(self.n_buildings)
-        cursor = write_losses_packed(self.event_id, self.S, loss_threshold, self.losses,
-                                     self.building_losses, self.item_ids, signed,
-                                     0, 0.0, self.byte_mv, 0)
+        cursor = write_losses(self.event_id, self.S, loss_threshold, self.losses,
+                              self.building_losses, self.item_ids, signed,
+                              0, 0.0, self.byte_mv, 0)
         return _decode_stream(self.byte_mv, cursor)
 
     def test_one_stream_item_per_item_id(self):
@@ -149,9 +149,9 @@ class TestWriteSummedAtSource(TestCase):
         self.byte_mv = np.zeros(1 << 16, dtype='b')
 
     def _records(self):
-        cursor = write_losses_packed(self.event_id, self.S, 0.0, self.losses, self.building_losses,
-                                     self.item_ids, np.abs(self.n_buildings),
-                                     0, 0.0, self.byte_mv, 0)
+        cursor = write_losses(self.event_id, self.S, 0.0, self.losses, self.building_losses,
+                              self.item_ids, np.abs(self.n_buildings),
+                              0, 0.0, self.byte_mv, 0)
         items = _decode_stream(self.byte_mv, cursor)
         self.assertEqual(len(items), 1)
         return dict(items[0][2])
@@ -222,7 +222,7 @@ class TestPerCoverageTivCap(TestCase):
 
     def _records(self, alloc_rule, keep_separate=1):
         signed = -np.abs(self.n_buildings) if keep_separate else np.abs(self.n_buildings)
-        cursor = write_losses_packed(
+        cursor = write_losses(
             self.event_id, self.S, 0.0, self.losses, self.building_losses.copy(),
             self.item_ids, signed, alloc_rule, self.TIV, self.byte_mv, 0)
         return {item_id: dict(records) for _, item_id, records in _decode_stream(self.byte_mv, cursor)}
@@ -301,7 +301,7 @@ class TestItemsWithDifferentBuildingCounts(TestCase):
                 self.building_losses[s, 1, b] = 20.0 + b
 
     def _records(self, alloc_rule):
-        cursor = write_losses_packed(
+        cursor = write_losses(
             self.event_id, self.S, 0.0, self.losses, self.building_losses.copy(),
             self.item_ids, -np.abs(self.n_buildings),
             alloc_rule, self.TIV, self.byte_mv, 0)

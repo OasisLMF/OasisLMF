@@ -26,7 +26,7 @@ Shared modules in `gul/`:
 gul/
 ├── random.py       # Random number generation (Mersenne Twister, Latin Hypercube)
 ├── core.py         # Core math: get_gul(), compute_mean_loss(), split_tiv()
-├── manager.py      # write_losses_packed(), adjust_byte_mv_size()
+├── manager.py      # write_losses(), adjust_byte_mv_size()
 └── utils.py        # binary_search()
 ```
 
@@ -51,7 +51,7 @@ gul/
                      │     → areaperil_ids, haz_arr_i mapping, haz_pdf       │
                      │  4. reconstruct_coverages()                           │
                      │     → items_event_data, seeds, eff_cdf_ids            │
-                     │  5. generate_rndm() × 4 (haz, vuln, haz_corr, dmg)   │
+                     │  5. 2 sample draws + 2 correlation draws              │
                      │  6. Reset CDF cache lookup (Dict only, array reused)  │
                      │  7. compute_event_losses() [may loop for large events]│
                      │  8. Write output buffer to stream                     │

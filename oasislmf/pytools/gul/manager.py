@@ -229,7 +229,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function
-        generate_rndm = get_correlation_generator(random_generator)
+        generate_correlation_rndm = get_correlation_generator(random_generator)
 
         # Building packing is the N > 1 case of one mechanism, not a second path: an unpacked run
         # is every item carrying one building, and the packed generator's first block per seed is
@@ -239,7 +239,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         n_buildings_by_item_id = structures['n_buildings_by_item_id']
         max_buildings = int(np.abs(n_buildings_by_item_id).max())
         check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
-        generate_rndm_packed = get_sample_generator(random_generator)
+        generate_sample_rndm = get_sample_generator(random_generator)
 
         if alloc_rule not in [0, 1, 2, 3]:
             raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
@@ -313,14 +313,14 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             # flat, ragged: seed i owns n_buildings_by_rng[i] blocks of sample_size, which is
             # one block of the legacy draw when nothing is packed
             rndm_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index], sample_size)
-            rndms_flat = generate_rndm_packed(
+            rndms_flat = generate_sample_rndm(
                 seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index], rndm_offsets)
 
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
             if do_correlation:
                 generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, corr_seeds)
-                eps_ij = generate_rndm(corr_seeds, sample_size, skip_seeds=1)
+                eps_ij = generate_correlation_rndm(corr_seeds, sample_size, skip_seeds=1)
 
             else:
                 # create dummy data structures with proper dtypes to allow correct numba compilation
@@ -510,7 +510,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         else:
                             building_losses[sample_idx - 1, item_i, building_i] = 0
 
-        cursor = write_losses_packed(
+        cursor = write_losses(
             event_id, sample_size, loss_threshold, losses[:, :items.shape[0]],
             building_losses[:, :items.shape[0], :], items['item_id'],
             n_buildings_by_item_id[items['item_id']],
@@ -523,9 +523,9 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
 
 @njit(cache=True, fastmath=True)
-def write_losses_packed(event_id, sample_size, loss_threshold, losses, building_losses,
-                        item_ids, n_buildings, alloc_rule, tiv,
-                        byte_mv, cursor):
+def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
+                 item_ids, n_buildings, alloc_rule, tiv,
+                 byte_mv, cursor):
     """Write building-packed losses for one coverage to the output byte buffer.
 
     A single item multiplexes its N buildings into the sample dimension via ``encode_sidx``:
