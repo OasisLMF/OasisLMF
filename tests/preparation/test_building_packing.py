@@ -19,7 +19,9 @@ from oasislmf.preparation.gul_inputs import (
     process_group_id_cols,
     write_gul_input_files,
 )
+from oasislmf.preparation.summaries import get_summary_mapping, _location_tiv_total
 from oasislmf.pytools.common.input_files import read_correlations
+from oasislmf.utils.profiles import get_oed_hierarchy
 from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_NONE,
                                      DISAGGREGATION_SAMPLES)
 
@@ -239,6 +241,36 @@ class TestWhichLocationsArePacked(TestCase):
                                        damage_group_id_cols=['loc_id'], disaggregation=DISAGGREGATION_SAMPLES)
         self.assertAlmostEqual((packed['tiv'] * packed['number_of_buildings']).sum(),
                                (expanded['tiv'] * expanded['number_of_buildings']).sum(), places=4)
+
+
+class TestSummaryMapTiv(TestCase):
+    """The reported TIV must not depend on how the buildings are represented.
+
+    ``tiv`` on the summary map is one building's share. Row disaggregation writes N rows with
+    distinct building_id, so de-duplicating on (loc_id, building_id, coverage_type_id) recovers
+    the location total. Packing writes ONE row standing for N, so de-duplication alone returns
+    1/N of it -- the count has to be multiplied back in.
+    """
+
+    def _map(self, disaggregation):
+        gul = get_gul_input_items(_one_loc(n=3, is_aggregate=1), _one_key(),
+                                  damage_group_id_cols=['loc_id'], disaggregation=disaggregation)
+        return get_summary_mapping(gul, get_oed_hierarchy())
+
+    def test_every_mode_reports_the_same_location_tiv(self):
+        totals = {mode: _location_tiv_total(self._map(mode))
+                  for mode in (DISAGGREGATION_NONE, DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)}
+        self.assertAlmostEqual(totals[DISAGGREGATION_NONE], totals[DISAGGREGATION_ITEMS], places=4)
+        self.assertAlmostEqual(totals[DISAGGREGATION_NONE], totals[DISAGGREGATION_SAMPLES], places=4,
+                               msg=f'packing reports a different TIV: {totals}')
+
+    def test_the_count_is_carried_on_the_map(self):
+        """Without it the multiplication above has nothing to work from."""
+        for mode, expected in ((DISAGGREGATION_ITEMS, 1), (DISAGGREGATION_SAMPLES, 3)):
+            with self.subTest(disaggregation=mode):
+                m = self._map(mode)
+                self.assertIn('number_of_buildings', m.columns)
+                self.assertEqual(sorted(set(m['number_of_buildings'])), [expected])
 
 
 class TestThreeDisaggregationModes(TestCase):

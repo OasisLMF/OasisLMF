@@ -337,6 +337,21 @@ produces a byte-for-byte identical stream to the one it would produce without pa
   dimension; an engine that does not understand the encoding would misread the sample indices.
 * Nothing in the model files. Packing is derived from the exposure, not configured by the modeller.
 
+.. warning::
+
+   A model supplying its own ground-up binary through ``model_custom_gulcalc`` bypasses
+   ``gulmc`` and ``gulpy`` entirely, and nothing currently stops it being combined with
+   ``--disaggregation samples``.
+
+   This fails quietly rather than loudly. Generation has already divided each item's TIV by the
+   building count -- correct for packing, where the engine is expected to put the buildings back
+   in the sample dimension -- so a binary that knows nothing about packing sees an ordinary item
+   at one building's TIV and writes ordinary sample indices. The run completes and the losses are
+   a factor of ``NumberOfBuildings`` too small.
+
+   Use ``items`` (the default) with a custom ground-up binary unless that binary is known to
+   implement the packed sidx encoding.
+
 **Interaction with the financial module**
 
 Whether the buildings may be summed straight away depends on ``IsAggregate``, because that is what
