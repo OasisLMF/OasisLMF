@@ -61,6 +61,7 @@ import chardet
 from chardet import UniversalDetector
 from tabulate import tabulate
 
+from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.defaults import (SOURCE_IDX, SAR_ID, DISAGGREGATION_MODES, DISAGGREGATION_NONE,
                                      DISAGGREGATION_ITEMS)
 from oasislmf.utils.exceptions import OasisException
@@ -1081,18 +1082,6 @@ def structured_dtype_to_pandas(np_dtype):
     return {col: dtype for col, (dtype, _) in np_dtype.fields.items()}
 
 
-def _warn_deprecated(message):
-    """Raise a DeprecationWarning that ambient filters cannot hide.
-
-    Python ignores DeprecationWarning by default outside __main__, and this fires from inside the
-    computation layer, so ``simplefilter`` is what makes it reach the user -- the same approach
-    the deprecated module aliases in ``oasislmf/__init__.py`` take.
-    """
-    with warnings.catch_warnings():
-        warnings.simplefilter("always", DeprecationWarning)
-        warnings.warn(message, DeprecationWarning, stacklevel=3)
-
-
 def resolve_disaggregation(disaggregation, do_disaggregation=None):
     """Resolve how a location's buildings are separated, accepting the deprecated booleans.
 
@@ -1121,12 +1110,12 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None):
         if not deprecated_given:
             return DISAGGREGATION_ITEMS
         disaggregation = DISAGGREGATION_ITEMS if do_disaggregation else DISAGGREGATION_NONE
-        _warn_deprecated(
+        warn_deprecated(
             f"do_disaggregation is deprecated and may be removed in a future version. Use "
             f"disaggregation='{disaggregation}' instead: a boolean cannot name the three ways a "
             f"location's buildings can be represented.")
     elif deprecated_given:
-        _warn_deprecated(
+        warn_deprecated(
             f"both disaggregation and the deprecated do_disaggregation were given; "
             f"disaggregation='{disaggregation}' wins and do_disaggregation is ignored.")
 

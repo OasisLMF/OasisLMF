@@ -16,7 +16,7 @@ from ..utils.inputs import InputValues
 from ..manager import OasisManager as om
 
 from ..utils.log_config import OasisLogConfig
-import warnings
+from ..utils.deprecation import warn_deprecated
 from typing import Dict, Any
 import json
 
@@ -90,10 +90,9 @@ class OasisBaseCommand(BaseCommand):
 
             # Handle backward compatibility with deprecation warning
             if self.args.verbose:
-                warnings.warn(
+                warn_deprecated(
                     "The --verbose flag is deprecated and will be removed in a future version. "
                     "Use --log-level=DEBUG instead.",
-                    DeprecationWarning,
                     stacklevel=2,
                 )
 

@@ -48,6 +48,7 @@ import math
 import re
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
+from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.peril import get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
@@ -688,16 +689,15 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             removed in a future version.
         """
         if nearest_neighbor_min_distance > 0:
-            warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
-                          "removed in a future version. Please use `nearest_neighbor_max_distance` "
-                          "instead.",
-                          DeprecationWarning)
+            warn_deprecated("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
+                            "removed in a future version. Please use `nearest_neighbor_max_distance` "
+                            "instead.")
             if not nearest_neighbor_max_distance > 0:
                 nearest_neighbor_max_distance = nearest_neighbor_min_distance
 
         if area_peril_read_params:
-            warnings.warn("Parameter `area_peril_read_params` is deprecated and may be removed in a "
-                          "future version. Please use `file_read_params` instead.", DeprecationWarning)
+            warn_deprecated("Parameter `area_peril_read_params` is deprecated and may be removed in a "
+                            "future version. Please use `file_read_params` instead.")
             if not file_read_params:
                 file_read_params = area_peril_read_params
 
