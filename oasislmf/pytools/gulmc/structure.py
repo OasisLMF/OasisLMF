@@ -42,6 +42,9 @@ logger = logging.getLogger(__name__)
 STRUCTURE_DIR = 'gulmc_structure'
 
 # (variable_name, filename) pairs for all arrays that are saved/loaded.
+# number of scalars load_gulmc_structure reads out of metadata.npy
+N_METADATA_FIELDS = 3
+
 ARRAY_FILES = [
     'items',
     'coverages',
@@ -70,8 +73,33 @@ def _structure_path(run_dir):
 
 
 def gulmc_structure_exists(run_dir):
-    """Check whether pre-computed gulmc structures exist."""
-    return os.path.isfile(os.path.join(_structure_path(run_dir), 'metadata.npy'))
+    """Check whether a usable pre-computed gulmc structure cache is present.
+
+    Built once per run and memory-mapped by every parallel gulmc process, so it is always written
+    and read by the same version. What can happen is a partially written cache, if the build was
+    interrupted; the caller falls back to building the structures itself, so anything unreadable
+    counts as absent and is rebuilt.
+
+    The metadata width is checked because it is read positionally: a short one would be an
+    IndexError at load rather than a fallback.
+
+    Args:
+        run_dir (str): path to the run directory.
+
+    Returns:
+        bool: True when a usable cache is present.
+    """
+    metadata_path = os.path.join(_structure_path(run_dir), 'metadata.npy')
+    if not os.path.isfile(metadata_path):
+        return False
+    try:
+        if np.load(metadata_path).shape[0] < N_METADATA_FIELDS:
+            logger.info('pre-computed gulmc structures are incomplete: rebuilding')
+            return False
+    except Exception:
+        logger.info('pre-computed gulmc structures are unreadable: rebuilding')
+        return False
+    return True
 
 
 def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint, model_df_engine):
@@ -149,7 +177,13 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         defaults={'peril_correlation_group': 0,
                   'damage_correlation_value': 0.,
                   'hazard_group_id': 0,
-                  'hazard_correlation_value': 0.}
+                  'hazard_correlation_value': 0.,
+                  # building-packing, signed: magnitude is the number of buildings multiplexed
+                  # into each item's sample dimension, a negative sign marks the ones that must
+                  # reach the financial module as separate blocks. Carried signed all the way to
+                  # the compute and unpacked into locals there. 1 == one building per item
+                  # (legacy / disaggregation).
+                  'packed_buildings': 1}
     )
     if valid_areaperil_id is not None:
         items = items[np.isin(items['areaperil_id'], valid_areaperil_id)]

@@ -4,8 +4,6 @@ from math import sqrt  # faster than numpy.sqrt
 import numpy as np
 from numba import njit
 
-from oasislmf.pytools.gul.common import NUM_IDX, MAX_LOSS_IDX, MEAN_IDX, TIV_IDX
-
 
 @njit(cache=True, fastmath=False, error_model="numpy")
 def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, bin_scaling):
@@ -59,48 +57,30 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, bin_scaling):
 
 
 @njit(cache=True, fastmath=True)
-def setmaxloss_i(losses, sidx):
+def setmaxloss_items(item_losses):
+    """Keep only the largest loss across items, shared evenly where it ties.
+
+    Args:
+        item_losses (numpy.array[oasis_float]): one loss per item, edited in place.
+    """
     loss_max = 0.
     max_loss_count = 0
 
     # find maximum losses and count occurrences
-    for j in range(losses.shape[1]):
-        if losses[sidx, j] > loss_max:
-            loss_max = losses[sidx, j]
+    for j in range(item_losses.shape[0]):
+        if item_losses[j] > loss_max:
+            loss_max = item_losses[j]
             max_loss_count = 1
-        elif losses[sidx, j] == loss_max:
+        elif item_losses[j] == loss_max:
             max_loss_count += 1
     # distribute maximum losses evenly among highest
     # contributing subperils and set other losses to 0
     loss_max_normed = loss_max / max_loss_count
-    for j in range(losses.shape[1]):
-        if losses[sidx, j] == loss_max:
-            losses[sidx, j] = loss_max_normed
+    for j in range(item_losses.shape[0]):
+        if item_losses[j] == loss_max:
+            item_losses[j] = loss_max_normed
         else:
-            losses[sidx, j] = 0.
-
-
-@njit(cache=True, fastmath=True)
-def setmaxloss(losses):
-    """Set maximum losses.
-    For each sample idx, find the maximum loss across all items and set to zero
-    all the losses smaller than the maximum loss. If the maximum loss occurs in `N` items,
-    then set the loss in all these items as the maximum loss divided by `N`.
-
-    Args:
-        losses (numpy.array[oasis_float]): losses for all item_ids and sample idx.
-
-    Returns:
-        numpy.array[oasis_float]: losses for all item_ids and sample idx.
-    """
-    # losses array layout is [NA, normal sidx (1 to n), special sidx (NUM_IDX)]
-    setmaxloss_i(losses, TIV_IDX)
-    setmaxloss_i(losses, MAX_LOSS_IDX)
-    setmaxloss_i(losses, MEAN_IDX)
-    for sidx in range(1, losses.shape[0] - NUM_IDX):
-        setmaxloss_i(losses, sidx)
-
-    return losses
+            item_losses[j] = 0.
 
 
 @njit(cache=True, fastmath=True)

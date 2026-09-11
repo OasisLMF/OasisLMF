@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from oasislmf.preparation.gul_inputs import get_gul_input_items, write_gul_input_files
+from oasislmf.utils.defaults import DISAGGREGATION_NONE
 from oasislmf.pytools.common.data import correlations_dtype, correlations_headers
 
 COVERAGE_TYPE_IDS = [1, 3]
@@ -87,7 +88,7 @@ def test_disaggregation_is_driven_by_the_building_count_not_the_aggregate_flag(i
 def test_building_ids_are_all_one_without_disaggregation():
     exposure = make_exposure([1, 3, 2])
     gul_inputs = get_gul_input_items(exposure, make_keys(exposure), damage_group_id_cols=['loc_id'],
-                                     do_disaggregation=False)
+                                     disaggregation=DISAGGREGATION_NONE)
 
     assert set(gul_inputs['building_id']) == {1}
 
@@ -148,6 +149,9 @@ def make_correlations(num_items):
         'damage_correlation_value': np.linspace(0, 1, num_items),
         'hazard_group_id': np.arange(num_items, dtype='uint32') % 7,
         'hazard_correlation_value': np.linspace(1, 0, num_items),
+        # building-packed streams carry the per-item building count here, signed
+        'packed_buildings': np.arange(num_items, dtype='int32') % 4 + 1,
+        'keep_buildings_separate': (np.arange(num_items, dtype='int32') % 2),
     })[correlations_headers]
 
 

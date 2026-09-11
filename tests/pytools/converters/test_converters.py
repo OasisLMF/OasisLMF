@@ -1,3 +1,4 @@
+import os
 import struct
 import numpy as np
 import pandas as pd
@@ -688,3 +689,35 @@ def test_summarycalc():
 
 def test_cdf():
     case_runner("bintocsv", "cdf", "cdftocsv", "getmodel", run_dir=Path(TESTS_ASSETS_DIR, "cdftocsv"))
+
+
+def test_cdf_does_not_read_past_its_building_count_array():
+    """The cdf converter indexes n_buildings_by_item_id by item_id, so it must span every item.
+
+    That array is a formality here -- this converter never samples -- but it is indexed inside
+    njit, which does not bounds-check, so undersizing it is a silent out-of-bounds read rather
+    than a failure. It was a length-1 sentinel until the packed/unpacked collapse removed the
+    reader's ``item_id < shape[0]`` guard.
+
+    NUMBA_BOUNDSCHECK is what makes the read observable, and it has to be set before numba is
+    imported, hence the subprocess.
+    """
+    import subprocess
+    import sys
+    script = (
+        "from pathlib import Path;"
+        "from oasislmf.pytools.converters.bintocsv.manager import bintocsv;"
+        f"d = Path(r'{TESTS_ASSETS_DIR}', 'cdftocsv');"
+        "bintocsv(Path(d, 'getmodel.bin'), Path(d, 'out.csv'), 'cdf', run_dir=d)"
+    )
+    with TemporaryDirectory() as tmp:
+        out = Path(tmp, "out.csv")
+        script = script.replace("Path(d, 'out.csv')", f"Path(r'{out}')")
+        proc = subprocess.run(
+            [sys.executable, "-c", script],
+            env={**os.environ, "NUMBA_BOUNDSCHECK": "1"},
+            capture_output=True, text=True,
+        )
+    assert proc.returncode == 0, (
+        "cdf conversion read out of bounds under NUMBA_BOUNDSCHECK=1:\n" + proc.stderr[-2000:]
+    )

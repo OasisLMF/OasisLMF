@@ -31,6 +31,10 @@ null_index = oasis_int.type(-1)
 # A default buffer size for nd arrays to be initialised to
 DEFAULT_BUFFER_SIZE = 1_000_000
 
+# Written beside the fm input files by IL generation, read by the financial module. Absent means
+# no packed buildings. A .bin so the *.bin globs that stage and tar the fm inputs pick it up.
+FM_STRUCTURE_INFO_FILE = 'fm_structure_info.bin'
+
 # Mean type numbers for outputs (SampleType)
 MEAN_TYPE_ANALYTICAL = 1
 MEAN_TYPE_SAMPLE = 2
@@ -104,6 +108,9 @@ limit1 = ("limit1", oasis_float, "%f")
 limit2 = ("limit2", oasis_float, "%f")
 loss = ("loss", oasis_float, "%.2f")
 model_data_len = ("model_data_len", 'u4', "%u")
+packed_buildings = ("packed_buildings", 'i4', "%d")
+site_collapse_level = ("site_collapse_level", 'i4', "%d")
+max_buildings = ("max_buildings", 'i4', "%d")
 occ_date_id = ("occ_date_id", 'i4', "%d")
 occ_date_id_granular = ("occ_date_id", 'i8', "%d")
 output_id = ("output_id", 'i4', "%d")
@@ -180,8 +187,21 @@ correlations_output = [
     damage_correlation_value,
     hazard_group_id,
     hazard_correlation_value,
+    # signed: magnitude is the count, negative means the buildings stay separate (see
+    # gul/structure.py, which unpacks it)
+    packed_buildings,
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
+
+# One record. site_collapse_level is the last fm level whose aggregation key includes risk_id --
+# packed buildings collapse after it, and 0 means there is no such level. max_buildings sizes the
+# computation arrays.
+fm_structure_info_output = [
+    site_collapse_level,
+    max_buildings,
+]
+fm_structure_info_headers, fm_structure_info_dtype, fm_structure_info_fmt = generate_output_metadata(
+    fm_structure_info_output)
 
 coverages_output = [
     coverage_id,

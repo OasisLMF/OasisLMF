@@ -421,6 +421,103 @@ class TestGenFiles(ComputationChecker):
             correlations_csv_data = self.read_file(correlations_csv_path)
             self.assertEqual(EXPECTED_CORRELATION_CSV, correlations_csv_data)
 
+    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
+    def test_files__building_packing_packs_the_building_count(self, mock_output_dir):
+        """disaggregation='samples' keeps one item per (loc,peril,cov) and carries NumberOfBuildings
+        on correlations.bin, instead of expanding one item per building ('items')."""
+        import io
+        import numpy as np
+        from oasislmf.pytools.common.input_files import read_correlations
+
+        # location with a 3-building aggregate
+        loc_df = pd.read_csv(io.StringIO(MIN_LOC))
+        loc_df['NumberOfBuildings'] = 3
+        self.write_str(self.tmp_files.get('oed_location_csv'), loc_df.to_csv(index=False))
+
+        # packed run
+        with self.tmp_dir() as t_dir:
+            run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
+            mock_output_dir.return_value = run_dir
+            self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir, 'disaggregation': 'samples'})
+            packed = read_correlations(run_dir)
+            self.assertIn('packed_buildings', packed.dtype.names)
+            self.assertTrue(np.all(np.asarray(packed['packed_buildings']) == 3))
+            n_packed = len(packed)
+
+        # disaggregation run (default): one row per building -> 3x the items, count == 1
+        with self.tmp_dir() as t_dir:
+            run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
+            mock_output_dir.return_value = run_dir
+            self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir})
+            disagg = read_correlations(run_dir)
+            self.assertTrue(np.all(np.asarray(disagg['packed_buildings']) == 1))
+            self.assertEqual(len(disagg), n_packed * 3)
+
+    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
+    def test_files__percent_of_tiv_terms_match_disaggregation(self, mock_output_dir):
+        """A percentage-of-TIV term must resolve to the same absolute amount either way.
+
+        coverages.bin holds the PER-BUILDING tiv under packing (generation divides by
+        NumberOfBuildings and does not expand rows), so a node's own tiv has to be reconstructed
+        by multiplying by however many buildings that node covers -- tiv_buildings_site for a
+        risk-keyed level, tiv_buildings_above for everything else. Get the factor wrong and the
+        term silently comes out N times too small, which is what happened before those two columns
+        existed. Nothing else in the suite exercises a percentage term under packing.
+
+        The two IsAggregate values pull the factors in opposite directions and are the point of
+        the test:
+          IsAggregate=1 -> one site node per building, so a site-level term sees ONE building's
+                           tiv (100), even though the location totals 300.
+          IsAggregate=0 -> every building shares risk_id 1, so the single site node sees ALL
+                           three buildings (300).
+
+        Both factors need exercising, so there are two percentage terms at different rates: a
+        location deductible (site level, risk-keyed -> tiv_buildings_site) at 10%, and a policy
+        deductible (above the site levels -> tiv_buildings_above) at 20%. The policy term always
+        covers the whole location, so it is 60 either way; different rates keep the two terms
+        distinguishable in the profile.
+        """
+        import io
+        import numpy as np
+        from oasislmf.pytools.common.data import fm_profile_dtype
+
+        acc_df = pd.read_csv(io.StringIO(MIN_ACC))
+        acc_df['PolDed6All'] = 0.2          # 20% ...
+        acc_df['PolDedType6All'] = 2        # ... of TIV, above the site levels
+        self.write_str(self.tmp_files.get('oed_accounts_csv'), acc_df.to_csv(index=False))
+
+        def _deductibles(is_aggregate, **mode):
+            loc_df = pd.read_csv(io.StringIO(MIN_LOC))
+            loc_df['BuildingTIV'] = 300.0
+            loc_df['NumberOfBuildings'] = 3
+            loc_df['IsAggregate'] = is_aggregate
+            loc_df['LocDed6All'] = 0.1          # 10% ...
+            loc_df['LocDedType6All'] = 2        # ... of TIV
+            loc_df['LocPeril'] = loc_df['LocPerilsCovered']   # required once a loc term is set
+            self.write_str(self.tmp_files.get('oed_location_csv'), loc_df.to_csv(index=False))
+            with self.tmp_dir() as t_dir:
+                run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
+                mock_output_dir.return_value = run_dir
+                written = self.manager.generate_files(**{**self.il_args, 'oasis_files_dir': t_dir, **mode})
+                profile = np.fromfile(written['fm_profile'], dtype=fm_profile_dtype)
+                tiv = np.fromfile(written['coverages'], dtype='f4')
+                return sorted({round(float(d), 4) for d in profile['deductible1'] if d}), tiv
+
+        # (site term, policy term): the policy term covers all three buildings either way
+        for is_aggregate, expected in ((1, (10.0, 60.0)), (0, (30.0, 60.0))):
+            with self.subTest(IsAggregate=is_aggregate):
+                packed, packed_tiv = _deductibles(is_aggregate, disaggregation='samples')
+                disagg, disagg_tiv = _deductibles(is_aggregate, disaggregation='items')
+
+                # the premise: packing carries one coverage at the per-building tiv, row
+                # disaggregation carries one per building
+                self.assertEqual(len(packed_tiv), len(disagg_tiv) // 3)
+                self.assertAlmostEqual(float(packed_tiv.sum()) * 3, float(disagg_tiv.sum()), places=3)
+
+                self.assertEqual(packed, disagg)
+                for amount in expected:
+                    self.assertIn(amount, packed)
+
 
 class TestGenFilesEmptyKeys(ComputationChecker):
     """Tests that empty keys.csv is reported as OasisExceptionNoKeys, not a generic OasisException."""

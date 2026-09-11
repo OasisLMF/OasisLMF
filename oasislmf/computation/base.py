@@ -17,6 +17,17 @@ from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env
 from oasislmf.utils.log import oasis_log
 
 
+DISAGGREGATION_HELP = (
+    "where a location's NumberOfBuildings is separated: "
+    "'none' keeps one item holding the whole location (buildings implicitly perfectly "
+    "correlated); "
+    "'items' expands one item per building; "
+    "'samples' keeps one item per (location, peril, coverage_type) and multiplexes the buildings "
+    "into the sample dimension, which needs the pure-Python gulmc/gulpy pipeline. "
+    "Default 'items'. Supersedes the deprecated --do-disaggregation."
+)
+
+
 class ComputationStep:
     """"Abstract" Class for all Computation Step (ExposurePreAnalysis, GulCalc, ...)
     initialise the object with all specified param un step_param and sub- ComputationStep

@@ -235,6 +235,13 @@ KERNEL_DISABLE_ERR_GUARD = False
 # 2 = total loss is maximum subperil loss
 # 1 = default with back allocation
 # 0 = default without back allocation
+# Where a location's NumberOfBuildings is separated. Threaded from the CLI through generation;
+# the ground-up tools and the financial module derive packing from the data, not from this.
+DISAGGREGATION_NONE = 'none'        # one item holding the whole location
+DISAGGREGATION_ITEMS = 'items'      # one item per building
+DISAGGREGATION_SAMPLES = 'samples'  # buildings multiplexed into the sample dimension
+DISAGGREGATION_MODES = (DISAGGREGATION_NONE, DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
+
 KERNEL_ALLOC_GUL_MAX = 3
 KERNEL_ALLOC_FM_MAX = 3
 KERNEL_ALLOC_GUL_DEFAULT = 0

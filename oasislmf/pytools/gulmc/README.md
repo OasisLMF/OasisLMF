@@ -51,7 +51,7 @@ gul/
                      │     → areaperil_ids, haz_arr_i mapping, haz_pdf       │
                      │  4. reconstruct_coverages()                           │
                      │     → items_event_data, seeds, eff_cdf_ids            │
-                     │  5. generate_rndm() × 4 (haz, vuln, haz_corr, dmg)   │
+                     │  5. 2 sample draws + 2 correlation draws              │
                      │  6. Reset CDF cache lookup (Dict only, array reused)  │
                      │  7. compute_event_losses() [may loop for large events]│
                      │  8. Write output buffer to stream                     │
@@ -88,8 +88,8 @@ Structured array of type `items_MC_data_type`, populated per event by `reconstru
 | `item_id` | int32 | Item identifier |
 | `item_idx` | int32 | Index into the items table |
 | `haz_arr_i` | int32 | Index into haz_arr_ptr for this item's hazard pdf |
-| `rng_index` | int32 | Index into vuln_seeds / vuln_rndms_base |
-| `hazard_rng_index` | int32 | Index into haz_seeds / haz_rndms_base |
+| `rng_index` | int32 | Index into vuln_seeds / vuln_offsets |
+| `hazard_rng_index` | int32 | Index into haz_seeds / haz_offsets |
 | `intensity_adjustment` | int32 | Dynamic footprint intensity adjustment |
 | `return_period` | int32 | Dynamic footprint return period |
 | `eff_cdf_id` | int32 | Sequential CDF group id for cache key construction (O5) |

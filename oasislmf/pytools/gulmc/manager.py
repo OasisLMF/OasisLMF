@@ -26,14 +26,15 @@ from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_sidx_fits)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
-from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
+from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul)
 from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
-                                         generate_hash_hazard, get_corr_rval, get_random_generator)
+                                         generate_hash_hazard, get_corr_rval, get_correlation_generator,
+                                         get_sample_generator, build_packed_rndm_offsets)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
@@ -177,6 +178,21 @@ def run(run_dir,
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
+        # building-packing: a single stream item per (loc, peril, coverage_type) multiplexes its
+        # N buildings into the sample dimension (see write_losses / encode_sidx). Packing is
+        # enabled only when some item carries more than one building. alloc_rule caps a coverage's
+        # item losses at its TIV; write_losses applies that cap within each building block,
+        # the coverage TIV being the per-building share.
+        # signed field: take the magnitude, or the keep-separate items (negative) are skipped
+        max_buildings = int(np.abs(items['packed_buildings']).max()) if items.shape[0] > 0 else 1
+        check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
+        # Packing is the N > 1 case of one mechanism, not a second path: an unpacked run is every
+        # item carrying one building, and the packed generator's first block per seed is the legacy
+        # draw byte-for-byte. So the compute always takes the packed route.
+        generate_sample_rndm = get_sample_generator(random_generator)
+        if max_buildings > 1:
+            logger.info(f"building-packing ENABLED: up to {max_buildings} buildings packed per item.")
+
         # import array to store the coverages to be computed
         # coverages are numbered from 1, therefore skip element 0.
         compute = np.zeros(coverages.shape[0] + 1, items_dtype['coverage_id'])
@@ -208,13 +224,19 @@ def run(run_dir,
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function
-        generate_rndm = get_random_generator(random_generator)
+        generate_correlation_rndm = get_correlation_generator(random_generator)
         # create the array to store the seeds
         haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
         # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts)
         group_seq_rng_index = np.empty(n_unique_groups, dtype=np.int64)
         hazard_group_seq_rng_index = np.empty(n_unique_haz_groups, dtype=np.int64)
+        # Pre-allocated per-rng-group building counts (building-packing); filled per event by
+        # reconstruct_coverages with the max building count over each rng group. Sized to the
+        # rng index space (one entry per unique group), reused across events without resetting since
+        # every used entry is written on rng-group creation.
+        n_buildings_by_rng = np.ones(n_unique_groups, dtype=np.int64)
+        n_buildings_by_haz_rng = np.ones(n_unique_haz_groups, dtype=np.int64)
 
         # haz correlation
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
@@ -271,10 +293,17 @@ def run(run_dir,
 
         # create buffers to be reused when computing losses
         byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
-        losses = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
+        max_items_per_coverage = int(np.max(coverages[1:]['max_items']))
+        losses = np.zeros((sample_size + NUM_IDX + 1, max_items_per_coverage), dtype=oasis_float)
 
-        # maximum bytes to be written in the output stream for 1 item
+        # per-building sample buffer (S, max_items, max_buildings); max_buildings == 1 when
+        # nothing is packed, which is the unpacked layout
+        building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buildings), dtype=oasis_float)
+
+        # maximum bytes to be written in the output stream for 1 item. Building-packing emits up to
+        # max_buildings times as many records per item, so inflate the per-item estimate accordingly.
         max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
+        max_bytes_per_item *= max_buildings
 
         # define vulnerability cdf cache size
         max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cache size in bytes
@@ -311,10 +340,14 @@ def run(run_dir,
         compute_info['debug'] = debug
 
         # default random values array for sample_size==0 case
-        haz_rndms_base = np.empty((1, sample_size), dtype='float64')
-        vuln_rndms_base = np.empty((1, sample_size), dtype='float64')
         haz_eps_ij = np.empty((1, sample_size), dtype='float64')
         damage_eps_ij = np.empty((1, sample_size), dtype='float64')
+
+        # default flat (building-packed) random arrays and offsets; populated per event when packing.
+        vuln_rndms_flat = np.empty(1, dtype='float64')
+        haz_rndms_flat = np.empty(1, dtype='float64')
+        vuln_offsets = np.zeros(2, dtype=np.int64)
+        haz_offsets = np.zeros(2, dtype=np.int64)
 
         # Pre-allocate per-event footprint arrays (reused across events, no per-event allocation)
         # fp_ap_inds stores dense areaperil indices (from item_map_ja_id_ind) rather than raw
@@ -386,7 +419,9 @@ def run(run_dir,
                     dynamic_footprint,
                     byte_mv,
                     group_seq_rng_index,
-                    hazard_group_seq_rng_index
+                    hazard_group_seq_rng_index,
+                    n_buildings_by_rng,
+                    n_buildings_by_haz_rng
                 )
 
                 # since these are never used outside of a sample > 0 branch we can remove the need to
@@ -394,12 +429,19 @@ def run(run_dir,
                 # for random values accounts for 25% of the runtime of the losses step not including
                 # the get_event despite having a sample size of 0.
                 if sample_size > 0:
-                    # generation of "base" random values for hazard intensity and vulnerability sampling.
-                    haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
-                    vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
+                    # Flat draws: each rng group yields n_buildings * sample_size values laid out as
+                    # [building 1 samples, building 2 samples, ...]. Building 1 reproduces the legacy
+                    # per-group draw byte-for-byte (see random_MersenneTwister_packed), so an unpacked
+                    # run is the all-N==1 case of this rather than a separate draw.
+                    vuln_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index], sample_size)
+                    vuln_rndms_flat = generate_sample_rndm(
+                        vuln_seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index], vuln_offsets)
+                    haz_offsets = build_packed_rndm_offsets(n_buildings_by_haz_rng[:hazard_rng_index], sample_size)
+                    haz_rndms_flat = generate_sample_rndm(
+                        haz_seeds[:hazard_rng_index], sample_size, n_buildings_by_haz_rng[:hazard_rng_index], haz_offsets)
                     if hazard_rng_index > 0:
-                        haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
-                    damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
+                        haz_eps_ij = generate_correlation_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
+                    damage_eps_ij = generate_correlation_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
                 # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
                 cdf_cache_tag[:] = CDF_CACHE_EMPTY
@@ -427,8 +469,6 @@ def run(run_dir,
                             areaperil_agg_vuln_idx_ja_offsets,
                             areaperil_agg_vuln_idx_ja_data,
                             losses,
-                            haz_rndms_base,
-                            vuln_rndms_base,
                             vuln_adj,
                             haz_eps_ij,
                             damage_eps_ij,
@@ -440,7 +480,12 @@ def run(run_dir,
                             byte_mv,
                             dynamic_footprint,
                             intensity_bin_peril_ids,
-                            intensity_bins
+                            intensity_bins,
+                            building_losses,
+                            vuln_rndms_flat,
+                            vuln_offsets,
+                            haz_rndms_flat,
+                            haz_offsets
                         )
                     except Exception:
                         data = {
@@ -753,8 +798,8 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sample_size,
-                             haz_rndms_base, vuln_rndms_base, haz_eps_ij, damage_eps_ij,
+def draw_correlation_samples(compute_info, item, hazard_rng_index, sample_size,
+                             haz_rndms_item, vuln_rndms_item, haz_eps_ij, damage_eps_ij,
                              norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
                              haz_z_unif, vuln_z_unif):
     """Draw the (optionally correlated) hazard and damage random values for one item.
@@ -769,11 +814,13 @@ def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sa
     Args:
         compute_info (gulmc_compute_info_type): computation state (do_haz_correlation, do_correlation).
         item (np.void): the item record (correlation values, peril_correlation_group, vuln idx).
-        hazard_rng_index (int): index into haz_rndms_base, or < 0 if hazard is deterministic.
-        rng_index (int): index into vuln_rndms_base for damage sampling.
+        hazard_rng_index (int): < 0 when the hazard is deterministic, in which case no hazard
+            values are drawn. Only its sign is used; the caller has already sliced the values.
         sample_size (int): number of random samples to draw.
-        haz_rndms_base (np.array[float64]): base random values for hazard sampling.
-        vuln_rndms_base (np.array[float64]): base random values for damage sampling.
+        haz_rndms_item (np.array[float64]): this item's ``sample_size`` hazard random values.
+            Under building packing this is one building's slice of the group's block, which is
+            what lets one routine serve every building of an item.
+        vuln_rndms_item (np.array[float64]): this item's ``sample_size`` damage random values.
         haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
         damage_eps_ij (np.array[float]): correlated random values for damage sampling.
         norm_inv_parameters (NormInversionParameters): parameters for Gaussian inversion.
@@ -789,35 +836,35 @@ def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sa
         if compute_info['do_haz_correlation'] and item['hazard_correlation_value'] > 0:
             # use correlation definitions to draw correlated random values into haz_z_unif
             get_corr_rval(
-                haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], item['hazard_correlation_value'],
+                haz_eps_ij[item['peril_correlation_group']], haz_rndms_item, item['hazard_correlation_value'],
                 norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
                 norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
                 sample_size, haz_z_unif
             )
         else:
-            haz_z_unif[:] = haz_rndms_base[hazard_rng_index]
+            haz_z_unif[:] = haz_rndms_item
 
     if compute_info['do_correlation'] and item['damage_correlation_value'] > 0:
         # use correlation definitions to draw correlated random values into vuln_z_unif
         get_corr_rval(
-            damage_eps_ij[item['peril_correlation_group']], vuln_rndms_base[rng_index], item['damage_correlation_value'],
+            damage_eps_ij[item['peril_correlation_group']], vuln_rndms_item, item['damage_correlation_value'],
             norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
             norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
             sample_size, vuln_z_unif
         )
     else:
         # do not use correlation
-        vuln_z_unif[:] = vuln_rndms_base[rng_index]
+        vuln_z_unif[:] = vuln_rndms_item
 
     if item['areaperil_agg_vuln_idx'] < 0:  # single vuln id (non-aggregate)
         vuln_z_unif *= vuln_adj[item['vulnerability_idx']]
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dynamic_footprint,
+def sample_item_losses(compute_info, sample_size, hazard_rng_index, dynamic_footprint,
                        item_event_data, haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                        eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
-                       damage_bins, damage_bin_scaling, losses):
+                       damage_bins, damage_bin_scaling, out):
     """Write the per-sample gul (or debug random values) for one item into ``losses``.
 
     In debug modes 1/2 the drawn hazard/damage random values are stored directly. Otherwise the
@@ -843,29 +890,33 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dyna
         haz_i_to_vuln_cdf (np.array): per-hazard-bin vulnerability cdfs.
         damage_bins (np.array): damage bin dictionary.
         damage_bin_scaling (float): tiv scaling factor.
-        losses (np.array[oasis_float]): loss buffer written in place at column item_j.
+        out (np.array[oasis_float]): 1-d view of length ``sample_size`` written in place, holding
+            this item's samples only. Callers pass one building's column of ``building_losses``
+            past the special indices; the packed path passes one building's column of
+            ``building_losses``. Taking a view rather than (buffer, index) is what lets both use
+            this routine.
     """
     if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
         if hazard_rng_index >= 0:
-            losses[1:, item_j] = haz_z_unif[:]
+            out[:] = haz_z_unif[:]
         else:
             # deterministic hazard / effective damageability: no hazard intensity sampled
-            losses[1:, item_j] = 0
+            out[:] = 0
 
     elif compute_info['debug'] == 2:  # store the random value used for the damage sampling instead of the loss
-        losses[1:, item_j] = vuln_z_unif[:]
+        out[:] = vuln_z_unif[:]
 
     else:  # calculate gul
         if compute_info['effective_damageability']:
             for sample_idx in range(1, sample_size + 1):
-                losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
-                                                                   Neff_damage_bins, damage_bins, damage_bin_scaling)
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
+                                                            Neff_damage_bins, damage_bins, damage_bin_scaling)
         elif Nhaz_bins == 1:  # only one hazard possible
             Ndamage_bins = haz_i_to_Ndamage_bins[0]
             vuln_cdf = haz_i_to_vuln_cdf[0][:Ndamage_bins]
             for sample_idx in range(1, sample_size + 1):
-                losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                   Ndamage_bins, damage_bins, damage_bin_scaling)
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling)
         else:
             for sample_idx in range(1, sample_size + 1):
                 # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
@@ -877,15 +928,15 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dyna
                 # per-sample RP protection: the drawn bin carries its own return period
                 if dynamic_footprint is not None and item_event_data['return_period'] > 0 \
                         and item_event_data['event_rp'] < item_event_data['return_period']:
-                    losses[sample_idx, item_j] = 0
+                    out[sample_idx - 1] = 0
                     continue
 
                 # get the individual vulnerability cdf
                 Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
                 vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
 
-                losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                   Ndamage_bins, damage_bins, damage_bin_scaling)
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling)
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -906,8 +957,6 @@ def compute_event_losses(compute_info,
                          areaperil_agg_vuln_idx_ja_offsets,
                          areaperil_agg_vuln_idx_ja_data,
                          losses,
-                         haz_rndms_base,
-                         vuln_rndms_base,
                          vuln_adj,
                          haz_eps_ij,
                          damage_eps_ij,
@@ -919,7 +968,12 @@ def compute_event_losses(compute_info,
                          byte_mv,
                          dynamic_footprint,
                          intensity_bin_peril_ids,
-                         intensity_bins
+                         intensity_bins,
+                         building_losses,
+                         vuln_rndms_flat,
+                         vuln_offsets,
+                         haz_rndms_flat,
+                         haz_offsets
                          ):
     """Compute ground-up losses for all coverages in a single event.
 
@@ -960,8 +1014,6 @@ def compute_event_losses(compute_info,
         areaperil_agg_vuln_idx_ja_data (np.array[agg_vuln_idx_weight_dtype]): merged structured array
           with fields 'vuln_idx' (dense vulnerability index) and 'weight' (vulnerability weight).
         losses (numpy.array[oasis_float]): reusable 2d buffer for loss values.
-        haz_rndms_base (numpy.array[float64]): base random values for hazard intensity sampling.
-        vuln_rndms_base (numpy.array[float64]): base random values for damage sampling.
         vuln_adj (np.array[float]): per-vulnerability adjustment factors.
         haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
         damage_eps_ij (np.array[float]): correlated random values for damage sampling.
@@ -975,6 +1027,13 @@ def compute_event_losses(compute_info,
         intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids (length n_perils).
         intensity_bins (np.array[int32, 2d]): shape (n_perils, max_intensity + 1) mapping
           [peril_idx, intensity_value] -> intensity_bin_id.
+        building_losses (numpy.array[oasis_float]): 3d (S, max_items, max_buildings) reusable
+          buffer for the per-building sample losses; one block per building, N == 1 unpacked.
+        vuln_rndms_flat (numpy.array[float64]): flat building-packed damage random draws; group g,
+          building b, sample s at vuln_rndms_flat[vuln_offsets[g] + (b-1)*S + (s-1)].
+        vuln_offsets (numpy.array[int64]): prefix-sum offsets into vuln_rndms_flat per damage rng group.
+        haz_rndms_flat (numpy.array[float64]): flat building-packed hazard random draws (as above).
+        haz_offsets (numpy.array[int64]): prefix-sum offsets into haz_rndms_flat per hazard rng group.
 
     Returns:
         bool: True if all coverages have been processed, False if the buffer is full and
@@ -1010,6 +1069,9 @@ def compute_event_losses(compute_info,
             item_event_data = items_event_data[coverage['start_items'] + item_j]
             rng_index = item_event_data['rng_index']
             hazard_rng_index = item_event_data['hazard_rng_index']
+            # signed; this loop only needs how many buildings to draw for. 1 when nothing is
+            # packed, which is what makes the unpacked case just N == 1 here.
+            n_buildings = abs(item_event_data['packed_buildings'])
 
             item = items[item_event_data['item_idx']]
             haz_arr_i = item_event_data['haz_arr_i']
@@ -1022,6 +1084,7 @@ def compute_event_losses(compute_info,
                 if haz_pdf_record.shape[0] == 1 and item_event_data['return_period'] > 0 \
                         and item_event_data['event_rp'] < item_event_data['return_period']:
                     losses[:, item_j] = 0
+                    building_losses[:, item_j, :] = 0
                     continue
             else:
                 intensity_adjustment = nb_oasis_int(0)
@@ -1064,16 +1127,31 @@ def compute_event_losses(compute_info,
             losses[STD_DEV_IDX, item_j] = std_dev
             losses[MEAN_IDX, item_j] = gul_mean
 
-            if sample_size > 0:  # compute random losses
-                draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sample_size,
-                                         haz_rndms_base, vuln_rndms_base, haz_eps_ij, damage_eps_ij,
-                                         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
-                                         haz_z_unif, vuln_z_unif)
+            if sample_size > 0:
+                # One block per building; an unpacked item is the N == 1 case, whose single block
+                # is the legacy draw. The two routines below take the random values and the output
+                # column as views, so a building is just a different pair.
+                vuln_base_off0 = vuln_offsets[rng_index]
+                haz_base_off0 = haz_offsets[hazard_rng_index] if hazard_rng_index >= 0 else 0
+                for b in range(1, n_buildings + 1):
+                    vuln_base_b = vuln_rndms_flat[vuln_base_off0 + (b - 1) * sample_size:
+                                                  vuln_base_off0 + b * sample_size]
+                    if hazard_rng_index >= 0:
+                        haz_base_b = haz_rndms_flat[haz_base_off0 + (b - 1) * sample_size:
+                                                    haz_base_off0 + b * sample_size]
+                    else:
+                        haz_base_b = vuln_base_b  # unused; keeps the argument type stable
 
-                sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, dynamic_footprint,
-                                   item_event_data, haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
-                                   eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
-                                   damage_bins, damage_bin_scaling, losses)
+                    draw_correlation_samples(compute_info, item, hazard_rng_index, sample_size,
+                                             haz_base_b, vuln_base_b, haz_eps_ij, damage_eps_ij,
+                                             norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
+                                             haz_z_unif, vuln_z_unif)
+
+                    sample_item_losses(compute_info, sample_size, hazard_rng_index, dynamic_footprint,
+                                       item_event_data, haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
+                                       eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins,
+                                       haz_i_to_vuln_cdf, damage_bins, damage_bin_scaling,
+                                       building_losses[:, item_j, b - 1])
 
         # write the losses to the output memoryview
         compute_info['cursor'] = write_losses(
@@ -1081,7 +1159,9 @@ def compute_event_losses(compute_info,
             sample_size,
             compute_info['loss_threshold'],
             losses[:, :Nitems],
+            building_losses[:, :Nitems, :],
             items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
+            items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['packed_buildings'],
             compute_info['alloc_rule'],
             tiv,
             byte_mv,
@@ -1194,7 +1274,9 @@ def reconstruct_coverages(compute_info,
                           dynamic_footprint,
                           byte_mv,
                           group_seq_rng_index,
-                          hazard_group_seq_rng_index):
+                          hazard_group_seq_rng_index,
+                          n_buildings_by_rng,
+                          n_buildings_by_haz_rng):
     """Register each item to its coverage and prepare per-item event data for loss computation.
 
     For each (areaperil_id, vulnerability_id) pair present in the event footprint, iterates
@@ -1238,6 +1320,13 @@ def reconstruct_coverages(compute_info,
           used for O(1) group_id to rng_index mapping (reset to NO_RNG_INDEX each event).
         hazard_group_seq_rng_index (numpy.array[int64]): pre-allocated array of size
           n_unique_haz_groups, for hazard_group_id to rng_index mapping.
+        n_buildings_by_rng (numpy.array[int64]): pre-allocated array of size n_unique_groups;
+          on return, entry rng_index holds the maximum building count over all items
+          sharing that damage rng group. Drives the per-group packed random draw size. Because
+          damage groups can be coarser than location, the maximum is taken so every item in the
+          group has enough building slices (extra slices are simply unused).
+        n_buildings_by_haz_rng (numpy.array[int64]): pre-allocated array of size
+          n_unique_haz_groups; the hazard-rng-group equivalent of n_buildings_by_rng.
 
     Returns:
         tuple: (items_event_data, rng_index, hazard_rng_index, byte_mv)
@@ -1284,13 +1373,21 @@ def reconstruct_coverages(compute_info,
                 # and that only 1 event_id is processed at a time.
                 # Use sequential index for array-based lookup instead of Dict
                 group_seq_id = items[item_idx]['group_seq_id']
+                # Signed: magnitude is the count, negative means keep the buildings separate. The signed
+                # form goes on to items_event_data for the writer; n_buildings_by_rng sizes the random
+                # draw and must never see the sign.
+                item_n_buildings_signed = items[item_idx]['packed_buildings']
+                item_n_buildings = abs(item_n_buildings_signed)
                 if group_seq_rng_index[group_seq_id] == NO_RNG_INDEX:
                     group_seq_rng_index[group_seq_id] = rng_index
                     vuln_seeds[rng_index] = generate_hash(items[item_idx]['group_id'], compute_info['event_id'])
                     this_rng_index = rng_index
+                    n_buildings_by_rng[this_rng_index] = item_n_buildings
                     rng_index += 1
                 else:
                     this_rng_index = group_seq_rng_index[group_seq_id]
+                    if item_n_buildings > n_buildings_by_rng[this_rng_index]:
+                        n_buildings_by_rng[this_rng_index] = item_n_buildings
 
                 if ap_needs_haz_rng:
                     hazard_group_seq_id = items[item_idx]['hazard_group_seq_id']
@@ -1298,9 +1395,12 @@ def reconstruct_coverages(compute_info,
                         hazard_group_seq_rng_index[hazard_group_seq_id] = hazard_rng_index
                         haz_seeds[hazard_rng_index] = generate_hash_hazard(items[item_idx]['hazard_group_id'], compute_info['event_id'])
                         this_hazard_rng_index = hazard_rng_index
+                        n_buildings_by_haz_rng[this_hazard_rng_index] = item_n_buildings
                         hazard_rng_index += 1
                     else:
                         this_hazard_rng_index = hazard_group_seq_rng_index[hazard_group_seq_id]
+                        if item_n_buildings > n_buildings_by_haz_rng[this_hazard_rng_index]:
+                            n_buildings_by_haz_rng[this_hazard_rng_index] = item_n_buildings
                 else:
                     # deterministic hazard (or effective damageability): no hazard rng row exists.
                     # The NO_RNG_INDEX sentinel is never used as an index (guarded at consumption).
@@ -1328,6 +1428,8 @@ def reconstruct_coverages(compute_info,
                 items_event_data[item_i]['rng_index'] = this_rng_index
                 items_event_data[item_i]['hazard_rng_index'] = this_hazard_rng_index
                 items_event_data[item_i]['eff_cdf_id'] = item_cdf_group_idx[item_idx]
+                # stored signed: the writer needs the sign to decide separate-vs-summed
+                items_event_data[item_i]['packed_buildings'] = item_n_buildings_signed
                 if dynamic_footprint is not None:
                     items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
                     items_event_data[item_i]['return_period'] = items[item_idx]['return_period']

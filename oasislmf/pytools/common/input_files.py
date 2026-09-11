@@ -13,6 +13,7 @@ from oasislmf.pytools.common.data import (
     quantile_interval_dtype, returnperiods_dtype,
 )
 from oasislmf.pytools.common.event_stream import mv_read
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as _id_index_build, get_idx as _id_index_get_idx, NOT_FOUND as _OCC_IDX_NOT_FOUND
 
 
@@ -117,6 +118,19 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
     return result
 
 
+CORRELATIONS_ITEMSIZE_BEFORE_PACKING = 20
+
+
+def _stale_correlations_msg(path):
+    """Message for a correlations.bin written before the building-packing fields existed."""
+    return (
+        f"{path} does not match the current correlations record layout "
+        f"({correlations_dtype.itemsize} bytes: {', '.join(correlations_headers)}). It was most "
+        f"likely written before building packing added packed_buildings to the record "
+        f"({CORRELATIONS_ITEMSIZE_BEFORE_PACKING} bytes). Regenerate the oasis files."
+    )
+
+
 def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FILENAME):
     """Load the correlations from the correlations file.
 
@@ -127,10 +141,12 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
 
     Returns:
         numpy.array[correlations_dtype]: one row per item, holding item_id,
-            peril_correlation_group, damage_correlation_value, hazard_group_id and
-            hazard_correlation_value. A memmap when read from the binary file.
+            peril_correlation_group, damage_correlation_value, hazard_group_id,
+            hazard_correlation_value and packed_buildings. A memmap when read from the binary
+            file.
 
     Raises:
+        OasisException: if the binary file was not written by the current record layout.
         FileNotFoundError: if no correlations file is found with a non-ignored extension
     """
     for ext in ["bin", "csv"]:
@@ -138,30 +154,36 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
             continue
 
         correlations_file = Path(run_dir, filename).with_suffix("." + ext)
-        if correlations_file.exists():
-            logger.debug(f"loading {correlations_file}")
-            if ext == "bin":
-                try:
-                    correlations = np.memmap(correlations_file, dtype=correlations_dtype, mode='r')
-                except ValueError:
-                    logger.debug("binary file is empty, numpy.memmap failed. trying to read correlations.csv.")
-                    correlations = read_correlations(run_dir, ignore_file_type={'bin'}, filename=correlations_file.with_suffix(".csv").name)
-            elif ext == "csv":
-                # Check for header
-                with open(correlations_file, "r") as fin:
-                    first_line = fin.readline()
-                    first_line_elements = [header.strip() for header in first_line.strip().split(',')]
-                    has_header = first_line_elements == correlations_headers
-                correlations = np.loadtxt(
-                    correlations_file,
-                    dtype=correlations_dtype,
-                    delimiter=",",
-                    skiprows=1 if has_header else 0,
-                    ndmin=1
-                )
-            else:
-                raise RuntimeError(f"Cannot read correlations file of type {ext}. Not Implemented.")
-            return correlations
+        if not correlations_file.exists():
+            continue
+        logger.debug(f"loading {correlations_file}")
+
+        if ext == "csv":
+            with open(correlations_file, "r") as fin:
+                first_line_elements = [header.strip() for header in fin.readline().strip().split(',')]
+            return np.loadtxt(
+                correlations_file,
+                dtype=correlations_dtype,
+                delimiter=",",
+                skiprows=1 if first_line_elements == correlations_headers else 0,
+                ndmin=1
+            )
+
+        if correlations_file.stat().st_size == 0:
+            logger.debug("binary correlations file is empty, falling back to the csv.")
+            continue
+        try:
+            correlations = np.memmap(correlations_file, dtype=correlations_dtype, mode='r')
+        except ValueError:  # not a whole number of records
+            raise OasisException(_stale_correlations_msg(correlations_file))
+        # A whole number of records is not proof of the layout: an old 20-byte record file whose
+        # record count is a multiple of 6 divides evenly by 24 too, and parses silently into the
+        # wrong number of records with other fields' bytes read as the new one. item_id is
+        # assigned ngroup() + 1 over the whole frame, so a correct table holds a dense 1..N.
+        item_id = correlations["item_id"]
+        if len(item_id) and (item_id.min() != 1 or item_id.max() != len(item_id)):
+            raise OasisException(_stale_correlations_msg(correlations_file))
+        return correlations
 
     raise FileNotFoundError(f'correlations file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')
 

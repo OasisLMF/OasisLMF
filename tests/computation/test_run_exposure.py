@@ -321,6 +321,36 @@ class _RunExposureIntegrationBase(ComputationChecker):
         self.assertTrue(il)
         self.assertTrue(ril)
 
+    def _multi_building_location(self, n_buildings=3):
+        """The stock fixture has no NumberOfBuildings, so 'samples' would be a no-op on it."""
+        loc_df = pd.read_csv(LOCATION)
+        loc_df['NumberOfBuildings'] = n_buildings
+        loc_df['IsAggregate'] = 0
+        path = os.path.join(self.tmp.name, 'location_multi_building.csv')
+        loc_df.to_csv(path, index=False)
+        return path
+
+    def test_sample_disaggregation_runs_as_none(self):
+        """'samples' has no deterministic equivalent, so this step downgrades it rather than fail.
+
+        The step is routinely used to check a portfolio before launching the real run, so the same
+        settings have to be accepted. What must NOT happen is running with packed files: generation
+        divides a location's TIV by NumberOfBuildings for packing, and the deterministic generator
+        has no sample dimension to put the buildings back from, so every loss would come out at
+        1/N. Running as 'none' keeps the location totals right.
+
+        The fixture needs NumberOfBuildings > 1 or the two modes are trivially equal and this
+        asserts nothing -- the first version of this test passed with the downgrade removed.
+        """
+        location = self._multi_building_location(n_buildings=3)
+        packed = self._run_capturing_summary(
+            self._output_file(), disaggregation='samples',
+            oed_location_csv=location, oed_accounts_csv=ACCOUNTS)
+        whole_location = self._run_capturing_summary(
+            self._output_file(), disaggregation='none',
+            oed_location_csv=location, oed_accounts_csv=ACCOUNTS)
+        self.assertEqual(packed, whole_location)
+
     def test_invalid_location_file_raises(self):
         with self.assertRaises(Exception):
             self._run(

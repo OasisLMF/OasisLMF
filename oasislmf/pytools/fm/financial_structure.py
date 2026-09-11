@@ -12,7 +12,7 @@ import numpy as np
 from numba import from_dtype, njit
 
 
-from oasislmf.pytools.common.data import (load_as_ndarray, load_as_array, almost_equal,
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_info_dtype, load_as_ndarray, load_as_array, almost_equal,
                                           fm_policytc_dtype,
                                           fm_profile_dtype, fm_profile_step_dtype,
                                           fm_programme_dtype,
@@ -55,6 +55,9 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', oasis_int),
                                           ('items_len', oasis_int),
                                           ('output_len', oasis_int),
                                           ('stepped', np.bool_),
+                                          ('site_collapse_level', oasis_int),
+                                          ('max_buildings', oasis_int),
+                                          ('packable_node_len', oasis_int),
                                           ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', oasis_int),
                                            ('i_end', oasis_int),
@@ -66,6 +69,33 @@ profile_entry_dtype = np.dtype([('layer_id', oasis_int),
                                 ('i_end', oasis_int)])
 
 
+def load_fm_structure_info(static_path):
+    """Read the building-packing structure info written next to the fm input files.
+
+    Building-packed items keep their buildings apart until the site levels (the ones whose
+    aggregation key includes ``risk_id``) have applied their terms per building. Neither which
+    level that is nor how many buildings to make room for can be derived here: fm_programme levels
+    are compacted, so only levels carrying terms get one and the numbering varies per portfolio,
+    and the building counts live on the correlations table the financial module does not read.
+    Generation records both instead.
+
+    Args:
+        static_path (str): path to the folder holding the static input files.
+
+    Returns:
+        tuple(int, int): the level after which packed buildings collapse, and the largest number
+        of buildings any one packed item carries. ``(0, 1)`` when the file is absent -- which is
+        every input set not generated with building-packing.
+    """
+    fp = os.path.join(static_path, FM_STRUCTURE_INFO_FILE)
+    if not os.path.exists(fp):
+        return 0, 1
+    record = np.fromfile(fp, dtype=fm_structure_info_dtype)
+    if record.shape[0] == 0:
+        return 0, 1
+    return int(record[0]['site_collapse_level']), max(1, int(record[0]['max_buildings']))
+
+
 def load_static(static_path):
     """Load the raw financial data from static_path as numpy ndarray
     first check if .bin file is present then try .cvs
@@ -75,7 +105,7 @@ def load_static(static_path):
         static_path (str): path to the folder holding the static input files
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[bool], np.ndarray, np.ndarray, np.ndarray]:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[bool], np.ndarray, np.ndarray, np.ndarray, int, int]:
             - programme: link between nodes
             - policytc: info on layer
             - profile: policy profile can be profile_step or profile
@@ -85,6 +115,10 @@ def load_static(static_path):
               disagree on the number of coverages
             - coverages: Tiv value for each coverage id, empty when items and coverages disagree
               on the number of coverages
+            - site_collapse_level: last level whose aggregation key includes ``risk_id``, after
+              which building-packed items collapse to the sample size. 0 when the input set has
+              no packed buildings (which is every input set not generated with building-packing)
+            - max_buildings: largest number of buildings any one packed item carries, 1 when none
 
     Raises:
         FileNotFoundError: if one of the static is missing
@@ -107,7 +141,7 @@ def load_static(static_path):
         items = np.empty(0, dtype=items_dtype)
         coverages = np.empty(0, dtype=oasis_float)
 
-    return programme, policytc, profile, stepped, xref, items, coverages
+    return (programme, policytc, profile, stepped, xref, items, coverages) + load_fm_structure_info(static_path)
 
 
 @njit(cache=True)
@@ -370,7 +404,8 @@ def prepare_profile_stepped(profile, tiv):
 
 
 @njit(cache=True)
-def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages):
+def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages,
+                                site_collapse_level=0, max_buildings=1):
     """Build the in-memory financial structure arrays from the raw fm input files.
 
     Args:
@@ -382,6 +417,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         fm_xref (np.ndarray[fm_xref_dtype]): mapping between the output of the allocation and output item_id
         items (np.ndarray[items_dtype]): item_id and coverage_id mapping, empty when unavailable
         coverages (np.ndarray[oasis_float]): Tiv value for each coverage id, empty when unavailable
+        site_collapse_level (int): the last level whose aggregation key includes ``risk_id``.
+            Building-packed items keep their buildings apart until this level has applied its
+            terms per building, then collapse to the sample size. 0 means nothing to collapse.
+        max_buildings (int): largest number of buildings any one packed item carries, which sizes
+            the computation arrays up to the collapse level. 1 when there are none.
 
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -832,6 +872,17 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     compute_info['output_len'] = output_len
     compute_info['stepped'] = stepped is not None
     compute_info['max_layer'] = max(nodes_array['layer_len'][1:])
+    compute_info['site_collapse_level'] = site_collapse_level
+    compute_info['max_buildings'] = max_buildings
+    # Nodes at or below the collapse level carry a building dimension; everything above sees the
+    # collapsed loss. The item nodes sit at start_level, which is 1 for a single-peril structure,
+    # and 0 is the "no risk-keyed level" marker -- hence max(1, start_level). Below that, nothing
+    # would ever collapse the buildings, so the reader sums them away (collapse_on_read) instead.
+    # Count from index 1: nodes_array is np.empty and node 0 is a never-written sentinel.
+    compute_info['packable_node_len'] = (
+        int(np.count_nonzero(nodes_array[1:node_i]['level_id'] <= site_collapse_level))
+        if max_buildings > 1 and site_collapse_level >= max(1, start_level) else 0
+    )
 
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
 
@@ -855,9 +906,11 @@ def create_financial_structure(allocation_rule, static_path):
     if allocation_rule == 3:
         allocation_rule = 2
 
-    fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages = load_static(static_path)
+    (fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages,
+     site_collapse_level, max_buildings) = load_static(static_path)
     financial_structure = extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile,
-                                                      stepped, fm_xref, items, coverages)
+                                                      stepped, fm_xref, items, coverages,
+                                                      site_collapse_level, max_buildings)
     compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile = financial_structure
     logger.info(f'nodes_array has {len(nodes_array)} elements')
     logger.info(f'compute_info : {dict(zip(compute_info.dtype.names, compute_info[0]))}')
