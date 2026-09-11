@@ -261,6 +261,31 @@ could only name two of the three modes: ``True`` is equivalent to ``--disaggrega
 
 |
 
+**Affected-risk counts**
+
+``NUMBER_OF_AFFECTED_RISK`` in the summary outputs counts distinct ``(loc_id, building_id)``
+pairs that took a loss, so it depends on which mode wrote the items. For one location with
+``NumberOfBuildings = 3``, fully damaged:
+
+.. csv-table::
+    :header: "Mode", "Affected risks reported"
+
+    "``none``", "1"
+    "``items`` (default)", "3"
+    "``samples``", "1"
+
+``samples`` reports what ``none`` reports, because both write a single item per location with
+``building_id = 1``; ``items`` is the mode that differs. ``IsAggregate`` does not change any of
+these — the count keys on ``building_id``, not ``risk_id``, so a multi-building campus counts as
+three affected risks under ``items`` even though it is a single insured risk.
+
+Which of these is correct is under discussion: see
+`issue #2153 <https://github.com/OasisLMF/OasisLMF/issues/2153>`_. Losses are unaffected in every
+mode — only this count differs.
+
+|
+
+
 .. _disaggregation_items:
 
 ``items``: one item per building
