@@ -1102,6 +1102,16 @@ def run(
 
 @redirect_logging(exec_name='aalpy')
 def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, ext="csv", **kwargs):
+    # TEST HOOK (temporary): reproduce a fully-silent killed worker with no
+    # downstream consumer to crash. Remove this hook before merging.
+    if os.environ.get('OASIS_TEST_SELFKILL'):
+        import signal
+        import sys
+        logger = logging.getLogger('oasislmf')
+        logger.info(f"TEST HOOK: self SIGKILL about to fire in pid {os.getpid()}")
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.kill(os.getpid(), signal.SIGKILL)
     run(
         run_dir,
         subfolder,

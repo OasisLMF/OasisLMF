@@ -309,14 +309,21 @@ fi """
 
 WAIT_FUNC = """
 exec_wait(){
-    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
-    local BASH_VER_MINOR=${BASH_VERSION:2:1}
-    if [[ "$BASH_VER_MAJOR" -gt 5 ]] || { [[ "$BASH_VER_MAJOR" -eq 5 ]] && [[ "$BASH_VER_MINOR" -ge 1 ]]; }; then
-        local pid_exitcode
-        wait -p pid_exitcode "$@"
-    else
-        wait "$@"
-    fi
+    # `wait` given multiple pids only reports the exit status of the LAST
+    # one listed, silently discarding a non-zero status from any earlier
+    # pid. Wait on each pid individually so every failure is actually seen.
+    local status=0
+    local pid
+    local pid_exitcode
+    for pid in "$@"; do
+        wait "$pid"
+        pid_exitcode=$?
+        if [ "$pid_exitcode" -ne 0 ]; then
+            echo "[ERROR] pid $pid exited with status $pid_exitcode" >&2
+            status=$pid_exitcode
+        fi
+    done
+    return $status
 }"""
 
 

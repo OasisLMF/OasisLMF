@@ -293,21 +293,17 @@ def run(run_dir,
         logger.info(
             f"generating a cache of shape ({Nvulns_cached}, {Ndamage_bins_max}) and size {Nvulns_cached * Ndamage_bins_max * oasis_float.itemsize / 1024 / 1024:8.3f}MB")
 
-        # TEST HOOK (temporary): reproduce a single silently-killed worker.
-        # Set OASIS_TEST_SELFKILL_LOCK to a path; whichever gulmc process wins
-        # the race to create that file SIGKILLs itself here, before it ever
-        # reads an event from evepy. Remove before merging.
-        selfkill_lock = os.environ.get('OASIS_TEST_SELFKILL_LOCK')
-        if selfkill_lock:
-            try:
-                fd = os.open(selfkill_lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                os.close(fd)
-                logger.warning(f"TEST HOOK: self SIGKILL triggered in pid {os.getpid()}")
-                sys.stdout.flush()
-                sys.stderr.flush()
-                os.kill(os.getpid(), signal.SIGKILL)
-            except FileExistsError:
-                pass
+        # TEST HOOK (temporary): reproduce a silently-killed worker.
+        # This process SIGKILLs itself here, before it ever reads an event
+        # from evepy, if OASIS_TEST_SELFKILL is set in its own environment.
+        # To target one specific partition, set the env var only on that
+        # partition's gulmc invocation in run_kernel.sh, not globally.
+        # Remove this hook before merging.
+        if os.environ.get('OASIS_TEST_SELFKILL'):
+            logger.info(f"TEST HOOK: self SIGKILL about to fire in pid {os.getpid()}")
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os.kill(os.getpid(), signal.SIGKILL)
 
         # maximum bytes to be written in the output stream for 1 item
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
