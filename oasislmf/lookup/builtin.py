@@ -378,6 +378,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return step_function
 
     def process_locations(self, locations):
+        missing = [key for key in ('step_definition', 'strategy') if key not in self.config]
+        if missing:
+            raise OasisException(
+                f"lookup config is missing the required key(s) {missing}. "
+                "A built-in lookup needs 'step_definition' to define its steps and 'strategy' to order them"
+            )
+
         # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
         useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))

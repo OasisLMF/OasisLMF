@@ -213,7 +213,7 @@ class KeyServerFactory(object):
         if complex_lookup_config_fp:
             key_server.complex_lookup_config_fp = complex_lookup_config_fp
 
-        return config['model'], key_server
+        return config.get('model'), key_server
 
 
 class BasicKeyServer:
@@ -339,9 +339,12 @@ class BasicKeyServer:
             lookup_module = get_custom_module(lookup_module_path, 'lookup_module_path')
             lookup_cls = getattr(lookup_module, '{}KeysLookup'.format(self.config['model']['model_id']))
         else:  # built-in lookup
-            if self.config.get('builtin_lookup_type') == 'peril_covered_deterministic':
+            builtin_lookup_type = self.config.get('builtin_lookup_type')
+            if builtin_lookup_type is None and self.config.get('step_definition'):
+                builtin_lookup_type = 'new_lookup'
+            if builtin_lookup_type == 'peril_covered_deterministic':
                 lookup_cls = PerilCoveredDeterministicLookup
-            elif self.config.get('builtin_lookup_type') == 'new_lookup':
+            elif builtin_lookup_type == 'new_lookup':
                 lookup_cls = NewLookup
             else:
                 raise OasisException("Unrecognised lookup config file, or config file is from deprecated built in lookup module 'oasislmf<=1.16.0' ")
