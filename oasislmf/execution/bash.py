@@ -259,7 +259,6 @@ check_complete(){
         elif [ "$started" -gt 0 ]; then
             echo "[OK] $p"
         fi
-        echo "Inject Error" && false
     done
 """
     # Add in check for custom gulcalc if settings are provided
