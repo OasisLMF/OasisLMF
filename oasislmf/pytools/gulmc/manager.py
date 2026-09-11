@@ -13,6 +13,7 @@ Jagged Array Naming Convention
 import atexit
 import logging
 import os
+import signal
 import sys
 import json
 from contextlib import ExitStack
@@ -291,6 +292,22 @@ def run(run_dir,
         logger.info(f"max vulnerability cdf cache size is {max_cached_vuln_cdf_size_MB}MB")
         logger.info(
             f"generating a cache of shape ({Nvulns_cached}, {Ndamage_bins_max}) and size {Nvulns_cached * Ndamage_bins_max * oasis_float.itemsize / 1024 / 1024:8.3f}MB")
+
+        # TEST HOOK (temporary): reproduce a single silently-killed worker.
+        # Set OASIS_TEST_SELFKILL_LOCK to a path; whichever gulmc process wins
+        # the race to create that file SIGKILLs itself here, before it ever
+        # reads an event from evepy. Remove before merging.
+        selfkill_lock = os.environ.get('OASIS_TEST_SELFKILL_LOCK')
+        if selfkill_lock:
+            try:
+                fd = os.open(selfkill_lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                logger.warning(f"TEST HOOK: self SIGKILL triggered in pid {os.getpid()}")
+                sys.stdout.flush()
+                sys.stderr.flush()
+                os.kill(os.getpid(), signal.SIGKILL)
+            except FileExistsError:
+                pass
 
         # maximum bytes to be written in the output stream for 1 item
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
