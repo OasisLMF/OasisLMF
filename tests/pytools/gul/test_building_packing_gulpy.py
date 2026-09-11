@@ -18,7 +18,7 @@ from unittest import TestCase
 import numpy as np
 import pytest
 
-from oasislmf.pytools.common.data import correlations_dtype, oasis_int
+from oasislmf.pytools.common.data import correlations_dtype, items_dtype, oasis_int
 from oasislmf.pytools.common.event_stream import check_packed_sidx_fits
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.gul.structure import build_structures
@@ -89,17 +89,27 @@ class TestGulpyPackingStructures(TestCase):
             self.assertEqual(len(s['n_buildings_by_item_id']), int(corr['item_id'].max()) + 1)
             self.assertTrue((s['n_buildings_by_item_id'] == 1).all())
 
-    def test_every_item_is_addressable_even_with_no_packing(self):
+    def test_the_array_spans_the_items_even_when_correlations_is_shorter(self):
         """The compute indexes by item_id with no bounds check, so the array must cover them all.
 
         It used to be a length-1 sentinel when nothing was packed, which is why the reader
         carried an ``item_id < shape[0]`` guard. Collapsing the packed and unpacked paths
-        removed that guard, so the sizing is now load-bearing.
+        removed that guard, so the sizing is now load-bearing. Sizing from correlations alone
+        is not enough -- items is the table that is indexed -- so truncate correlations and
+        check the array still reaches the last item.
         """
         with TemporaryDirectory() as d:
-            corr = _with_correlations(d, 1, 0)
+            _with_correlations(d, 1, 0)
+            path = os.path.join(d, 'input', 'correlations.bin')
+            corr = np.fromfile(path, dtype=correlations_dtype)
+            corr[:len(corr) // 2].tofile(path)
+            items = np.fromfile(os.path.join(d, 'input', 'items.bin'), dtype=items_dtype)
+            max_item_id = int(items['item_id'].max())
+            self.assertGreater(max_item_id, len(corr) // 2, 'items must outrun correlations here')
+
             s = build_structures(d, set(), [])
-            for item_id in corr['item_id']:
+            self.assertGreater(len(s['n_buildings_by_item_id']), max_item_id)
+            for item_id in items['item_id']:
                 self.assertEqual(s['n_buildings_by_item_id'][item_id], 1)
 
     def test_several_buildings_turn_packing_on(self):

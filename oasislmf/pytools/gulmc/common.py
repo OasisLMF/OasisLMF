@@ -117,5 +117,4 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     ('do_haz_correlation', np.int8),
     ('effective_damageability', np.int8),
     ('debug', np.int8),
-    ('building_packing', np.int8),
 ]))

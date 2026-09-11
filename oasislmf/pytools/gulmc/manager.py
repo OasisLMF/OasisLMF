@@ -819,7 +819,7 @@ def draw_correlation_samples(compute_info, item, hazard_rng_index, sample_size,
         sample_size (int): number of random samples to draw.
         haz_rndms_item (np.array[float64]): this item's ``sample_size`` hazard random values.
             Under building packing this is one building's slice of the group's block, which is
-            what lets the same routine serve both the packed and unpacked paths.
+            what lets one routine serve every building of an item.
         vuln_rndms_item (np.array[float64]): this item's ``sample_size`` damage random values.
         haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
         damage_eps_ij (np.array[float]): correlated random values for damage sampling.
@@ -891,7 +891,7 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index, dynamic_foot
         damage_bins (np.array): damage bin dictionary.
         damage_bin_scaling (float): tiv scaling factor.
         out (np.array[oasis_float]): 1-d view of length ``sample_size`` written in place, holding
-            this item's samples only. The unpacked path passes the item's column of ``losses``
+            this item's samples only. Callers pass one building's column of ``building_losses``
             past the special indices; the packed path passes one building's column of
             ``building_losses``. Taking a view rather than (buffer, index) is what lets both use
             this routine.

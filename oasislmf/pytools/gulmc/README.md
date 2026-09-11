@@ -26,7 +26,7 @@ Shared modules in `gul/`:
 gul/
 ├── random.py       # Random number generation (Mersenne Twister, Latin Hypercube)
 ├── core.py         # Core math: get_gul(), compute_mean_loss(), split_tiv()
-├── manager.py      # write_losses(), adjust_byte_mv_size()
+├── manager.py      # write_losses_packed(), adjust_byte_mv_size()
 └── utils.py        # binary_search()
 ```
 
@@ -88,8 +88,8 @@ Structured array of type `items_MC_data_type`, populated per event by `reconstru
 | `item_id` | int32 | Item identifier |
 | `item_idx` | int32 | Index into the items table |
 | `haz_arr_i` | int32 | Index into haz_arr_ptr for this item's hazard pdf |
-| `rng_index` | int32 | Index into vuln_seeds / vuln_rndms_base |
-| `hazard_rng_index` | int32 | Index into haz_seeds / haz_rndms_base |
+| `rng_index` | int32 | Index into vuln_seeds / vuln_offsets |
+| `hazard_rng_index` | int32 | Index into haz_seeds / haz_offsets |
 | `intensity_adjustment` | int32 | Dynamic footprint intensity adjustment |
 | `return_period` | int32 | Dynamic footprint return period |
 | `eff_cdf_id` | int32 | Sequential CDF group id for cache key construction (O5) |

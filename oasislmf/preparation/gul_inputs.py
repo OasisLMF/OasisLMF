@@ -519,7 +519,6 @@ def write_file(gul_inputs_df, file_path, file_dtype, chunksize=100000):
     return file_path
 
 
-@oasis_log
 def build_correlations_frame(gul_inputs_df):
     """Select the correlations columns and fold the building-packing flag into the count's sign.
 
@@ -551,6 +550,7 @@ def build_correlations_frame(gul_inputs_df):
     return correlations_df
 
 
+@oasis_log
 def write_gul_input_files(
     gul_inputs_df,
     target_dir,
