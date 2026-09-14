@@ -102,7 +102,10 @@ class TestRunModel(ComputationChecker):
                 patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock), \
         patch.object(oasislmf.computation.base, 'str2bool', str2bool_mock):
             self.manager.run_model(**call_args)
-        str2bool_mock.assert_called_with('False')
+        # Use assert_any_call rather than assert_called_with (last call only): the exact
+        # last param processed via str2bool depends on step_params ordering across all
+        # chained computation steps, which isn't and shouldn't be part of this test's contract.
+        str2bool_mock.assert_any_call('False')
 
     def test_model_run__str2bool_invalid_call__exception_raised(self):
         files_mock = MagicMock()
