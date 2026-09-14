@@ -1,5 +1,4 @@
 from io import BufferedReader
-import struct
 import sys
 from unittest.mock import Mock, patch
 import numpy as np
@@ -9,9 +8,9 @@ import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import OccurrenceCSR
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 import oasislmf.pytools.plt.manager as plt_manager
 from oasislmf.pytools.plt.manager import main
 from oasislmf.utils.exceptions import OasisStreamException
@@ -19,25 +18,23 @@ from oasislmf.utils.exceptions import OasisStreamException
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_pltpy")
 
 
-def _build_summary_stream(sample_size, summaries):
-    """Build a minimal summary-stream binary, same layout as eltpy's test helper.
+def _build_summary_stream(tmp_dir, sample_size, summaries, name="summary", summary_set_id=1):
+    """Build a summary-stream binary via the real summarycalc csvtobin converter (same
+    encoding pltpy reads in production), instead of hand-packing the binary layout.
 
     summaries: list of (event_id, summary_id, impacted_exposure, [(sidx, loss), ...])
+    Returns: path to the generated .bin stream file.
     """
-    buf = bytearray()
-    buf += struct.pack("<i", np.frombuffer(stream_info_to_bytes(SUMMARY_STREAM_ID, sample_size), dtype=np.int32)[0])
-    buf += struct.pack("<i", sample_size)
-    buf += struct.pack("<i", 1)  # summaryset_id, read once
-    for event_id, summary_id, impacted_exposure, samples in summaries:
-        buf += struct.pack("<i", event_id)
-        buf += struct.pack("<i", summary_id)
-        buf += struct.pack("<f", impacted_exposure)
-        for sidx, loss in samples:
-            buf += struct.pack("<i", sidx)
-            buf += struct.pack("<f", loss)
-        buf += struct.pack("<i", 0)
-        buf += struct.pack("<f", 0.0)
-    return bytes(buf)
+    rows = [
+        (event_id, summary_id, sidx, loss, impacted_exposure)
+        for event_id, summary_id, impacted_exposure, samples in summaries
+        for sidx, loss in samples
+    ]
+    csv_path = tmp_dir / f"{name}.csv"
+    pd.DataFrame(rows, columns=["EventId", "SummaryId", "SampleId", "Loss", "ImpactedExposure"]).to_csv(csv_path, index=False)
+    stream_path = tmp_dir / f"{name}.bin"
+    csvtobin(csv_path, stream_path, "summarycalc", max_sample_index=sample_size, summary_set_id=summary_set_id)
+    return stream_path
 
 
 def _make_occ_csr(event_to_periods):
@@ -264,12 +261,9 @@ def test_mplt_qplt_buffer_full_across_summaries():
         (999, 102, 2000.0, [(1, 40.0), (2, 50.0), (3, 60.0)]),
         (999, 103, 3000.0, [(1, 70.0), (2, 80.0), (3, 90.0)]),
     ]
-    stream_bytes = _build_summary_stream(sample_size, summaries)
-
     with TemporaryDirectory() as tmp_dir_str:
         tmp_dir = Path(tmp_dir_str)
-        stream_file = tmp_dir / "summary.bin"
-        stream_file.write_bytes(stream_bytes)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
         mplt_out = tmp_dir / "mplt.csv"
         qplt_out = tmp_dir / "qplt.csv"
 
@@ -304,12 +298,9 @@ def test_splt_buffer_full_across_summaries():
         (999, 102, 2000.0, [(1, 40.0), (2, 50.0)]),
         (999, 103, 3000.0, [(1, 70.0), (2, 80.0)]),
     ]
-    stream_bytes = _build_summary_stream(sample_size, summaries)
-
     with TemporaryDirectory() as tmp_dir_str:
         tmp_dir = Path(tmp_dir_str)
-        stream_file = tmp_dir / "summary.bin"
-        stream_file.write_bytes(stream_bytes)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
         splt_out = tmp_dir / "splt.csv"
 
         with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 4), \
@@ -335,12 +326,9 @@ def test_mplt_buffer_full_immediately_before_new_event():
         (1000719084, 3820948, 200.0, [(1, 3.0), (2, 4.0)]),
         (1100028063, 111, 300.0, [(1, 5.0), (2, 6.0)]),
     ]
-    stream_bytes = _build_summary_stream(sample_size, summaries)
-
     with TemporaryDirectory() as tmp_dir_str:
         tmp_dir = Path(tmp_dir_str)
-        stream_file = tmp_dir / "summary.bin"
-        stream_file.write_bytes(stream_bytes)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
         mplt_out = tmp_dir / "mplt.csv"
 
         with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 2), \
@@ -368,12 +356,9 @@ def test_qplt_buffer_full_across_summaries():
         (999, 102, 2000.0, [(1, 40.0), (2, 50.0), (3, 60.0)]),
         (999, 103, 3000.0, [(1, 70.0), (2, 80.0), (3, 90.0)]),
     ]
-    stream_bytes = _build_summary_stream(sample_size, summaries)
-
     with TemporaryDirectory() as tmp_dir_str:
         tmp_dir = Path(tmp_dir_str)
-        stream_file = tmp_dir / "summary.bin"
-        stream_file.write_bytes(stream_bytes)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
         qplt_out = tmp_dir / "qplt.csv"
 
         with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 3), \
@@ -398,12 +383,9 @@ def test_splt_reservation_impossible_raises_instead_of_hanging():
     occ_csr = _make_occ_csr({999: [1]})
     period_weights = np.array([(1, 1.0)], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
     summaries = [(999, 101, 1000.0, [(i, float(i)) for i in range(1, sample_size + 1)])]
-    stream_bytes = _build_summary_stream(sample_size, summaries)
-
     with TemporaryDirectory() as tmp_dir_str:
         tmp_dir = Path(tmp_dir_str)
-        stream_file = tmp_dir / "summary.bin"
-        stream_file.write_bytes(stream_bytes)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
         splt_out = tmp_dir / "splt.csv"
 
         # Buffer smaller than a single summary's worst case (1 period x (5 + 1) = 6).
@@ -425,21 +407,17 @@ def test_multifile_current_event_id_not_leaked_across_files():
     sample_size = 2
     occ_csr = _make_occ_csr({999: [1], 1000: [1]})
     period_weights = np.array([(1, 1.0)], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
-    stream_a = _build_summary_stream(sample_size, [
-        (999, 101, 1000.0, [(1, 10.0), (2, 20.0)]),
-        (999, 102, 2000.0, [(1, 30.0), (2, 40.0)]),
-    ])
-    stream_b = _build_summary_stream(sample_size, [
-        (1000, 201, 3000.0, [(1, 50.0), (2, 60.0)]),
-        (1000, 202, 4000.0, [(1, 70.0), (2, 80.0)]),
-    ])
 
     with TemporaryDirectory() as tmp_dir_str:
         tmp_dir = Path(tmp_dir_str)
-        file_a = tmp_dir / "a.bin"
-        file_b = tmp_dir / "b.bin"
-        file_a.write_bytes(stream_a)
-        file_b.write_bytes(stream_b)
+        file_a = _build_summary_stream(tmp_dir, sample_size, [
+            (999, 101, 1000.0, [(1, 10.0), (2, 20.0)]),
+            (999, 102, 2000.0, [(1, 30.0), (2, 40.0)]),
+        ], name="a")
+        file_b = _build_summary_stream(tmp_dir, sample_size, [
+            (1000, 201, 3000.0, [(1, 50.0), (2, 60.0)]),
+            (1000, 202, 4000.0, [(1, 70.0), (2, 80.0)]),
+        ], name="b")
         mplt_out = tmp_dir / "mplt.csv"
 
         calls = []

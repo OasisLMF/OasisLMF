@@ -11,7 +11,7 @@ import pyarrow.parquet as pq
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           write_ndarray_to_fmt_csv, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
-                                                  mv_read, SUMMARY_STREAM_ID)
+                                                  mv_read, reservation_overflows, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import occ_get, occ_get_date, read_occurrence, read_periods, read_quantile
 from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
@@ -275,18 +275,6 @@ def read_buffer(
             sdloss = np.float64(0.0)
         return meanloss, sdloss
 
-    def _reservation_overflows(idx, reservation, capacity, name):
-        # Buffer genuinely too small for even one summary (idx == 0, i.e. buffer is
-        # already empty): flushing can never make room, so return would loop forever.
-        if idx + reservation > capacity:
-            if idx == 0:
-                raise ValueError(
-                    f"{name} reservation of {reservation} rows for a single summary exceeds the "
-                    f"output buffer capacity of {capacity}; increase OASIS_DEFAULT_BUFFER_SIZE."
-                )
-            return True
-        return False
-
     # Read input loop
     while cursor < valid_buff:
         if not state["reading_losses"]:
@@ -295,12 +283,12 @@ def read_buffer(
             # MPLT/QPLT can write up to max_records_per_event rows per record loop;
             # MPLT does this twice per summary (analytical mean, then sample mean).
             buffer_full = False
-            if state["compute_splt"] and _reservation_overflows(
+            if state["compute_splt"] and reservation_overflows(
                     si, max_records_per_event * (state["len_sample"] + 1), splt_data.shape[0], "SPLT"):
                 buffer_full = True
-            if state["compute_mplt"] and _reservation_overflows(mi, 2 * max_records_per_event, mplt_data.shape[0], "MPLT"):
+            if state["compute_mplt"] and reservation_overflows(mi, 2 * max_records_per_event, mplt_data.shape[0], "MPLT"):
                 buffer_full = True
-            if state["compute_qplt"] and _reservation_overflows(
+            if state["compute_qplt"] and reservation_overflows(
                     qi, max_records_per_event * len(intervals), qplt_data.shape[0], "QPLT"):
                 buffer_full = True
             if buffer_full:

@@ -11,7 +11,7 @@ import pyarrow.parquet as pq
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           write_ndarray_to_fmt_csv, loss_pair_size, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, EventReader, init_streams_in,
-                                                  mv_read, SUMMARY_STREAM_ID)
+                                                  mv_read, reservation_overflows, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import read_event_rates, read_quantile
 from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
 from oasislmf.pytools.utils import redirect_logging
@@ -206,18 +206,6 @@ def read_buffer(
             sdloss = np.float64(0.0)
         return meanloss, sdloss
 
-    def _reservation_overflows(idx, reservation, capacity, name):
-        # Buffer genuinely too small for even one summary (idx == 0, i.e. buffer is
-        # already empty): flushing can never make room, so return would loop forever.
-        if idx + reservation > capacity:
-            if idx == 0:
-                raise ValueError(
-                    f"{name} reservation of {reservation} rows for a single summary exceeds the "
-                    f"output buffer capacity of {capacity}; increase OASIS_DEFAULT_BUFFER_SIZE."
-                )
-            return True
-        return False
-
     while cursor < valid_buff:
         if not state["reading_losses"]:
             # Reserve room for the next summary's worst-case output before reading
@@ -225,11 +213,11 @@ def read_buffer(
             # +2 (not +1): both MEAN_IDX and NUMBER_OF_AFFECTED_RISK_IDX can each add
             # one extra SELT row on top of the len_sample real samples.
             buffer_full = False
-            if state["compute_selt"] and _reservation_overflows(si, state["len_sample"] + 2, selt_data.shape[0], "SELT"):
+            if state["compute_selt"] and reservation_overflows(si, state["len_sample"] + 2, selt_data.shape[0], "SELT"):
                 buffer_full = True
-            if state["compute_melt"] and _reservation_overflows(mi, 2, melt_data.shape[0], "MELT"):
+            if state["compute_melt"] and reservation_overflows(mi, 2, melt_data.shape[0], "MELT"):
                 buffer_full = True
-            if state["compute_qelt"] and _reservation_overflows(qi, len(intervals), qelt_data.shape[0], "QELT"):
+            if state["compute_qelt"] and reservation_overflows(qi, len(intervals), qelt_data.shape[0], "QELT"):
                 buffer_full = True
             if buffer_full:
                 _update_idxs()
