@@ -281,8 +281,21 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     "file_path": "%%KEYS_DATA_PATH%%/vulnerability_dict.csv",
                     "id_columns": ["vulnerability_id"]
                 }
+            },
+            "custom_status": {
+                "type": "set_status",
+                "columns": ["custom_status"],
+                "parameters": {
+                    "status_column": "custom_status"
+                }
             }
         }
+
+    ``set_status`` lets a model developer explicitly mark locations as, for example,
+    ``notatrisk`` or ``notmodelled`` (see ``oasislmf.utils.status.OASIS_KEYS_STATUS`` for the
+    full list of valid values) based on their own criteria — a spatial mask or lookup table
+    merged into the Locations DataFrame by an earlier step — rather than relying only on the
+    implicit success/fail logic derived from area_peril_id/vulnerability_id.
 
     Where each entry means:
 
@@ -606,10 +619,46 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                                                         sort=True)
             not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])].copy()
             if not not_covered_location.empty:
-                not_covered_location['status'] = OASIS_KEYS_STATUS['notatrisk']['id']
+                not_covered_location['status'] = OASIS_KEYS_STATUS['notmodelled']['id']
                 not_covered_location['message'] = not_covered_location[perils_covered_column].astype(str) + " have no perils modelled"
                 peril_locations = pd.concat([peril_locations, not_covered_location], ignore_index=True)
             return peril_locations
+        return fct
+
+    @staticmethod
+    def build_set_status(status_column, message_column=None):
+        """Set the status (and optionally message) of locations from a model-developer-supplied column.
+
+        Allows a model developer to explicitly mark locations (e.g. as ``notatrisk`` or
+        ``notmodelled``) based on their own criteria (a spatial mask, a lookup table, ...) merged
+        into the Locations DataFrame ahead of this step, rather than relying on the implicit
+        success/fail logic derived from area_peril_id/vulnerability_id.
+
+        Args:
+            status_column (str): name of the column containing the status to set for each
+                location. Rows where this column is empty keep whatever status was already set.
+            message_column (str, None): name of the column containing the message to set
+                alongside the status. If not provided, the message is left untouched.
+        """
+        valid_status_ids = {status['id'] for status in OASIS_KEYS_STATUS.values()}
+
+        def fct(locations):
+            if status_column not in locations.columns:
+                raise OasisException(f"missing column {status_column} in location")
+
+            set_status = ~is_empty(locations, status_column)
+            unknown_status = set_status & ~locations[status_column].isin(valid_status_ids)
+            if unknown_status.any():
+                raise OasisException(
+                    f"unknown status value(s) {sorted(locations.loc[unknown_status, status_column].unique())} "
+                    f"in column {status_column}, must be one of {sorted(valid_status_ids)}")
+
+            locations.loc[set_status, 'status'] = locations.loc[set_status, status_column]
+            if message_column is not None:
+                if message_column not in locations.columns:
+                    raise OasisException(f"missing column {message_column} in location")
+                locations.loc[set_status, 'message'] = locations.loc[set_status, message_column]
+            return locations
         return fct
 
     @staticmethod
