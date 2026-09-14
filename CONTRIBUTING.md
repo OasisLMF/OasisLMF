@@ -71,6 +71,35 @@ Code that doesn't follow the above principles shall not be merged into the codeb
 
 3. Create a working branch and start with your changes!
 
+### Record which version a feature landed in
+
+Document a new or changed feature with a Sphinx version directive, and write `NEXT` where
+the version goes — in reStructuredText:
+
+````rst
+.. versionadded:: NEXT
+````
+
+or in MyST Markdown:
+
+````md
+```{versionadded} NEXT
+```
+````
+
+`NEXT` is deliberate. The release version does not exist yet when you open the PR: it is
+chosen on the release branch, and `scripts/resolve-version-markers.sh` rewrites every
+`NEXT` to the real version in the same commit that bumps `oasislmf/__init__.py`. Nothing
+ships with `NEXT` in it — the release workflow refuses to tag if any survives.
+
+`versionchanged`, `deprecated` and `versionremoved` work the same way. `NEXT` must be the
+whole version argument: `.. versionadded:: NEXT (see below)` is not rewritten, and CI
+rejects it.
+
+Which version a *merged PR* shipped in is recorded separately and automatically — the
+release workflow assigns every PR in the release, and its linked issues, to a GitHub
+milestone named after the release tag.
+
 ### Commit your update
 
 Commit and push the changes once you are happy with them.
