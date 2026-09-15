@@ -2,6 +2,21 @@
 #
 # Resolve the `NEXT` placeholder in Sphinx version directives.
 #
+# ---------------------------------------------------------------------------------------
+# THIS SCRIPT IS COPIED, NOT SHARED. Identical copies live in:
+#
+#     OasisLMF/scripts/resolve-version-markers.sh
+#     OasisPlatform/scripts/resolve-version-markers.sh
+#     ODS_Tools/scripts/resolve-version-markers.sh
+#
+# A fix here is NOT a fix there. Port every change to all three, or the repos will resolve
+# markers differently and nobody will notice until a release stamps the wrong version.
+#
+# Exactly one thing is meant to differ between copies: the SCOPE exclusion below, which
+# names that repo's file documenting the convention (it necessarily contains literal
+# example markers). Everything else should stay byte-identical.
+# ---------------------------------------------------------------------------------------
+#
 # A PR author cannot know which release their change will ship in — the version is only
 # written at release time, by .github/workflows/version.yml and the update-version job in
 # .github/workflows/release-pr.yml. So docs and docstrings are authored with NEXT in place

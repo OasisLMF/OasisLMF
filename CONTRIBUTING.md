@@ -100,6 +100,11 @@ Which version a *merged PR* shipped in is recorded separately and automatically 
 release workflow assigns every PR in the release, and its linked issues, to a GitHub
 milestone named after the release tag.
 
+**Maintainers:** `scripts/resolve-version-markers.sh` is **copied**, not shared — identical
+copies live in OasisLMF, OasisPlatform and ODS_Tools. Port any fix to all three, or the
+repos will resolve markers differently and it will only surface when a release stamps the
+wrong version. Only the script's `SCOPE` exclusion is meant to differ per repo.
+
 ### Commit your update
 
 Commit and push the changes once you are happy with them.
