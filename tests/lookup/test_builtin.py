@@ -204,6 +204,38 @@ def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinate
     )
 
 
+@pytest.mark.parametrize("target_crs", ["EPSG:3857", "EPSG:2154"])
+def test_build_rtree_reprojects_non_4326_geometries(target_crs, rtree_locations_all_coordinates, tmp_path):
+    """Test that geometries in non-EPSG:4326 CRS (e.g. EPSG:3857 or state plane)
+    are automatically reprojected to EPSG:4326 and properly joined to produce risk matches."""
+    gpd = pytest.importorskip("geopandas")
+    gdf_original = gpd.read_parquet(FILES_DIR / "rtree_areas.parquet")
+    gdf_reprojected = gdf_original.to_crs(target_crs)
+    temp_file = tmp_path / f"rtree_areas_{target_crs.replace(':', '_')}.parquet"
+    gdf_reprojected.to_parquet(temp_file)
+
+    rtree = Lookup(config={}).build_rtree(
+        file_path=temp_file.as_posix(),
+        file_type="parquet",
+        id_columns="poly_id",
+        nearest_neighbor_max_distance=12000,
+    )
+    output = rtree(rtree_locations_all_coordinates)
+    expected = rtree_locations_all_coordinates.copy().assign(poly_id=[1, 2, 1, OASIS_UNKNOWN_ID])
+
+    # Verify that non-empty risk matches are produced
+    assert (output["poly_id"] != OASIS_UNKNOWN_ID).any()
+    assert (output["poly_id"] == 1).any()
+    assert (output["poly_id"] == 2).any()
+
+    # Sort values so order doesn't matter.
+    pd.testing.assert_frame_equal(
+        output.sort_values("locname"),
+        expected.sort_values("locname"),
+        check_dtype=False,
+    )
+
+
 @pytest.mark.parametrize("preparations, values, expected", [
     ({"min": 5}, [1, 5, 7], [5, 5, 7]),           # values below min are raised to min
     ({"max": 10}, [7, 10, 20], [7, 10, 10]),      # values above max are lowered to max
