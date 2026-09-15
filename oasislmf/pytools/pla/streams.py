@@ -56,14 +56,16 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
                 # clipped by the cap. Decoded rather than compared to -4 because a packed item carries one per
                 # building, at -4, -9, -14 ...; only negatives can be specials and the decode ignores the
                 # sample size for those.
-                if sidx < 0 and decode_local_sidx(sidx, 0) == CHANCE_OF_LOSS_IDX:
-                    continue
+                # amplifying a probability can push it above 1, so it passes through at 1.0.
+                # It still goes through the nan normalisation below -- skipping the whole read
+                # would let a nan through untouched.
+                pla_factor = 1.0 if (sidx < 0 and decode_local_sidx(sidx, 0) == CHANCE_OF_LOSS_IDX) else factor
 
                 loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
-                sidx_loss_view[k]['loss'] = loss * factor
+                sidx_loss_view[k]['loss'] = loss * pla_factor
                 ##########
             else:
                 cursor += n_pairs * loss_pair_size
@@ -100,14 +102,13 @@ def read_buffer_uniform(byte_mv, cursor, valid_buff, event_id, item_id, items_am
                     break
 
                 # a probability, not a loss -- see read_buffer
-                if sidx < 0 and decode_local_sidx(sidx, 0) == CHANCE_OF_LOSS_IDX:
-                    continue
+                pla_factor = 1.0 if (sidx < 0 and decode_local_sidx(sidx, 0) == CHANCE_OF_LOSS_IDX) else default_factor
 
                 loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
-                sidx_loss_view[k]['loss'] = loss * default_factor
+                sidx_loss_view[k]['loss'] = loss * pla_factor
                 ##########
             else:
                 cursor += n_pairs * loss_pair_size

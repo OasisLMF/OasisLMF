@@ -1,5 +1,6 @@
 """This file is the entry point for the gul command for the package."""
 import logging
+from math import sqrt
 import os
 import sys
 from contextlib import ExitStack
@@ -644,8 +645,14 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
             # summed at source: an ordinary unpacked item covering all nb_item buildings
             for special_idx in SPECIAL_SIDX:
                 value = losses[special_idx, item_j]
-                if special_idx != CHANCE_OF_LOSS_IDX:
-                    value = value * nb_item
+                if special_idx == CHANCE_OF_LOSS_IDX:
+                    pass                      # a probability, shared by the buildings
+                elif special_idx == STD_DEV_IDX:
+                    # the buildings draw independently, so their variances add and the standard
+                    # deviation of the sum grows with the root of the count, not the count
+                    value = value * sqrt(nb_item)
+                else:
+                    value = value * nb_item   # mean, tiv and max are additive
                 cursor = mv_write_sidx_loss(byte_mv, cursor, special_idx, value)
             for sample_idx in range(1, sample_size + 1):
                 loss = 0.

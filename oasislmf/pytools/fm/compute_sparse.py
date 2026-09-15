@@ -1052,7 +1052,13 @@ def compute_event(compute_info,
                             if is_allocation_rule_a2:
                                 ba_children_count = base_children_count
                             else:
+                                # Rules below a2 hand back_alloc a count of 1 whatever the node
+                                # really has, which means "take the one-base-child shortcut". The
+                                # flag has to agree: pairing a forced 1 with a flag derived from
+                                # the real count asks for a state that means nothing, and skips a
+                                # shortcut the rule asked for.
                                 ba_children_count = 1
+                                storage_is_base_child = True
 
                         back_alloc_extra_a2(ba_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
                                             node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
@@ -1082,7 +1088,13 @@ def compute_event(compute_info,
                             if is_allocation_rule_a2:
                                 ba_children_count = base_children_count
                             else:
+                                # Rules below a2 hand back_alloc a count of 1 whatever the node
+                                # really has, which means "take the one-base-child shortcut". The
+                                # flag has to agree: pairing a forced 1 with a flag derived from
+                                # the real count asks for a state that means nothing, and skips a
+                                # shortcut the rule asked for.
                                 ba_children_count = 1
+                                storage_is_base_child = True
 
                         back_alloc_a2(ba_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
                                       node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,

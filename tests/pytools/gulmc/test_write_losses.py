@@ -11,11 +11,13 @@ unambiguous for the financial module, whose reader can only discriminate on the 
 """
 from unittest import main, TestCase
 
+import math
+
 import numpy as np
 
 from oasislmf.pytools.common.data import oasis_float, oasis_int
 from oasislmf.pytools.common.event_stream import decode_building, decode_local_sidx, encode_sidx
-from oasislmf.pytools.gul.common import SPECIAL_SIDX, NUM_IDX, CHANCE_OF_LOSS_IDX
+from oasislmf.pytools.gul.common import SPECIAL_SIDX, NUM_IDX, CHANCE_OF_LOSS_IDX, STD_DEV_IDX
 from oasislmf.pytools.gulmc.manager import write_losses
 
 record_dtype = np.dtype([('sidx', '<i4'), ('loss', oasis_float)])
@@ -170,13 +172,23 @@ class TestWriteSummedAtSource(TestCase):
             self.assertAlmostEqual(recs[sample_idx], expected, places=4)
 
     def test_additive_specials_scale_with_the_building_count(self):
-        """max, tiv, mean (and the std the financial module ignores) aggregate across buildings."""
+        """max, tiv and mean are sums over the buildings, so they scale with the count."""
         recs = self._records()
         for special_idx in SPECIAL_SIDX:
-            if int(special_idx) == CHANCE_OF_LOSS_IDX:
+            if int(special_idx) in (CHANCE_OF_LOSS_IDX, STD_DEV_IDX):
                 continue
             self.assertAlmostEqual(recs[int(special_idx)],
                                    self.losses[special_idx, 0] * 3, places=4)
+
+    def test_standard_deviation_scales_with_the_root_of_the_count(self):
+        """The buildings draw independently, so variances add and the sd grows as sqrt(n).
+
+        Scaling it like the additive specials overstates the spread of the summed item by
+        sqrt(n): at 3 buildings, 1.73x.
+        """
+        recs = self._records()
+        self.assertAlmostEqual(recs[STD_DEV_IDX], self.losses[STD_DEV_IDX, 0] * math.sqrt(3), places=4)
+        self.assertNotAlmostEqual(recs[STD_DEV_IDX], self.losses[STD_DEV_IDX, 0] * 3, places=4)
 
     def test_chance_of_loss_is_taken_once(self):
         """It is a property of the risk, not a quantity to add up."""
