@@ -92,6 +92,10 @@ Rules:
   explanation links back to the reference. This is the payoff of the split.
 - Use `sphinx-copybutton`-friendly fenced code blocks with a language, e.g.
   ```` ```bash ````.
+- **Mark version availability** with a version directive whose argument is the literal
+  token `NEXT` — `versionadded`, `versionchanged`, `deprecated`, `versionremoved`. The
+  release workflow rewrites `NEXT` to the version actually shipped, so never guess a
+  number. See "Record which version a feature landed in" in `CONTRIBUTING.md`.
 - Match the tone and depth of the neighbouring pages.
 
 ### 4. Gotchas — do NOT trip these (see `source/explanation/documentation-strategy.md`)
