@@ -135,7 +135,7 @@ class GenerateLossesBase(ComputationStep):
         option
         """
         user_peril_filter = analysis_settings.get('peril_filter', None)
-        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else getattr(self, 'peril_filter', [])))
+        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else self.peril_filter))
         return peril_filter
 
     def _print_error_logs(self, run_log_fp, e):
@@ -205,6 +205,19 @@ class GenerateLossesDir(GenerateLossesBase):
          'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
+
+        # GUL engine selection -- these decide which shared structures are pre-built here, so they
+        # must be declared on this step and not only on the sub-steps that generate the run script.
+        # The chunked workflow calls this step on its own (`generate_losses_dir`), and an undeclared
+        # param is silently dropped, which would pre-build the structures of the engine that is not
+        # going to run.
+        {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
+        {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
+        {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
+        {'name': 'dynamic_footprint', 'default': False, 'help': 'Dynamic Footprint'},
+        {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
+        {'name': 'model_df_engine', 'default': None,
+            'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose', 'default': KERNEL_DEBUG},
@@ -341,9 +354,9 @@ class GenerateLossesDir(GenerateLossesBase):
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.kernel_alloc_rule_ri, ri_target_dir)
 
-        gulmc = getattr(self, 'gulmc', False)
-        model_custom_gulcalc = getattr(self, 'model_custom_gulcalc', None)
-        model_df_engine = getattr(self, 'model_df_engine', None) or getattr(self, 'base_df_engine', None)
+        gulmc = self.gulmc
+        model_custom_gulcalc = self.model_custom_gulcalc
+        model_df_engine = self.model_df_engine or self.base_df_engine
 
         if gulmc and not model_custom_gulcalc:
             from ...pytools.gulmc.structure import create_gulmc_structure
@@ -352,7 +365,7 @@ class GenerateLossesDir(GenerateLossesBase):
                 run_dir=model_run_fp,
                 ignore_file_type=set(),
                 peril_filter=self._get_peril_filter(self.settings),
-                dynamic_footprint=getattr(self, 'dynamic_footprint', False),
+                dynamic_footprint=self.dynamic_footprint,
                 model_df_engine=model_df_engine,
             )
 
@@ -411,7 +424,6 @@ class GenerateLossesPartial(GenerateLossesDir):
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
-        {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
         {'name': 'gul_random_generator', 'default': 2, 'type': int,
          'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube, '
                  '2: Latin Hypercube on Philox4x32-7. Default: 2).'},
@@ -424,17 +436,10 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'summarypy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'pass -m to summarypy so it writes a .idx side-file (consumed by the legacy ktools leccalc/aalcalc binaries via the parallel .idx tee chain). Python aggregators (lecpy, aalpy, eltpy, pltpy) glob *.bin work files and do not need this flag.'},
-        {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
-        {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'join summary id information to outputcalc csvs'},
-        {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
-        {'name': 'model_df_engine', 'default': None,
-            'help': 'The engine to use when loading dataframes model data (default: same as --base-df-engine)'},
-        {'name': 'dynamic_footprint', 'default': False,
-            'help': 'Dynamic Footprint'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -627,7 +632,6 @@ class GenerateLosses(GenerateLossesDir):
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
-        {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
         {'name': 'gul_random_generator', 'default': 2, 'type': int,
          'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube, '
                  '2: Latin Hypercube on Philox4x32-7. Default: 2).'},
@@ -640,20 +644,13 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'summarypy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'pass -m to summarypy so it writes a .idx side-file (consumed by the legacy ktools leccalc/aalcalc binaries via the parallel .idx tee chain). Python aggregators (lecpy, aalpy, eltpy, pltpy) glob *.bin work files and do not need this flag.'},
-        {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server', 'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
-        {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'join summary id information to outputcalc csvs'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
-        {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
-        {'name': 'model_df_engine', 'default': None,
-            'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
-        {'name': 'dynamic_footprint', 'default': False,
-            'help': 'Dynamic Footprint'},
         {'name': 'socket_server_ip', 'default': False, 'help': 'IP to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_IP."'},
         {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'},
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
