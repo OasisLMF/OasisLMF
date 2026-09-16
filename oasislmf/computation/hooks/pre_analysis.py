@@ -15,8 +15,7 @@ from ...utils.exceptions import OasisException
 
 
 def get_source_compression(exposure_data):
-    """
-    Derive the compression/format to use when persisting the pre-analysis
+    """Derive the compression/format to use when persisting the pre-analysis
     exposure snapshots, based on the original location source file's extension.
 
     Exposure.save() defaults to csv whenever no explicit compression is given
