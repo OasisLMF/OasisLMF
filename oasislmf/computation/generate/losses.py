@@ -214,7 +214,7 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
-        {'name': 'dynamic_footprint', 'default': False, 'help': 'Dynamic Footprint'},
+        {'name': 'dynamic_footprint', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'Dynamic Footprint'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
         {'name': 'model_df_engine', 'default': None,
             'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
