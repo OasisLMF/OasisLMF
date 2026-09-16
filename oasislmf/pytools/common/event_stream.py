@@ -129,6 +129,37 @@ def mv_read(byte_mv, cursor, _dtype, itemsize):
     return byte_mv[cursor:cursor + itemsize].view(_dtype)[0], cursor + itemsize
 
 
+@nb.njit(cache=True)
+def reservation_overflows(idx, reservation, capacity, name):
+    """Check whether reserving `reservation` more rows in a fixed-size output buffer
+    (used before reading a summary's raw data, so its worst-case output is guaranteed
+    to fit - see elt/manager.py and plt/manager.py's read_buffer) would overflow it.
+
+    Args:
+        idx: current write position in the output buffer
+        reservation: worst-case number of rows this summary could add
+        capacity: output buffer's total size
+        name: output type name, used only in the raised error message (e.g. "SELT")
+
+    Returns:
+        bool: True if the buffer needs to be flushed before this summary can be read.
+            False if there's room.
+
+    Raises:
+        ValueError: if idx == 0 (buffer already empty) and it still doesn't fit -
+            flushing an empty buffer can never make more room, so returning True here
+            would have the caller loop forever instead of making progress.
+    """
+    if idx + reservation > capacity:
+        if idx == 0:
+            raise ValueError(
+                f"{name} reservation of {reservation} rows for a single summary exceeds the "
+                f"output buffer capacity of {capacity}; increase OASIS_DEFAULT_BUFFER_SIZE."
+            )
+        return True
+    return False
+
+
 @nb.jit(nopython=True, cache=True)
 def mv_write(byte_mv, cursor, _dtype, itemsize, value) -> int:
     """Load an object into the numpy byte view at index cursor, return the index of the end of the object
