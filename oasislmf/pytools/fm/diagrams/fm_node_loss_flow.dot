@@ -1,0 +1,35 @@
+// Loss flow through one node. Render: dot -Tsvg fm_node_loss_flow.dot -o fm_node_loss_flow.svg
+digraph node_loss_flow {
+    rankdir=BT;                       // losses rise; the effect of the terms falls back
+    bgcolor="transparent";
+    compound=true;
+    nodesep=0.4; ranksep=0.5;
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+          fillcolor="#eef3fb", color="#4a6fa5"];
+    edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+    subgraph cluster_children {
+        label="base children, level N-1";
+        fontname="Helvetica"; fontsize=10; color="#888888"; style=dashed;
+        c1 [label="child 1"]; c2 [label="child 2"]; c3 [label="child 3"];
+        {rank=same; c1; c2; c3;}
+        c1 -> c2 -> c3 [style=invis];   // hold left-to-right order
+    }
+
+    agg [label="(1) aggregate\nsum children into a dense temp, write back sparse"];
+    li  [label="loss_in", fillcolor="#e3ecfa", color="#2f5596"];
+    lo  [label="loss_out", fillcolor="#e3ecfa", color="#2f5596"];
+    parent [label="parent, queued for level N+1", fillcolor="#f2f2f2", color="#888888"];
+
+    c1 -> agg;
+    c2 -> agg;
+    c3 -> agg;
+    agg -> li;
+    li -> lo [label="  (2) apply profile\l  deductible, limit, share\l  once per layer\l"];
+    lo -> parent [label="  (4) queue parents"];
+
+    // (3) the effect of the terms travels back down to every base child
+    lo -> c1 [lhead=cluster_children, dir=forward, style=bold,
+              color="#b06000", fontcolor="#b06000",
+              label="  (3) back allocate\l  scale each base child by\l  loss_out / loss_in\l"];
+}
