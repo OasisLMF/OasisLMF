@@ -42,7 +42,7 @@ def exposure_producer(error_queue, loc_df, acc_df, part_count, group_cols, expos
     """
     if group_cols:
         group_keys = loc_df[group_cols].drop_duplicates().reset_index(drop=True)
-        key_parts = np.array_split(group_keys, part_count)
+        key_parts = [group_keys.iloc[idx] for idx in np.array_split(np.arange(len(group_keys)), part_count)]
         loc_parts = (loc_df.merge(key_part, on=group_cols) for key_part in key_parts)
         acc_parts = (
             (acc_df.merge(key_part, on=group_cols) if acc_df is not None else None)
