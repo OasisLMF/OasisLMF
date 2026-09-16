@@ -4,12 +4,56 @@ import shutil
 import subprocess
 import json
 import re
+import time
+
+import psutil
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import (bash_wrapper, create_bash_analysis,
                    create_bash_outputs, genbash)
 from .resource_monitor import ResourceMonitor
+
+
+def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5):
+    """Block until no process still holds an open file handle under log_dir.
+
+    bash's `wait` only reaps the direct child PIDs it captured with `$!`.
+    A pytool (e.g. gulmc, fmpy) that internally forks worker processes for
+    parallel computation can leave those workers running past that point,
+    still writing to their log files, since they are reparented rather than
+    tracked by the script's `wait` calls. Without this check, callers that
+    archive `log_dir` immediately after `run_analysis`/`run_outputs` returns
+    can capture a snapshot with truncated log files.
+    """
+    log_dir = os.path.abspath(log_dir)
+    logging.debug("Checking for lingering log writers under %s", log_dir)
+    deadline = time.time() + timeout
+    attempt = 0
+    writers = []
+    while time.time() < deadline:
+        attempt += 1
+        writers = []
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                for f in proc.open_files():
+                    if f.path.startswith(log_dir):
+                        writers.append((proc.pid, proc.info.get('name'), f.path))
+                        break
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        if not writers:
+            logging.debug("No lingering log writers under %s (checked on attempt %d)", log_dir, attempt)
+            return
+        logging.debug(
+            "Attempt %d: still waiting on %d process(es) writing under %s: %s",
+            attempt, len(writers), log_dir, writers,
+        )
+        time.sleep(poll_interval)
+    logging.warning(
+        "Timed out after %.1fs waiting for %d log writer(s) to finish in %s: %s",
+        timeout, len(writers), log_dir, writers,
+    )
 
 
 @oasis_log()
@@ -184,6 +228,11 @@ def run_analysis(**params):
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
     monitor.stop()
+    logging.debug("run_analysis: bash script (pid=%s) exited with code %s, waiting on log writers in %s",
+                  proc.pid, proc.returncode, monitor_dir)
+    wait_start = time.time()
+    _wait_for_log_writers(monitor_dir)
+    logging.debug("run_analysis: log writer check for %s took %.2fs", monitor_dir, time.time() - wait_start)
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
     bash_trace = stdout.decode('utf-8')
@@ -205,6 +254,12 @@ def run_outputs(**params):
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
     monitor.stop()
+    out_log_dir = os.path.join(log_root, 'out')
+    logging.debug("run_outputs: bash script (pid=%s) exited with code %s, waiting on log writers in %s",
+                  proc.pid, proc.returncode, out_log_dir)
+    wait_start = time.time()
+    _wait_for_log_writers(out_log_dir)
+    logging.debug("run_outputs: log writer check for %s took %.2fs", out_log_dir, time.time() - wait_start)
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
     bash_trace = stdout.decode('utf-8')
