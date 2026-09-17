@@ -14,6 +14,8 @@ __all__ = [
     'MIN_ACC',
     'MIN_INF',
     'MIN_SCP',
+    'MULTI_LAYER_INF',
+    'MULTI_LAYER_SCP',
     'FAKE_PRE_ANALYSIS_MODULE',
     'FAKE_COMPLEX_LOOKUP_MODULE',
     'FAKE_MODEL_SETTINGS_JSON',
@@ -390,6 +392,17 @@ MIN_INF = """ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPeril,ReinsInceptionDat
 """
 MIN_SCP = """ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
 1,1,A11111,,,10002082047,,,,,,0.1,latest version
+"""
+
+# Two treaties at the same OED inuring priority but different risk levels, so the
+# reinsurance structure has more RI_N layers than reinsurance output levels.
+MULTI_LAYER_INF = """ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPeril,ReinsInceptionDate,ReinsExpiryDate,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,ReinsCurrency,InuringPriority,ReinsType,RiskLevel,UseReinsDates,OEDVersion
+1,1,ABC QS,WW1,2018-01-01,2018-12-31,1,0,0,0,0,1,GBP,1,SS,LOC,N,latest version
+2,1,ABC CXL,WW1,2018-01-01,2018-12-31,1,0,0,1000000,0,1,GBP,1,CXL,,N,latest version
+"""
+MULTI_LAYER_SCP = """ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
+1,1,A11111,,,10002082047,,,,,,0.1,latest version
+2,1,A11111,,,10002082047,,,,,,0.1,latest version
 """
 
 N2_LOC = """PortNumber,AccNumber,LocNumber,IsTenant,BuildingID,CountryCode,Latitude,Longitude,StreetAddress,PostalCode,OccupancyCode,ConstructionCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,OEDVersion
