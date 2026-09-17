@@ -37,10 +37,21 @@ def _find_open_writers(log_dir):
     could not be inspected (e.g. psutil.AccessDenied under a restricted
     container security context) - in that case an empty `writers` list does
     NOT mean nothing is writing, it means this signal is unreliable.
+
+    Only same-UID processes are considered: any orphaned/reparented pytool
+    worker still runs as the celery worker's own user, and skipping other
+    users' processes (root-owned daemons etc.) avoids spurious AccessDenied
+    noise from processes that were never a candidate writer in the first
+    place - on a real host, scanning *every* process would otherwise trip
+    the "degraded" fallback on essentially every run.
     """
     writers = []
     fully_inspected = True
-    for proc in psutil.process_iter(['pid', 'name']):
+    own_uid = os.getuid()
+    for proc in psutil.process_iter(['pid', 'name', 'uids']):
+        uids = proc.info.get('uids')
+        if uids is not None and uids.real != own_uid:
+            continue
         try:
             for f in proc.open_files():
                 if f.path.startswith(log_dir):
