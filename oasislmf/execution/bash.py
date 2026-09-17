@@ -2120,7 +2120,8 @@ def bash_wrapper(
     log_sub_dir=None,
     process_number=None,
     custom_gulcalc_log_start=None,
-    custom_gulcalc_log_finish=None
+    custom_gulcalc_log_finish=None,
+    run_check_complete=True,
 ):
     """Context manager that wraps the script body with header and footer boilerplate.
 
@@ -2128,9 +2129,10 @@ def bash_wrapper(
     directory setup, optional bash tracing, the error-trap function, and the
     completion-check function.
 
-    On exit (after the ``yield``), writes the footer: either a
-    ``check_complete`` call (single-script mode) or a chunk-validation block
-    that verifies no output files are empty (distributed-chunk mode).
+    On exit (after the ``yield``), writes the footer: a ``check_complete``
+    call when `run_check_complete` is True, and (independently, when
+    `process_number` is set) a chunk-validation block that verifies no
+    output files are empty.
 
     Args:
         filename (str): Path to the bash script being generated.
@@ -2145,6 +2147,16 @@ def bash_wrapper(
             the completion check.
         custom_gulcalc_log_finish (str or None): Custom log-finish marker for
             the completion check.
+        run_check_complete (bool): If True, call the bash `check_complete`
+            function (which scans `$LOG_DIR` for pytool logs and verifies
+            each reached a "finish" marker) before the script exits. This is
+            only meaningful for a script that owns the entirety of `$LOG_DIR`
+            for its run - e.g. the single combined script from `genbash()`.
+            `run_analysis()`/`run_outputs()` (each one script per chunk/stage,
+            run from a distributed worker) pass False here and instead run an
+            equivalent Python-side check once they can be sure writers have
+            actually finished (see `runner.py`'s `_wait_for_log_writers` and
+            `_check_pytool_logs_complete`).
 
     Yields:
         None: Control is yielded to the caller to write the script body.
@@ -2177,7 +2189,8 @@ def bash_wrapper(
         print_command(filename, BASH_TRACE)
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
-        print_command(filename, get_check_function(custom_gulcalc_log_start, custom_gulcalc_log_finish))
+        if run_check_complete:
+            print_command(filename, get_check_function(custom_gulcalc_log_start, custom_gulcalc_log_finish))
     print_command(filename, FIFO_CHECK_FUNC)
     print_command(filename, WAIT_FUNC)
 
@@ -2185,11 +2198,11 @@ def bash_wrapper(
     yield
 
     # Script footer
-    if stderr_guard and not process_number:
-        # run process dropped check (single script run)
+    if stderr_guard and run_check_complete:
+        # run process dropped check (single script run, owns all of $LOG_DIR)
         print_command(filename, '')
         print_command(filename, 'check_complete')
-    elif stderr_guard and process_number:
+    if stderr_guard and process_number:
         # check stderror.err before exit (fallback check in case of short run)
         print_command(filename, 'if [ -s $LOG_DIR/stderror.err ]; then')
         print_command(
