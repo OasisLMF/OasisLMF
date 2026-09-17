@@ -15,7 +15,7 @@ from oasislmf.utils.log import LoggingContext
 from .data.common import (
     EXPECTED_SUMMARY_INFO_CSV, MIN_RUN_SETTINGS, MIN_LOC, MIN_ACC, MIN_INF, MIN_SCP, MIN_KEYS, MIN_KEYS_ERR, IL_RUN_SETTINGS, RI_RUN_SETTINGS,
     RI_ALL_OUTPUT_SETTINGS, ALL_EXPECTED_SCRIPT, FAKE_MODEL_RUNNER, FAKE_MODEL_RUNNER__OLD, INVALID_RUN_SETTINGS, RI_AAL_SETTINGS,
-    PARQUET_GUL_SETTINGS, MIN_MODEL_SETTINGS, merge_dirs
+    PARQUET_GUL_SETTINGS, MIN_MODEL_SETTINGS, MULTI_LAYER_INF, MULTI_LAYER_SCP, merge_dirs
 )
 from .test_computation import ComputationChecker
 
@@ -197,6 +197,25 @@ class TestGenLosses(ComputationChecker):
             'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
         }
         with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10005"}):
+            self.manager.generate_losses(**call_args)
+
+    def test_losses__run_ri__net_only__intermediate_layers_skipped(self):
+        """Net RI output is written only at reinsurance output levels, so the summarypy
+        structures must not be built for the intermediate RI layers (#2162)."""
+        self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MULTI_LAYER_INF)
+        self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MULTI_LAYER_SCP)
+        self.manager.generate_files(**self.args_gen_files_ri)
+
+        ri_dirs = [d for d in os.listdir(self.args_gen_files_ri['oasis_files_dir']) if d.startswith('RI_')]
+        self.assertGreater(len(ri_dirs), 1)
+
+        run_settings = self.tmp_files.get('analysis_settings_json')
+        self.write_json(run_settings, RI_AAL_SETTINGS)
+        call_args = {
+            **self.min_args,
+            'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+        }
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10011"}):
             self.manager.generate_losses(**call_args)
 
     @patch('oasislmf.computation.hooks.post_analysis.PostAnalysis.run')

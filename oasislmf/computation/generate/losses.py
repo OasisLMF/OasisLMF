@@ -50,7 +50,8 @@ from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KERNEL_N_FM
                                KERNEL_ALLOC_GUL_MAX, KERNEL_ALLOC_IL_DEFAULT,
                                KERNEL_ALLOC_RI_DEFAULT, KERNEL_DEBUG,
                                KERNEL_MEAN_SAMPLE_IDX, KERNEL_NUM_PROCESSES,
-                               KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_TIV_SAMPLE_IDX)
+                               KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_TIV_SAMPLE_IDX,
+                               SUMMARY_OUTPUT)
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
 from ...utils.path import setcwd
@@ -235,10 +236,12 @@ class GenerateLossesDir(GenerateLossesBase):
         il = all(f'{name}.bin' in oasis_files or f'{name}.csv' in oasis_files
                  for name in ['fm_policytc', 'fm_profile', 'fm_programme', 'fm_xref'])
 
-        ri_dirs = [fn
-                   for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
-                   if re.match(r"RI_\d+$", fn)
-                   ]
+        # A layer can appear in both directories when re-running into an existing run dir
+        ri_dirs = list(dict.fromkeys(
+            fn
+            for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
+            if re.match(r"RI_\d+$", fn)
+        ))
         ril = any(ri_dirs)
 
         # Check for missing input files and either warn user or raise exception
@@ -381,7 +384,15 @@ class GenerateLossesDir(GenerateLossesBase):
                 summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                 if summary_sets_id.shape[0]:
                     if runtype == RUNTYPE_REINSURANCE_LOSS:
-                        summary_dirs = [os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs]
+                        # Only the RI layers that are reinsurance output levels get an
+                        # fmsummaryxref; intermediate layers are computed but never summarised.
+                        summary_dirs = [
+                            ri_dir for ri_dir in (
+                                os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs
+                            )
+                            if any(os.path.isfile(os.path.join(ri_dir, f"{SUMMARY_OUTPUT['il']}.{ext}"))
+                                   for ext in ('bin', 'csv'))
+                        ]
                     else:
                         summary_dirs = [os.path.join(self.model_run_dir, 'input')]
                     for summary_dir in summary_dirs:
