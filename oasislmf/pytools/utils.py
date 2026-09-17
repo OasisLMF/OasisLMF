@@ -62,9 +62,12 @@ def logging_reset_handlers(logger_name, previous=None):
         logger.propagate = propagate
         return
 
-    logger.propagate = True
+    # No captured state: undo what logging_set_handlers does, and only that. It touches handlers
+    # and propagate for 'oasislmf.*' loggers alone, and redirect_logging walks every logger in the
+    # process -- forcing propagate back on elsewhere would overwrite a host application's choice.
     if 'oasislmf.' in logger_name:
         logger.handlers.clear()
+        logger.propagate = True
     logger.setLevel(logging.NOTSET)
 
 

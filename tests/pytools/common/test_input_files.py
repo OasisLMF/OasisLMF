@@ -96,13 +96,19 @@ def test_read_correlations():
     run_dir = Path(TESTS_ASSETS_DIR, "input")
     filename = "correlations.csv"
 
+    # correlations.csv carries source_item_id; the reader requires every column, so a legacy
+    # 5-column file is rejected rather than upgraded
     correlations_expected = np.array([
-        (1, 1, 0.700000, 123451, 0.000000, 1),
-        (2, 2, 0.500000, 123451, 0.300000, 1),
-        (3, 1, 0.700000, 123452, 0.000000, 1),
-        (4, 2, 0.500000, 123452, 0.300000, 1),
+        (1, 1, 0.700000, 123451, 0.000000, 0, 1),
+        (2, 2, 0.500000, 123451, 0.300000, 0, 1),
+        (3, 1, 0.700000, 123452, 0.000000, 0, 1),
+        (4, 2, 0.500000, 123452, 0.300000, 0, 1),
     ], dtype=correlations_dtype)
     correlations_actual = read_correlations(run_dir, filename=filename)
+
+    source_item_id_expected = correlations_expected["source_item_id"]
+    source_item_id_actual = correlations_actual["source_item_id"]
+    np.testing.assert_array_equal(source_item_id_expected, source_item_id_actual)
 
     item_id_expected = correlations_expected["item_id"]
     peril_correlation_group_expected = correlations_expected["peril_correlation_group"]
@@ -156,16 +162,26 @@ def test_read_correlations_bin__partial_record_is_rejected():
             read_correlations(d)
 
 
-@pytest.mark.parametrize("num_items", [6, 12, 60])
-def test_read_correlations_bin__pre_packing_file_that_divides_evenly_is_rejected(num_items):
-    """The silent mis-parse: 20-byte records, a count that is a multiple of 6, so the byte count
-    divides by the current itemsize too and numpy.memmap accepts it.
+# the record layout before each field was added, oldest first
+_BASE_CORRELATIONS_FIELDS = [("item_id", "<i4"), ("peril_correlation_group", "<i4"),
+                             ("damage_correlation_value", "<f4"), ("hazard_group_id", "<i4"),
+                             ("hazard_correlation_value", "<f4")]
+PRE_SOURCE_ITEM_DTYPE = np.dtype(_BASE_CORRELATIONS_FIELDS)
+PRE_PACKING_DTYPE = np.dtype(_BASE_CORRELATIONS_FIELDS + [("source_item_id", "<i4")])
+
+
+@pytest.mark.parametrize("old_dtype", [PRE_SOURCE_ITEM_DTYPE, PRE_PACKING_DTYPE],
+                         ids=["pre-source_item_id", "pre-packed_buildings"])
+@pytest.mark.parametrize("num_items", [7, 14, 70])
+def test_read_correlations_bin__older_file_that_divides_evenly_is_rejected(old_dtype, num_items):
+    """The silent mis-parse: an older record size with a count whose byte total divides by the
+    current itemsize too, so numpy.memmap accepts it and reads other fields' bytes as the new one.
+
+    Both older layouts (20 and 24 bytes) land on this for counts that are a multiple of 7 against
+    today's 28, so the parametrization is the case under test, not an arbitrary set of sizes.
     """
-    pre_packing_dtype = np.dtype([("item_id", "<i4"), ("peril_correlation_group", "<i4"),
-                                  ("damage_correlation_value", "<f4"), ("hazard_group_id", "<i4"),
-                                  ("hazard_correlation_value", "<f4")])
-    assert pre_packing_dtype.itemsize * num_items % correlations_dtype.itemsize == 0, "not the case under test"
-    old = np.zeros(num_items, dtype=pre_packing_dtype)
+    assert old_dtype.itemsize * num_items % correlations_dtype.itemsize == 0, "not the case under test"
+    old = np.zeros(num_items, dtype=old_dtype)
     old["item_id"] = np.arange(1, num_items + 1)
     old["peril_correlation_group"] = 1
     old["damage_correlation_value"] = 0.5

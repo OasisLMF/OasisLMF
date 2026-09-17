@@ -118,16 +118,17 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
     return result
 
 
-CORRELATIONS_ITEMSIZE_BEFORE_PACKING = 20
-
-
 def _stale_correlations_msg(path):
-    """Message for a correlations.bin written before the building-packing fields existed."""
+    """Message for a correlations.bin written against an older record layout.
+
+    The record has gained a field more than once (source_item_id, then packed_buildings), so the
+    message names the layout expected now rather than any particular older size.
+    """
     return (
         f"{path} does not match the current correlations record layout "
         f"({correlations_dtype.itemsize} bytes: {', '.join(correlations_headers)}). It was most "
-        f"likely written before building packing added packed_buildings to the record "
-        f"({CORRELATIONS_ITEMSIZE_BEFORE_PACKING} bytes). Regenerate the oasis files."
+        f"likely written by an earlier version, before the record gained one of these fields. "
+        f"Regenerate the oasis files."
     )
 
 
@@ -142,8 +143,8 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
     Returns:
         numpy.array[correlations_dtype]: one row per item, holding item_id,
             peril_correlation_group, damage_correlation_value, hazard_group_id,
-            hazard_correlation_value and packed_buildings. A memmap when read from the binary
-            file.
+            hazard_correlation_value, source_item_id and packed_buildings. A memmap when read
+            from the binary file.
 
     Raises:
         OasisException: if the binary file was not written by the current record layout.
@@ -176,10 +177,11 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
             correlations = np.memmap(correlations_file, dtype=correlations_dtype, mode='r')
         except ValueError:  # not a whole number of records
             raise OasisException(_stale_correlations_msg(correlations_file))
-        # A whole number of records is not proof of the layout: an old 20-byte record file whose
-        # record count is a multiple of 6 divides evenly by 24 too, and parses silently into the
-        # wrong number of records with other fields' bytes read as the new one. item_id is
-        # assigned ngroup() + 1 over the whole frame, so a correct table holds a dense 1..N.
+        # A whole number of records is not proof of the layout: an older record file whose count
+        # divides evenly by the current itemsize too (a 20- or 24-byte record file holding a
+        # multiple of 7 records, against today's 28) parses silently into the wrong number of
+        # records, with other fields' bytes read as the new one. item_id is assigned ngroup() + 1
+        # over the whole frame, so a correct table holds a dense 1..N.
         item_id = correlations["item_id"]
         if len(item_id) and (item_id.min() != 1 or item_id.max() != len(item_id)):
             raise OasisException(_stale_correlations_msg(correlations_file))

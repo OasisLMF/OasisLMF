@@ -30,6 +30,9 @@ items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('return_period', oasis_int),
                                              ('event_rp', oasis_int),
                                              ('eff_cdf_id', oasis_int),
+                                             # signed: -1 means no source item, so this item is
+                                             # independent even inside a dependent coverage
+                                             ('source_item_j', np.int32),
                                              # signed: magnitude is the building count, negative
                                              # means the buildings stay separate
                                              ('packed_buildings', oasis_int),
@@ -117,4 +120,5 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     ('do_haz_correlation', np.int8),
     ('effective_damageability', np.int8),
     ('debug', np.int8),
+    ('do_coverage_dependency', np.int8),
 ]))
