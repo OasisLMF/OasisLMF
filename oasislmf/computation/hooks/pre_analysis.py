@@ -7,8 +7,10 @@ import pathlib
 from ods_tools.oed import UnknownColumnSaveOption
 
 from ..base import ComputationStep
+from .pre_analysis_multiproc import run_pre_analysis_multiproc
 from ...utils.data import get_exposure_data, prepare_oed_exposure, analysis_settings_loader, model_settings_loader
 from ...utils.inputs import str2bool
+from ...utils.parallel import resolve_partition_count
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
 
@@ -36,6 +38,13 @@ class ExposurePreAnalysis(ComputationStep):
                     'help': 'Name of the class to use for the exposure_pre_analysis'},
                    {'name': 'exposure_pre_analysis_setting_json', 'is_path': True, 'pre_exist': True,
                     'help': 'Exposure Pre-Analysis config JSON file path'},
+                   {'name': 'exposure_pre_analysis_multiprocessing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
+                    'help': 'Flag to enable/disable pre-analysis multiprocessing. Defaults to the "lookup_multiprocessing" value.'},
+                   {'name': 'exposure_pre_analysis_num_processes', 'type': int, 'default': None,
+                    'help': 'Number of workers in the pre-analysis multiprocess pool. Defaults to the "lookup_num_processes" value.'},
+                   {'name': 'exposure_pre_analysis_num_chunks', 'type': int, 'default': None,
+                    'help': 'Number of chunks to split the location/account files into for pre-analysis multiprocessing. '
+                            'Defaults to the "lookup_num_chunks" value.'},
                    {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
                    {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
                    {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
@@ -99,7 +108,6 @@ class ExposurePreAnalysis(ComputationStep):
         ids_option = {'loc_id': UnknownColumnSaveOption.DELETE,
                       'loc_idx': UnknownColumnSaveOption.DELETE}
         exposure_data.save(path=input_dir, version_name='raw', save_config=True, unknown_columns=ids_option)
-        kwargs['exposure_data'] = exposure_data
         kwargs['input_dir'] = input_dir
         kwargs['model_data_dir'] = self.model_data_dir
         kwargs['user_data_dir'] = self.user_data_dir
@@ -122,9 +130,42 @@ class ExposurePreAnalysis(ComputationStep):
         self.logger.info('\nPre-analysis original files: {}'.format(
             json.dumps(original_files, indent=4)))
 
-        print(kwargs)
-        print(_class(**kwargs))
-        _class_return = _class(**kwargs).run()
+        def _resolve(own_value, lookup_key, default):
+            # `self.kwargs` may hold `lookup_key: None` (rather than the key being absent)
+            # when this step is chained under RunModel/GenerateOasisFiles, since
+            # OasisManager.consolidate_input inserts an explicit None for every unset param.
+            if own_value is not None:
+                return own_value
+            kwargs_value = self.kwargs.get(lookup_key)
+            return kwargs_value if kwargs_value is not None else default
+
+        multiproc_enabled = _resolve(self.exposure_pre_analysis_multiprocessing, 'lookup_multiprocessing', True)
+        num_processes = _resolve(self.exposure_pre_analysis_num_processes, 'lookup_num_processes', -1)
+        num_chunks = _resolve(self.exposure_pre_analysis_num_chunks, 'lookup_num_chunks', -1)
+
+        group_cols = ['PortNumber', 'AccNumber']
+        can_group_by_account = all(col in exposure_data.location.dataframe.columns for col in group_cols)
+        if exposure_data.account is not None and not can_group_by_account:
+            # Without PortNumber/AccNumber on the location file, a location-only chunk split
+            # (below) could split a single account's rows across chunks - not safe to merge back.
+            multiproc_enabled = False
+        if can_group_by_account:
+            row_count = exposure_data.location.dataframe[group_cols].drop_duplicates().shape[0]
+        else:
+            row_count = exposure_data.location.dataframe.shape[0]
+        pool_count, part_count = resolve_partition_count(row_count, num_processes, num_chunks)
+
+        if multiproc_enabled and pool_count > 1:
+            self.logger.info(f'\nRunning pre-analysis across {pool_count} processes, {part_count} chunks')
+            location_df, account_df, _class_return = run_pre_analysis_multiproc(
+                exposure_data, _class, kwargs, pool_count, part_count,
+                group_cols if can_group_by_account else None)
+            exposure_data.location.dataframe = location_df
+            if exposure_data.account is not None:
+                exposure_data.account.dataframe = account_df
+        else:
+            kwargs['exposure_data'] = exposure_data
+            _class_return = _class(**kwargs).run()
 
         exposure_data.save(path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
         # regenerate ids

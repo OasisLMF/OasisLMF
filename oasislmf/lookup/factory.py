@@ -14,7 +14,6 @@ import warnings
 from collections import OrderedDict
 from contextlib import ExitStack
 
-import math
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -23,6 +22,7 @@ import pyarrow.parquet as pq
 from ..utils.data import get_json
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
+from ..utils.parallel import resolve_partition_count
 from ..utils.path import import_from_string, get_custom_module, as_path
 from ..utils.status import OASIS_KEYS_STATUS
 
@@ -588,13 +588,8 @@ class BasicKeyServer:
 
         location_row is of type <class 'pandas.core.series.Series'>
         """
-        pool_count = num_cores if num_cores > 0 else multiprocessing.cpu_count()
-        if num_partitions > 0:
-            part_count = num_partitions
-        else:
-            bloc_size = min(max(math.ceil(loc_df.shape[0] / pool_count), self.min_bloc_size), self.max_bloc_size)
-            part_count = math.ceil(loc_df.shape[0] / bloc_size)
-            pool_count = min(pool_count, part_count)
+        pool_count, part_count = resolve_partition_count(
+            loc_df.shape[0], num_cores, num_partitions, self.min_bloc_size, self.max_bloc_size)
         if pool_count <= 1:
             return self.generate_key_files_singleproc(loc_df, successes_fp, errors_fp, output_format, keys_success_msg)
 
