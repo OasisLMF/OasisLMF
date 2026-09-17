@@ -651,14 +651,16 @@ def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
         ...     'peril_id': ['WTC', 'WTC'],
         ...     'deductible': [100.0, 200.0],
         ... })
-        >>> _check_unique_merge_keys(
-        ...     bad, ['agg_id'], ['peril_id', 'deductible'],
-        ...     {'id': 1, 'desc': 'site coverage'},
-        ...     ['agg_id', 'peril_id'],
-        ... )  # doctest: +IGNORE_EXCEPTION_DETAIL
-        Traceback (most recent call last):
-            ...
-        OasisException: Inconsistent FM terms at level 1 ...
+        >>> from oasislmf.utils.exceptions import OasisException
+        >>> try:
+        ...     _check_unique_merge_keys(
+        ...         bad, ['agg_id'], ['peril_id', 'deductible'],
+        ...         {'id': 1, 'desc': 'site coverage'},
+        ...         ['agg_id', 'peril_id'],
+        ...     )
+        ... except OasisException as e:
+        ...     print(str(e).splitlines()[0])
+        Inconsistent FM terms at level 1 (site coverage).
     """
     right_cols = list(agg_id_merge_col) + list(agg_id_merge_col_extra)
     gul_cols = set(gul_inputs_columns)
