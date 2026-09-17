@@ -54,7 +54,30 @@ def _find_open_writers(log_dir):
         if uids is not None and uids.real != own_uid:
             continue
         try:
-            for f in proc.open_files():
+            # DIAGNOSTIC: is this a pytool process at all (by name OR cmdline,
+            # since a python-based tool's psutil name() is often the
+            # interpreter, e.g. 'python3', not the console-script name), and
+            # if so, what raw path does psutil report for its open files vs.
+            # log_dir? Helps tell "no real writer left" apart from "the path
+            # string just doesn't match" (symlinks/bind-mounts resolved
+            # differently by /proc than by os.path.abspath). Remove once
+            # open_writers is confirmed to ever populate on the real cluster.
+            is_pytool = proc.info.get('name') in MONITORED_TOOLS
+            if not is_pytool:
+                try:
+                    is_pytool = any(tool in ' '.join(proc.cmdline()) for tool in MONITORED_TOOLS)
+                except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
+                    is_pytool = False
+
+            open_files = proc.open_files()
+            if is_pytool:
+                logging.debug(
+                    "diag: pytool-like process pid=%s name=%s cmdline=%s open_files=%s (log_dir=%r)",
+                    proc.pid, proc.info.get('name'),
+                    ' '.join(proc.cmdline()) if is_pytool else '',
+                    [f.path for f in open_files], log_dir,
+                )
+            for f in open_files:
                 if f.path.startswith(log_dir):
                     writers.append((proc.pid, proc.info.get('name'), f.path))
                     break
@@ -66,13 +89,15 @@ def _find_open_writers(log_dir):
 
 
 def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_checks=2, degraded_stable_seconds=10.0):
-    """Block until nothing appears to still be writing under log_dir.
+    """Block until nothing appears to still be writing under log_dir, or timeout elapses.
 
-    Raises `OasisException` if `timeout` is reached without settling, rather
-    than silently returning - a caller archiving `log_dir` right after this
-    call must be able to trust that "it returned" means "it's actually done",
-    the same way bash's own `check_complete` fails loudly instead of letting
-    the script exit 0 with lost/incomplete process logs.
+    Only called once `_find_incomplete_pytool_logs` has already found something
+    missing its "finish" marker - so this exists purely to give a genuinely
+    still-running (but not yet finished) worker a chance to catch up, not as
+    a blanket tax on every run. It does not raise on its own timeout: the
+    caller always re-checks completeness afterward and raises with the
+    specific tool/files still missing, which is a more useful error than a
+    generic "timed out waiting" here.
 
     bash's `wait` only reaps the direct child PIDs it captured with `$!`.
     A pytool (e.g. gulmc, fmpy) that internally forks worker processes for
@@ -144,26 +169,19 @@ def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_checks=
             attempt, log_dir, writers, files_stable, stable_count, degraded,
         )
         previous = current
-    raise OasisException(
-        "Timed out after {:.1f}s waiting for writers under {} to finish (open_writers={}). "
-        "Refusing to archive logs that may still be truncated.".format(timeout, log_dir, writers)
+    logging.warning(
+        "Timed out after %.1fs waiting for writers under %s to finish (open_writers=%s)",
+        timeout, log_dir, writers,
     )
 
 
-def _check_pytool_logs_complete(log_dir):
-    """Verify every pytool log file under log_dir reached a 'finish' marker.
+def _find_incomplete_pytool_logs(log_dir):
+    """Return {tool: [path, ...]} for every pytool log under log_dir missing its 'finish' marker.
 
-    Python-side equivalent of bash's own `check_complete()` function, run
-    against a directory that `_wait_for_log_writers` has already confirmed
-    is no longer being written to. Unlike bash's version (a single point-in
-    -time scan run synchronously inside the script, before anything has had
-    a chance to catch up), this runs after settling, so a worker that was
-    just slow - rather than genuinely lost - has already been given the
-    chance to finish and won't be misreported here.
-
-    Raises `OasisException` if any tool has a log file that started but
-    never reached "finish" (see oasislmf/pytools/utils.py's
-    `redirect_logging`, which writes 'finishing process' on a clean exit).
+    Python-side equivalent of bash's own `check_complete()` function. Empty
+    dict means every log file found reached "finish" (see
+    oasislmf/pytools/utils.py's `redirect_logging`, which writes 'finishing
+    process' on a clean exit) - i.e. nothing here needs waiting or raising on.
     """
     lost = {}
     for tool in sorted(MONITORED_TOOLS):
@@ -182,7 +200,30 @@ def _check_pytool_logs_complete(log_dir):
                 missing.append(path)
         if missing:
             lost[tool] = missing
+    return lost
 
+
+def _ensure_pytool_logs_complete(log_dir):
+    """Check log_dir is complete; if not, wait for stragglers and check again.
+
+    Cheap in the common case: if every pytool log already has its "finish"
+    marker by the time the bash script's tracked process has exited, this
+    returns immediately with no polling at all. Only when something is
+    actually missing does it fall back to `_wait_for_log_writers` (to give a
+    genuinely still-running, reparented worker a chance to catch up) and
+    re-check - raising `OasisException`, naming exactly which tool/files are
+    still incomplete, only if it's still missing after that.
+    """
+    lost = _find_incomplete_pytool_logs(log_dir)
+    if not lost:
+        return
+
+    logging.warning(
+        "Incomplete pytool logs found under %s before any wait: %s - waiting for stragglers to finish",
+        log_dir, lost,
+    )
+    _wait_for_log_writers(log_dir)
+    lost = _find_incomplete_pytool_logs(log_dir)
     if lost:
         summary = ", ".join(f"{tool} ({len(paths)} lost)" for tool, paths in lost.items())
         raise OasisException(
@@ -363,12 +404,11 @@ def run_analysis(**params):
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
     monitor.stop()
-    logging.debug("run_analysis: bash script (pid=%s) exited with code %s, waiting on log writers in %s",
+    logging.debug("run_analysis: bash script (pid=%s) exited with code %s, checking log completeness in %s",
                   proc.pid, proc.returncode, monitor_dir)
-    wait_start = time.time()
-    _wait_for_log_writers(monitor_dir)
-    logging.debug("run_analysis: log writer check for %s took %.2fs", monitor_dir, time.time() - wait_start)
-    _check_pytool_logs_complete(monitor_dir)
+    check_start = time.time()
+    _ensure_pytool_logs_complete(monitor_dir)
+    logging.debug("run_analysis: log completeness check for %s took %.2fs", monitor_dir, time.time() - check_start)
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
     bash_trace = stdout.decode('utf-8')
@@ -392,12 +432,11 @@ def run_outputs(**params):
     stdout, _ = proc.communicate()
     monitor.stop()
     out_log_dir = os.path.join(log_root, 'out')
-    logging.debug("run_outputs: bash script (pid=%s) exited with code %s, waiting on log writers in %s",
+    logging.debug("run_outputs: bash script (pid=%s) exited with code %s, checking log completeness in %s",
                   proc.pid, proc.returncode, out_log_dir)
-    wait_start = time.time()
-    _wait_for_log_writers(out_log_dir)
-    logging.debug("run_outputs: log writer check for %s took %.2fs", out_log_dir, time.time() - wait_start)
-    _check_pytool_logs_complete(out_log_dir)
+    check_start = time.time()
+    _ensure_pytool_logs_complete(out_log_dir)
+    logging.debug("run_outputs: log completeness check for %s took %.2fs", out_log_dir, time.time() - check_start)
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
     bash_trace = stdout.decode('utf-8')
