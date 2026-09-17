@@ -67,6 +67,12 @@ def _find_open_writers(log_dir):
 def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_checks=2, degraded_stable_seconds=10.0):
     """Block until nothing appears to still be writing under log_dir.
 
+    Raises `OasisException` if `timeout` is reached without settling, rather
+    than silently returning - a caller archiving `log_dir` right after this
+    call must be able to trust that "it returned" means "it's actually done",
+    the same way bash's own `check_complete` fails loudly instead of letting
+    the script exit 0 with lost/incomplete process logs.
+
     bash's `wait` only reaps the direct child PIDs it captured with `$!`.
     A pytool (e.g. gulmc, fmpy) that internally forks worker processes for
     parallel computation can leave those workers running past that point,
@@ -137,9 +143,9 @@ def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_checks=
             attempt, log_dir, writers, files_stable, stable_count, degraded,
         )
         previous = current
-    logging.warning(
-        "Timed out after %.1fs waiting for writers under %s to finish (open_writers=%s)",
-        timeout, log_dir, writers,
+    raise OasisException(
+        "Timed out after {:.1f}s waiting for writers under {} to finish (open_writers={}). "
+        "Refusing to archive logs that may still be truncated.".format(timeout, log_dir, writers)
     )
 
 
