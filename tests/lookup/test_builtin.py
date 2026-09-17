@@ -426,3 +426,19 @@ def test_merge_empty_join_raises_clear_error(tmp_path):
     locations = pd.DataFrame({"loc_id": [1], "GeogScheme1": ["W3W"], "GeogName1": ["a.b.c"]})
     with pytest.raises(OasisException, match="shares no column"):
         merge(locations)
+
+
+def test_geog_lookup_sparse_and_null_slots():
+    """Real OED has mostly-empty GeogScheme slots (NaN); resolution must not raise
+    and must pick the filled slot per row regardless of which one it is."""
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3],
+        "GeogScheme1": ["W3W", None, "ISO2"],
+        "GeogName1": ["a.b.c", None, "US"],
+        "GeogScheme2": [None, "W3W", None],
+        "GeogName2": [None, "d.e.f", None],
+    })
+    fct = Lookup(config={}).build_geog_lookup(geog_scheme="W3W", output_column="w3w", slots=2)
+    result = fct(locations)
+    assert result["w3w"].tolist()[:2] == ["a.b.c", "d.e.f"]
+    assert pd.isna(result["w3w"].iloc[2])

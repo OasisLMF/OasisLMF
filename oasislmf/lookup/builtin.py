@@ -1142,7 +1142,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 scheme_vals = locations[scheme_col].astype('string').str.strip()
                 if case_insensitive:
                     scheme_vals = scheme_vals.str.upper()
-                hit = (scheme_vals == target) & resolved.isna()
+                # empty slots (NaN scheme) compare to NA; fillna(False) keeps the
+                # mask a plain boolean so .loc never sees NA (sparse slots are the
+                # common OED shape).
+                hit = ((scheme_vals == target) & resolved.isna()).fillna(False)
                 resolved.loc[hit] = locations.loc[hit, name_col]
             n_resolved = int(resolved.notna().sum())
             logger.info("geog_lookup(%s): resolved %d/%d locations into '%s'",
