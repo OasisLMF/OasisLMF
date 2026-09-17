@@ -11,6 +11,7 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
+import pytest
 import pandas as pd
 
 from oasislmf.preparation.gul_inputs import (
@@ -341,3 +342,32 @@ class TestThreeDisaggregationModes(TestCase):
                 self.assertEqual(len(with_col), len(loc))
                 self.assertEqual(with_col['group_id'].nunique(), without['group_id'].nunique())
                 self.assertEqual(with_col['group_id'].nunique(), with_col['loc_id'].nunique())
+
+
+def test_a_dependent_and_its_source_must_pack_the_same_buildings():
+    """gulmc pairs building b of a dependent with building b of its source, so the two items must
+    carry the same count. A mismatch means the link crossed locations, and the per-building
+    correspondence would be silently wrong rather than detectably so."""
+    from oasislmf.preparation.gul_inputs import validate_source_and_dependent_building_counts
+    from oasislmf.utils.exceptions import OasisException
+
+    df = pd.DataFrame({'item_id': [1, 2, 3],
+                       'source_item_id': [0, 1, 0],
+                       'number_of_buildings': [4, 4, 7]})
+    validate_source_and_dependent_building_counts(df)  # matching counts: must not raise
+
+    df.loc[df['item_id'] == 2, 'number_of_buildings'] = 3
+    with pytest.raises(OasisException, match="different number of buildings"):
+        validate_source_and_dependent_building_counts(df)
+
+
+def test_building_count_check_is_inert_without_packing_or_dependency():
+    """The column is absent unless disaggregation packs buildings, and no item is linked unless
+    coverage dependency is configured; neither case is an error."""
+    from oasislmf.preparation.gul_inputs import validate_source_and_dependent_building_counts
+
+    validate_source_and_dependent_building_counts(
+        pd.DataFrame({'item_id': [1, 2], 'source_item_id': [0, 1]}))          # no packing column
+    validate_source_and_dependent_building_counts(
+        pd.DataFrame({'item_id': [1, 2], 'source_item_id': [0, 0],
+                      'number_of_buildings': [4, 9]}))                        # nothing linked

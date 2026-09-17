@@ -6,6 +6,7 @@ vulnerability directly, so the dependent's damage is conditioned on how badly th
 damaged. Dependency is opt-in via model_settings and carried per item on the correlations
 file, so with nothing configured behaviour is identical to before.
 """
+import os
 import logging
 import shutil
 import tempfile
@@ -649,7 +650,7 @@ def test_forest_rejects_self_reference():
 # --------------------------------------------------------------------------------------
 # end-to-end behaviour
 # --------------------------------------------------------------------------------------
-def _write_correlations(run_dir, dependent_to_source):
+def _write_correlations(run_dir, dependent_to_source, buildings=1):
     """Write a correlations file for the model, linking each dependent ITEM to its source item.
 
     The link is per item: a dependent item pairs with the source coverage's item at the same
@@ -658,10 +659,12 @@ def _write_correlations(run_dir, dependent_to_source):
     Args:
         run_dir (Path): run directory containing input/items.csv.
         dependent_to_source (dict[int, int]): mapping dependent coverage_id -> source coverage_id.
+        buildings (int): buildings packed into every item's sample dimension. 1 is the unpacked
+            identity.
     """
     items = pd.read_csv(run_dir / 'input' / 'items.csv')
     corr = np.zeros(len(items), dtype=correlations_dtype)
-    corr['packed_buildings'] = 1   # one building per item: the unpacked identity
+    corr['packed_buildings'] = buildings
     corr['item_id'] = items['item_id'].to_numpy()
     for dep_cov, src_cov in dependent_to_source.items():
         for row in items[items['coverage_id'] == dep_cov].itertuples():
@@ -1060,3 +1063,146 @@ def test_conditional_convolution_reference():
     eff_cdf = calc_eff_damage_cdf(dependent_vuln, source_pmf, np.zeros(dependent_vuln.shape[1], dtype='f8'))
     eff_pmf = np.diff(np.concatenate(([0.0], eff_cdf)))
     np.testing.assert_allclose(eff_pmf, [0.18, 0.19, 0.21, 0.16, 0.13, 0.13], atol=1e-9)
+
+
+def _per_building(df, item_id, sample_size, n_buildings):
+    """The item's sample losses as an (n_buildings, sample_size) array, decoded from the sidx.
+
+    A packed sidx is ``(b - 1) * S + s``, so this is the inverse of what the stream writes.
+    """
+    rows = df[(df['item_id'] == item_id) & (df['sidx'] > 0)]
+    out = np.full((n_buildings, sample_size), np.nan)
+    sidx = rows['sidx'].to_numpy()
+    out[(sidx - 1) // sample_size, (sidx - 1) % sample_size] = rows['loss'].to_numpy()
+    assert not np.isnan(out).any(), f"item {item_id} did not report every (building, sample)"
+    return out
+
+
+def test_each_building_is_driven_by_its_own_source_building():
+    """A packed dependent's building b must be driven by building b of its source.
+
+    The dependency stack holds one source's sampled damage bin per (building, sample). Without the
+    building dimension every building of an item writes the same slot and the last one wins, so a
+    dependent's buildings would all follow a single source building.
+
+    Two things make that visible. The damage bins are point bins (bin_from == bin_to), so a loss
+    identifies its damage bin exactly -- there is no within-bin interpolation left for the
+    dependent's own random draw to move. And the conditional vulnerability is the identity, so the
+    dependent's bin IS its source's bin. The dependent's pattern of equal-valued samples must then
+    match its own source building's pattern exactly; under the collapse it would match the last
+    building's instead.
+    """
+    sample_size, n_buildings = 64, 3
+    with tempfile.TemporaryDirectory() as t:
+        run_dir = Path(t) / 'assets'
+        shutil.copytree(SRC_MODEL, run_dir)
+        shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
+
+        items = pd.read_csv(run_dir / 'input' / 'items.csv')
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 154), 'vulnerability_id'] = 101
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 54), 'vulnerability_id'] = 102
+        items.to_csv(run_dir / 'input' / 'items.csv', index=False)
+        (run_dir / 'input' / 'items.bin').unlink()
+
+        # point bins: one damage value per bin, so a loss names its bin without ambiguity
+        dbd_path = run_dir / 'static' / 'damage_bin_dict.csv'
+        dbd = pd.read_csv(dbd_path)
+        n_damage_bins = len(dbd)
+        pts = np.linspace(0., 1., n_damage_bins)
+        dbd['bin_from'] = dbd['bin_to'] = dbd['interpolation'] = pts
+        dbd.to_csv(dbd_path, index=False)
+        (run_dir / 'static' / 'damage_bin_dict.bin').unlink()
+
+        with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
+            f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
+            for vid in (101, 102):
+                for k in range(1, n_damage_bins + 1):
+                    f.write(f'{vid},{k},{k},1.0\n')
+
+        # negative: keep the buildings separate, so each reaches the stream as its own block. A
+        # positive count is summed at source in gulmc and only the total is emitted, which samples
+        # the buildings just the same but leaves nothing per building to assert on.
+        _write_correlations(run_dir, {2: 1}, buildings=-n_buildings)
+
+        out = run_dir / 'out.bin'
+        run_gulmc(run_dir=run_dir, ignore_file_type=set(),
+                  file_in=run_dir / 'input' / 'events.bin', file_out=out,
+                  sample_size=sample_size, loss_threshold=-1., alloc_rule=0, debug=0,
+                  random_generator=0, ignore_correlation=False, effective_damageability=False)
+        bintocsv(out, run_dir / 'out.csv', 'gul')
+        df = pd.read_csv(run_dir / 'out.csv')
+
+        corr = pd.read_csv(run_dir / 'input' / 'correlations.csv')
+        linked = corr[corr['source_item_id'] > 0]
+        assert len(linked), "the setup produced no dependent items"
+        dep_id = int(linked['item_id'].iloc[0])
+        src_id = int(linked['source_item_id'].iloc[0])
+
+    src = _per_building(df, src_id, sample_size, n_buildings)
+    dep = _per_building(df, dep_id, sample_size, n_buildings)
+
+    def equal_pattern(v):
+        """Which samples share a value -- the bin partition, free of the bins' actual scale."""
+        return v[:, None] == v[None, :]
+
+    # the buildings must draw differently, or a collapse would be indistinguishable
+    assert any(not (equal_pattern(src[i]) == equal_pattern(src[j])).all()
+               for i in range(n_buildings) for j in range(i + 1, n_buildings)), \
+        "source buildings drew identically; the test cannot tell correct pairing from collapse"
+
+    for b in range(n_buildings):
+        assert (equal_pattern(dep[b]) == equal_pattern(src[b])).all(), (
+            f"building {b + 1}: the dependent's samples do not follow its own source building. "
+            f"src={src[b][:8]} dep={dep[b][:8]}")
+
+
+def test_narrow_bin_stack_is_not_overrun_by_an_unrelated_packed_item():
+    """The bin stack is sized to the buildings carried inside the dependency forest, so an item
+    outside it must never write or read there.
+
+    A portfolio can hold one location with orders of magnitude more buildings than the rest (a
+    single aggregated row), and sizing the stack on that would cost gigabytes. The stack is
+    therefore narrow, which makes the gate that keeps unrelated items off it load-bearing. numba
+    does not bounds-check, so getting this wrong is a silent out-of-bounds write, not a crash --
+    NUMBA_BOUNDSCHECK is what makes it observable, and it must be set before numba is imported.
+    """
+    import subprocess
+    import sys
+    with tempfile.TemporaryDirectory() as t:
+        run_dir = Path(t) / 'assets'
+        shutil.copytree(SRC_MODEL, run_dir)
+        shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
+        items = pd.read_csv(run_dir / 'input' / 'items.csv')
+        items.loc[items.coverage_id == 2, 'vulnerability_id'] = 101
+        items.to_csv(run_dir / 'input' / 'items.csv', index=False)
+        (run_dir / 'input' / 'items.bin').unlink()
+        n_damage_bins = len(pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv'))
+        with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
+            f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
+            for k in range(1, n_damage_bins + 1):
+                f.write(f'101,{k},{k},1.0\n')
+
+        _write_correlations(run_dir, {2: 1})
+        corr = pd.read_csv(run_dir / 'input' / 'correlations.csv')
+        in_forest = items['coverage_id'].isin([1, 2])
+        forest_items = set(items.loc[in_forest, 'item_id'])
+        assert len(forest_items) and len(forest_items) < len(items), "need items both in and out of the forest"
+        # two buildings inside the forest, far more on an unrelated coverage
+        corr['packed_buildings'] = np.where(corr['item_id'].isin(forest_items), -2, -64)
+        corr.to_csv(run_dir / 'input' / 'correlations.csv', index=False)
+        np.array([tuple(r) for r in corr.to_numpy()],
+                 dtype=correlations_dtype).tofile(run_dir / 'input' / 'correlations.bin')
+
+        script = (
+            "from pathlib import Path;"
+            "from oasislmf.pytools.gulmc.manager import run as run_gulmc;"
+            f"d = Path(r'{run_dir}');"
+            "run_gulmc(run_dir=d, ignore_file_type=set(), file_in=d/'input'/'events.bin',"
+            " file_out=d/'o.bin', sample_size=16, loss_threshold=0., alloc_rule=1, debug=0,"
+            " random_generator=0, ignore_correlation=False, effective_damageability=False)"
+        )
+        proc = subprocess.run([sys.executable, "-c", script],
+                              env={**os.environ, "NUMBA_BOUNDSCHECK": "1"},
+                              capture_output=True, text=True)
+    assert proc.returncode == 0, (
+        "coverage dependency read or wrote out of bounds under NUMBA_BOUNDSCHECK=1:\n" + proc.stderr[-3000:])

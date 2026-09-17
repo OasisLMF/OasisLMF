@@ -206,6 +206,42 @@ def validate_single_source_per_coverage(gul_inputs_df):
         )
 
 
+def validate_source_and_dependent_building_counts(gul_inputs_df):
+    """Check that a dependent item and its source pack the same number of buildings.
+
+    gulmc drives building b of a dependent from building b of its source, so the pairing is only
+    meaningful if the two items carry the same count. A dependent and its source share a location,
+    so this holds by construction; a mismatch means the link was resolved across locations, and the
+    per-building correspondence would be silently wrong rather than detectably so.
+
+    Args:
+        gul_inputs_df (pandas.DataFrame): GUL input items, carrying columns source_item_id, item_id
+            and (when disaggregation packs buildings) number_of_buildings.
+
+    Raises:
+        OasisException: if any linked item's building count differs from its source's.
+    """
+    if 'number_of_buildings' not in gul_inputs_df.columns:
+        return
+    linked_mask = gul_inputs_df['source_item_id'] > 0
+    if not linked_mask.any():
+        return
+    # first-occurrence view: duplicate item_id labels cannot be reindexed against
+    item_to_buildings = gul_inputs_df.drop_duplicates(subset='item_id').set_index('item_id')['number_of_buildings']
+    linked = gul_inputs_df.loc[linked_mask, ['item_id', 'source_item_id', 'number_of_buildings']]
+    source_buildings = item_to_buildings.reindex(linked['source_item_id'].to_numpy()).to_numpy()
+    # a source_item_id with no matching item is a different fault; leave it to whatever owns that
+    known = ~pd.isna(source_buildings)
+    mismatch = known & (source_buildings != linked['number_of_buildings'].to_numpy())
+    if mismatch.any():
+        sample = linked.loc[mismatch, ['item_id', 'source_item_id']].head(5).to_dict('records')
+        raise OasisException(
+            f"coverage dependency: {int(mismatch.sum())} item(s) pack a different number of "
+            f"buildings than the source item they depend on, so building b of the dependent has "
+            f"no building b in the source. First few: {sample}."
+        )
+
+
 @oasis_log
 def get_gul_input_items(
     location_df,
@@ -580,6 +616,7 @@ def get_gul_input_items(
         gul_inputs_df.loc[dep_mask, 'source_item_id'] = merged['_src_item_id'].fillna(0).to_numpy().astype('int32')
 
     validate_single_source_per_coverage(gul_inputs_df)
+    validate_source_and_dependent_building_counts(gul_inputs_df)
 
     # group_id and hazard_group_id: Correlation groups for damage/hazard sampling
     # If the group id is set according to the correlation group field then map this field
