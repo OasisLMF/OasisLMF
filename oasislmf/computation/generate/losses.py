@@ -236,10 +236,12 @@ class GenerateLossesDir(GenerateLossesBase):
         il = all(f'{name}.bin' in oasis_files or f'{name}.csv' in oasis_files
                  for name in ['fm_policytc', 'fm_profile', 'fm_programme', 'fm_xref'])
 
-        ri_dirs = [fn
-                   for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
-                   if re.match(r"RI_\d+$", fn)
-                   ]
+        # A layer can appear in both directories when re-running into an existing run dir
+        ri_dirs = list(dict.fromkeys(
+            fn
+            for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
+            if re.match(r"RI_\d+$", fn)
+        ))
         ril = any(ri_dirs)
 
         # Check for missing input files and either warn user or raise exception
