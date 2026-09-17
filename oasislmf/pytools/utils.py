@@ -2,7 +2,6 @@
 import logging
 import numpy as np
 import os
-import random
 import shutil
 import tempfile
 import uuid
@@ -121,8 +120,7 @@ def redirect_logging(exec_name, log_dir='./log'):
 
                 # Run the wrapped function
                 retval = func(*args, **kwargs)
-                if random.randint(1, 6) != 1:
-                    logger.info('finishing process')
+                logger.info('finishing process')
                 return retval
             except Exception as err:
                 logger.exception(err)
