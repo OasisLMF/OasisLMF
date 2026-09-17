@@ -207,6 +207,43 @@ def test_exposure_pre_analysis_multiproc_disabled_matches_singleproc():
         assert account_df['LayerLimit'].tolist() == [20, 40, 60]
 
 
+def write_always_raising_epa_module(module_path):
+    with open(module_path, 'w') as f:
+        f.write('''
+class ExposurePreAnalysis:
+    def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
+        self.exposure_data = exposure_data
+
+    def run(self):
+        raise ValueError('boom-for-test')
+''')
+
+
+def test_exposure_pre_analysis_multiproc_propagates_worker_exception():
+    """If every chunked worker raises, the original exception must propagate out of
+    run_pre_analysis_multiproc rather than being swallowed."""
+    with TemporaryDirectory() as d:
+        exposure_pre_analysis_module = os.path.join(d, 'exposure_pre_analysis_raising.py')
+        exposure_pre_analysis_setting_json = os.path.join(d, 'exposure_pre_analysis_setting.json')
+        oed_location_csv, oed_accounts_csv = _write_multi_account_inputs(d, exposure_pre_analysis_setting_json)
+        write_always_raising_epa_module(exposure_pre_analysis_module)
+
+        kwargs = {
+            'oasis_files_dir': d,
+            'exposure_pre_analysis_module': exposure_pre_analysis_module,
+            'oed_location_csv': oed_location_csv,
+            'oed_accounts_csv': oed_accounts_csv,
+            'exposure_pre_analysis_setting_json': exposure_pre_analysis_setting_json,
+            'exposure_pre_analysis_multiprocessing': True,
+            'exposure_pre_analysis_num_chunks': 3,
+            'exposure_pre_analysis_num_processes': 3,
+            'check_oed': False,
+        }
+
+        with pytest.raises(ValueError, match='boom-for-test'):
+            OasisManager().exposure_pre_analysis(**kwargs)
+
+
 def test_wrong_class():
     with TemporaryDirectory() as d:
         kwargs = {'oasis_files_dir': d,
