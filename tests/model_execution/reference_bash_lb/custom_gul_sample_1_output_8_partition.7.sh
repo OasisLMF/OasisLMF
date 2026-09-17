@@ -8,6 +8,7 @@ shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_err
 LOG_DIR=log
 mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
+export OASIS_PYTOOLS_LOG_DIR=$LOG_DIR
 
 
 check_fifos() {
