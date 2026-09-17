@@ -251,8 +251,8 @@ check_complete(){
     proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
     has_error=0
     for p in $proc_list; do
-        started=$(find log -name "${p}_[0-9]*.log" | wc -l)
-        finished=$(find log -name "${p}_[0-9]*.log" -exec grep -l "finish" {} + | wc -l)
+        started=$(find $LOG_DIR -name "${p}_[0-9]*.log" | wc -l)
+        finished=$(find $LOG_DIR -name "${p}_[0-9]*.log" -exec grep -l "finish" {} + | wc -l)
         if [ "$finished" -lt "$started" ]; then
             echo "[ERROR] $p - $((started-finished)) processes lost"
             has_error=1
@@ -2165,6 +2165,11 @@ def bash_wrapper(
 
     print_command(filename, 'mkdir -p $LOG_DIR')
     print_command(filename, 'rm -R -f $LOG_DIR/*')
+    # Isolate this script's pytool logs (evepy/gulmc/fmpy/summarypy/...) into
+    # $LOG_DIR instead of every concurrently-running chunk on the same host
+    # writing into one shared flat './log' - see oasislmf/pytools/utils.py's
+    # redirect_logging().
+    print_command(filename, 'export OASIS_PYTOOLS_LOG_DIR=$LOG_DIR')
     print_command(filename, '')
 
     # Trap func and logging
