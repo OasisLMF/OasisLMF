@@ -30,7 +30,7 @@ from mimetypes import guess_extension
 from requests.exceptions import HTTPError
 
 from ...platform_api.client import APIClient
-from ...utils.exceptions import OasisException
+from ...utils.exceptions import OasisException, OasisNoDownloadSelectedException
 from ...utils.defaults import API_EXAMPLE_AUTH
 from ...utils.inputs import str2bool
 
@@ -600,7 +600,8 @@ class PlatformGet(PlatformBase):
 
         # Check that at least one option is given
         if not any([model_files, portfolio_files, analyses_files, subtask_files]):
-            raise OasisException('Select file for download e.g. "--analyses_output <id_1> .. <id_n>"')
+            raise OasisNoDownloadSelectedException(
+                'Select file for download e.g. "--analyses-output-file <id_1> .. <id_n>"')
 
         if model_files:
             self.download('models', model_files)
