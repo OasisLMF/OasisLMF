@@ -147,6 +147,35 @@ def get_sample_generator(random_generator):
         raise ValueError(f"No random generator exists for random_generator={random_generator}.")
 
 
+# (sqrt(5) - 1) / 2. Its continued fraction is all 1s, which makes the sequence {n * PHI} the
+# most evenly spread of any such additive recurrence -- that is why this constant and not another
+# irrational.
+GOLDEN_RATIO_CONJUGATE = 0.6180339887498949
+
+
+@njit(cache=True, fastmath=True, inline='always')
+def pool_index(building, sample_idx, pool_size):
+    """Which entry of a stratified pool building ``building`` draws for sample ``sample_idx``.
+
+    The pool holds one stratified value per entry, so the accuracy comes from the buildings
+    walking the entries evenly at a fixed sample: ``(building - 1) % pool_size`` alone would do
+    that. What it would also do is hand each building the same entry in every sample, pinning it
+    to one quantile for the whole event. Rotating the start by the golden-ratio sequence of the
+    sample index breaks that and disturbs nothing else, a rotation being a bijection on the
+    entries -- so every sample still covers the strata exactly as evenly.
+
+    Args:
+        building (int): 1-based building index within the item.
+        sample_idx (int): 1-based sample index.
+        pool_size (int): number of entries in the pool.
+
+    Returns:
+        int: the entry to read, in ``[0, pool_size)``.
+    """
+    rotation = int(pool_size * ((sample_idx * GOLDEN_RATIO_CONJUGATE) % 1.0))
+    return (building - 1 + rotation) % pool_size
+
+
 EVENT_ID_HASH_CODE = np.int64(1943_272_559)
 PERIL_CORRELATION_GROUP_HASH = np.int64(1836311903)
 HASH_MOD_CODE = np.int64(2147483648)
