@@ -438,10 +438,13 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     ##### profile_id_to_profile_index ####
     # policies may have multiple step, create a mapping between profile_id and the start and end index in fm_profile file
     max_profile_id = np.max(fm_profile['profile_id'])
-    profile_id_to_profile_index = np.empty(max_profile_id + 1, dtype=profile_index_dtype)
+    # zeros, not empty: the pair is read for every fm_policytc row, and fm_policytc may name a
+    # profile_id fm_profile never defines. (0, 0) reads back as an empty range, so no profile is
+    # applied; uninitialised memory reads back as an arbitrary index into fm_profile.
+    profile_id_to_profile_index = np.zeros(max_profile_id + 1, dtype=profile_index_dtype)
     # is_tiv_profile[profile_id] = 1 if profile requires TIV calculation
     is_tiv_profile = np.zeros(max_profile_id + 1, dtype=np.uint8)
-    last_profile_id = 0  # real profile_id start at 1
+    last_profile_id = -1  # 0 is a usable profile_id, so it cannot double as "nothing seen yet"
     for i in range(fm_profile.shape[0]):
         if fm_profile[i]['calcrule_id'] in need_tiv_policy:
             is_tiv_profile[fm_profile[i]['profile_id']] = 1
