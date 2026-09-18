@@ -78,6 +78,8 @@ Extended with sequential index fields for O(1) lookups:
 | `peril_correlation_group` | int32 | Peril correlation group |
 | `damage_correlation_value` | float | Damage correlation strength |
 | `hazard_correlation_value` | float | Hazard correlation strength |
+| `source_item_id` | int32 | Coverage dependency: the item whose sampled damage drives this one; 0 if independent |
+| `packed_buildings` | int32 | **Signed.** Magnitude is how many buildings this item carries; a negative sign means they must reach the financial module as separate blocks. 1 is the unpacked case. See [Building packing](#building-packing) |
 
 ### Per-Event Item Data (`items_event_data`)
 
@@ -92,7 +94,10 @@ Structured array of type `items_MC_data_type`, populated per event by `reconstru
 | `hazard_rng_index` | int32 | Index into haz_seeds / haz_offsets |
 | `intensity_adjustment` | int32 | Dynamic footprint intensity adjustment |
 | `return_period` | int32 | Dynamic footprint return period |
+| `event_rp` | int32 | Dynamic footprint return period of this event at the item's areaperil |
 | `eff_cdf_id` | int32 | Sequential CDF group id for cache key construction (O5) |
+| `source_item_j` | int32 | Coverage dependency: the source item's position within its coverage; < 0 if independent |
+| `packed_buildings` | int32 | The signed building count, carried through from the items table |
 
 ### Vulnerability CDF Cache
 
@@ -163,6 +168,57 @@ May return early (False) if the output buffer is full; the caller flushes and re
 
 Stores a CDF in the circular cache. If the target slot is occupied, evicts the old entry
 from the lookup Dict before overwriting.
+
+## Building packing
+
+A location with `NumberOfBuildings > 1` can be modelled without expanding it into one item per
+building. `disaggregation='samples'` keeps a single item per (location, peril, coverage type) and
+multiplexes that location's buildings into the **sample dimension** of one stream item. The
+per-item building count travels on the correlations table as `packed_buildings`.
+
+The field is **signed**, and the sign is not a detail: it decides where the buildings collapse.
+
+| `packed_buildings` | set when | gulmc writes | the buildings collapse |
+|---|---|---|---|
+| `-N` | `IsAggregate = 1` | N blocks in one stream item | in fmpy, after `site_collapse_level` |
+| `+N` | `IsAggregate = 0` | one ordinary block, summed | here, at source |
+| `1` | not packed | one ordinary block | nothing to collapse |
+
+`N == 1` is not a special case in the code. An unpacked run is every item carrying one building,
+and the packed generator's first block per seed is the legacy draw byte for byte, so the compute
+always takes the packed route.
+
+### The objects
+
+![gulmc data structures: the static items and coverages tables, the per-event random draws and item data, the per-coverage loss buffers, and the output stream](diagrams/gulmc_objects.svg)
+
+The building dimension appears in three places: `packed_buildings` on the items table, the flat
+random arrays (one block of S per building, per rng group), and `building_losses`, which holds one
+column per building.
+
+### How a packed item is written
+
+![The two packing modes: buildings kept separate are emitted as N blocks with shifted sidx, buildings summed at source are emitted as a single ordinary block with scaled specials](diagrams/gulmc_packing.svg)
+
+Both modes draw the same way — each building gets its own block of S random values, so the
+buildings differ only in their draws, never in their CDF. They diverge only at the writer.
+
+A summed item scales its specials rather than repeating them: `mean`, `tiv` and `max_loss` are
+additive so they are multiplied by N; `std_dev` grows with the root of the count, because the
+buildings draw independently and it is their variances that add; `chance_of_loss` is a
+probability, not a loss, so it is taken once.
+
+### What reaches the stream
+
+![Record layout for one item with two buildings and three samples, in both modes](diagrams/gulmc_sidx_layout.svg)
+
+    sample  (b, s)      ->  sidx = (b - 1) * S + s
+    special local < 0   ->  sidx = local - (b - 1) * NUM_SPECIAL_SIDX
+
+One header and one delimiter bracket the whole item, whatever its building count. Consumers
+recover the building from the sidx alone, which is why only one of the two forms may ever be
+emitted for a given item: the reader discriminates on the sidx range, so if both kinds were
+written packed it could not tell which to collapse.
 
 ## Computation Modes
 
