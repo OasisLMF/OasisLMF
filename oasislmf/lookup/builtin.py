@@ -657,7 +657,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if message_column is not None:
                 if message_column not in locations.columns:
                     raise OasisException(f"missing column {message_column} in location")
-                locations.loc[set_status, 'message'] = locations.loc[set_status, message_column]
+                set_message = set_status & ~is_empty(locations, message_column)
+                locations.loc[set_message, 'message'] = locations.loc[set_message, message_column]
             return locations
         return fct
 
