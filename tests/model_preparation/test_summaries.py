@@ -11,8 +11,9 @@ from hypothesis.strategies import integers, just
 from ods_tools.oed import OedExposure
 
 from oasislmf.preparation.gul_inputs import get_gul_input_items
-from oasislmf.preparation.summaries import (convert_col_name, get_exposure_summary,
-                                            group_by_oed, write_exposure_summary)
+from oasislmf.preparation.summaries import (_default_csv_chunksize, convert_col_name,
+                                            get_exposure_summary, group_by_oed,
+                                            write_exposure_summary)
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import prepare_oed_exposure
 from oasislmf.utils.defaults import get_default_exposure_profile
@@ -469,3 +470,38 @@ def test_group_by_oed__account_subject_at_risk__field_already_in_map():
 
     assert len(set(set_values)) == 4
     assert len(set(summary_ids)) == 4
+
+
+def test_default_csv_chunksize__small_frame__returns_floor():
+    assert _default_csv_chunksize(1) == 1000
+    assert _default_csv_chunksize(500) == 1000
+
+
+def test_default_csv_chunksize__mid_size_frame__returns_row_count():
+    assert _default_csv_chunksize(1000) == 1000
+    assert _default_csv_chunksize(50_000) == 50_000
+
+
+def test_default_csv_chunksize__large_frame__capped_at_200k():
+    assert _default_csv_chunksize(500_000) == 200_000
+    assert _default_csv_chunksize(4_500_180) == 200_000
+
+
+def test_default_csv_chunksize__does_not_change_to_csv_output():
+    """The whole point of setting chunksize explicitly: it only changes how many rows
+    to_csv formats per internal pass, never what gets written. A comma, quote, and
+    newline are included because those are exactly the values a chunk-size change
+    could plausibly disturb if row batching interacted with quoting decisions."""
+    df = pd.DataFrame({
+        'status': pd.array(['fail', 'success', 'fail'], dtype='string[pyarrow]'),
+        'AccNumber': pd.Categorical(['Test', 'Te,st', 'Test']),
+        'message': pd.array(['fine', 'a "quote"', 'a\nnewline'], dtype='string[pyarrow]'),
+        'loc_id': pd.array([1, 2, 3], dtype='int64'),
+        'tiv': pd.array([0.0, 100.0, float('nan')], dtype='float64'),
+    })
+
+    baseline = df.to_csv(index=False)
+    # chunksize=1 forces every row into its own chunk - the extreme case
+    chunked = df.to_csv(index=False, chunksize=1)
+
+    assert chunked == baseline
