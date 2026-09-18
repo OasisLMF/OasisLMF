@@ -1472,6 +1472,7 @@ def compute_event_losses(compute_info,
             building_losses[:, :Nitems, :],
             items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
             items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['packed_buildings'],
+            items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['damage_correlation_value'],
             compute_info['alloc_rule'],
             tiv,
             byte_mv,
@@ -1767,6 +1768,10 @@ def reconstruct_coverages(compute_info,
                 items_event_data[item_i]['eff_cdf_id'] = item_cdf_group_idx[item_idx]
                 # stored signed: the writer needs the sign to decide separate-vs-summed
                 items_event_data[item_i]['packed_buildings'] = item_n_buildings_signed
+                # the EFFECTIVE correlation: draw_correlation_samples applies it only when
+                # do_correlation is set, and the writer must agree with what was drawn
+                items_event_data[item_i]['damage_correlation_value'] = (
+                    items[item_idx]['damage_correlation_value'] if compute_info['do_correlation'] else 0.)
                 if dynamic_footprint is not None:
                     items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
                     items_event_data[item_i]['return_period'] = items[item_idx]['return_period']

@@ -36,6 +36,10 @@ items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              # signed: magnitude is the building count, negative
                                              # means the buildings stay separate
                                              ('packed_buildings', oasis_int),
+                                             # the correlation actually applied to this item's
+                                             # damage draws, so 0 when correlation is off -- the
+                                             # writer needs the effective value, not the file's
+                                             ('damage_correlation_value', oasis_float),
                                              ]))
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),

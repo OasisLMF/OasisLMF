@@ -238,6 +238,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # Signed: magnitude is the building count, a negative sign means "keep the buildings
         # separate". Unpacked into locals wherever it is consumed -- never used raw as a bound.
         n_buildings_by_item_id = structures['n_buildings_by_item_id']
+        damage_correlation_by_item_id = structures['damage_correlation_by_item_id']
         max_buildings = int(np.abs(n_buildings_by_item_id).max())
         # only kept-separate items meet either stream ceiling: a summed one writes a single
         # block at sidx 1..S however many buildings it carries
@@ -342,7 +343,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                     arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
                     building_losses, rndms_flat, rndm_offsets,
-                    n_buildings_by_item_id,
+                    n_buildings_by_item_id, damage_correlation_by_item_id,
                     max_bytes_per_item, byte_mv, cursor
                 )
 
@@ -379,11 +380,14 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          loss_threshold, losses, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                          arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
                          z_unif, debug, building_losses, rndms_flat, rndm_offsets,
-                         n_buildings_by_item_id,
+                         n_buildings_by_item_id, damage_correlation_by_item_id,
                          max_bytes_per_item, byte_mv, cursor):
     """Compute losses for an event.
 
     Args:
+        damage_correlation_by_item_id (numpy.array[oasis_float]): per item_id, the correlation
+          actually applied to its damage draws -- 0 when correlation is off. Only a summed
+          packed item reads it, to combine its buildings' variances.
         event_id (int32): event id.
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
         coverage_ids (numpy.array[int]): array of unique coverage ids used in this event.
@@ -518,6 +522,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             event_id, sample_size, loss_threshold, losses[:, :items.shape[0]],
             building_losses[:, :items.shape[0], :], items['item_id'],
             n_buildings_by_item_id[items['item_id']],
+            damage_correlation_by_item_id[items['item_id']],
             alloc_rule, tiv, byte_mv, cursor)
 
         # register that another `coverage_id` has been processed
@@ -528,7 +533,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
 @njit(cache=True, fastmath=True)
 def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
-                 item_ids, n_buildings, alloc_rule, tiv,
+                 item_ids, n_buildings, damage_correlation, alloc_rule, tiv,
                  byte_mv, cursor):
     """Write building-packed losses for one coverage to the output byte buffer.
 
@@ -573,6 +578,9 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
             emitted as separate blocks, positive that they are summed into one ordinary item. It
             is unpacked into ``nb_item``/``keep_separate`` at the top of the write loop -- never
             use it raw as a bound.
+        damage_correlation (numpy.array[oasis_float]): per item, the correlation actually applied
+            to its damage draws -- 0 where correlation is off, whatever the correlations file
+            says. Only a summed item reads it, to combine its buildings' variances.
         alloc_rule (int): back-allocation rule, deciding how the per-coverage TIV cap applies.
         tiv (oasis_float): the coverage's total insured value, per building.
         byte_mv (numpy.ndarray): byte view of the output buffer.
@@ -651,9 +659,20 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
                 if special_idx == CHANCE_OF_LOSS_IDX:
                     pass                      # a probability, shared by the buildings
                 elif special_idx == STD_DEV_IDX:
-                    # the buildings draw independently, so their variances add and the standard
-                    # deviation of the sum grows with the root of the count, not the count
-                    value = value * sqrt(nb_item)
+                    # The buildings of one item share damage_eps_ij[peril_correlation_group], so
+                    # they are NOT independent: var(sum) = sigma^2 * (N + N(N-1)*rho), which is
+                    # N^2*rho for large N rather than N. Scaling by sqrt(N) alone understates
+                    # sigma by about sqrt(N*rho) -- 5.6x at 64 buildings and rho 0.7, and it grows
+                    # with the count.
+                    #
+                    # rho here is the copula correlation, while what the sum needs is the
+                    # correlation it induces between two buildings' LOSSES, which the marginal
+                    # attenuates (0.49 for a copula 0.7 on one measured model). Using the copula
+                    # value therefore overstates sigma by roughly 20-30%. That is deliberate: it
+                    # is the conservative direction, and the exact factor is var(mu(eps))/sigma^2,
+                    # which needs the conditional moments -- see tmp/building_sampling_plan.md.
+                    combined = nb_item + nb_item * (nb_item - 1) * damage_correlation[item_j]
+                    value = value * sqrt(combined if combined > 0 else nb_item)
                 else:
                     value = value * nb_item   # mean, tiv and max are additive
                 cursor = mv_write_sidx_loss(byte_mv, cursor, special_idx, value)

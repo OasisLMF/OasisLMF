@@ -74,6 +74,7 @@ class TestWriteLossesPacked(TestCase):
         signed = -np.abs(self.n_buildings) if keep_separate else np.abs(self.n_buildings)
         cursor = write_losses(self.event_id, self.S, loss_threshold, self.losses,
                               self.building_losses, self.item_ids, signed,
+                              np.zeros(len(self.item_ids), dtype=oasis_float),
                               0, 0.0, self.byte_mv, 0)
         return _decode_stream(self.byte_mv, cursor)
 
@@ -153,6 +154,7 @@ class TestWriteSummedAtSource(TestCase):
     def _records(self):
         cursor = write_losses(self.event_id, self.S, 0.0, self.losses, self.building_losses,
                               self.item_ids, np.abs(self.n_buildings),
+                              np.zeros(len(self.item_ids), dtype=oasis_float),
                               0, 0.0, self.byte_mv, 0)
         items = _decode_stream(self.byte_mv, cursor)
         self.assertEqual(len(items), 1)
@@ -236,7 +238,8 @@ class TestPerCoverageTivCap(TestCase):
         signed = -np.abs(self.n_buildings) if keep_separate else np.abs(self.n_buildings)
         cursor = write_losses(
             self.event_id, self.S, 0.0, self.losses, self.building_losses.copy(),
-            self.item_ids, signed, alloc_rule, self.TIV, self.byte_mv, 0)
+            self.item_ids, signed, np.zeros(len(self.item_ids), dtype=oasis_float),
+            alloc_rule, self.TIV, self.byte_mv, 0)
         return {item_id: dict(records) for _, item_id, records in _decode_stream(self.byte_mv, cursor)}
 
     def test_each_building_is_capped_against_its_own_tiv(self):
@@ -316,6 +319,7 @@ class TestItemsWithDifferentBuildingCounts(TestCase):
         cursor = write_losses(
             self.event_id, self.S, 0.0, self.losses, self.building_losses.copy(),
             self.item_ids, -np.abs(self.n_buildings),
+            np.zeros(len(self.item_ids), dtype=oasis_float),
             alloc_rule, self.TIV, self.byte_mv, 0)
         return {item_id: dict(records) for _, item_id, records in _decode_stream(self.byte_mv, cursor)}
 

@@ -12,7 +12,7 @@ import os
 
 import numpy as np
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import correlations_dtype, load_as_ndarray
+from oasislmf.pytools.common.data import correlations_dtype, load_as_ndarray, oasis_float
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.gul.common import coverage_type
@@ -39,6 +39,7 @@ ARRAY_FILES = [
     'norm_inv_cdf',
     'norm_cdf',
     'n_buildings_by_item_id',
+    'damage_correlation_by_item_id',
 ]
 
 
@@ -194,8 +195,16 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
         n_buildings_by_item_id[data['item_id']] = data['packed_buildings']
         logger.info(f'building-packing ENABLED: up to {building_counts.max()} buildings packed per item.')
 
+    # The writer needs a summed item's damage correlation to combine its buildings' variances,
+    # and only there -- indexed by item_id like the count above. Zero everywhere when correlation
+    # is off, which is what was actually drawn and reduces the combination to sqrt(N).
+    damage_correlation_by_item_id = np.zeros(max_item_id + 1, dtype=oasis_float)
+    if do_correlation and len(data):
+        damage_correlation_by_item_id[data['item_id']] = data['damage_correlation_value']
+
     # --- pack everything into a dict -------------------------------------------
     return {
+        'damage_correlation_by_item_id': damage_correlation_by_item_id,
         'damage_bins': damage_bins,
         'coverages': coverages,
         'items': items,
