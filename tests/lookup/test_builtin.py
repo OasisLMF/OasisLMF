@@ -16,6 +16,7 @@ from oasislmf.lookup.builtin import (
     z_index,
     z_index_to_normal,
 )
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import (
     OASIS_KEYS_STATUS,
     OASIS_KEYS_STATUS_MODELLED,
@@ -247,10 +248,11 @@ def test_build_prepare_min_max_clamp(preparations, values, expected):
     assert result["my_col"].tolist() == expected
 
 
-def test_split_loc_perils_covered_marks_not_at_risk():
-    """A location whose perils are not modelled is flagged 'not at risk' — the
-    status must be the string id, not the whole OASIS_KEYS_STATUS dict, otherwise
-    it drops out of the 'modelled' set used by the exposure summary report."""
+def test_split_loc_perils_covered_marks_not_modelled():
+    """A location whose perils are outside the model's scope is flagged 'not modelled'
+    (not 'not at risk' — we don't know whether an unmodelled peril is a risk or not). The
+    status must be the string id, not the whole OASIS_KEYS_STATUS dict, and it must be
+    excluded from the 'modelled' set used by the exposure summary report."""
     fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered=["QEQ"])
     locations = pd.DataFrame({
         "loc_id": [1, 2],
@@ -259,12 +261,41 @@ def test_split_loc_perils_covered_marks_not_at_risk():
 
     result = fct(locations)
 
-    not_at_risk = result[result["loc_id"] == 2]
-    assert len(not_at_risk) == 1
-    status = not_at_risk["status"].iloc[0]
-    assert status == OASIS_KEYS_STATUS["notatrisk"]["id"]
+    not_modelled = result[result["loc_id"] == 2]
+    assert len(not_modelled) == 1
+    status = not_modelled["status"].iloc[0]
+    assert status == OASIS_KEYS_STATUS["notmodelled"]["id"]
     assert isinstance(status, str)
-    assert not_at_risk["status"].isin(OASIS_KEYS_STATUS_MODELLED).all()
+    assert not not_modelled["status"].isin(OASIS_KEYS_STATUS_MODELLED).any()
+
+
+def test_build_set_status_sets_status_and_message_from_columns():
+    fct = Lookup(config={}).build_set_status(status_column="custom_status", message_column="custom_message")
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3],
+        "status": ["success", "success", "success"],
+        "message": ["", "", ""],
+        "custom_status": ["notatrisk", "notmodelled", None],
+        "custom_message": ["outside flood zone", "peril not modelled", None],
+    })
+
+    result = fct(locations)
+
+    assert result["status"].tolist() == ["notatrisk", "notmodelled", "success"]
+    assert result["message"].tolist() == ["outside flood zone", "peril not modelled", ""]
+
+
+def test_build_set_status_rejects_unknown_status_value():
+    fct = Lookup(config={}).build_set_status(status_column="custom_status")
+    locations = pd.DataFrame({
+        "loc_id": [1],
+        "status": ["success"],
+        "message": [""],
+        "custom_status": ["not_a_real_status"],
+    })
+
+    with pytest.raises(OasisException):
+        fct(locations)
 
 
 class _FakeGeoTiffDataset:
