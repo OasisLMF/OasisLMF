@@ -44,6 +44,7 @@ try:  # needed for h3 lookup
 except ImportError:
     h3 = h3_int = None
 
+import logging
 import math
 import re
 
@@ -51,6 +52,8 @@ from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.peril import get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
+
+logger = logging.getLogger(__name__)
 
 OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
 
@@ -1091,9 +1094,69 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
+            if not rename_map:
+                raise OasisException(
+                    f"merge step: the table '{file_path}' shares no column with the locations to "
+                    f"join on (table columns={sorted(df_to_merge.columns)}). If the join value is "
+                    f"held in an OED GeogName column by scheme, add a 'geog_lookup' step first.")
+            logger.debug("merge step: joining on %s", sorted(rename_map.values()))
             locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
             return self.set_id_columns(locations, id_columns)
         return merge
+
+    def build_geog_lookup(self, geog_scheme, output_column, slots=30,
+                          case_insensitive=True, on_missing='null'):
+        """Resolve an OED scheme-tagged value into a single column so it can be joined on.
+
+        OED stores a location code in a pair of columns ``GeogScheme{N}`` (the scheme, e.g.
+        ``W3W``) and ``GeogName{N}`` (the value), for ``N`` in ``1..slots``. The scheme of
+        interest can appear in any slot, so there is no fixed column a ``merge`` step can join
+        on. This step scans the pairs and, where ``GeogScheme{N}`` matches ``geog_scheme``,
+        copies the paired ``GeogName{N}`` into ``output_column``. A subsequent ``merge`` step
+        can then join on ``output_column``.
+
+        The lowest-numbered matching slot wins. Rows with no matching scheme get a null in
+        ``output_column`` (``on_missing='null'``) or raise (``on_missing='error'``).
+
+        Note: the ``GeogScheme{N}``/``GeogName{N}`` columns to consult must be listed in this
+        step's ``columns``, otherwise they are dropped before the step runs (see
+        ``process_locations``).
+
+        Args:
+            geog_scheme (str): the OED GeogScheme value to resolve (e.g. ``"W3W"``).
+            output_column (str): the column to write the resolved value into.
+            slots (int): highest ``GeogScheme{N}``/``GeogName{N}`` index to scan (default 30).
+            case_insensitive (bool): match the scheme ignoring case and surrounding whitespace.
+            on_missing (str): ``'null'`` to leave unmatched rows null, ``'error'`` to raise.
+        """
+        if on_missing not in ('null', 'error'):
+            raise OasisException(f"build_geog_lookup: on_missing must be 'null' or 'error', got {on_missing!r}")
+        target = geog_scheme.upper() if case_insensitive else geog_scheme
+
+        def geog_lookup(locations):
+            resolved = pd.Series(pd.NA, index=locations.index, dtype='object')
+            for n in range(1, slots + 1):
+                scheme_col, name_col = f"GeogScheme{n}", f"GeogName{n}"
+                if scheme_col not in locations.columns or name_col not in locations.columns:
+                    continue
+                scheme_vals = locations[scheme_col].astype('string').str.strip()
+                if case_insensitive:
+                    scheme_vals = scheme_vals.str.upper()
+                # empty slots (NaN scheme) compare to NA; fillna(False) keeps the
+                # mask a plain boolean so .loc never sees NA (sparse slots are the
+                # common OED shape).
+                hit = ((scheme_vals == target) & resolved.isna()).fillna(False)
+                resolved.loc[hit] = locations.loc[hit, name_col]
+            n_resolved = int(resolved.notna().sum())
+            logger.info("geog_lookup(%s): resolved %d/%d locations into '%s'",
+                        geog_scheme, n_resolved, len(locations), output_column)
+            if on_missing == 'error' and n_resolved < len(locations):
+                raise OasisException(
+                    f"geog_lookup: {len(locations) - n_resolved} location(s) have no "
+                    f"GeogScheme == '{geog_scheme}' in slots 1..{slots}")
+            locations[output_column] = resolved
+            return locations
+        return geog_lookup
 
     @staticmethod
     def build_simple_pivot(pivots, remove_pivoted_col=True):
