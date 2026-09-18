@@ -12,7 +12,7 @@ import time
 from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_sidx_fits, encode_sidx,
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_sidx_fits, encode_sidx, max_emitted_blocks,
                                                   mv_write_item_header,
                                                   mv_write_sidx_loss,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
@@ -293,8 +293,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         # maximum bytes to be written in the output stream for 1 item
         max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
-        # a packed item writes one block of that per building
-        max_bytes_per_item *= max_buildings
+        # a kept-separate item writes one block of that per building; a summed one writes a single
+        # block whatever it carries
+        max_bytes_per_item *= max_emitted_blocks(n_buildings_by_item_id)
 
         # one entry per seed, holding the largest building count in its group
         n_buildings_by_rng = np.ones(seeds.shape[0] + 1, dtype='i4')

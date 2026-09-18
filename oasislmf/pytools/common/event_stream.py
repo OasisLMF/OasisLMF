@@ -71,6 +71,28 @@ def encode_sidx(building, local_sidx, sample_size):
         return local_sidx - (building - 1) * NUM_SPECIAL_SIDX
 
 
+def max_emitted_blocks(packed_buildings):
+    """How many building blocks the largest single item will actually write to the stream.
+
+    Only a kept-separate item (a negative count) emits one block per building. A positive count is
+    summed at source and written as one ordinary item however many buildings it carries, so sizing
+    the output buffer on the raw magnitude inflates it by the building count for items that emit a
+    single block. A portfolio holding one aggregated location -- hundreds of thousands of buildings
+    against a median of one -- then reserves gigabytes to write kilobytes, and at large sample
+    sizes the product overflows the int32 the estimate is kept in.
+
+    Args:
+        packed_buildings (numpy.array): the signed per-item building counts.
+
+    Returns:
+        int: the most blocks one item can emit, and 1 when nothing is kept separate.
+    """
+    if packed_buildings.shape[0] == 0:
+        return 1
+    smallest = int(packed_buildings.min())        # the most negative == the largest magnitude
+    return -smallest if smallest < 0 else 1
+
+
 def check_packed_sidx_fits(max_buildings, sample_size, oasis_int_dtype):
     """Fail if building packing would push a sidx past what the stream can carry.
 

@@ -26,7 +26,7 @@ from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_sidx_fits)
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_sidx_fits, max_emitted_blocks)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
@@ -420,10 +420,10 @@ def run(run_dir,
         # nothing is packed, which is the unpacked layout
         building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buildings), dtype=oasis_float)
 
-        # maximum bytes to be written in the output stream for 1 item. Building-packing emits up to
-        # max_buildings times as many records per item, so inflate the per-item estimate accordingly.
+        # maximum bytes to be written in the output stream for 1 item. A kept-separate item emits
+        # one block of that per building; a summed one emits a single block whatever it carries.
         max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
-        max_bytes_per_item *= max_buildings
+        max_bytes_per_item *= max_emitted_blocks(items['packed_buildings'])
 
         # define vulnerability cdf cache size
         max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cache size in bytes

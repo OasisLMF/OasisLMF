@@ -10,6 +10,9 @@ and the consumers (fmpy/summarypy/plapy):
 """
 from unittest import main, TestCase
 
+import numpy as np
+
+from oasislmf.pytools.common.data import oasis_int
 from oasislmf.pytools.common.event_stream import (
     NUM_SPECIAL_SIDX,
     MEAN_IDX,
@@ -20,6 +23,7 @@ from oasislmf.pytools.common.event_stream import (
     encode_sidx,
     decode_building,
     decode_local_sidx,
+    max_emitted_blocks,
 )
 
 SPECIAL_SIDX = [MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX]
@@ -91,6 +95,28 @@ class TestSidxPacking(TestCase):
         for sample_size in (1, 10, 1000):
             self.assertEqual(decode_building(0, sample_size), 0)
             self.assertEqual(decode_local_sidx(0, sample_size), 0)
+
+
+def test_max_emitted_blocks_counts_only_kept_separate_items():
+    """The output buffer is sized on how many blocks an item WRITES, not how many buildings it
+    carries. A summed item (positive count) writes one block whatever its building count."""
+    assert max_emitted_blocks(np.array([1, 1, 1], dtype='i4')) == 1        # nothing packed
+    assert max_emitted_blocks(np.array([3, 9, 4], dtype='i4')) == 1        # all summed at source
+    assert max_emitted_blocks(np.array([-3, -9, -4], dtype='i4')) == 9     # all kept separate
+    assert max_emitted_blocks(np.array([], dtype='i4')) == 1               # no items
+
+
+def test_max_emitted_blocks_ignores_a_huge_summed_item():
+    """The case that motivates it: one aggregated location carrying hundreds of thousands of
+    buildings, summed at source, beside an ordinary kept-separate item. Sizing on the raw magnitude
+    would reserve gigabytes to write kilobytes, and at a large sample size the byte estimate
+    overflows the int32 it is kept in."""
+    packed = np.array([630510, -2, 1], dtype='i4')
+    assert max_emitted_blocks(packed) == 2, "a summed item must not size the output buffer"
+
+    per_block = 8 + (1000 + 6) * 8
+    assert per_block * int(np.abs(packed).max()) > np.iinfo(oasis_int).max, "not the case under test"
+    assert per_block * max_emitted_blocks(packed) < np.iinfo(oasis_int).max
 
 
 if __name__ == "__main__":
