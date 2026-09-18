@@ -270,8 +270,7 @@ def run(run_dir,
         max_buildings = int(np.abs(items['packed_buildings']).max()) if items.shape[0] > 0 else 1
         # only kept-separate items meet either stream ceiling: a summed one writes a single
         # block at sidx 1..S however many buildings it carries
-        check_packed_item_fits(max_emitted_blocks(items['packed_buildings']), sample_size,
-                               gulSampleslevelHeader_size, gulSampleslevelRec_size, oasis_int)
+        check_packed_item_fits(max_emitted_blocks(items['packed_buildings']), sample_size, oasis_int)
         # Packing is the N > 1 case of one mechanism, not a second path: an unpacked run is every
         # item carrying one building, and the packed generator's first block per seed is the legacy
         # draw byte-for-byte. So the compute always takes the packed route.

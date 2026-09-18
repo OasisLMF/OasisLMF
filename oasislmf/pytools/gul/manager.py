@@ -241,8 +241,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         max_buildings = int(np.abs(n_buildings_by_item_id).max())
         # only kept-separate items meet either stream ceiling: a summed one writes a single
         # block at sidx 1..S however many buildings it carries
-        check_packed_item_fits(max_emitted_blocks(n_buildings_by_item_id), sample_size,
-                               gulSampleslevelHeader_size, gulSampleslevelRec_size, oasis_int)
+        check_packed_item_fits(max_emitted_blocks(n_buildings_by_item_id), sample_size, oasis_int)
         generate_sample_rndm = get_sample_generator(random_generator)
 
         if alloc_rule not in [0, 1, 2, 3]:

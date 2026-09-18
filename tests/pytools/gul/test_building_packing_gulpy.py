@@ -43,31 +43,25 @@ def _with_correlations(dst, number_of_buildings, keep_separate):
 
 
 class TestPackedItemMustFitTheStream(TestCase):
-    """Packing must not push a sidx, or the byte estimate that sizes the output buffer, past what
-    an int32 can hold.
+    """Packing must not push a sidx past what an int32 stream field can hold.
 
-    Both wrap silently inside njit rather than raising. A wrapped sidx is often NEGATIVE, which
-    every reader classifies as a packed special rather than a sample; a wrapped byte estimate makes
-    the "is there room" test never fire, so the writer runs past the output buffer. Either way the
-    result is corruption, not a failure, so the bound is checked once up front.
+    ``encode_sidx`` computes ``(b - 1) * S + s`` in int64, but a sidx is written as int32. Inside
+    njit that store wraps silently instead of raising, and the wrapped value is often NEGATIVE --
+    which every reader classifies as a packed special rather than a sample. The result is corrupt
+    output rather than a failure, so the bound is checked once up front.
 
-    HDR/REC are the stream's header and record sizes, passed in because event_stream cannot import
-    them from gul.common without a cycle.
+    This is a property of the stream FORMAT. The bytes those records occupy are ordinary memory
+    and impose no such bound -- see TestOutputBufferIsNotBoundedByAnInt32.
     """
-
-    HDR, REC = 8, 8
-
-    def _check(self, separate_buildings, sample_size):
-        check_packed_item_fits(separate_buildings, sample_size, self.HDR, self.REC, oasis_int)
 
     def test_ordinary_configurations_are_allowed(self):
         for separate, sample_size in ((1, 10 ** 9), (1000, 100_000), (5, 1000), (0, 10)):
             with self.subTest(separate=separate, sample_size=sample_size):
-                self._check(separate, sample_size)
+                check_packed_item_fits(separate, sample_size, oasis_int)
 
     def test_an_overflowing_configuration_is_rejected(self):
         with self.assertRaises(OasisException) as caught:
-            self._check(300_000, 10_000)
+            check_packed_item_fits(300_000, 10_000, oasis_int)
         message = str(caught.exception)
         self.assertIn("300,000", message)
         self.assertIn("10000", message)
@@ -76,39 +70,48 @@ class TestPackedItemMustFitTheStream(TestCase):
     def test_the_boundary(self):
         """Exactly at the limit is fine; one building more is not."""
         for sample_size in (10, 1000):
-            allowed = max_packed_buildings(sample_size, self.HDR, self.REC, oasis_int)
+            allowed = max_packed_buildings(sample_size, oasis_int)
             with self.subTest(sample_size=sample_size, allowed=allowed):
-                self._check(allowed, sample_size)
+                check_packed_item_fits(allowed, sample_size, oasis_int)
                 with self.assertRaises(OasisException):
-                    self._check(allowed + 1, sample_size)
-
-    def test_the_byte_estimate_binds_before_the_sidx(self):
-        """The reason the limit is not simply int32_max / S.
-
-        The same records counted in bytes rather than in records, with the specials carried per
-        block on top, exhaust the int32 about REC times sooner. A bound taken from the sidx alone
-        would admit configurations whose byte estimate has already wrapped.
-        """
-        limit = int(np.iinfo(oasis_int).max)
-        for sample_size in (10, 100, 1000):
-            allowed = max_packed_buildings(sample_size, self.HDR, self.REC, oasis_int)
-            sidx_only = limit // sample_size
-            with self.subTest(sample_size=sample_size):
-                self.assertLess(allowed, sidx_only, "the byte estimate must be the binding one")
-                # what the sidx-only bound would have admitted
-                bytes_at_sidx_bound = (self.HDR + (sample_size + 6) * self.REC) * sidx_only
-                self.assertGreater(bytes_at_sidx_bound, limit)
+                    check_packed_item_fits(allowed + 1, sample_size, oasis_int)
 
     def test_a_summed_item_is_not_subject_to_the_ceiling(self):
-        """A positive count writes one block at sidx 1..S, so its building count never reaches
-        either quantity. max_emitted_blocks is what keeps it out of the number checked."""
+        """A positive count writes one block at sidx 1..S, so it never encodes a packed sidx
+        however many buildings it carries. max_emitted_blocks keeps it out of the number checked."""
         packed = np.array([630_510, 1, 1], dtype='i4')      # huge, but summed at source
-        self._check(max_emitted_blocks(packed), 1000)       # must not raise
+        check_packed_item_fits(max_emitted_blocks(packed), 1000, oasis_int)   # must not raise
 
     def test_what_would_happen_without_it(self):
         """The value the guard prevents being written -- negative, so read as a special."""
         wrapped = np.array([300_000 * 10_000], dtype=np.int64).astype(oasis_int)[0]
         self.assertLess(int(wrapped), 0)
+
+
+class TestOutputBufferIsNotBoundedByAnInt32(TestCase):
+    """The byte counters must be int64.
+
+    They count bytes of an ordinary numpy buffer, which no stream rule bounds. Holding them in an
+    int32 put a 2 GB ceiling on the output buffer for no reason beyond the choice of field, and a
+    kept-separate item with enough buildings reaches it: at 1000 samples, 630,510 buildings needs
+    about 5 GB of estimate. On numpy 2 the assignment raises OverflowError rather than wrapping,
+    so the run dies at setup with an error about an int32 that says nothing about the cause.
+    """
+
+    def test_the_byte_counters_are_int64(self):
+        from oasislmf.pytools.gulmc.common import gulmc_compute_info_type
+        fields = gulmc_compute_info_type.dtype
+        for name in ('cursor', 'max_bytes_per_item'):
+            with self.subTest(field=name):
+                self.assertEqual(fields[name], np.dtype(np.int64))
+
+    def test_a_multi_gigabyte_estimate_is_storable(self):
+        from oasislmf.pytools.gulmc.common import gulmc_compute_info_type
+        info = np.zeros(1, dtype=gulmc_compute_info_type.dtype)
+        estimate = (8 + (1000 + 6) * 8) * 630_510          # ~5 GB
+        self.assertGreater(estimate, np.iinfo(np.int32).max, "not the case under test")
+        info[0]['max_bytes_per_item'] = estimate           # must not raise
+        self.assertEqual(int(info[0]['max_bytes_per_item']), estimate)
 
 
 @pytest.mark.skipif(not MODEL.exists(), reason="test_model_1 assets not available")

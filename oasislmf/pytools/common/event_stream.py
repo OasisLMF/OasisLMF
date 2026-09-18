@@ -93,66 +93,58 @@ def max_emitted_blocks(packed_buildings):
     return -smallest if smallest < 0 else 1
 
 
-def max_packed_buildings(sample_size, header_size, record_size, oasis_int_dtype):
-    """The most buildings one item may keep separate before the stream's int32 gives out.
+def max_packed_buildings(sample_size, oasis_int_dtype):
+    """The most buildings one item may keep separate before the sidx runs out of int32.
 
-    Two quantities grow with the building count and both are held in an int32. The sidx itself,
-    ``(b - 1) * S + s``, reaches ``N * S``. The per-item byte estimate that sizes the output
-    buffer reaches ``(header + (S + NUM_SPECIAL_SIDX + 1) * record) * N``. The second is the
-    larger of the two -- the same records counted in bytes rather than in records, with the
-    specials carried per block on top -- so it binds roughly ``record_size`` times sooner, and it
-    is the one that decides the answer.
+    A sidx is ``(b - 1) * S + s``, so the highest one an item writes is ``N * S``, and it is
+    written to the stream as ``oasis_int``. That is a property of the stream format, not of any
+    buffer: the bytes those records occupy are ordinary memory and do not enter into it.
 
-    Only an item that keeps its buildings separate reaches either: a summed item writes one block
-    at sidx 1..S however many buildings it carries.
+    Only an item that keeps its buildings separate encodes a packed sidx at all -- a summed item
+    writes one block at sidx 1..S however many buildings it carries.
 
     Args:
         sample_size (int): the run's sample size (``S``).
-        header_size (int): bytes in one stream item header.
-        record_size (int): bytes in one (sidx, loss) record.
         oasis_int_dtype (numpy.dtype): the stream's sidx type, whose maximum is the ceiling.
 
     Returns:
         int: the largest kept-separate building count that fits, never below 1.
     """
     limit = int(np.iinfo(oasis_int_dtype).max)
-    samples = max(1, int(sample_size))
-    bytes_per_block = header_size + (samples + NUM_SPECIAL_SIDX + 1) * record_size
-    return max(1, min(limit // samples, limit // bytes_per_block))
+    return max(1, limit // max(1, int(sample_size)))
 
 
-def check_packed_item_fits(max_separate_buildings, sample_size, header_size, record_size, oasis_int_dtype):
-    """Fail if an item keeps more buildings separate than the stream can carry.
+def check_packed_item_fits(max_separate_buildings, sample_size, oasis_int_dtype):
+    """Fail if an item keeps more buildings separate than the sidx can index.
 
-    Both ceilings are passed silently in njit rather than raised: an overflowing sidx wraps to a
-    value that is frequently NEGATIVE, which readers classify as a packed special rather than a
-    sample, and an overflowing byte estimate makes the "is there room" test never fire, so the
-    writer runs past the output buffer. Checked once, where the numbers first meet, rather than
-    per record.
+    ``encode_sidx`` computes in int64 but a sidx is stored as ``oasis_int``. Inside njit that
+    store wraps silently rather than raising, and the wrapped value is frequently NEGATIVE --
+    which every reader classifies as a packed special rather than a sample. So an overflow here is
+    not a loud failure but corrupt output, and it is checked once, where the numbers first meet.
 
     Args:
         max_separate_buildings (int): the largest building count among the items that keep their
-            buildings separate. A summed item is not subject to either ceiling, so it does not
-            belong in this number -- see :func:`max_emitted_blocks`.
+            buildings separate. A summed item never encodes a packed sidx, so it does not belong
+            in this number -- see :func:`max_emitted_blocks`.
         sample_size (int): the run's sample size (``S``).
-        header_size (int): bytes in one stream item header.
-        record_size (int): bytes in one (sidx, loss) record.
         oasis_int_dtype (numpy.dtype): the stream's sidx type, whose maximum is the ceiling.
 
     Raises:
-        OasisException: if the configuration would overflow either quantity.
+        OasisException: if the largest encodable sidx would not fit.
     """
     if max_separate_buildings <= 1:
         return
-    allowed = max_packed_buildings(sample_size, header_size, record_size, oasis_int_dtype)
+    allowed = max_packed_buildings(sample_size, oasis_int_dtype)
     if max_separate_buildings > allowed:
+        highest = int(max_separate_buildings) * int(max(1, sample_size))
         raise OasisException(
-            f"building packing would overflow the stream: an item keeps {max_separate_buildings:,} "
-            f"buildings separate at {sample_size} samples, but a "
-            f"{np.dtype(oasis_int_dtype).name} stream allows at most {allowed:,} at that sample "
-            f"size. Only locations with IsAggregate=1 keep their buildings separate; reduce the "
-            f"sample size, set IsAggregate=0 so the buildings are summed at source, or run with "
-            f"disaggregation='items' for this portfolio."
+            f"building packing would overflow the stream's sample index: an item keeps "
+            f"{max_separate_buildings:,} buildings separate at {sample_size} samples, needing "
+            f"sidx up to {highest:,}, but a sidx is {np.dtype(oasis_int_dtype).name} with a "
+            f"maximum of {int(np.iinfo(oasis_int_dtype).max):,} -- at most {allowed:,} buildings "
+            f"at that sample size. Only locations with IsAggregate=1 keep their buildings "
+            f"separate; reduce the sample size, set IsAggregate=0 so the buildings are summed at "
+            f"source, or run with disaggregation='items' for this portfolio."
         )
 
 
