@@ -9,15 +9,15 @@ def occurrence_tobin(stack, file_in, file_out, file_type, no_of_periods, no_date
         raise RuntimeError("Cannot have an occurrence file with granular dates and no date algorithm. Use at most one of -D, -G, but not both")
 
     date_opts = granular << 1 | (not no_date_alg)
-    np.array([date_opts], dtype="i4").tofile(file_out)
-    np.array([no_of_periods], dtype="i4").tofile(file_out)
+    file_out.write(np.array([date_opts], dtype="i4").tobytes())
+    file_out.write(np.array([no_of_periods], dtype="i4").tobytes())
 
     if no_date_alg:
         dtype = TOOL_INFO[file_type]["dtype"]
         for chunk in iter_csv_as_ndarray(stack, file_in, dtype):
             if np.any(chunk["period_no"] > no_of_periods):
                 raise RuntimeError("FATAL: Period number exceeds maximum supplied")
-            chunk.tofile(file_out)
+            file_out.write(chunk.tobytes())
     else:
         occ_csv_output = [
             ("event_id", 'i4', "%d"),
@@ -48,4 +48,4 @@ def occurrence_tobin(stack, file_in, file_out, file_type, no_of_periods, no_date
 
             if np.any(out["period_no"] > no_of_periods):
                 raise RuntimeError("FATAL: Period number exceeds maximum supplied")
-            out.tofile(file_out)
+            file_out.write(out.tobytes())
