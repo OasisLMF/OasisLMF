@@ -4,7 +4,7 @@ import logging
 
 from oasislmf.pytools.common.data import loss_pair_dtype, loss_pair_size, def_to_type_and_size
 from oasislmf.pytools.common.event_stream import (EventReader, get_and_check_header_in, stream_info_to_bytes, write_mv_to_stream,
-                                                  mv_read, PIPE_CAPACITY)
+                                                  mv_read, decode_local_sidx, CHANCE_OF_LOSS_IDX, PIPE_CAPACITY)
 
 logger = logging.getLogger(__name__)
 
@@ -51,11 +51,21 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
                     item_id = 0
                     break
 
+                # Chance-of-loss is a probability, not a loss -- amplifying it can push it above 1. Every other
+                # special scales with the loss, and tiv is scaled deliberately so an amplified loss is not
+                # clipped by the cap. Decoded rather than compared to -4 because a packed item carries one per
+                # building, at -4, -9, -14 ...; only negatives can be specials and the decode ignores the
+                # sample size for those.
+                # amplifying a probability can push it above 1, so it passes through at 1.0.
+                # It still goes through the nan normalisation below -- skipping the whole read
+                # would let a nan through untouched.
+                pla_factor = 1.0 if (sidx < 0 and decode_local_sidx(sidx, 0) == CHANCE_OF_LOSS_IDX) else factor
+
                 loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
-                sidx_loss_view[k]['loss'] = loss * factor
+                sidx_loss_view[k]['loss'] = loss * pla_factor
                 ##########
             else:
                 cursor += n_pairs * loss_pair_size
@@ -91,11 +101,14 @@ def read_buffer_uniform(byte_mv, cursor, valid_buff, event_id, item_id, items_am
                     item_id = 0
                     break
 
+                # a probability, not a loss -- see read_buffer
+                pla_factor = 1.0 if (sidx < 0 and decode_local_sidx(sidx, 0) == CHANCE_OF_LOSS_IDX) else default_factor
+
                 loss = sidx_loss_view[k]['loss']
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
-                sidx_loss_view[k]['loss'] = loss * default_factor
+                sidx_loss_view[k]['loss'] = loss * pla_factor
                 ##########
             else:
                 cursor += n_pairs * loss_pair_size

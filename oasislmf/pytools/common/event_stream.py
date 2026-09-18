@@ -6,6 +6,8 @@ from select import select
 import sys
 
 import numpy as np
+
+from oasislmf.utils.exceptions import OasisException
 import numba as nb
 
 from .data import def_to_type_and_size
@@ -40,6 +42,152 @@ item_id_type, item_id_size = def_to_type_and_size("item_id")
 summary_id_dtype, summary_id_size = def_to_type_and_size("summary_id")
 sidx_type, sidx_size = def_to_type_and_size("sidx")
 loss_type, loss_size = def_to_type_and_size("loss")
+
+
+@nb.njit(cache=True, inline='always')
+def encode_sidx(building, local_sidx, sample_size):
+    """Pack a (building, local sidx) pair into a single stream sidx.
+
+    Buildings of one location are multiplexed into the sample dimension of a single
+    stream item. Positive (random) samples occupy contiguous blocks of ``sample_size``;
+    the negative special indices (``MEAN_IDX`` .. ``MAX_LOSS_IDX``) occupy contiguous
+    blocks of ``NUM_SPECIAL_SIDX``. Building 1 maps to the identity encoding so that
+    single-building streams are byte-for-byte unchanged.
+
+    Args:
+        building (int): 1-based building index within the item.
+        local_sidx (int): per-building sample index. Positive in ``[1, sample_size]``
+            for random samples, or a negative special index in
+            ``[-NUM_SPECIAL_SIDX, -1]``. ``0`` (the item delimiter) is not encoded.
+        sample_size (int): logical number of random samples per building (``S``).
+
+    Returns:
+        int: the packed stream sidx.
+    """
+    if local_sidx > 0:
+        return (building - 1) * sample_size + local_sidx
+    else:
+        # local_sidx in [-NUM_SPECIAL_SIDX, -1]; shift by whole special blocks per building
+        return local_sidx - (building - 1) * NUM_SPECIAL_SIDX
+
+
+def max_emitted_blocks(packed_buildings):
+    """How many building blocks the largest single item will actually write to the stream.
+
+    Only a kept-separate item (a negative count) emits one block per building. A positive count is
+    summed at source and written as one ordinary item however many buildings it carries, so sizing
+    the output buffer on the raw magnitude inflates it by the building count for items that emit a
+    single block. A portfolio holding one aggregated location -- hundreds of thousands of buildings
+    against a median of one -- then reserves gigabytes to write kilobytes, and at large sample
+    sizes the product overflows the int32 the estimate is kept in.
+
+    Args:
+        packed_buildings (numpy.array): the signed per-item building counts.
+
+    Returns:
+        int: the most blocks one item can emit, and 1 when nothing is kept separate.
+    """
+    if packed_buildings.shape[0] == 0:
+        return 1
+    smallest = int(packed_buildings.min())        # the most negative == the largest magnitude
+    return -smallest if smallest < 0 else 1
+
+
+def max_packed_buildings(sample_size, oasis_int_dtype):
+    """The most buildings one item may keep separate before the sidx runs out of int32.
+
+    A sidx is ``(b - 1) * S + s``, so the highest one an item writes is ``N * S``, and it is
+    written to the stream as ``oasis_int``. That is a property of the stream format, not of any
+    buffer: the bytes those records occupy are ordinary memory and do not enter into it.
+
+    Only an item that keeps its buildings separate encodes a packed sidx at all -- a summed item
+    writes one block at sidx 1..S however many buildings it carries.
+
+    Args:
+        sample_size (int): the run's sample size (``S``).
+        oasis_int_dtype (numpy.dtype): the stream's sidx type, whose maximum is the ceiling.
+
+    Returns:
+        int: the largest kept-separate building count that fits, never below 1.
+    """
+    limit = int(np.iinfo(oasis_int_dtype).max)
+    return max(1, limit // max(1, int(sample_size)))
+
+
+def check_packed_item_fits(max_separate_buildings, sample_size, oasis_int_dtype):
+    """Fail if an item keeps more buildings separate than the sidx can index.
+
+    ``encode_sidx`` computes in int64 but a sidx is stored as ``oasis_int``. Inside njit that
+    store wraps silently rather than raising, and the wrapped value is frequently NEGATIVE --
+    which every reader classifies as a packed special rather than a sample. So an overflow here is
+    not a loud failure but corrupt output, and it is checked once, where the numbers first meet.
+
+    Args:
+        max_separate_buildings (int): the largest building count among the items that keep their
+            buildings separate. A summed item never encodes a packed sidx, so it does not belong
+            in this number -- see :func:`max_emitted_blocks`.
+        sample_size (int): the run's sample size (``S``).
+        oasis_int_dtype (numpy.dtype): the stream's sidx type, whose maximum is the ceiling.
+
+    Raises:
+        OasisException: if the largest encodable sidx would not fit.
+    """
+    if max_separate_buildings <= 1:
+        return
+    allowed = max_packed_buildings(sample_size, oasis_int_dtype)
+    if max_separate_buildings > allowed:
+        highest = int(max_separate_buildings) * int(max(1, sample_size))
+        raise OasisException(
+            f"building packing would overflow the stream's sample index: an item keeps "
+            f"{max_separate_buildings:,} buildings separate at {sample_size} samples, needing "
+            f"sidx up to {highest:,}, but a sidx is {np.dtype(oasis_int_dtype).name} with a "
+            f"maximum of {int(np.iinfo(oasis_int_dtype).max):,} -- at most {allowed:,} buildings "
+            f"at that sample size. Only locations with IsAggregate=1 keep their buildings "
+            f"separate; reduce the sample size, set IsAggregate=0 so the buildings are summed at "
+            f"source, or run with disaggregation='items' for this portfolio."
+        )
+
+
+@nb.njit(cache=True, inline='always')
+def decode_building(sidx, sample_size):
+    """Recover the 1-based building index from a packed stream sidx.
+
+    Args:
+        sidx (int): packed stream sidx (positive sample, negative special, or ``0``).
+        sample_size (int): logical number of random samples per building (``S``).
+
+    Returns:
+        int: 1-based building index, or ``0`` for the delimiter (``sidx == 0``).
+    """
+    if sidx > 0:
+        return (sidx - 1) // sample_size + 1
+    elif sidx < 0:
+        return (-sidx - 1) // NUM_SPECIAL_SIDX + 1
+    else:
+        return 0
+
+
+@nb.njit(cache=True, inline='always')
+def decode_local_sidx(sidx, sample_size):
+    """Recover the per-building local sidx from a packed stream sidx.
+
+    Inverse of the building dimension applied by :func:`encode_sidx`: positive results
+    lie in ``[1, sample_size]`` (random samples) and negative results in
+    ``[-NUM_SPECIAL_SIDX, -1]`` (special indices, e.g. ``MEAN_IDX``).
+
+    Args:
+        sidx (int): packed stream sidx (positive sample, negative special, or ``0``).
+        sample_size (int): logical number of random samples per building (``S``).
+
+    Returns:
+        int: per-building local sidx, or ``0`` for the delimiter (``sidx == 0``).
+    """
+    if sidx > 0:
+        return (sidx - 1) % sample_size + 1
+    elif sidx < 0:
+        return -(((-sidx - 1) % NUM_SPECIAL_SIDX) + 1)
+    else:
+        return 0
 
 
 def stream_info_to_bytes(stream_source_type, stream_agg_type):

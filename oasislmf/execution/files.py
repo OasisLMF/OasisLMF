@@ -41,6 +41,12 @@ INPUT_FILES = {
         'conversion_tool': 'evetobin',
         'csvtobin_type': 'eve',
     },
+    # Binary only -- two int32 written by IL generation, no csv form and so no conversion tool.
+    # Optional because only a building-packed input set has one.
+    'fm_structure_info': {
+        'name': 'fm_structure_info',
+        'type': 'optional',
+    },
     'amplifications': {
         'name': 'amplifications',
         'type': 'optional',

@@ -4,7 +4,7 @@ Covers:
   * Philox4x32 round-function correctness: an independent reference reproduces the
     official Random123 known-answer vectors (at 10 rounds), and the production 7-round
     core matches that reference (at 7 rounds).
-  * get_random_generator id -> function mapping.
+  * get_correlation_generator id -> function mapping.
   * The determinism guarantees gulmc requires (repeatable, order-independent per
     seed, batch-independent) and the skip_seeds contract.
   * Valid Latin Hypercube structure (exactly one sample per stratum, range [0,1)).
@@ -15,7 +15,7 @@ import pytest
 from oasislmf.pytools.gul.random import (
     _philox4x32_7,
     generate_hash,
-    get_random_generator,
+    get_correlation_generator,
     random_LatinHypercube_Philox7,
 )
 
@@ -70,16 +70,16 @@ def test_production_core_matches_reference(ctr, key, expected):
     assert tuple(int(np.uint32(x)) for x in out) == _ref_philox(ctr, key, 7)
 
 
-def test_get_random_generator_id():
+def test_get_correlation_generator_id():
     """id 2 maps to the Philox-7 LH generator."""
-    assert get_random_generator(2) is random_LatinHypercube_Philox7
+    assert get_correlation_generator(2) is random_LatinHypercube_Philox7
 
 
-def test_get_random_generator_unknown():
+def test_get_correlation_generator_unknown():
     # 3 was the removed Philox-10 id; both 3 and 4 must now be rejected.
     for bad in (3, 4):
         with pytest.raises(ValueError):
-            get_random_generator(bad)
+            get_correlation_generator(bad)
 
 
 def test_repeatable():

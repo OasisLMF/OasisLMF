@@ -88,10 +88,17 @@ def cdf_tocsv(stack, file_in, file_out, file_type, noheader, run_dir):
     batch_data = np.empty(_BATCH_ROWS, dtype=dtype)
     batch_pos = 0
 
+    # This converter dumps the cdf stream and never samples, so every item is one building and
+    # the per-seed counts go unread. The array is still indexed by item_id inside njit, which
+    # does not bounds-check, so it has to span every item even though the values are ignored.
+    n_buildings_by_item_id = np.ones(int(items['item_id'].max()) + 1 if items.shape[0] else 1, dtype='i4')
+    n_buildings_by_rng = np.ones(seeds.shape[0] + 1, dtype='i4')
+
     for event_data in read_getmodel_stream(file_in, items,
                                            item_map_hm, item_map_hm_keys,
                                            item_map_ja_offsets,
-                                           coverages, compute, seeds):
+                                           coverages, compute, seeds,
+                                           n_buildings_by_item_id, n_buildings_by_rng):
         event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
         n_rows = len(recs)
 

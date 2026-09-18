@@ -79,14 +79,29 @@ Agreed but **not yet implemented** — worth knowing before you assume a safety 
   running it today.
 - **Docstring-coverage gate** (e.g. `interrogate`), to keep the generated reference
   honest as the autoapi scope widens.
-- **Mermaid diagrams.** Diagrams-as-text would diff cleanly and avoid stale binary
-  assets, but the extension is not configured.
 - **A render check.** See the first gotcha below: "builds clean" is not "renders clean".
 
 ## Authoring rules and traps
 
 These are concrete, recurring problems found while building these docs. Where a rule
 exists it is because something broke.
+
+1. **Diagrams are Graphviz, committed as source and rendered SVG.** Write the `.dot`
+   beside the page it serves, render with `dot -Tsvg x.dot -o x.svg`, and commit both;
+   put the command in a comment at the top of the source. The text diffs like any other
+   source, the rendered file is what ships, and `dot` is needed only by whoever edits a
+   diagram — never by a build or a reader.
+
+   **Mermaid is not used here.** It was tried and rejected: `sphinxcontrib-mermaid`
+   renders client-side, so every page carrying a diagram pulls `mermaid.js` from a CDN at
+   view time. That makes the published docs depend on a third party being reachable,
+   fails behind a strict content-security policy or offline, and pins diagram appearance
+   to whatever version the CDN serves. Do not add it back for the convenience of inline
+   fences; the cost lands on every reader.
+
+   A page included into the site from elsewhere in the tree needs its image directory
+   symlinked next to the including page, or Sphinx resolves the relative path against the
+   wrong directory and the build warns `image file not readable`.
 
 1. **Do not use `.. contents::`.** Furo renders its own "On this page" sidebar, and a
    docutils `.. contents::` directive becomes a red error box visible to readers.

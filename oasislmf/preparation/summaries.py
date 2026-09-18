@@ -68,6 +68,40 @@ MAP_SUMMARY_DTYPES = {
 logger = logging.getLogger(__name__)
 
 
+def _building_count(df):
+    """Per-row building count, as a multiplier for a row's one-building ``tiv``.
+
+    The column is absent from a summary map written before building packing existed, and from a
+    map assembled by hand. Absent means no packing, so the count is 1 and every sum below is
+    what it was.
+
+    Args:
+        df (pandas.DataFrame): a summary map, or a frame derived from one.
+
+    Returns:
+        pandas.Series | int: the per-row count, or 1 when the map does not carry it.
+    """
+    return df['number_of_buildings'] if 'number_of_buildings' in df.columns else 1
+
+
+def _location_tiv_total(map_df):
+    """Total insured value across a summary map, counting each location's buildings once.
+
+    ``tiv`` on the map is one building's share. Under row disaggregation the buildings are
+    separate rows and de-duplication keeps them all; under building packing one row stands for
+    ``number_of_buildings`` of them, so the count has to be multiplied back in. It is 1 in every
+    other mode, which makes this the same sum as before.
+
+    Args:
+        map_df (pandas.DataFrame): a gul or fm summary map.
+
+    Returns:
+        float: the total insured value.
+    """
+    deduped = map_df.drop_duplicates(['building_id', 'loc_id', 'coverage_type_id'], keep='first')
+    return (deduped['tiv'] * _building_count(deduped)).sum()
+
+
 def get_useful_summary_cols(oed_hierarchy):
     return [
         oed_hierarchy['accnum']['ProfileElementName'],
@@ -86,6 +120,7 @@ def get_useful_summary_cols(oed_hierarchy):
         'coverage_type_id',
         'tiv',
         'building_id',
+        'number_of_buildings',
         'risk_id',
         'intensity_adjustment',
         'return_period'
@@ -149,7 +184,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
         **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
         **{t: 'uint8' for t in ['coverage_type_id']},
         **{t: 'uint32' for t in [SOURCE_IDX['loc'], SOURCE_IDX['acc'], 'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id',
-                                 'building_id', 'risk_id']},
+                                 'building_id', 'number_of_buildings', 'risk_id']},
         **{t: 'float64' for t in ['tiv']}
     }
     summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
@@ -210,6 +245,8 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     to_calculate_column = [c for c in oed_cols if c in calculated_summary_cols]
 
     tiv_cols = ['tiv', 'loc_id', 'building_id', 'coverage_type_id']
+    if 'number_of_buildings' in summary_map_df.columns:
+        tiv_cols.append('number_of_buildings')
 
     # Extract mapped_cols from summary_map_df
     summary_group_df = summary_map_df.loc[:, list(set(tiv_cols).union(mapped_cols))]
@@ -234,8 +271,14 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True, kind='stable')
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
+    # A row's tiv is one building's share, and under building packing a location contributes ONE
+    # row standing for number_of_buildings of them -- de-duplication cannot recover the rest, as it
+    # does under row disaggregation where each building is its own row. Multiplying restores the
+    # location total in every mode; the count is 1 unless the buildings are packed.
     summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'building_id', 'coverage_type_id'] + oed_col_group,
-                                                   keep='first').groupby(oed_col_group, observed=True).agg({'tiv': "sum"})
+                                                   keep='first').copy()
+    summary_tiv['tiv'] = summary_tiv['tiv'] * _building_count(summary_tiv)
+    summary_tiv = summary_tiv.groupby(oed_col_group, observed=True).agg({'tiv': "sum"})
 
     return summary_ids[0], summary_ids[1], summary_tiv
 
@@ -526,7 +569,7 @@ def get_summary_xref_df(
             summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
             summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv',
-                                          value=map_df.drop_duplicates(['building_id', 'loc_id', 'coverage_type_id'], keep='first').tiv.sum())
+                                          value=_location_tiv_total(map_df))
         else:
             (
                 summary_set_df['summary_id'],

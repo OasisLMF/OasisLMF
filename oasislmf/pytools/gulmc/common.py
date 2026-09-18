@@ -32,7 +32,10 @@ items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('eff_cdf_id', oasis_int),
                                              # signed: -1 means no source item, so this item is
                                              # independent even inside a dependent coverage
-                                             ('source_item_j', np.int32)
+                                             ('source_item_j', np.int32),
+                                             # signed: magnitude is the building count, negative
+                                             # means the buildings stay separate
+                                             ('packed_buildings', oasis_int),
                                              ]))
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),
@@ -105,11 +108,16 @@ NormInversionParameters = nb.from_dtype(np.dtype([('x_min', np.float64),
 
 gulmc_compute_info_type = nb.from_dtype(np.dtype([
     ('event_id', oasis_int),
-    ('cursor', oasis_int),
+    # cursor and max_bytes_per_item count BYTES of the output buffer, not stream values. They are
+    # int64 because nothing about the stream bounds them: a sidx is int32 because that is how it
+    # is written, but the buffer is ordinary memory. Holding them in an int32 put a 2 GB ceiling
+    # on the buffer for no reason other than the choice of field, and a kept-separate item with
+    # enough buildings reaches it.
+    ('cursor', np.int64),
     ('coverage_i', oasis_int),  # last_processed_coverage_ids_idx
     ('coverage_n', oasis_int),
     ('cdf_cache_ctr', np.int64),
-    ('max_bytes_per_item', oasis_int),
+    ('max_bytes_per_item', np.int64),
     ('Ndamage_bins_max', oasis_int),
     ('loss_threshold', oasis_float),
     ('alloc_rule', np.int8),

@@ -61,7 +61,9 @@ import chardet
 from chardet import UniversalDetector
 from tabulate import tabulate
 
-from oasislmf.utils.defaults import SOURCE_IDX, SAR_ID
+from oasislmf.utils.deprecation import warn_deprecated
+from oasislmf.utils.defaults import (SOURCE_IDX, SAR_ID, DISAGGREGATION_MODES, DISAGGREGATION_NONE,
+                                     DISAGGREGATION_ITEMS)
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -1078,6 +1080,46 @@ def structured_dtype_to_pandas(np_dtype):
         dict: mapping of each field name to its numpy dtype.
     """
     return {col: dtype for col, (dtype, _) in np_dtype.fields.items()}
+
+
+def resolve_disaggregation(disaggregation, do_disaggregation=None):
+    """Resolve how a location's buildings are separated, accepting the deprecated booleans.
+
+    ``disaggregation`` is one string -- :data:`DISAGGREGATION_NONE`, ``_ITEMS`` or ``_SAMPLES`` --
+    threaded from the command line all the way through generation. It replaces the boolean
+    ``do_disaggregation``, which could only name two of the three.
+
+    Args:
+        disaggregation (str | None): the mode, or None when not given.
+        do_disaggregation (bool | None): deprecated. True means one item per building.
+
+    Returns:
+        str: one of :data:`DISAGGREGATION_MODES`.
+
+    Raises:
+        OasisException: if ``disaggregation`` is not a recognised mode.
+    """
+    if disaggregation is not None and disaggregation not in DISAGGREGATION_MODES:
+        raise OasisException(
+            f"disaggregation must be one of {', '.join(DISAGGREGATION_MODES)}, "
+            f"got '{disaggregation}'")
+
+    deprecated_given = do_disaggregation is not None
+
+    if disaggregation is None:
+        if not deprecated_given:
+            return DISAGGREGATION_ITEMS
+        disaggregation = DISAGGREGATION_ITEMS if do_disaggregation else DISAGGREGATION_NONE
+        warn_deprecated(
+            f"do_disaggregation is deprecated and may be removed in a future version. Use "
+            f"disaggregation='{disaggregation}' instead: a boolean cannot name the three ways a "
+            f"location's buildings can be represented.")
+    elif deprecated_given:
+        warn_deprecated(
+            f"both disaggregation and the deprecated do_disaggregation were given; "
+            f"disaggregation='{disaggregation}' wins and do_disaggregation is ignored.")
+
+    return disaggregation
 
 
 def assign_risk_ids(df):
