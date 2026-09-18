@@ -250,6 +250,35 @@ class TestGenLosses(ComputationChecker):
             expected_script = self.read_file(ALL_EXPECTED_SCRIPT.format(summary_type)).decode()
             self.assertEqual(expected_script, result_script)
 
+    def test_losses__chunked_workflow__structures_built_for_the_engine_that_runs(self):
+        """The chunked workflow calls the dir step on its own, so that step -- not only the
+        sub-steps that write the run script -- has to see the GUL engine selection. The chunks
+        load whatever structures they find and ignore their own runtime peril filter, so
+        pre-building the wrong engine's structures is silent.
+        """
+        from oasislmf.pytools.getmodel.structure import getmodel_structure_exists
+        from oasislmf.pytools.gul.structure import gulpy_structure_exists
+        from oasislmf.pytools.gulmc.structure import gulmc_structure_exists
+
+        self.manager.generate_files(**self.args_gen_files_gul)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+
+        cases = [
+            ({'gulmc': True}, (True, False, False)),
+            ({'gulmc': False}, (False, True, True)),
+            ({'model_custom_gulcalc': 'custom_gulcalc'}, (False, False, False)),
+        ]
+        for engine_args, (gulmc_built, gulpy_built, getmodel_built) in cases:
+            with self.subTest(**engine_args), self.tmp_dir() as model_run_dir:
+                self.manager.generate_losses_dir(**{
+                    **self.min_args,
+                    **engine_args,
+                    'model_run_dir': model_run_dir,
+                })
+                self.assertEqual(gulmc_built, gulmc_structure_exists(model_run_dir))
+                self.assertEqual(gulpy_built, gulpy_structure_exists(model_run_dir))
+                self.assertEqual(getmodel_built, getmodel_structure_exists(model_run_dir))
+
     def test_losses__chucked_workflow(self):
         num_chunks = 5
         self.manager.generate_files(**self.args_gen_files_ri)
