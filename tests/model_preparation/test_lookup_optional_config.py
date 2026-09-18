@@ -215,17 +215,36 @@ def test_peril_covered_deterministic___is_still_selected():
         assert key_server.lookup_cls is PerilCoveredDeterministicLookup
 
 
-@pytest.mark.parametrize('missing_key', ['step_definition', 'strategy'])
-def test_step_definition_or_strategy_missing___error_names_the_key(missing_key):
-    config = without(shipped_config(), missing_key)
+def assert_process_locations_names_the_key(config, key):
     locations = pd.DataFrame({'loc_id': [1], 'occupancycode': [1050]})
     with TemporaryDirectory() as d:
         config_fp = write_model_dir(pathlib.Path(d), config)
         _, key_server = KeyServerFactory.create(lookup_config_fp=str(config_fp), output_directory=d)
         lookup = key_server.lookup_cls(key_server.config, config_dir=key_server.config_dir, output_dir=d)
 
-        with pytest.raises(OasisException, match=missing_key):
+        with pytest.raises(OasisException, match=key):
             lookup.process_locations(locations)
+
+
+@pytest.mark.parametrize('missing_key', ['step_definition', 'strategy'])
+def test_step_definition_or_strategy_missing___error_names_the_key(missing_key):
+    assert_process_locations_names_the_key(without(shipped_config(), missing_key), missing_key)
+
+
+@pytest.mark.parametrize('empty_key,empty_value', [('step_definition', {}), ('strategy', [])])
+def test_step_definition_or_strategy_empty___error_names_the_key(empty_key, empty_value):
+    config = {**shipped_config(), empty_key: empty_value}
+    assert_process_locations_names_the_key(config, empty_key)
+
+
+def test_empty_step_definition_without_builtin_lookup_type___selects_new_lookup():
+    config = {**without(shipped_config(), 'builtin_lookup_type'), 'step_definition': {}}
+    with TemporaryDirectory() as d:
+        config_fp = write_model_dir(pathlib.Path(d), config)
+        _, key_server = KeyServerFactory.create(lookup_config_fp=str(config_fp), output_directory=d)
+        assert key_server.lookup_cls is Lookup
+
+    assert_process_locations_names_the_key(config, 'step_definition')
 
 
 def test_bare_lookup_is_constructible_for_builders():

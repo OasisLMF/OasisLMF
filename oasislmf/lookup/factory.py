@@ -340,7 +340,7 @@ class BasicKeyServer:
             lookup_cls = getattr(lookup_module, '{}KeysLookup'.format(self.config['model']['model_id']))
         else:  # built-in lookup
             builtin_lookup_type = self.config.get('builtin_lookup_type')
-            if builtin_lookup_type is None and self.config.get('step_definition'):
+            if builtin_lookup_type is None and 'step_definition' in self.config:
                 builtin_lookup_type = 'new_lookup'
             if builtin_lookup_type == 'peril_covered_deterministic':
                 lookup_cls = PerilCoveredDeterministicLookup
