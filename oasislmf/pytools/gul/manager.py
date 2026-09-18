@@ -12,7 +12,7 @@ import time
 from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_sidx_fits, encode_sidx, max_emitted_blocks,
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, encode_sidx, max_emitted_blocks,
                                                   mv_write_item_header,
                                                   mv_write_sidx_loss,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
@@ -239,7 +239,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # separate". Unpacked into locals wherever it is consumed -- never used raw as a bound.
         n_buildings_by_item_id = structures['n_buildings_by_item_id']
         max_buildings = int(np.abs(n_buildings_by_item_id).max())
-        check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
+        # only kept-separate items meet either stream ceiling: a summed one writes a single
+        # block at sidx 1..S however many buildings it carries
+        check_packed_item_fits(max_emitted_blocks(n_buildings_by_item_id), sample_size,
+                               gulSampleslevelHeader_size, gulSampleslevelRec_size, oasis_int)
         generate_sample_rndm = get_sample_generator(random_generator)
 
         if alloc_rule not in [0, 1, 2, 3]:

@@ -26,7 +26,7 @@ from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_sidx_fits, max_emitted_blocks)
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, max_emitted_blocks)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
@@ -268,7 +268,10 @@ def run(run_dir,
         # the coverage TIV being the per-building share.
         # signed field: take the magnitude, or the keep-separate items (negative) are skipped
         max_buildings = int(np.abs(items['packed_buildings']).max()) if items.shape[0] > 0 else 1
-        check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
+        # only kept-separate items meet either stream ceiling: a summed one writes a single
+        # block at sidx 1..S however many buildings it carries
+        check_packed_item_fits(max_emitted_blocks(items['packed_buildings']), sample_size,
+                               gulSampleslevelHeader_size, gulSampleslevelRec_size, oasis_int)
         # Packing is the N > 1 case of one mechanism, not a second path: an unpacked run is every
         # item carrying one building, and the packed generator's first block per seed is the legacy
         # draw byte-for-byte. So the compute always takes the packed route.

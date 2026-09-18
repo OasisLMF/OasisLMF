@@ -19,7 +19,8 @@ import numpy as np
 import pytest
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype, oasis_int
-from oasislmf.pytools.common.event_stream import check_packed_sidx_fits
+from oasislmf.pytools.common.event_stream import (check_packed_item_fits, max_emitted_blocks,
+                                                  max_packed_buildings)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.gul.structure import build_structures
 
@@ -41,33 +42,68 @@ def _with_correlations(dst, number_of_buildings, keep_separate):
     return corr
 
 
-class TestPackedSidxMustFitTheStream(TestCase):
-    """Packing must not push a sidx past what an int32 stream field can hold.
+class TestPackedItemMustFitTheStream(TestCase):
+    """Packing must not push a sidx, or the byte estimate that sizes the output buffer, past what
+    an int32 can hold.
 
-    ``encode_sidx`` computes ``(b - 1) * S + s`` in int64, but a sidx is written as int32. Inside
-    njit that store wraps silently instead of raising, and the wrapped value is often NEGATIVE --
-    which every reader classifies as a packed special rather than a sample. The result is corrupt
-    output rather than a failure, so the bound is checked once up front.
+    Both wrap silently inside njit rather than raising. A wrapped sidx is often NEGATIVE, which
+    every reader classifies as a packed special rather than a sample; a wrapped byte estimate makes
+    the "is there room" test never fire, so the writer runs past the output buffer. Either way the
+    result is corruption, not a failure, so the bound is checked once up front.
+
+    HDR/REC are the stream's header and record sizes, passed in because event_stream cannot import
+    them from gul.common without a cycle.
     """
 
+    HDR, REC = 8, 8
+
+    def _check(self, separate_buildings, sample_size):
+        check_packed_item_fits(separate_buildings, sample_size, self.HDR, self.REC, oasis_int)
+
     def test_ordinary_configurations_are_allowed(self):
-        for max_buildings, sample_size in ((1, 10 ** 9), (1000, 100_000), (5, 1000), (0, 10)):
-            with self.subTest(max_buildings=max_buildings, sample_size=sample_size):
-                check_packed_sidx_fits(max_buildings, sample_size, oasis_int)
+        for separate, sample_size in ((1, 10 ** 9), (1000, 100_000), (5, 1000), (0, 10)):
+            with self.subTest(separate=separate, sample_size=sample_size):
+                self._check(separate, sample_size)
 
     def test_an_overflowing_configuration_is_rejected(self):
         with self.assertRaises(OasisException) as caught:
-            check_packed_sidx_fits(300_000, 10_000, oasis_int)
+            self._check(300_000, 10_000)
         message = str(caught.exception)
-        self.assertIn("300000", message)
+        self.assertIn("300,000", message)
         self.assertIn("10000", message)
+        self.assertIn("IsAggregate", message)
 
     def test_the_boundary(self):
-        """Exactly at the limit is fine; one sample more is not."""
-        limit = np.iinfo(oasis_int).max
-        check_packed_sidx_fits(2, limit // 2, oasis_int)
-        with self.assertRaises(OasisException):
-            check_packed_sidx_fits(2, limit // 2 + 1, oasis_int)
+        """Exactly at the limit is fine; one building more is not."""
+        for sample_size in (10, 1000):
+            allowed = max_packed_buildings(sample_size, self.HDR, self.REC, oasis_int)
+            with self.subTest(sample_size=sample_size, allowed=allowed):
+                self._check(allowed, sample_size)
+                with self.assertRaises(OasisException):
+                    self._check(allowed + 1, sample_size)
+
+    def test_the_byte_estimate_binds_before_the_sidx(self):
+        """The reason the limit is not simply int32_max / S.
+
+        The same records counted in bytes rather than in records, with the specials carried per
+        block on top, exhaust the int32 about REC times sooner. A bound taken from the sidx alone
+        would admit configurations whose byte estimate has already wrapped.
+        """
+        limit = int(np.iinfo(oasis_int).max)
+        for sample_size in (10, 100, 1000):
+            allowed = max_packed_buildings(sample_size, self.HDR, self.REC, oasis_int)
+            sidx_only = limit // sample_size
+            with self.subTest(sample_size=sample_size):
+                self.assertLess(allowed, sidx_only, "the byte estimate must be the binding one")
+                # what the sidx-only bound would have admitted
+                bytes_at_sidx_bound = (self.HDR + (sample_size + 6) * self.REC) * sidx_only
+                self.assertGreater(bytes_at_sidx_bound, limit)
+
+    def test_a_summed_item_is_not_subject_to_the_ceiling(self):
+        """A positive count writes one block at sidx 1..S, so its building count never reaches
+        either quantity. max_emitted_blocks is what keeps it out of the number checked."""
+        packed = np.array([630_510, 1, 1], dtype='i4')      # huge, but summed at source
+        self._check(max_emitted_blocks(packed), 1000)       # must not raise
 
     def test_what_would_happen_without_it(self):
         """The value the guard prevents being written -- negative, so read as a special."""
