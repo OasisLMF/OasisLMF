@@ -49,16 +49,20 @@ def test_the_constant_is_the_golden_ratio_conjugate():
     assert GOLDEN_RATIO_CONJUGATE == pytest.approx((np.sqrt(5) - 1) / 2, rel=1e-15)
 
 
-def test_only_groups_past_the_gate_are_pooled():
-    """Below the gate a group keeps its own per-building draws. The gate sits past the band where
-    the buildings divide unevenly among the entries, which is worst just above POOL_SIZE."""
-    from oasislmf.pytools.gul.random import POOL_GATE_RATIO, POOL_SIZE, group_is_pooled
+def test_only_items_past_the_gate_may_pool():
+    """Below the gate an item keeps its own per-building draws. The gate sits past the band where
+    the buildings divide unevenly among the entries, which is worst just above POOL_SIZE.
+
+    It is the ITEM's count that must clear it, not its group's largest: a group pools only when
+    every item in it does, or a small item sharing a group with a huge one would read a
+    POOL_SIZE pool at exactly the ratio the gate exists to avoid."""
+    from oasislmf.pytools.gul.random import POOL_GATE_RATIO, POOL_SIZE, item_is_past_pool_gate
 
     gate = POOL_GATE_RATIO * POOL_SIZE
     for n in (1, 2, POOL_SIZE, POOL_SIZE + 1, gate - 1):
-        assert not group_is_pooled(n), f"{n} buildings should draw individually"
+        assert not item_is_past_pool_gate(n), f"{n} buildings must keep its own draws"
     for n in (gate, gate + 1, 630_510):
-        assert group_is_pooled(n), f"{n} buildings should read from the pool"
+        assert item_is_past_pool_gate(n), f"{n} buildings may read from a pool"
 
 
 POOLED_N = 8192          # POOL_GATE_RATIO * POOL_SIZE, the smallest pooled group
@@ -79,12 +83,13 @@ def test_a_pooled_group_gets_one_value_per_stratum(generator):
     sample_size = 100
     seeds = np.array([12345, 67890], dtype='i8')
     n_buildings = np.array([4, POOLED_N], dtype='i8')     # one ordinary group, one pooled
-    offsets = build_packed_rndm_offsets(n_buildings, sample_size)
+    pooled = np.array([0, 1], dtype=np.int8)     # group 0 ordinary, group 1 past the gate
+    offsets = build_packed_rndm_offsets(n_buildings, pooled, sample_size)
 
     assert offsets[2] - offsets[1] == POOL_SIZE, "a pooled group must reserve exactly POOL_SIZE"
     assert offsets[1] - offsets[0] == 4 * sample_size, "an ordinary group keeps its full block"
 
-    pool = get_sample_generator(generator)(seeds, sample_size, n_buildings, offsets)[offsets[1]:offsets[2]]
+    pool = get_sample_generator(generator)(seeds, sample_size, n_buildings, pooled, offsets)[offsets[1]:offsets[2]]
     assert pool.min() >= 0.0 and pool.max() < 1.0
     strata = np.floor(pool * POOL_SIZE).astype(int)
     assert sorted(strata) == list(range(POOL_SIZE)), \
@@ -104,9 +109,34 @@ def test_the_pool_is_not_merely_sorted(generator):
                                              get_sample_generator)
     seeds = np.array([4242], dtype='i8')
     n_buildings = np.array([POOLED_N], dtype='i8')
-    offsets = build_packed_rndm_offsets(n_buildings, 100)
-    pool = get_sample_generator(generator)(seeds, 100, n_buildings, offsets)
+    offsets = build_packed_rndm_offsets(n_buildings, np.array([1], dtype=np.int8), 100)
+    pool = get_sample_generator(generator)(seeds, 100, n_buildings, np.array([1], dtype=np.int8), offsets)
 
     rank_corr = np.corrcoef(np.arange(POOL_SIZE), pool)[0, 1]
     assert abs(rank_corr) < 0.2, \
         f"pool entries track their index (corr {rank_corr:+.2f}); the two dimensions would couple"
+
+
+def test_a_group_pools_only_when_every_item_clears_the_gate():
+    """One small item keeps its whole group off the pool.
+
+    The imbalance error goes as POOL_SIZE/n_buildings, so it is the item's own count that has to
+    clear the gate. Deciding on the group's LARGEST item would let a 1,500-building item sharing
+    a group with a huge one read a 1,024-entry pool at a ratio of 1.5 -- the worst point of the
+    band the gate exists to avoid.
+    """
+    from oasislmf.pytools.gul.random import (POOL_GATE_RATIO, POOL_SIZE,
+                                             build_packed_rndm_offsets, item_is_past_pool_gate)
+    sample_size = 100
+
+    def group_pools(counts):
+        return all(item_is_past_pool_gate(c) for c in counts)
+
+    assert group_pools([20_000, 9_000]), "every item past the gate: pool"
+    assert not group_pools([20_000, 1_500]), "one item at the bad ratio: must not pool"
+    assert not group_pools([4, 7]), "all small: nothing to pool"
+
+    # and the offsets follow the flag, not the largest count
+    nb = np.array([20_000], dtype='i8')
+    assert build_packed_rndm_offsets(nb, np.array([0], dtype=np.int8), sample_size)[1] == 20_000 * sample_size
+    assert build_packed_rndm_offsets(nb, np.array([1], dtype=np.int8), sample_size)[1] == POOL_SIZE

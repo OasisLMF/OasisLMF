@@ -37,7 +37,7 @@ from oasislmf.pytools.gul.random import (build_packed_rndm_offsets, cdf_min,
                                          generate_correlated_hash_vector,
                                          get_corr_rval, get_correlation_generator,
                                          get_sample_generator,
-                                         inv_factor, norm_factor, x_min, POOL_SIZE, group_is_pooled, pool_index)
+                                         inv_factor, norm_factor, x_min, POOL_SIZE, pool_index)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
@@ -305,6 +305,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         # one entry per seed, holding the largest building count in its group
         n_buildings_by_rng = np.ones(seeds.shape[0] + 1, dtype='i4')
+        # a group pools only where EVERY item in it clears the gate; see io.read_getmodel_stream
+        pooled_by_rng = np.zeros(seeds.shape[0] + 1, dtype=np.int8)
 
         counter = 0
         timer = time.time()
@@ -315,14 +317,16 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                                                item_map_hm, item_map_hm_keys,
                                                item_map_ja_offsets,
                                                coverages, compute, seeds,
-                                               n_buildings_by_item_id, n_buildings_by_rng):
+                                               n_buildings_by_item_id, n_buildings_by_rng, pooled_by_rng):
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
             # flat, ragged: seed i owns n_buildings_by_rng[i] blocks of sample_size, which is
             # one block of the legacy draw when nothing is packed
-            rndm_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index], sample_size)
+            rndm_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index],
+                                                     pooled_by_rng[:rng_index], sample_size)
             rndms_flat = generate_sample_rndm(
-                seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index], rndm_offsets)
+                seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index],
+                pooled_by_rng[:rng_index], rndm_offsets)
 
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
@@ -347,7 +351,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
                     building_losses, rndms_flat, rndm_offsets,
                     n_buildings_by_item_id, damage_correlation_by_item_id,
-                    n_buildings_by_rng, pool_scratch,
+                    pooled_by_rng, pool_scratch,
                     max_bytes_per_item, byte_mv, cursor
                 )
 
@@ -385,13 +389,12 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
                          z_unif, debug, building_losses, rndms_flat, rndm_offsets,
                          n_buildings_by_item_id, damage_correlation_by_item_id,
-                         n_buildings_by_rng, pool_scratch,
+                         pooled_by_rng, pool_scratch,
                          max_bytes_per_item, byte_mv, cursor):
     """Compute losses for an event.
 
     Args:
-        n_buildings_by_rng (numpy.array[int]): buildings in each rng group, which is what decides
-          whether the group was pooled.
+        pooled_by_rng (numpy.array[int8]): per rng group, 1 if it drew a pool.
         pool_scratch (numpy.array[float64]): length-S buffer for one building's draws gathered
           out of a pool.
         damage_correlation_by_item_id (numpy.array[oasis_float]): per item_id, the correlation
@@ -483,7 +486,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                 base_off = rndm_offsets[rng_index]
                 # a pooled group holds POOL_SIZE values for the whole group, not a block per
                 # building, so its buildings gather through pool_index instead of slicing
-                pooled = group_is_pooled(n_buildings_by_rng[rng_index])
+                pooled = pooled_by_rng[rng_index] == 1
                 for building_i in range(item_n_buildings):
                     if pooled:
                         for s_i in range(sample_size):

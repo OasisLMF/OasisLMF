@@ -171,22 +171,31 @@ POOL_GATE_RATIO = 8
 
 
 @njit(cache=True, fastmath=True, inline='always')
-def group_is_pooled(n_buildings):
-    """Whether a group with this many buildings reads from a pool rather than its own draws."""
+def item_is_past_pool_gate(n_buildings):
+    """Whether an item with this many buildings is far enough past POOL_SIZE to pool safely.
+
+    The imbalance error goes as POOL_SIZE/n_buildings, so it is the ITEM's count that has to
+    clear the gate, not its group's largest. A group is pooled only when every item in it does
+    -- one small item sharing a group with a huge one would otherwise read a POOL_SIZE pool at
+    the very ratio the gate exists to avoid.
+    """
     return n_buildings >= POOL_GATE_RATIO * POOL_SIZE
 
 
 @njit(cache=True, fastmath=True)
-def build_packed_rndm_offsets(n_buildings, n):
+def build_packed_rndm_offsets(n_buildings, pooled, n):
     """Prefix-sum offsets for building-packed random draws.
 
-    A group past the pooling gate reserves ``POOL_SIZE`` whatever its building count; every
-    other group keeps the full ``n_buildings * n`` block. The generators must agree, or a pooled
-    group's draws run into the next group's slot.
+    A pooled group reserves ``POOL_SIZE`` whatever its building count; every other group keeps
+    the full ``n_buildings * n`` block. The generators must agree, or a pooled group's draws run
+    into the next group's slot.
 
     Args:
-        n_buildings (array[int]): buildings per seed/group, as a magnitude. The signed
-          ``packed_buildings`` must never reach here -- a negative would size the draw short.
+        n_buildings (array[int]): the LARGEST building count in each seed/group, as a magnitude.
+          The signed ``packed_buildings`` must never reach here -- a negative would size the draw
+          short.
+        pooled (array[int8]): per group, 1 if it reads from a pool. Decided by the caller, which
+          is the only place that sees every item of a group.
         n (int): logical number of samples per building (``S``).
 
     Returns:
@@ -194,7 +203,7 @@ def build_packed_rndm_offsets(n_buildings, n):
     """
     offsets = np.zeros(len(n_buildings) + 1, dtype=np.int64)
     for i in range(len(n_buildings)):
-        if group_is_pooled(n_buildings[i]):
+        if pooled[i]:
             offsets[i + 1] = offsets[i] + POOL_SIZE
         else:
             offsets[i + 1] = offsets[i] + n_buildings[i] * n
@@ -346,13 +355,15 @@ def random_MersenneTwister(seeds, n, skip_seeds=0):
           containing the random values generated for each seed.
     """
     one_building = np.ones(len(seeds), dtype='i4')
-    offsets = build_packed_rndm_offsets(one_building, n)
-    flat = random_MersenneTwister_packed(seeds, n, one_building, offsets, skip_seeds)
+    # one building per seed is far below the gate, so nothing here is ever pooled
+    never_pooled = np.zeros(len(seeds), dtype=np.int8)
+    offsets = build_packed_rndm_offsets(one_building, never_pooled, n)
+    flat = random_MersenneTwister_packed(seeds, n, one_building, never_pooled, offsets, skip_seeds)
     return flat.reshape(len(seeds), n)
 
 
 @njit(cache=True, fastmath=True)
-def random_MersenneTwister_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
+def random_MersenneTwister_packed(seeds, n, n_buildings, pooled, offsets, skip_seeds=0):
     """Draw building-packed random numbers from each seed (Mersenne Twister).
 
     For building-packing mode each seed (one per correlation group / location) must yield
@@ -369,6 +380,8 @@ def random_MersenneTwister_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
         seeds (array[int64]): one seed per group.
         n (int): logical number of samples per building (``S``).
         n_buildings (array[int]): buildings per seed/group, as a magnitude.
+        pooled (array[int8]): per group, 1 if it draws a POOL_SIZE pool instead of a block per
+            building.
         offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
             flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
         skip_seeds (int): number of leading seeds to skip (left as zeros).
@@ -386,7 +399,7 @@ def random_MersenneTwister_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
         if nb == 0:
             continue
         np.random.seed(seeds[seed_i])
-        if group_is_pooled(nb):
+        if pooled[seed_i]:
             # A pool is stratified whichever generator fills it: its entries stand in for the
             # whole building population, and plain uniforms would leave gaps and clumps in that
             # population for no saving. The Mersenne Twister supplies the jitter and the
@@ -424,13 +437,15 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
           containing the random values generated for each seed.
     """
     one_building = np.ones(len(seeds), dtype='i4')
-    offsets = build_packed_rndm_offsets(one_building, n)
-    flat = random_LatinHypercube_packed(seeds, n, one_building, offsets, skip_seeds)
+    # one building per seed is far below the gate, so nothing here is ever pooled
+    never_pooled = np.zeros(len(seeds), dtype=np.int8)
+    offsets = build_packed_rndm_offsets(one_building, never_pooled, n)
+    flat = random_LatinHypercube_packed(seeds, n, one_building, never_pooled, offsets, skip_seeds)
     return flat.reshape(len(seeds), n)
 
 
 @njit(cache=True, fastmath=True)
-def random_LatinHypercube_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
+def random_LatinHypercube_packed(seeds, n, n_buildings, pooled, offsets, skip_seeds=0):
     """Building-packed Latin Hypercube on the Mersenne Twister (random_generator=1).
 
     The Latin Hypercube body is re-run once per building against the **continuing** Mersenne
@@ -448,6 +463,8 @@ def random_LatinHypercube_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
         seeds (array[int64]): one seed per group.
         n (int): logical number of samples per building (``S``).
         n_buildings (array[int]): number of buildings for each seed/group.
+        pooled (array[int8]): per group, 1 if it draws a POOL_SIZE pool instead of a block per
+            building.
         offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
             flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
         skip_seeds (int): number of leading seeds to skip (left as zeros).
@@ -467,7 +484,7 @@ def random_LatinHypercube_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
             continue
         np.random.seed(seeds[seed_i])
         base = offsets[seed_i]
-        if group_is_pooled(nb):
+        if pooled[seed_i]:
             # one Latin Hypercube of POOL_SIZE standing in for the whole building population,
             # instead of one of n per building
             samples[:POOL_SIZE] = np.random.random(POOL_SIZE)
@@ -656,13 +673,15 @@ def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
           containing the random values generated for each seed.
     """
     one_building = np.ones(len(seeds), dtype='i4')
-    offsets = build_packed_rndm_offsets(one_building, n)
-    flat = random_LatinHypercube_Philox7_packed(seeds, n, one_building, offsets, skip_seeds)
+    # one building per seed is far below the gate, so nothing here is ever pooled
+    never_pooled = np.zeros(len(seeds), dtype=np.int8)
+    offsets = build_packed_rndm_offsets(one_building, never_pooled, n)
+    flat = random_LatinHypercube_Philox7_packed(seeds, n, one_building, never_pooled, offsets, skip_seeds)
     return flat.reshape(len(seeds), n)
 
 
 @njit(cache=True, fastmath=True)
-def random_LatinHypercube_Philox7_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
+def random_LatinHypercube_Philox7_packed(seeds, n, n_buildings, pooled, offsets, skip_seeds=0):
     """Building-packed Latin Hypercube on Philox4x32-7 (random_generator=2).
 
     Each building gets a **separate** Latin Hypercube of ``n`` samples, selected by the Philox
@@ -675,6 +694,8 @@ def random_LatinHypercube_Philox7_packed(seeds, n, n_buildings, offsets, skip_se
         seeds (array[int]): one seed per group.
         n (int): logical number of samples per building (``S``).
         n_buildings (array[int]): number of buildings for each seed/group.
+        pooled (array[int8]): per group, 1 if it draws a POOL_SIZE pool instead of a block per
+            building.
         offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
             flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
         skip_seeds (int): number of leading seeds to skip (left as zeros).
@@ -693,7 +714,7 @@ def random_LatinHypercube_Philox7_packed(seeds, n, n_buildings, offsets, skip_se
         k0 = np.uint32(s & PHILOX_U32_MASK)
         k1 = np.uint32(s >> PHILOX_SHIFT32)
         base = offsets[seed_i]
-        if group_is_pooled(nb):
+        if pooled[seed_i]:
             # one Latin Hypercube of POOL_SIZE for the group, at the building-0 counter
             _lh_philox_block(k0, k1, 0, POOL_SIZE, perms[:POOL_SIZE], rndms[base: base + POOL_SIZE])
             continue
