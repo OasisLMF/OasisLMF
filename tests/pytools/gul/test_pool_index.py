@@ -47,3 +47,15 @@ def test_the_constant_is_the_golden_ratio_conjugate():
     """Its continued fraction is all 1s, which is what makes {n*PHI} the most evenly spread of
     any additive recurrence. A nearby but rational-ish value would clump."""
     assert GOLDEN_RATIO_CONJUGATE == pytest.approx((np.sqrt(5) - 1) / 2, rel=1e-15)
+
+
+def test_only_groups_past_the_gate_are_pooled():
+    """Below the gate a group keeps its own per-building draws. The gate sits past the band where
+    the buildings divide unevenly among the entries, which is worst just above POOL_SIZE."""
+    from oasislmf.pytools.gul.random import POOL_GATE_RATIO, POOL_SIZE, group_is_pooled
+
+    gate = POOL_GATE_RATIO * POOL_SIZE
+    for n in (1, 2, POOL_SIZE, POOL_SIZE + 1, gate - 1):
+        assert not group_is_pooled(n), f"{n} buildings should draw individually"
+    for n in (gate, gate + 1, 630_510):
+        assert group_is_pooled(n), f"{n} buildings should read from the pool"

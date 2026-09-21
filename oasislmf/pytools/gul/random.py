@@ -152,6 +152,52 @@ def get_sample_generator(random_generator):
 # irrational.
 GOLDEN_RATIO_CONJUGATE = 0.6180339887498949
 
+# Entries in a building pool, and the ratio of buildings to entries below which pooling is not
+# used at all.
+#
+# A pooled group draws POOL_SIZE values instead of n_buildings * S, and its buildings read them
+# through pool_index. Two errors trade off. Representing the population by POOL_SIZE strata costs
+# ~1/POOL_SIZE and depends on the vulnerability and hazard curves, so there is no universal
+# optimum -- POOL_SIZE is simply fixed and buys that down. The second is combinatorial and does
+# NOT depend on the curves: the buildings divide unevenly among the entries, worst at half-integer
+# n_buildings/POOL_SIZE where half the entries take one more building than the rest. That error
+# goes as POOL_SIZE/n_buildings, so it is worst just above POOL_SIZE, not for the huge locations
+# this exists for. Measured on one curve: 3.7e-3 at a ratio of 1.5, 3.5e-4 by 4.5, 1.4e-5 at 615.
+#
+# POOL_GATE_RATIO puts the gate past that band with margin. Below it every building draws its own
+# values as before, which is under ~8k buildings -- cheap, and nothing worth optimising.
+POOL_SIZE = 1024
+POOL_GATE_RATIO = 8
+
+
+@njit(cache=True, fastmath=True, inline='always')
+def group_is_pooled(n_buildings):
+    """Whether a group with this many buildings reads from a pool rather than its own draws."""
+    return n_buildings >= POOL_GATE_RATIO * POOL_SIZE
+
+
+@njit(cache=True, fastmath=True)
+def build_packed_rndm_offsets(n_buildings, n):
+    """Prefix-sum offsets for building-packed random draws.
+
+    Not yet pool-aware: every group still reserves the full ``n_buildings * n``. A pooled group
+    will reserve ``POOL_SIZE`` instead, but only once the generators emit a pool for it -- they
+    write ``n_buildings * n`` values from ``offsets[i]``, so shrinking the slot first would have
+    them write into the next group's.
+
+    Args:
+        n_buildings (array[int]): buildings per seed/group, as a magnitude. The signed
+          ``packed_buildings`` must never reach here -- a negative would size the draw short.
+        n (int): logical number of samples per building (``S``).
+
+    Returns:
+        offsets (array[int64]): start of each seed's block, length ``len(n_buildings) + 1``.
+    """
+    offsets = np.zeros(len(n_buildings) + 1, dtype=np.int64)
+    for i in range(len(n_buildings)):
+        offsets[i + 1] = offsets[i] + n_buildings[i] * n
+    return offsets
+
 
 @njit(cache=True, fastmath=True, inline='always')
 def pool_index(building, sample_idx, pool_size):
@@ -340,24 +386,6 @@ def random_MersenneTwister_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
         rndms[offsets[seed_i]: offsets[seed_i] + count] = np.random.random(count)
 
     return rndms
-
-
-@njit(cache=True, fastmath=True)
-def build_packed_rndm_offsets(n_buildings, n):
-    """Prefix-sum offsets for building-packed random draws.
-
-    Args:
-        n_buildings (array[int]): buildings per seed/group, as a magnitude. The signed
-          ``packed_buildings`` must never reach here -- a negative would size the draw short.
-        n (int): logical number of samples per building (``S``).
-
-    Returns:
-        offsets (array[int64]): start of each seed's block, length ``len(n_buildings) + 1``.
-    """
-    offsets = np.zeros(len(n_buildings) + 1, dtype=np.int64)
-    for i in range(len(n_buildings)):
-        offsets[i + 1] = offsets[i] + n_buildings[i] * n
-    return offsets
 
 
 @njit(cache=True, fastmath=True)
