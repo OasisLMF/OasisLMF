@@ -301,13 +301,21 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # float64, not oasis_float: write_losses sums into a `loss = 0.` local, which numba types
         # as float64, so accumulating in float32 here would round differently.
         summed_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
+        # Resume point WITHIN a coverage, so a flush need not fall on a coverage boundary:
+        # [0] is the next item of that coverage to process, [1] how many of its buildings have
+        # already been emitted. gulpy signals resumption through its return value, so this is
+        # carried in an array the callee mutates rather than on a state struct.
+        resume_state = np.zeros(2, dtype=np.int64)
         # a pooled group's draws are gathered through pool_index rather than sliced per building,
         # so the per-building view has to be materialised; reused for every building
         pool_scratch = np.zeros(max(sample_size, 1), dtype='float64')
         byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
 
-        # maximum bytes to be written in the output stream for 1 item
-        max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
+        # One block: the item header, a building's NUM_IDX specials and S samples, and the
+        # delimiter. Only the first block of an item carries the header and only the last the
+        # delimiter, so charging every block for both is a deliberate over-estimate.
+        max_bytes_per_block = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
+        max_bytes_per_item = max_bytes_per_block
         # a kept-separate item writes one block of that per building; a summed one writes a single
         # block whatever it carries
         max_bytes_per_item *= max_emitted_blocks(n_buildings_by_item_id)
@@ -350,7 +358,17 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             last_processed_coverage_ids_idx = 0
 
             # adjust buff size so that the buffer fits the longest coverage
-            byte_mv = adjust_byte_mv_size(byte_mv, np.max(coverages['cur_items']) * max_bytes_per_item)
+            # The buffer no longer has to hold a whole coverage. A fused one is flushed between
+            # buildings, so one block is enough; only a coverage still emitted whole through
+            # write_losses has to fit entire.
+            cur_items = coverages['cur_items']
+            emitted_whole = ~((sample_size > 0) & ((alloc_rule == 0) | (cur_items == 1)))
+            required_bytes = max_bytes_per_block
+            if emitted_whole.any():
+                required_bytes = max(required_bytes,
+                                     int(cur_items[emitted_whole].max()) * max_bytes_per_item)
+            byte_mv = adjust_byte_mv_size(byte_mv, required_bytes)
+            resume_state[:] = 0
 
             while last_processed_coverage_ids_idx < compute_i:
                 cursor, last_processed_coverage_ids_idx = compute_event_losses(
@@ -358,10 +376,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                     arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
-                    building_losses, summed_scratch, rndms_flat, rndm_offsets,
+                    building_losses, summed_scratch, resume_state, rndms_flat, rndm_offsets,
                     n_buildings_by_item_id, damage_correlation_by_item_id,
                     pooled_by_rng, pool_scratch,
-                    max_bytes_per_item, byte_mv, cursor
+                    max_bytes_per_item, max_bytes_per_block, byte_mv, cursor
                 )
 
                 # write the losses to the output stream
@@ -396,10 +414,10 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
                          loss_threshold, losses, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                          arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
-                         z_unif, debug, building_losses, summed_scratch, rndms_flat, rndm_offsets,
+                         z_unif, debug, building_losses, summed_scratch, resume_state, rndms_flat, rndm_offsets,
                          n_buildings_by_item_id, damage_correlation_by_item_id,
                          pooled_by_rng, pool_scratch,
-                         max_bytes_per_item, byte_mv, cursor):
+                         max_bytes_per_item, max_bytes_per_block, byte_mv, cursor):
     """Compute losses for an event.
 
     Args:
@@ -434,6 +452,10 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         z_unif (np.array[float]): reusable buffer for correlated random values.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
+        resume_state (numpy.array[int64]): length 2, mutated here. [0] is the item of the
+          returned coverage to resume at, [1] how many of its buildings were already emitted
+          (0 = none, so the item header is still to be written). Both are cleared as each item
+          and coverage completes.
         summed_scratch (numpy.array[float64]): length-S accumulator for a summed-at-source item
           emitted as it is computed, since its buildings are added up rather than written.
           float64 to match the precision write_losses accumulates at.
@@ -447,6 +469,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             summed here. Unpack it before use -- a negative value as a loop bound silently does
             nothing.
         max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.
+        max_bytes_per_block (int): the same for ONE building's block, which is the unit a fused
+          coverage is flushed at.
         byte_mv (numpy.array): byte view of where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
 
@@ -459,16 +483,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         Nitem_ids = coverage['cur_items']
         exposureValue = tiv / Nitem_ids
 
-        # estimate max number of bytes needed to output this coverage
-        # conservatively assume all random samples are printed (losses>loss_threshold)
-        # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
-        est_cursor_bytes = Nitem_ids * max_bytes_per_item
-
-        # return before processing this coverage if the number of free bytes left in the buffer
-        # is not sufficient to write out the full coverage
-        if cursor + est_cursor_bytes > byte_mv.shape[0]:
-            return cursor, last_processed_coverage_ids_idx
-
         items = items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']]
 
         # Emit each building as it is computed rather than buffering the coverage. Safe exactly
@@ -478,7 +492,14 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         # building_losses on the same rule.
         fuse_emit = sample_size > 0 and (alloc_rule == 0 or coverage['cur_items'] == 1)
 
-        for item_i in range(coverage['cur_items']):
+        # A coverage emitted whole through write_losses has to fit the buffer before we start;
+        # conservatively assume every random sample is printed. A fused one is checked per
+        # building instead, which is what keeps the buffer off the largest building count.
+        if not fuse_emit:
+            if cursor + Nitem_ids * max_bytes_per_item > byte_mv.shape[0]:
+                return cursor, last_processed_coverage_ids_idx
+
+        for item_i in range(resume_state[0], coverage['cur_items']):
             item = items[item_i]
             damagecdf_i = item['damagecdf_i']
             rng_index = item['rng_index']
@@ -525,11 +546,29 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                             split_tiv_multiplicative(losses[TIV_IDX, item_i:item_i + 1], tiv)
                             split_tiv_multiplicative(losses[MAX_LOSS_IDX, item_i:item_i + 1], tiv)
                             split_tiv_multiplicative(losses[MEAN_IDX, item_i:item_i + 1], tiv)
-                    cursor = mv_write_item_header(byte_mv, cursor, event_id, item['item_id'])
+                    # The specials are recomputed above on every entry, so re-applying the cap
+                    # after a resume caps fresh values rather than already-capped ones. Only the
+                    # header must not be repeated.
+                    if resume_state[1] == 0:
+                        cursor = mv_write_item_header(byte_mv, cursor, event_id, item['item_id'])
                     if not keep_separate_item:
                         summed_scratch[:sample_size] = 0
 
-                for building_i in range(item_n_buildings):
+                # a summed item emits one block however many buildings it carries, and cannot be
+                # interrupted part-way because its accumulator would restart; reserve that block
+                if fuse_emit and not keep_separate_item:
+                    if cursor + max_bytes_per_block > byte_mv.shape[0]:
+                        resume_state[0] = item_i
+                        return cursor, last_processed_coverage_ids_idx
+
+                for building_i in range(resume_state[1], item_n_buildings):
+                    # A kept-separate building is a block of its own, so the buffer is checked
+                    # per block and the run resumes at the next one.
+                    if fuse_emit and keep_separate_item:
+                        if cursor + max_bytes_per_block > byte_mv.shape[0]:
+                            resume_state[0] = item_i
+                            resume_state[1] = building_i
+                            return cursor, last_processed_coverage_ids_idx
                     if pooled:
                         for s_i in range(sample_size):
                             pool_scratch[s_i] = rndms_flat[
@@ -613,6 +652,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                                 cursor = mv_write_sidx_loss(byte_mv, cursor, s_i, loss)
                     # one delimiter terminates the whole (multi-building) item
                     cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
+                    resume_state[1] = 0       # this item is done; the next starts fresh
 
         # a fused coverage has already emitted every item as it was computed
         if not fuse_emit:
@@ -625,6 +665,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
+        resume_state[0] = 0                   # the next coverage starts at its first item
 
     return cursor, last_processed_coverage_ids_idx
 

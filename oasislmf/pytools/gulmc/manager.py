@@ -483,8 +483,11 @@ def run(run_dir,
 
         # maximum bytes to be written in the output stream for 1 item. A kept-separate item emits
         # one block of that per building; a summed one emits a single block whatever it carries.
-        max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
-        max_bytes_per_item *= max_emitted_blocks(items['packed_buildings'])
+        # One block: the item header, this building's NUM_IDX specials and S samples, and the
+        # delimiter. Only the first block of an item carries the header and only the last the
+        # delimiter, so charging every block for both is a deliberate over-estimate.
+        max_bytes_per_block = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
+        max_bytes_per_item = max_bytes_per_block * max_emitted_blocks(items['packed_buildings'])
 
         # define vulnerability cdf cache size
         max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cache size in bytes
@@ -512,6 +515,8 @@ def run(run_dir,
         compute_info = np.zeros(1, dtype=gulmc_compute_info_type)[0]
 
         compute_info['max_bytes_per_item'] = max_bytes_per_item
+        compute_info['max_bytes_per_block'] = max_bytes_per_block
+        compute_info['sample_size'] = sample_size
         compute_info['Ndamage_bins_max'] = Ndamage_bins_max
         compute_info['loss_threshold'] = loss_threshold
         compute_info['alloc_rule'] = alloc_rule
@@ -1387,20 +1392,6 @@ def compute_event_losses(compute_info,
         Nitems = coverage['cur_items']
         exposureValue = tiv / Nitems
 
-        # A root and its dependent subtree are written as one atomic unit so the source's
-        # per-sample damage bin (held on source_damage_bin_stack, indexed by depth) stays
-        # valid across the whole subtree. We therefore only check the buffer at subtree roots,
-        # estimating the bytes for the entire subtree (conservatively assuming all samples are
-        # printed).
-        if depth == 0:
-            subtree_item_count = Nitems
-            lookahead_index = coverage_i + 1
-            while lookahead_index < compute_info['coverage_n'] and compute_depth[lookahead_index] > 0:
-                subtree_item_count += coverages[coverage_ids[lookahead_index]]['cur_items']
-                lookahead_index += 1
-            if compute_info['cursor'] + subtree_item_count * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
-                return False
-
         # Emit each building as it is computed rather than buffering the coverage. Safe exactly
         # when the alloc-rule cap never has to look across items at a fixed building: with
         # alloc_rule 0 it does not run, and with one item the cross-item reductions act on a
@@ -1408,13 +1399,23 @@ def compute_event_losses(compute_info,
         # write_losses, and building_losses is sized for those coverages alone.
         fuse_emit = sample_size > 0 and (compute_info['alloc_rule'] == 0 or Nitems == 1)
 
+        # A coverage written through write_losses is emitted whole, so the buffer has to hold it
+        # before we start. A fused one is checked per building further down instead, which is what
+        # keeps the buffer off the largest location's building count. Either way the check is per
+        # COVERAGE, not per dependency subtree: flushing only writes bytes out, and the stacks a
+        # dependent reads (source_damage_bin_stack, source_eff_damage_cdf_stack) are caller-owned
+        # arrays that outlive the call, so a subtree can be resumed part-way.
+        if not fuse_emit:
+            if compute_info['cursor'] + Nitems * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
+                return False
+
         coverage_is_dependent = compute_info['do_coverage_dependency'] == 1 and depth > 0
         # nothing below reads this coverage's sampled bins unless it actually has dependents, and
         # the stack is sized on that basis -- storing anyway would write past its width
         has_dependents_below = (compute_info['do_coverage_dependency'] == 1
                                 and coverage_has_dependents[coverage_id] == 1)
-        # compute losses for each item
-        for item_j in range(Nitems):
+        # compute losses for each item, resuming where a flush interrupted this coverage
+        for item_j in range(compute_info['item_j'], Nitems):
             item_event_data = items_event_data[coverage['start_items'] + item_j]
             rng_index = item_event_data['rng_index']
             hazard_rng_index = item_event_data['hazard_rng_index']
@@ -1445,16 +1446,26 @@ def compute_event_losses(compute_info,
                     if fuse_emit:
                         # write_losses would still emit this item, all zeros -- so must we. Every
                         # building reads the one zeroed column, which is its correct value here.
-                        compute_info['cursor'] = mv_write_item_header(
-                            byte_mv, compute_info['cursor'], compute_info['event_id'],
-                            item_event_data['item_id'])
+                        # Blocks are checked and resumed exactly as on the computed path: the RP
+                        # decision is per item-event and so gives the same answer on re-entry.
+                        if compute_info['building_b'] == 0:
+                            compute_info['cursor'] = mv_write_item_header(
+                                byte_mv, compute_info['cursor'], compute_info['event_id'],
+                                item_event_data['item_id'])
                         if item_event_data['packed_buildings'] < 0:
-                            for b in range(1, n_buildings + 1):
+                            for b in range(compute_info['building_b'] + 1, n_buildings + 1):
+                                if compute_info['cursor'] + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
+                                    compute_info['item_j'] = item_j
+                                    compute_info['building_b'] = b - 1
+                                    return False
                                 compute_info['cursor'] = write_packed_building_block(
                                     byte_mv, compute_info['cursor'], losses[:, item_j], b,
                                     building_losses[:, item_j, 0], sample_size,
                                     compute_info['loss_threshold'])
                         else:
+                            if compute_info['cursor'] + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
+                                compute_info['item_j'] = item_j
+                                return False
                             compute_info['cursor'] = write_summed_specials(
                                 byte_mv, compute_info['cursor'], losses[:, item_j], n_buildings,
                                 item_event_data['damage_correlation_value'])
@@ -1463,6 +1474,7 @@ def compute_event_losses(compute_info,
                                     compute_info['cursor'] = mv_write_sidx_loss(
                                         byte_mv, compute_info['cursor'], s_i, 0.)
                         compute_info['cursor'] = mv_write_sidx_loss(byte_mv, compute_info['cursor'], 0, 0)
+                        compute_info['building_b'] = 0
                     continue
             else:
                 intensity_adjustment = nb_oasis_int(0)
@@ -1560,13 +1572,32 @@ def compute_event_losses(compute_info,
                             split_tiv_multiplicative(losses[TIV_IDX, item_j:item_j + 1], tiv)
                             split_tiv_multiplicative(losses[MAX_LOSS_IDX, item_j:item_j + 1], tiv)
                             split_tiv_multiplicative(losses[MEAN_IDX, item_j:item_j + 1], tiv)
-                    compute_info['cursor'] = mv_write_item_header(
-                        byte_mv, compute_info['cursor'], compute_info['event_id'],
-                        item_event_data['item_id'])
+                    # The specials are recomputed above on every entry, so re-applying the cap
+                    # after a resume caps fresh values rather than already-capped ones. Only the
+                    # header must not be repeated.
+                    if compute_info['building_b'] == 0:
+                        compute_info['cursor'] = mv_write_item_header(
+                            byte_mv, compute_info['cursor'], compute_info['event_id'],
+                            item_event_data['item_id'])
                     if not keep_separate_item:
                         summed_scratch[:sample_size] = 0
 
-                for b in range(1, n_buildings + 1):
+                # a summed item emits one block however many buildings it carries, and cannot be
+                # interrupted part-way because its accumulator would restart; reserve that block
+                if fuse_emit and not keep_separate_item:
+                    if compute_info['cursor'] + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
+                        compute_info['item_j'] = item_j
+                        return False
+
+                for b in range(compute_info['building_b'] + 1, n_buildings + 1):
+                    # A kept-separate building is a block of its own, so the buffer is checked
+                    # per block and the run resumes at the next one. This is what stops the
+                    # buffer having to grow to the largest location's whole output.
+                    if fuse_emit and keep_separate_item:
+                        if compute_info['cursor'] + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
+                            compute_info['item_j'] = item_j
+                            compute_info['building_b'] = b - 1
+                            return False
                     if vuln_pooled:
                         for s_i in range(sample_size):
                             vuln_pool_scratch[s_i] = vuln_rndms_flat[
@@ -1642,6 +1673,7 @@ def compute_event_losses(compute_info,
                                     byte_mv, compute_info['cursor'], s_i, loss)
                     # one delimiter terminates the whole (multi-building) item
                     compute_info['cursor'] = mv_write_sidx_loss(byte_mv, compute_info['cursor'], 0, 0)
+                    compute_info['building_b'] = 0      # this item is done; the next starts fresh
 
             # effective damageability: record the eff-damage CDF instead, for a dependent below
             # to build its damage pmf from
@@ -1670,6 +1702,7 @@ def compute_event_losses(compute_info,
 
         # register that another `coverage_id` has been processed
         compute_info['coverage_i'] += 1
+        compute_info['item_j'] = 0          # the next coverage starts at its first item
 
     return True
 
@@ -2002,7 +2035,6 @@ def reconstruct_coverages(compute_info,
         num_present_coverages = compute_i
         compute_footprint_order[:num_present_coverages] = compute[:num_present_coverages]  # footprint order snapshot
         write_index = 0
-        max_subtree_items = 0
         for position in range(num_present_coverages):
             root_coverage_id = compute_footprint_order[position]
             # A coverage is a root when it has no source, or when its source coverage contributes
@@ -2011,7 +2043,6 @@ def reconstruct_coverages(compute_info,
             source_coverage_id = coverage_source_id[root_coverage_id]
             if source_coverage_id != 0 and coverages[source_coverage_id]['cur_items'] > 0:
                 continue  # not a root: emitted as part of an ancestor's subtree
-            subtree_item_count = 0
             stack_pointer = 0
             dependency_dfs_stack[stack_pointer, 0] = root_coverage_id
             dependency_dfs_stack[stack_pointer, 1] = 0
@@ -2023,7 +2054,6 @@ def reconstruct_coverages(compute_info,
                 compute[write_index] = coverage_id
                 compute_depth[write_index] = depth
                 write_index += 1
-                subtree_item_count += coverages[coverage_id]['cur_items']
                 for dependent_pos in range(coverage_dependents_ja_offsets[coverage_id],
                                            coverage_dependents_ja_offsets[coverage_id + 1]):
                     dependent_coverage_id = coverage_dependents_ja_data[dependent_pos]
@@ -2031,8 +2061,6 @@ def reconstruct_coverages(compute_info,
                         dependency_dfs_stack[stack_pointer, 0] = dependent_coverage_id
                         dependency_dfs_stack[stack_pointer, 1] = depth + 1
                         stack_pointer += 1
-            if subtree_item_count > max_subtree_items:
-                max_subtree_items = subtree_item_count
         if write_index != num_present_coverages:
             # Every present coverage is reachable (root when its source is absent, emitted by its
             # source otherwise), so this is a logic error, not a data shape.
@@ -2044,11 +2072,25 @@ def reconstruct_coverages(compute_info,
     else:
         for position in range(compute_i):
             compute_depth[position] = 0
-        max_subtree_items = int(np.max(coverages['cur_items']))
 
     compute_info['coverage_i'] = 0
+    compute_info['item_j'] = 0
+    compute_info['building_b'] = 0
     compute_info['coverage_n'] = compute_i
-    byte_mv = adjust_byte_mv_size(byte_mv, max_subtree_items * compute_info['max_bytes_per_item'])
+
+    # The buffer no longer has to hold a whole dependency subtree. A fused coverage is flushed
+    # between buildings, so one block is enough for it; only a coverage that still goes through
+    # write_losses is emitted whole and has to fit entire. The whole-subtree estimate this
+    # replaced was a 2 GB allocation at 630,510 buildings, on every run.
+    required_bytes = compute_info['max_bytes_per_block']
+    for position in range(compute_i):
+        cur_items = coverages[compute[position]]['cur_items']
+        # the same predicate compute_event_losses uses; a fused coverage needs only one block
+        if not (compute_info['sample_size'] > 0 and (compute_info['alloc_rule'] == 0 or cur_items == 1)):
+            coverage_bytes = cur_items * compute_info['max_bytes_per_item']
+            if coverage_bytes > required_bytes:
+                required_bytes = coverage_bytes
+    byte_mv = adjust_byte_mv_size(byte_mv, required_bytes)
 
     generate_correlated_hash_vector(haz_peril_correlation_groups, compute_info['event_id'], haz_corr_seeds)
     generate_correlated_hash_vector(damage_peril_correlation_groups, compute_info['event_id'], damage_corr_seeds)
