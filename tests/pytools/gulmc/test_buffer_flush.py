@@ -18,9 +18,9 @@ import pandas as pd
 import pytest
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.gul.common import (NUM_IDX, gulSampleslevelHeader_size,
                                          gulSampleslevelRec_size)
+from oasislmf.pytools.gul.manager import FUSED_FLUSH_TARGET_BYTES
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 
 SRC_MODEL = Path(__file__).parents[2].joinpath("assets", "test_model_1")
@@ -29,6 +29,16 @@ SAMPLE_SIZE = 64
 
 def _bytes_per_block(sample_size):
     return gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
+
+
+def _buildings_forcing_a_flush(sample_size):
+    """Enough buildings that one item outgrows the buffer, so it must be flushed part-way.
+
+    Derived from the sizing rule rather than hardcoded: the buffer is grown to
+    FUSED_FLUSH_TARGET_BYTES (capped at what the largest item could write), so an item has to
+    exceed that to be interrupted. Raising the target must not quietly make these tests vacuous.
+    """
+    return FUSED_FLUSH_TARGET_BYTES // _bytes_per_block(sample_size) + 64
 
 
 def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE):
@@ -61,6 +71,10 @@ def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE):
         corr.tofile(run_dir / 'input' / 'correlations.bin')
         pd.DataFrame({k: corr[k] for k in corr.dtype.names}).to_csv(
             run_dir / 'input' / 'correlations.csv', index=False)
+        # one event: the building counts needed to outgrow the buffer are large, and every
+        # event repeats the same code path
+        np.fromfile(run_dir / 'input' / 'events.bin', dtype='i4')[:1].tofile(
+            run_dir / 'input' / 'events.bin')
 
         out = run_dir / 'out.bin'
         run_gulmc(run_dir=run_dir, ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin',
@@ -90,11 +104,7 @@ def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE):
 @pytest.mark.parametrize("alloc_rule", [0, 1, 2])
 def test_item_spanning_several_buffers_is_written_once(alloc_rule):
     """The header must not be re-emitted when a flush lands inside an item."""
-    n_buildings = 256
-    # guard against the test quietly becoming vacuous if the buffer constant changes
-    assert n_buildings * _bytes_per_block(SAMPLE_SIZE) > PIPE_CAPACITY * 2, \
-        "one item must not fit the buffer, or nothing is being flushed mid-item"
-
+    n_buildings = _buildings_forcing_a_flush(SAMPLE_SIZE)
     records, order = _run(n_buildings, alloc_rule)
     assert len(order) == len(set(order)), "an item was opened more than once"
     assert records, "no items emitted"
@@ -103,7 +113,7 @@ def test_item_spanning_several_buffers_is_written_once(alloc_rule):
 @pytest.mark.parametrize("alloc_rule", [0, 1, 2])
 def test_every_building_block_survives_the_flush(alloc_rule):
     """Each building contributes its specials once and its samples once, none lost or repeated."""
-    n_buildings = 256
+    n_buildings = _buildings_forcing_a_flush(SAMPLE_SIZE)
     records, _ = _run(n_buildings, alloc_rule)
 
     for key, sidxs in records.items():
@@ -120,7 +130,7 @@ def test_every_building_block_survives_the_flush(alloc_rule):
 def test_a_run_that_fits_the_buffer_is_unaffected():
     """The small case takes the same path and must still be complete."""
     n_buildings = 4
-    assert n_buildings * _bytes_per_block(SAMPLE_SIZE) < PIPE_CAPACITY * 2
+    assert n_buildings * _bytes_per_block(SAMPLE_SIZE) < FUSED_FLUSH_TARGET_BYTES
     records, order = _run(n_buildings, alloc_rule=1)
     assert len(order) == len(set(order))
     for key, sidxs in records.items():
