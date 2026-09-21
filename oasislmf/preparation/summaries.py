@@ -1129,7 +1129,7 @@ def write_gul_errors_map(
         )
     gul_inputs_errors_df['tiv'] = gul_inputs_errors_df['tiv'].fillna(0.0)
 
-    out_df = gul_inputs_errors_df[list(set(cols).intersection(gul_inputs_errors_df.columns))]
+    out_df = gul_inputs_errors_df[[c for c in cols if c in gul_inputs_errors_df.columns]]
     out_df.to_csv(gul_error_map_fp, index=False, chunksize=_default_csv_chunksize(len(out_df)))
 
 
