@@ -150,7 +150,8 @@ class ComputationStep:
         if self.log_format is not None:
             formatter = log_config.create_formatter(self.log_format)
             for handler in logger.handlers:
-                handler.setFormatter(formatter)
+                if handler.name == 'oasislmf':
+                    handler.setFormatter(formatter)
 
     @classmethod
     def get_default_run_dir(cls):
