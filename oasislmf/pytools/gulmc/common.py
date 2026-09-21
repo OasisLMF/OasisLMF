@@ -120,21 +120,9 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     ('cursor', np.int64),
     ('coverage_i', oasis_int),  # last_processed_coverage_ids_idx
     ('coverage_n', oasis_int),
-    # Resume point WITHIN coverage_i, so a buffer flush need not fall on a coverage boundary:
-    # item_j is the next item of that coverage to process, building_b how many of its buildings
-    # have already been emitted (0 = none, so the item header is still to be written). Both are
-    # cleared as each item and coverage completes, which is what makes the common path start at
-    # the top. An item's records need only be contiguous in the STREAM, not in the buffer, so
-    # flushing part-way through one is safe.
-    ('item_j', oasis_int),
-    ('building_b', oasis_int),
     ('cdf_cache_ctr', np.int64),
     ('max_bytes_per_item', np.int64),
-    # bytes one building's block can take: its specials, its samples, and -- counted whether or
-    # not this block carries them -- the item header and delimiter
-    ('max_bytes_per_block', np.int64),
     ('Ndamage_bins_max', oasis_int),
-    ('sample_size', oasis_int),
     ('loss_threshold', oasis_float),
     ('alloc_rule', np.int8),
     ('do_correlation', np.int8),

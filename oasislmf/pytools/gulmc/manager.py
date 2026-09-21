@@ -34,7 +34,8 @@ from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_ID
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss_items,
                                        split_tiv_classic, split_tiv_multiplicative)
 from oasislmf.pytools.gul.manager import (write_losses, adjust_byte_mv_size, buffered_building_width,
-                                          write_packed_building_block, write_summed_specials)
+                                          write_packed_building_block, write_summed_specials,
+                                          FUSED_FLUSH_TARGET_BYTES)
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval, get_correlation_generator,
                                          get_sample_generator, build_packed_rndm_offsets,
@@ -1397,7 +1398,8 @@ def compute_event_losses(compute_info,
         # alloc_rule 0 it does not run, and with one item the cross-item reductions act on a
         # length-1 slice, which is element-local. Everything else still goes through
         # write_losses, and building_losses is sized for those coverages alone.
-        fuse_emit = sample_size > 0 and (compute_info['alloc_rule'] == 0 or Nitems == 1)
+        alloc_rule_l = compute_info['alloc_rule']          # hoisted out of the per-sample loops
+        fuse_emit = sample_size > 0 and (alloc_rule_l == 0 or Nitems == 1)
 
         # A coverage written through write_losses is emitted whole, so the buffer has to hold it
         # before we start. A fused one is checked per building further down instead, which is what
@@ -1559,16 +1561,16 @@ def compute_event_losses(compute_info,
                     # Nitems == 1 wherever alloc_rule != 0 here, so these length-1 slices ARE the
                     # whole cross-item vector write_losses would pass, and the reductions on them
                     # are the identity (setmaxloss, multiplicative) or a cap at tiv (classic).
-                    if compute_info['alloc_rule'] == 2:
+                    if alloc_rule_l == 2:
                         setmaxloss_items(losses[TIV_IDX, item_j:item_j + 1])
                         setmaxloss_items(losses[MAX_LOSS_IDX, item_j:item_j + 1])
                         setmaxloss_items(losses[MEAN_IDX, item_j:item_j + 1])
                     if tiv > 0:
-                        if compute_info['alloc_rule'] == 1 or compute_info['alloc_rule'] == 2:
+                        if alloc_rule_l == 1 or alloc_rule_l == 2:
                             split_tiv_classic(losses[TIV_IDX, item_j:item_j + 1], tiv)
                             split_tiv_classic(losses[MAX_LOSS_IDX, item_j:item_j + 1], tiv)
                             split_tiv_classic(losses[MEAN_IDX, item_j:item_j + 1], tiv)
-                        elif compute_info['alloc_rule'] == 3:
+                        elif alloc_rule_l == 3:
                             split_tiv_multiplicative(losses[TIV_IDX, item_j:item_j + 1], tiv)
                             split_tiv_multiplicative(losses[MAX_LOSS_IDX, item_j:item_j + 1], tiv)
                             split_tiv_multiplicative(losses[MEAN_IDX, item_j:item_j + 1], tiv)
@@ -1642,14 +1644,22 @@ def compute_event_losses(compute_info,
                                        is_dependent, store_source_bin, src_bin_out, parent_bins)
 
                     if fuse_emit:
-                        if compute_info['alloc_rule'] != 0:
-                            for s_i in range(sample_size):
-                                if compute_info['alloc_rule'] == 2:
+                        # The rule is decided OUTSIDE the per-sample loop, the shape write_losses
+                        # uses, rather than re-reading compute_info['alloc_rule'] per sample.
+                        # Measured as no faster on the portfolio tried, but it keeps a struct
+                        # load numba cannot hoist (the calls in the body could alias it) out of a
+                        # loop that runs once per building per sample. Same operations in the
+                        # same order per element: setmaxloss, then the tiv split.
+                        if alloc_rule_l != 0:
+                            if alloc_rule_l == 2:
+                                for s_i in range(sample_size):
                                     setmaxloss_items(building_losses[s_i, item_j:item_j + 1, 0])
-                                if tiv > 0:
-                                    if compute_info['alloc_rule'] == 1 or compute_info['alloc_rule'] == 2:
+                            if tiv > 0:
+                                if alloc_rule_l == 1 or alloc_rule_l == 2:
+                                    for s_i in range(sample_size):
                                         split_tiv_classic(building_losses[s_i, item_j:item_j + 1, 0], tiv)
-                                    elif compute_info['alloc_rule'] == 3:
+                                elif alloc_rule_l == 3:
+                                    for s_i in range(sample_size):
                                         split_tiv_multiplicative(building_losses[s_i, item_j:item_j + 1, 0], tiv)
                         if keep_separate_item:
                             compute_info['cursor'] = write_packed_building_block(
@@ -2090,6 +2100,10 @@ def reconstruct_coverages(compute_info,
             coverage_bytes = cur_items * compute_info['max_bytes_per_item']
             if coverage_bytes > required_bytes:
                 required_bytes = coverage_bytes
+    # room for many blocks, but never more than the largest item could ever write
+    target = min(FUSED_FLUSH_TARGET_BYTES, compute_info['max_bytes_per_item'])
+    if target > required_bytes:
+        required_bytes = target
     byte_mv = adjust_byte_mv_size(byte_mv, required_bytes)
 
     generate_correlated_hash_vector(haz_peril_correlation_groups, compute_info['event_id'], haz_corr_seeds)
