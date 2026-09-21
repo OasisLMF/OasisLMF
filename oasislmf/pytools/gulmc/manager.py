@@ -34,7 +34,8 @@ from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul)
 from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval, get_correlation_generator,
-                                         get_sample_generator, build_packed_rndm_offsets)
+                                         get_sample_generator, build_packed_rndm_offsets,
+                                         POOL_SIZE, group_is_pooled, pool_index)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
@@ -422,6 +423,12 @@ def run(run_dir,
         # nothing is packed, which is the unpacked layout
         building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buildings), dtype=oasis_float)
 
+        # A pooled group's draws are not contiguous per building -- they are gathered from the
+        # pool through pool_index -- so the per-building view the draw routines take has to be
+        # materialised. One buffer per dimension, reused for every building.
+        vuln_pool_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+        haz_pool_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+
         # maximum bytes to be written in the output stream for 1 item. A kept-separate item emits
         # one block of that per building; a summed one emits a single block whatever it carries.
         max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
@@ -619,6 +626,10 @@ def run(run_dir,
                             vuln_offsets,
                             haz_rndms_flat,
                             haz_offsets,
+                            n_buildings_by_rng,
+                            n_buildings_by_haz_rng,
+                            vuln_pool_scratch,
+                            haz_pool_scratch,
                             coverage_has_dependents,
                             compute_depth,
                             source_damage_bin_stack,
@@ -1191,6 +1202,10 @@ def compute_event_losses(compute_info,
                          vuln_offsets,
                          haz_rndms_flat,
                          haz_offsets,
+                         n_buildings_by_rng,
+                         n_buildings_by_haz_rng,
+                         vuln_pool_scratch,
+                         haz_pool_scratch,
                          coverage_has_dependents,
                          compute_depth,
                          source_damage_bin_stack,
@@ -1270,6 +1285,12 @@ def compute_event_losses(compute_info,
         vuln_offsets (numpy.array[int64]): prefix-sum offsets into vuln_rndms_flat per damage rng group.
         haz_rndms_flat (numpy.array[float64]): flat building-packed hazard random draws (as above).
         haz_offsets (numpy.array[int64]): prefix-sum offsets into haz_rndms_flat per hazard rng group.
+        n_buildings_by_rng (numpy.array[int64]): buildings in each damage rng group, which is what
+          decides whether the group was pooled.
+        n_buildings_by_haz_rng (numpy.array[int64]): the same for the hazard rng groups.
+        vuln_pool_scratch (numpy.array[float64]): length-S buffer for one building's damage draws
+          gathered out of a pool.
+        haz_pool_scratch (numpy.array[float64]): the same for the hazard draws.
 
     Returns:
         bool: True if all coverages have been processed, False if the buffer is full and
@@ -1423,12 +1444,28 @@ def compute_event_losses(compute_info,
                 # column as views, so a building is just a different pair.
                 vuln_base_off0 = vuln_offsets[rng_index]
                 haz_base_off0 = haz_offsets[hazard_rng_index] if hazard_rng_index >= 0 else 0
+                # A pooled group holds POOL_SIZE values for the whole group rather than a block
+                # per building, so its buildings gather through pool_index instead of slicing.
+                vuln_pooled = group_is_pooled(n_buildings_by_rng[rng_index])
+                haz_pooled = hazard_rng_index >= 0 and group_is_pooled(n_buildings_by_haz_rng[hazard_rng_index])
                 for b in range(1, n_buildings + 1):
-                    vuln_base_b = vuln_rndms_flat[vuln_base_off0 + (b - 1) * sample_size:
-                                                  vuln_base_off0 + b * sample_size]
+                    if vuln_pooled:
+                        for s_i in range(sample_size):
+                            vuln_pool_scratch[s_i] = vuln_rndms_flat[
+                                vuln_base_off0 + pool_index(b, s_i + 1, POOL_SIZE)]
+                        vuln_base_b = vuln_pool_scratch[:sample_size]
+                    else:
+                        vuln_base_b = vuln_rndms_flat[vuln_base_off0 + (b - 1) * sample_size:
+                                                      vuln_base_off0 + b * sample_size]
                     if hazard_rng_index >= 0:
-                        haz_base_b = haz_rndms_flat[haz_base_off0 + (b - 1) * sample_size:
-                                                    haz_base_off0 + b * sample_size]
+                        if haz_pooled:
+                            for s_i in range(sample_size):
+                                haz_pool_scratch[s_i] = haz_rndms_flat[
+                                    haz_base_off0 + pool_index(b, s_i + 1, POOL_SIZE)]
+                            haz_base_b = haz_pool_scratch[:sample_size]
+                        else:
+                            haz_base_b = haz_rndms_flat[haz_base_off0 + (b - 1) * sample_size:
+                                                        haz_base_off0 + b * sample_size]
                     else:
                         haz_base_b = vuln_base_b  # unused; keeps the argument type stable
 

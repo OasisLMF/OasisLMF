@@ -180,10 +180,9 @@ def group_is_pooled(n_buildings):
 def build_packed_rndm_offsets(n_buildings, n):
     """Prefix-sum offsets for building-packed random draws.
 
-    Not yet pool-aware: every group still reserves the full ``n_buildings * n``. A pooled group
-    will reserve ``POOL_SIZE`` instead, but only once the generators emit a pool for it -- they
-    write ``n_buildings * n`` values from ``offsets[i]``, so shrinking the slot first would have
-    them write into the next group's.
+    A group past the pooling gate reserves ``POOL_SIZE`` whatever its building count; every
+    other group keeps the full ``n_buildings * n`` block. The generators must agree, or a pooled
+    group's draws run into the next group's slot.
 
     Args:
         n_buildings (array[int]): buildings per seed/group, as a magnitude. The signed
@@ -195,7 +194,10 @@ def build_packed_rndm_offsets(n_buildings, n):
     """
     offsets = np.zeros(len(n_buildings) + 1, dtype=np.int64)
     for i in range(len(n_buildings)):
-        offsets[i + 1] = offsets[i] + n_buildings[i] * n
+        if group_is_pooled(n_buildings[i]):
+            offsets[i + 1] = offsets[i] + POOL_SIZE
+        else:
+            offsets[i + 1] = offsets[i] + n_buildings[i] * n
     return offsets
 
 
@@ -376,13 +378,27 @@ def random_MersenneTwister_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
           per-(group, building) random draws.
     """
     rndms = np.zeros(offsets[len(seeds)], dtype='float64')
+    pool_samples = np.zeros(POOL_SIZE, dtype='float64')
+    pool_perms = np.zeros(POOL_SIZE, dtype='float64')
 
     for seed_i in range(skip_seeds, len(seeds), 1):
-        count = n_buildings[seed_i] * n
-        if count == 0:
+        nb = n_buildings[seed_i]
+        if nb == 0:
+            continue
+        np.random.seed(seeds[seed_i])
+        if group_is_pooled(nb):
+            # A pool is stratified whichever generator fills it: its entries stand in for the
+            # whole building population, and plain uniforms would leave gaps and clumps in that
+            # population for no saving. The Mersenne Twister supplies the jitter and the
+            # permutation, exactly as it does for the Latin Hypercube generator.
+            pool_samples[:] = np.random.random(POOL_SIZE)
+            pool_perms[:] = np.arange(1., np.float64(POOL_SIZE + 1))
+            np.random.shuffle(pool_perms)
+            rndms[offsets[seed_i]: offsets[seed_i] + POOL_SIZE] = (
+                (pool_perms - pool_samples) / float(POOL_SIZE))
             continue
         # set the seed and draw the whole (buildings x samples) block at once
-        np.random.seed(seeds[seed_i])
+        count = nb * n
         rndms[offsets[seed_i]: offsets[seed_i] + count] = np.random.random(count)
 
     return rndms
@@ -440,9 +456,10 @@ def random_LatinHypercube_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
         rndms (array[float]): flat 1-d array of length ``offsets[-1]`` holding the
           per-(group, building) LH samples, building-major within each group.
     """
+    width = max(n, POOL_SIZE)
     rndms = np.zeros(offsets[len(seeds)], dtype='float64')
-    samples = np.zeros(n, dtype='float64')
-    perms = np.zeros(n, dtype='float64')
+    samples = np.zeros(width, dtype='float64')
+    perms = np.zeros(width, dtype='float64')
 
     for seed_i in range(skip_seeds, len(seeds), 1):
         nb = n_buildings[seed_i]
@@ -450,11 +467,20 @@ def random_LatinHypercube_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
             continue
         np.random.seed(seeds[seed_i])
         base = offsets[seed_i]
+        if group_is_pooled(nb):
+            # one Latin Hypercube of POOL_SIZE standing in for the whole building population,
+            # instead of one of n per building
+            samples[:POOL_SIZE] = np.random.random(POOL_SIZE)
+            perms[:POOL_SIZE] = np.arange(1., np.float64(POOL_SIZE + 1))
+            np.random.shuffle(perms[:POOL_SIZE])
+            rndms[base: base + POOL_SIZE] = (
+                (perms[:POOL_SIZE] - samples[:POOL_SIZE]) / float(POOL_SIZE))
+            continue
         for b in range(nb):
-            samples[:] = np.random.random(n)
-            perms[:] = np.arange(1., np.float64(n + 1))
-            np.random.shuffle(perms)
-            rndms[base + b * n: base + (b + 1) * n] = (perms - samples) / float(n)
+            samples[:n] = np.random.random(n)
+            perms[:n] = np.arange(1., np.float64(n + 1))
+            np.random.shuffle(perms[:n])
+            rndms[base + b * n: base + (b + 1) * n] = (perms[:n] - samples[:n]) / float(n)
 
     return rndms
 
@@ -658,7 +684,7 @@ def random_LatinHypercube_Philox7_packed(seeds, n, n_buildings, offsets, skip_se
           per-(group, building) LH samples, building-major within each group.
     """
     rndms = np.zeros(offsets[len(seeds)], dtype=np.float64)
-    perms = np.empty(n, dtype=np.float64)
+    perms = np.empty(max(n, POOL_SIZE), dtype=np.float64)
     for seed_i in range(skip_seeds, len(seeds)):
         nb = n_buildings[seed_i]
         if nb == 0:
@@ -667,6 +693,10 @@ def random_LatinHypercube_Philox7_packed(seeds, n, n_buildings, offsets, skip_se
         k0 = np.uint32(s & PHILOX_U32_MASK)
         k1 = np.uint32(s >> PHILOX_SHIFT32)
         base = offsets[seed_i]
+        if group_is_pooled(nb):
+            # one Latin Hypercube of POOL_SIZE for the group, at the building-0 counter
+            _lh_philox_block(k0, k1, 0, POOL_SIZE, perms[:POOL_SIZE], rndms[base: base + POOL_SIZE])
+            continue
         for b in range(nb):
-            _lh_philox_block(k0, k1, b, n, perms, rndms[base + b * n: base + (b + 1) * n])
+            _lh_philox_block(k0, k1, b, n, perms[:n], rndms[base + b * n: base + (b + 1) * n])
     return rndms
