@@ -13,7 +13,7 @@ from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
-from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError
+from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError, load_json_config
 from oasislmf.utils.log import oasis_log
 from ..utils.log_config import OasisLogConfig
 
@@ -31,14 +31,19 @@ class ComputationStep:
 
     # Params shared by every Computation Step, regardless of step_params.
     # Not exposed as their own CLI flags (no 'help' key) since OasisBaseCommand
-    # already registers -V/--verbose, -L/--log-level and --log-format directly;
-    # declaring them here just makes them collectable via get_params() so they
-    # can be set from a computation settings JSON file and appear in the
+    # already registers -V/--verbose, -L/--log-level, --log-format and -C/--config
+    # directly; declaring them here just makes them collectable via get_params() so
+    # they can be set from a computation settings JSON file and appear in the
     # generated computation_settings_schema.json.
+    #
+    # 'config' is the exception: it mirrors the CLI's -C/--config MDK config file path
+    # (needed so _apply_log_config() can re-read its "logging" block), not something an
+    # analysis settings file should be able to set, so it's excluded from the schema.
     global_params = [
         {'name': 'verbose', 'default': False},
         {'name': 'log_level', 'choices': OasisLogConfig.STANDARD_LEVELS},
         {'name': 'log_format', 'choices': list(OasisLogConfig.FORMAT_TEMPLATES.keys())},
+        {'name': 'config', 'exclude_from_schema': True},
     ]
 
     def __init__(self, **kwargs):
@@ -119,11 +124,22 @@ class ComputationStep:
         resolved by setup_logger() (which has access to the nested MDK config "logging"
         block this class never sees), so re-deriving a level from it here - with none of
         that context - would risk silently overriding a correctly resolved level.
+
+        self.config (the MDK config file path, set the same way as log_level/log_format)
+        is re-loaded here so that a "logging" block in that file - e.g. ods_tools_level -
+        is still honoured by get_ods_tools_level() when the level is re-applied.
         """
         if self.log_level is None and self.log_format is None:
             return
 
-        log_config = OasisLogConfig()
+        config_dict = {}
+        if self.config:
+            try:
+                config_dict = load_json_config(self.config)
+            except (OasisException, json.JSONDecodeError):
+                self.logger.warning(f"Could not re-load MDK config file for logging: {self.config}")
+
+        log_config = OasisLogConfig(config_dict)
         logger = logging.getLogger('oasislmf')
 
         if self.log_level is not None:
@@ -255,6 +271,8 @@ class ComputationStep:
         settings_param_names = [param['name'] for param in cls.get_params(param_type="settings")]
         for param in cls.get_params():
             if param['name'] in settings_param_names:  # param is a json settings and therefore cannot be in the settings schema
+                continue
+            if param.get('exclude_from_schema'):  # param is CLI/MDK-config only and cannot be set via computation_settings
                 continue
             param_schema = {"type": get_json_type(param)}
             if param.get('help'):
