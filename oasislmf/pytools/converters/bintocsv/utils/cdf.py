@@ -93,12 +93,15 @@ def cdf_tocsv(stack, file_in, file_out, file_type, noheader, run_dir):
     # does not bounds-check, so it has to span every item even though the values are ignored.
     n_buildings_by_item_id = np.ones(int(items['item_id'].max()) + 1 if items.shape[0] else 1, dtype='i4')
     n_buildings_by_rng = np.ones(seeds.shape[0] + 1, dtype='i4')
+    # no sampling here either, so no group ever pools; written by the reader, read by nothing
+    pooled_by_rng = np.zeros(seeds.shape[0] + 1, dtype='i1')
 
     for event_data in read_getmodel_stream(file_in, items,
                                            item_map_hm, item_map_hm_keys,
                                            item_map_ja_offsets,
                                            coverages, compute, seeds,
-                                           n_buildings_by_item_id, n_buildings_by_rng):
+                                           n_buildings_by_item_id, n_buildings_by_rng,
+                                           pooled_by_rng):
         event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
         n_rows = len(recs)
 
