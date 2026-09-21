@@ -60,6 +60,39 @@ CDF_CACHE_EMPTY = nb_int64(-1)
 NO_RNG_INDEX = nb_int64(-1)
 
 
+def check_uniform_building_count_per_coverage(items):
+    """Fail if one coverage's items disagree on how many buildings they carry.
+
+    The alloc-rule cap works across the items of a coverage at a fixed building, so every item
+    has to mean the same thing by "building b". They do by construction -- a coverage is one
+    (location, building, coverage type) and the count comes from the location -- but the count
+    travels on the correlations table, a separate file that can be hand-written or regenerated
+    out of step with items.bin. A mismatch would not fail: it would quietly cap one item's
+    building against a different building of another item.
+
+    Args:
+        items (numpy.array): the items table, carrying coverage_id and packed_buildings.
+
+    Raises:
+        OasisException: if any coverage holds items with different building counts.
+    """
+    if items.shape[0] == 0:
+        return
+    counts = np.abs(items['packed_buildings'])
+    order = np.argsort(items['coverage_id'], kind='stable')
+    cov, cnt = items['coverage_id'][order], counts[order]
+    # inside a run of equal coverage_id every count must match its neighbour
+    bad = (cov[1:] == cov[:-1]) & (cnt[1:] != cnt[:-1])
+    if bad.any():
+        first = int(cov[1:][bad][0])
+        seen = sorted(set(int(c) for c in counts[items['coverage_id'] == first]))
+        raise OasisException(
+            f"coverage {first} has items carrying different building counts {seen}. Every item of "
+            f"a coverage is the same location, so they must agree -- the alloc-rule cap pairs "
+            f"them by building index. Regenerate items.bin and correlations.bin together."
+        )
+
+
 def validate_coverage_dependency(items, vuln_idx_to_cond_idx):
     """Validate a coverage-dependency configuration against the loaded model data (fail-loud).
 
@@ -269,6 +302,7 @@ def run(run_dir,
         # the coverage TIV being the per-building share.
         # signed field: take the magnitude, or the keep-separate items (negative) are skipped
         max_buildings = int(np.abs(items['packed_buildings']).max()) if items.shape[0] > 0 else 1
+        check_uniform_building_count_per_coverage(items)
         # only kept-separate items meet either stream ceiling: a summed one writes a single
         # block at sidx 1..S however many buildings it carries
         check_packed_item_fits(max_emitted_blocks(items['packed_buildings']), sample_size, oasis_int)

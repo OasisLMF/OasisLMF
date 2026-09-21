@@ -90,3 +90,31 @@ def test_correlated_buildings_combine_variances(rho):
         assert empirical / std < 1.25, (
             f"N={n}, rho={rho}: reported sigma {std:,.0f} is far below the samples' "
             f"{empirical:,.0f} -- the correlation term is missing or wrong")
+
+
+def test_a_coverage_may_not_mix_building_counts():
+    """The alloc-rule cap pairs a coverage's items by building index, so every item of a coverage
+    has to mean the same thing by "building b".
+
+    They do by construction -- a coverage is one (location, building, coverage type) and the count
+    comes from the location -- but the count travels on the correlations table, a separate file
+    that can be hand-written or regenerated out of step with items.bin. A mismatch would not
+    fail on its own: it would quietly cap one item's building against a different building of
+    another item.
+    """
+    from oasislmf.pytools.gulmc.manager import check_uniform_building_count_per_coverage
+    from oasislmf.utils.exceptions import OasisException
+
+    dt = np.dtype([('coverage_id', 'i4'), ('packed_buildings', 'i4')])
+
+    check_uniform_building_count_per_coverage(np.array([], dtype=dt))            # no items
+    check_uniform_building_count_per_coverage(
+        np.array([(1, -4), (1, -4), (2, 9), (2, 9)], dtype=dt))                  # uniform
+    check_uniform_building_count_per_coverage(
+        np.array([(1, -4), (2, -7)], dtype=dt))                                  # differ, but
+    #                                                                              across coverages
+
+    with pytest.raises(OasisException, match="different building counts"):
+        check_uniform_building_count_per_coverage(np.array([(1, -4), (1, -7)], dtype=dt))
+    # the sign is the keep-separate flag, not part of the count, so these agree
+    check_uniform_building_count_per_coverage(np.array([(1, -4), (1, 4)], dtype=dt))
