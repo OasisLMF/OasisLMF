@@ -553,6 +553,78 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
 
 @njit(cache=True, fastmath=True)
+def write_packed_building_block(byte_mv, cursor, item_specials, b, sample_losses,
+                                sample_size, loss_threshold):
+    """Emit one building's block of a packed item: its shifted specials, then its samples.
+
+    ``item_specials`` is indexed by the negative special sidx directly (it is a column of
+    ``losses``, whose first axis wraps), and its values are building-independent -- only the
+    sidx they are written at shifts with ``b``.
+
+    Args:
+        byte_mv (numpy.ndarray): byte view of the output buffer.
+        cursor (int): index in byte_mv at which to start writing.
+        item_specials (numpy.array[oasis_float]): this item's ``losses[:, item_j]`` column.
+        b (int): 1-based building index.
+        sample_losses (numpy.array[oasis_float]): this building's S sample losses.
+        sample_size (int): logical number of random samples per building (S).
+        loss_threshold (float): threshold above which random samples are written.
+
+    Returns:
+        int: updated cursor.
+    """
+    for special_idx in SPECIAL_SIDX:
+        cursor = mv_write_sidx_loss(byte_mv, cursor, encode_sidx(b, special_idx, sample_size),
+                                    item_specials[special_idx])
+    for sample_idx in range(1, sample_size + 1):
+        loss = sample_losses[sample_idx - 1]
+        if loss >= loss_threshold:
+            cursor = mv_write_sidx_loss(byte_mv, cursor, encode_sidx(b, sample_idx, sample_size), loss)
+    return cursor
+
+
+@njit(cache=True, fastmath=True)
+def write_summed_specials(byte_mv, cursor, item_specials, nb_item, damage_correlation):
+    """Emit the specials of an item whose buildings are summed at source.
+
+    Args:
+        byte_mv (numpy.ndarray): byte view of the output buffer.
+        cursor (int): index in byte_mv at which to start writing.
+        item_specials (numpy.array[oasis_float]): this item's ``losses[:, item_j]`` column.
+        nb_item (int): how many buildings are summed into this item.
+        damage_correlation (oasis_float): the correlation actually applied to this item's damage
+            draws -- 0 where correlation is off, whatever the correlations file says.
+
+    Returns:
+        int: updated cursor.
+    """
+    for special_idx in SPECIAL_SIDX:
+        value = item_specials[special_idx]
+        if special_idx == CHANCE_OF_LOSS_IDX:
+            pass                      # a probability, shared by the buildings
+        elif special_idx == STD_DEV_IDX:
+            # The buildings of one item share damage_eps_ij[peril_correlation_group], so
+            # they are NOT independent: var(sum) = sigma^2 * (N + N(N-1)*rho), which is
+            # N^2*rho for large N rather than N. Scaling by sqrt(N) alone understates
+            # sigma by about sqrt(N*rho) -- 5.6x at 64 buildings and rho 0.7, and it grows
+            # with the count.
+            #
+            # rho here is the copula correlation, while what the sum needs is the
+            # correlation it induces between two buildings' LOSSES, which the marginal
+            # attenuates (0.49 for a copula 0.7 on one measured model). Using the copula
+            # value therefore overstates sigma by 9-26% over the rho range. That is
+            # deliberate: it is the conservative direction, and the exact factor is
+            # var(mu(eps))/sigma^2, which needs the conditional moments -- see
+            # tmp/building_sampling_plan.md.
+            combined = nb_item + nb_item * (nb_item - 1) * damage_correlation
+            value = value * sqrt(combined if combined > 0 else nb_item)
+        else:
+            value = value * nb_item   # mean, tiv and max are additive
+        cursor = mv_write_sidx_loss(byte_mv, cursor, special_idx, value)
+    return cursor
+
+
+@njit(cache=True, fastmath=True)
 def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
                  item_ids, n_buildings, damage_correlation, alloc_rule, tiv,
                  byte_mv, cursor):
@@ -664,39 +736,13 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
 
         if keep_separate:
             for b in range(1, nb_item + 1):
-                # special (negative) sidx — same value for every building, shifted per building
-                for special_idx in SPECIAL_SIDX:
-                    cursor = mv_write_sidx_loss(byte_mv, cursor, encode_sidx(b, special_idx, sample_size),
-                                                losses[special_idx, item_j])
-                # random samples for this building
-                for sample_idx in range(1, sample_size + 1):
-                    loss = building_losses[sample_idx - 1, item_j, b - 1]
-                    if loss >= loss_threshold:
-                        cursor = mv_write_sidx_loss(byte_mv, cursor, encode_sidx(b, sample_idx, sample_size), loss)
+                cursor = write_packed_building_block(byte_mv, cursor, losses[:, item_j], b,
+                                                     building_losses[:, item_j, b - 1],
+                                                     sample_size, loss_threshold)
         else:
             # summed at source: an ordinary unpacked item covering all nb_item buildings
-            for special_idx in SPECIAL_SIDX:
-                value = losses[special_idx, item_j]
-                if special_idx == CHANCE_OF_LOSS_IDX:
-                    pass                      # a probability, shared by the buildings
-                elif special_idx == STD_DEV_IDX:
-                    # The buildings of one item share damage_eps_ij[peril_correlation_group], so
-                    # they are NOT independent: var(sum) = sigma^2 * (N + N(N-1)*rho), which is
-                    # N^2*rho for large N rather than N. Scaling by sqrt(N) alone understates
-                    # sigma by about sqrt(N*rho) -- 5.6x at 64 buildings and rho 0.7, and it grows
-                    # with the count.
-                    #
-                    # rho here is the copula correlation, while what the sum needs is the
-                    # correlation it induces between two buildings' LOSSES, which the marginal
-                    # attenuates (0.49 for a copula 0.7 on one measured model). Using the copula
-                    # value therefore overstates sigma by roughly 20-30%. That is deliberate: it
-                    # is the conservative direction, and the exact factor is var(mu(eps))/sigma^2,
-                    # which needs the conditional moments -- see tmp/building_sampling_plan.md.
-                    combined = nb_item + nb_item * (nb_item - 1) * damage_correlation[item_j]
-                    value = value * sqrt(combined if combined > 0 else nb_item)
-                else:
-                    value = value * nb_item   # mean, tiv and max are additive
-                cursor = mv_write_sidx_loss(byte_mv, cursor, special_idx, value)
+            cursor = write_summed_specials(byte_mv, cursor, losses[:, item_j], nb_item,
+                                           damage_correlation[item_j])
             for sample_idx in range(1, sample_size + 1):
                 loss = 0.
                 for b in range(nb_item):
