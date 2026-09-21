@@ -160,7 +160,9 @@ class ComputationStep:
     @classmethod
     def get_params(cls, param_type="step"):
         """Return all the params of the computation step defined in step_params
-        and the params from the sub_computation step in chained_commands
+        and the params from the sub_computation step in chained_commands - plus,
+        when param_type=="step", the params in ComputationStep.global_params
+        (verbose, log_level, log_format, config).
         if two params have the same name, return the param definition of the first param found only
         this allow to overwrite the param definition of sub step if necessary.
         """
