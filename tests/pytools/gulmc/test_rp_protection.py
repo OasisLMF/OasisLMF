@@ -20,6 +20,7 @@ from oasislmf.pytools.gulmc.common import (
     items_MC_data_type, coverage_type, haz_arr_type, gulmc_compute_info_type, NormInversionParameters,
     agg_vuln_idx_weight_dtype,
 )
+from oasislmf.pytools.gul.core import HERMITE_TERMS
 from oasislmf.pytools.gulmc.manager import process_areaperils_in_footprint, compute_event_losses, CDF_CACHE_EMPTY
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 
@@ -259,6 +260,9 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
     # float64 to match the precision write_losses accumulates a summed item at
     summed_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
+    # only a summed, correlated item reads these; the RP path never does
+    loss_correlation_by_item = np.zeros(losses.shape[1], dtype=oasis_float)
+    hermite_coeffs = np.zeros(HERMITE_TERMS, dtype=np.float64)
 
     # coverage dependency: depth 1 with a fully damaged source on the depth-0 stacks when
     # `dependent`, otherwise depth 0 (all roots) with unused single-depth stacks.
@@ -286,7 +290,8 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
-        building_losses, summed_scratch, vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
+        building_losses, summed_scratch, loss_correlation_by_item, hermite_coeffs,
+        vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
         pooled_flags, pooled_flags, pool_scratch, pool_scratch,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
         source_eff_damage_cdf_len_stack,
@@ -577,6 +582,9 @@ def test_rp_protection_only_affects_protected_items():
     building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
     # float64 to match the precision write_losses accumulates a summed item at
     summed_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
+    # only a summed, correlated item reads these; the RP path never does
+    loss_correlation_by_item = np.zeros(losses.shape[1], dtype=oasis_float)
+    hermite_coeffs = np.zeros(HERMITE_TERMS, dtype=np.float64)
     vuln_rndms_flat = np.zeros(max(sample_size, 1), dtype=np.float64)
     haz_rndms_flat = np.zeros(max(sample_size, 1), dtype=np.float64)
     vuln_offsets = np.array([0, max(sample_size, 1)], dtype=np.int64)
@@ -600,7 +608,8 @@ def test_rp_protection_only_affects_protected_items():
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
-        building_losses, summed_scratch, vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
+        building_losses, summed_scratch, loss_correlation_by_item, hermite_coeffs,
+        vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
         pooled_flags, pooled_flags, pool_scratch, pool_scratch,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
         source_eff_damage_cdf_len_stack,

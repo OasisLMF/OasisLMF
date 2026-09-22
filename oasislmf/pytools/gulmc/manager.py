@@ -32,7 +32,8 @@ from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss_items,
-                                       split_tiv_classic, split_tiv_multiplicative)
+                                       split_tiv_classic, split_tiv_multiplicative,
+                                       accumulate_hermite_coeffs, loss_correlation, HERMITE_TERMS)
 from oasislmf.pytools.gul.manager import (write_losses, adjust_byte_mv_size, buffered_building_width,
                                           write_packed_building_block, write_summed_specials,
                                           FUSED_FLUSH_TARGET_BYTES)
@@ -475,6 +476,11 @@ def run(run_dir,
         # as float64, so accumulating in float32 here would round differently and the two paths
         # would stop agreeing bit for bit.
         summed_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
+        # Per item of the current coverage, the correlation between two of its buildings'
+        # LOSSES -- what the variance of their sum actually needs. 0 unless the item is summed
+        # and correlated, which is the only case that reads it.
+        loss_correlation_by_item = np.zeros(max_items_per_coverage, dtype=oasis_float)
+        hermite_coeffs = np.zeros(HERMITE_TERMS, dtype='float64')
 
         # A pooled group's draws are not contiguous per building -- they are gathered from the
         # pool through pool_index -- so the per-building view the draw routines take has to be
@@ -689,6 +695,8 @@ def run(run_dir,
                             intensity_bins,
                             building_losses,
                             summed_scratch,
+                            loss_correlation_by_item,
+                            hermite_coeffs,
                             vuln_rndms_flat,
                             vuln_offsets,
                             haz_rndms_flat,
@@ -1285,6 +1293,8 @@ def compute_event_losses(compute_info,
                          intensity_bins,
                          building_losses,
                          summed_scratch,
+                         loss_correlation_by_item,
+                         hermite_coeffs,
                          vuln_rndms_flat,
                          vuln_offsets,
                          haz_rndms_flat,
@@ -1369,6 +1379,11 @@ def compute_event_losses(compute_info,
           per-building sample losses. W is max_buildings only for the coverages that must hold
           every building at once to apply a cross-item alloc-rule cap; a coverage emitted as it
           is computed uses column 0 alone, so W is 1 whenever no coverage buffers.
+        loss_correlation_by_item (numpy.array[oasis_float]): per item of the current coverage,
+          the correlation between two of its buildings' losses, written where the analytic
+          moments are and read when its summed specials are emitted. 0 for everything that
+          does not report the spread of a sum.
+        hermite_coeffs (numpy.array[float64]): length HERMITE_TERMS scratch for that.
         summed_scratch (numpy.array[float64]): length-S accumulator for a summed-at-source item
           emitted as it is computed, since its buildings are added up rather than written. float64
           to match the precision write_losses accumulates at.
@@ -1491,7 +1506,7 @@ def compute_event_losses(compute_info,
                                 return False
                             compute_info['cursor'] = write_summed_specials(
                                 byte_mv, compute_info['cursor'], losses[:, item_j], n_buildings,
-                                item_event_data['damage_correlation_value'])
+                                loss_correlation_by_item[item_j])
                             for s_i in range(1, sample_size + 1):
                                 if 0. >= compute_info['loss_threshold']:
                                     compute_info['cursor'] = mv_write_sidx_loss(
@@ -1561,6 +1576,39 @@ def compute_event_losses(compute_info,
             losses[TIV_IDX, item_j] = exposureValue
             losses[STD_DEV_IDX, item_j] = std_dev
             losses[MEAN_IDX, item_j] = gul_mean
+
+            # Only a SUMMED item reports the spread of a sum, and only then does the correlation
+            # between two buildings' losses matter. Everything else keeps 0 and pays nothing.
+            item_rho = item_event_data['damage_correlation_value']
+            if item_event_data['packed_buildings'] > 1 and item_rho > 0.:
+                for k in range(HERMITE_TERMS):
+                    hermite_coeffs[k] = 0.
+                if compute_info['effective_damageability']:
+                    # one uniform drives the loss, so its CDF is the whole story
+                    accumulate_hermite_coeffs(
+                        damage_bin_scaling, eff_damage_cdf, damage_bins['interpolation'],
+                        Neff_damage_bins, 1., norm_inv_parameters['x_min'],
+                        norm_inv_parameters['inv_factor'], norm_inv_cdf, hermite_coeffs)
+                else:
+                    # the hazard bin is drawn independently per building, so what the damage
+                    # copula correlates is E[loss | damage uniform] -- the hazard-probability
+                    # weighted mixture of the per-bin vulnerability curves. The hazard's own
+                    # spread still counts in std_dev below, which is what dilutes the result.
+                    haz_prob_from = 0.
+                    for haz_i in range(Nhaz_bins):
+                        haz_weight = haz_cdf_prob[haz_i] - haz_prob_from
+                        haz_prob_from = haz_cdf_prob[haz_i]
+                        if haz_weight <= 0.:
+                            continue
+                        accumulate_hermite_coeffs(
+                            damage_bin_scaling, haz_i_to_vuln_cdf[haz_i],
+                            damage_bins['interpolation'], haz_i_to_Ndamage_bins[haz_i],
+                            haz_weight, norm_inv_parameters['x_min'],
+                            norm_inv_parameters['inv_factor'], norm_inv_cdf, hermite_coeffs)
+                loss_correlation_by_item[item_j] = loss_correlation(
+                    hermite_coeffs, std_dev * std_dev, item_rho)
+            else:
+                loss_correlation_by_item[item_j] = 0.
 
             if sample_size > 0:  # compute random losses
                 # full Monte Carlo: record this coverage's per-sample damage bin for any dependent
@@ -1696,7 +1744,7 @@ def compute_event_losses(compute_info,
                     if not keep_separate_item:
                         compute_info['cursor'] = write_summed_specials(
                             byte_mv, compute_info['cursor'], losses[:, item_j], n_buildings,
-                            item_event_data['damage_correlation_value'])
+                            loss_correlation_by_item[item_j])
                         for s_i in range(1, sample_size + 1):
                             loss = summed_scratch[s_i - 1]
                             if loss >= compute_info['loss_threshold']:
@@ -1725,7 +1773,7 @@ def compute_event_losses(compute_info,
                 building_losses[:, :Nitems, :],
                 items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
                 items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['packed_buildings'],
-                items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['damage_correlation_value'],
+                loss_correlation_by_item[:Nitems],
                 compute_info['alloc_rule'],
                 tiv,
                 byte_mv,
