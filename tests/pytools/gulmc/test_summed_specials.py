@@ -69,27 +69,30 @@ def test_uncorrelated_buildings_still_scale_by_root_n():
 @pytest.mark.parametrize("rho", [0.3, 0.7, 0.9])
 def test_correlated_buildings_combine_variances(rho):
     """The buildings share the correlation group's common factor, so var(sum) is
-    sigma^2 * (N + N(N-1)*rho), not N*sigma^2. sqrt(N) alone understates sigma by about
-    sqrt(N*rho) -- a factor of 5.6 at N=64, rho=0.7 -- and the error grows with the count.
+    sigma^2 * (N + N(N-1)*r), not N*sigma^2. sqrt(N) alone understates sigma by about
+    sqrt(N*r) -- a factor of 5.6 at N=64, r=0.7 -- and the error grows with the count.
 
-    rho here is the copula correlation, while the sum needs the correlation it induces between
-    two buildings' losses, which the marginal attenuates. So the reported value runs ~15-30%
-    HIGH. The bound below is deliberately one-sided about how far low it may be: being under is
-    the failure this test exists to catch.
+    ``r`` is the correlation between two buildings' LOSSES, which the damage curve attenuates
+    away from the copula value: substituting the copula value overstated sigma by up to ~39%.
+    This checks the property rather than the formula -- the reported sigma has to agree with the
+    spread of the samples the engine actually emitted -- and that it beats the copula value at
+    doing so, which is the specific thing that changed.
     """
     one_std, _, _ = _run(1, rho)
     for n in (16, 64):
         std, empirical, _ = _run(n, rho)
 
-        expected = one_std * np.sqrt(n + n * (n - 1) * rho)
-        assert std == pytest.approx(expected, rel=1e-5), f"N={n}: not the combined-variance form"
-
         naive = one_std * np.sqrt(n)
-        assert std > naive, f"N={n}: no better than the uncorrelated scaling"
-        assert empirical / std > 0.6, f"N={n}: reported sigma wildly above the samples"
-        assert empirical / std < 1.25, (
-            f"N={n}, rho={rho}: reported sigma {std:,.0f} is far below the samples' "
-            f"{empirical:,.0f} -- the correlation term is missing or wrong")
+        copula = one_std * np.sqrt(n + n * (n - 1) * rho)
+        assert naive < std < copula, (
+            f"N={n}, rho={rho}: the loss correlation must sit strictly between no correlation "
+            f"and the copula value, which it can never exceed")
+
+        assert std == pytest.approx(empirical, rel=0.08), (
+            f"N={n}, rho={rho}: reported sigma {std:,.0f} disagrees with the samples' "
+            f"{empirical:,.0f}")
+        assert abs(std - empirical) < abs(copula - empirical), (
+            f"N={n}, rho={rho}: no better than substituting the copula correlation")
 
 
 def test_a_coverage_may_not_mix_building_counts():
