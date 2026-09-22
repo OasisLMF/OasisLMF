@@ -383,6 +383,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             resume_state[:] = 0
 
             while last_processed_coverage_ids_idx < compute_i:
+                resume_point_before = (last_processed_coverage_ids_idx,
+                                       int(resume_state[0]), int(resume_state[1]))
                 cursor, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
@@ -393,6 +395,23 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     pooled_by_rng, pool_scratch,
                     max_bytes_per_item, max_bytes_per_block, byte_mv, cursor
                 )
+
+                # A call that stops short must have advanced the resume point. It only stops
+                # because the buffer is full, and the buffer is empty on entry, so if it stops at
+                # the same place it will keep stopping there -- an infinite loop with no error.
+                # It is the RESUME POINT that has to move, not the cursor: a resume that restarts
+                # an item re-emits the same blocks forever and writes plenty while never
+                # finishing. The sizing above makes this unreachable today; the check turns a
+                # future violation of it into a failure rather than a hang.
+                resume_point = (last_processed_coverage_ids_idx, int(resume_state[0]), int(resume_state[1]))
+                if last_processed_coverage_ids_idx < compute_i and resume_point <= resume_point_before:
+                    raise RuntimeError(
+                        f"gulpy made no progress on event {event_id}: it asked to resume at "
+                        f"coverage/item/building {resume_point}, no further on than the "
+                        f"{resume_point_before} it started from, having written {cursor} bytes "
+                        f"into a {byte_mv.shape[0]} byte buffer. The buffer must hold at least "
+                        f"one building block ({max_bytes_per_block} bytes) and a whole coverage "
+                        f"for any written through write_losses.")
 
                 # write the losses to the output stream
                 write_start = 0

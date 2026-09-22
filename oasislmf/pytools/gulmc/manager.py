@@ -652,6 +652,8 @@ def run(run_dir,
                 processing_done = False
                 logger.info(f"event {event_ids[0]} STARTED")
                 while not processing_done:
+                    resume_point_before = (int(compute_info['coverage_i']), int(compute_info['item_j']),
+                                           int(compute_info['building_b']))
                     try:
                         processing_done = compute_event_losses(
                             compute_info,
@@ -710,6 +712,25 @@ def run(run_dir,
 
                         logger.error(f"event id={event_ids[0]} failed in summary")
                         raise
+                    # A call that asks to be resumed must have advanced the resume point. It
+                    # only stops because the buffer is full, and the buffer is empty on entry, so
+                    # if it stops at the same place it will keep stopping there -- an infinite
+                    # loop with no error. Note it is the RESUME POINT that has to move, not the
+                    # cursor: a resume that restarts an item re-emits the same blocks forever and
+                    # writes plenty while never finishing. The sizing in reconstruct_coverages
+                    # makes this unreachable today; the check turns a future violation of that
+                    # into a failure rather than a hang.
+                    resume_point = (int(compute_info['coverage_i']), int(compute_info['item_j']),
+                                    int(compute_info['building_b']))
+                    if not processing_done and resume_point <= resume_point_before:
+                        raise RuntimeError(
+                            f"gulmc made no progress on event {compute_info['event_id']}: it asked "
+                            f"to resume at coverage/item/building {resume_point}, no further on "
+                            f"than the {resume_point_before} it started from, having written "
+                            f"{compute_info['cursor']} bytes into a {byte_mv.shape[0]} byte "
+                            f"buffer. The buffer must hold at least one building block "
+                            f"({compute_info['max_bytes_per_block']} bytes) and a whole coverage "
+                            f"for any written through write_losses.")
                     # write the losses to the output stream
                     write_start = 0
                     while write_start < compute_info['cursor']:
