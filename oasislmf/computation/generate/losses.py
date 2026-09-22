@@ -37,7 +37,7 @@ from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_L
 from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set,
                               set_hazard_case_set)
-from ...preparation.summaries import generate_summaryxref_files
+from ...preparation.summaries import generate_summaryxref_files, get_ri_summaryxref_dirs
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...pytools.fm.manager import run as fmpy_run
 from oasislmf.pytools.summary.manager import create_summary_object_file
@@ -50,8 +50,7 @@ from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KERNEL_N_FM
                                KERNEL_ALLOC_GUL_MAX, KERNEL_ALLOC_IL_DEFAULT,
                                KERNEL_ALLOC_RI_DEFAULT, KERNEL_DEBUG,
                                KERNEL_MEAN_SAMPLE_IDX, KERNEL_NUM_PROCESSES,
-                               KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_TIV_SAMPLE_IDX,
-                               SUMMARY_OUTPUT)
+                               KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_TIV_SAMPLE_IDX)
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
 from ...utils.path import setcwd
@@ -384,15 +383,11 @@ class GenerateLossesDir(GenerateLossesBase):
                 summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                 if summary_sets_id.shape[0]:
                     if runtype == RUNTYPE_REINSURANCE_LOSS:
-                        # Only the RI layers that are reinsurance output levels get an
-                        # fmsummaryxref; intermediate layers are computed but never summarised.
-                        summary_dirs = [
-                            ri_dir for ri_dir in (
-                                os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs
-                            )
-                            if any(os.path.isfile(os.path.join(ri_dir, f"{SUMMARY_OUTPUT['il']}.{ext}"))
-                                   for ext in ('bin', 'csv'))
-                        ]
+                        # Intermediate RI layers are computed but never summarised, so only the
+                        # output levels hold an fmsummaryxref.
+                        summary_dirs = get_ri_summaryxref_dirs(
+                            os.path.join(self.model_run_dir, 'input'), self.settings
+                        )
                     else:
                         summary_dirs = [os.path.join(self.model_run_dir, 'input')]
                     for summary_dir in summary_dirs:

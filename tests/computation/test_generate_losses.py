@@ -218,6 +218,13 @@ class TestGenLosses(ComputationChecker):
         with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10011"}):
             self.manager.generate_losses(**call_args)
 
+        run_input_dir = os.path.join(call_args['model_run_dir'], 'input')
+        built = {
+            ri_dir for ri_dir in ri_dirs
+            if os.path.isfile(os.path.join(run_input_dir, ri_dir, 'ri', 'summary_info.npy'))
+        }
+        self.assertEqual(built, {max(ri_dirs, key=lambda d: int(d.split('_')[1]))})
+
     @patch('oasislmf.computation.hooks.post_analysis.PostAnalysis.run')
     def test_losses__run__post_analysis_is_called(self, mock_post_analysis):
         mock_post_analysis.__name__ = "run"
