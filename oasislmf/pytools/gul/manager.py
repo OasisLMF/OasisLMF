@@ -38,7 +38,7 @@ from oasislmf.pytools.gul.random import (build_packed_rndm_offsets, cdf_min,
                                          generate_correlated_hash_vector,
                                          get_corr_rval, get_correlation_generator,
                                          get_sample_generator,
-                                         inv_factor, norm_factor, x_min, POOL_SIZE, pool_index)
+                                         inv_factor, norm_factor, x_min)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
@@ -320,9 +320,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # already been emitted. gulpy signals resumption through its return value, so this is
         # carried in an array the callee mutates rather than on a state struct.
         resume_state = np.zeros(2, dtype=np.int64)
-        # a pooled group's draws are gathered through pool_index rather than sliced per building,
-        # so the per-building view has to be materialised; reused for every building
-        pool_scratch = np.zeros(max(sample_size, 1), dtype='float64')
         byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
 
         # One block: the item header, a building's NUM_IDX specials and S samples, and the
@@ -337,7 +334,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # one entry per seed, holding the largest building count in its group
         n_buildings_by_rng = np.ones(seeds.shape[0] + 1, dtype='i4')
         # a group pools only where EVERY item in it clears the gate; see io.read_getmodel_stream
-        pooled_by_rng = np.zeros(seeds.shape[0] + 1, dtype=np.int8)
 
         counter = 0
         timer = time.time()
@@ -348,16 +344,16 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                                                item_map_hm, item_map_hm_keys,
                                                item_map_ja_offsets,
                                                coverages, compute, seeds,
-                                               n_buildings_by_item_id, n_buildings_by_rng, pooled_by_rng):
+                                               n_buildings_by_item_id, n_buildings_by_rng):
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
             # flat, ragged: seed i owns n_buildings_by_rng[i] blocks of sample_size, which is
             # one block of the legacy draw when nothing is packed
             rndm_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index],
-                                                     pooled_by_rng[:rng_index], sample_size)
+                                                     sample_size)
             rndms_flat = generate_sample_rndm(
                 seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index],
-                pooled_by_rng[:rng_index], rndm_offsets)
+                rndm_offsets)
 
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
@@ -398,7 +394,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     building_losses, summed_scratch, resume_state, rndms_flat, rndm_offsets,
                     loss_correlation_by_item, hermite_coeffs,
                     n_buildings_by_item_id, damage_correlation_by_item_id,
-                    pooled_by_rng, pool_scratch,
                     max_bytes_per_item, max_bytes_per_block, byte_mv, cursor
                 )
 
@@ -454,14 +449,10 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          z_unif, debug, building_losses, summed_scratch, resume_state, rndms_flat, rndm_offsets,
                          loss_correlation_by_item, hermite_coeffs,
                          n_buildings_by_item_id, damage_correlation_by_item_id,
-                         pooled_by_rng, pool_scratch,
                          max_bytes_per_item, max_bytes_per_block, byte_mv, cursor):
     """Compute losses for an event.
 
     Args:
-        pooled_by_rng (numpy.array[int8]): per rng group, 1 if it drew a pool.
-        pool_scratch (numpy.array[float64]): length-S buffer for one building's draws gathered
-          out of a pool.
         damage_correlation_by_item_id (numpy.array[oasis_float]): per item_id, the correlation
           actually applied to its damage draws -- 0 when correlation is off. Only a summed
           packed item reads it, to combine its buildings' variances.
@@ -580,9 +571,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                 # is the legacy draw byte-for-byte. The specials above are building-independent.
                 item_n_buildings = abs(n_buildings_by_item_id[item['item_id']])
                 base_off = rndm_offsets[rng_index]
-                # a pooled group holds POOL_SIZE values for the whole group, not a block per
-                # building, so its buildings gather through pool_index instead of slicing
-                pooled = pooled_by_rng[rng_index] == 1
 
                 keep_separate_item = n_buildings_by_item_id[item['item_id']] < 0
                 if fuse_emit:
@@ -625,14 +613,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                             resume_state[0] = item_i
                             resume_state[1] = building_i
                             return cursor, last_processed_coverage_ids_idx
-                    if pooled:
-                        for s_i in range(sample_size):
-                            pool_scratch[s_i] = rndms_flat[
-                                base_off + pool_index(building_i + 1, s_i + 1, POOL_SIZE)]
-                        rndms = pool_scratch[:sample_size]
-                    else:
-                        rndms = rndms_flat[base_off + building_i * sample_size:
-                                           base_off + (building_i + 1) * sample_size]
+                    rndms = rndms_flat[base_off + building_i * sample_size:
+                                       base_off + (building_i + 1) * sample_size]
                     if do_correlation and corr_data_by_item_id[item['item_id']]['damage_correlation_value'] > 0:
                         item_corr_data = corr_data_by_item_id[item['item_id']]
                         get_corr_rval(

@@ -233,8 +233,6 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     haz_offsets = np.array([0, _S], dtype=np.int64)
     # zeros, not ones: this argument is a POOLED FLAG, so 1 would send the draw through a pool
     # that was never filled. One building per group is far below the gate anyway.
-    pooled_flags = np.zeros(2, dtype=np.int8)
-    pool_scratch = np.zeros(_S, dtype=np.float64)
     vuln_adj = np.ones(1, dtype=oasis_float)
     haz_eps_ij = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
     damage_eps_ij = np.zeros((1, max(sample_size, 1)), dtype=np.float64)
@@ -292,7 +290,6 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
         building_losses, summed_scratch, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
-        pooled_flags, pooled_flags, pool_scratch, pool_scratch,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
         source_eff_damage_cdf_len_stack,
     )
@@ -589,8 +586,6 @@ def test_rp_protection_only_affects_protected_items():
     haz_rndms_flat = np.zeros(max(sample_size, 1), dtype=np.float64)
     vuln_offsets = np.array([0, max(sample_size, 1)], dtype=np.int64)
     haz_offsets = np.array([0, max(sample_size, 1)], dtype=np.int64)
-    pooled_flags = np.zeros(2, dtype=np.int8)      # not pooled; see the note in the harness above
-    pool_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
 
     # coverage dependency inactive (do_coverage_dependency defaults to 0): depth 0, empty stacks
     compute_depth = np.zeros(len(coverage_ids), dtype=np.int32)
@@ -610,7 +605,6 @@ def test_rp_protection_only_affects_protected_items():
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
         building_losses, summed_scratch, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
-        pooled_flags, pooled_flags, pool_scratch, pool_scratch,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
         source_eff_damage_cdf_len_stack,
     )
