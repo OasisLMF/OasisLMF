@@ -225,6 +225,37 @@ class TestGenLosses(ComputationChecker):
         }
         self.assertEqual(built, {max(ri_dirs, key=lambda d: int(d.split('_')[1]))})
 
+    def test_losses__run_ri_and_rl__all_layers_summarised(self):
+        """Gross RL output is produced at every RI layer, so requesting it alongside net RI
+        output writes an fmsummaryxref into all of them - the pre-built summarypy structures
+        must cover the same set."""
+        self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MULTI_LAYER_INF)
+        self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MULTI_LAYER_SCP)
+        self.manager.generate_files(**self.args_gen_files_ri)
+
+        ri_dirs = [d for d in os.listdir(self.args_gen_files_ri['oasis_files_dir']) if d.startswith('RI_')]
+        self.assertGreater(len(ri_dirs), 1)
+
+        run_settings = self.tmp_files.get('analysis_settings_json')
+        self.write_json(run_settings, {
+            **RI_AAL_SETTINGS,
+            'rl_output': True,
+            'rl_summaries': RI_AAL_SETTINGS['ri_summaries'],
+        })
+        call_args = {
+            **self.min_args,
+            'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+        }
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10022"}):
+            self.manager.generate_losses(**call_args)
+
+        run_input_dir = os.path.join(call_args['model_run_dir'], 'input')
+        built = {
+            ri_dir for ri_dir in ri_dirs
+            if os.path.isfile(os.path.join(run_input_dir, ri_dir, 'ri', 'summary_info.npy'))
+        }
+        self.assertEqual(built, set(ri_dirs))
+
     @patch('oasislmf.computation.hooks.post_analysis.PostAnalysis.run')
     def test_losses__run__post_analysis_is_called(self, mock_post_analysis):
         mock_post_analysis.__name__ = "run"

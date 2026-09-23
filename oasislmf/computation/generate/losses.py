@@ -384,9 +384,13 @@ class GenerateLossesDir(GenerateLossesBase):
                 if summary_sets_id.shape[0]:
                     if runtype == RUNTYPE_REINSURANCE_LOSS:
                         # Intermediate RI layers are computed but never summarised, so only the
-                        # output levels hold an fmsummaryxref.
+                        # output levels hold an fmsummaryxref - unless gross RL output is also
+                        # requested, which writes one into every layer. Mirrors the argument
+                        # generate_summaryxref_files passes, so both resolve the same set.
                         summary_dirs = get_ri_summaryxref_dirs(
-                            os.path.join(self.model_run_dir, 'input'), self.settings
+                            os.path.join(self.model_run_dir, 'input'),
+                            self.settings,
+                            all_layers=bool(rl and self.settings.get('rl_summaries')),
                         )
                     else:
                         summary_dirs = [os.path.join(self.model_run_dir, 'input')]
