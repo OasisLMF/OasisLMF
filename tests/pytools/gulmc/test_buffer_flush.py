@@ -18,6 +18,7 @@ import pandas as pd
 import pytest
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.gul.common import (NUM_IDX, gulSampleslevelHeader_size,
                                          gulSampleslevelRec_size)
 from oasislmf.pytools.gul.manager import FUSED_FLUSH_TARGET_BYTES
@@ -41,7 +42,18 @@ def _buildings_forcing_a_flush(sample_size):
     return FUSED_FLUSH_TARGET_BYTES // _bytes_per_block(sample_size) + 64
 
 
-def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE):
+def _sample_size_forcing_an_item_boundary_flush():
+    """S at which two items no longer fit the buffer, so a flush lands BETWEEN items.
+
+    The tests above never reach that case: their items are far larger than the buffer, so every
+    flush lands inside one and the item header has already been written. A flush at an item
+    boundary is the one that used to write the header, fail to reserve the block, and write the
+    header again on re-entry.
+    """
+    return (PIPE_CAPACITY - gulSampleslevelHeader_size) // gulSampleslevelRec_size - NUM_IDX
+
+
+def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE, packed_sign=-1):
     """Run one item per coverage, each packing n_buildings, and parse the stream back.
 
     Returns {(event_id, item_id): [sidx, ...]} in the order written.
@@ -64,7 +76,7 @@ def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE):
 
         corr = np.zeros(len(items), dtype=correlations_dtype)
         corr['item_id'] = items['item_id'].to_numpy()
-        corr['packed_buildings'] = -n_buildings      # negative: kept separate, one block each
+        corr['packed_buildings'] = packed_sign * n_buildings
         corr['peril_correlation_group'] = 1
         corr['damage_correlation_value'] = 0.5
         corr['hazard_group_id'] = 1
@@ -136,3 +148,29 @@ def test_a_run_that_fits_the_buffer_is_unaffected():
     for key, sidxs in records.items():
         samples = [s for s in sidxs if s > 0]
         assert sorted(samples) == list(range(1, n_buildings * SAMPLE_SIZE + 1))
+
+
+@pytest.mark.parametrize("packed_sign", [-1, 1], ids=["kept-separate", "summed"])
+@pytest.mark.parametrize("alloc_rule", [0, 1, 2])
+def test_flush_between_items_does_not_repeat_the_header(packed_sign, alloc_rule):
+    """A buffer that fills at an item boundary must not emit that item's header twice.
+
+    The header used to be written before the first block was reserved. When the reservation then
+    failed, the header went out with the flushed bytes and re-entry wrote it again; a reader
+    decodes the second copy as a sidx/loss pair, and fmpy rejects the item with "duplicated sidx
+    in input stream". Every PiWind model test failed this way, because an unpacked item is small
+    enough that the buffer fills between items rather than inside one.
+    """
+    sample_size = _sample_size_forcing_an_item_boundary_flush()
+    # not vacuous: one item fits, two do not, so the flush has to land on a boundary
+    assert _bytes_per_block(sample_size) <= PIPE_CAPACITY * 2
+    assert 2 * _bytes_per_block(sample_size) > PIPE_CAPACITY * 2
+
+    records, order = _run(1, alloc_rule, sample_size=sample_size, packed_sign=packed_sign)
+    assert len(order) > 1, "need several items for a boundary to be crossed"
+    assert len(order) == len(set(order)), "an item header was emitted twice"
+    for key, sidxs in records.items():
+        assert len(sidxs) == NUM_IDX + sample_size, f"{key}: wrong record count"
+        assert len(set(sidxs)) == len(sidxs), f"{key}: a sidx repeated"
+        assert sorted(s for s in sidxs if s > 0) == list(range(1, sample_size + 1)), \
+            f"{key}: sample sidx are not 1..S"

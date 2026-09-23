@@ -745,9 +745,10 @@ def run(run_dir,
                             f"to resume at coverage/item/building {resume_point}, no further on "
                             f"than the {resume_point_before} it started from, having written "
                             f"{compute_info['cursor']} bytes into a {byte_mv.shape[0]} byte "
-                            f"buffer. The buffer must hold at least one building block "
-                            f"({compute_info['max_bytes_per_block']} bytes) and a whole coverage "
-                            f"for any written through write_losses.")
+                            f"buffer. The buffer must hold at least one building block plus an "
+                            f"item header "
+                            f"({gulSampleslevelHeader_size + compute_info['max_bytes_per_block']} "
+                            f"bytes) and a whole coverage for any written through write_losses.")
                     # write the losses to the output stream
                     write_start = 0
                     while write_start < compute_info['cursor']:
@@ -1501,6 +1502,13 @@ def compute_event_losses(compute_info,
                         # Blocks are checked and resumed exactly as on the computed path: the RP
                         # decision is per item-event and so gives the same answer on re-entry.
                         if compute_info['building_b'] == 0:
+                            # reserved together with the first block, for the reason given on the
+                            # computed path below -- a header left behind by a failed reservation
+                            # is written twice
+                            if compute_info['cursor'] + gulSampleslevelHeader_size \
+                                    + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
+                                compute_info['item_j'] = item_j
+                                return False
                             compute_info['cursor'] = mv_write_item_header(
                                 byte_mv, compute_info['cursor'], compute_info['event_id'],
                                 item_event_data['item_id'])
@@ -1657,6 +1665,17 @@ def compute_event_losses(compute_info,
                     # after a resume caps fresh values rather than already-capped ones. Only the
                     # header must not be repeated.
                     if compute_info['building_b'] == 0:
+                        # The header and the first block are reserved TOGETHER. Writing the header
+                        # first and only then finding the block does not fit leaves that header in
+                        # the bytes we flush, and re-entry (building_b still 0) writes it again --
+                        # the reader decodes the second copy as a sidx/loss pair and rejects the
+                        # item as carrying a duplicated sidx. max_bytes_per_block already includes
+                        # one header, so this reserves two; the 8 spare bytes are what keep the
+                        # per-block check below from firing on the block just reserved.
+                        if compute_info['cursor'] + gulSampleslevelHeader_size \
+                                + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
+                            compute_info['item_j'] = item_j
+                            return False
                         compute_info['cursor'] = mv_write_item_header(
                             byte_mv, compute_info['cursor'], compute_info['event_id'],
                             item_event_data['item_id'])
@@ -1664,7 +1683,8 @@ def compute_event_losses(compute_info,
                         summed_scratch[:sample_size] = 0
 
                 # a summed item emits one block however many buildings it carries, and cannot be
-                # interrupted part-way because its accumulator would restart; reserve that block
+                # interrupted part-way because its accumulator would restart; reserve that block.
+                # Only reachable with building_b == 0, where the reservation above covers it.
                 if fuse_emit and not keep_separate_item:
                     if compute_info['cursor'] + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
                         compute_info['item_j'] = item_j
@@ -2161,7 +2181,9 @@ def reconstruct_coverages(compute_info,
     # between buildings, so one block is enough for it; only a coverage that still goes through
     # write_losses is emitted whole and has to fit entire. The whole-subtree estimate this
     # replaced was a 2 GB allocation at 630,510 buildings, on every run.
-    required_bytes = compute_info['max_bytes_per_block']
+    # the extra header is what an item's first block is reserved WITH, so a buffer sized to
+    # exactly one block would reject that reservation on an empty buffer, forever
+    required_bytes = gulSampleslevelHeader_size + compute_info['max_bytes_per_block']
     for position in range(compute_i):
         cur_items = coverages[compute[position]]['cur_items']
         # the same predicate compute_event_losses uses; a fused coverage needs only one block

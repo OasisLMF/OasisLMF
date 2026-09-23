@@ -386,7 +386,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             # write_losses has to fit entire.
             cur_items = coverages['cur_items']
             emitted_whole = ~((sample_size > 0) & ((alloc_rule == 0) | (cur_items == 1)))
-            required_bytes = max_bytes_per_block
+            # the extra header is what an item's first block is reserved WITH, so a buffer sized
+            # to exactly one block would reject that reservation on an empty buffer, forever
+            required_bytes = gulSampleslevelHeader_size + max_bytes_per_block
             if emitted_whole.any():
                 required_bytes = max(required_bytes,
                                      int(cur_items[emitted_whole].max()) * max_bytes_per_item)
@@ -425,8 +427,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                         f"coverage/item/building {resume_point}, no further on than the "
                         f"{resume_point_before} it started from, having written {cursor} bytes "
                         f"into a {byte_mv.shape[0]} byte buffer. The buffer must hold at least "
-                        f"one building block ({max_bytes_per_block} bytes) and a whole coverage "
-                        f"for any written through write_losses.")
+                        f"one building block plus an item header "
+                        f"({gulSampleslevelHeader_size + max_bytes_per_block} bytes) and a whole "
+                        f"coverage for any written through write_losses.")
 
                 # write the losses to the output stream
                 write_start = 0
@@ -616,12 +619,24 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     # after a resume caps fresh values rather than already-capped ones. Only the
                     # header must not be repeated.
                     if resume_state[1] == 0:
+                        # The header and the first block are reserved TOGETHER. Writing the header
+                        # first and only then finding the block does not fit leaves that header in
+                        # the bytes we flush, and re-entry (resume_state[1] still 0) writes it
+                        # again -- the reader decodes the second copy as a sidx/loss pair and
+                        # rejects the item as carrying a duplicated sidx. max_bytes_per_block
+                        # already includes one header, so this reserves two; the 8 spare bytes are
+                        # what keep the per-block check below from firing on the block just
+                        # reserved.
+                        if cursor + gulSampleslevelHeader_size + max_bytes_per_block > byte_mv.shape[0]:
+                            resume_state[0] = item_i
+                            return cursor, last_processed_coverage_ids_idx
                         cursor = mv_write_item_header(byte_mv, cursor, event_id, item['item_id'])
                     if not keep_separate_item:
                         summed_scratch[:sample_size] = 0
 
                 # a summed item emits one block however many buildings it carries, and cannot be
-                # interrupted part-way because its accumulator would restart; reserve that block
+                # interrupted part-way because its accumulator would restart; reserve that block.
+                # Only reachable with resume_state[1] == 0, where the reservation above covers it.
                 if fuse_emit and not keep_separate_item:
                     if cursor + max_bytes_per_block > byte_mv.shape[0]:
                         resume_state[0] = item_i
