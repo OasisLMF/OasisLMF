@@ -44,7 +44,7 @@ def _location_totals(n_buildings, sample_size):
         run_gulmc(run_dir=run_dir, ignore_file_type=set(),
                   file_in=run_dir / 'input' / 'events.bin', file_out=out,
                   sample_size=sample_size, loss_threshold=-1e30, alloc_rule=0, debug=0,
-                  random_generator=1, ignore_correlation=True, effective_damageability=True)
+                  random_generator=2, ignore_correlation=True, effective_damageability=True)
         raw = np.fromfile(out, dtype=np.int32)
 
     rawf = raw.view(np.float32)

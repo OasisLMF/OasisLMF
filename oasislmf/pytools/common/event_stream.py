@@ -148,6 +148,37 @@ def check_packed_item_fits(max_separate_buildings, sample_size, oasis_int_dtype)
         )
 
 
+def check_packing_supported(random_generator, packed_buildings):
+    """Building packing is accepted on random_generator 2 alone.
+
+    A packed item needs an independent draw per building. Philox (generator 2) is counter-based,
+    so the building is a counter coordinate and a block is produced where it is consumed. The two
+    Mersenne Twister generators can only reach a building by walking their seed's stream, which
+    means materialising all ``N * S`` draws before the event runs -- 18.7 GB on a 5.7M-building
+    portfolio against none for Philox. Rather than keep a second sampling path alive for two
+    generators that cannot do it cheaply, packing is refused for them outright. Neither generator
+    is affected when nothing is packed.
+
+    Args:
+        random_generator (int): random generator function id.
+        packed_buildings (numpy.array[int]): per item, the SIGNED building count; only the
+            magnitude matters here.
+
+    Raises:
+        OasisException: if any item packs more than one building on a generator other than 2.
+    """
+    if random_generator == 2 or packed_buildings.shape[0] == 0:
+        return
+    max_buildings = int(np.abs(packed_buildings).max())
+    if max_buildings > 1:
+        raise OasisException(
+            f"building packing requires --random-generator=2 (Latin Hypercube on Philox), but "
+            f"this run uses --random-generator={random_generator} and packs up to "
+            f"{max_buildings:,} buildings into an item. Re-run with --random-generator=2, or "
+            f"generate the inputs with disaggregation='items' so each building is its own item."
+        )
+
+
 @nb.njit(cache=True, inline='always')
 def decode_building(sidx, sample_size):
     """Recover the 1-based building index from a packed stream sidx.

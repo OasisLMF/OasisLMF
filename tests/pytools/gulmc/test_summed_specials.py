@@ -44,7 +44,7 @@ def _run(n_buildings, rho):
         run_gulmc(run_dir=run_dir, ignore_file_type=set(),
                   file_in=run_dir / 'input' / 'events.bin', file_out=run_dir / 'o.bin',
                   sample_size=SAMPLE_SIZE, loss_threshold=-1e30, alloc_rule=0, debug=0,
-                  random_generator=0, ignore_correlation=False, effective_damageability=False)
+                  random_generator=2, ignore_correlation=False, effective_damageability=False)
         bintocsv(run_dir / 'o.bin', run_dir / 'o.csv', 'gul')
         df = pd.read_csv(run_dir / 'o.csv')
 

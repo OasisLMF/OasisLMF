@@ -1128,7 +1128,7 @@ def test_each_building_is_driven_by_its_own_source_building():
         run_gulmc(run_dir=run_dir, ignore_file_type=set(),
                   file_in=run_dir / 'input' / 'events.bin', file_out=out,
                   sample_size=sample_size, loss_threshold=-1., alloc_rule=0, debug=0,
-                  random_generator=0, ignore_correlation=False, effective_damageability=False)
+                  random_generator=2, ignore_correlation=False, effective_damageability=False)
         bintocsv(out, run_dir / 'out.csv', 'gul')
         df = pd.read_csv(run_dir / 'out.csv')
 
@@ -1199,7 +1199,7 @@ def test_narrow_bin_stack_is_not_overrun_by_an_unrelated_packed_item():
             f"d = Path(r'{run_dir}');"
             "run_gulmc(run_dir=d, ignore_file_type=set(), file_in=d/'input'/'events.bin',"
             " file_out=d/'o.bin', sample_size=16, loss_threshold=0., alloc_rule=1, debug=0,"
-            " random_generator=0, ignore_correlation=False, effective_damageability=False)"
+            " random_generator=2, ignore_correlation=False, effective_damageability=False)"
         )
         proc = subprocess.run([sys.executable, "-c", script],
                               env={**os.environ, "NUMBA_BOUNDSCHECK": "1"},

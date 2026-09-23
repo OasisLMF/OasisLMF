@@ -1,12 +1,15 @@
 """End-to-end parity test for gulmc building-packing.
 
 Building-packing multiplexes N buildings per item into the sample dimension of a single
-stream item (see ``write_losses`` / ``encode_sidx``). Every random generator gives
-building 1 the unpacked draw byte-for-byte, so with alloc_rule=0 building 1 of a packed run
-must reproduce a legacy run value-for-value on all three; the remaining buildings draw from
-their own stream coordinate and must be present and genuinely distinct.
+stream item (see ``write_losses`` / ``encode_sidx``). Building coordinate 0 is the unpacked
+draw byte-for-byte, so with alloc_rule=0 building 1 of a packed run must reproduce a legacy
+run value-for-value; the remaining buildings draw from their own counter coordinate and must
+be present and genuinely distinct.
 
-Run for each generator, including 2 (Latin Hypercube on Philox), which is the default.
+Packing runs on random_generator 2 alone -- the Mersenne Twister generators cannot address a
+building without materialising every draw first, so the run is refused rather than carrying a
+second sampling path. The refusal is pinned here too: it is the manager that has to apply it,
+not just ``check_packing_supported`` in isolation.
 
 The test runs gulmc twice on a real copy of test_model_1: once with no side file (legacy),
 once with a per-item building count on correlations assigning two buildings to every item.
@@ -21,6 +24,7 @@ from oasislmf.pytools.gulmc.manager import run as run_gulmc
 from oasislmf.pytools.common.event_stream import decode_building, decode_local_sidx
 from oasislmf.pytools.common.data import oasis_float, correlations_dtype
 from oasislmf.pytools.common.input_files import read_correlations
+from oasislmf.utils.exceptions import OasisException
 
 TESTS_DIR = Path(__file__).parent.parent.parent
 SRC_MODEL = TESTS_DIR.joinpath("assets", "test_model_1")
@@ -74,9 +78,9 @@ def _fresh_copy(dst):
 
 
 @pytest.mark.skipif(not SRC_MODEL.exists(), reason="test_model_1 assets not available")
-@pytest.mark.parametrize("random_generator", [0, 1, 2], ids=["mersenne", "latin_hypercube", "lh_philox"])
-def test_building_packing_building1_matches_legacy(tmp_path, random_generator):
+def test_building_packing_building1_matches_legacy(tmp_path):
     """Building 1 of an N=2 packed run reproduces the legacy run; building 2 is present and distinct."""
+    random_generator = 2       # the only generator packing is allowed on
     # legacy run (one building per item)
     legacy_dir = tmp_path / "legacy"
     _fresh_copy(legacy_dir)
@@ -120,9 +124,39 @@ def test_building_packing_building1_matches_legacy(tmp_path, random_generator):
             if sidx > 0 and ldict[sidx] != b2.get(sidx, 0.0):
                 distinct_positive += 1
 
-    # the second building draws the continuation of the seed sequence, so across the whole
-    # run its samples must not be a verbatim copy of building 1 (which would signal a slice bug)
+    # the second building draws from its own counter coordinate, so across the whole run its
+    # samples must not be a verbatim copy of building 1 (which would signal a slice bug)
     assert distinct_positive > 0, "building 2 samples are identical to building 1 everywhere"
+
+
+@pytest.mark.skipif(not SRC_MODEL.exists(), reason="test_model_1 assets not available")
+@pytest.mark.parametrize("random_generator", [0, 1], ids=["mersenne", "latin_hypercube"])
+def test_a_packed_run_is_refused_on_the_other_generators(tmp_path, random_generator):
+    """The manager must apply the restriction, and say how to get past it.
+
+    Refusing early matters: the alternative is materialising N*S draws per event, which is where
+    the 18.7 GB allocation this branch removed came from.
+    """
+    packed_dir = tmp_path / "packed"
+    _fresh_copy(packed_dir)
+    corr = np.array(read_correlations(packed_dir / "input"), dtype=correlations_dtype)
+    corr['packed_buildings'] = -2
+    corr.tofile(packed_dir / "input" / "correlations.bin")
+
+    with pytest.raises(OasisException) as raised:
+        _run(packed_dir, packed_dir / "packed.bin", random_generator)
+    assert "--random-generator=2" in str(raised.value)
+
+
+@pytest.mark.skipif(not SRC_MODEL.exists(), reason="test_model_1 assets not available")
+@pytest.mark.parametrize("random_generator", [0, 1, 2], ids=["mersenne", "latin_hypercube", "lh_philox"])
+def test_an_unpacked_run_is_unaffected_on_every_generator(tmp_path, random_generator):
+    """The restriction is on packing, not on the generators: one building per item still runs."""
+    run_dir = tmp_path / "legacy"
+    _fresh_copy(run_dir)
+    out = run_dir / "legacy.bin"
+    _run(run_dir, out, random_generator)
+    assert _parse_stream(out), "unpacked run produced no output"
 
 
 if __name__ == "__main__":
