@@ -25,12 +25,17 @@ def get_source_compression(oed_source):
     snapshots below are silently written as csv even when the original input
     was e.g. parquet, which can be drastically slower for large portfolios.
 
+    A csv source is upgraded to parquet, since parquet is much more
+    efficient to read/write for large portfolios and there is no reason to
+    keep a snapshot in the slower format just because the original input
+    happened to be csv. Any other recognized format is preserved as-is.
+
     Args:
         oed_source (OedSource): a single OED source of the loaded exposure data
 
     Returns:
         str or None: a key of ods_tools.oed.common.PANDAS_COMPRESSION_MAP
-                      matching the source file's extension, or None if it
+                      to save the source as, or None if the source's format
                       can't be determined (Exposure.save() then falls back
                       to its default of csv, unchanged from current
                       behaviour).
@@ -41,7 +46,7 @@ def get_source_compression(oed_source):
     suffix = pathlib.Path(source['filepath']).suffix.lstrip('.').lower()
     for compression, mapped_suffix in PANDAS_COMPRESSION_MAP.items():
         if mapped_suffix.lstrip('.') == suffix:
-            return compression
+            return 'parquet' if compression == 'csv' else compression
     return None
 
 

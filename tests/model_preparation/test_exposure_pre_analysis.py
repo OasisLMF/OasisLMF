@@ -1,3 +1,4 @@
+import io
 import os
 from tempfile import TemporaryDirectory
 
@@ -53,6 +54,18 @@ def write_exposure_pre_analysis_setting_json(exposure_pre_analysis_setting_json)
         f.write('{"BuildingTIV_multiplyer":  2}')
 
 
+def assert_location_snapshot_matches(d, expected_csv):
+    # a csv source is upgraded to parquet by default (see get_source_compression),
+    # so the adjusted snapshot is no longer written as location.csv
+    assert not os.path.isfile(os.path.join(d, SOURCE_FILENAMES['oed_location_csv']))
+    new_oed_location = pd.read_parquet(os.path.join(d, 'location.parquet'))
+    expected_oed_location = pd.read_csv(io.StringIO(expected_csv))
+    # OED fields are loaded as categoricals, so compare values as strings rather than dtypes
+    pd.testing.assert_frame_equal(
+        new_oed_location[expected_oed_location.columns].astype(str).reset_index(drop=True),
+        expected_oed_location.astype(str))
+
+
 def test_exposure_pre_analysis_simple_example():
     with TemporaryDirectory() as d:
         kwargs = {'oasis_files_dir': d,
@@ -67,9 +80,7 @@ def test_exposure_pre_analysis_simple_example():
 
         OasisManager().exposure_pre_analysis(**kwargs)
 
-        with open(os.path.join(d, SOURCE_FILENAMES['oed_location_csv'])) as new_oed_location_csv:
-            new_oed_location_csv_data = new_oed_location_csv.read()
-            assert new_oed_location_csv_data == output_oed_location
+        assert_location_snapshot_matches(d, output_oed_location)
 
 
 def test_exposure_pre_analysis_class_name():
@@ -87,9 +98,7 @@ def test_exposure_pre_analysis_class_name():
 
         OasisManager().exposure_pre_analysis(**kwargs)
 
-        with open(os.path.join(d, SOURCE_FILENAMES['oed_location_csv'])) as new_oed_location_csv:
-            new_oed_location_csv_data = new_oed_location_csv.read()
-            assert new_oed_location_csv_data == output_oed_location
+        assert_location_snapshot_matches(d, output_oed_location)
 
 
 def write_oed_location_parquet(oed_location_parquet):
@@ -136,42 +145,54 @@ def test_exposure_pre_analysis_preserves_parquet_source_format():
         assert list(new_oed_location['BuildingTIV']) == [2.0, 4.0, 6.0, 8.0, 10.0]
 
 
-def write_oed_account_csv(oed_account_csv):
-    with open(oed_account_csv, 'w') as f:
-        f.write('PortNumber,AccNumber,PolNumber,AccCurrency,PolPerilsCovered\n1,A11111,P1,GBP,AA1\n')
+def write_oed_account_csv(oed_account_csv, compression=None):
+    df = pd.DataFrame({
+        'PortNumber': [1],
+        'AccNumber': ['A11111'],
+        'PolNumber': ['P1'],
+        'AccCurrency': ['GBP'],
+        'PolPerilsCovered': ['AA1'],
+    })
+    df.to_csv(oed_account_csv, index=False, compression=compression)
 
 
 def test_exposure_pre_analysis_preserves_per_source_format():
     """
     Regression test: each OED source should keep its own original file
-    format. A location file in parquet should not force-convert an account
-    file that was given as csv to parquet too (see save_exposure_data).
+    format, resolved independently. A csv location file is upgraded to
+    parquet (see get_source_compression), but that shouldn't force-convert
+    an account file that was given as gzip-compressed csv to parquet, or to
+    plain csv, too (see save_exposure_data).
     """
     with TemporaryDirectory() as d:
-        oed_location_parquet = os.path.join(d, 'input_location.parquet')
-        oed_account_csv = os.path.join(d, 'input_account.csv')
+        oed_location_csv = os.path.join(d, 'input_location.csv')
+        oed_account_gz = os.path.join(d, 'input_account.csv.gz')
         kwargs = {'oasis_files_dir': d,
                   'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple.py'),
-                  'oed_location_csv': oed_location_parquet,
-                  'oed_accounts_csv': oed_account_csv,
+                  'oed_location_csv': oed_location_csv,
+                  'oed_accounts_csv': oed_account_gz,
                   'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
                   'check_oed': False}
 
         write_simple_epa_module(kwargs['exposure_pre_analysis_module'])
-        write_oed_location_parquet(oed_location_parquet)
-        write_oed_account_csv(oed_account_csv)
+        write_oed_location(oed_location_csv)
+        write_oed_account_csv(oed_account_gz, compression='gzip')
         write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
 
         OasisManager().exposure_pre_analysis(**kwargs)
 
-        assert os.path.isfile(os.path.join(d, 'raw_location.parquet'))
-        assert os.path.isfile(os.path.join(d, 'location.parquet'))
-        assert os.path.isfile(os.path.join(d, 'raw_account.csv')), \
-            'expected account snapshot to stay csv, not be force-converted to parquet'
-        assert os.path.isfile(os.path.join(d, 'account.csv')), \
-            'expected account snapshot to stay csv, not be force-converted to parquet'
+        assert os.path.isfile(os.path.join(d, 'raw_location.parquet')), \
+            'expected csv location snapshot to be upgraded to parquet'
+        assert os.path.isfile(os.path.join(d, 'location.parquet')), \
+            'expected csv location snapshot to be upgraded to parquet'
+        assert os.path.isfile(os.path.join(d, 'raw_account.gz')), \
+            'expected gzip account snapshot to stay gzip, not be force-converted to parquet or csv'
+        assert os.path.isfile(os.path.join(d, 'account.gz')), \
+            'expected gzip account snapshot to stay gzip, not be force-converted to parquet or csv'
         assert not os.path.isfile(os.path.join(d, 'raw_account.parquet'))
         assert not os.path.isfile(os.path.join(d, 'account.parquet'))
+        assert not os.path.isfile(os.path.join(d, 'raw_account.csv'))
+        assert not os.path.isfile(os.path.join(d, 'account.csv'))
 
 
 def test_missing_module():
