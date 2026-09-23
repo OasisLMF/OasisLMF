@@ -9,9 +9,6 @@ from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
-# Warn above this much per-event draw memory for the generators that must hold it all.
-DRAW_MEMORY_WARN_BYTES = 2 * 1024 ** 3
-
 
 GROUP_ID_HASH_CODE = np.int64(1543270363)
 EVENT_ID_HASH_CODE = np.int64(1943272559)
@@ -83,13 +80,14 @@ def generate_hash_hazard(hazard_group_id, event_id, base_seed=0):
     return hash
 
 
-def get_correlation_generator(random_generator):
-    """Get the generator for the per-correlation-group draws.
+def get_random_generator(random_generator):
+    """Get the random generator function: one row of ``n`` values per seed, returned 2d.
 
-    One row of ``n`` values per correlation group, returned 2d. This axis has no building
-    dimension: a location's buildings share their group's correlated component and differ only
-    in their own sample draw, so packing never widens it. :func:`get_sample_generator` is the
-    per-(seed, building) axis.
+    Serves both axes -- the per-rng-group sample draws and the per-correlation-group draws.
+    Neither has a building dimension. Building-packed items are drawn a block at a time by
+    :func:`_lh_philox_block` instead, and are accepted only on generator 2 (see
+    ``check_packing_supported``), so no generator reached from here ever sees more than one
+    building.
 
     Args:
         random_generator (int): random generator function id.
@@ -112,98 +110,6 @@ def get_correlation_generator(random_generator):
 
     else:
         raise ValueError(f"No random generator exists for random_generator={random_generator}.")
-
-
-def get_sample_generator(random_generator):
-    """Get the generator for the per-(seed, building) sample draws.
-
-    Building-packing draws ``n_buildings * n`` random numbers per seed (flat layout with
-    prefix-sum offsets). Every generator has a packed variant, and in all three building 1
-    reproduces the unpacked draw byte-for-byte, so the single-building case is unchanged.
-    The per-building stream coordinate differs by generator: the Mersenne Twister ones continue
-    the group's single seeded stream, while Philox uses a counter word and so keeps random
-    access. For the two Latin Hypercube generators each building gets a Latin Hypercube of its
-    own rather than a slice of a larger one.
-
-    Args:
-        random_generator (int): random generator function id.
-
-    Returns:
-        The packed random generator function.
-
-    Raises:
-        ValueError: if no generator exists for the requested id.
-    """
-    if random_generator == 0:
-        logger.info("Random generator (building-packed): MersenneTwister")
-        return random_MersenneTwister_packed
-
-    elif random_generator == 1:
-        logger.info("Random generator (building-packed): Latin Hypercube")
-        return random_LatinHypercube_packed
-
-    elif random_generator == 2:
-        logger.info("Random generator (building-packed): Latin Hypercube on Philox4x32-7 (counter-based)")
-        return random_LatinHypercube_Philox7_packed
-
-    else:
-        raise ValueError(f"No random generator exists for random_generator={random_generator}.")
-
-
-def warn_if_draws_are_large(random_generator, sample_size, n_buildings_signed, logger):
-    """Warn when the per-event random draws will be large and a cheaper generator exists.
-
-    Generators 0 and 1 draw a group's buildings as one sequential stream, so building b cannot be
-    produced without producing the b-1 before it, and the whole event's draws have to be held at
-    once: ``sum over groups of N * S`` float64. Generator 2 is counter-based and addresses a
-    building directly, so it produces each block where it is used and holds none of it.
-
-    Neither numpy's legacy RandomState nor numba exposes MT19937 jump-ahead, which is what 0 and 1
-    would need to do the same. This warns rather than fails: the run is correct either way, and
-    what is affordable is the caller's judgement, not ours.
-
-    Args:
-        random_generator (int): 0 Mersenne Twister, 1 Latin Hypercube, 2 Latin Hypercube on Philox.
-        sample_size (int): samples per building.
-        n_buildings_signed (numpy.array[int]): the per-item SIGNED building counts.
-        logger (logging.Logger): where to warn.
-    """
-    if random_generator == 2 or sample_size <= 0 or n_buildings_signed.shape[0] == 0:
-        return
-    total_buildings = int(np.abs(n_buildings_signed).sum())
-    est_bytes = total_buildings * sample_size * 8
-    if est_bytes >= DRAW_MEMORY_WARN_BYTES:
-        logger.warning(
-            f"random draws for one event may reach {est_bytes / 1e9:.1f} GB "
-            f"({total_buildings:,} buildings x {sample_size} samples x 8 bytes, per dimension). "
-            f"Generator {random_generator} draws a group as one sequential stream, so all of it "
-            f"is held at once. --random-generator=2 produces each building where it is used and "
-            f"holds none of it, at the cost of different random values.")
-
-
-@njit(cache=True, fastmath=True)
-def build_packed_rndm_offsets(n_buildings, n):
-    """Prefix-sum offsets for building-packed random draws.
-
-    Every group reserves the full ``n_buildings * n`` block: a building's loss is emitted and
-    carries its own financial terms, so it needs a draw of its own. Sharing draws between
-    buildings was tried and removed: reuse makes the buildings sharing a value perfectly
-    correlated, which collapses the location aggregate's sample-to-sample variance -- exactly
-    to zero when the building count is a multiple of the shared-pool size.
-
-    Args:
-        n_buildings (array[int]): the LARGEST building count in each seed/group, as a magnitude.
-          The signed ``packed_buildings`` must never reach here -- a negative would size the draw
-          short.
-        n (int): logical number of samples per building (``S``).
-
-    Returns:
-        offsets (array[int64]): start of each seed's block, length ``len(n_buildings) + 1``.
-    """
-    offsets = np.zeros(len(n_buildings) + 1, dtype=np.int64)
-    for i in range(len(n_buildings)):
-        offsets[i + 1] = offsets[i] + n_buildings[i] * n
-    return offsets
 
 
 EVENT_ID_HASH_CODE = np.int64(1943_272_559)
@@ -312,9 +218,6 @@ def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
 def random_MersenneTwister(seeds, n, skip_seeds=0):
     """Generate random numbers using the default Mersenne Twister algorithm.
 
-    The single-building case of :func:`random_MersenneTwister_packed`, which is
-    byte-for-byte identical to drawing them directly, reshaped to the 2d form this axis wants.
-
     Args:
         seeds (List[int64]): List of seeds.
         n (int): number of random samples to generate for each seed.
@@ -326,49 +229,18 @@ def random_MersenneTwister(seeds, n, skip_seeds=0):
     Returns:
         rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the
+          row in rndms that stores the corresponding random values.
     """
-    one_building = np.ones(len(seeds), dtype='i4')
-    offsets = build_packed_rndm_offsets(one_building, n)
-    flat = random_MersenneTwister_packed(seeds, n, one_building, offsets, skip_seeds)
-    return flat.reshape(len(seeds), n)
+    Nseeds = len(seeds)
+    rndms = np.zeros((Nseeds, n), dtype='float64')
 
-
-@njit(cache=True, fastmath=True)
-def random_MersenneTwister_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
-    """Draw building-packed random numbers from each seed (Mersenne Twister).
-
-    For building-packing mode each seed (one per correlation group / location) must yield
-    ``n_buildings[seed] * n`` random numbers instead of ``n``: building ``b`` (1-based),
-    sample ``s`` (1-based) of seed ``seed_i`` is stored at
-    ``rndms[offsets[seed_i] + (b - 1) * n + (s - 1)]``.
-
-    Because the Mersenne Twister produces a single sequential stream per seed, the first
-    ``n`` draws are byte-for-byte identical to ``random_MersenneTwister`` — so building 1
-    (and the whole single-building case) reproduces the legacy draw exactly; buildings
-    2..N consume the continuation of the same seeded sequence.
-
-    Args:
-        seeds (array[int64]): one seed per group.
-        n (int): logical number of samples per building (``S``).
-        n_buildings (array[int]): buildings per seed/group, as a magnitude.
-        offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
-            flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
-        skip_seeds (int): number of leading seeds to skip (left as zeros).
-
-    Returns:
-        rndms (array[float]): flat 1-d array of length ``offsets[-1]`` holding the
-          per-(group, building) random draws.
-    """
-    rndms = np.zeros(offsets[len(seeds)], dtype='float64')
-
-    for seed_i in range(skip_seeds, len(seeds), 1):
-        nb = n_buildings[seed_i]
-        if nb == 0:
-            continue
+    for seed_i in range(skip_seeds, Nseeds, 1):
+        # set the seed
         np.random.seed(seeds[seed_i])
-        # set the seed and draw the whole (buildings x samples) block at once
-        count = nb * n
-        rndms[offsets[seed_i]: offsets[seed_i] + count] = np.random.random(count)
+
+        # draw all random numbers at once (vectorized)
+        rndms[seed_i, :] = np.random.random(n)
 
     return rndms
 
@@ -377,9 +249,6 @@ def random_MersenneTwister_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
 def random_LatinHypercube(seeds, n, skip_seeds=0):
     """Generate random numbers using the Latin Hypercube algorithm.
 
-    The single-building case of :func:`random_LatinHypercube_packed`, which is
-    byte-for-byte identical to drawing them directly, reshaped to the 2d form this axis wants.
-
     Args:
         seeds (List[int64]): List of seeds.
         n (int): number of random samples to generate for each seed.
@@ -391,56 +260,36 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
     Returns:
         rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the
+          row in rndms that stores the corresponding random values.
+
+    Notes:
+        Implementation follows scipy.stats.qmc.LatinHypercube v1.8.0.
+        Following scipy notation, here we assume `centered=False` all the times:
+        instead of taking `samples=0.5*np.ones(n)`, here we always
+        draw uniform random samples in order to initialise `samples`.
     """
-    one_building = np.ones(len(seeds), dtype='i4')
-    offsets = build_packed_rndm_offsets(one_building, n)
-    flat = random_LatinHypercube_packed(seeds, n, one_building, offsets, skip_seeds)
-    return flat.reshape(len(seeds), n)
+    Nseeds = len(seeds)
+    rndms = np.zeros((Nseeds, n), dtype='float64')
+    # define arrays here and re-use them later
+    samples = np.zeros(n, dtype='float64')
+    perms = np.zeros(n, dtype='float64')
 
-
-@njit(cache=True, fastmath=True)
-def random_LatinHypercube_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
-    """Building-packed Latin Hypercube on the Mersenne Twister (random_generator=1).
-
-    The Latin Hypercube body is re-run once per building against the **continuing** Mersenne
-    Twister stream of the group's single seed, so every building gets a full Latin Hypercube of
-    ``n`` samples of its own. Drawing ``n_buildings * n`` values and slicing them would instead
-    leave each building with a random subset of the strata, which is ordinary Monte Carlo. The
-    first block consumes the stream exactly as `random_LatinHypercube` does, so building 1 (and
-    the whole single-building case) reproduces the unpacked draw.
-
-    Continuing the stream is also why no per-building seed is derived: seeds must fit the 31-bit
-    hash space that `numpy.random.seed` accepts, and folding a building index into it would
-    multiply seed collisions by ``n_buildings``.
-
-    Args:
-        seeds (array[int64]): one seed per group.
-        n (int): logical number of samples per building (``S``).
-        n_buildings (array[int]): number of buildings for each seed/group.
-        offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
-            flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
-        skip_seeds (int): number of leading seeds to skip (left as zeros).
-
-    Returns:
-        rndms (array[float]): flat 1-d array of length ``offsets[-1]`` holding the
-          per-(group, building) LH samples, building-major within each group.
-    """
-    width = n
-    rndms = np.zeros(offsets[len(seeds)], dtype='float64')
-    samples = np.zeros(width, dtype='float64')
-    perms = np.zeros(width, dtype='float64')
-
-    for seed_i in range(skip_seeds, len(seeds), 1):
-        nb = n_buildings[seed_i]
-        if nb == 0:
-            continue
+    for seed_i in range(skip_seeds, Nseeds, 1):
+        # set the seed
         np.random.seed(seeds[seed_i])
-        base = offsets[seed_i]
-        for b in range(nb):
-            samples[:n] = np.random.random(n)
-            perms[:n] = np.arange(1., np.float64(n + 1))
-            np.random.shuffle(perms[:n])
-            rndms[base + b * n: base + (b + 1) * n] = (perms[:n] - samples[:n]) / float(n)
+
+        # draw all random numbers at once (vectorized)
+        samples[:] = np.random.random(n)
+
+        # re-generate permutations array
+        perms[:] = np.arange(1., np.float64(n + 1))
+
+        # in-place shuffle permutations
+        np.random.shuffle(perms)
+
+        # vectorized Latin Hypercube transformation
+        rndms[seed_i, :] = (perms - samples) / float(n)
 
     return rndms
 
@@ -600,8 +449,9 @@ def _lh_philox_block(k0, k1, building, n, perms, out):
 def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
     """Generate random numbers using Latin Hypercube on the counter-based Philox4x32-7.
 
-    The single-building case of :func:`random_LatinHypercube_Philox7_packed`, which is
-    byte-for-byte identical to drawing them directly, reshaped to the 2d form this axis wants.
+    One row per seed, each an independent Latin Hypercube of ``n`` samples -- building
+    coordinate 0, the same values a packed item's first building gets from
+    :func:`_lh_philox_block`.
 
     Args:
         seeds (List[int64]): List of seeds.
@@ -615,44 +465,10 @@ def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
         rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
     """
-    one_building = np.ones(len(seeds), dtype='i4')
-    offsets = build_packed_rndm_offsets(one_building, n)
-    flat = random_LatinHypercube_Philox7_packed(seeds, n, one_building, offsets, skip_seeds)
-    return flat.reshape(len(seeds), n)
-
-
-@njit(cache=True, fastmath=True)
-def random_LatinHypercube_Philox7_packed(seeds, n, n_buildings, offsets, skip_seeds=0):
-    """Building-packed Latin Hypercube on Philox4x32-7 (random_generator=2).
-
-    Each building gets a **separate** Latin Hypercube of ``n`` samples, selected by the Philox
-    counter coordinate rather than by carving up one large sample: slicing an ``n_buildings * n``
-    Latin Hypercube into per-building blocks would leave each building with a random subset of
-    the strata, which is ordinary Monte Carlo. Building 1 (coordinate 0) reproduces the unpacked
-    draw exactly, so the single-building case is unchanged.
-
-    Args:
-        seeds (array[int]): one seed per group.
-        n (int): logical number of samples per building (``S``).
-        n_buildings (array[int]): number of buildings for each seed/group.
-        offsets (array[int64]): prefix-sum offsets of length ``len(seeds) + 1`` into the
-            flat output, where ``offsets[i + 1] - offsets[i] == n_buildings[i] * n``.
-        skip_seeds (int): number of leading seeds to skip (left as zeros).
-
-    Returns:
-        rndms (array[float64]): flat 1-d array of length ``offsets[-1]`` holding the
-          per-(group, building) LH samples, building-major within each group.
-    """
-    rndms = np.zeros(offsets[len(seeds)], dtype=np.float64)
-    perms = np.empty(n, dtype=np.float64)
+    rndms = np.zeros((len(seeds), n), dtype='float64')
+    perms = np.empty(n, dtype='float64')
     for seed_i in range(skip_seeds, len(seeds)):
-        nb = n_buildings[seed_i]
-        if nb == 0:
-            continue
-        s = np.uint64(seeds[seed_i])
-        k0 = np.uint32(s & PHILOX_U32_MASK)
-        k1 = np.uint32(s >> PHILOX_SHIFT32)
-        base = offsets[seed_i]
-        for b in range(nb):
-            _lh_philox_block(k0, k1, b, n, perms[:n], rndms[base + b * n: base + (b + 1) * n])
+        seed = np.uint64(seeds[seed_i])
+        _lh_philox_block(np.uint32(seed & PHILOX_U32_MASK), np.uint32(seed >> PHILOX_SHIFT32),
+                         0, n, perms, rndms[seed_i])
     return rndms

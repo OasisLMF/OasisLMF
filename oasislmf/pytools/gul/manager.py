@@ -12,7 +12,8 @@ import time
 from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, encode_sidx, max_emitted_blocks,
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, check_packing_supported,
+                                                  encode_sidx, max_emitted_blocks,
                                                   mv_write_item_header,
                                                   mv_write_sidx_loss,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
@@ -35,11 +36,9 @@ from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul,
                                        split_tiv_multiplicative)
 from oasislmf.pytools.gul.io import read_getmodel_stream
 from oasislmf.pytools.gul.random import (_lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32,
-                                         warn_if_draws_are_large,
-                                         build_packed_rndm_offsets, cdf_min,
+                                         cdf_min,
                                          generate_correlated_hash_vector,
-                                         get_corr_rval, get_correlation_generator,
-                                         get_sample_generator,
+                                         get_corr_rval, get_random_generator,
                                          inv_factor, norm_factor, x_min)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
@@ -242,7 +241,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function
-        generate_correlation_rndm = get_correlation_generator(random_generator)
+        generate_rndm = get_random_generator(random_generator)
 
         # Building packing is the N > 1 case of one mechanism, not a second path: an unpacked run
         # is every item carrying one building, and the packed generator's first block per seed is
@@ -252,11 +251,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         n_buildings_by_item_id = structures['n_buildings_by_item_id']
         damage_correlation_by_item_id = structures['damage_correlation_by_item_id']
         max_buildings = int(np.abs(n_buildings_by_item_id).max())
-        warn_if_draws_are_large(random_generator, sample_size, n_buildings_by_item_id, logger)
+        check_packing_supported(random_generator, n_buildings_by_item_id)
         # only kept-separate items meet either stream ceiling: a summed one writes a single
         # block at sidx 1..S however many buildings it carries
         check_packed_item_fits(max_emitted_blocks(n_buildings_by_item_id), sample_size, oasis_int)
-        generate_sample_rndm = get_sample_generator(random_generator)
 
         if alloc_rule not in [0, 1, 2, 3]:
             raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
@@ -318,12 +316,15 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # LOSSES -- 0 unless the item is summed and correlated, the only case that reads it
         loss_correlation_by_item = np.zeros(max_items_per_coverage, dtype=oasis_float)
         # Generator 2 is counter-based, so a building's block is a pure function of the group
-        # key and the building index and can be produced where it is consumed. These hold one
-        # building's worth; empty_draws stands in for the array that is then never built.
+        # key and the building index and can be produced where it is consumed -- which is the
+        # reason it is the only generator packing is allowed on. These hold one building's worth;
+        # empty_draws stands in for the per-group array that is then never built.
         lazy_draws = np.int8(1 if random_generator == 2 else 0)
         draw_scratch = np.zeros(max(sample_size, 1), dtype='float64')
         perm_scratch = np.zeros(max(sample_size, 1), dtype='float64')
-        empty_draws = np.empty(1, dtype='float64')
+        # 2d like the real array: numba unifies the two branches of the assignment below, and a
+        # 1d stand-in would make rndms_base[rng_index] a scalar on one side and a row on the other
+        empty_draws = np.empty((1, 1), dtype='float64')
         hermite_coeffs = np.zeros(HERMITE_TERMS, dtype='float64')
         # Resume point WITHIN a coverage, so a flush need not fall on a coverage boundary:
         # [0] is the next item of that coverage to process, [1] how many of its buildings have
@@ -341,10 +342,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # block whatever it carries
         max_bytes_per_item *= max_emitted_blocks(n_buildings_by_item_id)
 
-        # one entry per seed, holding the largest building count in its group
-        n_buildings_by_rng = np.ones(seeds.shape[0] + 1, dtype='i4')
-        # a group pools only where EVERY item in it clears the gate; see io.read_getmodel_stream
-
         counter = 0
         timer = time.time()
         socket_server_val = kwargs.get('socket_server', 'False')
@@ -353,26 +350,21 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         for event_data in read_getmodel_stream(streams_in, items,
                                                item_map_hm, item_map_hm_keys,
                                                item_map_ja_offsets,
-                                               coverages, compute, seeds,
-                                               n_buildings_by_item_id, n_buildings_by_rng):
+                                               coverages, compute, seeds):
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
-            # flat, ragged: seed i owns n_buildings_by_rng[i] blocks of sample_size, which is
-            # one block of the legacy draw when nothing is packed
-            rndm_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index],
-                                                     sample_size)
+            # One row of sample_size per rng group. Generator 2 draws each building's block
+            # where it is used instead, so nothing is built here for it -- see lazy_draws.
             if lazy_draws:
-                rndms_flat = empty_draws
+                rndms_base = empty_draws
             else:
-                rndms_flat = generate_sample_rndm(
-                    seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index],
-                    rndm_offsets)
+                rndms_base = generate_rndm(seeds[:rng_index], sample_size)
 
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
             if do_correlation:
                 generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, corr_seeds)
-                eps_ij = generate_correlation_rndm(corr_seeds, sample_size, skip_seeds=1)
+                eps_ij = generate_rndm(corr_seeds, sample_size, skip_seeds=1)
 
             else:
                 # create dummy data structures with proper dtypes to allow correct numba compilation
@@ -406,7 +398,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                     arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
-                    building_losses, summed_scratch, resume_state, rndms_flat, rndm_offsets,
+                    building_losses, summed_scratch, resume_state, rndms_base,
                     seeds, lazy_draws, draw_scratch, perm_scratch,
                     loss_correlation_by_item, hermite_coeffs,
                     n_buildings_by_item_id, damage_correlation_by_item_id,
@@ -463,7 +455,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
                          loss_threshold, losses, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                          arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
-                         z_unif, debug, building_losses, summed_scratch, resume_state, rndms_flat, rndm_offsets,
+                         z_unif, debug, building_losses, summed_scratch, resume_state, rndms_base,
                          seeds, lazy_draws, draw_scratch, perm_scratch,
                          loss_correlation_by_item, hermite_coeffs,
                          n_buildings_by_item_id, damage_correlation_by_item_id,
@@ -508,13 +500,13 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
           float64 to match the precision write_losses accumulates at.
         building_losses (numpy.array[oasis_float]): 3d (sample_size, max_items, W)
           reusable buffer for the per-building samples.
-        rndms_flat (numpy.array[float64]): flat packed random values, seed-major then building.
-        rndm_offsets (numpy.array[int64]): prefix-sum offsets into ``rndms_flat`` per seed.
+        rndms_base (numpy.array[float64]): 2d (rng groups, sample_size) random values, one row
+          per group. Empty when lazy_draws is set, where it is never read.
         seeds (numpy.array[int]): per rng group, the Philox key. Read only when lazy_draws is
-          set, where it replaces the materialised array entirely.
-        lazy_draws (int8): 1 when the generator is counter-based (generator 2) and a building's
-          block is produced on demand rather than read out of ``rndms_flat``, which is then
-          empty. The values are identical either way.
+          set, where it replaces rndms_base entirely.
+        lazy_draws (int8): 1 when the generator is counter-based (generator 2), where a building's
+          block is produced on demand. It is also the only generator that packing is allowed on,
+          so every other generator reaches the loop below with exactly one building.
         draw_scratch (numpy.array[float64]): length-S buffer for one building's block.
         perm_scratch (numpy.array[float64]): length-S scratch the block generator permutes in.
         n_buildings_by_item_id (numpy.array[int]): per item, the signed building count. The
@@ -595,7 +587,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                 # One block per building. An unpacked item is the N == 1 case, whose single block
                 # is the legacy draw byte-for-byte. The specials above are building-independent.
                 item_n_buildings = abs(n_buildings_by_item_id[item['item_id']])
-                base_off = rndm_offsets[rng_index]
 
                 keep_separate_item = n_buildings_by_item_id[item['item_id']] < 0
                 if fuse_emit:
@@ -657,8 +648,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                                          perm_scratch[:sample_size], draw_scratch[:sample_size])
                         rndms = draw_scratch[:sample_size]
                     else:
-                        rndms = rndms_flat[base_off + building_i * sample_size:
-                                           base_off + (building_i + 1) * sample_size]
+                        rndms = rndms_base[rng_index]
                     if do_correlation and corr_data_by_item_id[item['item_id']]['damage_correlation_value'] > 0:
                         item_corr_data = corr_data_by_item_id[item['item_id']]
                         get_corr_rval(

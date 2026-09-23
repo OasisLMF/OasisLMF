@@ -22,9 +22,7 @@ digraph gulmc_objects {
         fontname="Helvetica"; fontsize=10; color="#888888"; style=dashed;
         ied [label="items_event_data  [items present]\lrng_index, hazard_rng_index, eff_cdf_id\lsource_item_j, packed_buildings\l",
              fillcolor="#fdf0e0", color="#c8863c"];
-        nb [label="n_buildings_by_rng  [seeds]\lthe largest building count in each rng group\l",
-            fillcolor="#fdf0e0", color="#c8863c"];
-        rnd [label="vuln_rndms_flat / haz_rndms_flat  (flat)\loffsets[g] + (b-1)*S + (s-1)\lone block of S per building, per rng group\l",
+        rnd [label="vuln_rndms_base / haz_rndms_base  [rng groups, S]\lone row of S per rng group (generators 0 and 1)\lnot built on generator 2, which draws per building on demand\l",
              fillcolor="#fdf0e0", color="#c8863c"];
     }
 
@@ -41,10 +39,12 @@ digraph gulmc_objects {
 
     items -> ied [label="  items present in this event"];
     coverages -> ied [style=dotted, label="  grouped by coverage"];
-    items -> nb [label="  |packed_buildings| per rng group"];
-    nb -> rnd [label="  sizes each group's draw"];
+    items -> rnd [label="  one row per rng group"];
     model -> losses [label="  CDFs -> analytic specials"];
     rnd -> bl [label="  one building's block of S\l  -> one column\l", color="#b06000", fontcolor="#b06000", style=bold];
+    seeds_lazy [label="vuln_seeds / haz_seeds  [rng groups]\lPhilox keys; generator 2 draws\l_lh_philox_block(key, building) on demand\l",
+                fillcolor="#fdf0e0", color="#c8863c"];
+    seeds_lazy -> bl [label="  generator 2: no array at all\l", color="#b06000", fontcolor="#b06000"];
     ied -> bl [style=dotted, label="  n_buildings = |packed_buildings|"];
     bl -> stack [style=dotted, label="  sampled damage bin,\l  per building\l"];
     stack -> bl [style=dotted, label="  drives a dependent's\l  matching building\l"];

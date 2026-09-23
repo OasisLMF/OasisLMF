@@ -91,7 +91,7 @@ def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE, packed_sign=-1):
         out = run_dir / 'out.bin'
         run_gulmc(run_dir=run_dir, ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin',
                   file_out=out, sample_size=sample_size, loss_threshold=0., alloc_rule=alloc_rule,
-                  debug=0, random_generator=1, ignore_correlation=False,
+                  debug=0, random_generator=2, ignore_correlation=False,
                   effective_damageability=False)
         raw = np.fromfile(out, dtype=np.int32)
 
