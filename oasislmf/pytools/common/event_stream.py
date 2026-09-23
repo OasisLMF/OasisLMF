@@ -183,6 +183,11 @@ def check_packing_supported(random_generator, packed_buildings):
 def decode_building(sidx, sample_size):
     """Recover the 1-based building index from a packed stream sidx.
 
+    No production path decodes the building. fmpy, summarypy and pla carry the packed sidx
+    through unchanged so the site levels can apply their terms per building, and the buildings
+    are collapsed at ``site_collapse_level`` rather than resolved on the way in. This is the
+    inverse half of :func:`encode_sidx`, kept so the encoding can be shown to round-trip.
+
     Args:
         sidx (int): packed stream sidx (positive sample, negative special, or ``0``).
         sample_size (int): logical number of random samples per building (``S``).
