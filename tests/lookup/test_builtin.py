@@ -371,6 +371,17 @@ def test_geog_lookup_case_and_whitespace():
     assert list(fct(locations)["w3w"]) == ["lower.case.match", "padded.match"]
 
 
+@pytest.mark.parametrize("scheme_col,name_col", [
+    ("geogscheme1", "geogname1"),
+    ("GEOGSCHEME1", "GEOGNAME1"),
+])
+def test_geog_lookup_column_name_case_insensitive(scheme_col, name_col):
+    """process_locations renames columns to the spelling used in the step's columns list."""
+    locations = pd.DataFrame({"loc_id": [1], scheme_col: ["W3W"], name_col: ["any.case.match"]})
+    fct = Lookup(config={}).build_geog_lookup(geog_scheme="W3W", output_column="w3w", slots=1)
+    assert fct(locations)["w3w"].tolist() == ["any.case.match"]
+
+
 def test_geog_lookup_missing_scheme_null(geog_locations):
     fct = Lookup(config={}).build_geog_lookup(geog_scheme="XYZ", output_column="xyz", slots=2)
     assert fct(geog_locations)["xyz"].isna().all()

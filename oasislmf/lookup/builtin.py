@@ -1134,10 +1134,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         target = geog_scheme.upper() if case_insensitive else geog_scheme
 
         def geog_lookup(locations):
+            col_map = {col.lower(): col for col in locations.columns}
             resolved = pd.Series(pd.NA, index=locations.index, dtype='object')
             for n in range(1, slots + 1):
-                scheme_col, name_col = f"GeogScheme{n}", f"GeogName{n}"
-                if scheme_col not in locations.columns or name_col not in locations.columns:
+                scheme_col, name_col = col_map.get(f"geogscheme{n}"), col_map.get(f"geogname{n}")
+                if scheme_col is None or name_col is None:
                     continue
                 scheme_vals = locations[scheme_col].astype('string').str.strip()
                 if case_insensitive:
