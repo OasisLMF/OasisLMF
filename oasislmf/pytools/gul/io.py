@@ -13,7 +13,7 @@ from oasislmf.pytools.common.hashmap import unpack as hm_unpack, _find_key as hm
 from oasislmf.pytools.gul.common import (NP_BASE_ARRAY_SIZE, ProbMean,
                                          ProbMean_size, damagecdfrec,
                                          damagecdfrec_stream, items_data_type)
-from oasislmf.pytools.gul.random import generate_hash, item_is_past_pool_gate
+from oasislmf.pytools.gul.random import generate_hash
 
 
 @njit(cache=True)
@@ -33,7 +33,7 @@ def gen_structs():
 def read_getmodel_stream(stream_in, items,
                          item_map_hm, item_map_hm_keys,
                          item_map_ja_offsets,
-                         coverages, compute, seeds, n_buildings_by_item_id, n_buildings_by_rng, pooled_by_rng,
+                         coverages, compute, seeds, n_buildings_by_item_id, n_buildings_by_rng,
                          buff_size=PIPE_CAPACITY):
     """Read the getmodel output stream yielding data event by event.
 
@@ -49,8 +49,6 @@ def read_getmodel_stream(stream_in, items,
         n_buildings_by_item_id (numpy.array[int]): per item, the signed building count (the sign
             marks whether the buildings stay separate; only the magnitude is used here). All
           ones when nothing is packed.
-        pooled_by_rng (numpy.array[int8]): filled here; 1 only where EVERY item of the group
-          clears the pooling gate, the imbalance error depending on the item's own count.
         n_buildings_by_rng (numpy.array[int]): filled here with the largest building count in each
           seed group, which is how many blocks of samples that seed owes.
         buff_size (int): size in bytes of the read buffer. Defaults to PIPE_CAPACITY.
@@ -125,7 +123,7 @@ def read_getmodel_stream(stream_in, items,
             item_map_hm, item_map_hm_keys, item_map_ja_offsets,
             coverages,
             compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
-            n_buildings_by_item_id, n_buildings_by_rng, pooled_by_rng,
+            n_buildings_by_item_id, n_buildings_by_rng,
             damagecdf_i, rec_idx_ptr
         )
 
@@ -168,7 +166,7 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
                    item_map_hm, item_map_hm_keys, item_map_ja_offsets,
                    coverages,
                    compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
-                   n_buildings_by_item_id, n_buildings_by_rng, pooled_by_rng, damagecdf_i, rec_idx_ptr):
+                   n_buildings_by_item_id, n_buildings_by_rng, damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
 
     Args:
@@ -189,8 +187,6 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
         rng_index (int): number of unique random seeds computed so far.
         n_buildings_by_item_id (numpy.array[int]): per item, the signed building count; only the
             magnitude is used here.
-        pooled_by_rng (numpy.array[int8]): filled here; 1 only where EVERY item of the group
-          clears the pooling gate, the imbalance error depending on the item's own count.
         n_buildings_by_rng (numpy.array[int]): filled here with the largest building count in each
           seed group; a seed must yield that many blocks of samples.
         group_id_rng_index (Dict([int,int])): map of group ids to random seeds.
@@ -306,8 +302,6 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
                 seeds[rng_index] = generate_hash(group_id, last_event_id)
                 this_rng_index = rng_index
                 n_buildings_by_rng[this_rng_index] = item_n_buildings
-                # first item of the group decides; later ones can only clear it
-                pooled_by_rng[this_rng_index] = 1 if item_is_past_pool_gate(item_n_buildings) else 0
                 rng_index += 1
 
             else:
@@ -315,10 +309,6 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
                 # a seed serves every item of its group, so it owes the largest of their counts
                 if item_n_buildings > n_buildings_by_rng[this_rng_index]:
                     n_buildings_by_rng[this_rng_index] = item_n_buildings
-                # the imbalance error depends on the ITEM's count, so one item short of the gate
-                # keeps the whole group off the pool
-                if not item_is_past_pool_gate(item_n_buildings):
-                    pooled_by_rng[this_rng_index] = 0
 
             coverage = coverages[coverage_id]
             if coverage['cur_items'] == 0:

@@ -39,8 +39,7 @@ from oasislmf.pytools.gul.manager import (write_losses, adjust_byte_mv_size, buf
                                           FUSED_FLUSH_TARGET_BYTES)
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval, get_correlation_generator,
-                                         get_sample_generator, build_packed_rndm_offsets,
-                                         POOL_SIZE, item_is_past_pool_gate, pool_index)
+                                         get_sample_generator, build_packed_rndm_offsets)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
@@ -399,11 +398,8 @@ def run(run_dir,
         # every used entry is written on rng-group creation.
         n_buildings_by_rng = np.ones(n_unique_groups, dtype=np.int64)
         # A group pools only if EVERY item in it clears the gate. Keyed off the group's largest
-        # item instead, one small item sharing a group with a huge one would read a POOL_SIZE
         # pool at the very ratio the gate exists to avoid.
-        pooled_by_rng = np.zeros(n_unique_groups, dtype=np.int8)
         n_buildings_by_haz_rng = np.ones(n_unique_haz_groups, dtype=np.int64)
-        pooled_by_haz_rng = np.zeros(n_unique_haz_groups, dtype=np.int8)
 
         # haz correlation
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
@@ -482,11 +478,6 @@ def run(run_dir,
         loss_correlation_by_item = np.zeros(max_items_per_coverage, dtype=oasis_float)
         hermite_coeffs = np.zeros(HERMITE_TERMS, dtype='float64')
 
-        # A pooled group's draws are not contiguous per building -- they are gathered from the
-        # pool through pool_index -- so the per-building view the draw routines take has to be
-        # materialised. One buffer per dimension, reused for every building.
-        vuln_pool_scratch = np.zeros(max(sample_size, 1), dtype='float64')
-        haz_pool_scratch = np.zeros(max(sample_size, 1), dtype='float64')
 
         # maximum bytes to be written in the output stream for 1 item. A kept-separate item emits
         # one block of that per building; a summed one emits a single block whatever it carries.
@@ -623,9 +614,7 @@ def run(run_dir,
                     source_item_idx,
                     item_idx_to_item_j,
                     n_buildings_by_rng,
-                    pooled_by_rng,
-                    n_buildings_by_haz_rng,
-                    pooled_by_haz_rng
+                    n_buildings_by_haz_rng
                 )
 
                 # since these are never used outside of a sample > 0 branch we can remove the need to
@@ -638,15 +627,15 @@ def run(run_dir,
                     # per-group draw byte-for-byte (see random_MersenneTwister_packed), so an unpacked
                     # run is the all-N==1 case of this rather than a separate draw.
                     vuln_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index],
-                                                             pooled_by_rng[:rng_index], sample_size)
+                                                             sample_size)
                     vuln_rndms_flat = generate_sample_rndm(
                         vuln_seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index],
-                        pooled_by_rng[:rng_index], vuln_offsets)
+                        vuln_offsets)
                     haz_offsets = build_packed_rndm_offsets(n_buildings_by_haz_rng[:hazard_rng_index],
-                                                            pooled_by_haz_rng[:hazard_rng_index], sample_size)
+                                                            sample_size)
                     haz_rndms_flat = generate_sample_rndm(
                         haz_seeds[:hazard_rng_index], sample_size, n_buildings_by_haz_rng[:hazard_rng_index],
-                        pooled_by_haz_rng[:hazard_rng_index], haz_offsets)
+                        haz_offsets)
                     if hazard_rng_index > 0:
                         haz_eps_ij = generate_correlation_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_correlation_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
@@ -701,10 +690,6 @@ def run(run_dir,
                             vuln_offsets,
                             haz_rndms_flat,
                             haz_offsets,
-                            pooled_by_rng,
-                            pooled_by_haz_rng,
-                            vuln_pool_scratch,
-                            haz_pool_scratch,
                             coverage_has_dependents,
                             compute_depth,
                             source_damage_bin_stack,
@@ -1299,10 +1284,6 @@ def compute_event_losses(compute_info,
                          vuln_offsets,
                          haz_rndms_flat,
                          haz_offsets,
-                         pooled_by_rng,
-                         pooled_by_haz_rng,
-                         vuln_pool_scratch,
-                         haz_pool_scratch,
                          coverage_has_dependents,
                          compute_depth,
                          source_damage_bin_stack,
@@ -1392,12 +1373,6 @@ def compute_event_losses(compute_info,
         vuln_offsets (numpy.array[int64]): prefix-sum offsets into vuln_rndms_flat per damage rng group.
         haz_rndms_flat (numpy.array[float64]): flat building-packed hazard random draws (as above).
         haz_offsets (numpy.array[int64]): prefix-sum offsets into haz_rndms_flat per hazard rng group.
-        pooled_by_rng (numpy.array[int8]): per damage rng group, 1 if it drew a pool. Set by
-          reconstruct_coverages, which is the only place that sees every item of a group.
-        pooled_by_haz_rng (numpy.array[int8]): the same for the hazard rng groups.
-        vuln_pool_scratch (numpy.array[float64]): length-S buffer for one building's damage draws
-          gathered out of a pool.
-        haz_pool_scratch (numpy.array[float64]): the same for the hazard draws.
 
     Returns:
         bool: True if all coverages have been processed, False if the buffer is full and
@@ -1620,10 +1595,6 @@ def compute_event_losses(compute_info,
                 # column as views, so a building is just a different pair.
                 vuln_base_off0 = vuln_offsets[rng_index]
                 haz_base_off0 = haz_offsets[hazard_rng_index] if hazard_rng_index >= 0 else 0
-                # A pooled group holds POOL_SIZE values for the whole group rather than a block
-                # per building, so its buildings gather through pool_index instead of slicing.
-                vuln_pooled = pooled_by_rng[rng_index] == 1
-                haz_pooled = hazard_rng_index >= 0 and pooled_by_haz_rng[hazard_rng_index] == 1
 
                 keep_separate_item = item_event_data['packed_buildings'] < 0
                 if fuse_emit:
@@ -1669,23 +1640,11 @@ def compute_event_losses(compute_info,
                             compute_info['item_j'] = item_j
                             compute_info['building_b'] = b - 1
                             return False
-                    if vuln_pooled:
-                        for s_i in range(sample_size):
-                            vuln_pool_scratch[s_i] = vuln_rndms_flat[
-                                vuln_base_off0 + pool_index(b, s_i + 1, POOL_SIZE)]
-                        vuln_base_b = vuln_pool_scratch[:sample_size]
-                    else:
-                        vuln_base_b = vuln_rndms_flat[vuln_base_off0 + (b - 1) * sample_size:
-                                                      vuln_base_off0 + b * sample_size]
+                    vuln_base_b = vuln_rndms_flat[vuln_base_off0 + (b - 1) * sample_size:
+                                                  vuln_base_off0 + b * sample_size]
                     if hazard_rng_index >= 0:
-                        if haz_pooled:
-                            for s_i in range(sample_size):
-                                haz_pool_scratch[s_i] = haz_rndms_flat[
-                                    haz_base_off0 + pool_index(b, s_i + 1, POOL_SIZE)]
-                            haz_base_b = haz_pool_scratch[:sample_size]
-                        else:
-                            haz_base_b = haz_rndms_flat[haz_base_off0 + (b - 1) * sample_size:
-                                                        haz_base_off0 + b * sample_size]
+                        haz_base_b = haz_rndms_flat[haz_base_off0 + (b - 1) * sample_size:
+                                                    haz_base_off0 + b * sample_size]
                     else:
                         haz_base_b = vuln_base_b  # unused; keeps the argument type stable
 
@@ -1897,9 +1856,8 @@ def reconstruct_coverages(compute_info,
                           source_item_idx,
                           item_idx_to_item_j,
                           n_buildings_by_rng,
-                          pooled_by_rng,
                           n_buildings_by_haz_rng,
-                          pooled_by_haz_rng):
+):
     """Register each item to its coverage and prepare per-item event data for loss computation.
 
     For each (areaperil_id, vulnerability_id) pair present in the event footprint, iterates
@@ -1964,9 +1922,6 @@ def reconstruct_coverages(compute_info,
           group has enough building slices (extra slices are simply unused).
         n_buildings_by_haz_rng (numpy.array[int64]): pre-allocated array of size
           n_unique_haz_groups; the hazard-rng-group equivalent of n_buildings_by_rng.
-        pooled_by_rng (numpy.array[int8]): pre-allocated, one per damage rng group; set to 1 only
-          where EVERY item of the group clears the pooling gate.
-        pooled_by_haz_rng (numpy.array[int8]): the same for the hazard rng groups.
 
     Returns:
         tuple: (items_event_data, rng_index, hazard_rng_index, byte_mv)
@@ -2023,15 +1978,11 @@ def reconstruct_coverages(compute_info,
                     vuln_seeds[rng_index] = generate_hash(items[item_idx]['group_id'], compute_info['event_id'])
                     this_rng_index = rng_index
                     n_buildings_by_rng[this_rng_index] = item_n_buildings
-                    # first item of the group decides; later ones can only clear the flag
-                    pooled_by_rng[this_rng_index] = 1 if item_is_past_pool_gate(item_n_buildings) else 0
                     rng_index += 1
                 else:
                     this_rng_index = group_seq_rng_index[group_seq_id]
                     if item_n_buildings > n_buildings_by_rng[this_rng_index]:
                         n_buildings_by_rng[this_rng_index] = item_n_buildings
-                    if not item_is_past_pool_gate(item_n_buildings):
-                        pooled_by_rng[this_rng_index] = 0
 
                 if ap_needs_haz_rng:
                     hazard_group_seq_id = items[item_idx]['hazard_group_seq_id']
@@ -2040,15 +1991,11 @@ def reconstruct_coverages(compute_info,
                         haz_seeds[hazard_rng_index] = generate_hash_hazard(items[item_idx]['hazard_group_id'], compute_info['event_id'])
                         this_hazard_rng_index = hazard_rng_index
                         n_buildings_by_haz_rng[this_hazard_rng_index] = item_n_buildings
-                        pooled_by_haz_rng[this_hazard_rng_index] = (
-                            1 if item_is_past_pool_gate(item_n_buildings) else 0)
                         hazard_rng_index += 1
                     else:
                         this_hazard_rng_index = hazard_group_seq_rng_index[hazard_group_seq_id]
                         if item_n_buildings > n_buildings_by_haz_rng[this_hazard_rng_index]:
                             n_buildings_by_haz_rng[this_hazard_rng_index] = item_n_buildings
-                        if not item_is_past_pool_gate(item_n_buildings):
-                            pooled_by_haz_rng[this_hazard_rng_index] = 0
                 else:
                     # deterministic hazard (or effective damageability): no hazard rng row exists.
                     # The NO_RNG_INDEX sentinel is never used as an index (guarded at consumption).

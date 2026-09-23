@@ -29,11 +29,6 @@ from oasislmf.pytools.gul.random import (
 )
 
 
-def _unpooled(n_buildings):
-    """Pooled flags for groups none of which reaches the gate -- every case in this file."""
-    return np.zeros(len(n_buildings), dtype=np.int8)
-
-
 class TestRandomMersenneTwisterPacked(TestCase):
 
     def setUp(self):
@@ -42,15 +37,15 @@ class TestRandomMersenneTwisterPacked(TestCase):
 
     def test_offsets_prefix_sum(self):
         n_buildings = np.array([1, 3, 2], dtype=np.int64)
-        offsets = build_packed_rndm_offsets(n_buildings, _unpooled(n_buildings), self.S)
+        offsets = build_packed_rndm_offsets(n_buildings, self.S)
         self.assertEqual(offsets.tolist(), [0, 8, 32, 48])
         self.assertEqual(offsets[-1], n_buildings.sum() * self.S)
 
     def test_single_building_matches_legacy(self):
         """N=1 for every seed -> packed draw is byte-identical to the legacy 2-d draw."""
         n_buildings = np.ones(len(self.seeds), dtype=np.int64)
-        offsets = build_packed_rndm_offsets(n_buildings, _unpooled(n_buildings), self.S)
-        packed = random_MersenneTwister_packed(self.seeds, self.S, n_buildings, _unpooled(n_buildings), offsets)
+        offsets = build_packed_rndm_offsets(n_buildings, self.S)
+        packed = random_MersenneTwister_packed(self.seeds, self.S, n_buildings, offsets)
         legacy = random_MersenneTwister(self.seeds, self.S)
         for seed_i in range(len(self.seeds)):
             np.testing.assert_array_equal(packed[offsets[seed_i]: offsets[seed_i] + self.S], legacy[seed_i])
@@ -58,8 +53,8 @@ class TestRandomMersenneTwisterPacked(TestCase):
     def test_building_one_slice_matches_legacy_when_multi(self):
         """Building 1's slice equals the legacy single-building draw even when N>1."""
         n_buildings = np.array([1, 3, 2], dtype=np.int64)
-        offsets = build_packed_rndm_offsets(n_buildings, _unpooled(n_buildings), self.S)
-        packed = random_MersenneTwister_packed(self.seeds, self.S, n_buildings, _unpooled(n_buildings), offsets)
+        offsets = build_packed_rndm_offsets(n_buildings, self.S)
+        packed = random_MersenneTwister_packed(self.seeds, self.S, n_buildings, offsets)
         legacy = random_MersenneTwister(self.seeds, self.S)
         for seed_i in range(len(self.seeds)):
             building_1 = packed[offsets[seed_i]: offsets[seed_i] + self.S]
@@ -68,8 +63,8 @@ class TestRandomMersenneTwisterPacked(TestCase):
     def test_buildings_are_contiguous_sequence_of_one_seed(self):
         """The N*S block for a seed is exactly np.random.random(N*S) from that seed."""
         n_buildings = np.array([1, 3, 2], dtype=np.int64)
-        offsets = build_packed_rndm_offsets(n_buildings, _unpooled(n_buildings), self.S)
-        packed = random_MersenneTwister_packed(self.seeds, self.S, n_buildings, _unpooled(n_buildings), offsets)
+        offsets = build_packed_rndm_offsets(n_buildings, self.S)
+        packed = random_MersenneTwister_packed(self.seeds, self.S, n_buildings, offsets)
         for seed_i in range(len(self.seeds)):
             count = int(n_buildings[seed_i]) * self.S
             np.random.seed(self.seeds[seed_i])
@@ -79,8 +74,8 @@ class TestRandomMersenneTwisterPacked(TestCase):
     def test_buildings_differ_from_each_other(self):
         """Buildings 2..N consume the continuation -> distinct from building 1."""
         n_buildings = np.array([3], dtype=np.int64)
-        offsets = build_packed_rndm_offsets(n_buildings, _unpooled(n_buildings), self.S)
-        packed = random_MersenneTwister_packed(np.array([42], dtype=np.int64), self.S, n_buildings, _unpooled(n_buildings), offsets)
+        offsets = build_packed_rndm_offsets(n_buildings, self.S)
+        packed = random_MersenneTwister_packed(np.array([42], dtype=np.int64), self.S, n_buildings, offsets)
         b1 = packed[0: self.S]
         b2 = packed[self.S: 2 * self.S]
         b3 = packed[2 * self.S: 3 * self.S]
@@ -89,8 +84,8 @@ class TestRandomMersenneTwisterPacked(TestCase):
 
     def test_skip_seeds_left_as_zeros(self):
         n_buildings = np.array([2, 2], dtype=np.int64)
-        offsets = build_packed_rndm_offsets(n_buildings, _unpooled(n_buildings), self.S)
-        packed = random_MersenneTwister_packed(self.seeds[:2], self.S, n_buildings, _unpooled(n_buildings), offsets, skip_seeds=1)
+        offsets = build_packed_rndm_offsets(n_buildings, self.S)
+        packed = random_MersenneTwister_packed(self.seeds[:2], self.S, n_buildings, offsets, skip_seeds=1)
         self.assertTrue(np.all(packed[offsets[0]: offsets[1]] == 0.0))
         self.assertFalse(np.all(packed[offsets[1]: offsets[2]] == 0.0))
 
@@ -108,10 +103,10 @@ class TestPackedGeneratorsAgree(TestCase):
     N_BUILDINGS = np.array([1, 3, 4], dtype=np.int64)
 
     def setUp(self):
-        self.offsets = build_packed_rndm_offsets(self.N_BUILDINGS, _unpooled(self.N_BUILDINGS), self.S)
+        self.offsets = build_packed_rndm_offsets(self.N_BUILDINGS, self.S)
 
     def _packed(self, gen):
-        return get_sample_generator(gen)(self.SEEDS, self.S, self.N_BUILDINGS, _unpooled(self.N_BUILDINGS), self.offsets)
+        return get_sample_generator(gen)(self.SEEDS, self.S, self.N_BUILDINGS, self.offsets)
 
     def _block(self, packed, seed_i, b):
         start = self.offsets[seed_i] + b * self.S
@@ -156,7 +151,7 @@ class TestPackedGeneratorsAgree(TestCase):
         for gen in (0, 1, 2):
             with self.subTest(generator=gen):
                 packed = get_sample_generator(gen)(
-                    self.SEEDS, self.S, self.N_BUILDINGS, _unpooled(self.N_BUILDINGS),
+                    self.SEEDS, self.S, self.N_BUILDINGS,
                     self.offsets, skip_seeds=1)
                 self.assertTrue((packed[self.offsets[0]: self.offsets[1]] == 0).all())
                 self.assertTrue((packed[self.offsets[1]:] != 0).any())
@@ -208,8 +203,8 @@ class TestPackedLatinHypercubeStreams(TestCase):
         ``TestPackedGeneratorsAgree`` makes it.)
         """
         n_buildings = np.array([3], dtype=np.int64)
-        offsets = build_packed_rndm_offsets(n_buildings, _unpooled(n_buildings), self.S)
-        packed = get_sample_generator(1)(self.SEED, self.S, n_buildings, _unpooled(n_buildings), offsets)
+        offsets = build_packed_rndm_offsets(n_buildings, self.S)
+        packed = get_sample_generator(1)(self.SEED, self.S, n_buildings, offsets)
 
         for b in range(1, 3):
             block = packed[b * self.S:(b + 1) * self.S]
@@ -223,18 +218,18 @@ class TestPackedLatinHypercubeStreams(TestCase):
 
         Asking for four buildings and asking for two must give the same first two blocks.
         """
-        wide = build_packed_rndm_offsets(np.array([4], dtype=np.int64), np.zeros(1, dtype=np.int8), self.S)
-        narrow = build_packed_rndm_offsets(np.array([2], dtype=np.int64), np.zeros(1, dtype=np.int8), self.S)
-        four = get_sample_generator(2)(self.SEED, self.S, np.array([4], dtype=np.int64), np.zeros(1, dtype=np.int8), wide)
-        two = get_sample_generator(2)(self.SEED, self.S, np.array([2], dtype=np.int64), np.zeros(1, dtype=np.int8), narrow)
+        wide = build_packed_rndm_offsets(np.array([4], dtype=np.int64), self.S)
+        narrow = build_packed_rndm_offsets(np.array([2], dtype=np.int64), self.S)
+        four = get_sample_generator(2)(self.SEED, self.S, np.array([4], dtype=np.int64), wide)
+        two = get_sample_generator(2)(self.SEED, self.S, np.array([2], dtype=np.int64), narrow)
         np.testing.assert_array_equal(four[:2 * self.S], two)
 
     def test_mt_stream_is_sequential_not_random_access(self):
         """The counterpart: MT blocks also come out the same, because the stream is replayed."""
-        wide = build_packed_rndm_offsets(np.array([4], dtype=np.int64), np.zeros(1, dtype=np.int8), self.S)
-        narrow = build_packed_rndm_offsets(np.array([2], dtype=np.int64), np.zeros(1, dtype=np.int8), self.S)
-        four = get_sample_generator(1)(self.SEED, self.S, np.array([4], dtype=np.int64), np.zeros(1, dtype=np.int8), wide)
-        two = get_sample_generator(1)(self.SEED, self.S, np.array([2], dtype=np.int64), np.zeros(1, dtype=np.int8), narrow)
+        wide = build_packed_rndm_offsets(np.array([4], dtype=np.int64), self.S)
+        narrow = build_packed_rndm_offsets(np.array([2], dtype=np.int64), self.S)
+        four = get_sample_generator(1)(self.SEED, self.S, np.array([4], dtype=np.int64), wide)
+        two = get_sample_generator(1)(self.SEED, self.S, np.array([2], dtype=np.int64), narrow)
         np.testing.assert_array_equal(four[:2 * self.S], two)
 
 
