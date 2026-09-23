@@ -2,12 +2,16 @@ from queue import Empty, Full
 
 import pandas as pd
 
+import pytest
+
 from oasislmf.computation.hooks.pre_analysis_multiproc import (
     exposure_producer,
     pre_analysis_multiproc_worker,
     result_producer,
+    run_pre_analysis_multiproc,
     with_error_queue,
 )
+from oasislmf.utils.exceptions import OasisException
 
 
 class FakeQueue:
@@ -75,10 +79,17 @@ class DummyAccount:
         self.dataframe = dataframe
 
 
+class DummyReinsSource:
+    def __init__(self, dataframe):
+        self.dataframe = dataframe
+
+
 class DummyExposureData:
-    def __init__(self, location_df, account_df=None):
+    def __init__(self, location_df, account_df=None, ri_info_df=None, ri_scope_df=None):
         self.location = DummyLocation(location_df)
         self.account = DummyAccount(account_df) if account_df is not None else None
+        self.ri_info = DummyReinsSource(ri_info_df) if ri_info_df is not None else None
+        self.ri_scope = DummyReinsSource(ri_scope_df) if ri_scope_df is not None else None
 
 
 class DummyHook:
@@ -147,6 +158,34 @@ def test_exposure_producer_splits_by_group_cols():
     seen_accounts = set()
     for loc_part, acc_part in parts:
         assert set(loc_part['AccNumber'].unique()) == set(acc_part['AccNumber'].unique())
+        seen_accounts.update(acc_part['AccNumber'].tolist())
+    assert seen_accounts == {'A1', 'A2'}
+
+
+def test_exposure_producer_includes_account_only_groups():
+    """An account row whose (PortNumber, AccNumber) doesn't appear in loc_df at all (e.g. a
+    genuinely locationless account) must still be assigned to a chunk, not silently dropped."""
+    loc_df = pd.DataFrame({
+        'PortNumber': [1, 1],
+        'AccNumber': ['A1', 'A1'],
+        'loc_id': [1, 2],
+        'BuildingTIV': [1, 2],
+    })
+    acc_df = pd.DataFrame({
+        'PortNumber': [1, 1],
+        'AccNumber': ['A1', 'A2'],
+        'LayerLimit': [10, 20],
+    })
+    error_queue = FakeErrorQueue()
+    exposure_queue = FakeQueue()
+
+    exposure_producer(error_queue, loc_df, acc_df, 2, ['PortNumber', 'AccNumber'], exposure_queue)
+
+    assert error_queue.empty()
+    *parts, sentinel = exposure_queue.put_items
+    assert sentinel == (None, None)
+    seen_accounts = set()
+    for _, acc_part in parts:
         seen_accounts.update(acc_part['AccNumber'].tolist())
     assert seen_accounts == {'A1', 'A2'}
 
@@ -223,6 +262,75 @@ def test_worker_processes_chunk_without_account():
     assert acc_result is None
 
 
+class MutatingRiInfoHook:
+    def __init__(self, exposure_data, **kwargs):
+        self.exposure_data = exposure_data
+
+    def run(self):
+        self.exposure_data.ri_info.dataframe['ReinsPeril'] = 'WTC'
+
+
+class MutatingRiScopeHook:
+    def __init__(self, exposure_data, **kwargs):
+        self.exposure_data = exposure_data
+
+    def run(self):
+        self.exposure_data.ri_scope.dataframe['CededPercent'] = 1.0
+
+
+def test_worker_raises_if_hook_mutates_ri_info():
+    """ri_info isn't chunked or merged back, so a hook mutating it would otherwise have that
+    change silently discarded - the worker should fail loudly instead."""
+    loc_df = pd.DataFrame({'BuildingTIV': [1.0]})
+    ri_info_df = pd.DataFrame({'ReinsNumber': [1]})
+    exposure_data = DummyExposureData(loc_df, ri_info_df=ri_info_df)
+
+    error_queue = FakeErrorQueue()
+    exposure_queue = FakeQueue(items=[(loc_df.copy(), None), (None, None)])
+    result_queue = FakeQueue()
+
+    pre_analysis_multiproc_worker(error_queue, exposure_data, MutatingRiInfoHook, {}, exposure_queue, result_queue)
+
+    assert not error_queue.empty()
+    exc_type, exc_value, _ = error_queue.get()
+    assert exc_type is OasisException
+    assert 'ri_info' in str(exc_value)
+
+
+def test_worker_raises_if_hook_mutates_ri_scope():
+    loc_df = pd.DataFrame({'BuildingTIV': [1.0]})
+    ri_scope_df = pd.DataFrame({'ScopeNumber': [1]})
+    exposure_data = DummyExposureData(loc_df, ri_scope_df=ri_scope_df)
+
+    error_queue = FakeErrorQueue()
+    exposure_queue = FakeQueue(items=[(loc_df.copy(), None), (None, None)])
+    result_queue = FakeQueue()
+
+    pre_analysis_multiproc_worker(error_queue, exposure_data, MutatingRiScopeHook, {}, exposure_queue, result_queue)
+
+    assert not error_queue.empty()
+    exc_type, exc_value, _ = error_queue.get()
+    assert exc_type is OasisException
+    assert 'ri_scope' in str(exc_value)
+
+
+def test_worker_does_not_raise_when_ri_info_untouched():
+    """Sanity check: the guard should only trigger on an actual mutation, not just because
+    ri_info/ri_scope are present."""
+    loc_df = pd.DataFrame({'BuildingTIV': [1.0]})
+    ri_info_df = pd.DataFrame({'ReinsNumber': [1]})
+    ri_scope_df = pd.DataFrame({'ScopeNumber': [1]})
+    exposure_data = DummyExposureData(loc_df, ri_info_df=ri_info_df, ri_scope_df=ri_scope_df)
+
+    error_queue = FakeErrorQueue()
+    exposure_queue = FakeQueue(items=[(loc_df.copy(), None), (None, None)])
+    result_queue = FakeQueue()
+
+    pre_analysis_multiproc_worker(error_queue, exposure_data, DummyHook, {'multiplier': 1}, exposure_queue, result_queue)
+
+    assert error_queue.empty()
+
+
 def test_worker_returns_immediately_if_error_already_present():
     exposure_data = DummyExposureData(pd.DataFrame({'BuildingTIV': [1.0]}))
     error_queue = FakeErrorQueue(has_error=True)
@@ -294,3 +402,13 @@ def test_result_producer_stops_if_error_appears_mid_loop():
     results = list(result_producer(result_queue, error_queue, worker_count=5))
 
     assert results == []
+
+
+@pytest.mark.parametrize('pool_count', [0, 1])
+def test_run_pre_analysis_multiproc_rejects_pool_count_of_one_or_fewer(pool_count):
+    """Guards against a caller forgetting to check pool_count > 1 before calling in - it should
+    fail loudly rather than silently spin up a full process pool for a single chunk."""
+    exposure_data = DummyExposureData(pd.DataFrame({'BuildingTIV': [1.0]}))
+
+    with pytest.raises(ValueError, match='pool_count'):
+        run_pre_analysis_multiproc(exposure_data, DummyHook, {}, pool_count, 1, None)

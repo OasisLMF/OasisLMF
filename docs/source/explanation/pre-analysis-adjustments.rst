@@ -48,19 +48,13 @@ Multiprocessing
 ****************
 
 For large portfolios the pre-analysis hook can be the slowest step in the workflow, so, like the
-keys/lookup service, it can be run across multiple processes. By default it is chunked the same
-way the keys/lookup service is - the hook is instantiated once per chunk and called with a subset
-of ``exposure_data``, and the resulting location/account dataframes are merged back together
-afterwards. Unlike the keys/lookup service, chunks are formed from unique ``(PortNumber,
-AccNumber)`` combinations rather than individual locations, so a single account's location rows
-are never split across two chunks.
-
-Three parameters control this behaviour, each mirroring an equivalent keys/lookup parameter and
-defaulting to that parameter's resolved value if not set explicitly:
-
-* ``exposure_pre_analysis_multiprocessing`` (defaults to ``lookup_multiprocessing``, i.e. ``True``)
-* ``exposure_pre_analysis_num_processes`` (defaults to ``lookup_num_processes``, i.e. auto-sized)
-* ``exposure_pre_analysis_num_chunks`` (defaults to ``lookup_num_chunks``, i.e. auto-sized)
+keys/lookup service, it can be run across multiple processes. It is controlled by the same
+``lookup_multiprocessing``/``lookup_num_processes``/``lookup_num_chunks`` parameters as the
+keys/lookup service, and chunked the same way - the hook is instantiated once per chunk and
+called with a subset of ``exposure_data``, and the resulting location/account dataframes are
+merged back together afterwards. Unlike the keys/lookup service, chunks are formed from unique
+``(PortNumber, AccNumber)`` combinations rather than individual locations, so a single account's
+location rows are never split across two chunks.
 
 Because the framework has no visibility into what a pre-analysis hook actually does, chunking is
 only safe for hooks that operate independently per location/account - the intended use cases
@@ -70,11 +64,12 @@ with the default chunked behaviour if it:
 * needs to see locations/accounts outside of a single account (e.g. whole-portfolio
   aggregation or optimisation), or
 * reads or modifies ``exposure_data.ri_info``/``exposure_data.ri_scope`` (these are not
-  chunked or merged back - only the main process's copy is kept), or
+  chunked or merged back - only the main process's copy is kept, and the run raises an error
+  as soon as a chunk is found to have changed either one), or
 * has side effects on shared files under ``input_dir`` that aren't safe for multiple
   processes to write concurrently.
 
-Set ``exposure_pre_analysis_multiprocessing=False`` to disable chunking for such a model.
+Set ``lookup_multiprocessing=False`` to disable chunking for such a model.
 
 |
 

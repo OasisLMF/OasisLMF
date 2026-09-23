@@ -19,7 +19,9 @@ def resolve_partition_count(row_count, num_cores, num_partitions, min_bloc_size=
 
     If num_partitions is explicitly set (> 0) it is used directly, otherwise the partition
     count is derived from row_count so that each partition holds between min_bloc_size and
-    max_bloc_size items (bounded by the number of available cores).
+    max_bloc_size items (bounded by the number of available cores). Either way, part_count is
+    then capped at row_count - an explicit num_partitions larger than row_count would otherwise
+    produce empty partitions with nothing to process.
     """
     pool_count = num_cores if num_cores > 0 else multiprocessing.cpu_count()
     if num_partitions > 0:
@@ -27,5 +29,7 @@ def resolve_partition_count(row_count, num_cores, num_partitions, min_bloc_size=
     else:
         bloc_size = min(max(math.ceil(row_count / pool_count), min_bloc_size), max_bloc_size)
         part_count = math.ceil(row_count / bloc_size)
-        pool_count = min(pool_count, part_count)
+    if row_count > 0:
+        part_count = min(part_count, row_count)
+    pool_count = min(pool_count, part_count)
     return pool_count, part_count
