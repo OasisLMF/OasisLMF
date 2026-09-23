@@ -39,7 +39,9 @@ from oasislmf.pytools.gul.manager import (write_losses, adjust_byte_mv_size, buf
                                           FUSED_FLUSH_TARGET_BYTES)
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval, get_correlation_generator,
-                                         get_sample_generator, build_packed_rndm_offsets)
+                                         get_sample_generator, build_packed_rndm_offsets,
+                                         _lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32,
+                                         warn_if_draws_are_large)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
@@ -316,6 +318,7 @@ def run(run_dir,
         generate_sample_rndm = get_sample_generator(random_generator)
         if max_buildings > 1:
             logger.info(f"building-packing ENABLED: up to {max_buildings} buildings packed per item.")
+        warn_if_draws_are_large(random_generator, sample_size, items['packed_buildings'], logger)
 
         # import array to store the coverages to be computed
         # coverages are numbered from 1, therefore skip element 0.
@@ -472,12 +475,19 @@ def run(run_dir,
         # as float64, so accumulating in float32 here would round differently and the two paths
         # would stop agreeing bit for bit.
         summed_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
+        # Generator 2 is counter-based: a building's block is a pure function of the group key
+        # and the building index, so it can be produced where it is consumed instead of the
+        # whole event's draws being materialised up front. These hold one building's worth.
+        lazy_draws = np.int8(1 if random_generator == 2 else 0)
+        vuln_draw_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+        haz_draw_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+        perm_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+        empty_draws = np.empty(1, dtype='float64')   # stands in for the array not built
         # Per item of the current coverage, the correlation between two of its buildings'
         # LOSSES -- what the variance of their sum actually needs. 0 unless the item is summed
         # and correlated, which is the only case that reads it.
         loss_correlation_by_item = np.zeros(max_items_per_coverage, dtype=oasis_float)
         hermite_coeffs = np.zeros(HERMITE_TERMS, dtype='float64')
-
 
         # maximum bytes to be written in the output stream for 1 item. A kept-separate item emits
         # one block of that per building; a summed one emits a single block whatever it carries.
@@ -626,16 +636,24 @@ def run(run_dir,
                     # [building 1 samples, building 2 samples, ...]. Building 1 reproduces the legacy
                     # per-group draw byte-for-byte (see random_MersenneTwister_packed), so an unpacked
                     # run is the all-N==1 case of this rather than a separate draw.
+                    # The offsets stay either way -- they are one int64 per group and the
+                    # compute loop reads them -- but the draws themselves are only materialised
+                    # for the generators that cannot address a building directly. Generator 2
+                    # produces each block where it is used; see lazy_draws.
                     vuln_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index],
                                                              sample_size)
-                    vuln_rndms_flat = generate_sample_rndm(
-                        vuln_seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index],
-                        vuln_offsets)
                     haz_offsets = build_packed_rndm_offsets(n_buildings_by_haz_rng[:hazard_rng_index],
                                                             sample_size)
-                    haz_rndms_flat = generate_sample_rndm(
-                        haz_seeds[:hazard_rng_index], sample_size, n_buildings_by_haz_rng[:hazard_rng_index],
-                        haz_offsets)
+                    if lazy_draws:
+                        vuln_rndms_flat = empty_draws
+                        haz_rndms_flat = empty_draws
+                    else:
+                        vuln_rndms_flat = generate_sample_rndm(
+                            vuln_seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index],
+                            vuln_offsets)
+                        haz_rndms_flat = generate_sample_rndm(
+                            haz_seeds[:hazard_rng_index], sample_size,
+                            n_buildings_by_haz_rng[:hazard_rng_index], haz_offsets)
                     if hazard_rng_index > 0:
                         haz_eps_ij = generate_correlation_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_correlation_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
@@ -690,6 +708,12 @@ def run(run_dir,
                             vuln_offsets,
                             haz_rndms_flat,
                             haz_offsets,
+                            vuln_seeds,
+                            haz_seeds,
+                            lazy_draws,
+                            vuln_draw_scratch,
+                            haz_draw_scratch,
+                            perm_scratch,
                             coverage_has_dependents,
                             compute_depth,
                             source_damage_bin_stack,
@@ -1284,6 +1308,12 @@ def compute_event_losses(compute_info,
                          vuln_offsets,
                          haz_rndms_flat,
                          haz_offsets,
+                         vuln_seeds,
+                         haz_seeds,
+                         lazy_draws,
+                         vuln_draw_scratch,
+                         haz_draw_scratch,
+                         perm_scratch,
                          coverage_has_dependents,
                          compute_depth,
                          source_damage_bin_stack,
@@ -1373,6 +1403,15 @@ def compute_event_losses(compute_info,
         vuln_offsets (numpy.array[int64]): prefix-sum offsets into vuln_rndms_flat per damage rng group.
         haz_rndms_flat (numpy.array[float64]): flat building-packed hazard random draws (as above).
         haz_offsets (numpy.array[int64]): prefix-sum offsets into haz_rndms_flat per hazard rng group.
+        vuln_seeds (numpy.array[int]): per damage rng group, the Philox key. Read only when
+          lazy_draws is set, where it replaces the materialised array entirely.
+        haz_seeds (numpy.array[int]): the same for the hazard rng groups.
+        lazy_draws (int8): 1 when the generator is counter-based (generator 2) and a building's
+          block is produced on demand rather than read out of vuln_rndms_flat/haz_rndms_flat,
+          which are then empty. The values are identical either way.
+        vuln_draw_scratch (numpy.array[float64]): length-S buffer for one building's damage block.
+        haz_draw_scratch (numpy.array[float64]): the same for hazard.
+        perm_scratch (numpy.array[float64]): length-S scratch the block generator permutes in.
 
     Returns:
         bool: True if all coverages have been processed, False if the buffer is full and
@@ -1640,11 +1679,25 @@ def compute_event_losses(compute_info,
                             compute_info['item_j'] = item_j
                             compute_info['building_b'] = b - 1
                             return False
-                    vuln_base_b = vuln_rndms_flat[vuln_base_off0 + (b - 1) * sample_size:
-                                                  vuln_base_off0 + b * sample_size]
+                    if lazy_draws:
+                        vs = np.uint64(vuln_seeds[rng_index])
+                        _lh_philox_block(np.uint32(vs & PHILOX_U32_MASK),
+                                         np.uint32(vs >> PHILOX_SHIFT32), b - 1, sample_size,
+                                         perm_scratch[:sample_size], vuln_draw_scratch[:sample_size])
+                        vuln_base_b = vuln_draw_scratch[:sample_size]
+                    else:
+                        vuln_base_b = vuln_rndms_flat[vuln_base_off0 + (b - 1) * sample_size:
+                                                      vuln_base_off0 + b * sample_size]
                     if hazard_rng_index >= 0:
-                        haz_base_b = haz_rndms_flat[haz_base_off0 + (b - 1) * sample_size:
-                                                    haz_base_off0 + b * sample_size]
+                        if lazy_draws:
+                            hs = np.uint64(haz_seeds[hazard_rng_index])
+                            _lh_philox_block(np.uint32(hs & PHILOX_U32_MASK),
+                                             np.uint32(hs >> PHILOX_SHIFT32), b - 1, sample_size,
+                                             perm_scratch[:sample_size], haz_draw_scratch[:sample_size])
+                            haz_base_b = haz_draw_scratch[:sample_size]
+                        else:
+                            haz_base_b = haz_rndms_flat[haz_base_off0 + (b - 1) * sample_size:
+                                                        haz_base_off0 + b * sample_size]
                     else:
                         haz_base_b = vuln_base_b  # unused; keeps the argument type stable
 
@@ -1857,7 +1910,7 @@ def reconstruct_coverages(compute_info,
                           item_idx_to_item_j,
                           n_buildings_by_rng,
                           n_buildings_by_haz_rng,
-):
+                          ):
     """Register each item to its coverage and prepare per-item event data for loss computation.
 
     For each (areaperil_id, vulnerability_id) pair present in the event footprint, iterates

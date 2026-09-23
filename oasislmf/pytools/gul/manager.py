@@ -34,7 +34,9 @@ from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul,
                                        split_tiv_classic,
                                        split_tiv_multiplicative)
 from oasislmf.pytools.gul.io import read_getmodel_stream
-from oasislmf.pytools.gul.random import (build_packed_rndm_offsets, cdf_min,
+from oasislmf.pytools.gul.random import (_lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32,
+                                         warn_if_draws_are_large,
+                                         build_packed_rndm_offsets, cdf_min,
                                          generate_correlated_hash_vector,
                                          get_corr_rval, get_correlation_generator,
                                          get_sample_generator,
@@ -250,6 +252,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         n_buildings_by_item_id = structures['n_buildings_by_item_id']
         damage_correlation_by_item_id = structures['damage_correlation_by_item_id']
         max_buildings = int(np.abs(n_buildings_by_item_id).max())
+        warn_if_draws_are_large(random_generator, sample_size, n_buildings_by_item_id, logger)
         # only kept-separate items meet either stream ceiling: a summed one writes a single
         # block at sidx 1..S however many buildings it carries
         check_packed_item_fits(max_emitted_blocks(n_buildings_by_item_id), sample_size, oasis_int)
@@ -314,6 +317,13 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # per item of the current coverage, the correlation between two of its buildings'
         # LOSSES -- 0 unless the item is summed and correlated, the only case that reads it
         loss_correlation_by_item = np.zeros(max_items_per_coverage, dtype=oasis_float)
+        # Generator 2 is counter-based, so a building's block is a pure function of the group
+        # key and the building index and can be produced where it is consumed. These hold one
+        # building's worth; empty_draws stands in for the array that is then never built.
+        lazy_draws = np.int8(1 if random_generator == 2 else 0)
+        draw_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+        perm_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+        empty_draws = np.empty(1, dtype='float64')
         hermite_coeffs = np.zeros(HERMITE_TERMS, dtype='float64')
         # Resume point WITHIN a coverage, so a flush need not fall on a coverage boundary:
         # [0] is the next item of that coverage to process, [1] how many of its buildings have
@@ -351,9 +361,12 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             # one block of the legacy draw when nothing is packed
             rndm_offsets = build_packed_rndm_offsets(n_buildings_by_rng[:rng_index],
                                                      sample_size)
-            rndms_flat = generate_sample_rndm(
-                seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index],
-                rndm_offsets)
+            if lazy_draws:
+                rndms_flat = empty_draws
+            else:
+                rndms_flat = generate_sample_rndm(
+                    seeds[:rng_index], sample_size, n_buildings_by_rng[:rng_index],
+                    rndm_offsets)
 
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
@@ -392,6 +405,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                     arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
                     building_losses, summed_scratch, resume_state, rndms_flat, rndm_offsets,
+                    seeds, lazy_draws, draw_scratch, perm_scratch,
                     loss_correlation_by_item, hermite_coeffs,
                     n_buildings_by_item_id, damage_correlation_by_item_id,
                     max_bytes_per_item, max_bytes_per_block, byte_mv, cursor
@@ -447,6 +461,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          loss_threshold, losses, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                          arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
                          z_unif, debug, building_losses, summed_scratch, resume_state, rndms_flat, rndm_offsets,
+                         seeds, lazy_draws, draw_scratch, perm_scratch,
                          loss_correlation_by_item, hermite_coeffs,
                          n_buildings_by_item_id, damage_correlation_by_item_id,
                          max_bytes_per_item, max_bytes_per_block, byte_mv, cursor):
@@ -492,6 +507,13 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
           reusable buffer for the per-building samples.
         rndms_flat (numpy.array[float64]): flat packed random values, seed-major then building.
         rndm_offsets (numpy.array[int64]): prefix-sum offsets into ``rndms_flat`` per seed.
+        seeds (numpy.array[int]): per rng group, the Philox key. Read only when lazy_draws is
+          set, where it replaces the materialised array entirely.
+        lazy_draws (int8): 1 when the generator is counter-based (generator 2) and a building's
+          block is produced on demand rather than read out of ``rndms_flat``, which is then
+          empty. The values are identical either way.
+        draw_scratch (numpy.array[float64]): length-S buffer for one building's block.
+        perm_scratch (numpy.array[float64]): length-S scratch the block generator permutes in.
         n_buildings_by_item_id (numpy.array[int]): per item, the signed building count. The
             magnitude is how many buildings the item carries; a negative sign means those
             buildings must reach the financial module as separate blocks, positive that they are
@@ -613,8 +635,15 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                             resume_state[0] = item_i
                             resume_state[1] = building_i
                             return cursor, last_processed_coverage_ids_idx
-                    rndms = rndms_flat[base_off + building_i * sample_size:
-                                       base_off + (building_i + 1) * sample_size]
+                    if lazy_draws:
+                        gs = np.uint64(seeds[rng_index])
+                        _lh_philox_block(np.uint32(gs & PHILOX_U32_MASK),
+                                         np.uint32(gs >> PHILOX_SHIFT32), building_i, sample_size,
+                                         perm_scratch[:sample_size], draw_scratch[:sample_size])
+                        rndms = draw_scratch[:sample_size]
+                    else:
+                        rndms = rndms_flat[base_off + building_i * sample_size:
+                                           base_off + (building_i + 1) * sample_size]
                     if do_correlation and corr_data_by_item_id[item['item_id']]['damage_correlation_value'] > 0:
                         item_corr_data = corr_data_by_item_id[item['item_id']]
                         get_corr_rval(

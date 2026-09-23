@@ -225,6 +225,14 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     # One building per item here, so each group is just its S samples.
     _S = max(sample_size, 1)
     vuln_rndms_flat = np.zeros(_S, dtype=np.float64)
+    # generator 0/1 path: draws are materialised, so lazy_draws stays 0 and the
+    # seeds and scratch below are allocated but never read
+    vuln_seeds = np.zeros(8, dtype=np.int64)
+    haz_seeds = np.zeros(8, dtype=np.int64)
+    lazy_draws = np.int8(0)
+    vuln_draw_scratch = np.zeros(_S, dtype=np.float64)
+    haz_draw_scratch = np.zeros(_S, dtype=np.float64)
+    perm_scratch = np.zeros(_S, dtype=np.float64)
     haz_rndms_flat = np.zeros(_S, dtype=np.float64)
     if sample_size > 0:
         vuln_rndms_flat[:] = np.linspace(0.05, 0.95, sample_size)
@@ -290,6 +298,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
         building_losses, summed_scratch, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
+        vuln_seeds, haz_seeds, lazy_draws, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
         source_eff_damage_cdf_len_stack,
     )
@@ -583,6 +592,14 @@ def test_rp_protection_only_affects_protected_items():
     loss_correlation_by_item = np.zeros(losses.shape[1], dtype=oasis_float)
     hermite_coeffs = np.zeros(HERMITE_TERMS, dtype=np.float64)
     vuln_rndms_flat = np.zeros(max(sample_size, 1), dtype=np.float64)
+    # generator 0/1 path: draws are materialised, so lazy_draws stays 0 and the
+    # seeds and scratch below are allocated but never read
+    vuln_seeds = np.zeros(8, dtype=np.int64)
+    haz_seeds = np.zeros(8, dtype=np.int64)
+    lazy_draws = np.int8(0)
+    vuln_draw_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
+    haz_draw_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
+    perm_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
     haz_rndms_flat = np.zeros(max(sample_size, 1), dtype=np.float64)
     vuln_offsets = np.array([0, max(sample_size, 1)], dtype=np.int64)
     haz_offsets = np.array([0, max(sample_size, 1)], dtype=np.int64)
@@ -605,6 +622,7 @@ def test_rp_protection_only_affects_protected_items():
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
         building_losses, summed_scratch, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_flat, vuln_offsets, haz_rndms_flat, haz_offsets,
+        vuln_seeds, haz_seeds, lazy_draws, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
         source_eff_damage_cdf_len_stack,
     )
