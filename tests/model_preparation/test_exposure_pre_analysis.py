@@ -136,6 +136,44 @@ def test_exposure_pre_analysis_preserves_parquet_source_format():
         assert list(new_oed_location['BuildingTIV']) == [2.0, 4.0, 6.0, 8.0, 10.0]
 
 
+def write_oed_account_csv(oed_account_csv):
+    with open(oed_account_csv, 'w') as f:
+        f.write('PortNumber,AccNumber,PolNumber,AccCurrency,PolPerilsCovered\n1,A11111,P1,GBP,AA1\n')
+
+
+def test_exposure_pre_analysis_preserves_per_source_format():
+    """
+    Regression test: each OED source should keep its own original file
+    format. A location file in parquet should not force-convert an account
+    file that was given as csv to parquet too (see save_exposure_data).
+    """
+    with TemporaryDirectory() as d:
+        oed_location_parquet = os.path.join(d, 'input_location.parquet')
+        oed_account_csv = os.path.join(d, 'input_account.csv')
+        kwargs = {'oasis_files_dir': d,
+                  'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple.py'),
+                  'oed_location_csv': oed_location_parquet,
+                  'oed_accounts_csv': oed_account_csv,
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
+                  'check_oed': False}
+
+        write_simple_epa_module(kwargs['exposure_pre_analysis_module'])
+        write_oed_location_parquet(oed_location_parquet)
+        write_oed_account_csv(oed_account_csv)
+        write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
+
+        OasisManager().exposure_pre_analysis(**kwargs)
+
+        assert os.path.isfile(os.path.join(d, 'raw_location.parquet'))
+        assert os.path.isfile(os.path.join(d, 'location.parquet'))
+        assert os.path.isfile(os.path.join(d, 'raw_account.csv')), \
+            'expected account snapshot to stay csv, not be force-converted to parquet'
+        assert os.path.isfile(os.path.join(d, 'account.csv')), \
+            'expected account snapshot to stay csv, not be force-converted to parquet'
+        assert not os.path.isfile(os.path.join(d, 'raw_account.parquet'))
+        assert not os.path.isfile(os.path.join(d, 'account.parquet'))
+
+
 def test_missing_module():
     with pytest.raises(OasisException, match="parameter exposure_pre_analysis_module is required for Computation Step ExposurePreAnalysis"):
         OasisManager().exposure_pre_analysis()
