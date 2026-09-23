@@ -9,6 +9,9 @@ from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
+# Warn above this much per-event draw memory for the generators that must hold it all.
+DRAW_MEMORY_WARN_BYTES = 2 * 1024 ** 3
+
 
 GROUP_ID_HASH_CODE = np.int64(1543270363)
 EVENT_ID_HASH_CODE = np.int64(1943272559)
@@ -147,6 +150,37 @@ def get_sample_generator(random_generator):
         raise ValueError(f"No random generator exists for random_generator={random_generator}.")
 
 
+def warn_if_draws_are_large(random_generator, sample_size, n_buildings_signed, logger):
+    """Warn when the per-event random draws will be large and a cheaper generator exists.
+
+    Generators 0 and 1 draw a group's buildings as one sequential stream, so building b cannot be
+    produced without producing the b-1 before it, and the whole event's draws have to be held at
+    once: ``sum over groups of N * S`` float64. Generator 2 is counter-based and addresses a
+    building directly, so it produces each block where it is used and holds none of it.
+
+    Neither numpy's legacy RandomState nor numba exposes MT19937 jump-ahead, which is what 0 and 1
+    would need to do the same. This warns rather than fails: the run is correct either way, and
+    what is affordable is the caller's judgement, not ours.
+
+    Args:
+        random_generator (int): 0 Mersenne Twister, 1 Latin Hypercube, 2 Latin Hypercube on Philox.
+        sample_size (int): samples per building.
+        n_buildings_signed (numpy.array[int]): the per-item SIGNED building counts.
+        logger (logging.Logger): where to warn.
+    """
+    if random_generator == 2 or sample_size <= 0 or n_buildings_signed.shape[0] == 0:
+        return
+    total_buildings = int(np.abs(n_buildings_signed).sum())
+    est_bytes = total_buildings * sample_size * 8
+    if est_bytes >= DRAW_MEMORY_WARN_BYTES:
+        logger.warning(
+            f"random draws for one event may reach {est_bytes / 1e9:.1f} GB "
+            f"({total_buildings:,} buildings x {sample_size} samples x 8 bytes, per dimension). "
+            f"Generator {random_generator} draws a group as one sequential stream, so all of it "
+            f"is held at once. --random-generator=2 produces each building where it is used and "
+            f"holds none of it, at the cost of different random values.")
+
+
 @njit(cache=True, fastmath=True)
 def build_packed_rndm_offsets(n_buildings, n):
     """Prefix-sum offsets for building-packed random draws.
@@ -172,10 +206,10 @@ def build_packed_rndm_offsets(n_buildings, n):
     return offsets
 
 
-
 EVENT_ID_HASH_CODE = np.int64(1943_272_559)
 PERIL_CORRELATION_GROUP_HASH = np.int64(1836311903)
 HASH_MOD_CODE = np.int64(2147483648)
+
 
 @njit(cache=True, fastmath=True)
 def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, correlated_hashes, base_seed=0):
