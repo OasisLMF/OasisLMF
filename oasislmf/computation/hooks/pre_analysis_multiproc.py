@@ -3,39 +3,16 @@ __all__ = [
 ]
 
 import copy
-import sys
 
 import numpy as np
 import pandas as pd
 
-try:
-    import billiard as multiprocessing
-except ImportError:
-    import multiprocessing
-
-from queue import Empty, Full
-
 from ...utils.exceptions import OasisException
-
-# add pickling support for traceback object
-import tblib.pickling_support
-
-tblib.pickling_support.install()
+from ...utils.multiproc import run_multiproc
 
 
-def with_error_queue(fct):
-    def wrapped_fct(error_queue, *args, **kwargs):
-        try:
-            return fct(error_queue, *args, **kwargs)
-        except Exception:
-            error_queue.put(sys.exc_info())
-
-    return wrapped_fct
-
-
-@with_error_queue
-def exposure_producer(error_queue, loc_df, acc_df, part_count, group_cols, exposure_queue):
-    """Split loc_df/acc_df into part_count chunks and put them on exposure_queue.
+def _split_chunks(loc_df, acc_df, part_count, group_cols):
+    """Yield (loc_part, acc_part) chunks split from loc_df/acc_df.
 
     If group_cols is given, chunks are formed from unique combinations of those columns
     (e.g. ['PortNumber', 'AccNumber']) so that every location/account row belonging to the
@@ -64,44 +41,24 @@ def exposure_producer(error_queue, loc_df, acc_df, part_count, group_cols, expos
         loc_parts = (loc_df[loc_df['loc_id'].isin(loc_id_parts[i])] for i in range(part_count))
         acc_parts = (None for _ in range(part_count))
 
-    parts_iter = zip(loc_parts, acc_parts)
-    part = True
-    while part is not None:
-        part = next(parts_iter, None)
-        loc_part, acc_part = part if part is not None else (None, None)
-        while error_queue.empty():
-            try:
-                exposure_queue.put((loc_part, acc_part), timeout=5)
-                break
-            except Full:
-                pass
-        else:
-            return
+    return zip(loc_parts, acc_parts)
 
 
-@with_error_queue
-def pre_analysis_multiproc_worker(error_queue, exposure_data, hook_cls, hook_kwargs, exposure_queue, result_queue):
+def _make_chunk_processor(exposure_data, hook_cls, hook_kwargs):
+    """Build the per-chunk function run in each worker process: instantiate hook_cls on a
+    chunk of exposure_data's location/account dataframes and call .run(), returning the
+    (possibly hook-modified) location/account dataframes plus the hook's return value.
+
+    Raises OasisException if the hook mutates exposure_data.ri_info/ri_scope - these aren't
+    chunked or merged back (only the main process's copy is kept), so silently allowing such a
+    mutation would discard it without warning.
+    """
     has_account = exposure_data.account is not None
-    # ri_info/ri_scope are not chunked or merged back - only the main process's copy is kept,
-    # so a hook mutating either of them here would otherwise have that change silently
-    # discarded. Snapshot them once and fail loudly if any chunk run changes them, rather than
-    # silently dropping the mutation.
     unchunked_ri_info = exposure_data.ri_info.dataframe.copy() if exposure_data.ri_info is not None else None
     unchunked_ri_scope = exposure_data.ri_scope.dataframe.copy() if exposure_data.ri_scope is not None else None
-    while True:
-        while error_queue.empty():
-            try:
-                loc_part, acc_part = exposure_queue.get(timeout=5)
-                break
-            except Empty:
-                pass
-        else:
-            return
 
-        if loc_part is None:
-            exposure_queue.put((None, None))
-            result_queue.put(None)
-            break
+    def process_chunk(chunk):
+        loc_part, acc_part = chunk
 
         chunk_exposure_data = copy.copy(exposure_data)
         chunk_exposure_data.location = copy.copy(exposure_data.location)
@@ -129,37 +86,13 @@ def pre_analysis_multiproc_worker(error_queue, exposure_data, hook_cls, hook_kwa
                 'lookup_multiprocessing=False to run this hook single-process.'
             )
 
-        result = (
+        return (
             chunk_exposure_data.location.dataframe,
             chunk_exposure_data.account.dataframe if has_account else None,
             class_return,
         )
-        while error_queue.empty():
-            try:
-                result_queue.put(result, timeout=5)
-                break
-            except Full:
-                pass
-        else:
-            return
 
-
-def result_producer(result_queue, error_queue, worker_count):
-    finished_workers = 0
-    while finished_workers < worker_count and error_queue.empty():
-        while error_queue.empty():
-            try:
-                res = result_queue.get(timeout=5)
-                break
-            except Empty:
-                pass
-        else:
-            break
-
-        if res is None:
-            finished_workers += 1
-        else:
-            yield res
+    return process_chunk
 
 
 def run_pre_analysis_multiproc(exposure_data, hook_cls, hook_kwargs, pool_count, part_count, group_cols):
@@ -169,38 +102,15 @@ def run_pre_analysis_multiproc(exposure_data, hook_cls, hook_kwargs, pool_count,
     Returns (location_df, account_df, [chunk_return, ...]) with the per-chunk results merged
     back together; account_df is None if exposure_data has no account data.
     """
-    if pool_count <= 1:
-        raise ValueError(
-            f'run_pre_analysis_multiproc requires pool_count > 1 (got {pool_count}) - '
-            'the caller should run the hook directly instead of spinning up a pool of one.'
-        )
-
     loc_df = exposure_data.location.dataframe
     acc_df = exposure_data.account.dataframe if exposure_data.account is not None else None
+    chunks = _split_chunks(loc_df, acc_df, part_count, group_cols)
+    # process_chunk doesn't depend on which worker runs it, so every worker gets the same one
+    process_chunk = _make_chunk_processor(exposure_data, hook_cls, hook_kwargs)
 
-    ct = multiprocessing.get_context("fork")
-    exposure_queue = ct.Queue(maxsize=pool_count)
-    result_queue = ct.Queue(maxsize=pool_count)
-    error_queue = ct.Queue()
-
-    producer = ct.Process(
-        target=exposure_producer,
-        args=(error_queue, loc_df, acc_df, part_count, group_cols, exposure_queue),
-    )
-    workers = [
-        ct.Process(
-            target=pre_analysis_multiproc_worker,
-            args=(error_queue, exposure_data, hook_cls, hook_kwargs, exposure_queue, result_queue),
-        )
-        for _ in range(pool_count)
-    ]
-
-    producer.start()
-    [worker.start() for worker in workers]
-
-    try:
+    def on_results(results):
         loc_results, acc_results, class_returns = [], [], []
-        for loc_part, acc_part, class_return in result_producer(result_queue, error_queue, worker_count=pool_count):
+        for loc_part, acc_part, class_return in results:
             loc_results.append(loc_part)
             if acc_part is not None:
                 acc_results.append(acc_part)
@@ -211,15 +121,5 @@ def run_pre_analysis_multiproc(exposure_data, hook_cls, hook_kwargs, pool_count,
             pd.concat(acc_results, ignore_index=True) if acc_results else None,
             class_returns,
         )
-    except Exception:
-        error_queue.put(sys.exc_info())
-    finally:
-        for process in [producer] + workers:
-            if process.is_alive():
-                process.terminate()
-                process.join()
-        exposure_queue.close()
-        result_queue.close()
-        if not error_queue.empty():
-            exc_info = error_queue.get()
-            raise exc_info[0].with_traceback(exc_info[1], exc_info[2])
+
+    return run_multiproc(chunks, lambda worker_id: process_chunk, pool_count, on_results)

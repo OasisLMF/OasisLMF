@@ -331,6 +331,34 @@ class GenerateKeysWithBuiltinLookup(TestCase):
             assert filecmp.cmp(pathlib.Path(d, 'keys.csv'), pathlib.Path(META_DATA_PATH, 'keys.csv'), shallow=False)
             assert filecmp.cmp(pathlib.Path(d, 'keys-errors.csv'), pathlib.Path(META_DATA_PATH, 'keys-errors.csv'), shallow=False)
 
+    def test_built_in_lookup_step_multiproc_matches_singleproc(self):
+        """Forcing an explicit lookup_num_chunks/lookup_num_processes > 1 must exercise the
+        real multiprocess pool (generate_key_files_multiproc), and produce the same rows as
+        the singleproc run (see the shared run_multiproc engine in oasislmf.utils.multiproc).
+        Row order isn't guaranteed across workers, so rows are compared as sets, not bytes."""
+        with TemporaryDirectory() as d:
+            generate_keys = GenerateKeys(
+                oed_location_csv=pathlib.Path(META_DATA_PATH, 'location.csv'),
+                lookup_config_json=pathlib.Path(META_DATA_PATH, 'lookup_config.json'),
+                keys_data_path=str(pathlib.Path(d, 'keys.csv')),
+                keys_format="oasis",
+                lookup_multiprocessing=True,
+                lookup_num_chunks=2,
+                lookup_num_processes=2,
+            )
+            generate_keys.run()
+
+            def row_set(fp):
+                with open(fp) as f:
+                    lines = f.readlines()
+                return lines[0], set(lines[1:])
+
+            new_header, new_rows = row_set(pathlib.Path(d, 'keys.csv'))
+            expected_header, expected_rows = row_set(pathlib.Path(META_DATA_PATH, 'keys.csv'))
+            assert new_header == expected_header
+            assert new_rows == expected_rows
+            assert filecmp.cmp(pathlib.Path(d, 'keys-errors.csv'), pathlib.Path(META_DATA_PATH, 'keys-errors.csv'), shallow=False)
+
     def test_builtin_geo_grid_peril(self):
         with TemporaryDirectory() as d:
             generate_keys = GenerateKeys(
