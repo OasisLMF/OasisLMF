@@ -31,9 +31,7 @@ from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX,
                                          gulSampleslevelRec_size)
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul,
                                        accumulate_hermite_coeffs, loss_correlation, HERMITE_TERMS,
-                                       setmaxloss_items,
-                                       split_tiv_classic,
-                                       split_tiv_multiplicative)
+                                       apply_alloc_rule)
 from oasislmf.pytools.gul.io import read_getmodel_stream
 from oasislmf.pytools.gul.random import (_lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32,
                                          cdf_min,
@@ -549,9 +547,12 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         # building_losses on the same rule.
         fuse_emit = sample_size > 0 and (alloc_rule == 0 or coverage['cur_items'] == 1)
 
-        # A coverage emitted whole through write_losses has to fit the buffer before we start;
-        # conservatively assume every random sample is printed. A fused one is checked per
-        # building instead, which is what keeps the buffer off the largest building count.
+        # A coverage emitted whole through write_losses has to fit the buffer before we start,
+        # conservatively assuming every random sample is printed. The bound OVER-reserves beyond
+        # that: max_bytes_per_item carries max_emitted_blocks over EVERY item, so a coverage of
+        # one-building items is charged for the largest packed item anywhere. A fused coverage
+        # reserves per BLOCK instead -- one per building where they are kept separate, one for the
+        # whole item where they are summed -- which keeps the buffer off the largest building count.
         if not fuse_emit:
             if cursor + Nitem_ids * max_bytes_per_item > byte_mv.shape[0]:
                 return cursor, last_processed_coverage_ids_idx
@@ -600,19 +601,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     # cur_items == 1 wherever alloc_rule != 0 here, so these length-1 slices ARE
                     # the whole cross-item vector write_losses would pass, and the reductions on
                     # them are the identity (setmaxloss, multiplicative) or a cap at tiv (classic)
-                    if alloc_rule == 2:
-                        setmaxloss_items(losses[TIV_IDX, item_i:item_i + 1])
-                        setmaxloss_items(losses[MAX_LOSS_IDX, item_i:item_i + 1])
-                        setmaxloss_items(losses[MEAN_IDX, item_i:item_i + 1])
-                    if tiv > 0:
-                        if alloc_rule == 1 or alloc_rule == 2:
-                            split_tiv_classic(losses[TIV_IDX, item_i:item_i + 1], tiv)
-                            split_tiv_classic(losses[MAX_LOSS_IDX, item_i:item_i + 1], tiv)
-                            split_tiv_classic(losses[MEAN_IDX, item_i:item_i + 1], tiv)
-                        elif alloc_rule == 3:
-                            split_tiv_multiplicative(losses[TIV_IDX, item_i:item_i + 1], tiv)
-                            split_tiv_multiplicative(losses[MAX_LOSS_IDX, item_i:item_i + 1], tiv)
-                            split_tiv_multiplicative(losses[MEAN_IDX, item_i:item_i + 1], tiv)
+                    for special in (TIV_IDX, MAX_LOSS_IDX, MEAN_IDX):
+                        apply_alloc_rule(losses[special, item_i:item_i + 1], alloc_rule, tiv)
                     # The specials are recomputed above on every entry, so re-applying the cap
                     # after a resume caps fresh values rather than already-capped ones. Only the
                     # header must not be repeated.
@@ -704,13 +694,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     if fuse_emit:
                         if alloc_rule != 0:
                             for s_i in range(sample_size):
-                                if alloc_rule == 2:
-                                    setmaxloss_items(building_losses[s_i, item_i:item_i + 1, 0])
-                                if tiv > 0:
-                                    if alloc_rule == 1 or alloc_rule == 2:
-                                        split_tiv_classic(building_losses[s_i, item_i:item_i + 1, 0], tiv)
-                                    elif alloc_rule == 3:
-                                        split_tiv_multiplicative(building_losses[s_i, item_i:item_i + 1, 0], tiv)
+                                apply_alloc_rule(building_losses[s_i, item_i:item_i + 1, 0], alloc_rule, tiv)
                         if keep_separate_item:
                             cursor = write_packed_building_block(
                                 byte_mv, cursor, losses[:, item_i], building_i + 1,
@@ -936,29 +920,14 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
                 for sample_idx in range(sample_size):
                     building_losses[sample_idx, item_j, b] = 0
 
-    if alloc_rule == 2:
-        setmaxloss_items(losses[TIV_IDX])
-        setmaxloss_items(losses[MAX_LOSS_IDX])
-        setmaxloss_items(losses[MEAN_IDX])
+    # The same cap the fused path applies per item as it computes -- here over the whole
+    # cross-item vector, which is the only difference between the two.
+    if alloc_rule != 0:
+        for special in (TIV_IDX, MAX_LOSS_IDX, MEAN_IDX):
+            apply_alloc_rule(losses[special], alloc_rule, tiv)
         for b in range(max_nb):
             for sample_idx in range(sample_size):
-                setmaxloss_items(building_losses[sample_idx, :, b])
-
-    if tiv > 0:
-        if alloc_rule == 1 or alloc_rule == 2:
-            split_tiv_classic(losses[TIV_IDX], tiv)
-            split_tiv_classic(losses[MAX_LOSS_IDX], tiv)
-            split_tiv_classic(losses[MEAN_IDX], tiv)
-            for b in range(max_nb):
-                for sample_idx in range(sample_size):
-                    split_tiv_classic(building_losses[sample_idx, :, b], tiv)
-        elif alloc_rule == 3:
-            split_tiv_multiplicative(losses[TIV_IDX], tiv)
-            split_tiv_multiplicative(losses[MAX_LOSS_IDX], tiv)
-            split_tiv_multiplicative(losses[MEAN_IDX], tiv)
-            for b in range(max_nb):
-                for sample_idx in range(sample_size):
-                    split_tiv_multiplicative(building_losses[sample_idx, :, b], tiv)
+                apply_alloc_rule(building_losses[sample_idx, :, b], alloc_rule, tiv)
 
     for item_j in range(item_ids.shape[0]):
         cursor = mv_write_item_header(byte_mv, cursor, event_id, item_ids[item_j])

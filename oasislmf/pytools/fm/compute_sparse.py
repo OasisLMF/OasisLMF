@@ -637,6 +637,25 @@ def load_net_value(computes, compute_idx, nodes_array,
     compute_idx['level_start_compute_i'] = 0
 
 
+@njit(cache=True, fastmath=True, inline='always')
+def effective_max_buildings(compute_info):
+    """How many building blocks the sidx-indexed arrays actually have to span.
+
+    ``max_buildings`` says what the STREAM can carry; this says what reaches fm storage. When no
+    level applies terms per building there is nothing to collapse later, so FMReader sums the
+    buildings away as it reads (see ``collapse_on_read`` in manager.run_synchronous_sparse, which
+    must stay the same predicate) and every stored sidx is local.
+
+    It has to be ONE function: ``all_sidx`` is the iteration domain and ``temp_node_sidx`` is
+    indexed by its values, so sizing them from two separate reads of ``max_buildings`` lets them
+    disagree -- and the scan then runs off the end of the dense temporaries, unchecked.
+    """
+    max_buildings = max(1, compute_info['max_buildings'])
+    if max_buildings > 1 and compute_info['site_collapse_level'] < max(1, compute_info['start_level']):
+        return 1
+    return max_buildings
+
+
 @njit(cache=True, fastmath=True, error_model="numpy")
 def compute_event(compute_info,
                   keep_input_loss,
@@ -754,7 +773,7 @@ def compute_event(compute_info,
     # array, so it must cover every value that can arrive. Under packing that includes each
     # building's block: specials NUM_SPECIAL_SIDX lower per building, samples at (b-1)*S+1..b*S.
     # max_buildings is 1 for an ordinary run, reducing this to (-5, -3, -1, 1..S).
-    n_buildings = max(1, int(compute_info['max_buildings']))
+    n_buildings = effective_max_buildings(compute_info)
     all_sidx = np.empty(n_buildings * (max_sidx_val + EXTRA_SIDX_COUNT), dtype=oasis_int)
     i = 0
     for b in range(n_buildings, 0, -1):
@@ -1216,7 +1235,10 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
     # times the room. The arrays are one arena filled by a bump allocator, so this is a
     # capacity bound, not a per-node stride. It has to be right: numba does not bounds-check,
     # so an arena too small corrupts the heap instead of raising.
-    max_buildings = max(1, int(compute_info['max_buildings']))
+    # Only what reaches storage, not what the stream can carry: a run with nothing to collapse
+    # is read collapsed, and then the factor buys nothing while the dense temporaries are scanned
+    # per node per event.
+    max_buildings = int(effective_max_buildings(compute_info))
     packable_nodes = int(compute_info['packable_node_len'])
 
     max_sidx_count = max_sidx_val + EXTRA_SIDX_COUNT
