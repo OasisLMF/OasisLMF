@@ -202,9 +202,11 @@ correlations_headers, correlations_dtype, correlations_fmt = generate_output_met
 # One record. site_collapse_level is the last fm level whose aggregation key includes risk_id --
 # packed buildings collapse after it, and 0 means there is no such level. max_buildings sizes the
 # computation arrays.
+total_packed_buildings = ("total_packed_buildings", 'i4', "%d")
 fm_structure_info_output = [
     site_collapse_level,
     max_buildings,
+    total_packed_buildings,
 ]
 fm_structure_info_headers, fm_structure_info_dtype, fm_structure_info_fmt = generate_output_metadata(
     fm_structure_info_output)

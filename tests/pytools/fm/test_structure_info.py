@@ -19,6 +19,7 @@ import numpy as np
 from oasislmf.preparation.il_inputs import write_fm_structure_info
 from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_policytc_dtype,
                                           fm_profile_dtype, fm_programme_dtype, fm_xref_dtype)
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.fm.financial_structure import (
     compute_info_dtype,
     create_financial_structure,
@@ -50,25 +51,50 @@ class TestLoadFmStructureInfo(TestCase):
     def test_absent_file_reads_as_nothing_to_collapse(self):
         """Every input set generated before building-packing has no such file."""
         with TemporaryDirectory() as d:
-            self.assertEqual(load_fm_structure_info(d), (0, 1))
+            self.assertEqual(load_fm_structure_info(d), (0, 1, 0))
 
     def test_values_are_read(self):
         """Round trip through the writer generation actually uses."""
         with TemporaryDirectory() as d:
-            write_fm_structure_info(d, 3, 7)
-            self.assertEqual(load_fm_structure_info(d), (3, 7))
+            write_fm_structure_info(d, 3, 7, 4200)
+            self.assertEqual(load_fm_structure_info(d), (3, 7, 4200))
 
     def test_an_empty_file_falls_back_to_the_default(self):
         """The fixed-width equivalent of a malformed file: no record to read."""
         with TemporaryDirectory() as d:
             open(os.path.join(d, FM_STRUCTURE_INFO_FILE), "wb").close()
-            self.assertEqual(load_fm_structure_info(d), (0, 1))
+            self.assertEqual(load_fm_structure_info(d), (0, 1, 0))
 
     def test_max_buildings_is_never_below_one(self):
         """It multiplies array sizes, so a bad value must not shrink them."""
         with TemporaryDirectory() as d:
-            write_fm_structure_info(d, 1, 0)
-            self.assertEqual(load_fm_structure_info(d), (1, 1))
+            write_fm_structure_info(d, 1, 0, 0)
+            self.assertEqual(load_fm_structure_info(d), (1, 1, 0))
+
+
+    def test_a_file_of_the_wrong_layout_is_rejected(self):
+        """Reading it as "no packing" would drop the collapse silently and give wrong losses.
+
+        np.fromfile yields zero records for a record of the wrong width, which is indistinguishable
+        from an empty file unless the size is checked. Older layouts are not supported -- the point
+        here is that they fail loudly.
+        """
+        short = np.dtype([("site_collapse_level", "<i4"), ("max_buildings", "<i4")])
+        with TemporaryDirectory() as d:
+            np.array([(2, 9)], dtype=short).tofile(os.path.join(d, FM_STRUCTURE_INFO_FILE))
+            with self.assertRaises(OasisException):
+                load_fm_structure_info(d)
+
+    def test_a_total_below_the_maximum_is_rejected(self):
+        """The total is a SUM over the items the maximum is taken from, so it cannot be smaller.
+
+        It sizes the arena, and under-reserving there is a write past the end of a numba array --
+        corruption rather than an exception.
+        """
+        with TemporaryDirectory() as d:
+            write_fm_structure_info(d, 1, 9, 4)
+            with self.assertRaises(OasisException):
+                load_fm_structure_info(d)
 
 
 class TestComputeInfoCarriesIt(TestCase):
@@ -83,7 +109,7 @@ class TestComputeInfoCarriesIt(TestCase):
                 with TemporaryDirectory() as d:
                     _write_minimal_fm_inputs(d)
                     if written is not None:
-                        write_fm_structure_info(d, written[0], written[1])
+                        write_fm_structure_info(d, written[0], written[1], written[1] * 2)
 
                     create_financial_structure(0, d)
                     compute_info = load_financial_structure(0, d)[0][0]
@@ -102,7 +128,7 @@ class TestComputeInfoCarriesIt(TestCase):
 
         with TemporaryDirectory() as d:
             _write_minimal_fm_inputs(d)
-            write_fm_structure_info(d, 1, 3)
+            write_fm_structure_info(d, 1, 3, 6)
             create_financial_structure(0, d)
             compute_info = load_financial_structure(0, d)[0][0]
             self.assertGreater(compute_info['packable_node_len'], 0)
