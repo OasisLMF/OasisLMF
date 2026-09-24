@@ -13,8 +13,9 @@ from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
-from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError
+from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError, load_json_config
 from oasislmf.utils.log import oasis_log
+from ..utils.log_config import OasisLogConfig
 
 
 class ComputationStep:
@@ -27,6 +28,23 @@ class ComputationStep:
 
     step_params = []
     chained_commands = []
+
+    # Params shared by every Computation Step, regardless of step_params.
+    # Not exposed as their own CLI flags (no 'help' key) since OasisBaseCommand
+    # already registers -V/--verbose, -L/--log-level, --log-format and -C/--config
+    # directly; declaring them here just makes them collectable via get_params() so
+    # they can be set from a computation settings JSON file and appear in the
+    # generated computation_settings_schema.json.
+    #
+    # 'config' is the exception: it mirrors the CLI's -C/--config MDK config file path
+    # (needed so _apply_log_config() can re-read its "logging" block), not something an
+    # analysis settings file should be able to set, so it's excluded from the schema.
+    global_params = [
+        {'name': 'verbose', 'default': False},
+        {'name': 'log_level', 'choices': OasisLogConfig.STANDARD_LEVELS},
+        {'name': 'log_format', 'choices': list(OasisLogConfig.FORMAT_TEMPLATES.keys())},
+        {'name': 'config', 'exclude_from_schema': True},
+    ]
 
     def __init__(self, **kwargs):
         """Initialise the ComputationStep objects:
@@ -44,6 +62,8 @@ class ComputationStep:
         for param in self.get_params():
             param_value = self._get_init_value(param, kwargs)
             setattr(self, param['name'], param_value)
+
+        self._apply_log_config()
 
         # read and merge settings files
         settings = Settings()
@@ -88,6 +108,51 @@ class ComputationStep:
             param_value = str(param_value)
         return param_value
 
+    def _apply_log_config(self):
+        """Re-apply an explicitly resolved log_level/log_format to the 'oasislmf' logger.
+
+        By the time a ComputationStep is constructed, 'log_level'/'log_format' may have
+        come from a 'computation_settings' block inside an analysis settings file - which
+        is only read and merged in here (via OasisComputationCommand.get_arguments), after
+        the CLI already configured logging in setup_logger() using just the raw CLI args /
+        MDK config file. Without this, a value set only via computation settings would be
+        recorded on self.log_level/self.log_format but never actually change the logger's
+        behaviour.
+
+        Only acts when self.log_level/self.log_format are explicitly set (not None). It
+        deliberately ignores self.verbose: that legacy flag is already fully and correctly
+        resolved by setup_logger() (which has access to the nested MDK config "logging"
+        block this class never sees), so re-deriving a level from it here - with none of
+        that context - would risk silently overriding a correctly resolved level.
+
+        self.config (the MDK config file path, set the same way as log_level/log_format)
+        is re-loaded here so that a "logging" block in that file - e.g. ods_tools_level -
+        is still honoured by get_ods_tools_level() when the level is re-applied.
+        """
+        if self.log_level is None and self.log_format is None:
+            return
+
+        config_dict = {}
+        if self.config:
+            try:
+                config_dict = load_json_config(self.config)
+            except (OasisException, json.JSONDecodeError):
+                self.logger.warning(f"Could not re-load MDK config file for logging: {self.config}")
+
+        log_config = OasisLogConfig(config_dict)
+        logger = logging.getLogger('oasislmf')
+
+        if self.log_level is not None:
+            level = log_config.get_log_level(self.log_level)
+            logger.setLevel(level)
+            logging.getLogger('ods_tools').setLevel(log_config.get_ods_tools_level(level))
+
+        if self.log_format is not None:
+            formatter = log_config.create_formatter(self.log_format)
+            for handler in logger.handlers:
+                if handler.name == 'oasislmf':
+                    handler.setFormatter(formatter)
+
     @classmethod
     def get_default_run_dir(cls):
         return os.path.join(os.getcwd(), 'runs', f'{cls.run_dir_key}-{get_utctimestamp(fmt="%Y%m%d%H%M%S")}')
@@ -95,13 +160,18 @@ class ComputationStep:
     @classmethod
     def get_params(cls, param_type="step"):
         """Return all the params of the computation step defined in step_params
-        and the params from the sub_computation step in chained_commands
+        and the params from the sub_computation step in chained_commands - plus,
+        when param_type=="step", the params in ComputationStep.global_params
+        (verbose, log_level, log_format, config).
         if two params have the same name, return the param definition of the first param found only
         this allow to overwrite the param definition of sub step if necessary.
         """
         params = {}
 
         def all_params():
+            if param_type == "step":
+                for _param in ComputationStep.global_params:
+                    yield _param
             for _param in getattr(cls, f"{param_type}_params", []):
                 yield _param
             for command in cls.chained_commands:
@@ -204,6 +274,8 @@ class ComputationStep:
         settings_param_names = [param['name'] for param in cls.get_params(param_type="settings")]
         for param in cls.get_params():
             if param['name'] in settings_param_names:  # param is a json settings and therefore cannot be in the settings schema
+                continue
+            if param.get('exclude_from_schema'):  # param is CLI/MDK-config only and cannot be set via computation_settings
                 continue
             param_schema = {"type": get_json_type(param)}
             if param.get('help'):
