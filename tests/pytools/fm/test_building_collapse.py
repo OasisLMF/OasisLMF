@@ -57,11 +57,20 @@ def _profiles():
 
 
 def _write(d, programme, policytc, xref, site_collapse_level, max_buildings):
+    """Write a structure, deriving the packed-building total the arena is sized from.
+
+    The total is a SUM over the packed items, so it is derived from the programme rather than
+    passed: hand-writing it per fixture is how you get an arena that is quietly too small, and
+    under-reserving there is a write past the end of a numba array.
+    """
+    leaf_level = int(programme['level_id'].min()) if len(programme) else 1
+    packed_items = int(np.unique(programme[programme['level_id'] == leaf_level]['from_agg_id']).shape[0])
     for name, arr in (('fm_programme', programme), ('fm_policytc', policytc),
                       ('fm_profile', _profiles()), ('fm_xref', xref)):
         arr.tofile(os.path.join(d, f'{name}.bin'))
     if site_collapse_level:
-        write_fm_structure_info(d, site_collapse_level, max_buildings)
+        write_fm_structure_info(d, site_collapse_level, max_buildings,
+                                total_packed_buildings=max_buildings * packed_items)
 
 
 def write_packed_structure(d):
@@ -289,7 +298,7 @@ class TestTermsAboveTheCollapseSurviveBackAllocation(TestCase):
         np.array([(1, 1, 1, 1), (2, 1, 1, 2)], dtype=fm_policytc_dtype).tofile(os.path.join(d, 'fm_policytc.bin'))
         self._profiles().tofile(os.path.join(d, 'fm_profile.bin'))
         np.array([(1, 1, 1)], dtype=fm_xref_dtype).tofile(os.path.join(d, 'fm_xref.bin'))
-        write_fm_structure_info(d, 1, 2)
+        write_fm_structure_info(d, 1, 2, total_packed_buildings=2)
 
     def _disaggregated(self, d):
         """Two items, a site node each, same limit above them."""
@@ -348,7 +357,7 @@ class TestNoSiteLevelStillCollapses(TestCase):
                np.array([(1, 1, 1)], dtype=fm_xref_dtype),
                site_collapse_level=0, max_buildings=2)
         # _write only emits the file when a collapse level is set, so write it explicitly
-        write_fm_structure_info(d, 0, 2)
+        write_fm_structure_info(d, 0, 2, total_packed_buildings=4)
 
     @staticmethod
     def _stream():
@@ -560,7 +569,7 @@ class TestNoSiteLevelSinglePeril(TestCase):
                np.array([(1, 1, 1)], dtype=fm_xref_dtype),
                site_collapse_level=0, max_buildings=2)
         # _write only emits the file when a collapse level is set, so write it explicitly
-        write_fm_structure_info(d, 0, 2)
+        write_fm_structure_info(d, 0, 2, total_packed_buildings=4)
 
     @staticmethod
     def _stream():

@@ -1459,8 +1459,14 @@ def get_il_input_items(
         if disaggregation == DISAGGREGATION_SAMPLES and 'keep_buildings_separate' in gul_inputs_df.columns:
             separate = gul_inputs_df.loc[gul_inputs_df['keep_buildings_separate'] == 1, 'number_of_buildings']
             max_buildings = int(separate.max()) if len(separate) else 1
+            # The SUM, not the maximum: the fm arena needs one packed slice per packable node, and
+            # budgeting every node at max_buildings charges each of them for the largest location
+            # in the portfolio. On a 5.7M-building book that is the difference between 241 TB and
+            # 5 GB. The maximum still sizes the dense temporaries, which are indexed by sidx value.
+            total_packed_buildings = int(separate.sum()) if len(separate) else 0
         else:
             max_buildings = 1
+            total_packed_buildings = 0
 
         # How many buildings' TIV each node covers, for percentage-of-TIV terms. Under row
         # disaggregation every row is one building and both are 1. Under packing one row stands for N:
@@ -1700,12 +1706,14 @@ def get_il_input_items(
         if disaggregation == DISAGGREGATION_SAMPLES:
             # The financial module cannot derive this: fm_programme levels are compacted, so only levels
             # carrying terms get one and the numbering varies per portfolio.
-            write_fm_structure_info(target_dir, site_collapse_level, max_buildings)
+            write_fm_structure_info(target_dir, site_collapse_level, max_buildings,
+                                    total_packed_buildings)
 
         return gul_inputs_df, il_input_files
 
 
-def write_fm_structure_info(target_dir, site_collapse_level, max_buildings=1):
+def write_fm_structure_info(target_dir, site_collapse_level, max_buildings=1,
+                            total_packed_buildings=0):
     """Write the building-packing structure info consumed by the financial module.
 
     Args:
@@ -1714,8 +1722,12 @@ def write_fm_structure_info(target_dir, site_collapse_level, max_buildings=1):
             Under building-packing the buildings must stay separate until this level has applied
             its terms, and collapse immediately after it. ``0`` means nothing to collapse.
         max_buildings (int): the largest number of buildings any one packed item carries into the
-            financial module. It sizes the computation arrays, which have to hold
-            ``max_buildings`` times as many entries per node up to the collapse level.
+            financial module. It sizes the dense temporaries, which are indexed by sidx VALUE and
+            so have to span the whole packed range.
+        total_packed_buildings (int): the SUM of the per-item building counts over the items whose
+            buildings stay separate. It sizes the fm arena, which needs one packed slice per
+            packable node -- a sum, not a count times the maximum. 0 means "not recorded", and the
+            reader then falls back to the old node-count bound.
 
     Returns:
         str: path of the file written.
@@ -1724,6 +1736,7 @@ def write_fm_structure_info(target_dir, site_collapse_level, max_buildings=1):
     record = np.zeros(1, dtype=fm_structure_info_dtype)
     record[0]['site_collapse_level'] = int(site_collapse_level)
     record[0]['max_buildings'] = int(max_buildings)
+    record[0]['total_packed_buildings'] = int(total_packed_buildings)
     record.tofile(fp)
     return fp
 

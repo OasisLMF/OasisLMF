@@ -1239,6 +1239,7 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
     # is read collapsed, and then the factor buys nothing while the dense temporaries are scanned
     # per node per event.
     max_buildings = int(effective_max_buildings(compute_info))
+    collapsed_on_read = max_buildings != max(1, int(compute_info['max_buildings']))
     packable_nodes = int(compute_info['packable_node_len'])
 
     max_sidx_count = max_sidx_val + EXTRA_SIDX_COUNT
@@ -1247,11 +1248,15 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
     # whole packed range
     len_array = max_buildings * (max_sidx_val + 6)
 
-    # max_buildings, not (max_buildings - 1): a packable node needs room for its own packed
-    # blocks, and under an allocation rule above 0 collapse_packed_leaves appends a collapsed copy
-    # of it rather than shrinking the original in place, which the arena cannot do. So budget one
-    # extra full-size slice per packable node on top of the base allowance.
-    extra_slots = packable_nodes * max_buildings * max_sidx_count
+    # One packed slice per packable node, budgeted as the SUM of their building counts rather
+    # than their count times the largest location in the portfolio -- see packable_building_slots.
+    # It is the whole count and not (count - 1) because under an allocation rule above 0
+    # collapse_packed_leaves appends a collapsed copy rather than shrinking the original in place,
+    # which the arena cannot do; that copy is what the base allowance covers.
+    #
+    # Forced to 0 alongside max_buildings when the stream is collapsed on read, where no packed
+    # sidx can reach the arena at all.
+    extra_slots = 0 if collapsed_on_read else int(compute_info['packable_building_slots']) * max_sidx_count
     # a packable node may carry several layers, so give the loss/extras arenas room for each --
     # plus one more, for the net_loss slice. net_loss lives in loss_val alongside the layers and is
     # packed and collapsed with them, and it is in use for allocation rule 1 *or* any net-loss
