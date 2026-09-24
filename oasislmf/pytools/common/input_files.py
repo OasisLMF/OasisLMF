@@ -180,11 +180,21 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
         # A whole number of records is not proof of the layout: an older record file whose count
         # divides evenly by the current itemsize too (a 20- or 24-byte record file holding a
         # multiple of 7 records, against today's 28) parses silently into the wrong number of
-        # records, with other fields' bytes read as the new one. item_id is assigned ngroup() + 1
-        # over the whole frame, so a correct table holds a dense 1..N.
+        # records, with other fields' bytes read as the new one.
+        #
+        # The check is on field PLAUSIBILITY, not on the id scheme. Requiring a dense 1..N would
+        # reject a valid table whose ids are sparse -- with a message telling the user to
+        # regenerate files that are in fact current. A misparse scrambles every field, so there is
+        # plenty to catch it on: ids stop ascending and the correlation floats leave [0, 1].
         item_id = correlations["item_id"]
-        if len(item_id) and (item_id.min() != 1 or item_id.max() != len(item_id)):
-            raise OasisException(_stale_correlations_msg(correlations_file))
+        if len(item_id):
+            plausible = item_id.min() >= 1 and np.all(np.diff(item_id.astype('int64')) > 0)
+            for field in ("damage_correlation_value", "hazard_correlation_value"):
+                values = correlations[field]
+                plausible = plausible and bool(np.all(np.isfinite(values))
+                                               and values.min() >= 0.0 and values.max() <= 1.0)
+            if not plausible:
+                raise OasisException(_stale_correlations_msg(correlations_file))
         return correlations
 
     raise FileNotFoundError(f'correlations file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')

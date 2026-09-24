@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype, oasis_int
-from oasislmf.pytools.common.event_stream import (check_packed_item_fits, max_emitted_blocks,
+from oasislmf.pytools.common.event_stream import (SIDX_DTYPE, check_packed_item_fits, max_emitted_blocks,
                                                   max_packed_buildings)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.gul.structure import build_structures
@@ -57,11 +57,11 @@ class TestPackedItemMustFitTheStream(TestCase):
     def test_ordinary_configurations_are_allowed(self):
         for separate, sample_size in ((1, 10 ** 9), (1000, 100_000), (5, 1000), (0, 10)):
             with self.subTest(separate=separate, sample_size=sample_size):
-                check_packed_item_fits(separate, sample_size, oasis_int)
+                check_packed_item_fits(separate, sample_size)
 
     def test_an_overflowing_configuration_is_rejected(self):
         with self.assertRaises(OasisException) as caught:
-            check_packed_item_fits(300_000, 10_000, oasis_int)
+            check_packed_item_fits(300_000, 10_000)
         message = str(caught.exception)
         self.assertIn("300,000", message)
         self.assertIn("10000", message)
@@ -70,17 +70,30 @@ class TestPackedItemMustFitTheStream(TestCase):
     def test_the_boundary(self):
         """Exactly at the limit is fine; one building more is not."""
         for sample_size in (10, 1000):
-            allowed = max_packed_buildings(sample_size, oasis_int)
+            allowed = max_packed_buildings(sample_size)
             with self.subTest(sample_size=sample_size, allowed=allowed):
-                check_packed_item_fits(allowed, sample_size, oasis_int)
+                check_packed_item_fits(allowed, sample_size)
                 with self.assertRaises(OasisException):
-                    check_packed_item_fits(allowed + 1, sample_size, oasis_int)
+                    check_packed_item_fits(allowed + 1, sample_size)
 
     def test_a_summed_item_is_not_subject_to_the_ceiling(self):
         """A positive count writes one block at sidx 1..S, so it never encodes a packed sidx
         however many buildings it carries. max_emitted_blocks keeps it out of the number checked."""
         packed = np.array([630_510, 1, 1], dtype='i4')      # huge, but summed at source
-        check_packed_item_fits(max_emitted_blocks(packed), 1000, oasis_int)   # must not raise
+        check_packed_item_fits(max_emitted_blocks(packed), 1000)   # must not raise
+
+    def test_the_ceiling_is_the_wire_sidx_not_oasis_int(self):
+        """OASIS_INT is configurable; the sidx on the wire is not.
+
+        mv_write_sidx_loss writes through the "sidx" record definition, which is int32 whatever
+        OASIS_INT says. Keying the ceiling to oasis_int would raise it on a width nothing writes:
+        at OASIS_INT=i8, 300,000 buildings at S=10,000 passed the check and wrote sidx
+        3,000,000,000 as -1,294,967,296, which every reader takes for a packed special.
+        """
+        self.assertEqual(SIDX_DTYPE, np.dtype('i4'))
+        self.assertEqual(max_packed_buildings(10_000), np.iinfo(np.int32).max // 10_000)
+        with self.assertRaises(OasisException):
+            check_packed_item_fits(300_000, 10_000)
 
     def test_what_would_happen_without_it(self):
         """The value the guard prevents being written -- negative, so read as a special."""
@@ -214,3 +227,57 @@ class TestGulpyPackingStructures(TestCase):
             # absent entirely
             os.remove(metadata)
             self.assertFalse(gulpy_structure_exists(d))
+
+
+class TestCorrelationIsLookedUpByItemId(TestCase):
+    """corr_data_by_item_id is indexed by item_id, so it must be SCATTERED by item_id.
+
+    It used to be filled positionally (``[1:] = data[...]``) and then read as
+    ``corr_data_by_item_id[item['item_id']]``, which only lines up when item_id happens to be a
+    dense 1..N. With sparse ids that reads the wrong row, and an id past the end reads out of
+    bounds -- unchecked, inside njit. A guard in read_correlations had been masking this by
+    rejecting any non-dense table outright, including valid ones.
+    """
+
+    def _structures(self, item_ids, rhos, groups):
+        with TemporaryDirectory() as tmp:
+            dst = Path(tmp) / "model"
+            shutil.copytree(MODEL, dst, dirs_exist_ok=True)
+            shutil.rmtree(dst / "input" / "gulpy_structure", ignore_errors=True)
+
+            items = np.fromfile(dst / "input" / "items.bin", dtype=items_dtype)[:len(item_ids)]
+            items["item_id"] = item_ids
+            items.tofile(dst / "input" / "items.bin")
+
+            corr = np.zeros(len(item_ids), dtype=correlations_dtype)
+            corr["item_id"] = item_ids
+            corr["peril_correlation_group"] = groups
+            corr["damage_correlation_value"] = rhos
+            corr["packed_buildings"] = 1
+            corr.tofile(dst / "input" / "correlations.bin")
+            return build_structures(str(dst), set(), [])
+
+    def test_sparse_item_ids_reach_their_own_row(self):
+        item_ids, rhos, groups = [5, 6, 9], [0.1, 0.5, 0.9], [1, 2, 3]
+        s = self._structures(item_ids, rhos, groups)
+        table = s["corr_data_by_item_id"]
+        self.assertGreater(len(table), max(item_ids), "table must span every item_id it is indexed by")
+        for item_id, rho, group in zip(item_ids, rhos, groups):
+            self.assertAlmostEqual(float(table[item_id]["damage_correlation_value"]), rho, places=6,
+                                   msg=f"item {item_id} read the wrong correlation")
+            self.assertEqual(int(table[item_id]["peril_correlation_group"]), group)
+
+    def test_an_item_id_absent_from_correlations_reads_as_uncorrelated(self):
+        """The gaps are the default row, not another item's."""
+        s = self._structures([2, 4, 6], [0.3, 0.6, 0.9], [1, 1, 1])
+        table = s["corr_data_by_item_id"]
+        for absent in (1, 3, 5):
+            self.assertEqual(float(table[absent]["damage_correlation_value"]), 0.0,
+                             f"item_id {absent} is not in correlations and must read as uncorrelated")
+
+    def test_dense_item_ids_are_unchanged(self):
+        """The ordinary case must be untouched by the change."""
+        item_ids, rhos = [1, 2, 3], [0.2, 0.4, 0.6]
+        table = self._structures(item_ids, rhos, [1, 1, 1])["corr_data_by_item_id"]
+        for item_id, rho in zip(item_ids, rhos):
+            self.assertAlmostEqual(float(table[item_id]["damage_correlation_value"]), rho, places=6)

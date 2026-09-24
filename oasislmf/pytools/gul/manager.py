@@ -254,7 +254,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         check_packing_supported(random_generator, n_buildings_by_item_id)
         # only kept-separate items meet either stream ceiling: a summed one writes a single
         # block at sidx 1..S however many buildings it carries
-        check_packed_item_fits(max_emitted_blocks(n_buildings_by_item_id), sample_size, oasis_int)
+        check_packed_item_fits(max_emitted_blocks(n_buildings_by_item_id), sample_size)
 
         if alloc_rule not in [0, 1, 2, 3]:
             raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
@@ -269,6 +269,13 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         if ignore_correlation:
             do_correlation = False
             logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
+            # The structures were built with the file's correlation, and --ignore-correlation is a
+            # RUN-time flag the build never saw. A summed packed item's std_dev is combined with
+            # this value, so leaving it would report the spread of a correlation nothing drew --
+            # and worse, the dummy norm_inv_cdf substituted below would make the Hermite
+            # coefficients meaningless rather than merely stale. gulmc writes the effective value
+            # per event for the same reason; gulpy carries it per item, so zero it here.
+            damage_correlation_by_item_id = np.zeros_like(damage_correlation_by_item_id)
 
         if do_correlation:
             logger.info("Correlated random number generation: switched ON.")
