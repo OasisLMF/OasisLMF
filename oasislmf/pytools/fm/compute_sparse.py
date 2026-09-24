@@ -442,6 +442,11 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
                 if temp_node_sidx[sidx]:
                     sidx_val[compute_idx['sidx_ptr_i']] = sidx
                     compute_idx['sidx_ptr_i'] += 1
+                    # temp_node_sidx is reused by every node of the event, so a node must leave it
+                    # as it found it -- aggregate_children does the same. Without this a node
+                    # BELOW site_collapse_level leaves its PACKED indices set, and the collapsed
+                    # node above, whose own sidx are local, collects them too.
+                    temp_node_sidx[sidx] = False
 
                     loss_val[compute_idx['loss_ptr_i']] = profile_temp_node_loss[sidx]
                     compute_idx['loss_ptr_i'] += 1
