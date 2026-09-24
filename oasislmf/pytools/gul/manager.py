@@ -622,17 +622,12 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     if not keep_separate_item:
                         summed_scratch[:sample_size] = 0
 
-                # a summed item emits one block however many buildings it carries, and cannot be
-                # interrupted part-way because its accumulator would restart; reserve that block.
-                # Only reachable with resume_state[1] == 0, where the reservation above covers it.
-                if fuse_emit and not keep_separate_item:
-                    if cursor + max_bytes_per_block > byte_mv.shape[0]:
-                        resume_state[0] = item_i
-                        return cursor, last_processed_coverage_ids_idx
-
                 for building_i in range(resume_state[1], item_n_buildings):
-                    # A kept-separate building is a block of its own, so the buffer is checked
-                    # per block and the run resumes at the next one.
+                    # A kept-separate building is a block of its own, so the buffer is checked per
+                    # block and the run resumes at the next one. A SUMMED item has no such check:
+                    # it emits one block however many buildings it carries, so the reservation made
+                    # with its header already covers it, and it could not be interrupted here in
+                    # any case -- its accumulator would restart.
                     if fuse_emit and keep_separate_item:
                         if cursor + max_bytes_per_block > byte_mv.shape[0]:
                             resume_state[0] = item_i

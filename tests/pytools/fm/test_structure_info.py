@@ -71,7 +71,6 @@ class TestLoadFmStructureInfo(TestCase):
             write_fm_structure_info(d, 1, 0, 0)
             self.assertEqual(load_fm_structure_info(d), (1, 1, 0))
 
-
     def test_a_file_of_the_wrong_layout_is_rejected(self):
         """Reading it as "no packing" would drop the collapse silently and give wrong losses.
 
