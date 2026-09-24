@@ -309,7 +309,7 @@ def run(run_dir,
         check_uniform_building_count_per_coverage(items)
         # only kept-separate items meet either stream ceiling: a summed one writes a single
         # block at sidx 1..S however many buildings it carries
-        check_packed_item_fits(max_emitted_blocks(items['packed_buildings']), sample_size, oasis_int)
+        check_packed_item_fits(max_emitted_blocks(items['packed_buildings']), sample_size)
         check_packing_supported(random_generator, items['packed_buildings'])
         if max_buildings > 1:
             logger.info(f"building-packing ENABLED: up to {max_buildings} buildings packed per item.")

@@ -146,21 +146,33 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     if Nperil_correlation_groups > 0 and any(data['damage_correlation_value'] > 0):
         do_correlation = True
 
+    # Shared by all three by-item_id lookups below. An item absent from correlations keeps the
+    # zeroed/default row, which is the "no correlation, one building" case.
+    max_item_id = 0
+    if len(items):
+        max_item_id = int(items['item_id'].max())
+    if len(data):
+        max_item_id = max(max_item_id, int(data['item_id'].max()))
+
     if do_correlation:
-        corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=correlations_dtype)
-        # sentinel row 0 (item_id, peril_correlation_group, damage_correlation_value,
-        # hazard_group_id, hazard_correlation_value, source_item_id, packed_buildings)
-        corr_data_by_item_id[0] = (0, 0, 0., 0, 0., 0, 1)
-        corr_data_by_item_id[1:]['peril_correlation_group'] = data['peril_correlation_group']
-        corr_data_by_item_id[1:]['damage_correlation_value'] = data['damage_correlation_value']
-        unique_peril_correlation_groups = np.unique(
-            corr_data_by_item_id[1:]['peril_correlation_group'])
+        # Indexed BY item_id, so it is scattered by item_id rather than filled positionally.
+        # Filling it in row order and then reading it by id silently requires item_id to be a
+        # dense 1..N, which nothing guarantees: a table whose ids are sparse read the wrong row,
+        # and a row past the end read out of bounds -- unchecked, inside njit. Dense ids cost
+        # nothing here because max_item_id then equals len(data).
+        # NOTE: field first, THEN the fancy index. `a[idx]['field'] = v` assigns into a copy and
+        # is silently a no-op.
+        corr_data_by_item_id = np.zeros(max_item_id + 1, dtype=correlations_dtype)
+        corr_data_by_item_id['packed_buildings'][:] = 1       # default for an absent item
+        corr_data_by_item_id['peril_correlation_group'][data['item_id']] = data['peril_correlation_group']
+        corr_data_by_item_id['damage_correlation_value'][data['item_id']] = data['damage_correlation_value']
+        unique_peril_correlation_groups = np.unique(data['peril_correlation_group'])
 
         # pre-compute Gaussian lookup tables
         norm_inv_cdf = compute_norm_inv_cdf_lookup(x_min, x_max, norm_inv_N)
         norm_cdf = compute_norm_cdf_lookup(cdf_min, cdf_max, norm_inv_N)
     else:
-        corr_data_by_item_id = np.ndarray(1, dtype=correlations_dtype)
+        corr_data_by_item_id = np.zeros(1, dtype=correlations_dtype)
         unique_peril_correlation_groups = np.empty(0, dtype='int64')
         norm_inv_cdf = np.zeros(1, dtype='float64')
         norm_cdf = np.zeros(1, dtype='float64')
@@ -174,11 +186,6 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
 
     # Always indexed by item_id, so it always spans every item: an unpacked run is the all-ones
     # case, which is what lets the compute treat packing as N == 1 rather than as a second path.
-    max_item_id = 0
-    if len(items):
-        max_item_id = int(items['item_id'].max())
-    if len(data):
-        max_item_id = max(max_item_id, int(data['item_id'].max()))
     n_buildings_by_item_id = np.ones(max_item_id + 1, dtype='i4')
 
     building_packing = bool(len(data) and building_counts.max() > 1)

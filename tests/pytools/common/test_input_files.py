@@ -193,6 +193,39 @@ def test_read_correlations_bin__older_file_that_divides_evenly_is_rejected(old_d
             read_correlations(d)
 
 
+@pytest.mark.parametrize("item_ids", [[5, 6, 7], [1, 4, 9], [100, 200, 300]],
+                         ids=["offset", "gapped", "sparse"])
+def test_read_correlations_bin__non_dense_item_ids_are_accepted(item_ids):
+    """A current-layout table is valid whatever its ids; only the LAYOUT is under suspicion here.
+
+    The guard used to require a dense 1..N and rejected these with "written by an earlier
+    version ... Regenerate the oasis files", which is both a false rejection and wrong advice.
+    """
+    good = np.zeros(len(item_ids), dtype=correlations_dtype)
+    good["item_id"] = item_ids
+    good["peril_correlation_group"] = 1
+    good["damage_correlation_value"] = 0.5
+    good["hazard_group_id"] = 2
+    good["hazard_correlation_value"] = 0.25
+    good["packed_buildings"] = 1
+    with TemporaryDirectory() as d:
+        good.tofile(Path(d, "correlations.bin"))
+        actual = read_correlations(d)
+    np.testing.assert_array_equal(actual["item_id"], item_ids)
+    np.testing.assert_allclose(actual["damage_correlation_value"], 0.5)
+
+
+def test_read_correlations_bin__out_of_range_correlation_is_rejected():
+    """The second net under the id check: a mis-parse puts the correlation floats outside [0, 1]."""
+    bad = np.zeros(3, dtype=correlations_dtype)
+    bad["item_id"] = [1, 2, 3]
+    bad["damage_correlation_value"] = [0.5, 4.2, 0.1]
+    with TemporaryDirectory() as d:
+        bad.tofile(Path(d, "correlations.bin"))
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
+
+
 def test_read_correlations_bin__empty_file_falls_back_to_the_csv():
     with TemporaryDirectory() as d:
         Path(d, "correlations.bin").touch()
