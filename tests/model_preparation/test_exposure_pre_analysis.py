@@ -112,3 +112,47 @@ def test_wrong_class():
         with pytest.raises(OasisException, match=f"class {kwargs['exposure_pre_analysis_class_name']} "
                            f"is not defined in module {kwargs['exposure_pre_analysis_module']}"):
             OasisManager().exposure_pre_analysis(**kwargs)
+
+
+def write_counting_epa_module(module_path, counter_path):
+    with open(module_path, 'w') as f:
+        f.write(f'''
+class ExposurePreAnalysis:
+    """
+    Records every instantiation so the caller can assert it is built once.
+    """
+
+    def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
+        self.exposure_data = exposure_data
+        self.exposure_pre_analysis_setting = exposure_pre_analysis_setting
+        with open({counter_path!r}, 'a') as counter:
+            counter.write('init\\n')
+
+    def run(self):
+        self.exposure_data.location.dataframe['BuildingTIV'] = (self.exposure_data.location.dataframe['BuildingTIV']
+                                                                * self.exposure_pre_analysis_setting['BuildingTIV_multiplyer'])
+''')
+
+
+def test_exposure_pre_analysis_class_is_built_once(capsys):
+    with TemporaryDirectory() as d:
+        counter_path = os.path.join(d, 'init_count.txt')
+        kwargs = {'oasis_files_dir': d,
+                  'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_counting.py'),
+                  'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
+                  'check_oed': False}
+
+        write_counting_epa_module(kwargs['exposure_pre_analysis_module'], counter_path)
+        write_oed_location(kwargs['oed_location_csv'])
+        write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
+
+        OasisManager().exposure_pre_analysis(**kwargs)
+
+        with open(counter_path) as counter:
+            assert counter.read() == 'init\n'
+
+        with open(os.path.join(d, SOURCE_FILENAMES['oed_location_csv'])) as new_oed_location_csv:
+            assert new_oed_location_csv.read() == output_oed_location
+
+        assert 'exposure_pre_analysis_setting' not in capsys.readouterr().out
