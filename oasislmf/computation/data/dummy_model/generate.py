@@ -1012,8 +1012,8 @@ class ItemsFile(ModelFile):
         """
         super().seed_rng()
         shape = (self.num_locations, self.coverages_per_location)
-        areaperils = np.empty(shape, dtype='int64')
-        vulnerabilities = np.empty(shape, dtype='int64')
+        areaperils = np.empty(shape, dtype=self.array_dtype['areaperil_id'])
+        vulnerabilities = np.empty(shape, dtype=self.array_dtype['vulnerability_id'])
 
         for location in range(self.num_locations):
             areaperils[location] = np.random.randint(
@@ -1180,7 +1180,7 @@ class FMProgrammeFile(FMFile):
         programme['from_agg_id'] = np.tile(agg_id, 2)
         programme['level_id'] = np.repeat([1, 2], num_aggs)
         # Site coverage FM level aggregates to itself, policy layer FM level to the programme
-        programme['to_agg_id'] = np.concatenate([agg_id, np.ones(num_aggs, dtype='int64')])
+        programme['to_agg_id'] = np.concatenate([agg_id, np.ones(num_aggs, dtype=self.array_dtype['to_agg_id'])])
         yield programme
 
 
