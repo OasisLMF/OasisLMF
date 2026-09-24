@@ -103,9 +103,13 @@ These accepted statuses are:
 
 **fail_v:** the location/coverage type/sub-peril combination has a successful area peril but no vulnerability id mapped
 
-**notatrisk:** the location/coverage type/sub-peril combination is within the realm of the model but deemed to be not at 
-risk. This can be used to show that the risk is considered (and so the TIV will be counted in any exposure metrics) but will 
+**notatrisk:** the location/coverage type/sub-peril combination is within the realm of the model but deemed to be not at
+risk. This can be used to show that the risk is considered (and so the TIV will be counted in any exposure metrics) but will
 never generate a loss from the events in the footprint.
+
+**notmodelled:** the location/coverage type/sub-peril combination has a peril which is outside of the scope of the model
+(i.e. not one of the perils modelled), as distinct from ``notatrisk`` which is used for perils that are modelled but for
+which the specific risk is not at risk.
 
 .. note::
    There are two additional defined statuses but these should not be included in the keys service return:
@@ -299,20 +303,88 @@ Built-in functions
 
 * **combine**
 
-Build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
-For example, finding the correct area_peril_id for a location with one method using (latitude, longitude)
+Build a function that will combine several strategies trying to achieve the same purpose by different means into one.
+For example, finding the correct ``area_peril_id`` for a location with one method using (latitude, longitude)
 and one using postcode.
 
-Each strategy will be applied sequentially on the location that steal have OASIS_UNKNOWN_ID in their id_columns after 
-the precedent strategy.
+``id_columns``: columns that will be checked to determine if a strategy has succeeded.
+
+``strategy``: list of strategy step names to apply, in order.
+
+``logical_type``: ``'or'`` (default) or ``'and'``.
+   * ``'or'``: each strategy is applied sequentially, only on the locations that still have
+     ``OASIS_UNKNOWN_ID`` in ``id_columns`` after the preceding strategy. ``id_columns`` is a
+     flat list.
+   * ``'and'``: each strategy is applied sequentially, only on the locations that succeeded (i.e.
+     have a valid id) in the preceding strategy. ``id_columns`` must then be a list of lists, one
+     sublist of columns checked per strategy step.
+
+'or' example (note: ``id_columns`` is a list)::
+
+   "vulnerability": {
+       "type": "combine",
+       "parameters": {
+           "id_columns": ["vulnerability_id"],
+           "strategy": ["vuln_cov_Building_Content", "vuln_cov_car"],
+           "logical_type": "or"
+       }
+   }
+
+'and' example (note: ``id_columns`` is a list of lists)::
+
+   "vuln_cov_car": {
+       "type": "combine",
+       "columns": ["autocode"],
+       "parameters": {
+           "id_columns": [["vuln_id_car"], ["vulnerability_id"]],
+           "strategy": ["vulnerability_car", "coverage_type_car"],
+           "logical_type": "and"
+       }
+   }
+
+|
+
+* **interval_to_index**
+
+Map a value column to an index according to its position in the interval defined by ``sorted_array``. NaN values are
+kept as NaN.
+
+``value_column_name``: name of the column to map.
+
+``sorted_array``: sorted values defining the interval boundaries to map to, either given directly as a list or as a
+path to a csv file containing one value per line.
+
+``index_column_name``: name of the output column. Defaults to ``<value_column_name>_idx``.
+
+``side``: ``'left'`` (default) or ``'right'``; defines which index is returned in case of equality with one of the
+interval boundaries (see ``numpy.searchsorted``).
 
 |
 
 * **split_loc_perils_covered**
 
-Split the value of ``LocPerilsCovered`` into multiple lines, taking peril group into account.
+Split the value of ``LocPerilsCovered`` (or ``PolPerilsCovered``) into multiple lines, taking peril group into
+account.
 
-Drop all lines that are not in the list ``model_perils_covered``.
+``model_perils_covered``: if given, drop all lines that are not in this list, and set any location left with no
+covered peril to the ``notmodelled`` status.
+
+|
+
+* **set_status**
+
+Set the ``status`` (and optionally ``message``) of locations from a model-developer-supplied column.
+
+Allows a model developer to explicitly mark locations (e.g. as ``notatrisk`` or ``notmodelled``) based on their own
+criteria (a spatial mask, a lookup table, ...) merged into the Locations DataFrame ahead of this step, rather than relying
+on the implicit success/fail logic derived from ``area_peril_id``/``vulnerability_id``.
+
+``status_column``: name of the column containing the status to set for each location. Rows where this column is empty
+keep whatever status was already set. Any non-empty value must be one of the valid statuses (see the Status section
+above), otherwise an ``OasisException`` is raised.
+
+``message_column``: name of the column containing the message to set alongside the status. If not provided, the message
+is left untouched. Rows where this column is empty keep whatever message was already set.
 
 |
 
@@ -334,15 +406,15 @@ Support several simple DataFrame preparation:
 
 * **rtree**
 
-Function Factory to associate location to ``area_peril`` based on the rtree method.
+Function Factory to associate a location to a geometry (e.g. ``area_peril``) based on the rtree method.
 
 .. note::
    !!!
-   Please note that this method is quite time consuming (especially if you use the nearest point option
-   if your peril_area are square you should use area_peril function fixed_size_geo_grid).
+   Please note that this method is quite time consuming (especially if you use the nearest neighbor option).
+   If your geometries are square, you should use the ``fixed_size_geo_grid`` function instead.
    !!!
 
-``file_path``: is the path to the file containing the ``area_peril_dictionary``
+``file_path``: is the path to the file containing the geometries.
    * This file must be a geopandas Dataframe with a valid geometry
    * An example on how to create such dataframe is available in PiWind
    * If you are new to geo data (in python) and want to learn more, you may have a look at this excellent course:
@@ -350,40 +422,179 @@ Function Factory to associate location to ``area_peril`` based on the rtree meth
    https://autogis-site.readthedocs.io/
 
 ``file_type``: can be any format readable by geopandas ('file', 'parquet', ...)
-   * See: https://geopandas.readthedocs.io/en/latest/docs/reference/io.html (you may have to install additional library) 
+   * See: https://geopandas.readthedocs.io/en/latest/docs/reference/io.html (you may have to install additional library)
      such as pyarrow for parquet
 
-``id_columns``: column to transform to an 'id_column' (type int32 with nan replace by -1)
+``id_columns``: column(s) to transform to an 'id_column' (type int32 with nan replaced by -1)
 
-``nearest_neighbor_min_distance``: option to compute the nearest point if intersection method fails
+``file_read_params``: optional extra keyword arguments passed to the geopandas file reading function.
+
+``nearest_neighbor_max_distance``: option to look for the nearest neighboring geometry, up to this distance away (in metres, as a Euclidean distance), if no containing geometry is found.
    * We use: https://automating-gis-processes.github.io/site/notebooks/L3/nearest-neighbor-faster.html
-   * But alternatives can be found here: https://gis.stackexchange.com/questions/222315?geopandas-find-nearest-point-in-other-dataframe
+   * But alternatives can be found here: https://gis.stackexchange.com/questions/222315/geopandas-find-nearest-point-in-other-dataframe
+
+.. note::
+   ``nearest_neighbor_min_distance`` and ``area_peril_read_params`` are deprecated aliases for
+   ``nearest_neighbor_max_distance`` and ``file_read_params`` respectively, and may be removed in a future version.
+
+Geometry files without CRS metadata are assumed to be in EPSG:4326; any other CRS is reprojected to EPSG:4326.
+
+If the geometry file has a ``peril_id`` column, the geometry is only applied to locations with a matching ``peril_id``.
 
 |
 
 * **fixed_size_geo_grid**
 
-Associate an id to each square of a grid define by the limit of lat and lon
+Associate an id to each square of a grid defined by the limits of lat and lon.
+
+``lat_reverse``/``lon_reverse``: change the ordering of ids along that axis from (min to max) to (max to min).
+
+``lon_first``: order ids by iterating over longitude before latitude.
+
+|
+
+* **fixed_size_geo_grid_multi_peril**
+
+Create multiple grids of varying resolution, one per peril, and associate an id to each square of the grid using the
+``fixed_size_geo_grid`` method for each peril.
+
+``perils_dict``: dictionary with ``peril_id`` as key and a ``fixed_size_geo_grid`` parameter dict as value, i.e.
+``{'peril_id': {fixed_size_geo_grid parameters}}``. The ids of each per-peril grid are offset so they do not collide.
+
+|
+
+* **fixed_size_z_index_geo_grid**
+
+Associate an id to each square of the grid defined by the limits of lat and lon, using z-order (Morton) indexing
+instead of linear ordering. Takes the same parameters as ``fixed_size_geo_grid``.
+
+|
+
+* **fixed_size_z_index_geo_grid_multi_peril**
+
+Create multiple z-order indexed grids of varying resolution, one per peril, using the ``fixed_size_z_index_geo_grid``
+method for each peril. Takes the same ``perils_dict`` parameter as ``fixed_size_geo_grid_multi_peril``.
+
+|
+
+* **geotiff**
+
+Build a lookup function that assigns geotiff band values to each location from its latitude/longitude.
+
+``file_path``: path to the geotiff file.
+
+``band_info``: a dict where keys are the assigned column names, and values are dicts with:
+   * ``id``: the id of the band in the tiff file
+   * ``default``: the value for locations outside of the geotiff's range
+
+.. note::
+   Requires ``gdal`` to be installed, see the error message raised at build time for installation instructions.
+
+|
+
+* **h3**
+
+Function factory to look up ``area_peril_id`` using H3 hexagonal grid indexing.
+
+Converts latitude/longitude to an H3 cell at the specified resolution, converts the cell to its int64
+representation, then maps it to an ``area_peril_id`` using a mapping file supplied by the model provider. The mapping
+file must contain at least the columns ``h3_int64`` (H3 cell index as a 64-bit integer, must be unique) and
+``area_peril_id`` (Oasis area peril id, must be an exact integer on every row). A location whose coordinates are
+null, infinite, or absent from the mapping file resolves to ``OASIS_UNKNOWN_ID`` (reported as a per-location ``fail``
+status).
+
+``resolution``: H3 resolution level (0-15). Higher values produce finer cells.
+
+``file_path``: path to the int64 to ``area_peril_id`` mapping file. Supports the ``%%KEYS_DATA_PATH%%`` placeholder.
+
+``file_type``: pandas read function suffix (``'csv'``, ``'parquet'``, etc.). Defaults to ``'csv'``.
+
+``**kwargs``: additional keyword arguments forwarded to the pandas read function.
+
+Config example::
+
+   "h3_area_peril": {
+       "type": "h3",
+       "columns": ["latitude", "longitude"],
+       "parameters": {
+           "resolution": 5,
+           "file_path": "%%KEYS_DATA_PATH%%/h3_to_areaperil.csv"
+       }
+   }
+
+.. note::
+   Requires the ``h3`` package to be installed (``pip install h3>=4``).
 
 |
 
 * **merge**
 
-This method will merge the locations Dataframe with the Dataframe present in ``file_path``
+This method will merge the locations Dataframe with the Dataframe present in ``file_path``.
 
-All non match column present in ``id_columns`` will be set to -1
+All non matching columns present in ``id_columns`` will be set to -1.
 
-Τhis is an efficient way to map a combination of column that have a finite scope to an idea
+This is an efficient way to map a combination of columns that have a finite scope to an id.
+
+``file_path``: path to the file to merge with, supports the ``%%KEYS_DATA_PATH%%`` placeholder.
+
+``id_columns``: column(s) to reset to -1 for rows with no match.
+
+``file_type``: pandas read function suffix (``'csv'``, ``'parquet'``, etc.). Defaults to ``'csv'``.
+
+``**kwargs``: additional keyword arguments forwarded to the pandas read function.
 
 |
 
 * **simple_pivot**
 
-Αllow to pivot columns of the locations dataframe into multiple rows.
+Allow pivoting of columns of the locations dataframe into multiple rows.
 
-Εach pivot in the pivot list may define:
+Each pivot in the pivot list may define:
    * ``on``: to rename a column into a new one
-   * ``new_cols``: to create a new column with a certain values
+   * ``new_cols``: to create a new column with a certain value
+
+``remove_pivoted_col``: if ``True`` (default), drop the original columns that were renamed by ``on`` once pivoted.
+
+For example, with::
+
+   "pivots": [{"on": {"vuln_str": "vulnerability_id"},
+               "new_cols": {"coverage_type": 1}},
+              {"on": {"vuln_con": "vulnerability_id"},
+               "new_cols": {"coverage_type": 3}}]
+
+the input::
+
+   loc_id  vuln_str    vuln_con
+   1       3           2
+   2       18          4
+
+becomes::
+
+   loc_id  vuln_str    vuln_con    vulnerability_id    coverage_type
+   1       3           2           3                   1
+   2       18          4           18                  1
+   1       3           2           2                   3
+   2       18          4           4                   3
+
+|
+
+* **model_data**
+
+Serialises the specified columns from the OED file into a ``model_data`` dict column, one dict per location, for
+consumption further down the model pipeline.
+
+``columns``: list of columns to serialise into ``model_data``.
+
+|
+
+* **dynamic_model_adjustment**
+
+Converts specified columns from the OED file into ``intensity_adjustment`` and ``return_period`` columns, used for
+per-location dynamic protection/adjustment in the model.
+
+``intensity_adjustment_col``: column to copy into ``intensity_adjustment``.
+
+``return_period_col``: column to copy into ``return_period``.
 
 |
 
