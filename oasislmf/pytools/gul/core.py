@@ -58,6 +58,31 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, bin_scaling):
     return gul
 
 
+@njit(cache=True, fastmath=True, inline='always')
+def apply_alloc_rule(item_losses, alloc_rule, tiv):
+    """Apply the back-allocation cap to one cross-item vector, in place.
+
+    ``item_losses`` is the losses of every item on a coverage at ONE (sample, building) -- the
+    axis the rules reduce over. The fused path passes a length-1 slice, the whole-coverage path
+    passes the full vector; that difference is the only thing separating them, so both call this
+    rather than each spelling the rules out.
+
+    Order matters and is the one write_losses established: setmaxloss first, then the tiv split.
+
+    Args:
+        item_losses (numpy.array[oasis_float]): one loss per item, edited in place.
+        alloc_rule (int): 0 none, 1 classic split, 2 setmaxloss then classic, 3 multiplicative.
+        tiv (float): the coverage tiv the split caps against; no split when it is 0.
+    """
+    if alloc_rule == 2:
+        setmaxloss_items(item_losses)
+    if tiv > 0:
+        if alloc_rule == 1 or alloc_rule == 2:
+            split_tiv_classic(item_losses, tiv)
+        elif alloc_rule == 3:
+            split_tiv_multiplicative(item_losses, tiv)
+
+
 @njit(cache=True, fastmath=True)
 def setmaxloss_items(item_losses):
     """Keep only the largest loss across items, shared evenly where it ties.

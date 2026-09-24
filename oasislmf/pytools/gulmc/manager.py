@@ -31,8 +31,7 @@ from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_it
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
-from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss_items,
-                                       split_tiv_classic, split_tiv_multiplicative,
+from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, apply_alloc_rule,
                                        accumulate_hermite_coeffs, loss_correlation, HERMITE_TERMS)
 from oasislmf.pytools.gul.manager import (write_losses, adjust_byte_mv_size, buffered_building_width,
                                           write_packed_building_block, write_summed_specials,
@@ -1417,12 +1416,18 @@ def compute_event_losses(compute_info,
         alloc_rule_l = compute_info['alloc_rule']          # hoisted out of the per-sample loops
         fuse_emit = sample_size > 0 and (alloc_rule_l == 0 or Nitems == 1)
 
-        # A coverage written through write_losses is emitted whole, so the buffer has to hold it
-        # before we start. A fused one is checked per building further down instead, which is what
-        # keeps the buffer off the largest location's building count. Either way the check is per
-        # COVERAGE, not per dependency subtree: flushing only writes bytes out, and the stacks a
-        # dependent reads (source_damage_bin_stack, source_eff_damage_cdf_stack) are caller-owned
-        # arrays that outlive the call, so a subtree can be resumed part-way.
+        # A coverage that goes through write_losses is emitted whole, so its output has to fit
+        # before we start -- there is no bailing once it has begun. The bound OVER-reserves, and
+        # not by a little: max_bytes_per_item carries max_emitted_blocks over EVERY item in the
+        # portfolio, so a coverage of one-building items is charged for the largest packed item
+        # that exists anywhere. Safe, since it can only over-reserve, but sizing it from this
+        # coverage's own items is a known improvement.
+        # A fused coverage reserves per BLOCK further down instead -- one per building where they
+        # are kept separate, one for the whole item where they are summed -- which is what keeps
+        # the buffer off the largest location's building count.
+        # Bailing here can land inside a dependency subtree, which is sound: a flush only writes
+        # bytes out, and the stacks a dependent reads (source_damage_bin_stack,
+        # source_eff_damage_cdf_stack) are caller-owned and outlive the call.
         if not fuse_emit:
             if compute_info['cursor'] + Nitems * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
                 return False
@@ -1611,19 +1616,8 @@ def compute_event_losses(compute_info,
                     # Nitems == 1 wherever alloc_rule != 0 here, so these length-1 slices ARE the
                     # whole cross-item vector write_losses would pass, and the reductions on them
                     # are the identity (setmaxloss, multiplicative) or a cap at tiv (classic).
-                    if alloc_rule_l == 2:
-                        setmaxloss_items(losses[TIV_IDX, item_j:item_j + 1])
-                        setmaxloss_items(losses[MAX_LOSS_IDX, item_j:item_j + 1])
-                        setmaxloss_items(losses[MEAN_IDX, item_j:item_j + 1])
-                    if tiv > 0:
-                        if alloc_rule_l == 1 or alloc_rule_l == 2:
-                            split_tiv_classic(losses[TIV_IDX, item_j:item_j + 1], tiv)
-                            split_tiv_classic(losses[MAX_LOSS_IDX, item_j:item_j + 1], tiv)
-                            split_tiv_classic(losses[MEAN_IDX, item_j:item_j + 1], tiv)
-                        elif alloc_rule_l == 3:
-                            split_tiv_multiplicative(losses[TIV_IDX, item_j:item_j + 1], tiv)
-                            split_tiv_multiplicative(losses[MAX_LOSS_IDX, item_j:item_j + 1], tiv)
-                            split_tiv_multiplicative(losses[MEAN_IDX, item_j:item_j + 1], tiv)
+                    for special in (TIV_IDX, MAX_LOSS_IDX, MEAN_IDX):
+                        apply_alloc_rule(losses[special, item_j:item_j + 1], alloc_rule_l, tiv)
                     # The specials are recomputed above on every entry, so re-applying the cap
                     # after a resume caps fresh values rather than already-capped ones. Only the
                     # header must not be repeated.
@@ -1713,16 +1707,8 @@ def compute_event_losses(compute_info,
                         # loop that runs once per building per sample. Same operations in the
                         # same order per element: setmaxloss, then the tiv split.
                         if alloc_rule_l != 0:
-                            if alloc_rule_l == 2:
-                                for s_i in range(sample_size):
-                                    setmaxloss_items(building_losses[s_i, item_j:item_j + 1, 0])
-                            if tiv > 0:
-                                if alloc_rule_l == 1 or alloc_rule_l == 2:
-                                    for s_i in range(sample_size):
-                                        split_tiv_classic(building_losses[s_i, item_j:item_j + 1, 0], tiv)
-                                elif alloc_rule_l == 3:
-                                    for s_i in range(sample_size):
-                                        split_tiv_multiplicative(building_losses[s_i, item_j:item_j + 1, 0], tiv)
+                            for s_i in range(sample_size):
+                                apply_alloc_rule(building_losses[s_i, item_j:item_j + 1, 0], alloc_rule_l, tiv)
                         if keep_separate_item:
                             compute_info['cursor'] = write_packed_building_block(
                                 byte_mv, compute_info['cursor'], losses[:, item_j], b,
