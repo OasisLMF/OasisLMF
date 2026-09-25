@@ -69,7 +69,7 @@ def damagebin_tobin(stack, file_in, file_out, file_type, no_validation):
         if not no_validation:
             _validate_chunk(chunk, logger, first_chunk, prev_last_bin_index, row_offset)
 
-        chunk.tofile(file_out)
+        file_out.write(chunk.tobytes())
         first_chunk = False
 
         if len(chunk) > 0:
