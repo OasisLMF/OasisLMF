@@ -44,7 +44,7 @@ from .common import DEDUCTIBLE, UNDERLIMIT, OVERLIMIT
 
 
 @njit(cache=True, fastmath=True, error_model="numpy")
-def back_alloc_extra_a2(base_children_count, temp_children_queue, nodes_array, profile_i,
+def back_alloc_extra_a2(base_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
                         node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                         loss_in, loss_out, temp_node_loss, loss_indptr, loss_val,
                         extra, temp_node_extras, extras_indptr, extras_val):
@@ -80,6 +80,11 @@ def back_alloc_extra_a2(base_children_count, temp_children_queue, nodes_array, p
 
     Args:
         base_children_count: Number of base children to allocate to
+        storage_is_base_child: whether the node the loss was computed into IS the single base
+            child. Only then can the post-profile loss be assigned straight to it. Building
+            packing breaks that assumption: a node above the collapse level with one child is
+            forced to aggregate, so the loss sits on the PARENT and the child still has to be
+            back-allocated to.
         temp_children_queue: Array of base children node IDs
         nodes_array: Node information array
         profile_i: Current profile/layer index
@@ -98,7 +103,7 @@ def back_alloc_extra_a2(base_children_count, temp_children_queue, nodes_array, p
         extras_indptr: CSR pointers for extras
         extras_val: Extras values to update
     """
-    if base_children_count == 1:  # this is a base children, we only need to assign loss_in
+    if base_children_count == 1 and storage_is_base_child:  # loss_in IS the base child's storage
         loss_in[:] = loss_out
     else:
         # back allocation rules:
@@ -203,7 +208,7 @@ def back_alloc_extra_a2(base_children_count, temp_children_queue, nodes_array, p
 
 
 @njit(cache=True, fastmath=True, error_model="numpy")
-def back_alloc_a2(base_children_count, temp_children_queue, nodes_array, profile_i,
+def back_alloc_a2(base_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
                   node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                   loss_in, loss_out, temp_node_loss, loss_indptr, loss_val):
     """Back-allocate loss only (no extras) to base children using allocation rule 2.
@@ -222,6 +227,11 @@ def back_alloc_a2(base_children_count, temp_children_queue, nodes_array, profile
 
     Args:
         base_children_count: Number of base children
+        storage_is_base_child: whether the node the loss was computed into IS the single base
+            child. Only then can the post-profile loss be assigned straight to it. Building
+            packing breaks that assumption: a node above the collapse level with one child is
+            forced to aggregate, so the loss sits on the PARENT and the child still has to be
+            back-allocated to.
         temp_children_queue: Base children node IDs
         nodes_array: Node information array
         profile_i: Current profile/layer index
@@ -236,7 +246,7 @@ def back_alloc_a2(base_children_count, temp_children_queue, nodes_array, profile
         loss_indptr: CSR pointers for loss
         loss_val: Loss values to update
     """
-    if base_children_count == 1:
+    if base_children_count == 1 and storage_is_base_child:  # loss_in IS the base child's storage
         loss_in[:] = loss_out
     else:
         for val_i in range(node_val_count):

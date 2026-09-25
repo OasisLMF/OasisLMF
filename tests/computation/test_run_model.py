@@ -102,7 +102,9 @@ class TestRunModel(ComputationChecker):
                 patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock), \
         patch.object(oasislmf.computation.base, 'str2bool', str2bool_mock):
             self.manager.run_model(**call_args)
-        str2bool_mock.assert_called_with('False')
+        # any_call, not called_with: the latter pins the LAST str2bool call, so adding any
+        # str2bool parameter to a step breaks it. What matters is that gulmc went through it.
+        str2bool_mock.assert_any_call('False')
 
     def test_model_run__str2bool_invalid_call__exception_raised(self):
         files_mock = MagicMock()

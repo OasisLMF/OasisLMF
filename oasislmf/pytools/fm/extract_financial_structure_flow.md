@@ -19,7 +19,9 @@ coverages        ─┘              └─► fm_profile (expanded)
 
 ---
 
-## Phase 1: Profile Index Mapping (Lines 402-415)
+## Phase 1: Profile Index Mapping
+
+*Code: `#### profile_id_to_profile_index ####`*
 
 **Input:** `fm_profile`
 **Output:** `profile_id_to_profile_index`, `is_tiv_profile`
@@ -42,7 +44,9 @@ is_tiv_profile[profile_id] = 1 if calcrule requires TIV
 
 ---
 
-## Phase 2: Level Structure Analysis (Lines 417-429)
+## Phase 2: Level Structure Analysis
+
+*Code: `# in fm_programme check if multi-peril and get size of each levels`*
 
 **Input:** `fm_programme`
 **Output:** `max_level`, `level_node_len`, `multi_peril`
@@ -66,7 +70,9 @@ fm_programme                        level_node_len
 
 ---
 
-## Phase 3: TIV Duplicate Pre-counting (Lines 432-454)
+## Phase 3: TIV Duplicate Pre-counting
+
+*Code: `#### fm_policytc ... ####`, the pre-pass counting TIV profile duplicates*
 
 **Input:** `fm_policytc`, `is_tiv_profile`
 **Output:** `num_tiv_duplicates`, expanded `fm_profile`
@@ -84,7 +90,9 @@ fm_policytc scan:
 
 ---
 
-## Phase 4: Node Index Computation (Lines 456-475)
+## Phase 4: Node Index Computation
+
+*Code: `# Compute node_level_start for array-based indexing`*
 
 **Input:** `level_node_len`, `multi_peril`, `allocation_rule`
 **Output:** `start_level`, `out_level`, `node_level_start`, `total_nodes`
@@ -106,7 +114,9 @@ Example (start_level=1):
 
 ---
 
-## Phase 5: Profiles CSR Construction (Lines 477-545)
+## Phase 5: Profiles CSR Construction
+
+*Code: `# Build profiles CSR directly from fm_policytc`*
 
 **Input:** `fm_policytc`, `profile_id_to_profile_index`
 **Output:** `profiles_indptr`, `profiles_data` (CSR format)
@@ -148,7 +158,9 @@ Lookup: profiles_data[profiles_indptr[idx]:profiles_indptr[idx+1]]
 
 ---
 
-## Phase 6: Output ID Mapping (Lines 547-560)
+## Phase 6: Output ID Mapping
+
+*Code: `#### xref ####`*
 
 **Input:** `fm_xref`
 **Output:** `output_id_arr` (2D array)
@@ -170,7 +182,9 @@ fm_xref                              output_id_arr
 
 ---
 
-## Phase 7: Node Layer Initialization (Lines 562-581)
+## Phase 7: Node Layer Initialization
+
+*Code: `#### programme ####`*
 
 **Input:** `fm_programme`, `profiles_indptr`
 **Output:** `node_layers_arr`, `node_cross_layers_arr`, `layer_source`
@@ -189,7 +203,9 @@ for programme in fm_programme:
 
 ---
 
-## Phase 8: Parent/Child CSR Construction (Lines 583-648)
+## Phase 8: Parent/Child CSR Construction
+
+*Code: `# Build parent/child CSR arrays directly from fm_programme`*
 
 **Input:** `fm_programme`
 **Output:** `children_indptr`, `children_data`, `parents_indptr`, `parents_data`
@@ -223,7 +239,9 @@ Node 1 has children [3, 4]     Node 2 has parents [3]
 
 ---
 
-## Phase 9: Layer Propagation & Cross-Layer Detection (Lines 650-677)
+## Phase 9: Layer Propagation & Cross-Layer Detection
+
+*Code: `# Now process layer propagation and cross-layer detection using CSR`*
 
 **Input:** CSR structures, `node_layers_arr`
 **Output:** Updated `node_layers_arr`, `node_cross_layers_arr`, `layer_source`
@@ -242,7 +260,9 @@ for level in range(max_level, start_level, -1):
 
 ---
 
-## Phase 10: Output Array Construction (Lines 679-831)
+## Phase 10: Output Array Construction
+
+*Code: `# compute number of steps (steps), max size of node to compute (compute_len)`*
 
 **Input:** All intermediate structures
 **Output:** `nodes_array`, `node_parents_array`, `node_profiles_array`, `output_array`
@@ -279,7 +299,9 @@ if profile has need_extras calcrule:
 
 ---
 
-## Phase 11: Compute Info Assembly (Lines 833-848)
+## Phase 11: Compute Info Assembly
+
+*Code: the `compute_info[...]` assignments closing the function*
 
 **Output:** `compute_infos` array with metadata for computation engine
 

@@ -8,10 +8,22 @@ import uuid
 
 
 def logging_set_handlers(logger_name, handler, log_level):
+    """Point a logger at the redirect handler, returning what to hand back to reset.
+
+    Args:
+        logger_name (str): the logger to redirect.
+        handler (logging.Handler): handler to attach to ``oasislmf.*`` loggers.
+        log_level (int): level for the redirected ``oasislmf.*`` loggers.
+
+    Returns:
+        tuple: the logger's previous (level, propagate, handlers), for
+        :func:`logging_reset_handlers`.
+    """
     logger = logging.getLogger(logger_name)
+    previous = (logger.level, logger.propagate, list(logger.handlers))
     # set all handlers to ERROR
-    for handler in logger.handlers:
-        handler.setLevel(logging.ERROR)
+    for existing in logger.handlers:
+        existing.setLevel(logging.ERROR)
     # set children oasislmf loggers to 'log_level'
     if 'oasislmf.' in logger_name:
         logger.addHandler(handler)
@@ -19,20 +31,42 @@ def logging_set_handlers(logger_name, handler, log_level):
         logger.propagate = False
     else:
         logger.setLevel(logging.ERROR)
+    return previous
 
 
-def logging_reset_handlers(logger_name):
+def logging_reset_handlers(logger_name, previous=None):
+    """Undo :func:`logging_set_handlers`, restoring the logger's own configuration.
+
+    Logging is process-global, so anything not put back leaks into whatever runs next. Restoring
+    the captured state rather than assuming defaults is what makes that safe: the level used to be
+    reset only for non-oasislmf loggers, so every ``oasislmf.*`` logger was left permanently at the
+    redirect level and quietly stopped emitting INFO for the rest of the process. Each pytools tool
+    is its own process in a model run, so it never showed there -- but it does for anything running
+    them in-process, and it is why the platform tests failed when they ran after the pytools ones.
+
+    Args:
+        logger_name (str): the logger to restore.
+        previous (tuple, optional): the (level, propagate, handlers) returned by
+            :func:`logging_set_handlers`. Without it the logger is reset to defaults, which is only
+            right if it had none of its own configuration to begin with.
+    """
     logger = logging.getLogger(logger_name)
     # revert all handlers to NOTSET
     for handler in logger.handlers:
         handler.setLevel(logging.NOTSET)
-    # Remove added handlers
+
+    if previous is not None:
+        level, propagate, handlers = previous
+        logger.handlers = handlers
+        logger.setLevel(level)
+        logger.propagate = propagate
+        return
+
+    # No captured state: undo what logging_set_handlers does, and only that. It touches handlers
+    # and propagate for 'oasislmf.*' loggers alone, and redirect_logging walks every logger in the
+    # process -- forcing propagate back on elsewhere would overwrite a host application's choice.
     if 'oasislmf.' in logger_name:
         logger.handlers.clear()
-    # Undo what logging_set_handlers did to the logger itself: leaving the level in place pinned
-    # every 'oasislmf.*' logger for the rest of the process. propagate is restored only where we
-    # cleared it — redirect_logging walks every logger, including the host application's.
-    if 'oasislmf.' in logger_name:
         logger.propagate = True
     logger.setLevel(logging.NOTSET)
 
@@ -97,9 +131,11 @@ def redirect_logging(exec_name, log_dir='./log'):
             rootFileHandler.setLevel(logging.INFO)
             rootFileHandler.setFormatter(formatter)
 
-            # Set all logger handlers to level ERROR
-            for lg_name in logging_config:
-                logging_set_handlers(lg_name, childFileHandler, log_level)
+            # Set all logger handlers to level ERROR, keeping what each one looked like
+            previous_by_logger = {
+                lg_name: logging_set_handlers(lg_name, childFileHandler, log_level)
+                for lg_name in logging_config
+            }
 
             # Set root oasislmf logger to INFO
             logger = logging.getLogger('oasislmf')
@@ -126,7 +162,7 @@ def redirect_logging(exec_name, log_dir='./log'):
                 raise err
             finally:
                 for lg_name in logging_config:
-                    logging_reset_handlers(lg_name)
+                    logging_reset_handlers(lg_name, previous_by_logger.get(lg_name))
                 logger.removeHandler(rootFileHandler)
                 logging.shutdown()
                 logging.captureWarnings(False)
