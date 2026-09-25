@@ -96,7 +96,10 @@ jobs:
         run: |
           CURRENT_VER=$(grep "${{ env.oasislmf_regex }}" "${{ env.oasislmf_file }}" | awk -F"'" '{print $2}')
           sed -i "s|${CURRENT_VER}|${{ inputs.release_version }}|g" "${{ env.oasislmf_file }}"
-          git add "${{ env.oasislmf_file }}"
+          # Docs and docstrings are authored as '.. versionadded:: NEXT' because the release
+          # version is not known at PR time; resolve them in the same commit as the bump.
+          ./scripts/resolve-version-markers.sh "${{ inputs.release_version }}"
+          git add -u
           [[ -z $(git status -s) ]] || git commit -m "Set oasislmf to version ${{ inputs.release_version }}"
 
       - name: Push

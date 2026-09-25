@@ -204,8 +204,6 @@ class ExposurePreAnalysis(ComputationStep):
         self.logger.info('\nPre-analysis original files: {}'.format(
             json.dumps(original_files, indent=4)))
 
-        print(kwargs)
-        print(_class(**kwargs))
         _class_return = _class(**kwargs).run()
 
         save_exposure_data(exposure_data, path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)

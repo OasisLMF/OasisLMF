@@ -718,6 +718,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 UserWarning,
             )
             gdf_geometry = gdf_geometry.set_crs("EPSG:4326")
+        elif gdf_geometry.crs != "EPSG:4326":
+            gdf_geometry = gdf_geometry.to_crs("EPSG:4326")
 
         if nearest_neighbor_max_distance > 0:
             if BallTree is None:

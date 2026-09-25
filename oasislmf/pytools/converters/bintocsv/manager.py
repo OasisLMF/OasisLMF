@@ -35,6 +35,8 @@ TOCSV_FUNC_MAP = {
     "lossfactors": lossfactors_tocsv,
     "occurrence": occurrence_tocsv,
     "vulnerability": vulnerability_tocsv,
+    # flat layout only, so the no-idx branch of the vulnerability converter covers it
+    "conditionalvulnerability": vulnerability_tocsv,
 }
 
 

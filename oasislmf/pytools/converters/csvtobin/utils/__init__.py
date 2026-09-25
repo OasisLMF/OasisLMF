@@ -14,6 +14,7 @@ __all__ = [
     "returnperiods_tobin",
     "summarycalc_tobin",
     "vulnerability_tobin",
+    "conditional_vulnerability_tobin",
 ]
 
 from .amplifications import amplifications_tobin, amplifications_write_bin
@@ -28,4 +29,4 @@ from .lossfactors import lossfactors_tobin
 from .occurrence import occurrence_tobin
 from .returnperiods import returnperiods_tobin
 from .summarycalc import summarycalc_tobin
-from .vulnerability import vulnerability_tobin
+from .vulnerability import vulnerability_tobin, conditional_vulnerability_tobin

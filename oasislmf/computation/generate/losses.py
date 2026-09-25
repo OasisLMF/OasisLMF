@@ -37,7 +37,7 @@ from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_L
 from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set,
                               set_hazard_case_set)
-from ...preparation.summaries import generate_summaryxref_files
+from ...preparation.summaries import generate_summaryxref_files, get_ri_summaryxref_dirs
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...pytools.fm.manager import run as fmpy_run
 from oasislmf.pytools.summary.manager import create_summary_object_file
@@ -135,7 +135,7 @@ class GenerateLossesBase(ComputationStep):
         option
         """
         user_peril_filter = analysis_settings.get('peril_filter', None)
-        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else getattr(self, 'peril_filter', [])))
+        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else self.peril_filter))
         return peril_filter
 
     def _print_error_logs(self, run_log_fp, e):
@@ -206,6 +206,19 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
 
+        # GUL engine selection -- these decide which shared structures are pre-built here, so they
+        # must be declared on this step and not only on the sub-steps that generate the run script.
+        # The chunked workflow calls this step on its own (`generate_losses_dir`), and an undeclared
+        # param is silently dropped, which would pre-build the structures of the engine that is not
+        # going to run.
+        {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
+        {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
+        {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
+        {'name': 'dynamic_footprint', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'Dynamic Footprint'},
+        {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
+        {'name': 'model_df_engine', 'default': None,
+            'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
+
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose', 'default': KERNEL_DEBUG},
 
@@ -235,10 +248,12 @@ class GenerateLossesDir(GenerateLossesBase):
         il = all(f'{name}.bin' in oasis_files or f'{name}.csv' in oasis_files
                  for name in ['fm_policytc', 'fm_profile', 'fm_programme', 'fm_xref'])
 
-        ri_dirs = [fn
-                   for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
-                   if re.match(r"RI_\d+$", fn)
-                   ]
+        # A layer can appear in both directories when re-running into an existing run dir
+        ri_dirs = list(dict.fromkeys(
+            fn
+            for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
+            if re.match(r"RI_\d+$", fn)
+        ))
         ril = any(ri_dirs)
 
         # Check for missing input files and either warn user or raise exception
@@ -341,9 +356,9 @@ class GenerateLossesDir(GenerateLossesBase):
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.kernel_alloc_rule_ri, ri_target_dir)
 
-        gulmc = getattr(self, 'gulmc', False)
-        model_custom_gulcalc = getattr(self, 'model_custom_gulcalc', None)
-        model_df_engine = getattr(self, 'model_df_engine', None) or getattr(self, 'base_df_engine', None)
+        gulmc = self.gulmc
+        model_custom_gulcalc = self.model_custom_gulcalc
+        model_df_engine = self.model_df_engine or self.base_df_engine
 
         if gulmc and not model_custom_gulcalc:
             from ...pytools.gulmc.structure import create_gulmc_structure
@@ -352,7 +367,7 @@ class GenerateLossesDir(GenerateLossesBase):
                 run_dir=model_run_fp,
                 ignore_file_type=set(),
                 peril_filter=self._get_peril_filter(self.settings),
-                dynamic_footprint=getattr(self, 'dynamic_footprint', False),
+                dynamic_footprint=self.dynamic_footprint,
                 model_df_engine=model_df_engine,
             )
 
@@ -381,7 +396,15 @@ class GenerateLossesDir(GenerateLossesBase):
                 summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                 if summary_sets_id.shape[0]:
                     if runtype == RUNTYPE_REINSURANCE_LOSS:
-                        summary_dirs = [os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs]
+                        # Intermediate RI layers are computed but never summarised, so only the
+                        # output levels hold an fmsummaryxref - unless gross RL output is also
+                        # requested, which writes one into every layer. Mirrors the argument
+                        # generate_summaryxref_files passes, so both resolve the same set.
+                        summary_dirs = get_ri_summaryxref_dirs(
+                            os.path.join(self.model_run_dir, 'input'),
+                            self.settings,
+                            all_layers=bool(rl and self.settings.get('rl_summaries')),
+                        )
                     else:
                         summary_dirs = [os.path.join(self.model_run_dir, 'input')]
                     for summary_dir in summary_dirs:
@@ -411,7 +434,6 @@ class GenerateLossesPartial(GenerateLossesDir):
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
-        {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
         {'name': 'gul_random_generator', 'default': 2, 'type': int,
          'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube, '
                  '2: Latin Hypercube on Philox4x32-7. Default: 2).'},
@@ -424,17 +446,10 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'summarypy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'pass -m to summarypy so it writes a .idx side-file (consumed by the legacy ktools leccalc/aalcalc binaries via the parallel .idx tee chain). Python aggregators (lecpy, aalpy, eltpy, pltpy) glob *.bin work files and do not need this flag.'},
-        {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
-        {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'join summary id information to outputcalc csvs'},
-        {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
-        {'name': 'model_df_engine', 'default': None,
-            'help': 'The engine to use when loading dataframes model data (default: same as --base-df-engine)'},
-        {'name': 'dynamic_footprint', 'default': False,
-            'help': 'Dynamic Footprint'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -627,7 +642,6 @@ class GenerateLosses(GenerateLossesDir):
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
-        {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
         {'name': 'gul_random_generator', 'default': 2, 'type': int,
          'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube, '
                  '2: Latin Hypercube on Philox4x32-7. Default: 2).'},
@@ -640,20 +654,13 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'summarypy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'pass -m to summarypy so it writes a .idx side-file (consumed by the legacy ktools leccalc/aalcalc binaries via the parallel .idx tee chain). Python aggregators (lecpy, aalpy, eltpy, pltpy) glob *.bin work files and do not need this flag.'},
-        {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server', 'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
-        {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'join summary id information to outputcalc csvs'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
-        {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
-        {'name': 'model_df_engine', 'default': None,
-            'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
-        {'name': 'dynamic_footprint', 'default': False,
-            'help': 'Dynamic Footprint'},
         {'name': 'socket_server_ip', 'default': False, 'help': 'IP to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_IP."'},
         {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'},
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
