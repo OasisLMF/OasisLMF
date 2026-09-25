@@ -239,7 +239,6 @@ class FootprintCsv(Footprint):
     footprint_filenames = [csvfootprint_filename]
 
     def __enter__(self):
-        self.reader = pd.read_csv()
         self.reader = self.get_df_reader("footprint.csv", dtype=footprint_event_dtype)
 
         self.num_intensity_bins = self.reader.query(lambda df: df['intensity_bin_id'].max())
