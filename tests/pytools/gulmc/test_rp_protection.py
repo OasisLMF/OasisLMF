@@ -259,7 +259,6 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     # one block per building; a single building here, so this is the unpacked N == 1 case
     building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
     # float64 to match the precision write_losses accumulates a summed item at
-    summed_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
     # only a summed, correlated item reads these; the RP path never does
     loss_correlation_by_item = np.zeros(losses.shape[1], dtype=oasis_float)
     hermite_coeffs = np.zeros(HERMITE_TERMS, dtype=np.float64)
@@ -290,7 +289,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
-        building_losses, summed_scratch, loss_correlation_by_item, hermite_coeffs,
+        building_losses, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_base, haz_rndms_base,
         vuln_seeds, haz_seeds, lazy_draws, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
@@ -581,7 +580,6 @@ def test_rp_protection_only_affects_protected_items():
     # one block per building; a single building here, so this is the unpacked N == 1 case
     building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
     # float64 to match the precision write_losses accumulates a summed item at
-    summed_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
     # only a summed, correlated item reads these; the RP path never does
     loss_correlation_by_item = np.zeros(losses.shape[1], dtype=oasis_float)
     hermite_coeffs = np.zeros(HERMITE_TERMS, dtype=np.float64)
@@ -612,7 +610,7 @@ def test_rp_protection_only_affects_protected_items():
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
-        building_losses, summed_scratch, loss_correlation_by_item, hermite_coeffs,
+        building_losses, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_base, haz_rndms_base,
         vuln_seeds, haz_seeds, lazy_draws, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,

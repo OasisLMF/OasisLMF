@@ -297,17 +297,13 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         max_items_per_coverage = np.max(coverages[1:]['max_items'])
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, max_items_per_coverage), dtype=oasis_float)
         # Per-building samples: the specials stay on losses_buffer, being building-independent.
-        # Sized to the coverages that genuinely have to hold every building at once rather than
-        # to the portfolio's largest location -- see buffered_building_width.
-        max_buffered_buildings = buffered_building_width(
-            alloc_rule, sample_size, items['coverage_id'],
-            n_buildings_by_item_id[items['item_id']], coverages['max_items'])
-        building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buffered_buildings),
+        # write_losses reduces across items at a fixed building and then sums the buildings, so a
+        # coverage's every building has to be resident before any of it can be written.
+        building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buildings),
                                    dtype=oasis_float)
         # Accumulates a summed-at-source item's buildings when it is emitted as it is computed.
         # float64, not oasis_float: write_losses sums into a `loss = 0.` local, which numba types
         # as float64, so accumulating in float32 here would round differently.
-        summed_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
         # per item of the current coverage, the correlation between two of its buildings'
         # LOSSES -- 0 unless the item is summed and correlated, the only case that reads it
         loss_correlation_by_item = np.zeros(max_items_per_coverage, dtype=oasis_float)
@@ -379,7 +375,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                     arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
-                    building_losses, summed_scratch, rndms_base,
+                    building_losses, rndms_base,
                     seeds, lazy_draws, draw_scratch, perm_scratch,
                     loss_correlation_by_item, hermite_coeffs,
                     n_buildings_by_item_id, damage_correlation_by_item_id,
@@ -433,7 +429,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
                          loss_threshold, losses, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                          arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
-                         z_unif, debug, building_losses, summed_scratch, rndms_base,
+                         z_unif, debug, building_losses, rndms_base,
                          seeds, lazy_draws, draw_scratch, perm_scratch,
                          loss_correlation_by_item, hermite_coeffs,
                          n_buildings_by_item_id, damage_correlation_by_item_id,
@@ -469,9 +465,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         z_unif (np.array[float]): reusable buffer for correlated random values.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
-        summed_scratch (numpy.array[float64]): length-S accumulator for a summed-at-source item
-          emitted as it is computed, since its buildings are added up rather than written.
-          float64 to match the precision write_losses accumulates at.
         building_losses (numpy.array[oasis_float]): 3d (sample_size, max_items, W)
           reusable buffer for the per-building samples.
         rndms_base (numpy.array[float64]): 2d (rng groups, sample_size) random values, one row
@@ -508,13 +501,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         exposureValue = tiv / Nitem_ids
 
         items = items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']]
-
-        # Emit each building as it is computed rather than buffering the coverage. Safe exactly
-        # when the alloc-rule cap never has to look across items at a fixed building: with
-        # alloc_rule 0 it does not run, and with one item the cross-item reductions act on a
-        # length-1 slice, which is element-local. See buffered_building_width, which sizes
-        # building_losses on the same rule.
-        fuse_emit = sample_size > 0 and (alloc_rule == 0 or coverage['cur_items'] == 1)
 
         # Every coverage is emitted whole -- there is no return between the first byte of a
         # coverage and its last -- so its output has to fit before we start. The bound
@@ -562,17 +548,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                 # is the legacy draw byte-for-byte. The specials above are building-independent.
                 item_n_buildings = abs(n_buildings_by_item_id[item['item_id']])
 
-                keep_separate_item = n_buildings_by_item_id[item['item_id']] < 0
-                if fuse_emit:
-                    # cur_items == 1 wherever alloc_rule != 0 here, so these length-1 slices ARE
-                    # the whole cross-item vector write_losses would pass, and the reductions on
-                    # them are the identity (setmaxloss, multiplicative) or a cap at tiv (classic)
-                    for special in (TIV_IDX, MAX_LOSS_IDX, MEAN_IDX):
-                        apply_alloc_rule(losses[special, item_i:item_i + 1], alloc_rule, tiv)
-                    cursor = mv_write_item_header(byte_mv, cursor, event_id, item['item_id'])
-                    if not keep_separate_item:
-                        summed_scratch[:sample_size] = 0
-
                 for building_i in range(item_n_buildings):
                     if lazy_draws:
                         gs = np.uint64(seeds[rng_index])
@@ -591,12 +566,9 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         )
                         rndms = z_unif
 
-                    # one column is reused when the item is emitted as it is computed
-                    building_col = 0 if fuse_emit else building_i
-
                     if debug:
                         for sample_idx in range(1, sample_size + 1):
-                            building_losses[sample_idx - 1, item_i, building_col] = rndms[sample_idx - 1]
+                            building_losses[sample_idx - 1, item_i, building_i] = rndms[sample_idx - 1]
                     else:
                         for sample_idx in range(1, sample_size + 1):
                             # cap `rval` to the maximum `prob_to` value (which should be 1.)
@@ -623,85 +595,21 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                             )
 
                             if gul >= loss_threshold:
-                                building_losses[sample_idx - 1, item_i, building_col] = gul
+                                building_losses[sample_idx - 1, item_i, building_i] = gul
                             else:
-                                building_losses[sample_idx - 1, item_i, building_col] = 0
+                                building_losses[sample_idx - 1, item_i, building_i] = 0
 
-                    if fuse_emit:
-                        if alloc_rule != 0:
-                            for s_i in range(sample_size):
-                                apply_alloc_rule(building_losses[s_i, item_i:item_i + 1, 0], alloc_rule, tiv)
-                        if keep_separate_item:
-                            cursor = write_packed_building_block(
-                                byte_mv, cursor, losses[:, item_i], building_i + 1,
-                                building_losses[:, item_i, 0], sample_size, loss_threshold)
-                        else:
-                            # capped per building, then summed -- the order write_losses uses
-                            for s_i in range(sample_size):
-                                summed_scratch[s_i] += building_losses[s_i, item_i, 0]
-
-                if fuse_emit:
-                    if not keep_separate_item:
-                        cursor = write_summed_specials(byte_mv, cursor, losses[:, item_i],
-                                                       item_n_buildings,
-                                                       loss_correlation_by_item[item_i])
-                        for s_i in range(1, sample_size + 1):
-                            loss = summed_scratch[s_i - 1]
-                            if loss >= loss_threshold:
-                                cursor = mv_write_sidx_loss(byte_mv, cursor, s_i, loss)
-                    # one delimiter terminates the whole (multi-building) item
-                    cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
-
-        # a fused coverage has already emitted every item as it was computed
-        if not fuse_emit:
-            cursor = write_losses(
-                event_id, sample_size, loss_threshold, losses[:, :items.shape[0]],
-                building_losses[:, :items.shape[0], :], items['item_id'],
-                n_buildings_by_item_id[items['item_id']],
-                loss_correlation_by_item[:items.shape[0]],
-                alloc_rule, tiv, byte_mv, cursor)
+        cursor = write_losses(
+            event_id, sample_size, loss_threshold, losses[:, :items.shape[0]],
+            building_losses[:, :items.shape[0], :], items['item_id'],
+            n_buildings_by_item_id[items['item_id']],
+            loss_correlation_by_item[:items.shape[0]],
+            alloc_rule, tiv, byte_mv, cursor)
 
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
 
     return cursor, last_processed_coverage_ids_idx
-
-
-def buffered_building_width(alloc_rule, sample_size, coverage_ids, packed_buildings, max_items_by_coverage):
-    """How many building columns the per-building sample buffer needs.
-
-    A coverage has to hold all its buildings at once only when the alloc-rule cap runs ACROSS
-    items at a fixed building -- ``setmaxloss_items`` and ``split_tiv_*`` read
-    ``building_losses[s, :, b]``. With one item on the coverage those reduce to element-local
-    operations on a length-1 slice, and with ``alloc_rule`` 0 they do not run at all, so such a
-    coverage can emit each building as it is computed and needs a single column. The width is
-    therefore set by the coverages that genuinely buffer, not by the portfolio's largest
-    location: a packed exposure with one item per coverage drops from max_buildings to 1.
-
-    ``max_items`` is used rather than a per-event item count because the buffer is allocated
-    once for the run, so a coverage that is multi-item for any event must be accommodated.
-
-    Passed the three columns rather than the arrays holding them, because gulmc carries the
-    count on the items array while gulpy keeps it in n_buildings_by_item_id.
-
-    Args:
-        alloc_rule (int): back-allocation rule for the run.
-        sample_size (int): logical number of random samples per building (S).
-        coverage_ids (numpy.array[int]): per item, the coverage it sits on.
-        packed_buildings (numpy.array[int]): per item, the SIGNED building count; only the
-            magnitude matters here.
-        max_items_by_coverage (numpy.array[int]): per coverage_id, the most items it ever holds.
-
-    Returns:
-        int: number of building columns to allocate, at least 1.
-    """
-    # sample_size 0 writes no samples, so write_losses never indexes the building axis at all
-    if alloc_rule == 0 or sample_size <= 0 or coverage_ids.shape[0] == 0:
-        return 1
-    on_multi_item_coverage = max_items_by_coverage[coverage_ids] > 1
-    if not on_multi_item_coverage.any():
-        return 1
-    return int(np.abs(packed_buildings[on_multi_item_coverage]).max())
 
 
 @njit(cache=True, fastmath=True)
