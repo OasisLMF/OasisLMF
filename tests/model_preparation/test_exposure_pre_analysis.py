@@ -293,7 +293,6 @@ def test_exposure_pre_analysis_class_is_built_once(capsys):
         with open(counter_path) as counter:
             assert counter.read() == 'init\n'
 
-        with open(os.path.join(d, SOURCE_FILENAMES['oed_location_csv'])) as new_oed_location_csv:
-            assert new_oed_location_csv.read() == output_oed_location
+        assert_location_snapshot_matches(d, output_oed_location)
 
         assert 'exposure_pre_analysis_setting' not in capsys.readouterr().out
