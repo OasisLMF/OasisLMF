@@ -34,8 +34,7 @@ from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_ID
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, apply_alloc_rule,
                                        accumulate_hermite_coeffs, loss_correlation, HERMITE_TERMS)
 from oasislmf.pytools.gul.manager import (write_losses, adjust_byte_mv_size, buffered_building_width,
-                                          write_packed_building_block, write_summed_specials,
-                                          FUSED_FLUSH_TARGET_BYTES)
+                                          write_packed_building_block, write_summed_specials)
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval, get_random_generator,
                                          _lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
@@ -635,8 +634,7 @@ def run(run_dir,
                 processing_done = False
                 logger.info(f"event {event_ids[0]} STARTED")
                 while not processing_done:
-                    resume_point_before = (int(compute_info['coverage_i']), int(compute_info['item_j']),
-                                           int(compute_info['building_b']))
+                    resume_point_before = int(compute_info['coverage_i'])
                     try:
                         processing_done = compute_event_losses(
                             compute_info,
@@ -705,18 +703,13 @@ def run(run_dir,
                     # writes plenty while never finishing. The sizing in reconstruct_coverages
                     # makes this unreachable today; the check turns a future violation of that
                     # into a failure rather than a hang.
-                    resume_point = (int(compute_info['coverage_i']), int(compute_info['item_j']),
-                                    int(compute_info['building_b']))
-                    if not processing_done and resume_point <= resume_point_before:
+                    if not processing_done and int(compute_info['coverage_i']) <= resume_point_before:
                         raise RuntimeError(
                             f"gulmc made no progress on event {compute_info['event_id']}: it asked "
-                            f"to resume at coverage/item/building {resume_point}, no further on "
-                            f"than the {resume_point_before} it started from, having written "
+                            f"to resume at coverage {int(compute_info['coverage_i'])}, no further "
+                            f"on than the {resume_point_before} it started from, having written "
                             f"{compute_info['cursor']} bytes into a {byte_mv.shape[0]} byte "
-                            f"buffer. The buffer must hold at least one building block plus an "
-                            f"item header "
-                            f"({gulSampleslevelHeader_size + compute_info['max_bytes_per_block']} "
-                            f"bytes) and a whole coverage for any written through write_losses.")
+                            f"buffer, which must hold the largest coverage whole.")
                     # write the losses to the output stream
                     write_start = 0
                     while write_start < compute_info['cursor']:
@@ -1416,21 +1409,17 @@ def compute_event_losses(compute_info,
         alloc_rule_l = compute_info['alloc_rule']          # hoisted out of the per-sample loops
         fuse_emit = sample_size > 0 and (alloc_rule_l == 0 or Nitems == 1)
 
-        # A coverage that goes through write_losses is emitted whole, so its output has to fit
-        # before we start -- there is no bailing once it has begun. The bound OVER-reserves, and
-        # not by a little: max_bytes_per_item carries max_emitted_blocks over EVERY item in the
+        # Every coverage is emitted whole -- there is no return between the first byte of a
+        # coverage and its last -- so its output has to fit before we start. The bound
+        # OVER-reserves: max_bytes_per_item carries max_emitted_blocks over EVERY item in the
         # portfolio, so a coverage of one-building items is charged for the largest packed item
         # that exists anywhere. Safe, since it can only over-reserve, but sizing it from this
         # coverage's own items is a known improvement.
-        # A fused coverage reserves per BLOCK further down instead -- one per building where they
-        # are kept separate, one for the whole item where they are summed -- which is what keeps
-        # the buffer off the largest location's building count.
         # Bailing here can land inside a dependency subtree, which is sound: a flush only writes
         # bytes out, and the stacks a dependent reads (source_damage_bin_stack,
         # source_eff_damage_cdf_stack) are caller-owned and outlive the call.
-        if not fuse_emit:
-            if compute_info['cursor'] + Nitems * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
-                return False
+        if compute_info['cursor'] + Nitems * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
+            return False
 
         coverage_is_dependent = compute_info['do_coverage_dependency'] == 1 and depth > 0
         # nothing below reads this coverage's sampled bins unless it actually has dependents, and
@@ -1438,7 +1427,7 @@ def compute_event_losses(compute_info,
         has_dependents_below = (compute_info['do_coverage_dependency'] == 1
                                 and coverage_has_dependents[coverage_id] == 1)
         # compute losses for each item, resuming where a flush interrupted this coverage
-        for item_j in range(compute_info['item_j'], Nitems):
+        for item_j in range(Nitems):
             item_event_data = items_event_data[coverage['start_items'] + item_j]
             rng_index = item_event_data['rng_index']
             hazard_rng_index = item_event_data['hazard_rng_index']
@@ -1469,33 +1458,16 @@ def compute_event_losses(compute_info,
                     if fuse_emit:
                         # write_losses would still emit this item, all zeros -- so must we. Every
                         # building reads the one zeroed column, which is its correct value here.
-                        # Blocks are checked and resumed exactly as on the computed path: the RP
-                        # decision is per item-event and so gives the same answer on re-entry.
-                        if compute_info['building_b'] == 0:
-                            # reserved together with the first block, for the reason given on the
-                            # computed path below -- a header left behind by a failed reservation
-                            # is written twice
-                            if compute_info['cursor'] + gulSampleslevelHeader_size \
-                                    + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
-                                compute_info['item_j'] = item_j
-                                return False
-                            compute_info['cursor'] = mv_write_item_header(
-                                byte_mv, compute_info['cursor'], compute_info['event_id'],
-                                item_event_data['item_id'])
+                        compute_info['cursor'] = mv_write_item_header(
+                            byte_mv, compute_info['cursor'], compute_info['event_id'],
+                            item_event_data['item_id'])
                         if item_event_data['packed_buildings'] < 0:
-                            for b in range(compute_info['building_b'] + 1, n_buildings + 1):
-                                if compute_info['cursor'] + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
-                                    compute_info['item_j'] = item_j
-                                    compute_info['building_b'] = b - 1
-                                    return False
+                            for b in range(1, n_buildings + 1):
                                 compute_info['cursor'] = write_packed_building_block(
                                     byte_mv, compute_info['cursor'], losses[:, item_j], b,
                                     building_losses[:, item_j, 0], sample_size,
                                     compute_info['loss_threshold'])
                         else:
-                            if compute_info['cursor'] + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
-                                compute_info['item_j'] = item_j
-                                return False
                             compute_info['cursor'] = write_summed_specials(
                                 byte_mv, compute_info['cursor'], losses[:, item_j], n_buildings,
                                 loss_correlation_by_item[item_j])
@@ -1504,7 +1476,6 @@ def compute_event_losses(compute_info,
                                     compute_info['cursor'] = mv_write_sidx_loss(
                                         byte_mv, compute_info['cursor'], s_i, 0.)
                         compute_info['cursor'] = mv_write_sidx_loss(byte_mv, compute_info['cursor'], 0, 0)
-                        compute_info['building_b'] = 0
                     continue
             else:
                 intensity_adjustment = nb_oasis_int(0)
@@ -1618,39 +1589,13 @@ def compute_event_losses(compute_info,
                     # are the identity (setmaxloss, multiplicative) or a cap at tiv (classic).
                     for special in (TIV_IDX, MAX_LOSS_IDX, MEAN_IDX):
                         apply_alloc_rule(losses[special, item_j:item_j + 1], alloc_rule_l, tiv)
-                    # The specials are recomputed above on every entry, so re-applying the cap
-                    # after a resume caps fresh values rather than already-capped ones. Only the
-                    # header must not be repeated.
-                    if compute_info['building_b'] == 0:
-                        # The header and the first block are reserved TOGETHER. Writing the header
-                        # first and only then finding the block does not fit leaves that header in
-                        # the bytes we flush, and re-entry (building_b still 0) writes it again --
-                        # the reader decodes the second copy as a sidx/loss pair and rejects the
-                        # item as carrying a duplicated sidx. max_bytes_per_block already includes
-                        # one header, so this reserves two; the 8 spare bytes are what keep the
-                        # per-block check below from firing on the block just reserved.
-                        if compute_info['cursor'] + gulSampleslevelHeader_size \
-                                + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
-                            compute_info['item_j'] = item_j
-                            return False
-                        compute_info['cursor'] = mv_write_item_header(
-                            byte_mv, compute_info['cursor'], compute_info['event_id'],
-                            item_event_data['item_id'])
+                    compute_info['cursor'] = mv_write_item_header(
+                        byte_mv, compute_info['cursor'], compute_info['event_id'],
+                        item_event_data['item_id'])
                     if not keep_separate_item:
                         summed_scratch[:sample_size] = 0
 
-                for b in range(compute_info['building_b'] + 1, n_buildings + 1):
-                    # A kept-separate building is a block of its own, so the buffer is checked per
-                    # block and the run resumes at the next one; this is what stops the buffer
-                    # having to grow to the largest location's whole output. A SUMMED item has no
-                    # such check: it emits one block however many buildings it carries, so the
-                    # reservation made with its header already covers it, and it could not be
-                    # interrupted here in any case -- its accumulator would restart.
-                    if fuse_emit and keep_separate_item:
-                        if compute_info['cursor'] + compute_info['max_bytes_per_block'] > byte_mv.shape[0]:
-                            compute_info['item_j'] = item_j
-                            compute_info['building_b'] = b - 1
-                            return False
+                for b in range(1, n_buildings + 1):
                     if lazy_draws:
                         vs = np.uint64(vuln_seeds[rng_index])
                         _lh_philox_block(np.uint32(vs & PHILOX_U32_MASK),
@@ -1726,7 +1671,6 @@ def compute_event_losses(compute_info,
                                     byte_mv, compute_info['cursor'], s_i, loss)
                     # one delimiter terminates the whole (multi-building) item
                     compute_info['cursor'] = mv_write_sidx_loss(byte_mv, compute_info['cursor'], 0, 0)
-                    compute_info['building_b'] = 0      # this item is done; the next starts fresh
 
             # effective damageability: record the eff-damage CDF instead, for a dependent below
             # to build its damage pmf from
@@ -1755,7 +1699,6 @@ def compute_event_losses(compute_info,
 
         # register that another `coverage_id` has been processed
         compute_info['coverage_i'] += 1
-        compute_info['item_j'] = 0          # the next coverage starts at its first item
 
     return True
 
@@ -2098,8 +2041,6 @@ def reconstruct_coverages(compute_info,
             compute_depth[position] = 0
 
     compute_info['coverage_i'] = 0
-    compute_info['item_j'] = 0
-    compute_info['building_b'] = 0
     compute_info['coverage_n'] = compute_i
 
     # The buffer no longer has to hold a whole dependency subtree. A fused coverage is flushed
@@ -2108,18 +2049,11 @@ def reconstruct_coverages(compute_info,
     # replaced was a 2 GB allocation at 630,510 buildings, on every run.
     # the extra header is what an item's first block is reserved WITH, so a buffer sized to
     # exactly one block would reject that reservation on an empty buffer, forever
-    required_bytes = gulSampleslevelHeader_size + compute_info['max_bytes_per_block']
+    required_bytes = compute_info['max_bytes_per_item']
     for position in range(compute_i):
-        cur_items = coverages[compute[position]]['cur_items']
-        # the same predicate compute_event_losses uses; a fused coverage needs only one block
-        if not (compute_info['sample_size'] > 0 and (compute_info['alloc_rule'] == 0 or cur_items == 1)):
-            coverage_bytes = cur_items * compute_info['max_bytes_per_item']
-            if coverage_bytes > required_bytes:
-                required_bytes = coverage_bytes
-    # room for many blocks, but never more than the largest item could ever write
-    target = min(FUSED_FLUSH_TARGET_BYTES, compute_info['max_bytes_per_item'])
-    if target > required_bytes:
-        required_bytes = target
+        coverage_bytes = coverages[compute[position]]['cur_items'] * compute_info['max_bytes_per_item']
+        if coverage_bytes > required_bytes:
+            required_bytes = coverage_bytes
     byte_mv = adjust_byte_mv_size(byte_mv, required_bytes)
 
     generate_correlated_hash_vector(haz_peril_correlation_groups, compute_info['event_id'], haz_corr_seeds)
