@@ -435,7 +435,7 @@ def test_merge_empty_join_raises_clear_error(tmp_path):
 
     merge = Lookup(config={}).build_merge(file_path=str(table), id_columns=["area_peril_id"])
     locations = pd.DataFrame({"loc_id": [1], "GeogScheme1": ["W3W"], "GeogName1": ["a.b.c"]})
-    with pytest.raises(OasisException, match="shares no column"):
+    with pytest.raises(OasisException, match="nothing to join on"):
         merge(locations)
 
 

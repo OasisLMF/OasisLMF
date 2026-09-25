@@ -1084,6 +1084,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         All non match column present in id_columns will be set to -1
 
         this is an efficient way to map a combination of column that have a finite scope to an idea.
+
+        If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
         """
         read_func = getattr(pd, f"read_{file_type}", None)
         if callable(read_func):
@@ -1096,9 +1098,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
             if not rename_map:
                 raise OasisException(
-                    f"merge step: the table '{file_path}' shares no column with the locations to "
-                    f"join on (table columns={sorted(df_to_merge.columns)}). If the join value is "
-                    f"held in an OED GeogName column by scheme, add a 'geog_lookup' step first.")
+                    f"merge step: nothing to join on. '{file_path}' and the locations share no column "
+                    f"name (matched case-insensitively). Table columns: {sorted(df_to_merge.columns)}. "
+                    f"Location columns available to this step: {sorted(locations.columns)}. The join keys "
+                    f"are the names the two have in common.")
             logger.debug("merge step: joining on %s", sorted(rename_map.values()))
             locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
             return self.set_id_columns(locations, id_columns)
