@@ -37,7 +37,7 @@ from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_L
 from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set,
                               set_hazard_case_set)
-from ...preparation.summaries import generate_summaryxref_files
+from ...preparation.summaries import generate_summaryxref_files, get_ri_summaryxref_dirs
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...pytools.fm.manager import run as fmpy_run
 from oasislmf.pytools.summary.manager import create_summary_object_file
@@ -235,10 +235,12 @@ class GenerateLossesDir(GenerateLossesBase):
         il = all(f'{name}.bin' in oasis_files or f'{name}.csv' in oasis_files
                  for name in ['fm_policytc', 'fm_profile', 'fm_programme', 'fm_xref'])
 
-        ri_dirs = [fn
-                   for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
-                   if re.match(r"RI_\d+$", fn)
-                   ]
+        # A layer can appear in both directories when re-running into an existing run dir
+        ri_dirs = list(dict.fromkeys(
+            fn
+            for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
+            if re.match(r"RI_\d+$", fn)
+        ))
         ril = any(ri_dirs)
 
         # Check for missing input files and either warn user or raise exception
@@ -381,7 +383,15 @@ class GenerateLossesDir(GenerateLossesBase):
                 summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                 if summary_sets_id.shape[0]:
                     if runtype == RUNTYPE_REINSURANCE_LOSS:
-                        summary_dirs = [os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs]
+                        # Intermediate RI layers are computed but never summarised, so only the
+                        # output levels hold an fmsummaryxref - unless gross RL output is also
+                        # requested, which writes one into every layer. Mirrors the argument
+                        # generate_summaryxref_files passes, so both resolve the same set.
+                        summary_dirs = get_ri_summaryxref_dirs(
+                            os.path.join(self.model_run_dir, 'input'),
+                            self.settings,
+                            all_layers=bool(rl and self.settings.get('rl_summaries')),
+                        )
                     else:
                         summary_dirs = [os.path.join(self.model_run_dir, 'input')]
                     for summary_dir in summary_dirs:

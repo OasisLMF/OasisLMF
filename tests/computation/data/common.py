@@ -14,6 +14,8 @@ __all__ = [
     'MIN_ACC',
     'MIN_INF',
     'MIN_SCP',
+    'MULTI_LAYER_INF',
+    'MULTI_LAYER_SCP',
     'FAKE_PRE_ANALYSIS_MODULE',
     'FAKE_COMPLEX_LOOKUP_MODULE',
     'FAKE_MODEL_SETTINGS_JSON',
@@ -392,6 +394,17 @@ MIN_SCP = """ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,Cedan
 1,1,A11111,,,10002082047,,,,,,0.1,latest version
 """
 
+# Two treaties at the same OED inuring priority but different risk levels, so the
+# reinsurance structure has more RI_N layers than reinsurance output levels.
+MULTI_LAYER_INF = """ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPeril,ReinsInceptionDate,ReinsExpiryDate,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,ReinsCurrency,InuringPriority,ReinsType,RiskLevel,UseReinsDates,OEDVersion
+1,1,ABC QS,WW1,2018-01-01,2018-12-31,1,0,0,0,0,1,GBP,1,SS,LOC,N,latest version
+2,1,ABC CXL,WW1,2018-01-01,2018-12-31,1,0,0,1000000,0,1,GBP,1,CXL,,N,latest version
+"""
+MULTI_LAYER_SCP = """ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
+1,1,A11111,,,10002082047,,,,,,0.1,latest version
+2,1,A11111,,,10002082047,,,,,,0.1,latest version
+"""
+
 N2_LOC = """PortNumber,AccNumber,LocNumber,IsTenant,BuildingID,CountryCode,Latitude,Longitude,StreetAddress,PostalCode,OccupancyCode,ConstructionCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,OEDVersion
 1,A11111,10002082046,1,1,GB,52.76698052,-0.895469856,1 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,220000,0,0,0,GBP,latest version
 1,A11111,10002082047,1,1,GB,52.76697956,-0.89536613,2 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,790000,0,0,0,GBP,latest version
@@ -414,6 +427,6 @@ FAKE_MODEL_RUNNER__OLD = os.path.join(os.path.dirname(__file__), 'fake_model_run
 
 ALL_EXPECTED_SCRIPT = os.path.join(os.path.dirname(__file__), 'ord_bash_script_{0}.sh')
 
-EXPECTED_CORRELATION_CSV = b'item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value\n1,1,0.7,833720067,0.4\n2,2,0.5,741910550,0.2\n'
+EXPECTED_CORRELATION_CSV = b'item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value,source_item_id\n1,1,0.7,833720067,0.4,0\n2,2,0.5,741910550,0.2,0\n'
 
 EXPECTED_SUMMARY_INFO_CSV = b'summary_id,LocNumber,AccNumber,PolNumber,AccCurrency,tiv\n1,10002082046,A11111,Layer1,GBP,220000.0\n'

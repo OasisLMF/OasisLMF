@@ -17,8 +17,11 @@ Please adhere to the following principles when contributing to the code base:
  
  - add proper **documentation** to the code:
    - on general terms, we follow the Google Python Style Guide for comments and docstrings: see [Chapter 3.8](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings).
-   - all functions must have a docstring describing their purpose, the data type and the content of all input and output variables. Where external results (e.g., specific algorithms) are used, a short note or reference to the external source should be included.
-   - the docstrings need to be concise and essential, yet complete.
+   - all functions must have a docstring describing their purpose. Where external results (e.g., specific algorithms) are used, a short note or reference to the external source should be included.
+   - **scope the docstring to the function, not to the fact that it is a function.** Public API, and anything whose signature is not self-evident, gets full `Args:`/`Returns:` sections with the data type and content of every input and output variable — this is most of the codebase. A small private helper with an obvious signature needs only a one-line summary, plus a short paragraph for anything a reader cannot recover from the code; prefer that to restating parameter names and an obvious return type.
+   - the test for any line is whether it tells the reader something the code does not. Drop a line that paraphrases the function name, restates a parameter's name back at it, gives no type where the type was the point, or describes what a caller does with the result when the call sites show it plainly. Keep what a reader cannot recover: a value that looks like a sentinel but is legitimate, a unit, an invariant the caller must hold, the reason a signature is shaped the way it is.
+   - the docstrings need to be concise and essential, yet complete. Twenty lines of sections around a one-line function is not completeness.
+   - note that a **partial `Args:` block fails CI where no `Args:` block at all passes**: `D417` only applies once an `Args:` section exists, and then requires it to list every parameter. If you are not documenting every parameter, document none of them.
    - in functions implementing non-trivial logic and/or complex algorithms, the code should be annotated with short and informative comments making clear the logic and the flow, and the reasoning behind non-obvious implementation decisions.
    - **docstrings must use Google style** (not reStructuredText `:param:`/`:type:`/`:return:` fields, nor NumPy `Parameters`/`----------` sections). Use `Args:`, `Returns:`, `Yields:`, `Raises:` and `Attributes:` sections. Types go in parentheses after the name; optional arguments are marked `optional` with their default noted. A blank line separates the summary, the extended description and each section. For example:
 
@@ -70,6 +73,40 @@ Code that doesn't follow the above principles shall not be merged into the codeb
   - [Fork the repo](https://docs.github.com/en/github/getting-started-with-github/fork-a-repo#fork-an-example-repository) so that you can make your changes without affecting the original project until you're ready to merge them.
 
 3. Create a working branch and start with your changes!
+
+### Record which version a feature landed in
+
+Document a new or changed feature with a Sphinx version directive, and write `NEXT` where
+the version goes — in reStructuredText:
+
+````rst
+.. versionadded:: NEXT
+````
+
+or in MyST Markdown:
+
+````md
+```{versionadded} NEXT
+```
+````
+
+`NEXT` is deliberate. The release version does not exist yet when you open the PR: it is
+chosen on the release branch, and `scripts/resolve-version-markers.sh` rewrites every
+`NEXT` to the real version in the same commit that bumps `oasislmf/__init__.py`. Nothing
+ships with `NEXT` in it — the release workflow refuses to tag if any survives.
+
+`versionchanged`, `deprecated` and `versionremoved` work the same way. `NEXT` must be the
+whole version argument: `.. versionadded:: NEXT (see below)` is not rewritten, and CI
+rejects it.
+
+Which version a *merged PR* shipped in is recorded separately and automatically — the
+release workflow assigns every PR in the release, and its linked issues, to a GitHub
+milestone named after the release tag.
+
+**Maintainers:** `scripts/resolve-version-markers.sh` is **copied**, not shared — identical
+copies live in OasisLMF, OasisPlatform and ODS_Tools. Port any fix to all three, or the
+repos will resolve markers differently and it will only surface when a release stamps the
+wrong version. Only the script's `SCOPE` exclusion is meant to differ per repo.
 
 ### Commit your update
 
