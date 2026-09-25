@@ -26,15 +26,12 @@ from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, check_packing_supported, max_emitted_blocks,
-                                                  mv_write_item_header, mv_write_sidx_loss)
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, check_packing_supported, max_emitted_blocks)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
-from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, apply_alloc_rule,
-                                       accumulate_hermite_coeffs, loss_correlation, HERMITE_TERMS)
-from oasislmf.pytools.gul.manager import (write_losses, adjust_byte_mv_size, buffered_building_width,
-                                          write_packed_building_block, write_summed_specials)
+from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, accumulate_hermite_coeffs, loss_correlation, HERMITE_TERMS)
+from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval, get_random_generator,
                                          _lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
@@ -445,19 +442,11 @@ def run(run_dir,
         max_items_per_coverage = int(np.max(coverages[1:]['max_items']))
         losses = np.zeros((sample_size + NUM_IDX + 1, max_items_per_coverage), dtype=oasis_float)
 
-        # Per-building sample buffer, sized to the coverages that genuinely have to hold every
-        # building at once rather than to the portfolio's largest location -- the same reasoning
-        # as max_source_buildings above. See buffered_building_width.
-        max_buffered_buildings = buffered_building_width(
-            alloc_rule, sample_size, items['coverage_id'], items['packed_buildings'],
-            coverages['max_items'])
-        building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buffered_buildings),
+        # Per-building sample buffer. write_losses reduces across items at a fixed building and
+        # then sums the buildings, so a coverage's every building has to be resident before any of
+        # it can be written.
+        building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buildings),
                                    dtype=oasis_float)
-        # Accumulates a summed-at-source item's buildings when it is emitted as it is computed.
-        # float64, not oasis_float: write_losses sums into a `loss = 0.` local, which numba types
-        # as float64, so accumulating in float32 here would round differently and the two paths
-        # would stop agreeing bit for bit.
-        summed_scratch = np.zeros(max(sample_size, 1), dtype=np.float64)
         # Generator 2 is counter-based: a building's block is a pure function of the group key
         # and the building index, so it can be produced where it is consumed instead of the
         # whole event's draws being materialised up front. These hold one building's worth.
@@ -669,7 +658,6 @@ def run(run_dir,
                             intensity_bin_peril_ids,
                             intensity_bins,
                             building_losses,
-                            summed_scratch,
                             loss_correlation_by_item,
                             hermite_coeffs,
                             vuln_rndms_base,
@@ -1263,7 +1251,6 @@ def compute_event_losses(compute_info,
                          intensity_bin_peril_ids,
                          intensity_bins,
                          building_losses,
-                         summed_scratch,
                          loss_correlation_by_item,
                          hermite_coeffs,
                          vuln_rndms_base,
@@ -1355,9 +1342,6 @@ def compute_event_losses(compute_info,
           moments are and read when its summed specials are emitted. 0 for everything that
           does not report the spread of a sum.
         hermite_coeffs (numpy.array[float64]): length HERMITE_TERMS scratch for that.
-        summed_scratch (numpy.array[float64]): length-S accumulator for a summed-at-source item
-          emitted as it is computed, since its buildings are added up rather than written. float64
-          to match the precision write_losses accumulates at.
         vuln_rndms_base (numpy.array[float64]): 2d (damage rng groups, S) random draws, one row
           per group. Empty when lazy_draws is set, where it is never read.
         haz_rndms_base (numpy.array[float64]): the same for the hazard rng groups.
@@ -1401,13 +1385,7 @@ def compute_event_losses(compute_info,
         Nitems = coverage['cur_items']
         exposureValue = tiv / Nitems
 
-        # Emit each building as it is computed rather than buffering the coverage. Safe exactly
-        # when the alloc-rule cap never has to look across items at a fixed building: with
-        # alloc_rule 0 it does not run, and with one item the cross-item reductions act on a
-        # length-1 slice, which is element-local. Everything else still goes through
-        # write_losses, and building_losses is sized for those coverages alone.
         alloc_rule_l = compute_info['alloc_rule']          # hoisted out of the per-sample loops
-        fuse_emit = sample_size > 0 and (alloc_rule_l == 0 or Nitems == 1)
 
         # Every coverage is emitted whole -- there is no return between the first byte of a
         # coverage and its last -- so its output has to fit before we start. The bound
@@ -1455,27 +1433,6 @@ def compute_event_losses(compute_info,
                         source_damage_bin_stack[depth, item_j, :] = 0
                         source_eff_damage_cdf_stack[depth, item_j, 0] = 1.
                         source_eff_damage_cdf_len_stack[depth, item_j] = 1
-                    if fuse_emit:
-                        # write_losses would still emit this item, all zeros -- so must we. Every
-                        # building reads the one zeroed column, which is its correct value here.
-                        compute_info['cursor'] = mv_write_item_header(
-                            byte_mv, compute_info['cursor'], compute_info['event_id'],
-                            item_event_data['item_id'])
-                        if item_event_data['packed_buildings'] < 0:
-                            for b in range(1, n_buildings + 1):
-                                compute_info['cursor'] = write_packed_building_block(
-                                    byte_mv, compute_info['cursor'], losses[:, item_j], b,
-                                    building_losses[:, item_j, 0], sample_size,
-                                    compute_info['loss_threshold'])
-                        else:
-                            compute_info['cursor'] = write_summed_specials(
-                                byte_mv, compute_info['cursor'], losses[:, item_j], n_buildings,
-                                loss_correlation_by_item[item_j])
-                            for s_i in range(1, sample_size + 1):
-                                if 0. >= compute_info['loss_threshold']:
-                                    compute_info['cursor'] = mv_write_sidx_loss(
-                                        byte_mv, compute_info['cursor'], s_i, 0.)
-                        compute_info['cursor'] = mv_write_sidx_loss(byte_mv, compute_info['cursor'], 0, 0)
                     continue
             else:
                 intensity_adjustment = nb_oasis_int(0)
@@ -1582,19 +1539,6 @@ def compute_event_losses(compute_info,
                 # is the legacy draw. The two routines below take the random values and the output
                 # column as views, so a building is just a different pair.
 
-                keep_separate_item = item_event_data['packed_buildings'] < 0
-                if fuse_emit:
-                    # Nitems == 1 wherever alloc_rule != 0 here, so these length-1 slices ARE the
-                    # whole cross-item vector write_losses would pass, and the reductions on them
-                    # are the identity (setmaxloss, multiplicative) or a cap at tiv (classic).
-                    for special in (TIV_IDX, MAX_LOSS_IDX, MEAN_IDX):
-                        apply_alloc_rule(losses[special, item_j:item_j + 1], alloc_rule_l, tiv)
-                    compute_info['cursor'] = mv_write_item_header(
-                        byte_mv, compute_info['cursor'], compute_info['event_id'],
-                        item_event_data['item_id'])
-                    if not keep_separate_item:
-                        summed_scratch[:sample_size] = 0
-
                 for b in range(1, n_buildings + 1):
                     if lazy_draws:
                         vs = np.uint64(vuln_seeds[rng_index])
@@ -1636,41 +1580,8 @@ def compute_event_losses(compute_info,
                                        haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                                        eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins,
                                        haz_i_to_vuln_cdf, damage_bins, damage_bin_scaling,
-                                       building_losses[:, item_j, 0 if fuse_emit else b - 1],
+                                       building_losses[:, item_j, b - 1],
                                        is_dependent, store_source_bin, src_bin_out, parent_bins)
-
-                    if fuse_emit:
-                        # The rule is decided OUTSIDE the per-sample loop, the shape write_losses
-                        # uses, rather than re-reading compute_info['alloc_rule'] per sample.
-                        # Measured as no faster on the portfolio tried, but it keeps a struct
-                        # load numba cannot hoist (the calls in the body could alias it) out of a
-                        # loop that runs once per building per sample. Same operations in the
-                        # same order per element: setmaxloss, then the tiv split.
-                        if alloc_rule_l != 0:
-                            for s_i in range(sample_size):
-                                apply_alloc_rule(building_losses[s_i, item_j:item_j + 1, 0], alloc_rule_l, tiv)
-                        if keep_separate_item:
-                            compute_info['cursor'] = write_packed_building_block(
-                                byte_mv, compute_info['cursor'], losses[:, item_j], b,
-                                building_losses[:, item_j, 0], sample_size,
-                                compute_info['loss_threshold'])
-                        else:
-                            # capped per building, then summed -- the order write_losses uses
-                            for s_i in range(sample_size):
-                                summed_scratch[s_i] += building_losses[s_i, item_j, 0]
-
-                if fuse_emit:
-                    if not keep_separate_item:
-                        compute_info['cursor'] = write_summed_specials(
-                            byte_mv, compute_info['cursor'], losses[:, item_j], n_buildings,
-                            loss_correlation_by_item[item_j])
-                        for s_i in range(1, sample_size + 1):
-                            loss = summed_scratch[s_i - 1]
-                            if loss >= compute_info['loss_threshold']:
-                                compute_info['cursor'] = mv_write_sidx_loss(
-                                    byte_mv, compute_info['cursor'], s_i, loss)
-                    # one delimiter terminates the whole (multi-building) item
-                    compute_info['cursor'] = mv_write_sidx_loss(byte_mv, compute_info['cursor'], 0, 0)
 
             # effective damageability: record the eff-damage CDF instead, for a dependent below
             # to build its damage pmf from
@@ -1681,21 +1592,19 @@ def compute_event_losses(compute_info,
 
         # write the losses to the output memoryview. A zero-TIV coverage (an uninsured dependency
         # source) yields zero losses and is written like any other — not special-cased.
-        # A fused coverage has already emitted every item as it was computed.
-        if not fuse_emit:
-            compute_info['cursor'] = write_losses(
-                compute_info['event_id'],
-                sample_size,
-                compute_info['loss_threshold'],
-                losses[:, :Nitems],
-                building_losses[:, :Nitems, :],
-                items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
-                items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['packed_buildings'],
-                loss_correlation_by_item[:Nitems],
-                compute_info['alloc_rule'],
-                tiv,
-                byte_mv,
-                compute_info['cursor'])
+        compute_info['cursor'] = write_losses(
+            compute_info['event_id'],
+            sample_size,
+            compute_info['loss_threshold'],
+            losses[:, :Nitems],
+            building_losses[:, :Nitems, :],
+            items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
+            items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['packed_buildings'],
+            loss_correlation_by_item[:Nitems],
+            compute_info['alloc_rule'],
+            tiv,
+            byte_mv,
+            compute_info['cursor'])
 
         # register that another `coverage_id` has been processed
         compute_info['coverage_i'] += 1
