@@ -6,6 +6,7 @@ On this page
 
 * :ref:`introduction_paa`
 * :ref:`how_it_works_paa`
+* :ref:`multiprocessing_paa`
 * :ref:`example_models_paa`
 
 |
@@ -38,6 +39,37 @@ modified OED location file from an input OED location file.
 The purpose of a pre-analysis routines is to provide flexibility to manipulate the OED input files before the model is run, for 
 augmentation as required by the model. An example pre-analysis ‘hook’ for the PiWind model can be found `here 
 <https://github.com/OasisLMF/OasisPiWind/blob/main/src/exposure_modification/exposure_pre_analysis_example.py>`_.
+
+|
+
+.. _multiprocessing_paa:
+
+Multiprocessing
+****************
+
+For large portfolios the pre-analysis hook can be the slowest step in the workflow, so, like the
+keys/lookup service, it can be run across multiple processes. It is controlled by the same
+``lookup_multiprocessing``/``lookup_num_processes``/``lookup_num_chunks`` parameters as the
+keys/lookup service, and chunked the same way - the hook is instantiated once per chunk and
+called with a subset of ``exposure_data``, and the resulting location/account dataframes are
+merged back together afterwards. Unlike the keys/lookup service, chunks are formed from unique
+``(PortNumber, AccNumber)`` combinations rather than individual locations, so a single account's
+location rows are never split across two chunks.
+
+Because the framework has no visibility into what a pre-analysis hook actually does, chunking is
+only safe for hooks that operate independently per location/account - the intended use cases
+described above (geocoding, disaggregation, exposure enhancement). A hook is **not** compatible
+with the default chunked behaviour if it:
+
+* needs to see locations/accounts outside of a single account (e.g. whole-portfolio
+  aggregation or optimisation), or
+* reads or modifies ``exposure_data.ri_info``/``exposure_data.ri_scope`` (these are not
+  chunked or merged back - only the main process's copy is kept, and the run raises an error
+  as soon as a chunk is found to have changed either one), or
+* has side effects on shared files under ``input_dir`` that aren't safe for multiple
+  processes to write concurrently.
+
+Set ``lookup_multiprocessing=False`` to disable chunking for such a model.
 
 |
 

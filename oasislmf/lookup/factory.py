@@ -7,14 +7,12 @@ import copy
 import csv
 import json
 import os
-import sys
 import types
 import warnings
 
 from collections import OrderedDict
 from contextlib import ExitStack
 
-import math
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -23,79 +21,19 @@ import pyarrow.parquet as pq
 from ..utils.data import get_json
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
+from ..utils.multiproc import run_multiproc
+from ..utils.parallel import resolve_partition_count
 from ..utils.path import import_from_string, get_custom_module, as_path
 from ..utils.status import OASIS_KEYS_STATUS
 
 from .builtin import PerilCoveredDeterministicLookup
 from .builtin import Lookup as NewLookup
 
-try:
-    import billiard as multiprocessing
-except ImportError:
-    import multiprocessing
 
-from queue import Empty, Full
-
-# add pickling support for traceback object
-import tblib.pickling_support
-
-tblib.pickling_support.install()
-
-
-def with_error_queue(fct):
-    def wrapped_fct(error_queue, *args, **kwargs):
-        try:
-            return fct(error_queue, *args, **kwargs)
-        except Exception:
-            error_queue.put(sys.exc_info())
-
-    return wrapped_fct
-
-
-@with_error_queue
-def location_producer(error_queue, loc_df, part_count, loc_queue):
+def _split_locations(loc_df, part_count):
+    """Yield part_count chunks of loc_df, split by unique 'loc_id' values."""
     loc_ids_parts = np.array_split(np.unique(loc_df['loc_id']), part_count)
-    loc_df_parts = (loc_df[loc_df['loc_id'].isin(loc_ids_parts[i])] for i in range(part_count))
-    loc_df_part = True
-    while loc_df_part is not None:
-        loc_df_part = next(loc_df_parts, None)
-        while error_queue.empty():
-            try:
-                loc_queue.put(loc_df_part, timeout=5)
-                break
-            except Full:
-                pass
-        else:
-            return
-
-
-@with_error_queue
-def lookup_multiproc_worker(error_queue, lookup_cls, config, config_dir, user_data_dir, output_dir, lookup_id, loc_queue, key_queue):
-    lookup = BasicKeyServer.create_lookup(lookup_cls, config, config_dir, user_data_dir, output_dir, lookup_id)
-    while True:
-        while error_queue.empty():
-            try:
-                loc_df_part = loc_queue.get(timeout=5)
-
-                break
-            except Empty:
-                pass
-        else:
-            return
-
-        if loc_df_part is None:
-            loc_queue.put(None)
-            key_queue.put(None)
-            break
-
-        while error_queue.empty():
-            try:
-                key_queue.put(lookup.process_locations_multiproc(loc_df_part), timeout=5)
-                break
-            except Full:
-                pass
-        else:
-            return
+    return (loc_df[loc_df['loc_id'].isin(loc_ids_parts[i])] for i in range(part_count))
 
 
 class KeyServerFactory(object):
@@ -398,24 +336,6 @@ class BasicKeyServer:
                                   'this method need to be implemented'
                                   'if you want to provide you own loader from filepath')
 
-    @staticmethod
-    def key_producer(key_queue, error_queue, worker_count):
-        finished_workers = 0
-        while finished_workers < worker_count and error_queue.empty():
-            while error_queue.empty():
-                try:
-                    res = key_queue.get(timeout=5)
-                    break
-                except Empty:
-                    pass
-            else:
-                break
-
-            if res is None:
-                finished_workers += 1
-            else:
-                yield res
-
     def get_success_heading_row(self, keys, keys_success_msg):
         has_amplification_id = 'amplification_id' in keys
         is_dynamic = 'intensity_adjustment' in keys and 'return_period' in keys
@@ -588,50 +508,29 @@ class BasicKeyServer:
 
         location_row is of type <class 'pandas.core.series.Series'>
         """
-        pool_count = num_cores if num_cores > 0 else multiprocessing.cpu_count()
-        if num_partitions > 0:
-            part_count = num_partitions
-        else:
-            bloc_size = min(max(math.ceil(loc_df.shape[0] / pool_count), self.min_bloc_size), self.max_bloc_size)
-            part_count = math.ceil(loc_df.shape[0] / bloc_size)
-            pool_count = min(pool_count, part_count)
+        pool_count, part_count = resolve_partition_count(
+            loc_df.shape[0], num_cores, num_partitions, self.min_bloc_size, self.max_bloc_size)
         if pool_count <= 1:
             return self.generate_key_files_singleproc(loc_df, successes_fp, errors_fp, output_format, keys_success_msg)
 
-        ct = multiprocessing.get_context("fork")
-        loc_queue = ct.Queue(maxsize=pool_count)
-        key_queue = ct.Queue(maxsize=pool_count)
-        error_queue = ct.Queue()
+        def make_process_chunk(lookup_id):
+            # a distinct lookup instance per worker, identified by its own lookup_id
+            lookup = self.create_lookup(self.lookup_cls, self.config, self.config_dir,
+                                        self.user_data_dir, self.output_dir, lookup_id)
+            return lookup.process_locations_multiproc
 
-        this_location_producer = ct.Process(target=location_producer, args=(error_queue, loc_df, part_count, loc_queue))
-
-        workers = [ct.Process(target=lookup_multiproc_worker,
-                              args=(error_queue, self.lookup_cls, self.config, self.config_dir,
-                                    self.user_data_dir, self.output_dir,
-                                    lookup_id, loc_queue, key_queue))
-                   for lookup_id in range(pool_count)]
-
-        this_location_producer.start()
-        [worker.start() for worker in workers]
-
-        try:
-            return self.write_keys_file(self.key_producer(key_queue, error_queue, worker_count=pool_count),
-                                        successes_fp=successes_fp,
-                                        errors_fp=errors_fp,
-                                        output_format=output_format,
-                                        keys_success_msg=keys_success_msg, )
-        except Exception:
-            error_queue.put(sys.exc_info())
-        finally:
-            for process in [this_location_producer] + workers:
-                if process.is_alive():
-                    process.terminate()
-                    process.join()
-            loc_queue.close()
-            key_queue.close()
-            if not error_queue.empty():
-                exc_info = error_queue.get()
-                raise exc_info[0].with_traceback(exc_info[1], exc_info[2])
+        return run_multiproc(
+            _split_locations(loc_df, part_count),
+            make_process_chunk,
+            pool_count,
+            lambda results: self.write_keys_file(
+                results,
+                successes_fp=successes_fp,
+                errors_fp=errors_fp,
+                output_format=output_format,
+                keys_success_msg=keys_success_msg,
+            ),
+        )
 
     @oasis_log()
     def generate_key_files(
