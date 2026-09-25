@@ -8,6 +8,7 @@ from ods_tools.oed import UnknownColumnSaveOption
 
 from ..base import ComputationStep
 from ...utils.data import get_exposure_data, prepare_oed_exposure, analysis_settings_loader, model_settings_loader
+from ...utils.defaults import SAR_ID
 from ...utils.inputs import str2bool
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
@@ -127,8 +128,10 @@ class ExposurePreAnalysis(ComputationStep):
         _class_return = _class(**kwargs).run()
 
         exposure_data.save(path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
-        # regenerate ids
-        exposure_data.location.dataframe = exposure_data.location.dataframe.drop(columns=['loc_id', 'loc_idx'])
+        # regenerate ids, on the subject at risk source, as there's no location file for
+        # account only exposure (e.g. cyber). loc_idx / acc_idx are overwritten by prepare_oed_exposure
+        sar_source = exposure_data.get_subject_at_risk_source()
+        sar_source.dataframe = sar_source.dataframe.drop(columns=[SAR_ID], errors='ignore')
         prepare_oed_exposure(exposure_data)
 
         modified_files = {oed_source.oed_name: str(oed_source.current_source['filepath']) for oed_source in exposure_data.get_oed_sources()}
