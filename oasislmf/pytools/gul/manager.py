@@ -45,15 +45,6 @@ from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 logger = logging.getLogger(__name__)
 
 
-# A fused coverage is flushed between building blocks, so ONE block is all it strictly needs.
-# Sizing the buffer to exactly that is correct but wasteful: a 630,510-building item is then
-# flushed ~8,000 times per event at S=200, and every resume recomputes that item's CDF and
-# analytic moments. Room for many blocks brings that to ~124 flushes -- measured at 5% less
-# wall time on a 200,000-building item at S=200, for no extra resident memory. What matters is
-# that the bound is this constant and not the building count, which was the point of flushing.
-FUSED_FLUSH_TARGET_BYTES = 8 * 1024 * 1024
-
-
 @njit(cache=True)
 def adjust_byte_mv_size(byte_mv, max_bytes_per_coverage):
     """Adjust buff size so that the buffer fits the longest coverage
@@ -335,7 +326,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # [0] is the next item of that coverage to process, [1] how many of its buildings have
         # already been emitted. gulpy signals resumption through its return value, so this is
         # carried in an array the callee mutates rather than on a state struct.
-        resume_state = np.zeros(2, dtype=np.int64)
         byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
 
         # One block: the item header, a building's NUM_IDX specials and S samples, and the
@@ -377,33 +367,19 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             last_processed_coverage_ids_idx = 0
 
-            # adjust buff size so that the buffer fits the longest coverage
-            # The buffer no longer has to hold a whole coverage. A fused one is flushed between
-            # buildings, so one block is enough; only a coverage still emitted whole through
-            # write_losses has to fit entire.
-            cur_items = coverages['cur_items']
-            emitted_whole = ~((sample_size > 0) & ((alloc_rule == 0) | (cur_items == 1)))
-            # the extra header is what an item's first block is reserved WITH, so a buffer sized
-            # to exactly one block would reject that reservation on an empty buffer, forever
-            required_bytes = gulSampleslevelHeader_size + max_bytes_per_block
-            if emitted_whole.any():
-                required_bytes = max(required_bytes,
-                                     int(cur_items[emitted_whole].max()) * max_bytes_per_item)
-            # room for many blocks, but never more than the largest item could ever write
-            required_bytes = max(required_bytes,
-                                 min(FUSED_FLUSH_TARGET_BYTES, max_bytes_per_item))
+            # The buffer has to fit the longest coverage. compute_event_losses returns only
+            # between coverages, so a coverage's whole output accumulates before anything is
+            # written out -- whether it is emitted inline or through write_losses.
+            required_bytes = int(coverages['cur_items'].max()) * max_bytes_per_item
             byte_mv = adjust_byte_mv_size(byte_mv, required_bytes)
-            resume_state[:] = 0
-
             while last_processed_coverage_ids_idx < compute_i:
-                resume_point_before = (last_processed_coverage_ids_idx,
-                                       int(resume_state[0]), int(resume_state[1]))
+                resume_point_before = last_processed_coverage_ids_idx
                 cursor, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                     arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
-                    building_losses, summed_scratch, resume_state, rndms_base,
+                    building_losses, summed_scratch, rndms_base,
                     seeds, lazy_draws, draw_scratch, perm_scratch,
                     loss_correlation_by_item, hermite_coeffs,
                     n_buildings_by_item_id, damage_correlation_by_item_id,
@@ -413,20 +389,17 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 # A call that stops short must have advanced the resume point. It only stops
                 # because the buffer is full, and the buffer is empty on entry, so if it stops at
                 # the same place it will keep stopping there -- an infinite loop with no error.
-                # It is the RESUME POINT that has to move, not the cursor: a resume that restarts
-                # an item re-emits the same blocks forever and writes plenty while never
-                # finishing. The sizing above makes this unreachable today; the check turns a
-                # future violation of it into a failure rather than a hang.
-                resume_point = (last_processed_coverage_ids_idx, int(resume_state[0]), int(resume_state[1]))
-                if last_processed_coverage_ids_idx < compute_i and resume_point <= resume_point_before:
+                # The only thing that can move is the coverage index: a coverage is emitted whole,
+                # so stopping means it did not start. The sizing above makes this unreachable;
+                # the check turns a future violation of it into a failure rather than a hang.
+                if (last_processed_coverage_ids_idx < compute_i
+                        and last_processed_coverage_ids_idx <= resume_point_before):
                     raise RuntimeError(
                         f"gulpy made no progress on event {event_id}: it asked to resume at "
-                        f"coverage/item/building {resume_point}, no further on than the "
+                        f"coverage {last_processed_coverage_ids_idx}, no further on than the "
                         f"{resume_point_before} it started from, having written {cursor} bytes "
-                        f"into a {byte_mv.shape[0]} byte buffer. The buffer must hold at least "
-                        f"one building block plus an item header "
-                        f"({gulSampleslevelHeader_size + max_bytes_per_block} bytes) and a whole "
-                        f"coverage for any written through write_losses.")
+                        f"into a {byte_mv.shape[0]} byte buffer, which must hold the largest "
+                        f"coverage whole.")
 
                 # write the losses to the output stream
                 write_start = 0
@@ -460,7 +433,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
                          loss_threshold, losses, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
                          arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf,
-                         z_unif, debug, building_losses, summed_scratch, resume_state, rndms_base,
+                         z_unif, debug, building_losses, summed_scratch, rndms_base,
                          seeds, lazy_draws, draw_scratch, perm_scratch,
                          loss_correlation_by_item, hermite_coeffs,
                          n_buildings_by_item_id, damage_correlation_by_item_id,
@@ -496,10 +469,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         z_unif (np.array[float]): reusable buffer for correlated random values.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
-        resume_state (numpy.array[int64]): length 2, mutated here. [0] is the item of the
-          returned coverage to resume at, [1] how many of its buildings were already emitted
-          (0 = none, so the item header is still to be written). Both are cleared as each item
-          and coverage completes.
         summed_scratch (numpy.array[float64]): length-S accumulator for a summed-at-source item
           emitted as it is computed, since its buildings are added up rather than written.
           float64 to match the precision write_losses accumulates at.
@@ -547,17 +516,14 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         # building_losses on the same rule.
         fuse_emit = sample_size > 0 and (alloc_rule == 0 or coverage['cur_items'] == 1)
 
-        # A coverage emitted whole through write_losses has to fit the buffer before we start,
-        # conservatively assuming every random sample is printed. The bound OVER-reserves beyond
-        # that: max_bytes_per_item carries max_emitted_blocks over EVERY item, so a coverage of
-        # one-building items is charged for the largest packed item anywhere. A fused coverage
-        # reserves per BLOCK instead -- one per building where they are kept separate, one for the
-        # whole item where they are summed -- which keeps the buffer off the largest building count.
-        if not fuse_emit:
-            if cursor + Nitem_ids * max_bytes_per_item > byte_mv.shape[0]:
-                return cursor, last_processed_coverage_ids_idx
+        # Every coverage is emitted whole -- there is no return between the first byte of a
+        # coverage and its last -- so its output has to fit before we start. The bound
+        # OVER-reserves: max_bytes_per_item carries max_emitted_blocks over EVERY item, so a
+        # coverage of one-building items is charged for the largest packed item anywhere.
+        if cursor + Nitem_ids * max_bytes_per_item > byte_mv.shape[0]:
+            return cursor, last_processed_coverage_ids_idx
 
-        for item_i in range(resume_state[0], coverage['cur_items']):
+        for item_i in range(coverage['cur_items']):
             item = items[item_i]
             damagecdf_i = item['damagecdf_i']
             rng_index = item['rng_index']
@@ -603,36 +569,11 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     # them are the identity (setmaxloss, multiplicative) or a cap at tiv (classic)
                     for special in (TIV_IDX, MAX_LOSS_IDX, MEAN_IDX):
                         apply_alloc_rule(losses[special, item_i:item_i + 1], alloc_rule, tiv)
-                    # The specials are recomputed above on every entry, so re-applying the cap
-                    # after a resume caps fresh values rather than already-capped ones. Only the
-                    # header must not be repeated.
-                    if resume_state[1] == 0:
-                        # The header and the first block are reserved TOGETHER. Writing the header
-                        # first and only then finding the block does not fit leaves that header in
-                        # the bytes we flush, and re-entry (resume_state[1] still 0) writes it
-                        # again -- the reader decodes the second copy as a sidx/loss pair and
-                        # rejects the item as carrying a duplicated sidx. max_bytes_per_block
-                        # already includes one header, so this reserves two; the 8 spare bytes are
-                        # what keep the per-block check below from firing on the block just
-                        # reserved.
-                        if cursor + gulSampleslevelHeader_size + max_bytes_per_block > byte_mv.shape[0]:
-                            resume_state[0] = item_i
-                            return cursor, last_processed_coverage_ids_idx
-                        cursor = mv_write_item_header(byte_mv, cursor, event_id, item['item_id'])
+                    cursor = mv_write_item_header(byte_mv, cursor, event_id, item['item_id'])
                     if not keep_separate_item:
                         summed_scratch[:sample_size] = 0
 
-                for building_i in range(resume_state[1], item_n_buildings):
-                    # A kept-separate building is a block of its own, so the buffer is checked per
-                    # block and the run resumes at the next one. A SUMMED item has no such check:
-                    # it emits one block however many buildings it carries, so the reservation made
-                    # with its header already covers it, and it could not be interrupted here in
-                    # any case -- its accumulator would restart.
-                    if fuse_emit and keep_separate_item:
-                        if cursor + max_bytes_per_block > byte_mv.shape[0]:
-                            resume_state[0] = item_i
-                            resume_state[1] = building_i
-                            return cursor, last_processed_coverage_ids_idx
+                for building_i in range(item_n_buildings):
                     if lazy_draws:
                         gs = np.uint64(seeds[rng_index])
                         _lh_philox_block(np.uint32(gs & PHILOX_U32_MASK),
@@ -710,7 +651,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                                 cursor = mv_write_sidx_loss(byte_mv, cursor, s_i, loss)
                     # one delimiter terminates the whole (multi-building) item
                     cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
-                    resume_state[1] = 0       # this item is done; the next starts fresh
 
         # a fused coverage has already emitted every item as it was computed
         if not fuse_emit:
@@ -723,7 +663,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
-        resume_state[0] = 0                   # the next coverage starts at its first item
 
     return cursor, last_processed_coverage_ids_idx
 

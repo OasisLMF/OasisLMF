@@ -1,13 +1,13 @@
-"""A packed item whose output exceeds the buffer is flushed part-way and stays well formed.
+"""A packed item far larger than the default buffer is still emitted correctly.
 
-The buffer used to be grown to hold a whole dependency subtree, so a location with enough
-buildings forced a multi-GB allocation. It is now sized to a single building block and flushed
-between blocks, which means a flush can land in the MIDDLE of an item -- after its header and
-some of its buildings, before the rest and the delimiter.
+compute_event_losses returns only BETWEEN coverages, so a coverage's whole output accumulates
+in the buffer before anything is written out, and the buffer is grown to the largest coverage.
+These tests pin that a packed item well past the default buffer size comes out complete: every
+building's block present, every sidx once, and the item header written exactly once.
 
-That is only sound because an item's records have to be contiguous in the STREAM, not in the
-buffer. These tests pin the two ways it could go wrong: a repeated item header (written again
-on re-entry) and a lost or duplicated building block.
+They used to test a flush landing in the MIDDLE of an item, when a fused coverage was emitted
+per building block and could return between them. That per-block return is gone -- it was the
+one flush point that existed only for the fused path, and the buffer bound is now uniform.
 """
 import shutil
 import tempfile
@@ -21,7 +21,6 @@ from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.gul.common import (NUM_IDX, gulSampleslevelHeader_size,
                                          gulSampleslevelRec_size)
-from oasislmf.pytools.gul.manager import FUSED_FLUSH_TARGET_BYTES
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 
 SRC_MODEL = Path(__file__).parents[2].joinpath("assets", "test_model_1")
@@ -32,25 +31,13 @@ def _bytes_per_block(sample_size):
     return gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
 
 
-def _buildings_forcing_a_flush(sample_size):
-    """Enough buildings that one item outgrows the buffer, so it must be flushed part-way.
+def _buildings_past_the_default_buffer(sample_size):
+    """Enough buildings that the item outgrows the buffer gulpy and gulmc start with.
 
-    Derived from the sizing rule rather than hardcoded: the buffer is grown to
-    FUSED_FLUSH_TARGET_BYTES (capped at what the largest item could write), so an item has to
-    exceed that to be interrupted. Raising the target must not quietly make these tests vacuous.
+    Derived from PIPE_CAPACITY rather than hardcoded, so raising the default cannot quietly make
+    these tests vacuous -- the buffer must actually have to grow for them to mean anything.
     """
-    return FUSED_FLUSH_TARGET_BYTES // _bytes_per_block(sample_size) + 64
-
-
-def _sample_size_forcing_an_item_boundary_flush():
-    """S at which two items no longer fit the buffer, so a flush lands BETWEEN items.
-
-    The tests above never reach that case: their items are far larger than the buffer, so every
-    flush lands inside one and the item header has already been written. A flush at an item
-    boundary is the one that used to write the header, fail to reserve the block, and write the
-    header again on re-entry.
-    """
-    return (PIPE_CAPACITY - gulSampleslevelHeader_size) // gulSampleslevelRec_size - NUM_IDX
+    return (PIPE_CAPACITY * 2) // _bytes_per_block(sample_size) + 64
 
 
 def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE, packed_sign=-1):
@@ -114,18 +101,18 @@ def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE, packed_sign=-1):
 
 
 @pytest.mark.parametrize("alloc_rule", [0, 1, 2])
-def test_item_spanning_several_buffers_is_written_once(alloc_rule):
-    """The header must not be re-emitted when a flush lands inside an item."""
-    n_buildings = _buildings_forcing_a_flush(SAMPLE_SIZE)
+def test_an_item_larger_than_the_default_buffer_is_written_once(alloc_rule):
+    """The buffer grows to fit it, and the header is written exactly once."""
+    n_buildings = _buildings_past_the_default_buffer(SAMPLE_SIZE)
     records, order = _run(n_buildings, alloc_rule)
     assert len(order) == len(set(order)), "an item was opened more than once"
     assert records, "no items emitted"
 
 
 @pytest.mark.parametrize("alloc_rule", [0, 1, 2])
-def test_every_building_block_survives_the_flush(alloc_rule):
+def test_every_building_block_is_present(alloc_rule):
     """Each building contributes its specials once and its samples once, none lost or repeated."""
-    n_buildings = _buildings_forcing_a_flush(SAMPLE_SIZE)
+    n_buildings = _buildings_past_the_default_buffer(SAMPLE_SIZE)
     records, _ = _run(n_buildings, alloc_rule)
 
     for key, sidxs in records.items():
@@ -139,38 +126,12 @@ def test_every_building_block_survives_the_flush(alloc_rule):
         assert len(set(specials)) == len(specials), f"{key}: a special sidx repeated"
 
 
-def test_a_run_that_fits_the_buffer_is_unaffected():
+def test_a_run_that_fits_the_default_buffer_is_unaffected():
     """The small case takes the same path and must still be complete."""
     n_buildings = 4
-    assert n_buildings * _bytes_per_block(SAMPLE_SIZE) < FUSED_FLUSH_TARGET_BYTES
+    assert n_buildings * _bytes_per_block(SAMPLE_SIZE) < PIPE_CAPACITY * 2
     records, order = _run(n_buildings, alloc_rule=1)
     assert len(order) == len(set(order))
     for key, sidxs in records.items():
         samples = [s for s in sidxs if s > 0]
         assert sorted(samples) == list(range(1, n_buildings * SAMPLE_SIZE + 1))
-
-
-@pytest.mark.parametrize("packed_sign", [-1, 1], ids=["kept-separate", "summed"])
-@pytest.mark.parametrize("alloc_rule", [0, 1, 2])
-def test_flush_between_items_does_not_repeat_the_header(packed_sign, alloc_rule):
-    """A buffer that fills at an item boundary must not emit that item's header twice.
-
-    The header used to be written before the first block was reserved. When the reservation then
-    failed, the header went out with the flushed bytes and re-entry wrote it again; a reader
-    decodes the second copy as a sidx/loss pair, and fmpy rejects the item with "duplicated sidx
-    in input stream". Every PiWind model test failed this way, because an unpacked item is small
-    enough that the buffer fills between items rather than inside one.
-    """
-    sample_size = _sample_size_forcing_an_item_boundary_flush()
-    # not vacuous: one item fits, two do not, so the flush has to land on a boundary
-    assert _bytes_per_block(sample_size) <= PIPE_CAPACITY * 2
-    assert 2 * _bytes_per_block(sample_size) > PIPE_CAPACITY * 2
-
-    records, order = _run(1, alloc_rule, sample_size=sample_size, packed_sign=packed_sign)
-    assert len(order) > 1, "need several items for a boundary to be crossed"
-    assert len(order) == len(set(order)), "an item header was emitted twice"
-    for key, sidxs in records.items():
-        assert len(sidxs) == NUM_IDX + sample_size, f"{key}: wrong record count"
-        assert len(set(sidxs)) == len(sidxs), f"{key}: a sidx repeated"
-        assert sorted(s for s in sidxs if s > 0) == list(range(1, sample_size + 1)), \
-            f"{key}: sample sidx are not 1..S"
