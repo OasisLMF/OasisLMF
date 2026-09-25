@@ -82,8 +82,11 @@ def save_exposure_data(exposure_data, path, version_name, save_config, unknown_c
         for compression, oed_names in sources_by_compression.items():
             for oed_name, oed_source in original_sources.items():
                 setattr(exposure_data, oed_name, oed_source if oed_name in oed_names else None)
+            # save_config also makes OedExposure.save() record each filepath relative to the
+            # config file rather than absolute; the partial config each call writes is
+            # overwritten below once all sources are restored.
             exposure_data.save(path=path, version_name=version_name, compression=compression,
-                               save_config=False, unknown_columns=unknown_columns)
+                               save_config=save_config, unknown_columns=unknown_columns)
     finally:
         for oed_name, oed_source in original_sources.items():
             setattr(exposure_data, oed_name, oed_source)

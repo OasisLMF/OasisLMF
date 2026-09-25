@@ -1,9 +1,11 @@
 import io
+import json
 import os
 from tempfile import TemporaryDirectory
 
 import pandas as pd
 import pytest
+from ods_tools.oed import OedExposure
 
 from oasislmf.manager import OasisManager
 from oasislmf.utils.defaults import SOURCE_FILENAMES
@@ -193,6 +195,41 @@ def test_exposure_pre_analysis_preserves_per_source_format():
         assert not os.path.isfile(os.path.join(d, 'account.parquet'))
         assert not os.path.isfile(os.path.join(d, 'raw_account.csv'))
         assert not os.path.isfile(os.path.join(d, 'account.csv'))
+
+
+def test_exposure_pre_analysis_config_uses_relative_filepaths():
+    """
+    Regression test: the saved exposure config should record each source's
+    filepath relative to the config file, as OedExposure.save() does when
+    save_config is True, so the input dir can be moved or remounted and still
+    reloaded. Saving the sources group by group (see save_exposure_data)
+    must not turn these into absolute paths.
+    """
+    with TemporaryDirectory() as d:
+        oed_location_csv = os.path.join(d, 'input_location.csv')
+        oed_account_gz = os.path.join(d, 'input_account.csv.gz')
+        kwargs = {'oasis_files_dir': d,
+                  'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple.py'),
+                  'oed_location_csv': oed_location_csv,
+                  'oed_accounts_csv': oed_account_gz,
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
+                  'check_oed': False}
+
+        write_simple_epa_module(kwargs['exposure_pre_analysis_module'])
+        write_oed_location(oed_location_csv)
+        write_oed_account_csv(oed_account_gz, compression='gzip')
+        write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
+
+        OasisManager().exposure_pre_analysis(**kwargs)
+
+        with open(os.path.join(d, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME)) as config_file:
+            config = json.load(config_file)
+
+        assert set(config) >= {'location', 'account'}
+        for oed_name in ('location', 'account'):
+            filepath = config[oed_name]['sources'][config[oed_name]['cur_version_name']]['filepath']
+            assert not os.path.isabs(filepath), f'expected {oed_name} filepath to be relative, got {filepath}'
+            assert os.path.isfile(os.path.join(d, filepath))
 
 
 def test_missing_module():
