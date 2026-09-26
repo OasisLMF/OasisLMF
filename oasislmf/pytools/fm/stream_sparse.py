@@ -87,49 +87,84 @@ def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
 
 @nb.jit(cache=True, nopython=True)
 def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val, accumulate):
-    """Insert a (sidx, loss) pair into the sparse arrays, maintaining sorted sidx order.
+    """Append a (sidx, loss) pair to the node being read. Always O(1).
 
-    The sidx values must be stored in sorted order for efficient lookup during
-    computation. This function handles three cases:
+    The arrays have to end up sorted by sidx, but sorting on INSERT is quadratic on a packed
+    item. A packed item arrives building by building, and building b's specials are
+    ``local - (b-1) * NUM_SPECIAL_SIDX`` -- so every new building's specials sort BEFORE
+    everything already stored, and each one shifts the whole array:
 
-    1. First value for this node: insert at current position
-    2. Sidx > last sidx: append at end (common case, O(1))
-    3. Sidx < last sidx: binary search for position, shift existing values (O(n))
+        sum over b of 3 * (S+3) * b  ~=  39 * N^2 / 2
+
+    which is 7.8e12 element moves at 630,510 buildings and does not finish. Appending and
+    sorting once per item (see ``sort_item``) makes it O(k log k), and leaves an ordinary
+    unpacked stream paying only an ordered-check.
 
     Args:
-        sidx: Sample index to insert
-        loss: Loss value for this sample
-        compute_i: Current computation index (node being populated)
-        sidx_indptr: CSR pointers into sidx_val
-        sidx_val: Sample index values
-        loss_val: Loss values
-        accumulate: whether a repeated sidx is legitimate and should be summed onto the existing
-            value. True only when the reader is collapsing a building-packed item, where several
-            packed indices decode onto one local index by design. False otherwise, where a repeat
-            is stream corruption.
-
-    Raises:
-        ValueError: if the same sidx arrives twice for one item and ``accumulate`` is not set,
-            which is stream corruption.
+        sidx: Sample index to append.
+        loss: Loss value for this sample.
+        compute_i: Current computation index (node being populated).
+        sidx_indptr: CSR pointers into sidx_val.
+        sidx_val: Sample index values.
+        loss_val: Loss values.
+        accumulate: unused here; duplicates are resolved by ``sort_item`` when the item closes.
     """
-    # Fast path: empty or append at end (sidx values usually arrive in order)
-    if ((sidx_indptr[compute_i - 1] == sidx_indptr[compute_i])
-            or (sidx_val[sidx_indptr[compute_i] - 1] < sidx)):
-        insert_i = sidx_indptr[compute_i]
-    else:
-        # Slow path: need to insert in middle, shift existing values
-        insert_i = np.searchsorted(sidx_val[sidx_indptr[compute_i - 1]: sidx_indptr[compute_i]], sidx) + sidx_indptr[compute_i - 1]
-        if sidx_val[insert_i] == sidx:
-            if accumulate:
-                loss_val[insert_i] += loss
-                return
-            raise ValueError("duplicated sidx in input stream")
-        # Shift values to make room for insertion
-        sidx_val[insert_i + 1: sidx_indptr[compute_i] + 1] = sidx_val[insert_i: sidx_indptr[compute_i]]
-        loss_val[insert_i + 1: sidx_indptr[compute_i] + 1] = loss_val[insert_i: sidx_indptr[compute_i]]
+    insert_i = sidx_indptr[compute_i]
     sidx_val[insert_i] = sidx
     loss_val[insert_i] = loss
     sidx_indptr[compute_i] += 1
+
+
+@nb.njit(cache=True, fastmath=True)
+def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate):
+    """Put the item just read into ascending sidx order, resolving any repeat.
+
+    Args:
+        compute_i: computation index of the node just completed.
+        sidx_indptr: CSR pointers into sidx_val.
+        sidx_val: Sample index values, reordered in place.
+        loss_val: Loss values, reordered with them.
+        accumulate: whether a repeated sidx is legitimate and should be summed onto the value
+            already stored. True only when the reader is collapsing a building-packed item,
+            where several packed indices decode onto one local index by design. False
+            otherwise, where a repeat is stream corruption.
+
+    Raises:
+        ValueError: if the same sidx arrives twice for one item and ``accumulate`` is not set.
+    """
+    start = sidx_indptr[compute_i - 1]
+    end = sidx_indptr[compute_i]
+    n = end - start
+    if n < 2:
+        return
+
+    # An unpacked item arrives ascending already, so it pays one linear check and nothing else.
+    ordered = True
+    for i in range(start + 1, end):
+        if sidx_val[i] <= sidx_val[i - 1]:
+            ordered = False
+            break
+    if ordered:
+        return
+
+    order = np.argsort(sidx_val[start:end])
+    sorted_sidx = np.empty(n, dtype=sidx_val.dtype)
+    sorted_loss = np.empty(n, dtype=loss_val.dtype)
+    for i in range(n):
+        sorted_sidx[i] = sidx_val[start + order[i]]
+        sorted_loss[i] = loss_val[start + order[i]]
+
+    write_i = start
+    for i in range(n):
+        if write_i > start and sidx_val[write_i - 1] == sorted_sidx[i]:
+            if not accumulate:
+                raise ValueError("duplicated sidx in input stream")
+            loss_val[write_i - 1] += sorted_loss[i]
+            continue
+        sidx_val[write_i] = sorted_sidx[i]
+        loss_val[write_i] = sorted_loss[i]
+        write_i += 1
+    sidx_indptr[compute_i] = write_i
 
 
 def event_log_msg(event_id, sidx_indptr, len_array, node_count):
@@ -207,7 +242,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
             for k in range(n_pairs):
                 sidx = sidx_loss_view[k]['sidx']
                 if not sidx:
-                    # sidx == 0: Item delimiter reached
+                    # sidx == 0: Item delimiter reached. The records were appended in arrival
+                    # order; put them in sidx order now, once, rather than on every insert.
+                    sort_item(compute_idx['next_compute_i'], sidx_indptr, sidx_val, loss_val,
+                              collapse_on_read)
                     reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes)
                     cursor += (k + 1) * loss_pair_size  # consume pairs incl. delimiter
                     item_id = 0  # Return to header-reading state
