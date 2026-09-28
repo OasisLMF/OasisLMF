@@ -94,19 +94,6 @@ def assert_temps_clean(temp_node_loss, temp_node_extras, node_id):
                     raise ValueError("temp_node_extras dirty at node entry")
 
 
-@njit(cache=True, inline='always')
-def collapses_buildings(node, child, site_collapse_level, building_packing):
-    """Whether aggregating ``child`` into ``node`` crosses the building-packing collapse point.
-
-    ``site_collapse_level`` is the last level whose terms apply per building, and 0 is a
-    legitimate value, not a sentinel: an input set with no location terms writes no risk-keyed
-    level, so the buildings merge as soon as the items are aggregated. That is why
-    ``building_packing`` gates this rather than a truthiness test on the level.
-    """
-    return (building_packing
-            and child['level_id'] <= site_collapse_level < node['level_id'])
-
-
 @njit(cache=True)
 def get_base_children(node, children, nodes_array, temp_children_queue):
     """Find all leaf-level (base) descendants of a node using breadth-first traversal.
@@ -434,7 +421,7 @@ def sorted_node_sidx(temp_node_keys, key_count, node_is_packed):
 
 @njit(cache=True, fastmath=True)
 def aggregate_children_extras(node, children_count, nodes_array, children, temp_children_queue, compute_idx,
-                              site_collapse_level, building_packing, max_sidx_val,
+                              site_collapse_level, building_packing,
                               temp_node_sidx, temp_node_keys, sidx_indexes, sidx_indptr, sidx_val,
                               temp_node_loss, loss_indptr, loss_val,
                               temp_node_extras, extras_indptr, extras_val):
@@ -460,10 +447,9 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
         children: Children tracking array
         temp_children_queue: Working array for base children lookup
         compute_idx: Computation state pointers
-        site_collapse_level: last level whose terms apply per building; children at or below it
+        site_collapse_level: last level whose terms apply per building; a node at or below it
             have their building blocks merged as they are aggregated into a node above it
         building_packing: whether this input set has packed items at all
-        max_sidx_val: the stream's sample size, used to decode a packed sidx to its local one
         temp_node_sidx: Dense boolean array marking active sidx values
         temp_node_keys: scratch holding the sidx this node has marked, in arrival order
         sidx_indexes: Maps node_id to sidx array position
@@ -514,12 +500,10 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
             child_extra = extras_val[extras_indptr[child['extra'] + profile_i]:
                                      extras_indptr[child['extra'] + profile_i] + child_sidx_val.shape[0]]
             # print('child', child['level_id'], child['agg_id'], profile_i, loss_indptr[child['loss'] + profile_i], child_loss[0], child['extra'], extras_indptr[child['extra'] + profile_i])
-            collapse = collapses_buildings(node, child, site_collapse_level, building_packing)
             for val_i in range(child_sidx_val.shape[0]):
-                if collapse:
-                    key = decode_local_sidx(child_sidx_val[val_i], max_sidx_val)
-                else:
-                    key = child_sidx_val[val_i]
+                # no decode: a child crossing the collapse level has already been collapsed by its
+                # own site node, which check_collapse_is_reachable guarantees at structure build
+                key = child_sidx_val[val_i]
                 key_count = mark_node_sidx(key, temp_node_sidx, temp_node_keys, key_count)
                 profile_temp_node_loss[key] += child_loss[val_i]
                 profile_temp_node_extras[key] += child_extra[val_i]
@@ -568,7 +552,7 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
 
 @njit(cache=True, fastmath=True)
 def aggregate_children(node, children_count, nodes_array, children, temp_children_queue, compute_idx,
-                       site_collapse_level, building_packing, max_sidx_val,
+                       site_collapse_level, building_packing,
                        temp_node_sidx, temp_node_keys, sidx_indexes, sidx_indptr, sidx_val,
                        temp_node_loss, loss_indptr, loss_val):
     """Aggregate losses from multiple children into a parent node (without extras tracking).
@@ -596,10 +580,9 @@ def aggregate_children(node, children_count, nodes_array, children, temp_childre
         children: Children tracking array (count + child IDs per node)
         temp_children_queue: Working array for base children lookup
         compute_idx: Computation state pointers (sidx_i, sidx_ptr_i, loss_ptr_i, etc.)
-        site_collapse_level: last level whose terms apply per building; children at or below it
+        site_collapse_level: last level whose terms apply per building; a node at or below it
             have their building blocks merged as they are aggregated into a node above it
         building_packing: whether this input set has packed items at all
-        max_sidx_val: the stream's sample size, used to decode a packed sidx to its local one
         temp_node_sidx: Dense boolean array marking which sidx values have data
         temp_node_keys: scratch holding the sidx this node has marked, in arrival order
         sidx_indexes: Maps node_id to its sidx array position
@@ -638,12 +621,10 @@ def aggregate_children(node, children_count, nodes_array, children, temp_childre
             child_loss = loss_val[loss_indptr[child['loss'] + profile_i]:
                                   loss_indptr[child['loss'] + profile_i] + child_sidx_val.shape[0]]
 
-            collapse = collapses_buildings(node, child, site_collapse_level, building_packing)
             for val_i in range(child_sidx_val.shape[0]):
-                if collapse:
-                    key = decode_local_sidx(child_sidx_val[val_i], max_sidx_val)
-                else:
-                    key = child_sidx_val[val_i]
+                # no decode: a child crossing the collapse level has already been collapsed by its
+                # own site node, which check_collapse_is_reachable guarantees at structure build
+                key = child_sidx_val[val_i]
                 key_count = mark_node_sidx(key, temp_node_sidx, temp_node_keys, key_count)
                 profile_temp_node_loss[key] += child_loss[val_i]
 
@@ -947,14 +928,14 @@ def compute_event(compute_info,
                     if storage_node['extra'] == null_index:
                         node_val_count = aggregate_children(
                             storage_node, children_count, nodes_array, children, temp_children_queue, compute_idx,
-                            site_collapse_level, building_packing, max_sidx_val,
+                            site_collapse_level, building_packing,
                             temp_node_sidx, temp_node_keys, sidx_indexes, sidx_indptr, sidx_val,
                             temp_node_loss, loss_indptr, loss_val
                         )
                     else:
                         node_val_count = aggregate_children_extras(
                             storage_node, children_count, nodes_array, children, temp_children_queue, compute_idx,
-                            site_collapse_level, building_packing, max_sidx_val,
+                            site_collapse_level, building_packing,
                             temp_node_sidx, temp_node_keys, sidx_indexes, sidx_indptr, sidx_val,
                             temp_node_loss, loss_indptr, loss_val,
                             temp_node_extras, extras_indptr, extras_val
