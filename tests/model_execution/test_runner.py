@@ -1,35 +1,9 @@
 import os
 import tempfile
-from collections import namedtuple
 from unittest import TestCase, mock
-
-import psutil
 
 from oasislmf.execution import runner
 from oasislmf.utils.exceptions import OasisException
-
-_Uids = namedtuple('_Uids', ['real', 'effective', 'saved'])
-
-
-class FakeProcess:
-    def __init__(self, pid, name, uid=None, open_file_paths=None, cmdline=None,
-                 raise_on_open_files=None, raise_on_cmdline=None):
-        self.pid = pid
-        self.info = {'pid': pid, 'name': name, 'uids': _Uids(uid, uid, uid) if uid is not None else None}
-        self._open_file_paths = open_file_paths or []
-        self._cmdline = cmdline or []
-        self._raise_on_open_files = raise_on_open_files
-        self._raise_on_cmdline = raise_on_cmdline
-
-    def open_files(self):
-        if self._raise_on_open_files:
-            raise self._raise_on_open_files
-        return [mock.Mock(path=p) for p in self._open_file_paths]
-
-    def cmdline(self):
-        if self._raise_on_cmdline:
-            raise self._raise_on_cmdline
-        return self._cmdline
 
 
 class TestSnapshotLogDir(TestCase):
@@ -73,128 +47,58 @@ class TestSnapshotLogDir(TestCase):
             self.assertEqual(snapshot, {})
 
 
-class TestFindOpenWriters(TestCase):
-    def test_returns_writer_for_pytool_process_with_open_file_in_log_dir(self):
-        own_uid = os.getuid()
-        proc = FakeProcess(1, 'fmpy', uid=own_uid, open_file_paths=['/log/fmpy_1.log'])
-        with mock.patch('oasislmf.execution.runner.psutil.process_iter', return_value=[proc]):
-            writers, fully_inspected = runner._find_open_writers('/log')
-
-        self.assertEqual(writers, [(1, 'fmpy', '/log/fmpy_1.log')])
-        self.assertTrue(fully_inspected)
-
-    def test_ignores_processes_owned_by_a_different_uid(self):
-        other_uid = os.getuid() + 1
-        proc = FakeProcess(1, 'fmpy', uid=other_uid, open_file_paths=['/log/fmpy_1.log'])
-        with mock.patch('oasislmf.execution.runner.psutil.process_iter', return_value=[proc]):
-            writers, fully_inspected = runner._find_open_writers('/log')
-
-        self.assertEqual(writers, [])
-        self.assertTrue(fully_inspected)
-
-    def test_detects_pytool_via_cmdline_when_name_is_interpreter(self):
-        own_uid = os.getuid()
-        proc = FakeProcess(
-            1, 'python3', uid=own_uid,
-            open_file_paths=['/log/fmpy_1.log'],
-            cmdline=['python3', '-m', 'fmpy'],
-        )
-        with mock.patch('oasislmf.execution.runner.psutil.process_iter', return_value=[proc]):
-            writers, _fully_inspected = runner._find_open_writers('/log')
-
-        self.assertEqual(writers, [(1, 'python3', '/log/fmpy_1.log')])
-
-    def test_cmdline_access_denied_treated_as_not_pytool(self):
-        own_uid = os.getuid()
-        proc = FakeProcess(
-            1, 'python3', uid=own_uid,
-            open_file_paths=['/log/fmpy_1.log'],
-            raise_on_cmdline=psutil.AccessDenied(1),
-        )
-        with mock.patch('oasislmf.execution.runner.psutil.process_iter', return_value=[proc]):
-            writers, fully_inspected = runner._find_open_writers('/log')
-
-        # still matched via open file path regardless of is_pytool flag
-        self.assertEqual(writers, [(1, 'python3', '/log/fmpy_1.log')])
-        self.assertTrue(fully_inspected)
-
-    def test_ignores_open_files_outside_log_dir(self):
-        own_uid = os.getuid()
-        proc = FakeProcess(1, 'fmpy', uid=own_uid, open_file_paths=['/elsewhere/fmpy_1.log'])
-        with mock.patch('oasislmf.execution.runner.psutil.process_iter', return_value=[proc]):
-            writers, fully_inspected = runner._find_open_writers('/log')
-
-        self.assertEqual(writers, [])
-        self.assertTrue(fully_inspected)
-
-    def test_access_denied_on_open_files_marks_not_fully_inspected(self):
-        own_uid = os.getuid()
-        proc = FakeProcess(1, 'fmpy', uid=own_uid, raise_on_open_files=psutil.AccessDenied(1))
-        with mock.patch('oasislmf.execution.runner.psutil.process_iter', return_value=[proc]):
-            writers, fully_inspected = runner._find_open_writers('/log')
-
-        self.assertEqual(writers, [])
-        self.assertFalse(fully_inspected)
-
-    def test_no_such_process_is_skipped(self):
-        own_uid = os.getuid()
-        proc = FakeProcess(1, 'fmpy', uid=own_uid, raise_on_open_files=psutil.NoSuchProcess(1))
-        with mock.patch('oasislmf.execution.runner.psutil.process_iter', return_value=[proc]):
-            writers, fully_inspected = runner._find_open_writers('/log')
-
-        self.assertEqual(writers, [])
-        self.assertTrue(fully_inspected)
-
-
 class TestWaitForLogWriters(TestCase):
-    def test_returns_once_files_stable_and_no_writers(self):
+    @staticmethod
+    def _clock(step=1):
+        times = iter(range(0, 10000, step))
+        return lambda: next(times)
+
+    def test_returns_once_files_stable_for_stable_seconds(self):
         with tempfile.TemporaryDirectory() as log_dir:
-            with mock.patch('oasislmf.execution.runner._find_open_writers', return_value=([], True)), \
-                    mock.patch('oasislmf.execution.runner.time.sleep'):
-                runner._wait_for_log_writers(log_dir, timeout=5, poll_interval=0.01, stable_checks=2)
-        # no exception / hang means success
-
-    def test_degraded_mode_widens_stability_window_on_access_denied(self):
-        with tempfile.TemporaryDirectory() as log_dir:
-            times = iter(range(0, 200))
-
-            def fake_time():
-                return next(times, 999)
-
-            with mock.patch('oasislmf.execution.runner._find_open_writers', return_value=([], False)), \
-                    mock.patch('oasislmf.execution.runner.time.sleep'), \
-                    mock.patch('oasislmf.execution.runner.time.time', side_effect=fake_time), \
+            with mock.patch('oasislmf.execution.runner.time.sleep'), \
+                    mock.patch('oasislmf.execution.runner.time.time', side_effect=self._clock()), \
                     mock.patch('oasislmf.execution.runner.logging.warning') as mock_warn:
-                runner._wait_for_log_writers(
-                    log_dir, timeout=100, poll_interval=1, stable_checks=2, degraded_stable_seconds=5.0,
-                )
-            self.assertTrue(mock_warn.called)
+                runner._wait_for_log_writers(log_dir, timeout=100, poll_interval=1, stable_seconds=5.0)
 
-    def test_resets_stability_count_while_files_still_changing(self):
+            mock_warn.assert_not_called()
+
+    def test_short_quiet_gap_does_not_count_as_settled(self):
         with tempfile.TemporaryDirectory() as log_dir:
+            # stable for 2 polls, then changes again, then stable for good
             snapshots = iter([
-                {},
                 {'f': (1, 1.0)},
-                {'f': (2, 2.0)},  # still changing - resets stability streak
-                {'f': (2, 2.0)},
+                {'f': (1, 1.0)},
+                {'f': (1, 1.0)},
                 {'f': (2, 2.0)},
             ])
+            calls = []
 
             def fake_snapshot(_log_dir):
+                calls.append(1)
                 return next(snapshots, {'f': (2, 2.0)})
 
             with mock.patch('oasislmf.execution.runner._snapshot_log_dir', side_effect=fake_snapshot), \
-                    mock.patch('oasislmf.execution.runner._find_open_writers', return_value=([], True)), \
-                    mock.patch('oasislmf.execution.runner.time.sleep'):
-                runner._wait_for_log_writers(log_dir, timeout=5, poll_interval=0.01, stable_checks=2)
-        # no exception / hang means the instability branch was exercised and it still settled
-
-    def test_times_out_and_logs_warning_when_writers_never_settle(self):
-        with tempfile.TemporaryDirectory() as log_dir:
-            with mock.patch('oasislmf.execution.runner._find_open_writers', return_value=([(1, 'fmpy', 'f')], True)), \
                     mock.patch('oasislmf.execution.runner.time.sleep'), \
+                    mock.patch('oasislmf.execution.runner.time.time', side_effect=self._clock()), \
                     mock.patch('oasislmf.execution.runner.logging.warning') as mock_warn:
-                runner._wait_for_log_writers(log_dir, timeout=0.01, poll_interval=0.01, stable_checks=2)
+                runner._wait_for_log_writers(log_dir, timeout=100, poll_interval=1, stable_seconds=5.0)
+
+            mock_warn.assert_not_called()
+            # didn't return during the 2-poll quiet gap before the change
+            self.assertGreater(len(calls), 4)
+
+    def test_times_out_and_logs_warning_when_files_never_settle(self):
+        with tempfile.TemporaryDirectory() as log_dir:
+            counter = iter(range(10000))
+
+            def fake_snapshot(_log_dir):
+                return {'f': (next(counter), 0.0)}
+
+            with mock.patch('oasislmf.execution.runner._snapshot_log_dir', side_effect=fake_snapshot), \
+                    mock.patch('oasislmf.execution.runner.time.sleep'), \
+                    mock.patch('oasislmf.execution.runner.time.time', side_effect=self._clock()), \
+                    mock.patch('oasislmf.execution.runner.logging.warning') as mock_warn:
+                runner._wait_for_log_writers(log_dir, timeout=20, poll_interval=1, stable_seconds=5.0)
 
             self.assertTrue(mock_warn.called)
 

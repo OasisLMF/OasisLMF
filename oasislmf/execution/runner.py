@@ -7,8 +7,6 @@ import json
 import re
 import time
 
-import psutil
-
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import (bash_wrapper, create_bash_analysis,
@@ -31,65 +29,8 @@ def _snapshot_log_dir(log_dir):
     return snapshot
 
 
-def _find_open_writers(log_dir):
-    """Return [(pid, name, path), ...] for processes with a file open under log_dir.
-
-    Returns (writers, fully_inspected). fully_inspected is False if any process
-    could not be inspected (e.g. psutil.AccessDenied under a restricted
-    container security context) - in that case an empty `writers` list does
-    NOT mean nothing is writing, it means this signal is unreliable.
-
-    Only same-UID processes are considered: any orphaned/reparented pytool
-    worker still runs as the celery worker's own user, and skipping other
-    users' processes (root-owned daemons etc.) avoids spurious AccessDenied
-    noise from processes that were never a candidate writer in the first
-    place - on a real host, scanning *every* process would otherwise trip
-    the "degraded" fallback on essentially every run.
-    """
-    writers = []
-    fully_inspected = True
-    own_uid = os.getuid()
-    for proc in psutil.process_iter(['pid', 'name', 'uids']):
-        uids = proc.info.get('uids')
-        if uids is not None and uids.real != own_uid:
-            continue
-        try:
-            # DIAGNOSTIC: is this a pytool process at all (by name OR cmdline,
-            # since a python-based tool's psutil name() is often the
-            # interpreter, e.g. 'python3', not the console-script name), and
-            # if so, what raw path does psutil report for its open files vs.
-            # log_dir? Helps tell "no real writer left" apart from "the path
-            # string just doesn't match" (symlinks/bind-mounts resolved
-            # differently by /proc than by os.path.abspath). Remove once
-            # open_writers is confirmed to ever populate on the real cluster.
-            is_pytool = proc.info.get('name') in MONITORED_TOOLS
-            if not is_pytool:
-                try:
-                    is_pytool = any(tool in ' '.join(proc.cmdline()) for tool in MONITORED_TOOLS)
-                except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
-                    is_pytool = False
-
-            open_files = proc.open_files()
-            if is_pytool:
-                logging.debug(
-                    "diag: pytool-like process pid=%s name=%s cmdline=%s open_files=%s (log_dir=%r)",
-                    proc.pid, proc.info.get('name'),
-                    ' '.join(proc.cmdline()) if is_pytool else '',
-                    [f.path for f in open_files], log_dir,
-                )
-            for f in open_files:
-                if f.path.startswith(log_dir):
-                    writers.append((proc.pid, proc.info.get('name'), f.path))
-                    break
-        except psutil.AccessDenied:
-            fully_inspected = False
-        except (psutil.NoSuchProcess, psutil.ZombieProcess):
-            continue
-    return writers, fully_inspected
-
-
-def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_checks=2, degraded_stable_seconds=10.0):
-    """Block until nothing appears to still be writing under log_dir, or timeout elapses.
+def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_seconds=10.0):
+    """Block until files under log_dir stop changing, or timeout elapses.
 
     Only called once `_find_incomplete_pytool_logs` has already found something
     missing its "finish" marker - so this exists purely to give a genuinely
@@ -107,71 +48,36 @@ def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_checks=
     archive `log_dir` immediately after `run_analysis`/`run_outputs` returns
     can capture a snapshot with truncated log files.
 
-    Two signals are combined, since neither is reliable alone:
-      - an open-file-handle scan (psutil) is precise and immune to a writer
-        simply pausing between log lines, but can be silently defeated by
-        `AccessDenied` under a restricted container/k8s security context;
-      - file (size, mtime) stability needs no special permissions and works
-        regardless of which host/process is writing, but on its own produces
-        false positives whenever a writer has a quiet gap longer than the
-        stability window (e.g. it is still computing between log lines).
-
-    Settled requires BOTH: no inspectable process still has a file under
-    log_dir open, AND the files have been stable across `stable_checks`
-    consecutive polls. If any process couldn't be inspected during this
-    wait, the psutil signal is no longer trusted for the rest of this call:
-    a warning is logged once, and the required stability window is widened
-    to `degraded_stable_seconds` (instead of `stable_checks` polls) before
-    settling is declared, since a short window is not enough to be confident
-    a writer we can no longer see isn't just between log lines.
+    Settled means every file's (size, mtime) has been unchanged for at least
+    `stable_seconds`. This needs no special permissions and works regardless
+    of which host/process is writing, but a short window gives false
+    positives whenever a writer has a quiet gap (e.g. it is still computing
+    between log lines), so `stable_seconds` should comfortably exceed that.
     """
     log_dir = os.path.abspath(log_dir)
     logging.debug("Waiting for writers under %s to finish", log_dir)
     deadline = time.time() + timeout
     previous = _snapshot_log_dir(log_dir)
-    stable_count = 0
     stable_since = None
     attempt = 0
-    degraded = False
-    writers, current = [], previous
     while time.time() < deadline:
         attempt += 1
         time.sleep(poll_interval)
         current = _snapshot_log_dir(log_dir)
-        writers, fully_inspected = _find_open_writers(log_dir)
-        if not fully_inspected and not degraded:
-            logging.warning(
-                "Could not inspect all processes while checking %s (AccessDenied) - "
-                "widening required settle window to %.1fs of file-stability for this run",
-                log_dir, degraded_stable_seconds,
-            )
-            degraded = True
 
-        files_stable = current == previous
-        if files_stable:
-            stable_count += 1
+        if current == previous:
             stable_since = stable_since or time.time() - poll_interval
+            if time.time() - stable_since >= stable_seconds:
+                logging.debug("Files under %s settled after %d attempt(s)", log_dir, attempt)
+                return
         else:
-            stable_count = 0
             stable_since = None
 
-        if degraded:
-            settled_long_enough = stable_since is not None and (time.time() - stable_since) >= degraded_stable_seconds
-        else:
-            settled_long_enough = stable_count >= stable_checks
-
-        if not writers and files_stable and settled_long_enough:
-            logging.debug("Writers under %s settled after %d attempt(s) (degraded=%s)", log_dir, attempt, degraded)
-            return
-
-        logging.debug(
-            "Attempt %d: %s not yet settled (open_writers=%s, files_stable=%s, stable_count=%d, degraded=%s)",
-            attempt, log_dir, writers, files_stable, stable_count, degraded,
-        )
+        logging.debug("Attempt %d: files under %s not yet settled", attempt, log_dir)
         previous = current
     logging.warning(
-        "Timed out after %.1fs waiting for writers under %s to finish (open_writers=%s)",
-        timeout, log_dir, writers,
+        "Timed out after %.1fs waiting for files under %s to stop changing",
+        timeout, log_dir,
     )
 
 
