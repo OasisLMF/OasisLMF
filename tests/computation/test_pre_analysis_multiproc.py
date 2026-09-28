@@ -184,6 +184,58 @@ def test_chunk_processor_does_not_raise_when_ri_info_untouched():
     process_chunk((loc_df.copy(), None))
 
 
+class AddingReinsSourceHook:
+    """Creates ri_info/ri_scope on an exposure that had none."""
+    source_name = None
+
+    def __init__(self, exposure_data, **kwargs):
+        self.exposure_data = exposure_data
+
+    def run(self):
+        setattr(self.exposure_data, self.source_name, DummyReinsSource(pd.DataFrame({'ReinsNumber': [1]})))
+
+
+class RemovingReinsSourceHook:
+    """Sets an existing ri_info/ri_scope to None."""
+    source_name = None
+
+    def __init__(self, exposure_data, **kwargs):
+        self.exposure_data = exposure_data
+
+    def run(self):
+        setattr(self.exposure_data, self.source_name, None)
+
+
+@pytest.mark.parametrize('source_name', ['ri_info', 'ri_scope'])
+def test_chunk_processor_raises_if_hook_adds_reins_source(source_name):
+    """A hook creating ri_info/ri_scope from nothing would have it silently discarded too,
+    not just a hook modifying an existing one."""
+    loc_df = pd.DataFrame({'BuildingTIV': [1.0]})
+    exposure_data = DummyExposureData(loc_df)
+    hook_cls = type('Hook', (AddingReinsSourceHook,), {'source_name': source_name})
+
+    process_chunk = _make_chunk_processor(exposure_data, hook_cls, {})
+
+    with pytest.raises(OasisException, match=source_name):
+        process_chunk((loc_df.copy(), None))
+    # the chunk's change mustn't leak into the parent's exposure_data either
+    assert getattr(exposure_data, source_name) is None
+
+
+@pytest.mark.parametrize('source_name', ['ri_info', 'ri_scope'])
+def test_chunk_processor_raises_if_hook_removes_reins_source(source_name):
+    """Setting ri_info/ri_scope to None must raise the intended OasisException, not an
+    AttributeError from reading .dataframe off None."""
+    loc_df = pd.DataFrame({'BuildingTIV': [1.0]})
+    exposure_data = DummyExposureData(loc_df, **{f'{source_name}_df': pd.DataFrame({'ReinsNumber': [1]})})
+    hook_cls = type('Hook', (RemovingReinsSourceHook,), {'source_name': source_name})
+
+    process_chunk = _make_chunk_processor(exposure_data, hook_cls, {})
+
+    with pytest.raises(OasisException, match=source_name):
+        process_chunk((loc_df.copy(), None))
+
+
 @pytest.mark.parametrize('pool_count', [0, 1])
 def test_run_pre_analysis_multiproc_rejects_pool_count_of_one_or_fewer(pool_count):
     """Guards against a caller forgetting to check pool_count > 1 before calling in - it should

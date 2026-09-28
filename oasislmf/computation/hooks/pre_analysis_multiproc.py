@@ -44,18 +44,36 @@ def _split_chunks(loc_df, acc_df, part_count, group_cols):
     return zip(loc_parts, acc_parts)
 
 
+# exposure_data sources that aren't chunked or merged back, so a hook mustn't change them
+UNCHUNKED_SOURCES = ('ri_info', 'ri_scope')
+
+
+def _source_dataframe(exposure_data, source_name):
+    source = getattr(exposure_data, source_name)
+    return None if source is None else source.dataframe
+
+
+def _source_changed(before_df, after_df):
+    """True if a source was added, removed, or had its dataframe changed."""
+    if before_df is None or after_df is None:
+        return (before_df is None) != (after_df is None)
+    return not after_df.equals(before_df)
+
+
 def _make_chunk_processor(exposure_data, hook_cls, hook_kwargs):
     """Build the per-chunk function run in each worker process: instantiate hook_cls on a
     chunk of exposure_data's location/account dataframes and call .run(), returning the
     (possibly hook-modified) location/account dataframes plus the hook's return value.
 
-    Raises OasisException if the hook mutates exposure_data.ri_info/ri_scope - these aren't
-    chunked or merged back (only the main process's copy is kept), so silently allowing such a
-    mutation would discard it without warning.
+    Raises OasisException if the hook adds, removes or modifies exposure_data.ri_info/ri_scope -
+    these aren't chunked or merged back (only the main process's copy is kept), so silently
+    allowing such a change would discard it without warning.
     """
     has_account = exposure_data.account is not None
-    unchunked_ri_info = exposure_data.ri_info.dataframe.copy() if exposure_data.ri_info is not None else None
-    unchunked_ri_scope = exposure_data.ri_scope.dataframe.copy() if exposure_data.ri_scope is not None else None
+    unchunked_dfs = {}
+    for source_name in UNCHUNKED_SOURCES:
+        source_df = _source_dataframe(exposure_data, source_name)
+        unchunked_dfs[source_name] = None if source_df is None else source_df.copy()
 
     def process_chunk(chunk):
         loc_part, acc_part = chunk
@@ -71,20 +89,15 @@ def _make_chunk_processor(exposure_data, hook_cls, hook_kwargs):
         chunk_kwargs['exposure_data'] = chunk_exposure_data
         class_return = hook_cls(**chunk_kwargs).run()
 
-        if unchunked_ri_info is not None and not chunk_exposure_data.ri_info.dataframe.equals(unchunked_ri_info):
-            raise OasisException(
-                'ExposurePreAnalysis hook modified exposure_data.ri_info, which is not supported '
-                'when pre-analysis multiprocessing is enabled - ri_info is not chunked or merged '
-                'back, so the change would otherwise be silently discarded. Set '
-                'lookup_multiprocessing=False to run this hook single-process.'
-            )
-        if unchunked_ri_scope is not None and not chunk_exposure_data.ri_scope.dataframe.equals(unchunked_ri_scope):
-            raise OasisException(
-                'ExposurePreAnalysis hook modified exposure_data.ri_scope, which is not supported '
-                'when pre-analysis multiprocessing is enabled - ri_scope is not chunked or merged '
-                'back, so the change would otherwise be silently discarded. Set '
-                'lookup_multiprocessing=False to run this hook single-process.'
-            )
+        for source_name in UNCHUNKED_SOURCES:
+            if _source_changed(unchunked_dfs[source_name], _source_dataframe(chunk_exposure_data, source_name)):
+                raise OasisException(
+                    f'ExposurePreAnalysis hook added, removed or modified exposure_data.{source_name}, which is '
+                    f'not supported when pre-analysis multiprocessing is enabled - {source_name} is not chunked '
+                    'or merged back, so the change would otherwise be silently discarded. Remove '
+                    'multiproc_enabled = True from the hook class (or set lookup_multiprocessing=False) '
+                    'to run this hook single-process.'
+                )
 
         return (
             chunk_exposure_data.location.dataframe,
