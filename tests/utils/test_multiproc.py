@@ -5,6 +5,7 @@ import pytest
 from oasislmf.utils.multiproc import (
     chunk_producer,
     multiproc_worker,
+    reorder_results,
     result_producer,
     run_multiproc,
     with_error_queue,
@@ -237,3 +238,22 @@ def test_run_multiproc_propagates_worker_exception():
 
     with pytest.raises(ValueError, match='boom-for-test'):
         run_multiproc([1, 2, 3], lambda worker_id: process_chunk, pool_count=2, on_results=list)
+
+
+def test_reorder_results_yields_in_index_order():
+    indexed = [(2, 'c'), (0, 'a'), (3, 'd'), (1, 'b')]
+    assert list(reorder_results(iter(indexed))) == ['a', 'b', 'c', 'd']
+
+
+def test_run_multiproc_ordered_returns_results_in_chunk_order():
+    """With ordered=True, results come back in chunk order even when earlier chunks finish
+    last (here each chunk sleeps longer the earlier it is)."""
+    import time
+
+    def process_chunk(chunk):
+        time.sleep((3 - chunk) * 0.2)
+        return chunk * 2
+
+    results = run_multiproc([0, 1, 2, 3], lambda worker_id: process_chunk, pool_count=4,
+                            on_results=list, ordered=True)
+    assert results == [0, 2, 4, 6]

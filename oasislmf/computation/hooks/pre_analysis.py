@@ -40,12 +40,12 @@ class ExposurePreAnalysis(ComputationStep):
                    {'name': 'exposure_pre_analysis_setting_json', 'is_path': True, 'pre_exist': True,
                     'help': 'Exposure Pre-Analysis config JSON file path'},
                    {'name': 'lookup_num_processes', 'type': int, 'default': -1,
-                    'help': 'Number of workers in multiprocess pools (also controls pre-analysis multiprocessing)'},
+                    'help': 'Number of workers in multiprocess pools (also used by pre-analysis hooks that set multiproc_enabled)'},
                    {'name': 'lookup_num_chunks', 'type': int, 'default': -1,
                     'help': 'Number of chunks to split the location file into for multiprocessing '
-                            '(also controls pre-analysis multiprocessing)'},
+                            '(also used by pre-analysis hooks that set multiproc_enabled)'},
                    {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
-                    'help': 'Flag to enable/disable lookup multiprocessing (also controls pre-analysis multiprocessing)'},
+                    'help': 'Flag to enable/disable lookup multiprocessing (also used by pre-analysis hooks that set multiproc_enabled)'},
                    {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
                    {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
                    {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
@@ -137,7 +137,13 @@ class ExposurePreAnalysis(ComputationStep):
             and (exposure_data.account is None
                  or all(col in exposure_data.account.dataframe.columns for col in group_cols))
         )
-        multiproc_enabled = self.lookup_multiprocessing
+        # Like a lookup class, a hook must opt in to multiprocessing: only its author knows
+        # whether chunking changes its output (e.g. a counter or row numbering spanning the
+        # whole portfolio would be restarted or interleaved per chunk).
+        multiproc_enabled = self.lookup_multiprocessing and getattr(_class, 'multiproc_enabled', False)
+        if self.lookup_multiprocessing and not multiproc_enabled:
+            self.logger.info(f'\n{self.exposure_pre_analysis_class_name} does not set multiproc_enabled = True, '
+                             'running pre-analysis in a single process')
         if exposure_data.account is not None and not can_group_by_account:
             # Without PortNumber/AccNumber on both location and account, a location-only chunk
             # split (below) could split a single account's rows across chunks, or dispatch a

@@ -52,24 +52,40 @@ keys/lookup service, it can be run across multiple processes. It is controlled b
 ``lookup_multiprocessing``/``lookup_num_processes``/``lookup_num_chunks`` parameters as the
 keys/lookup service, and chunked the same way - the hook is instantiated once per chunk and
 called with a subset of ``exposure_data``, and the resulting location/account dataframes are
-merged back together afterwards. Unlike the keys/lookup service, chunks are formed from unique
+merged back together afterwards, in chunk order, so the output doesn't depend on which process
+finishes first. Unlike the keys/lookup service, chunks are formed from unique
 ``(PortNumber, AccNumber)`` combinations rather than individual locations, so a single account's
 location rows are never split across two chunks.
 
-Because the framework has no visibility into what a pre-analysis hook actually does, chunking is
-only safe for hooks that operate independently per location/account - the intended use cases
-described above (geocoding, disaggregation, exposure enhancement). A hook is **not** compatible
-with the default chunked behaviour if it:
+Because the framework has no visibility into what a pre-analysis hook actually does, a hook must
+opt in to multiprocessing, in the same way a lookup class does, by setting a class attribute:
+
+.. code-block:: python
+
+    class ExposurePreAnalysis:
+        multiproc_enabled = True
+
+        def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
+            ...
+
+Hooks without ``multiproc_enabled = True`` always run in a single process. Only opt in if the
+hook gives the same result whether it sees the whole portfolio or one group of accounts at a
+time - the intended use cases described above (per-location geocoding, disaggregation, exposure
+enhancement) usually do. A hook is **not** safe to opt in if it:
 
 * needs to see locations/accounts outside of a single account (e.g. whole-portfolio
   aggregation or optimisation), or
+* numbers or counts rows across the portfolio - e.g. ``df['LocNumber'] = df.index + 1``, or a
+  module-level counter used to make ``LocNumber`` values unique. Each chunk's dataframe starts
+  from its own index, and module-level state is shared between the chunks that the same worker
+  process happens to pick up, so the result would change from run to run, or
 * reads or modifies ``exposure_data.ri_info``/``exposure_data.ri_scope`` (these are not
-  chunked or merged back - only the main process's copy is kept, and the run raises an error
-  as soon as a chunk is found to have changed either one), or
+  chunked or merged back - only the main process's copy is kept), or
 * has side effects on shared files under ``input_dir`` that aren't safe for multiple
   processes to write concurrently.
 
-Set ``lookup_multiprocessing=False`` to disable chunking for such a model.
+Setting ``lookup_multiprocessing=False`` runs every hook in a single process, whether or not it
+has opted in.
 
 |
 

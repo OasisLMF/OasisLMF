@@ -100,7 +100,8 @@ def run_pre_analysis_multiproc(exposure_data, hook_cls, hook_kwargs, pool_count,
     processes, splitting exposure_data's location/account dataframes into part_count chunks.
 
     Returns (location_df, account_df, [chunk_return, ...]) with the per-chunk results merged
-    back together; account_df is None if exposure_data has no account data.
+    back together in chunk order, so the output doesn't depend on which worker finishes
+    first; account_df is None if exposure_data has no account data.
     """
     loc_df = exposure_data.location.dataframe
     acc_df = exposure_data.account.dataframe if exposure_data.account is not None else None
@@ -122,4 +123,4 @@ def run_pre_analysis_multiproc(exposure_data, hook_cls, hook_kwargs, pool_count,
             class_returns,
         )
 
-    return run_multiproc(chunks, lambda worker_id: process_chunk, pool_count, on_results)
+    return run_multiproc(chunks, lambda worker_id: process_chunk, pool_count, on_results, ordered=True)

@@ -10,6 +10,7 @@ __all__ = [
     'chunk_producer',
     'multiproc_worker',
     'result_producer',
+    'reorder_results',
     'run_multiproc',
 ]
 
@@ -120,7 +121,29 @@ def result_producer(result_queue, error_queue, worker_count):
             yield res
 
 
-def run_multiproc(chunks, make_process_chunk, pool_count, on_results):
+def reorder_results(indexed_results):
+    """Yield the result from each (index, result) pair in index order (0, 1, 2, ...),
+    buffering any result that arrives before its predecessors.
+    """
+    pending = {}
+    next_index = 0
+    for index, result in indexed_results:
+        pending[index] = result
+        while next_index in pending:
+            yield pending.pop(next_index)
+            next_index += 1
+
+
+def _indexed(make_process_chunk):
+    """Wrap make_process_chunk so its process_chunk takes and returns (index, ...) pairs."""
+    def make_indexed_process_chunk(worker_id):
+        process_chunk = make_process_chunk(worker_id)
+        return lambda indexed_chunk: (indexed_chunk[0], process_chunk(indexed_chunk[1]))
+
+    return make_indexed_process_chunk
+
+
+def run_multiproc(chunks, make_process_chunk, pool_count, on_results, ordered=False):
     """Run make_process_chunk(worker_id)(chunk) for each chunk in `chunks`, across pool_count
     worker processes, and call on_results(...) in the main process with a generator yielding
     each result as it arrives.
@@ -138,6 +161,10 @@ def run_multiproc(chunks, make_process_chunk, pool_count, on_results):
         on_results (callable): called once in the main process, with a generator yielding each
                 result as it arrives - (Iterator[result]) -> T. Must fully consume the
                 generator it's given. Its return value is returned from run_multiproc.
+        ordered (bool): if True, on_results receives results in the same order as `chunks`
+                rather than in whichever order workers finish them, so the combined output
+                doesn't depend on process scheduling. Results that arrive early are held in
+                memory until their predecessors arrive.
 
     Returns:
         T: on_results(...)'s return value.
@@ -147,6 +174,10 @@ def run_multiproc(chunks, make_process_chunk, pool_count, on_results):
             f'run_multiproc requires pool_count > 1 (got {pool_count}) - '
             'the caller should process chunks directly instead of spinning up a pool of one.'
         )
+
+    if ordered:
+        chunks = enumerate(chunks)
+        make_process_chunk = _indexed(make_process_chunk)
 
     ct = multiprocessing.get_context("fork")
     chunk_queue = ct.Queue(maxsize=pool_count)
@@ -163,7 +194,8 @@ def run_multiproc(chunks, make_process_chunk, pool_count, on_results):
     [worker.start() for worker in workers]
 
     try:
-        return on_results(result_producer(result_queue, error_queue, worker_count=pool_count))
+        results = result_producer(result_queue, error_queue, worker_count=pool_count)
+        return on_results(reorder_results(results) if ordered else results)
     except Exception:
         error_queue.put(sys.exc_info())
     finally:

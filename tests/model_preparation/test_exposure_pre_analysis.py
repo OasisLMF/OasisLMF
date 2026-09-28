@@ -121,6 +121,7 @@ class ExposurePreAnalysis:
     Pre-analysis hook that touches both the location and account dataframes, so a
     chunked run can be checked for keeping each account's locations/account row together.
     """
+    multiproc_enabled = True
 
     def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
         self.exposure_data = exposure_data
@@ -215,6 +216,7 @@ class ExposurePreAnalysis:
     Like the account-aware hook, but also fails loudly if it's ever invoked with an empty
     chunk - regression check for requesting more chunks than there are account groups.
     """
+    multiproc_enabled = True
 
     def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
         self.exposure_data = exposure_data
@@ -292,6 +294,91 @@ def test_exposure_pre_analysis_result_class_is_always_a_list():
         assert len(result_multiproc['class']) == 3
 
 
+def write_not_opted_in_epa_module(module_path):
+    with open(module_path, 'w') as f:
+        f.write('''
+class ExposurePreAnalysis:
+    """Hook that doesn't set multiproc_enabled, so must never be chunked."""
+
+    def __init__(self, exposure_data, **kwargs):
+        self.exposure_data = exposure_data
+
+    def run(self):
+        return self.exposure_data.location.dataframe.shape[0]
+''')
+
+
+def test_exposure_pre_analysis_hook_without_opt_in_runs_single_process():
+    """A hook must set multiproc_enabled = True to be chunked, like a lookup class - otherwise
+    it runs once on the whole portfolio even with lookup_multiprocessing enabled."""
+    with TemporaryDirectory() as d:
+        exposure_pre_analysis_module = os.path.join(d, 'exposure_pre_analysis_not_opted_in.py')
+        exposure_pre_analysis_setting_json = os.path.join(d, 'exposure_pre_analysis_setting.json')
+        oed_location_csv, oed_accounts_csv = _write_multi_account_inputs(d, exposure_pre_analysis_setting_json)
+        write_not_opted_in_epa_module(exposure_pre_analysis_module)
+
+        result = OasisManager().exposure_pre_analysis(
+            oasis_files_dir=d,
+            exposure_pre_analysis_module=exposure_pre_analysis_module,
+            oed_location_csv=oed_location_csv,
+            oed_accounts_csv=oed_accounts_csv,
+            lookup_multiprocessing=True,
+            lookup_num_chunks=3,
+            lookup_num_processes=3,
+            check_oed=False,
+        )
+
+        assert result['class'] == [6]
+
+
+def write_slow_first_chunk_epa_module(module_path):
+    with open(module_path, 'w') as f:
+        f.write('''
+import time
+
+
+class ExposurePreAnalysis:
+    """Opted-in hook whose first account finishes last, so chunk results arrive out of order."""
+    multiproc_enabled = True
+
+    def __init__(self, exposure_data, **kwargs):
+        self.exposure_data = exposure_data
+
+    def run(self):
+        loc_df = self.exposure_data.location.dataframe
+        if (loc_df['AccNumber'] == 'A11111').any():
+            time.sleep(1)
+        loc_df['BuildingTIV'] = loc_df['BuildingTIV'] * 2
+''')
+
+
+def test_exposure_pre_analysis_multiproc_output_order_matches_singleproc():
+    """Chunk results are merged back in chunk order, not arrival order, so the saved location
+    file is the same however the worker processes happen to be scheduled."""
+    with TemporaryDirectory() as d:
+        exposure_pre_analysis_module = os.path.join(d, 'exposure_pre_analysis_slow_first_chunk.py')
+        exposure_pre_analysis_setting_json = os.path.join(d, 'exposure_pre_analysis_setting.json')
+        oed_location_csv, oed_accounts_csv = _write_multi_account_inputs(d, exposure_pre_analysis_setting_json)
+        write_slow_first_chunk_epa_module(exposure_pre_analysis_module)
+
+        kwargs = {
+            'exposure_pre_analysis_module': exposure_pre_analysis_module,
+            'oed_location_csv': oed_location_csv,
+            'oed_accounts_csv': oed_accounts_csv,
+            'check_oed': False,
+        }
+        OasisManager().exposure_pre_analysis(
+            oasis_files_dir=os.path.join(d, 'singleproc'), lookup_multiprocessing=False, **kwargs)
+        OasisManager().exposure_pre_analysis(
+            oasis_files_dir=os.path.join(d, 'multiproc'), lookup_multiprocessing=True,
+            lookup_num_chunks=3, lookup_num_processes=3, **kwargs)
+
+        singleproc_df = pd.read_csv(os.path.join(d, 'singleproc', SOURCE_FILENAMES['oed_location_csv']))
+        multiproc_df = pd.read_csv(os.path.join(d, 'multiproc', SOURCE_FILENAMES['oed_location_csv']))
+        assert multiproc_df['LocNumber'].tolist() == [1, 2, 3, 4, 5, 6]
+        pd.testing.assert_frame_equal(multiproc_df, singleproc_df)
+
+
 def write_noop_epa_module(module_path):
     with open(module_path, 'w') as f:
         f.write('''
@@ -354,6 +441,8 @@ def write_always_raising_epa_module(module_path):
     with open(module_path, 'w') as f:
         f.write('''
 class ExposurePreAnalysis:
+    multiproc_enabled = True
+
     def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
         self.exposure_data = exposure_data
 
