@@ -407,10 +407,15 @@ def run_analysis(**params):
     logging.debug("run_analysis: bash script (pid=%s) exited with code %s, checking log completeness in %s",
                   proc.pid, proc.returncode, monitor_dir)
     check_start = time.time()
-    _ensure_pytool_logs_complete(monitor_dir)
-    logging.debug("run_analysis: log completeness check for %s took %.2fs", monitor_dir, time.time() - check_start)
+
+    # Check for bash errors
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
+
+    # Check and wait for loggers to complete
+    _ensure_pytool_logs_complete(monitor_dir)
+    logging.debug("run_analysis: log completeness check for %s took %.2fs", monitor_dir, time.time() - check_start)
+
     bash_trace = stdout.decode('utf-8')
     logging.info(bash_trace)
     return params['fifo_queue_dir'], bash_trace
@@ -435,10 +440,15 @@ def run_outputs(**params):
     logging.debug("run_outputs: bash script (pid=%s) exited with code %s, checking log completeness in %s",
                   proc.pid, proc.returncode, out_log_dir)
     check_start = time.time()
-    _ensure_pytool_logs_complete(out_log_dir)
-    logging.debug("run_outputs: log completeness check for %s took %.2fs", out_log_dir, time.time() - check_start)
+
+    # Check for bash errors
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
+
+    # Check and wait for loggers to complete
+    _ensure_pytool_logs_complete(out_log_dir)
+    logging.debug("run_outputs: log completeness check for %s took %.2fs", out_log_dir, time.time() - check_start)
+
     bash_trace = stdout.decode('utf-8')
     logging.info(bash_trace)
     return bash_trace
