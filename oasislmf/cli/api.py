@@ -1,5 +1,6 @@
 from argparse import RawDescriptionHelpFormatter
 from .command import OasisBaseCommand, OasisComputationCommand
+from ..utils.exceptions import OasisNoDownloadSelectedException
 
 
 class ServerInfoApiCmd(OasisComputationCommand):
@@ -42,6 +43,13 @@ class GetApiCmd(OasisComputationCommand):
     """Download files from the Oasis Platform API"""
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformGet'
+
+    def action(self, args):
+        try:
+            return super().action(args)
+        except OasisNoDownloadSelectedException:
+            self.arg_parser.print_help()
+            return 1
 
 
 class PostApiCmd(OasisComputationCommand):
