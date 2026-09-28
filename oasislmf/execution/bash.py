@@ -2154,9 +2154,9 @@ def bash_wrapper(
             for its run - e.g. the single combined script from `genbash()`.
             `run_analysis()`/`run_outputs()` (each one script per chunk/stage,
             run from a distributed worker) pass False here and instead run an
-            equivalent Python-side check once they can be sure writers have
-            actually finished (see `runner.py`'s `_wait_for_log_writers` and
-            `_check_pytool_logs_complete`).
+            equivalent Python-side check on their own log directory, waiting
+            for any straggling writers before re-checking (see `runner.py`'s
+            `_ensure_pytool_logs_complete`).
 
     Yields:
         None: Control is yielded to the caller to write the script body.
