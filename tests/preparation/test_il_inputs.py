@@ -1,16 +1,22 @@
 """
 Unit tests for the early referential-integrity checks in oasislmf.preparation.il_inputs:
-validate_account_location_references() and check_cond_tags().
+validate_account_location_references() and check_cond_tags(), and for
+write_empty_policy_layer().
 """
+import os
+from tempfile import TemporaryDirectory
 from unittest import TestCase, main
 
+import numpy as np
 import pandas as pd
 
 from oasislmf.preparation.il_inputs import (
     check_cond_tags,
     get_cond_info,
     validate_account_location_references,
+    write_empty_policy_layer,
 )
+from oasislmf.pytools.common.data import fm_programme_dtype
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -169,6 +175,64 @@ class TestGetCondInfo(TestCase):
 
         with self.assertRaises(OasisException):
             get_cond_info(locations_df, accounts_df)
+
+
+def run_write_empty_policy_layer(gul_inputs_df, agg_key, cur_level_id=3):
+    with TemporaryDirectory() as d:
+        policytc_path = os.path.join(d, 'fm_policytc.bin')
+        programme_path = os.path.join(d, 'fm_programme.bin')
+        with open(policytc_path, 'wb') as policytc_bin, open(programme_path, 'wb') as programme_bin:
+            write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, None, policytc_bin,
+                                     None, programme_bin, 100000)
+        return np.fromfile(programme_path, dtype=fm_programme_dtype)
+
+
+def make_policy_layer_gul_inputs(**overrides):
+    data = {
+        'item_id': [1, 2, 3],
+        'agg_id_prev': [1, 2, 3],
+        'layer_id': [1, 1, 1],
+        'acc_id': [1, 1, 1],
+        'PolNumber': ['P1', 'P1', 'P1'],
+    }
+    data.update(overrides)
+    return pd.DataFrame(data)
+
+
+class TestWriteEmptyPolicyLayer(TestCase):
+    def test_nan_in_agg_key_does_not_raise(self):
+        # regression test for #2098: an account with no policy layer terms at all leaves
+        # NaNs in the layer agg_key, and a dropna=True groupby gave those rows a NaN
+        # ngroup(), which then failed to cast to int32
+        gul_inputs_df = make_policy_layer_gul_inputs(PolNumber=['P1', np.nan, 'P1'])
+
+        programme = run_write_empty_policy_layer(gul_inputs_df, ['acc_id', 'PolNumber'])
+
+        self.assertEqual(gul_inputs_df['agg_id'].tolist(), [1, 2, 1])
+        self.assertEqual(gul_inputs_df['agg_id'].dtype, np.int32)
+        self.assertEqual(sorted(programme[['from_agg_id', 'to_agg_id']].tolist()),
+                         [(1, 1), (2, 2), (3, 1)])
+
+    def test_all_nan_agg_key_groups_every_row_together(self):
+        gul_inputs_df = make_policy_layer_gul_inputs(PolNumber=[np.nan] * 3)
+
+        programme = run_write_empty_policy_layer(gul_inputs_df, ['acc_id', 'PolNumber'])
+
+        self.assertEqual(gul_inputs_df['agg_id'].tolist(), [1, 1, 1])
+        self.assertEqual(sorted(programme[['from_agg_id', 'to_agg_id']].tolist()),
+                         [(1, 1), (2, 1), (3, 1)])
+
+    def test_agg_key_without_nan_is_unaffected(self):
+        gul_inputs_df = make_policy_layer_gul_inputs(PolNumber=['P1', 'P2', 'P1'])
+
+        programme = run_write_empty_policy_layer(gul_inputs_df, ['acc_id', 'PolNumber'])
+
+        self.assertEqual(gul_inputs_df['agg_id'].tolist(), [1, 2, 1])
+        self.assertEqual(gul_inputs_df['level_id'].tolist(), [3, 3, 3])
+        self.assertEqual(gul_inputs_df['profile_id'].tolist(), [1, 1, 1])
+        self.assertEqual(sorted(programme['level_id'].tolist()), [3, 3, 3])
+        self.assertEqual(sorted(programme[['from_agg_id', 'to_agg_id']].tolist()),
+                         [(1, 1), (2, 2), (3, 1)])
 
 
 if __name__ == "__main__":

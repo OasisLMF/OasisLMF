@@ -17,6 +17,7 @@ from oasislmf.pytools.converters.csvtobin.utils import (
     returnperiods_tobin,
     summarycalc_tobin,
     vulnerability_tobin,
+    conditional_vulnerability_tobin,
 )
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
@@ -37,6 +38,7 @@ TOBIN_FUNC_MAP = {
     "returnperiods": returnperiods_tobin,
     "summarycalc": summarycalc_tobin,
     "vulnerability": vulnerability_tobin,
+    "conditionalvulnerability": conditional_vulnerability_tobin,
 }
 
 

@@ -4,14 +4,48 @@ import sys
 from tempfile import TemporaryDirectory
 import numpy as np
 import pandas as pd
+import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from oasislmf.pytools.common.event_stream import MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX
 from oasislmf.pytools.common.input_files import read_event_rates
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+import oasislmf.pytools.elt.manager as elt_manager
 from oasislmf.pytools.elt.manager import main
-from oasislmf.pytools.common.data import (oasis_int, oasis_float)
+from oasislmf.pytools.common.data import (oasis_int, oasis_float, quantile_interval_dtype)
+from oasislmf.utils.exceptions import OasisStreamException
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_eltpy")
+
+
+def _build_summary_stream(tmp_dir, sample_size, summaries, name="summary", summary_set_id=1):
+    """Build a summary-stream binary via the real summarycalc csvtobin converter (same
+    encoding eltpy reads in production), instead of hand-packing the binary layout.
+
+    summaries: list of (event_id, summary_id, impacted_exposure, [(sidx, loss), ...])
+    Returns: path to the generated .bin stream file.
+    """
+    rows = [
+        (event_id, summary_id, sidx, loss, impacted_exposure)
+        for event_id, summary_id, impacted_exposure, samples in summaries
+        for sidx, loss in samples
+    ]
+    csv_path = tmp_dir / f"{name}.csv"
+    pd.DataFrame(rows, columns=["EventId", "SummaryId", "SampleId", "Loss", "ImpactedExposure"]).to_csv(csv_path, index=False)
+    stream_path = tmp_dir / f"{name}.bin"
+    csvtobin(csv_path, stream_path, "summarycalc", max_sample_index=sample_size, summary_set_id=summary_set_id)
+    return stream_path
+
+
+def _make_intervals(quantiles, sample_size):
+    rows = []
+    for q in quantiles:
+        pos = (sample_size - 1) * q + 1
+        integer_part = int(pos)
+        fractional_part = pos - integer_part
+        rows.append((q, integer_part, fractional_part))
+    return np.array(rows, dtype=quantile_interval_dtype)
 
 
 def case_runner(test_name, out_ext="csv", with_event_rate=False):
@@ -183,3 +217,222 @@ def test_selt_stdin(monkeypatch):
                             Path(error_path, "py_selt.csv"))
             arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
             raise Exception(f"running 'eltpy {arg_str}' led to diff, see files at {error_path}") from e
+
+
+def test_melt_qelt_buffer_full_across_summaries():
+    """A MELT/QELT output buffer filling up mid-run must not skip, duplicate, or
+    misattribute rows for any summary, including ones that don't trigger the overflow
+    themselves. Uses a tiny DEFAULT_BUFFER_SIZE to force this deterministically.
+    """
+    sample_size = 3
+    summaries = [
+        (999, 101, 1000.0, [(1, 10.0), (2, 20.0), (3, 30.0)]),
+        (999, 102, 2000.0, [(1, 40.0), (2, 50.0), (3, 60.0)]),
+        (999, 103, 3000.0, [(1, 70.0), (2, 80.0), (3, 90.0)]),
+    ]
+    intervals = _make_intervals([0.5], sample_size)
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
+        melt_out = tmp_dir / "melt.csv"
+        qelt_out = tmp_dir / "qelt.csv"
+
+        with patch('oasislmf.pytools.elt.manager.DEFAULT_BUFFER_SIZE', 4), \
+                patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))), \
+                patch('oasislmf.pytools.elt.manager.read_quantile', return_value=intervals):
+            main(run_dir=tmp_dir, files_in=stream_file, melt=melt_out, qelt=qelt_out, ext="csv")
+
+        melt = pd.read_csv(melt_out)
+        qelt = pd.read_csv(qelt_out)
+
+        assert len(melt) == 6, f"expected 6 MELT rows (3 summaries x 2), got {len(melt)}"
+        assert list(melt["SummaryId"]) == [101, 101, 102, 102, 103, 103]
+        assert (melt["EventId"] == 999).all()
+
+        assert len(qelt) == 3, f"expected 3 QELT rows (3 summaries x 1 interval), got {len(qelt)} - MELT's overflow must not skip QELT"
+        assert list(qelt["SummaryId"]) == [101, 102, 103]
+        assert (qelt["EventId"] == 999).all()
+
+
+def test_melt_buffer_full_immediately_before_new_event():
+    """A MELT buffer-full flush that happens to land right before a genuine new event
+    must still detect that event boundary correctly (not merge or lose it).
+    """
+    sample_size = 2
+    summaries = [
+        (1000719084, 3820941, 100.0, [(1, 1.0), (2, 2.0)]),
+        (1000719084, 3820948, 200.0, [(1, 3.0), (2, 4.0)]),
+        (1100028063, 111, 300.0, [(1, 5.0), (2, 6.0)]),
+    ]
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
+        melt_out = tmp_dir / "melt.csv"
+
+        with patch('oasislmf.pytools.elt.manager.DEFAULT_BUFFER_SIZE', 4), \
+                patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            main(run_dir=tmp_dir, files_in=stream_file, melt=melt_out, ext="csv")
+
+        melt = pd.read_csv(melt_out)
+        assert len(melt) == 6
+        assert list(melt["EventId"]) == [1000719084] * 4 + [1100028063] * 2
+        assert list(melt["SummaryId"]) == [3820941, 3820941, 3820948, 3820948, 111, 111]
+
+
+def test_selt_reservation_holds_with_mean_and_affected_risk_idx():
+    """The SELT buffer-capacity reservation must account for every sidx that currently
+    reaches SELT's write path: the len_sample real samples, plus MEAN_IDX, plus
+    NUMBER_OF_AFFECTED_RISK_IDX. Undersizing the reservation is a silent out-of-bounds
+    write under numba, not a catchable Python exception.
+    """
+    sample_size = 2
+    summaries = [
+        (999, 101, 1000.0, [(NUMBER_OF_AFFECTED_RISK_IDX, 2.0), (MEAN_IDX, 15.0), (1, 10.0), (2, 20.0)]),
+    ]
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
+        selt_out = tmp_dir / "selt.csv"
+
+        # Buffer sized to exactly what the reservation should reserve (len_sample + 2,
+        # for the 2 samples + MEAN_IDX + NUMBER_OF_AFFECTED_RISK_IDX).
+        with patch('oasislmf.pytools.elt.manager.DEFAULT_BUFFER_SIZE', sample_size + 2), \
+                patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            main(run_dir=tmp_dir, files_in=stream_file, selt=selt_out, ext="csv")
+
+        selt = pd.read_csv(selt_out)
+        expected_rows = sample_size + 2
+        assert len(selt) == expected_rows, (
+            f"expected {expected_rows} rows (MEAN_IDX + NUMBER_OF_AFFECTED_RISK_IDX + {sample_size} samples), got {len(selt)}"
+        )
+        assert sorted(selt["SampleId"]) == [-4, -1, 1, 2]
+
+
+def test_selt_buffer_full_across_summaries():
+    """A SELT output buffer filling up mid-run must not skip, duplicate, or
+    misattribute rows for any summary. Uses a tiny DEFAULT_BUFFER_SIZE to force
+    this deterministically.
+    """
+    sample_size = 2
+    summaries = [
+        (999, 101, 1000.0, [(1, 10.0), (2, 20.0)]),
+        (999, 102, 2000.0, [(1, 40.0), (2, 50.0)]),
+        (999, 103, 3000.0, [(1, 70.0), (2, 80.0)]),
+    ]
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
+        selt_out = tmp_dir / "selt.csv"
+
+        with patch('oasislmf.pytools.elt.manager.DEFAULT_BUFFER_SIZE', 5), \
+                patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            main(run_dir=tmp_dir, files_in=stream_file, selt=selt_out, ext="csv")
+
+        selt = pd.read_csv(selt_out)
+        assert len(selt) == 6, f"expected 6 SELT rows (3 summaries x 2 samples), got {len(selt)}"
+        assert list(selt["SummaryId"]) == [101, 101, 102, 102, 103, 103]
+        assert (selt["EventId"] == 999).all()
+
+
+def test_qelt_buffer_full_across_summaries():
+    """A QELT output buffer filling up mid-run (without MELT also overflowing) must
+    not skip, duplicate, or misattribute rows for any summary.
+    """
+    sample_size = 3
+    summaries = [
+        (999, 101, 1000.0, [(1, 10.0), (2, 20.0), (3, 30.0)]),
+        (999, 102, 2000.0, [(1, 40.0), (2, 50.0), (3, 60.0)]),
+        (999, 103, 3000.0, [(1, 70.0), (2, 80.0), (3, 90.0)]),
+    ]
+    intervals = _make_intervals([0.25, 0.75], sample_size)
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
+        qelt_out = tmp_dir / "qelt.csv"
+
+        with patch('oasislmf.pytools.elt.manager.DEFAULT_BUFFER_SIZE', 3), \
+                patch('oasislmf.pytools.elt.manager.read_quantile', return_value=intervals):
+            main(run_dir=tmp_dir, files_in=stream_file, qelt=qelt_out, ext="csv")
+
+        qelt = pd.read_csv(qelt_out)
+        assert len(qelt) == 6, f"expected 6 QELT rows (3 summaries x 2 intervals), got {len(qelt)}"
+        assert list(qelt["SummaryId"]) == [101, 101, 102, 102, 103, 103]
+        assert (qelt["EventId"] == 999).all()
+
+
+def test_selt_reservation_impossible_raises_instead_of_hanging():
+    """If a single summary's worst-case SELT output can never fit in the buffer
+    (e.g. sample size too large for DEFAULT_BUFFER_SIZE), read_buffer must raise
+    rather than repeatedly yield a "buffer full" signal with zero progress, which
+    would otherwise hang run() in an infinite loop.
+    """
+    sample_size = 5
+    summaries = [(999, 101, 1000.0, [(i, float(i)) for i in range(1, sample_size + 1)])]
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = _build_summary_stream(tmp_dir, sample_size, summaries)
+        selt_out = tmp_dir / "selt.csv"
+
+        # Buffer smaller than a single summary's worst case (len_sample + 2 = 7).
+        with patch('oasislmf.pytools.elt.manager.DEFAULT_BUFFER_SIZE', 3), \
+                patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            with pytest.raises(OasisStreamException, match="SELT reservation"):
+                main(run_dir=tmp_dir, files_in=stream_file, selt=selt_out, ext="csv")
+
+
+def test_multifile_current_event_id_not_leaked_across_files():
+    """current_event_id (and the rest of read_buffer's per-record state) is tracked
+    per input file, not reader-wide. Without that, switching from file A to file B
+    could compare file B's first header against file A's last event id, spuriously
+    re-yielding file A's already-reported event with zero new rows whenever the two
+    files' event ids happen to differ. Verify each file's first read_buffer call
+    starts with current_event_id == 0 (no leakage), and output content is unaffected.
+    """
+    sample_size = 2
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        file_a = _build_summary_stream(tmp_dir, sample_size, [
+            (999, 101, 1000.0, [(1, 10.0), (2, 20.0)]),
+            (999, 102, 2000.0, [(1, 30.0), (2, 40.0)]),
+        ], name="a")
+        file_b = _build_summary_stream(tmp_dir, sample_size, [
+            (1000, 201, 3000.0, [(1, 50.0), (2, 60.0)]),
+            (1000, 202, 4000.0, [(1, 70.0), (2, 80.0)]),
+        ], name="b")
+        melt_out = tmp_dir / "melt.csv"
+
+        calls = []
+        orig_read_buffer = elt_manager.ELTReader.read_buffer
+
+        def spy_read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
+            current_event_id_before = int(self.state[file_idx]["current_event_id"])
+            result = orig_read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx)
+            calls.append((file_idx, current_event_id_before, result[3]))
+            return result
+
+        with patch.object(elt_manager.ELTReader, "read_buffer", spy_read_buffer), \
+                patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            main(run_dir=tmp_dir, files_in=[file_a, file_b], melt=melt_out, ext="csv")
+
+        # Each file's very first read_buffer call must start with current_event_id == 0 -
+        # not just the reader's first-ever call across all files.
+        first_call_per_file = {}
+        for file_idx, current_event_id_before, _ret in calls:
+            first_call_per_file.setdefault(file_idx, current_event_id_before)
+        assert all(v == 0 for v in first_call_per_file.values()), first_call_per_file
+
+        # No spurious extra yield: exactly one read_buffer call per file (each file
+        # is small enough to finish in one call with no event boundary inside it).
+        assert len(calls) == 2, f"expected 1 read_buffer call per file (2 total), got {len(calls)}: {calls}"
+
+        # read_streams interleaves files via a selector, so file processing order isn't
+        # guaranteed (confirmed: CI processed file B before file A here) - compare content
+        # order-independently rather than assuming file A's rows come first.
+        melt = pd.read_csv(melt_out)
+        assert len(melt) == 8, f"expected 8 MELT rows (4 summaries x 2), got {len(melt)}"
+        expected = sorted([(999, 101), (999, 101), (999, 102), (999, 102),
+                           (1000, 201), (1000, 201), (1000, 202), (1000, 202)])
+        assert sorted(zip(melt["EventId"], melt["SummaryId"])) == expected

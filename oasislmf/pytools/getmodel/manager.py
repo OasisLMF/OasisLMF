@@ -27,6 +27,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.utils.data import validate_vulnerability_replacements, analysis_settings_loader
 from oasislmf.pytools.common.data import (
+    conditionalvulnerability_dtype, conditionalvulnerability_headers,
     areaperil_int, areaperil_int_size, nb_areaperil_int,
     oasis_float, oasis_float_size,
     oasis_int, oasis_int_size,
@@ -504,7 +505,8 @@ def update_vuln_array_with_adj_data(vuln_array, vuln_map, vuln_map_keys, adj_vul
 
 def get_vulns(
         storage: BaseStorage, run_dir, vuln_map, vuln_map_keys, num_intensity_bins,
-        ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
+        ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+        allow_missing_vuln_ids=None):
     """Loads the vulnerabilities from the file.
 
     Args:
@@ -515,6 +517,9 @@ def get_vulns(
         num_intensity_bins (int): the number of intensity bins
         ignore_file_type (set(str)): file extension to ignore when loading
         df_engine (str): the engine to use when loading dataframes
+        allow_missing_vuln_ids (Iterable[int], optional): vulnerability ids that may be absent from
+            the vulnerability file without raising, because they live in a separate one (the
+            conditional_vulnerability transition matrices, whose ids are not in vulnerability.bin)
 
     Returns:
         Tuple[List[List[float]], np.array[int], int]: vulnerability data, vulnerabilities id,
@@ -523,6 +528,9 @@ def get_vulns(
     n_vulns = len(vuln_map_keys)
     input_files = set(storage.listdir())
     vuln_ids_set = set(vuln_map_keys)
+    # ids that are allowed to be absent here because they live in a separate file (e.g. the
+    # conditional_vulnerability transition matrices, whose ids are not in vulnerability.bin).
+    allowed_missing = set() if allow_missing_vuln_ids is None else {int(v) for v in allow_missing_vuln_ids}
     vuln_adj = get_vulnerability_replacements(run_dir, vuln_ids_set)
 
     if vulnerability_dataset in input_files and "parquet" not in ignore_file_type:
@@ -540,7 +548,7 @@ def get_vulns(
                                                                             num_damage_bins,
                                                                             num_intensity_bins)
         parquet_vuln_ids = df['vulnerability_id'].to_numpy()
-        missing_vuln_ids = vuln_ids_set.difference(parquet_vuln_ids)
+        missing_vuln_ids = {v for v in vuln_ids_set.difference(parquet_vuln_ids) if int(v) not in allowed_missing}
         if missing_vuln_ids:
             raise Exception(f"Vulnerability_ids {missing_vuln_ids} are missing"
                             f" from {source_url}")
@@ -600,7 +608,7 @@ def get_vulns(
                 vuln_array, valid_vuln_ids = load_vulns_bin(vuln_csv, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins)
         else:
             raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', encode_params=False)[1]}")
-        missing_vuln_ids = vuln_ids_set.difference(valid_vuln_ids)
+        missing_vuln_ids = {v for v in vuln_ids_set.difference(valid_vuln_ids) if int(v) not in allowed_missing}
         if missing_vuln_ids:
             raise Exception(f"Vulnerability_ids {missing_vuln_ids} are missing"
                             f" from {source_url}")
@@ -666,6 +674,48 @@ def get_mean_damage_bins(storage: BaseStorage, ignore_file_type=set()):
         List[Union[damagebindictionary]]: the interpolation column of the damage_bin_dict file
     """
     return get_damage_bins(storage, ignore_file_type)['interpolation']
+
+
+def read_conditional_vulnerability(storage: BaseStorage, ignore_file_type=set()):
+    """Read the conditional (damage-transition) vulnerability records.
+
+    Args:
+        storage (BaseStorage): the storage manager for fetching model data
+        ignore_file_type (set(str)): file extension to ignore when loading
+
+    Returns:
+        np.ndarray or None: conditionalvulnerability_dtype records, or None when no file exists.
+    """
+    input_files = set(storage.listdir())
+    if "conditional_vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
+        # flat vulnerability layout: a 4-byte int32 header, then one record per row
+        with storage.open("conditional_vulnerability.bin", 'rb') as f:
+            f.read(vulnerability_bin_header_type.itemsize)
+            return np.frombuffer(f.read(), dtype=conditionalvulnerability_dtype)
+    if "conditional_vulnerability.csv" in input_files and 'csv' not in ignore_file_type:
+        with storage.open("conditional_vulnerability.csv") as f:
+            lines = [line.decode() if isinstance(line, bytes) else line for line in f.readlines()]
+        # detect the header, as read_correlations does: bintocsv --noheader writes a headerless file
+        has_header = [h.strip() for h in lines[0].strip().split(',')] == conditionalvulnerability_headers
+        return np.loadtxt(lines[1:] if has_header else lines,
+                          dtype=conditionalvulnerability_dtype, delimiter=',', ndmin=1)
+    return None
+
+
+def get_conditional_vuln_ids(storage: BaseStorage, ignore_file_type=set()):
+    """Return the vulnerability ids defined in conditional_vulnerability, ascending.
+
+    Args:
+        storage (BaseStorage): the storage manager for fetching model data
+        ignore_file_type (set(str)): file extension to ignore when loading
+
+    Returns:
+        np.ndarray[int32]: the ids, empty when the file is absent or holds no rows.
+    """
+    recs = read_conditional_vulnerability(storage, ignore_file_type)
+    if recs is None or recs.shape[0] == 0:
+        return np.zeros(0, dtype=np.int32)
+    return np.unique(recs['vulnerability_id']).astype(np.int32)
 
 
 def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):

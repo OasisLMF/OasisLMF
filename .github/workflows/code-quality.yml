@@ -105,3 +105,9 @@ jobs:
         id: autopep8
         run: |
           autopep8 --diff --exit-code --recursive --max-line-length ${{ env.max_line_length }} --ignore E402 .
+
+      # '.. versionadded:: NEXT' is the expected state on main — the release workflow
+      # resolves it. This only rejects the forms that resolution would silently skip.
+      - name: check version markers can be resolved at release
+        if: ${{ ! cancelled() }}
+        run: ./scripts/resolve-version-markers.sh --lint

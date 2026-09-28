@@ -688,3 +688,107 @@ def test_summarycalc():
 
 def test_cdf():
     case_runner("bintocsv", "cdf", "cdftocsv", "getmodel", run_dir=Path(TESTS_ASSETS_DIR, "cdftocsv"))
+
+
+# --------------------------------------------------------------------------------------
+# conditional_vulnerability (coverage dependency): same flat layout as a vulnerability file
+# --------------------------------------------------------------------------------------
+CONDITIONAL_VULN_CSV = Path(__file__).parents[2].joinpath(
+    "assets", "test_model_8", "static", "conditional_vulnerability.csv")
+
+
+def test_conditionalvulnerability_round_trip():
+    """csv -> bin -> csv reproduces the input, and the binary matches the committed model asset,
+    so a converter-produced file is exactly what the engine loads."""
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        csvtobin(CONDITIONAL_VULN_CSV, d / "c.bin", "conditionalvulnerability",
+                 max_damage_bin_idx=12, no_validation=False)
+        bintocsv(d / "c.bin", d / "c.csv", "conditionalvulnerability")
+        pd.testing.assert_frame_equal(pd.read_csv(CONDITIONAL_VULN_CSV), pd.read_csv(d / "c.csv"))
+        assert (d / "c.bin").read_bytes() == CONDITIONAL_VULN_CSV.with_suffix(".bin").read_bytes()
+
+
+def test_conditionalvulnerability_rejects_partial_column():
+    """Each source damage bin's probabilities must sum to 1 — the same check the converter applies
+    to vulnerability.csv. A column summing to less than 1 samples past the top of its last defined
+    damage bin, which can push a loss above the coverage's TIV."""
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        df = pd.read_csv(CONDITIONAL_VULN_CSV)
+        df.loc[(df.vulnerability_id == 101) & (df.source_damage_bin == 5)
+               & (df.damage_bin == 5), "probability"] = 0.3
+        df.to_csv(d / "bad.csv", index=False)
+        with pytest.raises(OasisException, match="source_damage_bin"):
+            csvtobin(d / "bad.csv", d / "bad.bin", "conditionalvulnerability",
+                     max_damage_bin_idx=12, no_validation=False)
+        # -N skips validation, as it does for vulnerability
+        csvtobin(d / "bad.csv", d / "ok.bin", "conditionalvulnerability",
+                 max_damage_bin_idx=12, no_validation=True)
+        assert (d / "ok.bin").exists()
+
+
+def test_conditionalvulnerability_allows_an_undefined_source_bin():
+    """A source damage bin the source can never reach may be left out entirely; the engine reads
+    the gap as "that source damage produces no dependent damage". The completeness check the
+    converter applies to vulnerability intensity bins must therefore NOT apply here."""
+    df = pd.read_csv(CONDITIONAL_VULN_CSV)
+    defined = df[df.vulnerability_id == 103]["source_damage_bin"].unique()
+    assert 12 not in defined, "the asset is expected to leave source damage bin 12 undefined"
+    with TemporaryDirectory() as d:
+        csvtobin(CONDITIONAL_VULN_CSV, Path(d) / "c.bin", "conditionalvulnerability",
+                 max_damage_bin_idx=12, no_validation=False)  # must not raise
+
+
+def test_conditionalvulnerability_rejects_damage_bin_above_max():
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        df = pd.read_csv(CONDITIONAL_VULN_CSV)
+        df.loc[df.index[0], "damage_bin"] = 99
+        df.to_csv(d / "bad.csv", index=False)
+        with pytest.raises(OasisException, match="max_damage_bin_idx"):
+            csvtobin(d / "bad.csv", d / "bad.bin", "conditionalvulnerability",
+                     max_damage_bin_idx=12, no_validation=False)
+
+
+def test_conditionalvulnerability_rejects_duplicate_rows():
+    """A repeated (vulnerability_id, source_damage_bin, damage_bin) triple must be rejected. The
+    engine scatters records by assignment, so only the last row of a duplicated triple would
+    survive, leaving that source damage bin's column short of 1 with nothing to flag it. The
+    probability sum alone does not catch it: duplicates that add up to what one correct row held
+    keep the group summing to 1."""
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        df = pd.read_csv(CONDITIONAL_VULN_CSV)
+        target = (df.vulnerability_id == 101) & (df.source_damage_bin == 5) & (df.damage_bin == 5)
+        halves = pd.DataFrame([{'vulnerability_id': 101, 'source_damage_bin': 5, 'damage_bin': 5,
+                                'probability': float(df.loc[target, 'probability'].iloc[0]) / 2}] * 2)
+        out = pd.concat([df[~target], halves]).sort_values(
+            ['vulnerability_id', 'source_damage_bin', 'damage_bin'], kind='stable')
+        out.to_csv(d / "dup.csv", index=False)
+        # the group still sums to 1, so only the duplicate check can catch this
+        assert np.isclose(out[(out.vulnerability_id == 101)
+                              & (out.source_damage_bin == 5)]['probability'].sum(), 1.0)
+        with pytest.raises(OasisException, match="strictly increasing"):
+            csvtobin(d / "dup.csv", d / "dup.bin", "conditionalvulnerability",
+                     max_damage_bin_idx=12, no_validation=False)
+
+
+def test_vulnerability_rejects_duplicate_rows():
+    """The same duplicate check applies to vulnerability.csv, which shares the validator and the
+    same load-by-assignment behaviour in getmodel."""
+    src = Path(__file__).parents[2].joinpath("assets", "test_model_1", "static", "vulnerability.csv")
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        v = pd.read_csv(src)
+        first = v[(v.vulnerability_id == 1) & (v.intensity_bin_id == 1)].iloc[0]
+        halves = pd.DataFrame([{**first.to_dict(), 'probability': first['probability'] / 2}] * 2)
+        target = ((v.vulnerability_id == 1) & (v.intensity_bin_id == 1)
+                  & (v.damage_bin_id == first['damage_bin_id']))
+        out = pd.concat([v[~target], halves]).sort_values(
+            ['vulnerability_id', 'intensity_bin_id', 'damage_bin_id'], kind='stable')
+        out.to_csv(d / "dup.csv", index=False)
+        with pytest.raises(OasisException, match="strictly increasing"):
+            csvtobin(d / "dup.csv", d / "dup.bin", "vulnerability", idx_file_out=None,
+                     max_damage_bin_idx=12, no_validation=False, suppress_int_bin_checks=True,
+                     zip_files=False)
