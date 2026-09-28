@@ -4,13 +4,95 @@ __all__ = [
 
 import json
 import pathlib
-from ods_tools.oed import UnknownColumnSaveOption
+from collections import defaultdict
+from ods_tools.oed import OED_TYPE_TO_NAME, PANDAS_COMPRESSION_MAP, UnknownColumnSaveOption
 
 from ..base import ComputationStep
 from ...utils.data import get_exposure_data, prepare_oed_exposure, analysis_settings_loader, model_settings_loader
 from ...utils.inputs import str2bool
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
+
+
+def get_source_compression(oed_source):
+    """Derive the compression/format to use when persisting a pre-analysis
+    exposure snapshot, based on the oed_source's original source file extension.
+
+    Exposure.save() defaults to csv whenever no explicit compression is given
+    and the current source version has no recorded 'extension' (which is
+    always true for a freshly loaded source - see ods_tools
+    OedSource.from_filepath). Without this, the raw/adjusted exposure
+    snapshots below are silently written as csv even when the original input
+    was e.g. parquet, which can be drastically slower for large portfolios.
+
+    A csv source is upgraded to parquet, since parquet is much more
+    efficient to read/write for large portfolios and there is no reason to
+    keep a snapshot in the slower format just because the original input
+    happened to be csv. Any other recognized format is preserved as-is.
+
+    Args:
+        oed_source (OedSource): a single OED source of the loaded exposure data
+
+    Returns:
+        str or None: a key of ods_tools.oed.common.PANDAS_COMPRESSION_MAP
+                      to save the source as, or None if the source's format
+                      can't be determined (Exposure.save() then falls back
+                      to its default of csv, unchanged from current
+                      behaviour).
+    """
+    source = oed_source.current_source
+    if source.get('source_type') != 'filepath':
+        return None
+    suffix = pathlib.Path(source['filepath']).suffix.lstrip('.').lower()
+    for compression, mapped_suffix in PANDAS_COMPRESSION_MAP.items():
+        if mapped_suffix.lstrip('.') == suffix:
+            return 'parquet' if compression == 'csv' else compression
+    return None
+
+
+def save_exposure_data(exposure_data, path, version_name, save_config, unknown_columns):
+    """Save each OED source of exposure_data preserving its own original file
+    format, rather than forcing every source to the same one.
+
+    OedExposure.save() only accepts a single 'compression' value which it
+    applies to every source it saves, so a compression derived from one
+    source (e.g. location) would silently force-convert the other sources
+    (account, ri_info, ri_scope) to that same format. To avoid this, sources
+    are grouped by their own derived compression and saved in separate
+    calls, temporarily hiding the other sources from exposure_data so each
+    call only saves its group.
+
+    Args:
+        exposure_data (OedExposure): the loaded exposure data
+        path (str): output folder, passed through to OedExposure.save()
+        version_name (str): passed through to OedExposure.save()
+        save_config (bool): if true save the Exposure config as json, once
+                             all sources have been saved
+        unknown_columns (UnknownColumnSaveOption or Dict): passed through to
+                                                             OedExposure.save()
+    """
+    original_sources = {oed_name: getattr(exposure_data, oed_name) for oed_name in OED_TYPE_TO_NAME.values()}
+
+    sources_by_compression = defaultdict(list)
+    for oed_name, oed_source in original_sources.items():
+        if oed_source:
+            sources_by_compression[get_source_compression(oed_source)].append(oed_name)
+
+    try:
+        for compression, oed_names in sources_by_compression.items():
+            for oed_name, oed_source in original_sources.items():
+                setattr(exposure_data, oed_name, oed_source if oed_name in oed_names else None)
+            # save_config also makes OedExposure.save() record each filepath relative to the
+            # config file rather than absolute; the partial config each call writes is
+            # overwritten below once all sources are restored.
+            exposure_data.save(path=path, version_name=version_name, compression=compression,
+                               save_config=save_config, unknown_columns=unknown_columns)
+    finally:
+        for oed_name, oed_source in original_sources.items():
+            setattr(exposure_data, oed_name, oed_source)
+
+    if save_config:
+        exposure_data.save_config(pathlib.Path(path, exposure_data.DEFAULT_EXPOSURE_CONFIG_NAME))
 
 
 class ExposurePreAnalysis(ComputationStep):
@@ -98,7 +180,7 @@ class ExposurePreAnalysis(ComputationStep):
 
         ids_option = {'loc_id': UnknownColumnSaveOption.DELETE,
                       'loc_idx': UnknownColumnSaveOption.DELETE}
-        exposure_data.save(path=input_dir, version_name='raw', save_config=True, unknown_columns=ids_option)
+        save_exposure_data(exposure_data, path=input_dir, version_name='raw', save_config=True, unknown_columns=ids_option)
         kwargs['exposure_data'] = exposure_data
         kwargs['input_dir'] = input_dir
         kwargs['model_data_dir'] = self.model_data_dir
@@ -124,7 +206,7 @@ class ExposurePreAnalysis(ComputationStep):
 
         _class_return = _class(**kwargs).run()
 
-        exposure_data.save(path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
+        save_exposure_data(exposure_data, path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
         # regenerate ids
         exposure_data.location.dataframe = exposure_data.location.dataframe.drop(columns=['loc_id', 'loc_idx'])
         prepare_oed_exposure(exposure_data)
