@@ -159,135 +159,152 @@ def get_base_children(node, children, nodes_array, temp_children_queue):
 
 
 @njit(cache=True, fastmath=True)
-def collapse_packed_leaves(node, children, nodes_array, temp_children_queue, compute_idx,
-                           site_collapse_level, max_sidx_val, keep_input_loss,
-                           sidx_indexes, sidx_indptr, sidx_val,
-                           loss_indptr, loss_val, extras_indptr, extras_val,
-                           collapse_loss, collapse_extras, collapse_net):
-    """Give the packed leaves under ``node`` collapsed storage, once their terms have been applied.
+def collapse_packed_storage(node, compute_idx, max_sidx_val, has_net_loss,
+                            sidx_indexes, sidx_indptr, sidx_val,
+                            loss_indptr, loss_val, extras_indptr, extras_val,
+                            collapse_loss, collapse_extras, collapse_net):
+    """Sum one node's building blocks onto the local sidx they decode to, in fresh storage.
 
-    The site levels merge their building blocks as they are aggregated into ``node`` (see
-    :func:`collapses_buildings`), but the leaves underneath keep theirs -- nothing aggregates a
-    leaf. Back-allocation writes to those leaves and the output is read from them, so with an
-    allocation rule above 0 the buildings would never merge and the output would come out at
-    packed sample indices.
+    Storage cannot be collapsed where it lies: the arrays are one arena and a node's range ends
+    where the next one starts. So append at the bump pointer and repoint the node, exactly as an
+    aggregation does for a parent; the old slice becomes dead space the capacity bound allows for.
 
-    Storage cannot be collapsed where it lies: the arrays are one arena and a node's range is
-    ``[sidx_indptr[i], sidx_indptr[i + 1])``, whose end is the next node's start. So append fresh
-    storage at the bump pointer and repoint the leaf at it, exactly as an aggregation does for a
-    parent. The old slice becomes dead space in the arena, which the capacity bound already
-    allows for.
-
-    Doing this before back-allocation rather than after is what keeps back-allocation itself
-    unchanged: the factor is looked up by sample index, and once the leaf is collapsed its indices
-    line up with the node's.
-
-    Args:
-        node: the node whose subtree is being collapsed -- the first one above the collapse level.
-        children: children tracking array.
-        nodes_array: all node information.
-        temp_children_queue: working array for the base-children walk.
-        compute_idx: computation state pointers, advanced as storage is appended.
-        site_collapse_level (int): last level whose terms apply per building.
-        max_sidx_val (int): the stream's sample size.
-        keep_input_loss (bool): whether net_loss storage is in use. Every net-loss output mode
-            sets it, at any allocation rule -- not rule 1 alone. It holds the leaf's pre-profile
-            loss in the same layout as its loss, so it has to be collapsed alongside it or the
-            two stop lining up.
-        sidx_indexes: node to sidx array position, repointed here.
-        sidx_indptr: CSR pointers into sidx_val.
-        sidx_val: sample index values.
-        loss_indptr: CSR pointers into loss_val.
-        loss_val: loss values.
-        extras_indptr: CSR pointers into extras_val.
-        extras_val: extras (deductible, overlimit, underlimit).
-        collapse_loss: scratch buffer, (layer, collapsed sidx), zeroed here.
-        collapse_extras: scratch buffer, (layer, collapsed sidx, 3), zeroed here.
-        collapse_net: scratch buffer, (collapsed sidx,), zeroed here when net_loss is in use.
+    Returns:
+        bool: True if the node carried packed indices and has been collapsed, False if it was
+        already ordinary and nothing was written.
     """
-    base_children_count = get_base_children(node, children, nodes_array, temp_children_queue)
+    node_sidx_i = sidx_indexes[node['node_id']]
+    start = sidx_indptr[node_sidx_i]
+    val_count = sidx_indptr[node_sidx_i + 1] - start
+    if val_count == 0:
+        return False
 
-    for base_child_i in range(base_children_count):
-        leaf = nodes_array[temp_children_queue[base_child_i]]
-        if leaf['level_id'] > site_collapse_level:
-            continue
+    packed = False
+    for val_i in range(val_count):
+        sidx = sidx_val[start + val_i]
+        if sidx > max_sidx_val or sidx < -NUM_SPECIAL_SIDX:
+            packed = True
+            break
+    if not packed:
+        return False
 
-        leaf_sidx_i = sidx_indexes[leaf['node_id']]
-        leaf_start = sidx_indptr[leaf_sidx_i]
-        leaf_end = sidx_indptr[leaf_sidx_i + 1]
-        leaf_val_count = leaf_end - leaf_start
-        if leaf_val_count == 0:
-            continue
+    has_extras = node['extra'] != null_index
+    layer_count = node['layer_len']
+    collapse_loss[:layer_count].fill(0)
+    if has_extras:
+        collapse_extras[:layer_count].fill(0)
 
-        # already collapsed (or never packed): every index is an ordinary one
-        packed = False
-        for val_i in range(leaf_val_count):
-            sidx = sidx_val[leaf_start + val_i]
-            if sidx > max_sidx_val or sidx < -NUM_SPECIAL_SIDX:
-                packed = True
-                break
-        if not packed:
-            continue
-
-        has_extras = leaf['extra'] != null_index
-        layer_count = leaf['layer_len']
-        collapse_loss[:layer_count].fill(0)
+    for layer_i in range(layer_count):
+        leaf_loss_start = loss_indptr[node['loss'] + layer_i]
+        for val_i in range(val_count):
+            local_sidx = decode_local_sidx(sidx_val[start + val_i], max_sidx_val)
+            collapse_loss[layer_i, local_sidx] += loss_val[leaf_loss_start + val_i]
         if has_extras:
-            collapse_extras[:layer_count].fill(0)
+            leaf_extra_start = extras_indptr[node['extra'] + layer_i]
+            for val_i in range(val_count):
+                local_sidx = decode_local_sidx(sidx_val[start + val_i], max_sidx_val)
+                for extra_i in range(3):
+                    collapse_extras[layer_i, local_sidx, extra_i] += extras_val[leaf_extra_start + val_i, extra_i]
 
-        # sum each building's block onto the local index it decodes to
-        for layer_i in range(layer_count):
-            leaf_loss_start = loss_indptr[leaf['loss'] + layer_i]
-            for val_i in range(leaf_val_count):
-                local_sidx = decode_local_sidx(sidx_val[leaf_start + val_i], max_sidx_val)
-                collapse_loss[layer_i, local_sidx] += loss_val[leaf_loss_start + val_i]
-            if has_extras:
-                leaf_extra_start = extras_indptr[leaf['extra'] + layer_i]
-                for val_i in range(leaf_val_count):
-                    local_sidx = decode_local_sidx(sidx_val[leaf_start + val_i], max_sidx_val)
-                    for extra_i in range(3):
-                        collapse_extras[layer_i, local_sidx, extra_i] += extras_val[leaf_extra_start + val_i, extra_i]
+    if has_net_loss:
+        collapse_net.fill(0)
+        leaf_net_start = loss_indptr[node['net_loss']]
+        for val_i in range(val_count):
+            local_sidx = decode_local_sidx(sidx_val[start + val_i], max_sidx_val)
+            collapse_net[local_sidx] += loss_val[leaf_net_start + val_i]
 
-        # net_loss mirrors the leaf's loss layout and is read back with the collapsed
-        # child_val_count under allocation rule 1, so it has to collapse with it
-        if keep_input_loss:
-            collapse_net.fill(0)
-            leaf_net_start = loss_indptr[leaf['net_loss']]
-            for val_i in range(leaf_val_count):
-                local_sidx = decode_local_sidx(sidx_val[leaf_start + val_i], max_sidx_val)
-                collapse_net[local_sidx] += loss_val[leaf_net_start + val_i]
+    _emit_collapsed(node, compute_idx, max_sidx_val, has_net_loss, has_extras, layer_count,
+                    sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+                    extras_indptr, extras_val, collapse_loss, collapse_extras, collapse_net)
+    return True
 
-        # append the collapsed index array and repoint the leaf at it
-        new_start = compute_idx['sidx_ptr_i']
-        sidx_indexes[leaf['node_id']] = compute_idx['sidx_i']
-        compute_idx['sidx_i'] += 1
-        for special_idx in (MAX_LOSS_IDX, TIV_IDX, MEAN_IDX):
-            sidx_val[compute_idx['sidx_ptr_i']] = special_idx
-            compute_idx['sidx_ptr_i'] += 1
-        for sample_idx in range(1, max_sidx_val + 1):
-            sidx_val[compute_idx['sidx_ptr_i']] = sample_idx
-            compute_idx['sidx_ptr_i'] += 1
-        sidx_indptr[compute_idx['sidx_i']] = compute_idx['sidx_ptr_i']
-        new_val_count = compute_idx['sidx_ptr_i'] - new_start
 
-        if keep_input_loss:
-            loss_indptr[leaf['net_loss']] = compute_idx['loss_ptr_i']
+@njit(cache=True, fastmath=True)
+def _emit_collapsed(node, compute_idx, max_sidx_val, has_net_loss, has_extras, layer_count,
+                    sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+                    extras_indptr, extras_val, collapse_loss, collapse_extras, collapse_net):
+    """Append the canonical collapsed slice for ``node`` and repoint it there.
+
+    The index array is written in stream order -- the specials then 1..S -- rather than sorted,
+    so the writer's positional read of -5/-3/-1 holds without anything having to sort.
+    """
+    new_start = compute_idx['sidx_ptr_i']
+    sidx_indexes[node['node_id']] = compute_idx['sidx_i']
+    compute_idx['sidx_i'] += 1
+    for special_idx in (MAX_LOSS_IDX, TIV_IDX, MEAN_IDX):
+        sidx_val[compute_idx['sidx_ptr_i']] = special_idx
+        compute_idx['sidx_ptr_i'] += 1
+    for sample_idx in range(1, max_sidx_val + 1):
+        sidx_val[compute_idx['sidx_ptr_i']] = sample_idx
+        compute_idx['sidx_ptr_i'] += 1
+    sidx_indptr[compute_idx['sidx_i']] = compute_idx['sidx_ptr_i']
+    new_val_count = compute_idx['sidx_ptr_i'] - new_start
+
+    if has_net_loss:
+        loss_indptr[node['net_loss']] = compute_idx['loss_ptr_i']
+        for val_i in range(new_val_count):
+            loss_val[compute_idx['loss_ptr_i']] = collapse_net[sidx_val[new_start + val_i]]
+            compute_idx['loss_ptr_i'] += 1
+
+    for layer_i in range(layer_count):
+        loss_indptr[node['loss'] + layer_i] = compute_idx['loss_ptr_i']
+        for val_i in range(new_val_count):
+            loss_val[compute_idx['loss_ptr_i']] = collapse_loss[layer_i, sidx_val[new_start + val_i]]
+            compute_idx['loss_ptr_i'] += 1
+        if has_extras:
+            extras_indptr[node['extra'] + layer_i] = compute_idx['extras_ptr_i']
             for val_i in range(new_val_count):
-                loss_val[compute_idx['loss_ptr_i']] = collapse_net[sidx_val[new_start + val_i]]
-                compute_idx['loss_ptr_i'] += 1
+                for extra_i in range(3):
+                    extras_val[compute_idx['extras_ptr_i'], extra_i] = collapse_extras[
+                        layer_i, sidx_val[new_start + val_i], extra_i]
+                compute_idx['extras_ptr_i'] += 1
 
-        for layer_i in range(layer_count):
-            loss_indptr[leaf['loss'] + layer_i] = compute_idx['loss_ptr_i']
-            for val_i in range(new_val_count):
-                loss_val[compute_idx['loss_ptr_i']] = collapse_loss[layer_i, sidx_val[new_start + val_i]]
-                compute_idx['loss_ptr_i'] += 1
-            if has_extras:
-                extras_indptr[leaf['extra'] + layer_i] = compute_idx['extras_ptr_i']
-                for val_i in range(new_val_count):
-                    for extra_i in range(3):
-                        extras_val[compute_idx['extras_ptr_i'], extra_i] = collapse_extras[
-                            layer_i, sidx_val[new_start + val_i], extra_i]
-                    compute_idx['extras_ptr_i'] += 1
+
+@njit(cache=True, fastmath=True)
+def collapse_site_node(compute_node, storage_node, children, nodes_array, temp_children_queue,
+                       compute_idx, max_sidx_val, keep_input_loss, start_level, collapse_leaves,
+                       sidx_indexes, sidx_indptr, sidx_val,
+                       loss_indptr, loss_val, extras_indptr, extras_val,
+                       collapse_loss, collapse_extras, collapse_net):
+    """Merge the buildings at the last level whose terms apply per building.
+
+    Runs once this node has applied its terms and back-allocated, so every per-building term is
+    in and the allocation that had to land per building already has. Everything above is keyed on
+    acc_id or CondTag and cannot tell buildings apart, so from here the stream is ordinary.
+
+    Doing it here rather than from the first level above keeps it local: a site node collapses its
+    own items, where a Cond/Pol node above would walk its whole subtree to find them and every
+    further level would walk it again to find nothing left to do. The site level is always present
+    when it is needed -- buildings only stay apart because some site level applies a term per
+    building, and without one the reader sums them away instead.
+
+    Order matters between the two halves. The leaves go first and the node last: back-allocation
+    from above looks its factors up by sample index, so the node and the leaves under it have to
+    cross together, and a node collapsed ahead of its leaves would hand back-allocation packed
+    indices and read building 1's for every building.
+
+    ``collapse_leaves`` is false only for allocation rule 0, where nothing back-allocates and no
+    leaf is ever read again, so the node's own storage is all that has to come out collapsed.
+    """
+    # net_loss is allocated only for start_level nodes, and nodes_array is np.empty, so the field
+    # is garbage on anything above it -- the node collapsed here often is.
+    if collapse_leaves:
+        base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
+        for base_child_i in range(base_children_count):
+            leaf = nodes_array[temp_children_queue[base_child_i]]
+            collapse_packed_storage(leaf, compute_idx, max_sidx_val,
+                                    keep_input_loss and leaf['level_id'] == start_level,
+                                    sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+                                    extras_indptr, extras_val, collapse_loss, collapse_extras, collapse_net)
+
+    collapse_packed_storage(storage_node, compute_idx, max_sidx_val,
+                            keep_input_loss and storage_node['level_id'] == start_level,
+                            sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+                            extras_indptr, extras_val, collapse_loss, collapse_extras, collapse_net)
+    if compute_node['node_id'] != storage_node['node_id']:
+        sidx_indexes[compute_node['node_id']] = sidx_indexes[storage_node['node_id']]
+        for layer_i in range(compute_node['layer_len']):
+            loss_indptr[compute_node['loss'] + layer_i] = loss_indptr[storage_node['loss'] + layer_i]
 
 
 @njit(cache=True)
@@ -935,20 +952,6 @@ def compute_event(compute_info,
                     if DEBUG_PROFILE and level < PROFILE_LEVELS:
                         profile[level, 3] += 1
 
-                    if (building_packing and not is_allocation_rule_a0
-                            and compute_node['level_id'] > site_collapse_level):
-                        # This node is collapsed but the leaves under it are not, and back-allocation writes to
-                        # them. Collapse them before any factor is computed against this node's indices. Only
-                        # above the collapse level: a site node is itself still packed and looks its factors up
-                        # at packed indices, so collapsing its leaves first would read building 1's.
-                        collapse_packed_leaves(
-                            compute_node, children, nodes_array, temp_children_queue, compute_idx,
-                            site_collapse_level, max_sidx_val, keep_input_loss,
-                            sidx_indexes, sidx_indptr, sidx_val,
-                            loss_indptr, loss_val, extras_indptr, extras_val,
-                            collapse_loss, collapse_extras, collapse_net
-                        )
-
                 else:  # only 1 child
                     storage_node = nodes_array[children[compute_node['children'] + 1]]
                     # positive sidx are the same as child
@@ -1310,6 +1313,16 @@ def compute_event(compute_info,
                 profile[level, 1] += 1
                 profile[level, 2] += node_val_count
 
+            if building_packing and compute_node['level_id'] == site_collapse_level:
+                collapse_site_node(
+                    compute_node, storage_node, children, nodes_array, temp_children_queue,
+                    compute_idx, max_sidx_val, keep_input_loss, compute_info['start_level'],
+                    not is_allocation_rule_a0,
+                    sidx_indexes, sidx_indptr, sidx_val,
+                    loss_indptr, loss_val, extras_indptr, extras_val,
+                    collapse_loss, collapse_extras, collapse_net
+                )
+
             # The dense temporaries are scratch for exactly one node: the aggregate's sums, the
             # pre-terms extras back_alloc reads, and the factors it writes all live and die here.
             # Clearing the node's own sidx costs its size; the fill it replaces cost the whole
@@ -1381,7 +1394,7 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_l
     # One packed slice per packable node, budgeted as the SUM of their building counts rather
     # than their count times the largest location in the portfolio -- see packable_building_slots.
     # It is the whole count and not (count - 1) because under an allocation rule above 0
-    # collapse_packed_leaves appends a collapsed copy rather than shrinking the original in place,
+    # collapse_site_node appends a collapsed copy rather than shrinking the original in place,
     # which the arena cannot do; that copy is what the base allowance covers.
     #
     # Forced to 0 alongside max_buildings when the stream is collapsed on read, where no packed
@@ -1419,7 +1432,7 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_l
         loss_val = np.zeros(loss_slots, dtype=oasis_float)
         extras_val = np.zeros((extra_arena_slots, 3), dtype=oasis_float)
 
-    # One entry per allocation, not per node: collapse_packed_leaves appends a collapsed slice for
+    # One entry per allocation, not per node: collapse_site_node appends a collapsed slice for
     # each packed leaf rather than shrinking it in place, and each of those takes a further entry.
     sidx_indptr = np.zeros(compute_info['node_len'] + packable_nodes + 1, dtype=np.int64)
     loss_indptr = np.zeros(compute_info['loss_len'] + 1, dtype=np.int64)
