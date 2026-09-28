@@ -1,19 +1,23 @@
 import json
+import os
 
 import numpy as np
 import pandas as pd
 import pytest
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
+import oasislmf.computation.run.model as model_run
+from oasislmf.computation.run.check import CheckModel
 from oasislmf.pytools.common.data import damagebin_dtype, items_dtype, occurrence_dtype, oasis_float, vulnerability_dtype
 from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype, FootprintHeader
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.validation.model_check import CheckReport, run_model_check
 
 MODEL_SETTINGS = {
     'model_settings': {
-        'event_set': {'name': 'Event Set', 'default': 'p', 'options': [
+        'event_set': {'name': 'Event Set', 'desc': 'Event set', 'default': 'p', 'options': [
             {'id': 'p', 'desc': 'Probabilistic', 'valid_occurrence_ids': ['lt']}]},
-        'event_occurrence_id': {'name': 'Occurrence', 'default': 'lt', 'options': [{'id': 'lt', 'desc': 'Long term'}]},
+        'event_occurrence_id': {'name': 'Occurrence', 'desc': 'Occurrence', 'default': 'lt', 'options': [{'id': 'lt', 'desc': 'Long term'}]},
     },
     'lookup_settings': {'supported_perils': [{'id': 'WTC', 'desc': 'Wind'}]},
 }
@@ -188,3 +192,58 @@ def test_lookup_dict_vulnerability_missing(tmp_path):
 def test_event_sampling(tmp_path, max_events):
     report = run_check(tmp_path, max_events=max_events)
     assert not report.errors
+
+
+def write_settings(tmp_path):
+    analysis_fp, model_fp = tmp_path / 'analysis_settings.json', tmp_path / 'model_settings.json'
+    analysis_fp.write_text(json.dumps({**ANALYSIS_SETTINGS, 'model_name_id': 'test', 'model_supplier_id': 'test', 'number_of_samples': 1}))
+    model_fp.write_text(json.dumps({**MODEL_SETTINGS, 'name': 'test', 'description': 'test'}))
+    return str(analysis_fp), str(model_fp)
+
+
+def test_check_model_step_on_existing_inputs(tmp_path):
+    model = default_model()
+    model['items'][1] = (2, 2, 20, 99, 2)
+    write_run_dir(tmp_path, model)
+    analysis_fp, model_fp = write_settings(tmp_path)
+    step = CheckModel(model_data_dir=str(tmp_path / 'static'), check_inputs_dir=str(tmp_path / 'input'),
+                      analysis_settings_json=analysis_fp, model_settings_json=model_fp, check_report_json=str(tmp_path / 'report.json'))
+    with pytest.raises(OasisException, match='1 errors'):
+        step.run()
+    report = json.loads((tmp_path / 'report.json').read_text())
+    assert [f['check'] for f in report['findings'] if f['level'] == 'ERROR'] == ['items.vulnerability_exists']
+    assert sorted(os.listdir(tmp_path / 'input')) == ['coverages.bin', 'items.bin', 'keys.csv']
+
+
+@pytest.mark.parametrize('model_check, check_fails, expected', [
+    (False, False, ['GenerateFiles', 'GenerateLosses']),
+    (True, False, ['GenerateFiles', 'CheckModel', 'GenerateLosses']),
+    (True, True, ['GenerateFiles', 'CheckModel']),
+])
+def test_run_model_check_option(tmp_path, monkeypatch, model_check, check_fails, expected):
+    calls = []
+
+    def fake_run(name, fail=False):
+        def run(self):
+            calls.append(name)
+            if name == 'CheckModel':
+                assert self.check_inputs_dir == os.path.join(str(tmp_path / 'run'), 'input')
+            if fail:
+                raise OasisException('Model check failed')
+        return run
+
+    monkeypatch.setattr(model_run, 'get_exposure_data', lambda *args, **kwargs: None)
+    monkeypatch.setattr(model_run.GenerateFiles, 'run', fake_run('GenerateFiles'))
+    monkeypatch.setattr(model_run.CheckModel, 'run', fake_run('CheckModel', check_fails))
+    monkeypatch.setattr(model_run.GenerateLosses, 'run', fake_run('GenerateLosses'))
+    (tmp_path / 'model_data').mkdir()
+    analysis_fp, model_fp = write_settings(tmp_path)
+
+    run = model_run.RunModel(model_run_dir=str(tmp_path / 'run'), model_data_dir=str(tmp_path / 'model_data'),
+                             analysis_settings_json=analysis_fp, model_settings_json=model_fp, model_check=model_check)
+    if check_fails:
+        with pytest.raises(OasisException):
+            run.run()
+    else:
+        run.run()
+    assert calls == expected

@@ -21,7 +21,7 @@ from ...validation.model_check import CheckReport, run_model_check
 class CheckModel(ComputationStep):
     """Check that a portfolio, the model data and the analysis settings work together before running losses.
 
-    Generates the Oasis files into a scratch run directory, resolves the event, occurrence and model data files
+    Generates the Oasis files (or uses ``check_inputs_dir``) in a scratch run directory, resolves the event, occurrence and model data files
     exactly as a loss run would, then cross-checks keys, items and coverages against the vulnerability, footprint,
     damage bin, event and loss factor files, and the lookup dictionaries against the model data.
     Raises if any ERROR level finding is reported.
@@ -30,6 +30,8 @@ class CheckModel(ComputationStep):
         {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Model data directory path'},
         {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True,
          'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
+        {'name': 'check_inputs_dir', 'is_path': True, 'pre_exist': True,
+         'help': 'Check these existing Oasis files instead of generating them from the exposure'},
         {'name': 'check_dir', 'is_path': True, 'pre_exist': False,
          'help': 'Directory for the generated files and report (default: temporary directory, removed afterwards)'},
         {'name': 'check_report_json', 'is_path': True, 'pre_exist': False, 'help': 'Write the findings to this JSON file'},
@@ -67,10 +69,11 @@ class CheckModel(ComputationStep):
             'disable_oed_version_update': self.disable_oed_version_update,
         }
 
-    def _link_model_data(self, static_dir):
-        os.makedirs(static_dir, exist_ok=True)
-        for name in os.listdir(self.model_data_dir):
-            os.symlink(os.path.abspath(os.path.join(self.model_data_dir, name)), os.path.join(static_dir, name))
+    @staticmethod
+    def _link_dir(src_dir, dst_dir):
+        os.makedirs(dst_dir, exist_ok=True)
+        for name in os.listdir(src_dir):
+            os.symlink(os.path.abspath(os.path.join(src_dir, name)), os.path.join(dst_dir, name))
 
     def _generate_inputs(self, report, input_dir):
         os.makedirs(input_dir, exist_ok=True)
@@ -93,9 +96,13 @@ class CheckModel(ComputationStep):
             raise OasisException(f'check_dir {run_dir} already contains input/ or static/, use an empty directory')
         report = CheckReport()
         try:
-            inputs_generated = self._generate_inputs(report, os.path.join(run_dir, 'input'))
+            if self.check_inputs_dir:
+                self._link_dir(self.check_inputs_dir, os.path.join(run_dir, 'input'))
+                inputs_generated = True
+            else:
+                inputs_generated = self._generate_inputs(report, os.path.join(run_dir, 'input'))
             static_dir = os.path.join(run_dir, 'static')
-            self._link_model_data(static_dir)
+            self._link_dir(self.model_data_dir, static_dir)
             model_storage = get_storage_from_config_path(os.path.join(run_dir, 'model_storage.json'), static_dir)
 
             analysis_settings = analysis_settings_loader(self.analysis_settings_json) if self.analysis_settings_json else {}
