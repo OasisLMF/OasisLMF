@@ -14,6 +14,7 @@ __all__ = [
     'run_multiproc',
 ]
 
+import pickle
 import sys
 
 try:
@@ -71,6 +72,12 @@ def multiproc_worker(error_queue, make_process_chunk, worker_id, chunk_queue, re
     and call process_chunk(chunk) on each, putting the return value on result_queue, until the
     None sentinel is seen - which is relayed back onto chunk_queue for the next worker, and
     reported on result_queue as this worker finishing.
+
+    Each result is pickled here, before it's put on result_queue: Queue.put() otherwise pickles
+    in a background feeder thread, where a failure (e.g. a hook returning an object holding a
+    lock or connection) never reaches this process's error handling - the result is dropped, or
+    the feeder thread dies and the run hangs waiting for it. Pickling here raises in the worker
+    instead, so the error is reported through error_queue like any other.
     """
     process_chunk = make_process_chunk(worker_id)
     while True:
@@ -88,7 +95,7 @@ def multiproc_worker(error_queue, make_process_chunk, worker_id, chunk_queue, re
             result_queue.put(None)
             break
 
-        result = process_chunk(chunk)
+        result = pickle.dumps(process_chunk(chunk), protocol=pickle.HIGHEST_PROTOCOL)
 
         while error_queue.empty():
             try:
@@ -101,8 +108,9 @@ def multiproc_worker(error_queue, make_process_chunk, worker_id, chunk_queue, re
 
 
 def result_producer(result_queue, error_queue, worker_count):
-    """Yield each non-None result taken off result_queue, until worker_count workers have
-    reported finished (a None result each), or error_queue receives an error.
+    """Yield each non-None result taken off result_queue (unpickled - see multiproc_worker),
+    until worker_count workers have reported finished (a None result each), or error_queue
+    receives an error.
     """
     finished_workers = 0
     while finished_workers < worker_count and error_queue.empty():
@@ -118,7 +126,7 @@ def result_producer(result_queue, error_queue, worker_count):
         if res is None:
             finished_workers += 1
         else:
-            yield res
+            yield pickle.loads(res)
 
 
 def reorder_results(indexed_results):
@@ -149,8 +157,9 @@ def run_multiproc(chunks, make_process_chunk, pool_count, on_results, ordered=Fa
     each result as it arrives.
 
     Args:
-        chunks: an iterable of chunk objects. Produced in a separate forked process, so each
-                chunk only needs to be safe to pass through a fork - not necessarily picklable.
+        chunks: an iterable of chunk objects, iterated in a separate forked process (so the
+                iterable itself only needs to be safe to pass through a fork). Each chunk is
+                sent to a worker through a queue, so must be picklable.
         make_process_chunk (worker_id) -> ((chunk) -> result): called once per worker process,
                 inside that (already forked) process, to build its process_chunk callable - so
                 any setup it does is properly worker-scoped. worker_id is that worker's index

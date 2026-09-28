@@ -1,3 +1,5 @@
+import pickle
+import threading
 from queue import Empty, Full
 
 import pytest
@@ -10,6 +12,15 @@ from oasislmf.utils.multiproc import (
     run_multiproc,
     with_error_queue,
 )
+
+
+def unpickled(items):
+    """Worker results go through result_queue pickled (see multiproc_worker); decode them."""
+    return [None if item is None else pickle.loads(item) for item in items]
+
+
+def pickled(items):
+    return [None if item is None else pickle.dumps(item) for item in items]
 
 
 class FakeQueue:
@@ -129,7 +140,7 @@ def test_multiproc_worker_processes_chunks_and_reports_result():
 
     assert error_queue.empty()
     assert chunk_queue.put_items == [None]
-    assert result_queue.put_items == [6, None]
+    assert unpickled(result_queue.put_items) == [6, None]
 
 
 def test_multiproc_worker_passes_its_own_worker_id_to_make_process_chunk():
@@ -139,7 +150,7 @@ def test_multiproc_worker_passes_its_own_worker_id_to_make_process_chunk():
 
     multiproc_worker(error_queue, lambda worker_id: (lambda chunk: f'{chunk}-{worker_id}'), 7, chunk_queue, result_queue)
 
-    assert result_queue.put_items == ['x-7', None]
+    assert unpickled(result_queue.put_items) == ['x-7', None]
 
 
 def test_multiproc_worker_returns_immediately_if_error_already_present():
@@ -160,7 +171,7 @@ def test_multiproc_worker_retries_get_on_empty_queue():
 
     multiproc_worker(error_queue, lambda worker_id: (lambda chunk: chunk), 0, chunk_queue, result_queue)
 
-    assert result_queue.put_items == [1, None]
+    assert unpickled(result_queue.put_items) == [1, None]
 
 
 def test_multiproc_worker_retries_put_when_result_queue_full():
@@ -170,11 +181,11 @@ def test_multiproc_worker_retries_put_when_result_queue_full():
 
     multiproc_worker(error_queue, lambda worker_id: (lambda chunk: chunk), 0, chunk_queue, result_queue)
 
-    assert result_queue.put_items == [1, None]
+    assert unpickled(result_queue.put_items) == [1, None]
 
 
 def test_result_producer_yields_until_all_workers_finish():
-    result_queue = FakeQueue(items=['r1', None, 'r2', None])
+    result_queue = FakeQueue(items=pickled(['r1', None, 'r2', None]))
     error_queue = FakeErrorQueue()
 
     results = list(result_producer(result_queue, error_queue, worker_count=2))
@@ -183,7 +194,7 @@ def test_result_producer_yields_until_all_workers_finish():
 
 
 def test_result_producer_stops_early_if_error_present():
-    result_queue = FakeQueue(items=['r1'])
+    result_queue = FakeQueue(items=pickled(['r1']))
     error_queue = FakeErrorQueue(has_error=True)
 
     results = list(result_producer(result_queue, error_queue, worker_count=2))
@@ -257,3 +268,26 @@ def test_run_multiproc_ordered_returns_results_in_chunk_order():
     results = run_multiproc([0, 1, 2, 3], lambda worker_id: process_chunk, pool_count=4,
                             on_results=list, ordered=True)
     assert results == [0, 2, 4, 6]
+
+
+def test_multiproc_worker_reports_unpicklable_result_on_error_queue():
+    """The worker pickles each result itself, so a result that can't be pickled is reported
+    through error_queue instead of failing in Queue.put's background feeder thread."""
+    error_queue = FakeErrorQueue()
+    chunk_queue = FakeQueue(items=[1, None])
+    result_queue = FakeQueue()
+
+    multiproc_worker(error_queue, lambda worker_id: (lambda chunk: threading.Lock()), 0, chunk_queue, result_queue)
+
+    assert not error_queue.empty()
+    assert result_queue.put_items == []
+
+
+def test_run_multiproc_raises_on_unpicklable_result():
+    """End to end, an unpicklable result must raise in the main process - previously it was
+    dropped (stdlib multiprocessing) or hung the run (billiard) instead."""
+    def process_chunk(chunk):
+        return threading.Lock() if chunk == 1 else chunk
+
+    with pytest.raises(TypeError, match='pickle'):
+        run_multiproc([0, 1, 2, 3], lambda worker_id: process_chunk, pool_count=2, on_results=list)
