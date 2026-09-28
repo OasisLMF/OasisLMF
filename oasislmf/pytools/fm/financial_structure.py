@@ -949,6 +949,43 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
 
 
+def check_collapse_is_reachable(fm_programme, site_collapse_level, max_buildings):
+    """Every packed node must pass through the collapse level on its way up.
+
+    The buildings are merged at the end of the last level whose terms apply per building, so a
+    node that reaches a level above it without having been collapsed would carry packed sample
+    indices into a computation that reads them as ordinary ones -- a wrong loss rather than a
+    failure. fm handled that with a decode applied to every child crossing the boundary, which
+    cost a branch and a modulo per value to do nothing at all: the programme links level L-1 into
+    level L, or start_level into L by a negative from_agg_id, so a crossing child is either the
+    collapse-level node itself or an item, and both are collapsed by then.
+
+    That is a property of the programme, so check it once here rather than paying for it per
+    value, and fail loudly if a portfolio ever breaks it.
+
+    Args:
+        fm_programme (numpy.ndarray): the fm_programme records, from_agg_id to to_agg_id per level.
+        site_collapse_level (int): the last level whose aggregation key includes ``risk_id``.
+        max_buildings (int): largest number of buildings any one packed item carries.
+
+    Raises:
+        OasisException: if an edge would deliver a packed child above the collapse level.
+    """
+    if max_buildings <= 1 or site_collapse_level <= 0:
+        return
+    parent_level = fm_programme['level_id'].astype(np.int64)
+    # a negative from_agg_id links the item itself, which is a base child of its own site node
+    child_level = np.where(fm_programme['from_agg_id'] > 0, parent_level - 1, site_collapse_level)
+    bad = (child_level < site_collapse_level) & (site_collapse_level < parent_level)
+    if bad.any():
+        levels = sorted(set(zip(child_level[bad].tolist(), parent_level[bad].tolist())))
+        raise OasisException(
+            f"fm_programme links a level below the building-collapse level ({site_collapse_level}) "
+            f"straight to one above it: {levels}. Those nodes would reach the levels above still "
+            f"carrying packed sample indices, which read as ordinary ones and give wrong losses."
+        )
+
+
 def create_financial_structure(allocation_rule, static_path):
     """Compute the financial structure and save it as .npy files in ``static_path``.
 
@@ -970,6 +1007,7 @@ def create_financial_structure(allocation_rule, static_path):
 
     (fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages,
      site_collapse_level, max_buildings, total_packed_buildings) = load_static(static_path)
+    check_collapse_is_reachable(fm_programme, site_collapse_level, max_buildings)
     financial_structure = extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile,
                                                       stepped, fm_xref, items, coverages,
                                                       site_collapse_level, max_buildings,
