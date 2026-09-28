@@ -60,6 +60,7 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', oasis_int),
                                           ('max_buildings', oasis_int),
                                           ('packable_node_len', oasis_int),
                                           ('packable_building_slots', oasis_int),
+                                          ('packable_layer_slots', oasis_int),
                                           ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', oasis_int),
                                            ('i_end', oasis_int),
@@ -923,10 +924,27 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     #
     if compute_info['packable_node_len'] == 0:
         compute_info['packable_building_slots'] = 0
+        compute_info['packable_layer_slots'] = 0
     else:
         # Comfortably inside int32: it is a building count times the packable level count, so
         # 11.5M on a 5.7M-building book. The slot arithmetic that uses it is done in Python ints.
         compute_info['packable_building_slots'] = total_packed_buildings * (site_collapse_level + 1)
+
+        # The loss and extras arenas need one packed slice per LAYER, where the sidx arena needs
+        # only one per node. Charging every packed slice the portfolio's deepest layering bills a
+        # book that is 99% single-layer for the 2 layers its rare multi-layer nodes carry. Sum the
+        # deepest layering of each packable level instead: the nodes of one level partition the
+        # buildings, so sum(B_node * layers) over a level cannot exceed total_packed_buildings
+        # times that level's maximum, which keeps this an upper bound and never under-reserves --
+        # under-reserving is a write past the end of a numba array, which corrupts rather than
+        # raises. Exact per-node weighting would need the building count on each node, which the
+        # fm structure does not carry.
+        layer_slots = 0
+        for level in range(0, site_collapse_level + 1):
+            at_level = nodes_array[1:node_i][nodes_array[1:node_i]['level_id'] == level]
+            level_max_layer = int(at_level['layer_len'].max()) if at_level.shape[0] else 1
+            layer_slots += total_packed_buildings * max(1, level_max_layer)
+        compute_info['packable_layer_slots'] = layer_slots
 
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
 
