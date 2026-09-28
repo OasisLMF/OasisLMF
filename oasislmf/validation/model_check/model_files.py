@@ -66,6 +66,7 @@ class VulnerabilityData:
 class FootprintSummary:
     num_intensity_bins: int = None
     events_checked: int = 0
+    sampled: bool = False
     missing_events: list = field(default_factory=list)
     hit_areaperils: np.ndarray = None
 
@@ -79,9 +80,10 @@ def check_damage_bins(report, storage):
 
     n = len(bins)
     row_ids = np.arange(1, n + 1)
+    misplaced = bins['bin_index'] != row_ids
     report.missing('damage_bin_dict.contiguous',
                    'bin_index is not 1..N in row order; the runtime indexes damage bins by row position',
-                   [f'row {r}: bin_index {b}' for r, b in zip(row_ids[bins['bin_index'] != row_ids], bins['bin_index'][bins['bin_index'] != row_ids])])
+                   [f'row {r}: bin_index {b}' for r, b in zip(row_ids[misplaced], bins['bin_index'][misplaced])])
     report.missing('damage_bin_dict.from_to', 'bin_from is greater than bin_to',
                    bins['bin_index'][bins['bin_from'] > bins['bin_to']].tolist())
     outside = (bins['interpolation'] < bins['bin_from'] - PROB_TOLERANCE) | (bins['interpolation'] > bins['bin_to'] + PROB_TOLERANCE)
@@ -257,6 +259,7 @@ def scan_footprint(report, model_storage, static_dir, event_ids, portfolio_areap
     event_ids = np.asarray(event_ids)
     if max_events and len(event_ids) > max_events:
         event_ids = event_ids[np.linspace(0, len(event_ids) - 1, max_events).astype(np.int64)]
+        summary.sampled = True
         report.info('footprint.sample', f'checked a sample of {max_events} events')
 
     noncontiguous, ap_zero, bad_intensity, bad_sum, dups = (_Collector() for _ in range(5))
@@ -372,8 +375,8 @@ def check_aggregate_vulnerability(report, model_storage, vuln_available_ids, use
                    np.intersect1d(agg_ids, vuln_available_ids).tolist(), level=WARNING)
     used = set(agg_map) if used_vuln_ids is None else set(agg_map) & {int(x) for x in used_vuln_ids}
     missing_used = sorted({s for a in used for s in agg_map[a]} - set(vuln_available_ids.tolist()))
-    report.missing('aggregate_vulnerability.sub_ids', 'aggregate sub-vulnerability ids used by this portfolio are missing from the vulnerability file',
-                   missing_used)
+    report.missing('aggregate_vulnerability.sub_ids',
+                   'aggregate sub-vulnerability ids used by this portfolio are missing from the vulnerability file', missing_used)
     return agg_map
 
 

@@ -17,6 +17,9 @@ from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
 from ...validation.model_check import CheckReport, run_model_check
 
+RUN_INPUT_FILES = {f'{name}.{ext}' for name in ('events', 'event_rates', 'occurrence', 'periods', 'quantile', 'returnperiods')
+                   for ext in ('bin', 'csv')}
+
 
 class CheckModel(ComputationStep):
     """Check that a portfolio, the model data and the analysis settings work together before running losses.
@@ -70,10 +73,14 @@ class CheckModel(ComputationStep):
         }
 
     @staticmethod
-    def _link_dir(src_dir, dst_dir):
+    def _link_dir(src_dir, dst_dir, copy_names=()):
         os.makedirs(dst_dir, exist_ok=True)
         for name in os.listdir(src_dir):
-            os.symlink(os.path.abspath(os.path.join(src_dir, name)), os.path.join(dst_dir, name))
+            src = os.path.abspath(os.path.join(src_dir, name))
+            if name in copy_names:
+                shutil.copy(src, os.path.join(dst_dir, name))
+            else:
+                os.symlink(src, os.path.join(dst_dir, name))
 
     def _generate_inputs(self, report, input_dir):
         os.makedirs(input_dir, exist_ok=True)
@@ -97,7 +104,7 @@ class CheckModel(ComputationStep):
         report = CheckReport()
         try:
             if self.check_inputs_dir:
-                self._link_dir(self.check_inputs_dir, os.path.join(run_dir, 'input'))
+                self._link_dir(self.check_inputs_dir, os.path.join(run_dir, 'input'), copy_names=RUN_INPUT_FILES)
                 inputs_generated = True
             else:
                 inputs_generated = self._generate_inputs(report, os.path.join(run_dir, 'input'))

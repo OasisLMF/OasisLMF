@@ -274,6 +274,19 @@ def test_check_model_step_on_existing_inputs(tmp_path):
     assert sorted(os.listdir(tmp_path / 'input')) == ['coverages.bin', 'items.bin', 'keys.csv']
 
 
+def test_check_model_does_not_write_through_to_existing_inputs(tmp_path):
+    write_run_dir(tmp_path, default_model())
+    np.array([1, 2], dtype=np.int32).tofile(tmp_path / 'input' / 'events.bin')
+    (tmp_path / 'input' / 'events.csv').write_text('event_id\n1\n2\n')
+    analysis_fp, model_fp = write_settings(tmp_path)
+    analysis = json.loads(open(analysis_fp).read())
+    open(analysis_fp, 'w').write(json.dumps({**analysis, 'event_ids': [2]}))
+    CheckModel(model_data_dir=str(tmp_path / 'static'), check_inputs_dir=str(tmp_path / 'input'),
+               analysis_settings_json=analysis_fp, model_settings_json=model_fp).run()
+    assert np.fromfile(tmp_path / 'input' / 'events.bin', dtype=np.int32).tolist() == [1, 2]
+    assert (tmp_path / 'input' / 'events.csv').read_text() == 'event_id\n1\n2\n'
+
+
 @pytest.mark.parametrize('model_check, check_fails, expected', [
     (False, False, ['GenerateFiles', 'GenerateLosses']),
     (True, False, ['GenerateFiles', 'CheckModel', 'GenerateLosses']),
@@ -428,6 +441,14 @@ def test_no_item_hit_by_any_event(tmp_path):
     assert 'items.hit_by_events' in checks(run_check(tmp_path, model), 'ERROR')
 
 
+def test_no_item_hit_by_sampled_events_is_warning(tmp_path):
+    model = default_model()
+    model['footprint'] = {1: [(30, 1, 1.)], 2: [(10, 1, 1.)]}
+    report = run_check(tmp_path, model, max_events=1)
+    assert 'items.hit_by_events' in checks(report, 'WARNING')
+    assert not report.errors
+
+
 @pytest.mark.parametrize('events, errors', [
     ([1, 2, 2, -1], {'events.duplicates', 'events.positive'}),
     ([], {'events.empty'}),
@@ -527,6 +548,21 @@ def test_items_file_missing(tmp_path):
     report = run_check(tmp_path, model)
     assert 'inputs.exists' in checks(report, 'ERROR')
     assert 'vulnerability.probability_sum' in report.passed
+
+
+def test_coverages_file_missing(tmp_path):
+    model = default_model()
+    model['raw_files'] = {'input/coverages.bin': None}
+    report = run_check(tmp_path, model)
+    assert 'inputs.exists' in checks(report, 'ERROR')
+
+
+def test_complex_model_keys_are_not_range_checked(tmp_path):
+    model = default_model()
+    model['raw_files'] = {'input/keys.csv': b'LocID,PerilID,CoverageTypeID,ModelData\n1,WTC,1,"{}"\n'}
+    report = run_check(tmp_path, model)
+    assert not checks(report) & {'keys.areaperil_range', 'keys.vulnerability_range'}
+    assert not report.errors
 
 
 def test_keys_parquet_is_read(tmp_path):

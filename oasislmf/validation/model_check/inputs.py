@@ -36,9 +36,10 @@ def load_portfolio(report, input_dir):
         'coverages': None,
     }
     try:
-        portfolio['items'] = np.array(read_items(input_dir))
-        portfolio['coverages'] = np.asarray(read_coverages(input_dir))
-    except FileNotFoundError as e:
+        items = np.array(read_items(input_dir))
+        coverages = np.asarray(read_coverages(input_dir))
+        portfolio['items'], portfolio['coverages'] = items, coverages
+    except (FileNotFoundError, RuntimeError) as e:
         report.error('inputs.exists', str(e))
     return portfolio
 
@@ -52,7 +53,7 @@ def check_keys(report, keys, keys_errors, model_settings):
                        count=len(keys_errors))
     else:
         report.ok('keys.lookup_failures')
-    if keys is None or not len(keys):
+    if keys is None or not len(keys) or not {'AreaPerilID', 'VulnerabilityID'}.issubset(keys.columns):
         return
 
     max_ap = np.iinfo(areaperil_int).max
@@ -90,7 +91,11 @@ def check_items(report, items, coverages, vuln, agg_map, footprint):
     if footprint is not None and footprint.hit_areaperils is not None and footprint.events_checked:
         not_hit = ~np.isin(items['areaperil_id'], footprint.hit_areaperils)
         if not_hit.all():
-            report.error('items.hit_by_events', 'no item areaperil is hit by any checked event: every loss will be zero')
+            if footprint.sampled:
+                report.warning('items.hit_by_events', f'no item areaperil is hit by any of the {footprint.events_checked} sampled events '
+                               '(--check-max-events 0 checks every event)')
+            else:
+                report.error('items.hit_by_events', 'no item areaperil is hit by any checked event: every loss will be zero')
         elif not_hit.any():
             valid_cov = (items['coverage_id'] >= 1) & (items['coverage_id'] <= len(coverages))
             tiv = coverages[items['coverage_id'][valid_cov] - 1]
