@@ -150,7 +150,7 @@ def load_vulnerability(report, static_dir, vuln_ids=None):
         if os.path.exists(idx_fp):
             vulns_idx = np.fromfile(idx_fp, dtype=VulnerabilityIndex_dtype)
             available = np.unique(vulns_idx['vulnerability_id'])
-            if (vulns_idx['size'] != vulns_idx['original_size']).any():
+            if ((vulns_idx['original_size'] > 0) & (vulns_idx['original_size'] != vulns_idx['size'])).any():
                 report.error('vulnerability.format',
                              'vulnerability.idx describes compressed rows, which the loss kernels do not support')
                 return VulnerabilityData('vulnerability.bin+idx', available, num_damage_bins)
@@ -338,8 +338,9 @@ def check_event_files(report, run_files):
         try:
             weights = read_periods(no_of_periods, input_dir)
             report.ok('periods.format')
-            if 'periods' in run_files and abs(float(np.sum(weights)) - 1) > PROB_TOLERANCE:
-                report.warning('periods.weights_sum', f'period weights sum to {float(np.sum(weights)):.6f}, not 1')
+            total = float(weights['weighting'].sum())
+            if 'periods' in run_files and abs(total - 1) > PROB_TOLERANCE:
+                report.warning('periods.weights_sum', f'period weights sum to {total:.6f}, not 1')
         except RuntimeError as e:
             report.error('periods.format', str(e))
 

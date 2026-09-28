@@ -77,8 +77,8 @@ def resolve_run_files(report, merged_settings, run_dir, model_storage):
         try:
             setter(value, run_dir)
             report.ok(f'settings.{key}')
-        except OasisException as e:
-            report.error(f'settings.{key}', str(e))
+        except (OasisException, OSError) as e:
+            report.error(f'settings.{key}', f'{type(e).__name__}: {e}')
 
     return {name: os.path.join(run_dir, 'input', f'{name}.bin')
             for name in ('events', 'occurrence', 'periods', 'returnperiods')
