@@ -411,14 +411,24 @@ def mark_node_sidx(key, temp_node_sidx, temp_node_keys, key_count):
 
 
 @njit(cache=True, fastmath=True, inline='always')
-def sorted_node_sidx(temp_node_keys, key_count):
-    """This node's sidx in ascending order.
+def sorted_node_sidx(temp_node_keys, key_count, node_is_packed):
+    """This node's sidx, ascending unless the order is about to be thrown away.
 
-    The same order the dense scan produced, since that ran over an ascending range: specials
-    most-negative per building first, then samples.
+    The dense scan this replaced ran over an ascending range, so ascending output was free.
+    Collecting the keys as they are scattered gives arrival order instead, and the sort puts that
+    back -- for one consumer. Only the writer depends on it, and it depends on it positionally,
+    reading -5, -3, -1 off the front rather than searching. Aggregation scatters by sidx value,
+    back-allocation looks its factors up by value, and calc pairs sidx with loss by position, so
+    none of them care.
+
+    A packed node never reaches the writer: the output is always at or above the collapse level,
+    and the collapse overwrites this order anyway -- _emit_collapsed writes -5, -3, -1, 1..S
+    straight out. Sorting B * (S + 6) packed keys to have them discarded is the one case where
+    this is pure cost.
     """
     keys = temp_node_keys[:key_count]
-    keys.sort()
+    if not node_is_packed:
+        keys.sort()
     return keys
 
 
@@ -470,6 +480,8 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
     Returns:
         int: Number of sidx values for this node
     """
+    # its own order is discarded by the collapse, so it is not worth producing
+    node_is_packed = building_packing and node['level_id'] <= site_collapse_level
     sidx_created = False
     node_sidx_start = compute_idx['sidx_ptr_i']
     node_sidx_end = 0
@@ -525,7 +537,7 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
                 temp_node_sidx[temp_node_keys[key_i]] = False
 
         else:
-            node_keys = sorted_node_sidx(temp_node_keys, key_count)
+            node_keys = sorted_node_sidx(temp_node_keys, key_count, node_is_packed)
             for key_i in range(key_count):
                 sidx = node_keys[key_i]
                 sidx_val[compute_idx['sidx_ptr_i']] = sidx
@@ -601,6 +613,8 @@ def aggregate_children(node, children_count, nodes_array, children, temp_childre
     Returns:
         int: Number of sidx values (node_val_count) for this node
     """
+    # its own order is discarded by the collapse, so it is not worth producing
+    node_is_packed = building_packing and node['level_id'] <= site_collapse_level
     sidx_created = False
     node_sidx_start = compute_idx['sidx_ptr_i']
     node_sidx_end = 0
@@ -642,7 +656,7 @@ def aggregate_children(node, children_count, nodes_array, children, temp_childre
                 temp_node_sidx[temp_node_keys[key_i]] = False
 
         else:
-            node_keys = sorted_node_sidx(temp_node_keys, key_count)
+            node_keys = sorted_node_sidx(temp_node_keys, key_count, node_is_packed)
             for key_i in range(key_count):
                 sidx = node_keys[key_i]
                 sidx_val[compute_idx['sidx_ptr_i']] = sidx
@@ -922,16 +936,13 @@ def compute_event(compute_info,
             # - children_count == 1: Single child, can reuse its storage
             # - children_count == 0: Item level, losses already loaded from stream
             if children_count:
-                # A single child is normally adopted wholesale, which would carry its building blocks
-                # through and skip the collapse. Common shape: a site node over one coverage type.
-                if children_count == 1 and building_packing:
-                    only_child = nodes_array[children[compute_node['children'] + 1]]
-                    must_collapse = collapses_buildings(compute_node, only_child, site_collapse_level,
-                                                        building_packing)
-                else:
-                    must_collapse = False
-
-                if children_count > 1 or must_collapse:
+                # A single child is adopted wholesale. It used to have to be aggregated instead
+                # when it crossed the collapse point, so that its building blocks merged rather
+                # than being carried through -- the collapse now happens at the site level itself,
+                # so by the time a node above sees a child, that child is already collapsed and
+                # there is nothing to force. Adoption is far cheaper than a forced aggregation:
+                # 508,812 of the nodes on the level above the collapse have one child.
+                if children_count > 1:
                     storage_node = compute_node
                     if storage_node['extra'] == null_index:
                         node_val_count = aggregate_children(
