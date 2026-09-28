@@ -114,13 +114,33 @@ class TestFmDepacking(TestCase):
             for local_sidx in (-5, -3, -1, 1, 2, 3, 4):
                 self.assertIn(encode_sidx(building, local_sidx, S), stored)
 
-    def test_sidx_are_stored_in_ascending_order(self):
-        """Aggregation relies on it, and the packed specials run below the unpacked ones."""
+    def test_an_unpacked_item_is_still_stored_ascending(self):
+        """An ordinary stream arrives ascending, and the reader keeps that contract."""
+        state = _fresh_state()
+        _read(state, _build_item_buffer(1, 1, self.normal_records))
+        end = state['sidx_indptr'][1]
+        stored_sidx = state['sidx_val'][:end].tolist()
+        self.assertEqual(stored_sidx, sorted(stored_sidx))
+
+    def test_a_packed_item_keeps_arrival_order(self):
+        """A packed item is deliberately NOT put in sidx order here.
+
+        gulmc emits building by building, so building 2's specials sort below building 1's
+        samples: the item can never be ascending, and sorting it costs an argsort, two
+        allocations and a gather for every packed item in the stream. Nothing between the reader
+        and the output needs that order -- aggregate_children scatters by sidx value, back_alloc
+        looks its factors up by value, and collapse_packed_leaves accumulates into a dense array
+        keyed on the decoded local sidx before emitting -5, -3, -1, 1..S canonically, which is
+        the order the writer requires.
+        """
         state = _fresh_state()
         _read(state, _build_item_buffer(1, 1, self.packed_records))
         end = state['sidx_indptr'][1]
         stored_sidx = state['sidx_val'][:end].tolist()
-        self.assertEqual(stored_sidx, sorted(stored_sidx))
+        arrival = [sidx for sidx, _ in self.packed_records if decode_local_sidx(sidx, S) != -4]
+        self.assertEqual(stored_sidx, arrival)
+        # guards against the sort being reintroduced without the cost being reconsidered
+        self.assertNotEqual(stored_sidx, sorted(stored_sidx))
 
     def test_normal_stream_unchanged(self):
         """For building 1 the packed encoding is the identity, so a normal stream is verbatim."""

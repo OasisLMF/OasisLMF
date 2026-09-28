@@ -116,7 +116,7 @@ def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val, accumul
 
 
 @nb.njit(cache=True, fastmath=True)
-def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate):
+def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate, max_sidx_val):
     """Put the item just read into ascending sidx order, resolving any repeat.
 
     Args:
@@ -128,6 +128,8 @@ def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate):
             already stored. True only when the reader is collapsing a building-packed item,
             where several packed indices decode onto one local index by design. False
             otherwise, where a repeat is stream corruption.
+        max_sidx_val: the stream's sample size, which separates an ordinary sidx from a packed
+            one. An item carrying packed indices is left in arrival order -- see below.
 
     Raises:
         ValueError: if the same sidx arrives twice for one item and ``accumulate`` is not set.
@@ -138,13 +140,38 @@ def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate):
     if n < 2:
         return
 
-    # An unpacked item arrives ascending already, so it pays one linear check and nothing else.
+    # One pass establishes all three facts: whether the item is ascending already (an unpacked
+    # item is, and pays nothing more), whether it carries packed indices, and whether a sidx
+    # repeats.
+    first = sidx_val[start]
+    seen_packed = first > max_sidx_val or first < -NUM_SPECIAL_SIDX
     ordered = True
     for i in range(start + 1, end):
-        if sidx_val[i] <= sidx_val[i - 1]:
+        sidx = sidx_val[i]
+        if sidx > max_sidx_val or sidx < -NUM_SPECIAL_SIDX:
+            seen_packed = True
+        if sidx == sidx_val[i - 1] and not accumulate:
+            raise ValueError("duplicated sidx in input stream")
+        if sidx < sidx_val[i - 1]:
             ordered = False
-            break
     if ordered:
+        return
+
+    if seen_packed and not accumulate:
+        # gulmc emits a packed item building by building, so building b+1's specials sort below
+        # building b's samples and this item can never be ascending -- sorting it would mean a
+        # full argsort, two allocations and a gather for every packed item in the stream.
+        #
+        # Nothing downstream needs that order. aggregate_children scatters by sidx value,
+        # back_alloc looks its factors up by value, and collapse_packed_leaves accumulates into a
+        # dense array keyed on the decoded local sidx and then writes -5, -3, -1, 1..S out
+        # canonically. The writer is the only order-dependent consumer, and it reads leaves that
+        # collapse has already put in that order.
+        #
+        # The cost is weaker validation: the pass above catches a repeat only between neighbours,
+        # where sorting would have brought any repeated pair together. accumulate (collapse on
+        # read) still sorts, because there the decode happens in the reader, so several buildings
+        # legitimately land on one local sidx and have to be summed.
         return
 
     order = np.argsort(sidx_val[start:end])
@@ -245,7 +272,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     # sidx == 0: Item delimiter reached. The records were appended in arrival
                     # order; put them in sidx order now, once, rather than on every insert.
                     sort_item(compute_idx['next_compute_i'], sidx_indptr, sidx_val, loss_val,
-                              collapse_on_read)
+                              collapse_on_read, max_sidx_val)
                     reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes)
                     cursor += (k + 1) * loss_pair_size  # consume pairs incl. delimiter
                     item_id = 0  # Return to header-reading state
