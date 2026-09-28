@@ -52,9 +52,10 @@ from .policy_extras import calc as calc_extra
 from .common import EXTRA_SIDX_COUNT, compute_idx_dtype, DEDUCTIBLE, UNDERLIMIT, OVERLIMIT
 from .back_allocation import back_alloc_a2, back_alloc_extra_a2, back_alloc_layer, back_alloc_layer_extra
 
-from numba import njit
+from numba import njit, objmode
 import numpy as np
 import os
+import time
 import logging
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,15 @@ logger = logging.getLogger(__name__)
 # this constant at compile time, so the scan costs nothing while it is False. Turn it on and
 # run tests/fm/test_fmpy.py + tests/pytools/fm to prove the set rather than argue it.
 DEBUG_TEMPS = False
+
+# Per-level profiling of compute_event. numba cannot call time.perf_counter in nopython, and
+# objmode is far too slow per node -- but at the level boundary it runs 2x per level per event,
+# which is free. Counters are plain integer adds. numba folds the constant, so this costs
+# nothing while it is False. Enable it and set FM_PROFILE_OUT to a path to get a TSV.
+DEBUG_PROFILE = False
+PROFILE_LEVELS = 24
+# 0 seconds  1 nodes  2 output values  3 aggregate-path  4 adopt-path  5 leaf-path
+PROFILE_METRICS = 6
 
 
 @njit(cache=True)
@@ -733,7 +743,8 @@ def compute_event(compute_info,
                   compute_idx,
                   item_parent_i,
                   fm_profile,
-                  stepped):
+                  stepped,
+                  profile):
     """Compute insured losses for a single event through the entire financial structure.
 
     This is the main computation function that processes one event's losses through
@@ -790,6 +801,8 @@ def compute_event(compute_info,
         item_parent_i: Tracks which parent index for multi-parent items
         fm_profile: Array of financial profile terms
         stepped: True/None flag for stepped policies (None for JIT compatibility)
+        profile: (PROFILE_LEVELS, PROFILE_METRICS) scratch accumulated when DEBUG_PROFILE is
+            set, and untouched otherwise -- numba folds the constant away.
     """
     # =========================================================================
     # INITIALIZATION: Set up computation state and temporary arrays
@@ -864,7 +877,11 @@ def compute_event(compute_info,
     # =========================================================================
     # MAIN LOOP: Process each level bottom-up
     # =========================================================================
+    _t0 = 0.0
     for level in range(compute_info['start_level'], compute_info['max_level'] + 1):
+        if DEBUG_PROFILE:
+            with objmode(_t0='f8'):
+                _t0 = time.perf_counter()
         # Level boundary: next_compute_i points past current level nodes
         # Setting to index+1 creates a "null terminator" (computes[i]=0) that stops the while loop
         compute_idx['next_compute_i'] += 1
@@ -915,6 +932,8 @@ def compute_event(compute_info,
                             temp_node_extras, extras_indptr, extras_val
                         )
                     node_sidx = sidx_val[compute_idx['sidx_ptr_i'] - node_val_count: compute_idx['sidx_ptr_i']]
+                    if DEBUG_PROFILE and level < PROFILE_LEVELS:
+                        profile[level, 3] += 1
 
                     if (building_packing and not is_allocation_rule_a0
                             and compute_node['level_id'] > site_collapse_level):
@@ -934,6 +953,8 @@ def compute_event(compute_info,
                     storage_node = nodes_array[children[compute_node['children'] + 1]]
                     # positive sidx are the same as child
                     node_sidx = sidx_val[sidx_indptr[sidx_indexes[storage_node['node_id']]]:sidx_indptr[sidx_indexes[storage_node['node_id']] + 1]]
+                    if DEBUG_PROFILE and level < PROFILE_LEVELS:
+                        profile[level, 4] += 1
                     node_val_count = node_sidx.shape[0]
 
                     if compute_node['profile_len'] > 1 and loss_indptr[storage_node['loss'] + 1] == loss_indptr[storage_node['loss']]:
@@ -992,6 +1013,8 @@ def compute_event(compute_info,
                 node_sidx = sidx_val[sidx_indptr[sidx_indexes[storage_node['node_id']]]:
                                      sidx_indptr[sidx_indexes[storage_node['node_id']] + 1]]
                 node_val_count = node_sidx.shape[0]
+                if DEBUG_PROFILE and level < PROFILE_LEVELS:
+                    profile[level, 5] += 1
                 node_loss = loss_val[loss_indptr[storage_node['loss']]:
                                      loss_indptr[storage_node['loss']] + node_val_count]
 
@@ -1283,6 +1306,10 @@ def compute_event(compute_info,
                     for profile_i in range(compute_node['profile_len']):
                         loss_indptr[compute_node['loss'] + profile_i] = loss_indptr[storage_node['loss'] + profile_i]
 
+            if DEBUG_PROFILE and level < PROFILE_LEVELS:
+                profile[level, 1] += 1
+                profile[level, 2] += node_val_count
+
             # The dense temporaries are scratch for exactly one node: the aggregate's sums, the
             # pre-terms extras back_alloc reads, and the factors it writes all live and die here.
             # Clearing the node's own sidx costs its size; the fill it replaces cost the whole
@@ -1292,6 +1319,10 @@ def compute_event(compute_info,
                 temp_node_extras[:, node_sidx[val_i]] = 0
 
         compute_idx['compute_i'] += 1
+        if DEBUG_PROFILE and level < PROFILE_LEVELS:
+            with objmode(_t1='f8'):
+                _t1 = time.perf_counter()
+            profile[level, 0] += _t1 - _t0
 
     item_parent_i.fill(1)
     # print(compute_info['max_level'], next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i + 2], computes[next_compute_i - 1: next_compute_i + 1])
@@ -1299,7 +1330,7 @@ def compute_event(compute_info,
         compute_idx['level_start_compute_i'] = 0
 
 
-def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
+def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_loss):
     """Initialize all arrays needed for FM computation.
 
     Creates the sparse storage arrays for sample indices, losses, and extras.
@@ -1317,6 +1348,10 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
         max_sidx_val: Maximum sample index (determines array sizing)
         temp_dir: Directory for memory-mapped files (low_memory mode)
         low_memory: If True, use memory-mapped files instead of RAM
+        keep_input_loss (bool): whether net_loss storage is in use -- allocation rule 1, or any
+            net-loss output mode at any allocation rule. It costs one further packed slice per
+            packable node, so reserving it unconditionally charges every gross run for storage it
+            never writes.
 
     Returns:
         Tuple of all initialized arrays needed by compute_event
@@ -1332,7 +1367,12 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
     collapsed_on_read = max_buildings != max(1, int(compute_info['max_buildings']))
     packable_nodes = int(compute_info['packable_node_len'])
 
-    max_sidx_count = max_sidx_val + EXTRA_SIDX_COUNT
+    # int(): max_sidx_val arrives from the stream header as an int32, and NEP 50 keeps a
+    # numpy int32 times a Python int in int32. Every arena size is derived from this, and
+    # they run to 3.3e9 slots at S=100 on a 630k-building book -- the product wraps negative
+    # and np.zeros rejects it. The arena is indexed with int64 throughout, so only this
+    # arithmetic needs widening.
+    max_sidx_count = int(max_sidx_val) + EXTRA_SIDX_COUNT
     # dense temporaries are indexed by sidx *value*, and a packed item's sidx runs up to
     # max_buildings * max_sidx_val with its specials wrapping onto the tail, so they span the
     # whole packed range
@@ -1347,24 +1387,37 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
     # Forced to 0 alongside max_buildings when the stream is collapsed on read, where no packed
     # sidx can reach the arena at all.
     extra_slots = 0 if collapsed_on_read else int(compute_info['packable_building_slots']) * max_sidx_count
-    # a packable node may carry several layers, so give the loss/extras arenas room for each --
-    # plus one more, for the net_loss slice. net_loss lives in loss_val alongside the layers and is
-    # packed and collapsed with them, and it is in use for allocation rule 1 *or* any net-loss
-    # output mode at any allocation rule (see keep_input_loss in manager.run_synchronous_sparse).
-    # init runs before that flag is known, so budget for it unconditionally.
-    extra_layer_slots = extra_slots * (max(1, int(compute_info['max_layer'])) + 1)
+    # The sidx arena owes one packed slice per node; loss and extras owe one per layer, which
+    # packable_layer_slots sums per level rather than charging every slice the deepest layering in
+    # the portfolio. net_loss adds one further slice per node -- not per layer -- and only when it
+    # is in use, which is allocation rule 1 or any net-loss output mode; the caller resolves that
+    # and passes it in, so an ordinary gross run no longer reserves a net_loss copy it never
+    # writes.
+    extra_layer_slots = 0 if collapsed_on_read else int(compute_info['packable_layer_slots']) * max_sidx_count
+    if keep_input_loss:
+        extra_layer_slots += extra_slots
+
+    # The arena is indexed with int64 throughout -- every *_indptr is np.int64 and compute_idx's
+    # bump pointers are Python int -- but the SIZES are computed from compute_info, whose fields
+    # are oasis_int (int32). Under NEP 50 an int32 scalar times a Python int stays int32, so the
+    # product wraps before the int64 term is added and np.zeros is handed a negative length. At
+    # S=100 on a 630k-building book that is a 3.55e9-slot arena: well inside int64, and nowhere
+    # near int32. Take the sizes into Python ints before any arithmetic.
+    node_slots = int(compute_info['node_len']) * max_sidx_count + extra_slots
+    loss_slots = int(compute_info['loss_len']) * max_sidx_count + extra_layer_slots
+    extra_arena_slots = int(compute_info['extra_len']) * max_sidx_count + extra_layer_slots
 
     if low_memory:
         sidx_val = np.memmap(os.path.join(temp_dir, "sidx_val.bin"), mode='w+',
-                             shape=(compute_info['node_len'] * max_sidx_count + extra_slots), dtype=oasis_int)
+                             shape=(node_slots,), dtype=oasis_int)
         loss_val = np.memmap(os.path.join(temp_dir, "loss_val.bin"), mode='w+',
-                             shape=(compute_info['loss_len'] * max_sidx_count + extra_layer_slots), dtype=oasis_float)
+                             shape=(loss_slots,), dtype=oasis_float)
         extras_val = np.memmap(os.path.join(temp_dir, "extras_val.bin"), mode='w+',
-                               shape=(compute_info['extra_len'] * max_sidx_count + extra_layer_slots, 3), dtype=oasis_float)
+                               shape=(extra_arena_slots, 3), dtype=oasis_float)
     else:
-        sidx_val = np.zeros((compute_info['node_len'] * max_sidx_count + extra_slots), dtype=oasis_int)
-        loss_val = np.zeros((compute_info['loss_len'] * max_sidx_count + extra_layer_slots), dtype=oasis_float)
-        extras_val = np.zeros((compute_info['extra_len'] * max_sidx_count + extra_layer_slots, 3), dtype=oasis_float)
+        sidx_val = np.zeros(node_slots, dtype=oasis_int)
+        loss_val = np.zeros(loss_slots, dtype=oasis_float)
+        extras_val = np.zeros((extra_arena_slots, 3), dtype=oasis_float)
 
     # One entry per allocation, not per node: collapse_packed_leaves appends a collapsed slice for
     # each packed leaf rather than shrinking it in place, and each of those takes a further entry.
