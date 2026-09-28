@@ -163,7 +163,7 @@ def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate, max_sidx_v
         # full argsort, two allocations and a gather for every packed item in the stream.
         #
         # Nothing downstream needs that order. aggregate_children scatters by sidx value,
-        # back_alloc looks its factors up by value, and collapse_packed_leaves accumulates into a
+        # back_alloc looks its factors up by value, and collapse_site_node accumulates into a
         # dense array keyed on the decoded local sidx and then writes -5, -3, -1, 1..S out
         # canonically. The writer is the only order-dependent consumer, and it reads leaves that
         # collapse has already put in that order.
