@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 
 import pytest
 
@@ -130,3 +132,81 @@ def test_global_params_choices_and_no_cli_flag():
 
     for name in ('verbose', 'log_level', 'log_format'):
         assert 'help' not in params[name]
+
+
+def test_mdk_config_logging_block_honoured_when_log_level_reapplied(oasis_loggers, tmp_path):
+    """ods_tools_level from the MDK config file's "logging" block must still be applied
+    when the level is re-applied from computation settings."""
+    logger, ods_logger, handler = oasis_loggers
+    config_fp = tmp_path / 'oasislmf.json'
+    config_fp.write_text(json.dumps({'logging': {'ods_tools_level': 'ERROR'}}))
+
+    DummyComputationStep(log_level='DEBUG', config=str(config_fp))
+
+    assert logger.level == logging.DEBUG
+    assert ods_logger.level == logging.ERROR
+
+
+@pytest.mark.parametrize('config_content', [None, '{not valid json'])
+def test_unreadable_mdk_config__warns_and_falls_back_to_defaults(oasis_loggers, tmp_path, caplog, config_content):
+    logger, ods_logger, handler = oasis_loggers
+    config_fp = tmp_path / 'oasislmf.json'
+    if config_content is not None:
+        config_fp.write_text(config_content)
+
+    with caplog.at_level(logging.WARNING, logger='oasislmf.computation.base'):
+        DummyComputationStep(log_level='DEBUG', config=str(config_fp))
+
+    assert f"Could not re-load MDK config file for logging: {config_fp}" in caplog.text
+    assert logger.level == logging.DEBUG
+    assert ods_logger.level == logging.DEBUG
+
+
+def test_log_format_set__other_handlers_untouched(oasis_loggers):
+    logger, ods_logger, handler = oasis_loggers
+    other_handler = logging.StreamHandler()
+    other_handler.name = 'other'
+    other_handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(other_handler)
+    try:
+        DummyComputationStep(log_format='compact')
+    finally:
+        logger.removeHandler(other_handler)
+
+    assert handler.formatter._fmt == OasisLogConfig.FORMAT_TEMPLATES['compact']
+    assert other_handler.formatter._fmt == '%(message)s'
+
+
+def test_get_default_run_dir(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    DummyComputationStep.run_dir_key = 'dummy'
+    try:
+        run_dir = DummyComputationStep.get_default_run_dir()
+    finally:
+        del DummyComputationStep.run_dir_key
+
+    assert os.path.dirname(run_dir) == os.path.join(str(tmp_path), 'runs')
+    assert os.path.basename(run_dir).startswith('dummy-')
+
+
+class DummySchemaStep(DummyComputationStep):
+    step_params = [
+        {'name': 'some_flag', 'default': False, 'help': 'A boolean flag'},
+        {'name': 'some_choice', 'choices': ['a', 'b']},
+        {'name': 'some_settings_json', 'is_path': True},
+    ]
+    settings_params = [{'name': 'some_settings_json', 'loader': json.load}]
+
+
+def test_computation_settings_json_schema():
+    """Global logging params appear in the schema, but 'config' (exclude_from_schema)
+    and settings files (settings_params) must not."""
+    properties = DummySchemaStep.get_computation_settings_json_schema()['properties']
+
+    assert 'config' not in properties
+    assert 'some_settings_json' not in properties
+    assert properties['log_level']['enum'] == OasisLogConfig.STANDARD_LEVELS
+    assert properties['log_format']['enum'] == list(OasisLogConfig.FORMAT_TEMPLATES.keys())
+    assert properties['verbose'] == {'type': 'boolean'}
+    assert properties['some_flag'] == {'type': 'boolean', 'description': 'A boolean flag'}
+    assert properties['some_choice'] == {'type': 'string', 'enum': ['a', 'b']}
