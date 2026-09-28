@@ -9,6 +9,6 @@ def coverages_tobin(stack, file_in, file_out, file_type):
     f = resolve_file(file_in, "r", stack)
     try:
         for chunk in pd.read_csv(f, usecols=["tiv"], dtype={"tiv": tiv_dtype}, chunksize=DEFAULT_BUFFER_SIZE):
-            chunk["tiv"].to_numpy(dtype=tiv_dtype).tofile(file_out)
+            file_out.write(chunk["tiv"].to_numpy(dtype=tiv_dtype).tobytes())
     except pd.errors.EmptyDataError:
         pass

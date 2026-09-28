@@ -40,7 +40,7 @@ def complex_items_tobin(stack, file_in, file_out, file_type):
     try:
         items_df = pd.read_csv(file_in)
     except pd.errors.EmptyDataError:
-        np.empty(0, dtype=header_dtype).tofile(file_out)
+        file_out.write(np.empty(0, dtype=header_dtype).tobytes())
         return
 
     # CSV may parse group_id as float (e.g. "3.0"); coerce to int before writing
