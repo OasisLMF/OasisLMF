@@ -952,16 +952,10 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 def check_collapse_is_reachable(fm_programme, site_collapse_level, max_buildings):
     """Every packed node must pass through the collapse level on its way up.
 
-    The buildings are merged at the end of the last level whose terms apply per building, so a
-    node that reaches a level above it without having been collapsed would carry packed sample
-    indices into a computation that reads them as ordinary ones -- a wrong loss rather than a
-    failure. fm handled that with a decode applied to every child crossing the boundary, which
-    cost a branch and a modulo per value to do nothing at all: the programme links level L-1 into
-    level L, or start_level into L by a negative from_agg_id, so a crossing child is either the
-    collapse-level node itself or an item, and both are collapsed by then.
-
-    That is a property of the programme, so check it once here rather than paying for it per
-    value, and fail loudly if a portfolio ever breaks it.
+    A node reaching a level above the collapse without having been collapsed would carry packed
+    sample indices into a computation that reads them as ordinary ones -- a wrong loss, not a
+    failure. fm used to guard that per value; it is a property of the programme, so check it once
+    here instead.
 
     Args:
         fm_programme (numpy.ndarray): the fm_programme records, from_agg_id to to_agg_id per level.

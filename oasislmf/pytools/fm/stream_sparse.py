@@ -89,16 +89,10 @@ def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
 def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val, accumulate):
     """Append a (sidx, loss) pair to the node being read. Always O(1).
 
-    The arrays have to end up sorted by sidx, but sorting on INSERT is quadratic on a packed
-    item. A packed item arrives building by building, and building b's specials are
-    ``local - (b-1) * NUM_SPECIAL_SIDX`` -- so every new building's specials sort BEFORE
-    everything already stored, and each one shifts the whole array:
-
-        sum over b of 3 * (S+3) * b  ~=  39 * N^2 / 2
-
-    which is 7.8e12 element moves at 630,510 buildings and does not finish. Appending and
-    sorting once per item (see ``sort_item``) makes it O(k log k), and leaves an ordinary
-    unpacked stream paying only an ordered-check.
+    Inserting in sorted position instead is quadratic on a packed item: each new building's
+    specials sort below everything already stored, so every one shifts the whole array --
+    7.8e12 element moves at 630,510 buildings. ``sort_item`` handles the ordering once, at the
+    item delimiter.
 
     Args:
         sidx: Sample index to append.
@@ -140,9 +134,7 @@ def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate, max_sidx_v
     if n < 2:
         return
 
-    # One pass establishes all three facts: whether the item is ascending already (an unpacked
-    # item is, and pays nothing more), whether it carries packed indices, and whether a sidx
-    # repeats.
+    # one pass: ascending already, carries packed indices, and any adjacent repeat
     first = sidx_val[start]
     seen_packed = first > max_sidx_val or first < -NUM_SPECIAL_SIDX
     ordered = True
@@ -158,20 +150,11 @@ def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate, max_sidx_v
         return
 
     if seen_packed and not accumulate:
-        # gulmc emits a packed item building by building, so building b+1's specials sort below
-        # building b's samples and this item can never be ascending -- sorting it would mean a
-        # full argsort, two allocations and a gather for every packed item in the stream.
-        #
-        # Nothing downstream needs that order. aggregate_children scatters by sidx value,
-        # back_alloc looks its factors up by value, and collapse_site_node accumulates into a
-        # dense array keyed on the decoded local sidx and then writes -5, -3, -1, 1..S out
-        # canonically. The writer is the only order-dependent consumer, and it reads leaves that
-        # collapse has already put in that order.
-        #
-        # The cost is weaker validation: the pass above catches a repeat only between neighbours,
-        # where sorting would have brought any repeated pair together. accumulate (collapse on
-        # read) still sorts, because there the decode happens in the reader, so several buildings
-        # legitimately land on one local sidx and have to be summed.
+        # A packed item is emitted building by building and so is never ascending, and nothing
+        # downstream needs it to be: the writer is the only order-dependent consumer and it reads
+        # leaves that the collapse has already put in canonical order. Sorting here would cost an
+        # argsort per packed item. The price is that a repeat is only caught between neighbours,
+        # where sorting would have brought any pair together.
         return
 
     order = np.argsort(sidx_val[start:end])
