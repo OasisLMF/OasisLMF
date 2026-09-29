@@ -675,3 +675,47 @@ def test_exposure_pre_analysis_class_is_built_once(capsys):
         assert_location_snapshot_matches(d, output_oed_location)
 
         assert 'exposure_pre_analysis_setting' not in capsys.readouterr().out
+
+
+CYBER_ACCOUNT_CSV = os.path.join(os.path.dirname(__file__), '..', '..', 'validation', 'cyber', 'account.csv')
+
+
+def write_account_only_epa_module(module_path):
+    with open(module_path, 'w') as f:
+        f.write('''
+class ExposurePreAnalysis:
+    multiproc_enabled = True
+
+    def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
+        self.exposure_data = exposure_data
+        self.exposure_pre_analysis_setting = exposure_pre_analysis_setting
+
+    def run(self):
+        acc_df = self.exposure_data.account.dataframe
+        acc_df['LayerLimit'] = acc_df['LayerLimit'] * self.exposure_pre_analysis_setting['BuildingTIV_multiplyer']
+''')
+
+
+@pytest.mark.parametrize('lookup_multiprocessing', [False, True])
+def test_exposure_pre_analysis_account_only(lookup_multiprocessing):
+    """Account only exposure (e.g. cyber) has no location file, the subject at risk is the
+    account, so pre-analysis must run (single process) and regenerate ids on the account."""
+    with TemporaryDirectory() as d:
+        kwargs = {'oasis_files_dir': d,
+                  'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_account_only.py'),
+                  'oed_accounts_csv': CYBER_ACCOUNT_CSV,
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
+                  'lookup_multiprocessing': lookup_multiprocessing,
+                  'lookup_num_processes': 2,
+                  'check_oed': False}
+
+        write_account_only_epa_module(kwargs['exposure_pre_analysis_module'])
+        write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
+
+        result = OasisManager().exposure_pre_analysis(**kwargs)
+
+        assert set(result['modified']) == {'account'}
+        expected_limit = pd.read_csv(CYBER_ACCOUNT_CSV)['LayerLimit'] * 2
+        account_df = pd.read_parquet(os.path.join(d, 'account.parquet'))
+        assert account_df['LayerLimit'].astype(float).tolist() == expected_limit.astype(float).tolist()
+        assert 'loc_id' not in account_df.columns

@@ -12,6 +12,7 @@ from ods_tools.oed import OED_TYPE_TO_NAME, PANDAS_COMPRESSION_MAP, UnknownColum
 from ..base import ComputationStep
 from .pre_analysis_multiproc import run_pre_analysis_multiproc
 from ...utils.data import get_exposure_data, prepare_oed_exposure, analysis_settings_loader, model_settings_loader
+from ...utils.defaults import SAR_ID
 from ...utils.inputs import str2bool
 from ...utils.parallel import resolve_partition_count
 from ...utils.path import get_custom_module
@@ -214,9 +215,12 @@ class ExposurePreAnalysis(ComputationStep):
         self.logger.info('\nPre-analysis original files: {}'.format(
             json.dumps(original_files, indent=4)))
 
+        sar_source = exposure_data.get_subject_at_risk_source()
         group_cols = ['PortNumber', 'AccNumber']
+        has_location = exposure_data.location is not None
         can_group_by_account = (
-            all(col in exposure_data.location.dataframe.columns for col in group_cols)
+            has_location
+            and all(col in exposure_data.location.dataframe.columns for col in group_cols)
             and (exposure_data.account is None
                  or all(col in exposure_data.account.dataframe.columns for col in group_cols))
         )
@@ -232,11 +236,17 @@ class ExposurePreAnalysis(ComputationStep):
             # split (below) could split a single account's rows across chunks, or dispatch a
             # chunk whose account rows can't be grouped - not safe to merge back.
             multiproc_enabled = False
+        if multiproc_enabled and not has_location:
+            # Chunks are split off the location file, so account only exposure (e.g. cyber)
+            # runs single-process.
+            self.logger.info('\nNo location file, running pre-analysis in a single process')
+            multiproc_enabled = False
 
-        # Size partitions off the actual location row count - the real per-hook workload -
-        # rather than the number of account groups, so a portfolio with few accounts but many
-        # locations per account still gets chunked.
-        row_count = exposure_data.location.dataframe.shape[0]
+        # Size partitions off the actual subject at risk (location, or account if there's no
+        # location file) row count - the real per-hook workload - rather than the number of
+        # account groups, so a portfolio with few accounts but many locations per account
+        # still gets chunked.
+        row_count = sar_source.dataframe.shape[0]
         pool_count, part_count = resolve_partition_count(row_count, self.lookup_num_processes, self.lookup_num_chunks)
 
         if can_group_by_account:
@@ -264,8 +274,10 @@ class ExposurePreAnalysis(ComputationStep):
             class_returns = [_class(**kwargs).run()]
 
         save_exposure_data(exposure_data, path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
-        # regenerate ids
-        exposure_data.location.dataframe = exposure_data.location.dataframe.drop(columns=['loc_id', 'loc_idx'])
+        # regenerate ids, on the subject at risk source, as there's no location file for
+        # account only exposure (e.g. cyber). loc_idx / acc_idx are overwritten by prepare_oed_exposure
+        sar_source = exposure_data.get_subject_at_risk_source()  # hook may have replaced the source
+        sar_source.dataframe = sar_source.dataframe.drop(columns=[SAR_ID], errors='ignore')
         prepare_oed_exposure(exposure_data)
 
         modified_files = {oed_source.oed_name: str(oed_source.current_source['filepath']) for oed_source in exposure_data.get_oed_sources()}
