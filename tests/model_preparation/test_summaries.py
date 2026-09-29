@@ -11,8 +11,9 @@ from hypothesis.strategies import integers, just
 from ods_tools.oed import OedExposure
 
 from oasislmf.preparation.gul_inputs import get_gul_input_items
-from oasislmf.preparation.summaries import (convert_col_name, get_exposure_summary,
-                                            group_by_oed, write_exposure_summary)
+from oasislmf.preparation.summaries import (_default_csv_chunksize, convert_col_name,
+                                            get_exposure_summary, group_by_oed,
+                                            write_exposure_summary, write_gul_errors_map)
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import prepare_oed_exposure
 from oasislmf.utils.defaults import get_default_exposure_profile
@@ -469,3 +470,69 @@ def test_group_by_oed__account_subject_at_risk__field_already_in_map():
 
     assert len(set(set_values)) == 4
     assert len(set(summary_ids)) == 4
+
+
+def test_default_csv_chunksize__small_frame__returns_floor():
+    assert _default_csv_chunksize(1) == 1000
+    assert _default_csv_chunksize(500) == 1000
+
+
+def test_default_csv_chunksize__mid_size_frame__returns_row_count():
+    assert _default_csv_chunksize(1000) == 1000
+    assert _default_csv_chunksize(50_000) == 50_000
+
+
+def test_default_csv_chunksize__large_frame__capped_at_200k():
+    assert _default_csv_chunksize(500_000) == 200_000
+    assert _default_csv_chunksize(4_500_180) == 200_000
+
+
+def test_default_csv_chunksize__does_not_change_to_csv_output():
+    """The whole point of setting chunksize explicitly: it only changes how many rows
+    to_csv formats per internal pass, never what gets written. A comma, quote, and
+    newline are included because those are exactly the values a chunk-size change
+    could plausibly disturb if row batching interacted with quoting decisions."""
+    df = pd.DataFrame({
+        'status': pd.array(['fail', 'success', 'fail'], dtype='string[pyarrow]'),
+        'AccNumber': pd.Categorical(['Test', 'Te,st', 'Test']),
+        'message': pd.array(['fine', 'a "quote"', 'a\nnewline'], dtype='string[pyarrow]'),
+        'loc_id': pd.array([1, 2, 3], dtype='int64'),
+        'tiv': pd.array([0.0, 100.0, float('nan')], dtype='float64'),
+    })
+
+    baseline = df.to_csv(index=False)
+    # chunksize=1 forces every row into its own chunk - the extreme case
+    chunked = df.to_csv(index=False, chunksize=1)
+
+    assert chunked == baseline
+
+
+def test_write_gul_errors_map__column_order_is_stable():
+    """Regression: selecting columns via `set(cols).intersection(...)` gives a column
+    order that depends on Python's (unspecified, run-to-run varying) set iteration
+    order. Selecting via a list comprehension over `cols` instead must always give
+    the same, predictable header - some reader of this file may depend on it."""
+    exposure_df = pd.DataFrame({
+        'loc_id': [1, 2],
+        'PortNumber': ['1', '1'],
+        'AccNumber': ['Test', 'Test'],
+        'LocNumber': ['100', '200'],
+        'BuildingTIV': [1000.0, 2000.0],
+    })
+    keys_errors_df = pd.DataFrame({
+        'LocID': [1, 2],
+        'PerilID': ['WTC', 'WTC'],
+        'CoverageTypeID': [1, 1],
+        'Status': ['fail', 'fail'],
+        'Message': ['normal message', 'another message'],
+    })
+    exposure_profile = {
+        'buildingtiv': {'FMTermType': 'TIV', 'ProfileElementName': 'BuildingTIV', 'CoverageTypeID': 1, 'FMLevel': 2},
+    }
+
+    with TemporaryDirectory() as tmp:
+        for _ in range(3):
+            write_gul_errors_map(tmp, exposure_df, keys_errors_df.copy(), exposure_profile)
+            with open(os.path.join(tmp, 'gul_errors_map.csv')) as f:
+                header = f.readline().strip()
+            assert header == 'loc_id,PortNumber,AccNumber,LocNumber,peril_id,coverage_type_id,tiv,status,message'
