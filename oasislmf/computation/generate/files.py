@@ -115,7 +115,6 @@ class GenerateFiles(ComputationStep):
         {'name': 'lookup_config'},
         {'name': 'lookup_complex_config'},
         {'name': 'write_ri_tree', 'default': False},
-        {'name': 'verbose', 'default': False},
         {'name': 'write_chunksize', 'type': int, 'default': WRITE_CHUNKSIZE},
         {'name': 'oasis_files_prefixes', 'default': OASIS_FILES_PREFIXES},
         {'name': 'profile_loc', 'default': get_default_exposure_profile()},
