@@ -59,17 +59,13 @@ import time
 import logging
 logger = logging.getLogger(__name__)
 
-# Verify the dense per-node temporaries are clean when a node starts. They are cleared over
-# the exact sidx a node touched rather than wholesale, which is only correct if the clearing
-# set covers every writer -- and the writers span this module and back_allocation. numba folds
-# this constant at compile time, so the scan costs nothing while it is False. Turn it on and
-# run tests/fm/test_fmpy.py + tests/pytools/fm to prove the set rather than argue it.
+# The dense temporaries are cleared over the sidx each node touched, not wholesale, so every
+# writer must be covered -- and they span this module and back_allocation. numba folds the
+# constant, so the check costs nothing while it is off.
 DEBUG_TEMPS = False
 
-# Per-level profiling of compute_event. numba cannot call time.perf_counter in nopython, and
-# objmode is far too slow per node -- but at the level boundary it runs 2x per level per event,
-# which is free. Counters are plain integer adds. numba folds the constant, so this costs
-# nothing while it is False. Enable it and set FM_PROFILE_OUT to a path to get a TSV.
+# Per-level timing and counts for compute_event, written to $FM_PROFILE_OUT. Timed at the level
+# boundary because numba has no perf_counter in nopython and objmode is too slow per node.
 DEBUG_PROFILE = False
 PROFILE_LEVELS = 24
 # 0 seconds  1 nodes  2 output values  3 aggregate-path  4 adopt-path  5 leaf-path
@@ -255,26 +251,17 @@ def collapse_site_node(compute_node, storage_node, children, nodes_array, temp_c
                        collapse_loss, collapse_extras, collapse_net):
     """Merge the buildings at the last level whose terms apply per building.
 
-    Runs once this node has applied its terms and back-allocated, so every per-building term is
-    in and the allocation that had to land per building already has. Everything above is keyed on
-    acc_id or CondTag and cannot tell buildings apart, so from here the stream is ordinary.
+    Runs after this node's terms and back-allocation, so every per-building quantity is settled;
+    nothing above is keyed on risk_id and so nothing above can tell buildings apart.
 
-    Doing it here rather than from the first level above keeps it local: a site node collapses its
-    own items, where a Cond/Pol node above would walk its whole subtree to find them and every
-    further level would walk it again to find nothing left to do. The site level is always present
-    when it is needed -- buildings only stay apart because some site level applies a term per
-    building, and without one the reader sums them away instead.
+    Leaves first, node last. Back-allocation from above looks its factors up by sample index, so
+    a node collapsed ahead of its leaves would hand it packed indices and read building 1's for
+    every building.
 
-    Order matters between the two halves. The leaves go first and the node last: back-allocation
-    from above looks its factors up by sample index, so the node and the leaves under it have to
-    cross together, and a node collapsed ahead of its leaves would hand back-allocation packed
-    indices and read building 1's for every building.
-
-    ``collapse_leaves`` is false only for allocation rule 0, where nothing back-allocates and no
-    leaf is ever read again, so the node's own storage is all that has to come out collapsed.
+    ``collapse_leaves`` is false only for allocation rule 0, where no leaf is read again.
+    ``net_loss`` exists only on start_level nodes, and nodes_array is np.empty, so the field is
+    garbage on anything above -- hence the level test on each call below.
     """
-    # net_loss is allocated only for start_level nodes, and nodes_array is np.empty, so the field
-    # is garbage on anything above it -- the node collapsed here often is.
     if collapse_leaves:
         base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
         for base_child_i in range(base_children_count):
@@ -401,17 +388,10 @@ def mark_node_sidx(key, temp_node_sidx, temp_node_keys, key_count):
 def sorted_node_sidx(temp_node_keys, key_count, node_is_packed):
     """This node's sidx, ascending unless the order is about to be thrown away.
 
-    The dense scan this replaced ran over an ascending range, so ascending output was free.
-    Collecting the keys as they are scattered gives arrival order instead, and the sort puts that
-    back -- for one consumer. Only the writer depends on it, and it depends on it positionally,
-    reading -5, -3, -1 off the front rather than searching. Aggregation scatters by sidx value,
-    back-allocation looks its factors up by value, and calc pairs sidx with loss by position, so
-    none of them care.
-
-    A packed node never reaches the writer: the output is always at or above the collapse level,
-    and the collapse overwrites this order anyway -- _emit_collapsed writes -5, -3, -1, 1..S
-    straight out. Sorting B * (S + 6) packed keys to have them discarded is the one case where
-    this is pure cost.
+    Only the writer needs ascending order, and positionally -- it reads -5, -3, -1 off the front
+    rather than searching. Everything else works by sidx value or by position. A packed node
+    never reaches the writer and the collapse rewrites its order anyway, so sorting
+    ``B * (S + 6)`` keys there is pure cost.
     """
     keys = temp_node_keys[:key_count]
     if not node_is_packed:
@@ -917,12 +897,6 @@ def compute_event(compute_info,
             # - children_count == 1: Single child, can reuse its storage
             # - children_count == 0: Item level, losses already loaded from stream
             if children_count:
-                # A single child is adopted wholesale. It used to have to be aggregated instead
-                # when it crossed the collapse point, so that its building blocks merged rather
-                # than being carried through -- the collapse now happens at the site level itself,
-                # so by the time a node above sees a child, that child is already collapsed and
-                # there is nothing to force. Adoption is far cheaper than a forced aggregation:
-                # 508,812 of the nodes on the level above the collapse have one child.
                 if children_count > 1:
                     storage_node = compute_node
                     if storage_node['extra'] == null_index:
@@ -1240,11 +1214,8 @@ def compute_event(compute_info,
                 if not base_children_count:
                     base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
                 if base_children_count > 1:
-                    # a1 reuses temp_node_loss as an accumulator, but the aggregate's sums for
-                    # this node are still sitting in it at node_sidx, and the += below would
-                    # build on top of them. a2 assigns rather than accumulates, so only a1
-                    # needs this. Entries outside node_sidx are already zero -- the previous
-                    # node cleared its own, which DEBUG_TEMPS verifies.
+                    # the aggregate's sums are still in temp_node_loss at node_sidx and the +=
+                    # below would build on them. a2 assigns rather than accumulates.
                     for val_i in range(node_val_count):
                         temp_node_loss[:, node_sidx[val_i]] = 0
                     for base_child_i in range(base_children_count):
@@ -1283,10 +1254,8 @@ def compute_event(compute_info,
                             for val_i in range(child_val_count):
                                 child_loss[val_i] = child_net[val_i] * temp_node_loss[profile_i, child_sidx[val_i]]
 
-                    # The only write this node makes outside node_sidx: the base children are
-                    # leaves, so below the collapse level their sidx are still packed while the
-                    # node's own are collapsed. Clear across every layer, matching the `[:, ...]`
-                    # accumulation above.
+                    # the one write outside node_sidx: base children are leaves, still packed
+                    # below the collapse level. Every layer, matching the accumulation above.
                     for base_child_i in range(base_children_count):
                         child = nodes_array[temp_children_queue[base_child_i]]
                         child_sidx = sidx_val[sidx_indptr[sidx_indexes[child['node_id']]]:
@@ -1315,10 +1284,8 @@ def compute_event(compute_info,
                     collapse_loss, collapse_extras, collapse_net
                 )
 
-            # The dense temporaries are scratch for exactly one node: the aggregate's sums, the
-            # pre-terms extras back_alloc reads, and the factors it writes all live and die here.
-            # Clearing the node's own sidx costs its size; the fill it replaces cost the whole
-            # packed range, which is sized for the portfolio's largest location, not this node.
+            # scratch for exactly one node. Clearing what it touched costs the node's size;
+            # the fill this replaces cost the whole packed range, sized for the largest location.
             for val_i in range(node_val_count):
                 temp_node_loss[:, node_sidx[val_i]] = 0
                 temp_node_extras[:, node_sidx[val_i]] = 0
@@ -1372,11 +1339,8 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_l
     collapsed_on_read = max_buildings != max(1, int(compute_info['max_buildings']))
     packable_nodes = int(compute_info['packable_node_len'])
 
-    # int(): max_sidx_val arrives from the stream header as an int32, and NEP 50 keeps a
-    # numpy int32 times a Python int in int32. Every arena size is derived from this, and
-    # they run to 3.3e9 slots at S=100 on a 630k-building book -- the product wraps negative
-    # and np.zeros rejects it. The arena is indexed with int64 throughout, so only this
-    # arithmetic needs widening.
+    # int(): max_sidx_val is an int32 from the stream header, and NEP 50 keeps int32 * python
+    # int in int32. The arena sizes derived from it reach 3.3e9 slots and would wrap negative.
     max_sidx_count = int(max_sidx_val) + EXTRA_SIDX_COUNT
     # dense temporaries are indexed by sidx *value*, and a packed item's sidx runs up to
     # max_buildings * max_sidx_val with its specials wrapping onto the tail, so they span the
@@ -1392,22 +1356,14 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_l
     # Forced to 0 alongside max_buildings when the stream is collapsed on read, where no packed
     # sidx can reach the arena at all.
     extra_slots = 0 if collapsed_on_read else int(compute_info['packable_building_slots']) * max_sidx_count
-    # The sidx arena owes one packed slice per node; loss and extras owe one per layer, which
-    # packable_layer_slots sums per level rather than charging every slice the deepest layering in
-    # the portfolio. net_loss adds one further slice per node -- not per layer -- and only when it
-    # is in use, which is allocation rule 1 or any net-loss output mode; the caller resolves that
-    # and passes it in, so an ordinary gross run no longer reserves a net_loss copy it never
-    # writes.
+    # loss and extras owe a packed slice per LAYER where sidx owes one per node, and net_loss a
+    # further one per node when it is in use at all.
     extra_layer_slots = 0 if collapsed_on_read else int(compute_info['packable_layer_slots']) * max_sidx_count
     if keep_input_loss:
         extra_layer_slots += extra_slots
 
-    # The arena is indexed with int64 throughout -- every *_indptr is np.int64 and compute_idx's
-    # bump pointers are Python int -- but the SIZES are computed from compute_info, whose fields
-    # are oasis_int (int32). Under NEP 50 an int32 scalar times a Python int stays int32, so the
-    # product wraps before the int64 term is added and np.zeros is handed a negative length. At
-    # S=100 on a 630k-building book that is a 3.55e9-slot arena: well inside int64, and nowhere
-    # near int32. Take the sizes into Python ints before any arithmetic.
+    # int(): compute_info's fields are oasis_int, and these products reach 3.55e9 slots. The
+    # arena is indexed with int64 throughout, so only the sizing needs widening.
     node_slots = int(compute_info['node_len']) * max_sidx_count + extra_slots
     loss_slots = int(compute_info['loss_len']) * max_sidx_count + extra_layer_slots
     extra_arena_slots = int(compute_info['extra_len']) * max_sidx_count + extra_layer_slots
