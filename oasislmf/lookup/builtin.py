@@ -587,13 +587,25 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return fct
 
     @staticmethod
-    def build_split_loc_perils_covered(model_perils_covered=None):
+    def build_split_loc_perils_covered(model_perils_covered=None, not_covered_status='notmodelled'):
         """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
 
         Useful inspirational code:
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
+
+        Args:
+            model_perils_covered (list, None): perils covered by the model. Locations whose
+                LocPerilsCovered/PolPerilsCovered has no peril in this list are marked with
+                ``not_covered_status``.
+            not_covered_status (str): status key (see ``oasislmf.utils.status.OASIS_KEYS_STATUS``)
+                to assign to locations with no peril covered by the model. Defaults to
+                ``'notmodelled'``. Set to ``'notatrisk'`` to restore the pre-4.x behaviour.
         """
+        if not_covered_status not in OASIS_KEYS_STATUS:
+            raise OasisException(
+                f"unknown not_covered_status '{not_covered_status}', must be one of {sorted(OASIS_KEYS_STATUS)}")
+
         peril_groups_df = get_peril_groups_df()
 
         def fct(locations):
@@ -619,7 +631,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                                                         sort=True)
             not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])].copy()
             if not not_covered_location.empty:
-                not_covered_location['status'] = OASIS_KEYS_STATUS['notmodelled']['id']
+                not_covered_location['status'] = OASIS_KEYS_STATUS[not_covered_status]['id']
                 not_covered_location['message'] = not_covered_location[perils_covered_column].astype(str) + " have no perils modelled"
                 peril_locations = pd.concat([peril_locations, not_covered_location], ignore_index=True)
             return peril_locations

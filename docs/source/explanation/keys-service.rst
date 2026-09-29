@@ -367,7 +367,24 @@ Split the value of ``LocPerilsCovered`` (or ``PolPerilsCovered``) into multiple 
 account.
 
 ``model_perils_covered``: if given, drop all lines that are not in this list, and set any location left with no
-covered peril to the ``notmodelled`` status.
+covered peril to the status given by ``not_covered_status``.
+
+``not_covered_status``: status key to assign to locations with no peril covered by the model. Defaults to
+``notmodelled``.
+
+.. note::
+   Prior to this status being introduced, uncovered perils were assigned ``notatrisk``. Models that rely on this
+   older behaviour (e.g. to keep such locations in TIV-based exposure metrics rather than excluding them as
+   unmodelled) can restore it by setting ``not_covered_status`` to ``notatrisk``::
+
+      "split_loc_perils_covered": {
+          "type": "split_loc_perils_covered",
+          "columns": ["locperilscovered"],
+          "parameters": {
+              "model_perils_covered": ["WTC", "WSS"],
+              "not_covered_status": "notatrisk"
+          }
+      }
 
 |
 

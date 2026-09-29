@@ -269,6 +269,27 @@ def test_split_loc_perils_covered_marks_not_modelled():
     assert not not_modelled["status"].isin(OASIS_KEYS_STATUS_MODELLED).any()
 
 
+def test_split_loc_perils_covered_not_covered_status_restores_previous_behaviour():
+    """not_covered_status lets a model developer opt back into the pre-'notmodelled' behaviour
+    of flagging uncovered perils as 'notatrisk'."""
+    fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered=["QEQ"], not_covered_status="notatrisk")
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "LocPerilsCovered": ["QEQ", "WTC"],
+    })
+
+    result = fct(locations)
+
+    not_covered = result[result["loc_id"] == 2]
+    assert len(not_covered) == 1
+    assert not_covered["status"].iloc[0] == OASIS_KEYS_STATUS["notatrisk"]["id"]
+
+
+def test_split_loc_perils_covered_rejects_unknown_not_covered_status():
+    with pytest.raises(OasisException):
+        Lookup(config={}).build_split_loc_perils_covered(not_covered_status="not_a_real_status")
+
+
 def test_build_set_status_sets_status_and_message_from_columns():
     fct = Lookup(config={}).build_set_status(status_column="custom_status", message_column="custom_message")
     locations = pd.DataFrame({
