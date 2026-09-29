@@ -41,7 +41,7 @@ class TestSummaries(TestCase):
 
     def assertStatusAlmostEqual(self, expected, actual):
         cov_types = ['buildings', 'other', 'bi', 'contents']
-        lookup_status = ['success', 'fail', 'nomatch', 'fail_ap', 'fail_v', 'notatrisk']
+        lookup_status = ['success', 'fail', 'nomatch', 'fail_ap', 'fail_v', 'notatrisk', 'notmodelled']
 
         for status in lookup_status:
             expected_status = expected[expected.status == status]
@@ -74,7 +74,7 @@ class TestSummaries(TestCase):
     def assertSummaryIsValid(self, loc_df, gul_inputs, exp_summary, perils_expected=None,
                              additional_fields={}):
         cov_types = ['buildings', 'other', 'bi', 'contents']
-        lookup_status = ['success', 'fail', 'nomatch', 'fail_ap', 'fail_v', 'notatrisk']
+        lookup_status = ['success', 'fail', 'nomatch', 'fail_ap', 'fail_v', 'notatrisk', 'notmodelled']
         loc_rename_cols = {
             'BITIV': 'bi',
             'BuildingTIV': 'buildings',
