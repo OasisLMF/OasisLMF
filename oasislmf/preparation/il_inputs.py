@@ -651,14 +651,16 @@ def _check_unique_merge_keys(level_df, agg_id_merge_col, agg_id_merge_col_extra,
         ...     'peril_id': ['WTC', 'WTC'],
         ...     'deductible': [100.0, 200.0],
         ... })
-        >>> _check_unique_merge_keys(
-        ...     bad, ['agg_id'], ['peril_id', 'deductible'],
-        ...     {'id': 1, 'desc': 'site coverage'},
-        ...     ['agg_id', 'peril_id'],
-        ... )  # doctest: +IGNORE_EXCEPTION_DETAIL
-        Traceback (most recent call last):
-            ...
-        OasisException: Inconsistent FM terms at level 1 ...
+        >>> from oasislmf.utils.exceptions import OasisException
+        >>> try:
+        ...     _check_unique_merge_keys(
+        ...         bad, ['agg_id'], ['peril_id', 'deductible'],
+        ...         {'id': 1, 'desc': 'site coverage'},
+        ...         ['agg_id', 'peril_id'],
+        ...     )
+        ... except OasisException as e:
+        ...     print(str(e).splitlines()[0])
+        Inconsistent FM terms at level 1 (site coverage).
     """
     right_cols = list(agg_id_merge_col) + list(agg_id_merge_col_extra)
     gul_cols = set(gul_inputs_columns)
@@ -1663,7 +1665,7 @@ def reset_gul_inputs(gul_inputs_df):
 
 def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_csv, fm_policytc_bin,
                              fm_programme_csv, fm_programme_bin, chunksize):
-    gul_inputs_df["agg_id"] = gul_inputs_df.groupby(agg_key, sort=False, observed=True).ngroup().astype('int32') + 1
+    gul_inputs_df["agg_id"] = gul_inputs_df.groupby(agg_key, sort=False, observed=True, dropna=False).ngroup().astype('int32') + 1
     gul_inputs_df["profile_id"] = 1
     gul_inputs_df["level_id"] = cur_level_id
     fm_policytc_df = gul_inputs_df.loc[:, fm_policytc_headers]

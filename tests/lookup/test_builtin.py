@@ -16,6 +16,7 @@ from oasislmf.lookup.builtin import (
     z_index,
     z_index_to_normal,
 )
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import (
     OASIS_KEYS_STATUS,
     OASIS_KEYS_STATUS_MODELLED,
@@ -329,3 +330,126 @@ def test_build_geotiff_out_of_range_uses_correct_default_per_column(monkeypatch)
     assert result.loc[1, "a"] == -11
     assert result.loc[1, "b"] == -22
     assert result.loc[1, "c"] == -33
+
+
+# --- geog_lookup (GeogScheme/GeogName resolution) -----------------------------
+
+@pytest.fixture
+def geog_locations():
+    """Locations whose 'W3W' value sits in different GeogName slots per row."""
+    return pd.DataFrame({
+        "loc_id": [1, 2, 3],
+        "GeogScheme1": ["W3W", "ISO2", "W3W"],
+        "GeogName1": ["filled.count.soap", "US", "index.home.raft"],
+        "GeogScheme2": ["ISO2", "W3W", "CRESTA"],
+        "GeogName2": ["GB", "table.chair.lamp", "12"],
+    })
+
+
+def test_geog_lookup_resolves_across_slots(geog_locations):
+    fct = Lookup(config={}).build_geog_lookup(geog_scheme="W3W", output_column="w3w", slots=2)
+    result = fct(geog_locations)
+    assert list(result["w3w"]) == ["filled.count.soap", "table.chair.lamp", "index.home.raft"]
+
+
+def test_geog_lookup_first_match_wins():
+    locations = pd.DataFrame({
+        "loc_id": [1],
+        "GeogScheme1": ["W3W"], "GeogName1": ["from.slot.one"],
+        "GeogScheme2": ["W3W"], "GeogName2": ["from.slot.two"],
+    })
+    fct = Lookup(config={}).build_geog_lookup(geog_scheme="W3W", output_column="w3w", slots=2)
+    assert list(fct(locations)["w3w"]) == ["from.slot.one"]
+
+
+def test_geog_lookup_case_and_whitespace():
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "GeogScheme1": ["w3w", " W3W "], "GeogName1": ["lower.case.match", "padded.match"],
+    })
+    fct = Lookup(config={}).build_geog_lookup(geog_scheme="W3W", output_column="w3w", slots=1)
+    assert list(fct(locations)["w3w"]) == ["lower.case.match", "padded.match"]
+
+
+@pytest.mark.parametrize("scheme_col,name_col", [
+    ("geogscheme1", "geogname1"),
+    ("GEOGSCHEME1", "GEOGNAME1"),
+])
+def test_geog_lookup_column_name_case_insensitive(scheme_col, name_col):
+    """process_locations renames columns to the spelling used in the step's columns list."""
+    locations = pd.DataFrame({"loc_id": [1], scheme_col: ["W3W"], name_col: ["any.case.match"]})
+    fct = Lookup(config={}).build_geog_lookup(geog_scheme="W3W", output_column="w3w", slots=1)
+    assert fct(locations)["w3w"].tolist() == ["any.case.match"]
+
+
+def test_geog_lookup_missing_scheme_null(geog_locations):
+    fct = Lookup(config={}).build_geog_lookup(geog_scheme="XYZ", output_column="xyz", slots=2)
+    assert fct(geog_locations)["xyz"].isna().all()
+
+
+def test_geog_lookup_missing_scheme_error(geog_locations):
+    fct = Lookup(config={}).build_geog_lookup(
+        geog_scheme="W3W", output_column="w3w", slots=2, on_missing="error")
+    ok = fct(geog_locations.copy())  # all three rows have a W3W slot -> no raise
+    assert ok["w3w"].notna().all()
+
+    no_w3w = pd.DataFrame({"loc_id": [1], "GeogScheme1": ["ISO2"], "GeogName1": ["US"]})
+    with pytest.raises(OasisException):
+        fct(no_w3w)
+
+
+def test_geog_lookup_absent_slots_ignored():
+    """Config asks for 3 slots but only 1 pair is present -> no KeyError."""
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "GeogScheme1": ["W3W", "ISO2"], "GeogName1": ["present.slot.one", "US"],
+    })
+    fct = Lookup(config={}).build_geog_lookup(geog_scheme="W3W", output_column="w3w", slots=3)
+    assert list(fct(locations)["w3w"]) == ["present.slot.one", pd.NA]
+
+
+def test_geog_lookup_rejects_bad_on_missing():
+    with pytest.raises(OasisException):
+        Lookup(config={}).build_geog_lookup(geog_scheme="W3W", output_column="w3w", on_missing="boom")
+
+
+def test_geog_lookup_then_merge_end_to_end(geog_locations, tmp_path):
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({
+        "w3w": ["filled.count.soap", "table.chair.lamp", "index.home.raft"],
+        "area_peril_id": [101, 102, 103],
+    }).to_csv(table, index=False)
+
+    lookup = Lookup(config={})
+    resolve = lookup.build_geog_lookup(geog_scheme="W3W", output_column="w3w", slots=2)
+    merge = lookup.build_merge(file_path=str(table), id_columns=["area_peril_id"])
+
+    result = merge(resolve(geog_locations))
+    assert list(result.sort_values("loc_id")["area_peril_id"]) == [101, 102, 103]
+
+
+def test_merge_empty_join_raises_clear_error(tmp_path):
+    """build_merge against a table sharing no column raises a clear OasisException."""
+    table = tmp_path / "unrelated.csv"
+    pd.DataFrame({"w3w": ["a.b.c"], "area_peril_id": [1]}).to_csv(table, index=False)
+
+    merge = Lookup(config={}).build_merge(file_path=str(table), id_columns=["area_peril_id"])
+    locations = pd.DataFrame({"loc_id": [1], "GeogScheme1": ["W3W"], "GeogName1": ["a.b.c"]})
+    with pytest.raises(OasisException, match="nothing to join on"):
+        merge(locations)
+
+
+def test_geog_lookup_sparse_and_null_slots():
+    """Real OED has mostly-empty GeogScheme slots (NaN); resolution must not raise
+    and must pick the filled slot per row regardless of which one it is."""
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3],
+        "GeogScheme1": ["W3W", None, "ISO2"],
+        "GeogName1": ["a.b.c", None, "US"],
+        "GeogScheme2": [None, "W3W", None],
+        "GeogName2": [None, "d.e.f", None],
+    })
+    fct = Lookup(config={}).build_geog_lookup(geog_scheme="W3W", output_column="w3w", slots=2)
+    result = fct(locations)
+    assert result["w3w"].tolist()[:2] == ["a.b.c", "d.e.f"]
+    assert pd.isna(result["w3w"].iloc[2])

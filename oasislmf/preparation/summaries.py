@@ -2,6 +2,7 @@ __all__ = [
     'get_summary_mapping',
     'generate_summaryxref_files',
     'get_ri_inuring_priority_output_levels',
+    'get_ri_summaryxref_dirs',
     'merge_oed_to_mapping',
     'write_exposure_summary',
     'get_exposure_summary',
@@ -413,6 +414,58 @@ def get_ri_inuring_priority_output_levels(run_dir):
     return {int(k): int(v) for k, v in raw.items()}
 
 
+def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
+    """Resolve the RI layer directories that receive an ``fmsummaryxref`` file.
+
+    ``analysis_settings['ri_inuring_priorities']`` holds OED InuringPriority
+    values; the mapping written during input generation converts each to its RI
+    output level (the last RI layer index for that priority). The final priority
+    always receives output. Gross RL output is written for every RI layer, so
+    pass ``all_layers=True`` for that case.
+
+    This is the single definition of which RI directories are summarised - both
+    :func:`generate_summaryxref_files` and loss generation resolve it here so
+    the two cannot drift apart.
+
+    Args:
+        input_dir (str): The run directory's ``input`` sub directory, holding
+            ``ri_layers.json`` and ``ri_inuring_priority_output_levels.json``
+        analysis_settings (dict): Model analysis settings file
+        all_layers (bool): If True return every RI layer directory rather than
+            only the net output levels
+
+    Returns:
+        list[str]: Absolute paths of the RI layer directories, output level order
+
+    Raises:
+        OasisException: If a requested inuring priority is not in the structure
+    """
+    ri_settings = get_ri_settings(input_dir)
+    inuring_priority_to_output_level = get_ri_inuring_priority_output_levels(input_dir)
+    valid_oed_priorities = set(inuring_priority_to_output_level.keys())
+
+    ri_inuring_priorities_oed = set(int(p) for p in analysis_settings.get('ri_inuring_priorities', []))
+    ri_inuring_priorities_oed.add(max(valid_oed_priorities))
+
+    if not ri_inuring_priorities_oed.issubset(valid_oed_priorities):
+        ri_missing = ri_inuring_priorities_oed.difference(valid_oed_priorities)
+        ri_missing = [str(p) for p in sorted(ri_missing)]
+        missing_str = ', '.join(ri_missing[:-1])
+        missing_str += ' and ' * (len(ri_missing) > 1) + ri_missing[-1]
+        missing_str = ('priority ' if len(ri_missing) == 1 else 'priorities ') + missing_str
+        raise OasisException(f'Requested outputs for inuring {missing_str} lie outside of scope.')
+
+    if all_layers:
+        ri_output_levels = {int(x) for x in ri_settings}
+    else:
+        ri_output_levels = {inuring_priority_to_output_level[p] for p in ri_inuring_priorities_oed}
+
+    return [
+        os.path.join(input_dir, os.path.basename(ri_settings[str(output_level)]['directory']))
+        for output_level in sorted(ri_output_levels)
+    ]
+
+
 def write_df_to_csv_file(df, target_dir, filename):
     """Write a generated summary xref dataframe to disk in csv format.
 
@@ -699,40 +752,11 @@ def generate_summaryxref_files(
             'ri'
         )
         # Write Xref file for each inuring priority where output has been requested.
-        # analysis_settings['ri_inuring_priorities'] contains OED InuringPriority values; we use the
-        # mapping file (written during input generation) to convert each to the RI output level (last
-        # RI layer index for that OED priority).
-        ri_settings = get_ri_settings(os.path.join(model_run_fp, 'input'))
-        ri_layers = {int(x) for x in ri_settings}
-
-        inuring_priority_to_output_level = get_ri_inuring_priority_output_levels(
-            os.path.join(model_run_fp, 'input')
+        summary_ri_fps = get_ri_summaryxref_dirs(
+            os.path.join(model_run_fp, 'input'), analysis_settings, all_layers=bool(rl_summaries)
         )
-        valid_oed_priorities = set(inuring_priority_to_output_level.keys())
-        max_oed_priority = max(valid_oed_priorities)
 
-        ri_inuring_priorities_oed = set(int(p) for p in analysis_settings.get('ri_inuring_priorities', []))
-        ri_inuring_priorities_oed.add(max_oed_priority)  # final priority always gets output
-
-        if not ri_inuring_priorities_oed.issubset(valid_oed_priorities):
-            ri_missing = ri_inuring_priorities_oed.difference(valid_oed_priorities)
-            ri_missing = [str(p) for p in sorted(ri_missing)]
-            missing_str = ', '.join(ri_missing[:-1])
-            missing_str += ' and ' * (len(ri_missing) > 1) + ri_missing[-1]
-            missing_str = ('priority ' if len(ri_missing) == 1 else 'priorities ') + missing_str
-            raise OasisException(f'Requested outputs for inuring {missing_str} lie outside of scope.')
-
-        # Convert OED priorities to the RI output levels that should receive summary xref files.
-        # For gross RL output every RI layer is needed; for net RI output only the last layer of
-        # each requested OED priority is needed.
-        if rl_summaries:
-            ri_output_levels = ri_layers
-        else:
-            ri_output_levels = {inuring_priority_to_output_level[p] for p in ri_inuring_priorities_oed}
-
-        for output_level in ri_output_levels:
-            summary_ri_fp = os.path.join(
-                model_run_fp, 'input', os.path.basename(ri_settings[str(output_level)]['directory']))
+        for summary_ri_fp in summary_ri_fps:
             df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.bin"))
             if intermediary_csv:
                 write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.csv")

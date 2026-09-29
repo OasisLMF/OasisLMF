@@ -16,17 +16,17 @@ from oasislmf.pytools.pla.common import amp_factor_dtype
 
 def _flush_event(event_id, rows, file_out):
     count = len(rows)
-    np.array([event_id, count], dtype=np.int32).tofile(file_out)
+    file_out.write(np.array([event_id, count], dtype=np.int32).tobytes())
     body = np.empty(count, dtype=amp_factor_dtype)
     body['amplification_id'] = rows['amplification_id']
     body['factor'] = rows['factor']
-    body.tofile(file_out)
+    file_out.write(body.tobytes())
 
 
 def lossfactors_tobin(stack, file_in, file_out, file_type):
     dtype = TOOL_INFO[file_type]["dtype"]
 
-    np.array([0], dtype=np.int32).tofile(file_out)
+    file_out.write(np.array([0], dtype=np.int32).tobytes())
 
     partial_event_id = None
     partial_chunks = []
