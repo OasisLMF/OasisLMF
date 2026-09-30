@@ -30,7 +30,11 @@ class CheckModel(ComputationStep):
     Raises if any ERROR level finding is reported.
     """
     step_params = [
-        {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Model data directory path'},
+        {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model data directory path'},
+        {'name': 'model_storage_json', 'is_path': True, 'pre_exist': True, 'required': False,
+         'help': 'Model data storage settings JSON file path'},
+        {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
+         'help': 'Directory containing additional model data files which varies between analysis runs'},
         {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True,
          'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
         {'name': 'check_inputs_dir', 'is_path': True, 'pre_exist': True,
@@ -77,10 +81,24 @@ class CheckModel(ComputationStep):
         os.makedirs(dst_dir, exist_ok=True)
         for name in os.listdir(src_dir):
             src = os.path.abspath(os.path.join(src_dir, name))
+            dst = os.path.join(dst_dir, name)
+            if os.path.lexists(dst):
+                os.remove(dst)
             if name in copy_names:
-                shutil.copy(src, os.path.join(dst_dir, name))
+                shutil.copy(src, dst)
             else:
-                os.symlink(src, os.path.join(dst_dir, name))
+                os.symlink(src, dst)
+
+    def _prepare_static(self, run_dir):
+        static_dir = os.path.join(run_dir, 'static')
+        os.makedirs(static_dir)
+        if self.model_storage_json:
+            shutil.copy(self.model_storage_json, os.path.join(run_dir, 'model_storage.json'))
+        else:
+            self._link_dir(self.model_data_dir, static_dir)
+        if self.user_data_dir and os.path.exists(self.user_data_dir):
+            self._link_dir(self.user_data_dir, static_dir)
+        return get_storage_from_config_path(self.model_storage_json, static_dir)
 
     def _generate_inputs(self, report, input_dir):
         os.makedirs(input_dir, exist_ok=True)
@@ -98,6 +116,8 @@ class CheckModel(ComputationStep):
             return False
 
     def run(self):
+        if not self.model_data_dir and not self.model_storage_json:
+            raise OasisException('model check needs model_data_dir or model_storage_json')
         run_dir = self.check_dir or tempfile.mkdtemp(prefix='oasis-check-')
         if os.path.exists(os.path.join(run_dir, 'input')) or os.path.exists(os.path.join(run_dir, 'static')):
             raise OasisException(f'check_dir {run_dir} already contains input/ or static/, use an empty directory')
@@ -108,9 +128,7 @@ class CheckModel(ComputationStep):
                 inputs_generated = True
             else:
                 inputs_generated = self._generate_inputs(report, os.path.join(run_dir, 'input'))
-            static_dir = os.path.join(run_dir, 'static')
-            self._link_dir(self.model_data_dir, static_dir)
-            model_storage = get_storage_from_config_path(os.path.join(run_dir, 'model_storage.json'), static_dir)
+            model_storage = self._prepare_static(run_dir)
 
             analysis_settings = analysis_settings_loader(self.analysis_settings_json) if self.analysis_settings_json else {}
             model_settings = model_settings_loader(self.model_settings_json) if self.model_settings_json else {}

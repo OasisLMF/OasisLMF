@@ -72,7 +72,7 @@ def check_keys(report, keys, keys_errors, model_settings):
             report.missing('keys.supported_perils', 'keys contain perils not in lookup_settings.supported_perils', unknown, level=WARNING)
 
 
-def check_items(report, items, coverages, vuln, agg_map, footprint):
+def check_items(report, items, coverages, vuln, agg_map, footprint, cond_ids=()):
     if items is None or not len(items):
         return
 
@@ -84,7 +84,7 @@ def check_items(report, items, coverages, vuln, agg_map, footprint):
 
     if vuln is not None:
         item_vulns = np.unique(items['vulnerability_id'])
-        known = np.union1d(vuln.available_ids, np.array(sorted(agg_map), dtype=np.int64))
+        known = np.union1d(np.union1d(vuln.available_ids, np.array(sorted(agg_map), dtype=np.int64)), cond_ids)
         report.missing('items.vulnerability_exists', f'item vulnerability ids missing from {vuln.source} (the run raises)',
                        np.setdiff1d(item_vulns, known).tolist())
 
@@ -145,7 +145,7 @@ def _lookup_dict_files(lookup_config, config_dir):
         yield step_name, os.path.normpath(path), params.get('file_type', os.path.splitext(path)[1].lstrip('.')), id_columns
 
 
-def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, lossfactor_amp_ids):
+def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, lossfactor_amp_ids, cond_ids=()):
     if not lookup_config_json or not os.path.exists(lookup_config_json):
         report.info('lookup.dicts', 'no built-in lookup config; lookup dictionaries not checked (generated keys are still checked)')
         return
@@ -165,7 +165,7 @@ def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, 
                 continue
             ids = df[col].dropna()
             if col == 'vulnerability_id' and vuln_available_ids is not None:
-                known = np.union1d(vuln_available_ids, np.asarray(sorted(agg_ids), dtype=np.int64))
+                known = np.union1d(np.union1d(vuln_available_ids, np.asarray(sorted(agg_ids), dtype=np.int64)), cond_ids)
                 report.missing(f'{check}.vulnerability_id',
                                f'{os.path.basename(path)} maps to vulnerability ids missing from the vulnerability file; '
                                'any location that hits them fails the loss run', np.setdiff1d(ids.unique(), known).tolist(), level=WARNING)

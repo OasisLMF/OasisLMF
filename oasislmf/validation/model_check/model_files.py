@@ -15,7 +15,7 @@ import os
 from dataclasses import dataclass, field
 
 import numpy as np
-import pandas as pd
+import pyarrow.parquet as pq
 
 from ...pytools.common.data import areaperil_int, oasis_int, vulnerability_dtype
 from ...pytools.common.input_files import read_occurrence_bin, read_periods, read_returnperiods
@@ -101,13 +101,17 @@ def check_damage_bins(report, storage):
     return bins
 
 
-def _rows_from_idx(vulns_bin, vulns_idx, header_size):
+def _rows_from_idx(report, vulns_bin, vulns_idx, header_size):
     row_size = VulnerabilityRow_dtype.itemsize
+    starts = (vulns_idx['offset'].astype(np.int64) - header_size) // row_size
+    counts = vulns_idx['size'].astype(np.int64) // row_size
+    bad = ((vulns_idx['offset'].astype(np.int64) - header_size) % row_size != 0) | (starts < 0) | (starts + counts > len(vulns_bin))
+    report.missing('vulnerability.idx_range', 'vulnerability.idx entries point outside vulnerability.bin; is the idx stale?',
+                   np.unique(vulns_idx['vulnerability_id'][bad]).tolist())
     parts = []
-    for entry in vulns_idx:
-        start = (int(entry['offset']) - header_size) // row_size
-        part = np.empty(int(entry['size']) // row_size, dtype=vulnerability_dtype)
-        chunk = vulns_bin[start: start + len(part)]
+    for entry, start, count in zip(vulns_idx[~bad], starts[~bad], counts[~bad]):
+        part = np.empty(count, dtype=vulnerability_dtype)
+        chunk = vulns_bin[start: start + count]
         part['vulnerability_id'] = entry['vulnerability_id']
         for col in ('intensity_bin_id', 'damage_bin_id', 'probability'):
             part[col] = chunk[col]
@@ -129,28 +133,30 @@ def _rows_from_parquet(df, num_damage_bins, num_intensity_bins):
     return np.concatenate(parts) if parts else np.empty(0, dtype=vulnerability_dtype)
 
 
-def load_vulnerability(report, static_dir, vuln_ids=None):
+def load_vulnerability(report, model_storage, vuln_ids=None):
     """Load vulnerability rows for ``vuln_ids`` (all rows if None) from whichever format a run would pick."""
     header_size = 4
-    dataset_fp = os.path.join(static_dir, vulnerability_dataset)
-    bin_fp = os.path.join(static_dir, 'vulnerability.bin')
-    idx_fp = os.path.join(static_dir, 'vulnerability.idx')
-    csv_fp = os.path.join(static_dir, 'vulnerability.csv')
+    files = set(model_storage.listdir())
     wanted = None if vuln_ids is None else np.unique(np.asarray(vuln_ids, dtype=np.int64))
 
-    if os.path.exists(dataset_fp):
-        with open(os.path.join(static_dir, parquetvulnerability_meta_filename)) as f:
+    if vulnerability_dataset in files:
+        with model_storage.open(parquetvulnerability_meta_filename, 'r') as f:
             meta = json.load(f)
-        available = np.unique(pd.read_parquet(dataset_fp, columns=['vulnerability_id'])['vulnerability_id'].to_numpy())
+        available = np.unique(pq.read_table(vulnerability_dataset, filesystem=model_storage.fs,
+                                            columns=['vulnerability_id']).column('vulnerability_id').to_numpy())
         filters = None if wanted is None else [('vulnerability_id', 'in', wanted.tolist())]
-        df = pd.read_parquet(dataset_fp, columns=['vulnerability_id', 'vuln_array'], filters=filters)
+        df = pq.read_table(vulnerability_dataset, filesystem=model_storage.fs, columns=['vulnerability_id', 'vuln_array'],
+                           filters=filters).to_pandas()
         rows = _rows_from_parquet(df, meta['num_damage_bins'], meta['num_intensity_bins'])
         return VulnerabilityData(vulnerability_dataset, available, meta['num_damage_bins'], rows, meta['num_intensity_bins'])
 
-    if os.path.exists(bin_fp):
-        num_damage_bins = int(np.fromfile(bin_fp, dtype=np.int32, count=1)[0])
-        if os.path.exists(idx_fp):
-            vulns_idx = np.fromfile(idx_fp, dtype=VulnerabilityIndex_dtype)
+    if 'vulnerability.bin' in files:
+        bin_size = model_storage.fs.size('vulnerability.bin')
+        with model_storage.open('vulnerability.bin', 'rb') as f:
+            num_damage_bins = int(np.frombuffer(f.read(header_size), dtype=np.int32)[0])
+        if 'vulnerability.idx' in files:
+            with model_storage.open('vulnerability.idx', 'rb') as f:
+                vulns_idx = np.frombuffer(f.read(), dtype=VulnerabilityIndex_dtype)
             available = np.unique(vulns_idx['vulnerability_id'])
             if ((vulns_idx['original_size'] > 0) & (vulns_idx['original_size'] != vulns_idx['size'])).any():
                 report.error('vulnerability.format',
@@ -158,31 +164,33 @@ def load_vulnerability(report, static_dir, vuln_ids=None):
                 return VulnerabilityData('vulnerability.bin+idx', available, num_damage_bins)
             if wanted is not None:
                 vulns_idx = vulns_idx[np.isin(vulns_idx['vulnerability_id'], wanted)]
-            size_check = os.path.getsize(bin_fp) - header_size
-            if size_check % VulnerabilityRow_dtype.itemsize:
+            if (bin_size - header_size) % VulnerabilityRow_dtype.itemsize:
                 report.error('vulnerability.format', 'vulnerability.bin size is not a whole number of 12-byte rows but a '
                              'vulnerability.idx is present; is the idx stale next to a flat 16-byte-row file?')
                 return VulnerabilityData('vulnerability.bin+idx', available, num_damage_bins)
-            vulns_bin = np.memmap(bin_fp, dtype=VulnerabilityRow_dtype, offset=header_size, mode='r')
-            return VulnerabilityData('vulnerability.bin+idx', available, num_damage_bins,
-                                     _rows_from_idx(vulns_bin, vulns_idx, header_size))
+            with model_storage.with_fileno('vulnerability.bin') as f:
+                vulns_bin = np.memmap(f, dtype=VulnerabilityRow_dtype, offset=header_size, mode='r')
+                rows = _rows_from_idx(report, vulns_bin, vulns_idx, header_size)
+            return VulnerabilityData('vulnerability.bin+idx', available, num_damage_bins, rows)
 
-        if (os.path.getsize(bin_fp) - header_size) % vulnerability_dtype.itemsize:
+        if (bin_size - header_size) % vulnerability_dtype.itemsize:
             report.error('vulnerability.format', f'vulnerability.bin size is not a whole number of {vulnerability_dtype.itemsize}-byte rows')
             return None
-        vulns = np.memmap(bin_fp, dtype=vulnerability_dtype, offset=header_size, mode='r')
-        available = np.unique(vulns['vulnerability_id'])
-        rows = np.array(vulns if wanted is None else vulns[np.isin(vulns['vulnerability_id'], wanted)])
+        with model_storage.with_fileno('vulnerability.bin') as f:
+            vulns = np.memmap(f, dtype=vulnerability_dtype, offset=header_size, mode='r')
+            available = np.unique(vulns['vulnerability_id'])
+            rows = np.array(vulns if wanted is None else vulns[np.isin(vulns['vulnerability_id'], wanted)])
         return VulnerabilityData('vulnerability.bin', available, num_damage_bins, rows)
 
-    if os.path.exists(csv_fp):
-        rows = np.loadtxt(csv_fp, dtype=vulnerability_dtype, delimiter=',', skiprows=1, ndmin=1)
+    if 'vulnerability.csv' in files:
+        with model_storage.open('vulnerability.csv', 'r') as f:
+            rows = np.loadtxt(f, dtype=vulnerability_dtype, delimiter=',', skiprows=1, ndmin=1)
         available = np.unique(rows['vulnerability_id'])
         if wanted is not None:
             rows = rows[np.isin(rows['vulnerability_id'], wanted)]
         return VulnerabilityData('vulnerability.csv', available, int(rows['damage_bin_id'].max()) if len(rows) else 0, rows)
 
-    report.error('vulnerability.exists', f'no vulnerability file (parquet dataset, bin or csv) found in {static_dir}')
+    report.error('vulnerability.exists', 'no vulnerability file (parquet dataset, bin or csv) found in the model data')
     return None
 
 
@@ -237,11 +245,11 @@ def check_vulnerability(report, vuln, damage_bins, num_intensity_bins, zero_bin_
                            incomplete.tolist())
 
 
-def _check_footprint_index(report, static_dir):
-    idx_fp = os.path.join(static_dir, footprint_index_filename)
-    if not os.path.exists(idx_fp):
+def _check_footprint_index(report, model_storage):
+    if not model_storage.exists(footprint_index_filename):
         return
-    idx = np.fromfile(idx_fp, dtype=EventIndexBin_dtype)
+    with model_storage.open(footprint_index_filename, 'rb') as f:
+        idx = np.frombuffer(f.read(), dtype=EventIndexBin_dtype)
     unsorted = np.flatnonzero(idx['event_id'][1:] < idx['event_id'][:-1])
     report.missing('footprint.index_sorted', 'footprint.idx is not sorted by event_id; events after the break are never found (silent zero loss)',
                    idx['event_id'][unsorted + 1].tolist())
@@ -249,9 +257,9 @@ def _check_footprint_index(report, static_dir):
                    np.unique(idx['event_id'][1:][idx['event_id'][1:] == idx['event_id'][:-1]]).tolist())
 
 
-def scan_footprint(report, model_storage, static_dir, event_ids, portfolio_areaperils=None, dynamic=False, max_events=None):
+def scan_footprint(report, model_storage, run_dir, event_ids, portfolio_areaperils=None, dynamic=False, max_events=None):
     summary = FootprintSummary()
-    _check_footprint_index(report, static_dir)
+    _check_footprint_index(report, model_storage)
 
     if event_ids is None:
         report.warning('footprint.events', 'no events file resolved, footprint contents not checked')
@@ -264,7 +272,10 @@ def scan_footprint(report, model_storage, static_dir, event_ids, portfolio_areap
 
     noncontiguous, ap_zero, bad_intensity, bad_sum, dups = (_Collector() for _ in range(5))
     hits = []
+    cwd = os.getcwd()
     try:
+        # the dynamic footprint reads input/sections.csv and input/keys.csv relative to the run directory
+        os.chdir(run_dir)
         with Footprint.load(model_storage) as footprint:
             nib = summary.num_intensity_bins = int(footprint.num_intensity_bins)
             for event_id in event_ids:
@@ -297,6 +308,8 @@ def scan_footprint(report, model_storage, static_dir, event_ids, portfolio_areap
     except Exception as e:
         report.error('footprint.load', f'{type(e).__name__}: {e}')
         return summary
+    finally:
+        os.chdir(cwd)
 
     noncontiguous.report(report, ERROR, 'footprint.areaperil_contiguous',
                          'rows for an areaperil are not contiguous within an event (corrupts gulmc item buffers)')

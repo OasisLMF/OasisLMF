@@ -7,6 +7,7 @@ import os
 
 import numpy as np
 
+from ...pytools.getmodel.manager import get_conditional_vuln_ids
 from ...pytools.gulmc.aggregate import read_aggregate_vulnerability
 from .inputs import check_amplifications, check_items, check_keys, check_lookup_dicts, load_portfolio
 from .model_files import (check_aggregate_vulnerability, check_damage_bins, check_event_files, check_vulnerability,
@@ -45,11 +46,11 @@ def run_model_check(report, run_dir, model_storage, analysis_settings, model_set
     items = portfolio['items']
 
     event_ids = check_event_files(report, run_files)
-    footprint = scan_footprint(report, model_storage, static_dir, event_ids,
+    footprint = scan_footprint(report, model_storage, run_dir, event_ids,
                                portfolio_areaperils=None if items is None else np.unique(items['areaperil_id']),
                                dynamic=dynamic_footprint, max_events=max_events)
 
-    vuln = load_vulnerability(report, static_dir, None if full_model else _vulnerability_ids_to_load(items, model_storage))
+    vuln = load_vulnerability(report, model_storage, None if full_model else _vulnerability_ids_to_load(items, model_storage))
     agg_map = {}
     if vuln is not None:
         if vuln.num_intensity_bins is not None and footprint.num_intensity_bins is not None \
@@ -61,9 +62,10 @@ def run_model_check(report, run_dir, model_storage, analysis_settings, model_set
         agg_map = check_aggregate_vulnerability(report, model_storage, vuln.available_ids,
                                                 None if items is None else np.unique(items['vulnerability_id']))
 
+    cond_ids = get_conditional_vuln_ids(model_storage)
     amp_ids = read_lossfactor_amplification_ids(static_dir)
     if check_portfolio:
-        check_items(report, items, portfolio['coverages'], vuln, agg_map, footprint)
+        check_items(report, items, portfolio['coverages'], vuln, agg_map, footprint, cond_ids)
         check_amplifications(report, input_dir, amp_ids, bool(merged_settings.get('pla')))
-    check_lookup_dicts(report, lookup_config_json, None if vuln is None else vuln.available_ids, agg_map, amp_ids)
+    check_lookup_dicts(report, lookup_config_json, None if vuln is None else vuln.available_ids, agg_map, amp_ids, cond_ids)
     return report

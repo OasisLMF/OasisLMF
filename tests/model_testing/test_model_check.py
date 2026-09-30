@@ -18,7 +18,7 @@ from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype, F
 from oasislmf.pytools.getmodel.manager import VulnerabilityIndex_dtype
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.validation.model_check import CheckReport, run_model_check
-from oasislmf.validation.model_check.model_files import load_vulnerability
+from oasislmf.validation.model_check.model_files import load_vulnerability, scan_footprint
 from tests.computation.data.common import MIN_LOC
 
 MODEL_SETTINGS = {
@@ -164,6 +164,14 @@ def test_item_vulnerability_missing_from_model(tmp_path):
     assert finding.examples == [99]
 
 
+def test_item_vulnerability_in_conditional_vulnerability(tmp_path):
+    model = default_model()
+    model['items'][1] = (2, 2, 20, 99, 2)
+    model['raw_files'] = {'static/conditional_vulnerability.csv': b'vulnerability_id,source_damage_bin,damage_bin,probability\n99,1,1,1\n'}
+    report = run_check(tmp_path, model)
+    assert 'items.vulnerability_exists' in report.passed, report.format()
+
+
 def test_footprint_intensity_beyond_header(tmp_path):
     model = default_model()
     model['footprint'][1] = [(10, 3, 1.)]
@@ -287,6 +295,26 @@ def test_check_model_does_not_write_through_to_existing_inputs(tmp_path):
     assert (tmp_path / 'input' / 'events.csv').read_text() == 'event_id\n1\n2\n'
 
 
+@pytest.mark.parametrize('data_source', ['user_data_dir', 'model_storage_json'])
+def test_check_model_uses_run_model_data_sources(tmp_path, data_source):
+    write_run_dir(tmp_path, default_model())
+    analysis_fp, model_fp = write_settings(tmp_path)
+    kwargs = {'check_inputs_dir': str(tmp_path / 'input'), 'analysis_settings_json': analysis_fp, 'model_settings_json': model_fp}
+    if data_source == 'user_data_dir':
+        (tmp_path / 'user').mkdir()
+        os.rename(tmp_path / 'static' / 'events_p.bin', tmp_path / 'user' / 'events_p.bin')
+        with pytest.raises(OasisException):
+            CheckModel(model_data_dir=str(tmp_path / 'static'), **kwargs).run()
+        kwargs.update(model_data_dir=str(tmp_path / 'static'), user_data_dir=str(tmp_path / 'user'))
+    else:
+        storage_fp = tmp_path / 'model_storage.json'
+        storage_fp.write_text(json.dumps({'storage_class': 'oasis_data_manager.filestore.backends.local.LocalStorage',
+                                          'options': {'root_dir': str(tmp_path / 'static')}}))
+        kwargs['model_storage_json'] = str(storage_fp)
+    report = CheckModel(**kwargs).run()
+    assert not report.errors, report.format()
+
+
 @pytest.mark.parametrize('model_check, check_fails, expected', [
     (False, False, ['GenerateFiles', 'GenerateLosses']),
     (True, False, ['GenerateFiles', 'CheckModel', 'GenerateLosses']),
@@ -334,7 +362,7 @@ def test_vulnerability_formats(tmp_path, vulnerability_format, full_model):
     report = run_check(tmp_path, model, full_model=full_model)
     assert not report.errors and not report.warnings, report.format()
 
-    vuln = load_vulnerability(CheckReport(), str(tmp_path / 'static'), None if full_model else [1])
+    vuln = load_vulnerability(CheckReport(), LocalStorage(str(tmp_path / 'static')), None if full_model else [1])
     expected = [r for r in model['vulnerability'] if full_model or r[0] == 1]
     np.testing.assert_allclose(np.sort(vuln.rows).tolist(), sorted(expected), rtol=1e-6)
     assert vuln.available_ids.tolist() == [1, 2]
@@ -352,6 +380,15 @@ def test_vulnerability_file_corrupt(tmp_path, raw_files, append_files, ids_known
     assert 'vulnerability.format' in checks(report, 'ERROR')
     assert ('items.vulnerability_exists' in report.passed) == ids_known
     assert 'vulnerability.probability_sum' not in report.passed
+
+
+def test_vulnerability_idx_past_end_of_bin(tmp_path):
+    model = default_model()
+    model['vulnerability_format'] = 'idx'
+    model['raw_files'] = {'static/vulnerability.idx': np.array([(1, 4 + 12 * 100, 24, 0)], dtype=VulnerabilityIndex_dtype).tobytes()}
+    report = run_check(tmp_path, model)
+    finding = next(f for f in report.errors if f.check == 'vulnerability.idx_range')
+    assert finding.examples == [1]
 
 
 def test_vulnerability_zipped_is_error(tmp_path):
@@ -415,6 +452,28 @@ def test_footprint_intensity_zero_allowed_for_dynamic(tmp_path, dynamic):
     model = default_model()
     model['footprint'][1] = [(10, 0, 1.)]
     assert ('footprint.intensity_range' in checks(run_check(tmp_path, model, dynamic_footprint=dynamic), 'ERROR')) != dynamic
+
+
+def test_dynamic_footprint_reads_inputs_from_run_dir(tmp_path, monkeypatch):
+    static, inputs = tmp_path / 'static', tmp_path / 'input'
+    static.mkdir()
+    inputs.mkdir()
+    (static / 'footprint_parquet_meta.json').write_text(json.dumps({'num_intensity_bins': 2, 'has_intensity_uncertainty': False}))
+    pd.DataFrame({'event_id': [1], 'section_id': [1], 'rp_from': [10], 'rp_to': [20], 'interpolation': [.5]}).to_parquet(
+        static / 'event_definition.parquet')
+    pd.DataFrame({'section_id': [1, 1], 'areaperil_id': [10, 10], 'return_period': [10, 20], 'intensity': [4, 8]}).to_parquet(
+        static / 'hazard_case.parquet')
+    pd.DataFrame({'section_id': [1]}).to_csv(inputs / 'sections.csv', index=False)
+    pd.DataFrame({'AreaPerilID': [10]}).to_csv(inputs / 'keys.csv', index=False)
+    elsewhere = tmp_path / 'elsewhere'
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    report = CheckReport()
+    summary = scan_footprint(report, LocalStorage(str(static)), str(tmp_path), [1], dynamic=True)
+    assert not report.errors, report.format()
+    assert summary.events_checked == 1
+    assert os.getcwd() == str(elsewhere)
 
 
 def test_footprint_row_problems(tmp_path):
