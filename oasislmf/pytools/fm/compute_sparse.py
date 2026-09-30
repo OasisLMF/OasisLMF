@@ -610,7 +610,9 @@ def aggregate_children(node, children_count, nodes_array, children, temp_childre
                         least = candidate
             if least == SIDX_MERGE_SENTINEL:
                 break
-            total = 0.0
+            # np.float64, not 0.0: a Python float is weak under NEP 50, so += an oasis_float
+            # value narrows the sum to the stored width wherever the JIT is off.
+            total = np.float64(0)
             for c in range(n_cur):
                 if merge_sidx_i[c] < merge_sidx_end[c] and sidx_val[merge_sidx_i[c]] == least:
                     total += loss_val[merge_loss_i[c]]
