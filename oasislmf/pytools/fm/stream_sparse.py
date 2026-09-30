@@ -91,8 +91,8 @@ def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val, accumul
 
     Inserting in sorted position instead is quadratic on a packed item: each new building's
     specials sort below everything already stored, so every one shifts the whole array --
-    7.8e12 element moves at 630,510 buildings. ``sort_item`` handles the ordering once, at the
-    item delimiter.
+    7.8e12 element moves at 630,510 buildings. The producer emits an item ascending instead,
+    and ``check_item_order`` verifies it at the delimiter.
 
     Args:
         sidx: Sample index to append.
@@ -101,7 +101,7 @@ def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val, accumul
         sidx_indptr: CSR pointers into sidx_val.
         sidx_val: Sample index values.
         loss_val: Loss values.
-        accumulate: unused here; duplicates are resolved by ``sort_item`` when the item closes.
+        accumulate: unused here; see ``check_item_order``, which runs when the item closes.
     """
     insert_i = sidx_indptr[compute_i]
     sidx_val[insert_i] = sidx
@@ -110,54 +110,42 @@ def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val, accumul
 
 
 @nb.njit(cache=True, fastmath=True)
-def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate, max_sidx_val):
-    """Put the item just read into ascending sidx order, resolving any repeat.
+def check_item_order(compute_i, sidx_indptr, sidx_val, loss_val, accumulate):
+    """Check the item just read is in ascending sidx order, or merge it if it cannot be.
+
+    The loss stream requires ascending sidx, and a packed item obeys it: every building's
+    analytics are written before any samples, descending in building so their encoding ascends,
+    then the samples ascend with the building. Ascending makes a repeat a comparison rather than
+    a search, which is the only duplicate check there is.
+
+    ``accumulate`` is the exception. Collapsing on read decodes each index as it is stored, so
+    several buildings land on one local sidx by design -- that cannot ascend and the repeats are
+    legitimate, so those are sorted and summed instead.
 
     Args:
         compute_i: computation index of the node just completed.
         sidx_indptr: CSR pointers into sidx_val.
-        sidx_val: Sample index values, reordered in place.
-        loss_val: Loss values, reordered with them.
-        accumulate: whether a repeated sidx is legitimate and should be summed onto the value
-            already stored. True only when the reader is collapsing a building-packed item,
-            where several packed indices decode onto one local index by design. False
-            otherwise, where a repeat is stream corruption.
-        max_sidx_val: the stream's sample size, which separates an ordinary sidx from a packed
-            one. An item carrying packed indices is left in arrival order -- see below.
+        sidx_val: Sample index values.
+        loss_val: Loss values, kept aligned with them.
+        accumulate: whether repeated indices are expected, which is collapse-on-read alone.
 
     Raises:
-        ValueError: if the same sidx arrives twice for one item and ``accumulate`` is not set.
+        ValueError: if an item that should ascend does not, which is a repeated sidx or a
+            producer that did not order its output.
     """
     start = sidx_indptr[compute_i - 1]
     end = sidx_indptr[compute_i]
-    n = end - start
-    if n < 2:
+    if end - start < 2:
         return
 
-    # one pass: ascending already, carries packed indices, and any adjacent repeat
-    first = sidx_val[start]
-    seen_packed = first > max_sidx_val or first < -NUM_SPECIAL_SIDX
-    ordered = True
-    for i in range(start + 1, end):
-        sidx = sidx_val[i]
-        if sidx > max_sidx_val or sidx < -NUM_SPECIAL_SIDX:
-            seen_packed = True
-        if sidx == sidx_val[i - 1] and not accumulate:
-            raise ValueError("duplicated sidx in input stream")
-        if sidx < sidx_val[i - 1]:
-            ordered = False
-    if ordered:
-        return
-
-    if seen_packed and not accumulate:
-        # A packed item is emitted building by building and so is never ascending, and nothing
-        # downstream needs it to be: the writer is the only order-dependent consumer and it reads
-        # leaves that the collapse has already put in canonical order. Sorting here would cost an
-        # argsort per packed item. The price is that a repeat is only caught between neighbours,
-        # where sorting would have brought any pair together.
+    if not accumulate:
+        for i in range(start + 1, end):
+            if sidx_val[i] <= sidx_val[i - 1]:
+                raise ValueError("sidx out of order or repeated in input stream")
         return
 
     order = np.argsort(sidx_val[start:end])
+    n = end - start
     sorted_sidx = np.empty(n, dtype=sidx_val.dtype)
     sorted_loss = np.empty(n, dtype=loss_val.dtype)
     for i in range(n):
@@ -167,8 +155,6 @@ def sort_item(compute_i, sidx_indptr, sidx_val, loss_val, accumulate, max_sidx_v
     write_i = start
     for i in range(n):
         if write_i > start and sidx_val[write_i - 1] == sorted_sidx[i]:
-            if not accumulate:
-                raise ValueError("duplicated sidx in input stream")
             loss_val[write_i - 1] += sorted_loss[i]
             continue
         sidx_val[write_i] = sorted_sidx[i]
@@ -254,8 +240,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 if not sidx:
                     # sidx == 0: Item delimiter reached. The records were appended in arrival
                     # order; put them in sidx order now, once, rather than on every insert.
-                    sort_item(compute_idx['next_compute_i'], sidx_indptr, sidx_val, loss_val,
-                              collapse_on_read, max_sidx_val)
+                    check_item_order(compute_idx['next_compute_i'], sidx_indptr, sidx_val,
+                                     loss_val, collapse_on_read)
                     reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes)
                     cursor += (k + 1) * loss_pair_size  # consume pairs incl. delimiter
                     item_id = 0  # Return to header-reading state

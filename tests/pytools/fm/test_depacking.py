@@ -26,8 +26,15 @@ from oasislmf.pytools.fm.stream_sparse import read_buffer
 S = 4  # logical sample size
 
 
-def _build_item_buffer(event_id, item_id, records):
-    """Serialise one item (header + (sidx, loss) pairs + delimiter) to a byte view."""
+def _build_item_buffer(event_id, item_id, records, ascending=True):
+    """Serialise one item (header + (sidx, loss) pairs + delimiter) to a byte view.
+
+    Sorted by default: the stream requires ascending sidx and the reader rejects an item that is
+    not, so a fixture appending building by building would be feeding input no producer emits.
+    Pass ``ascending=False`` to build a stream that breaks the rule on purpose.
+    """
+    if ascending:
+        records = sorted(records)
     header = np.array([event_id, item_id], dtype=oasis_int).tobytes()
     pairs = np.zeros(len(records) + 1, dtype=loss_pair_dtype)
     for i, (sidx, loss) in enumerate(records):
@@ -114,33 +121,18 @@ class TestFmDepacking(TestCase):
             for local_sidx in (-5, -3, -1, 1, 2, 3, 4):
                 self.assertIn(encode_sidx(building, local_sidx, S), stored)
 
-    def test_an_unpacked_item_is_still_stored_ascending(self):
-        """An ordinary stream arrives ascending, and the reader keeps that contract."""
-        state = _fresh_state()
-        _read(state, _build_item_buffer(1, 1, self.normal_records))
-        end = state['sidx_indptr'][1]
-        stored_sidx = state['sidx_val'][:end].tolist()
-        self.assertEqual(stored_sidx, sorted(stored_sidx))
+    def test_an_item_that_does_not_ascend_is_rejected(self):
+        """The stream's ordering rule, and the only duplicate check there is.
 
-    def test_a_packed_item_keeps_arrival_order(self):
-        """A packed item is deliberately NOT put in sidx order here.
-
-        gulmc emits building by building, so building 2's specials sort below building 1's
-        samples: the item can never be ascending, and sorting it costs an argsort, two
-        allocations and a gather for every packed item in the stream. Nothing between the reader
-        and the output needs that order -- aggregate_children scatters by sidx value, back_alloc
-        looks its factors up by value, and collapse_packed_leaves accumulates into a dense array
-        keyed on the decoded local sidx before emitting -5, -3, -1, 1..S canonically, which is
-        the order the writer requires.
+        Both cases meet the same comparison: a repeat is where it is equal, a descent where it
+        is less. write_losses emits a packed item ascending -- every building's analytics before
+        any samples, descending in building so their encoding ascends -- so records in arrival
+        order from the old layout are corruption now.
         """
-        state = _fresh_state()
-        _read(state, _build_item_buffer(1, 1, self.packed_records))
-        end = state['sidx_indptr'][1]
-        stored_sidx = state['sidx_val'][:end].tolist()
-        arrival = [sidx for sidx, _ in self.packed_records if decode_local_sidx(sidx, S) != -4]
-        self.assertEqual(stored_sidx, arrival)
-        # guards against the sort being reintroduced without the cost being reconsidered
-        self.assertNotEqual(stored_sidx, sorted(stored_sidx))
+        for records in (self.packed_records,     # building by building: descends at building 2
+                        [(1, 1.), (1, 2.)]):     # the same sidx twice
+            with self.assertRaises(ValueError):
+                _read(_fresh_state(), _build_item_buffer(1, 1, records, ascending=False))
 
     def test_normal_stream_unchanged(self):
         """For building 1 the packed encoding is the identity, so a normal stream is verbatim."""
@@ -149,11 +141,6 @@ class TestFmDepacking(TestCase):
         stored, chance = _stored(state)
         self.assertEqual(stored, self.normal_expected)
         self.assertEqual(chance, 0.5)
-
-    def test_a_repeated_sidx_is_still_stream_corruption(self):
-        state = _fresh_state()
-        with self.assertRaises(ValueError):
-            _read(state, _build_item_buffer(1, 1, [(1, 1.), (1, 2.)]))
 
 
 if __name__ == "__main__":

@@ -378,7 +378,7 @@ def mark_node_sidx(key, temp_node_sidx, temp_node_keys, key_count):
         int: the new key count.
     """
     if not temp_node_sidx[key]:
-        temp_node_sidx[key] = True
+        temp_node_sidx[key] = 1
         temp_node_keys[key_count] = key
         key_count += 1
     return key_count
@@ -498,7 +498,7 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
                 extras_val[compute_idx['extras_ptr_i']] = profile_temp_node_extras[sidx_val[node_sidx_cur]]
                 compute_idx['extras_ptr_i'] += 1
             for key_i in range(key_count):
-                temp_node_sidx[temp_node_keys[key_i]] = False
+                temp_node_sidx[temp_node_keys[key_i]] = 0
 
         else:
             node_keys = sorted_node_sidx(temp_node_keys, key_count, node_is_packed)
@@ -509,7 +509,7 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
                 # temp_node_sidx is reused by every node of the event, so a node must leave it
                 # as it found it. Without this a node BELOW site_collapse_level leaves its
                 # PACKED indices set, and the collapsed node above collects them too.
-                temp_node_sidx[sidx] = False
+                temp_node_sidx[sidx] = 0
 
                 loss_val[compute_idx['loss_ptr_i']] = profile_temp_node_loss[sidx]
                 compute_idx['loss_ptr_i'] += 1
@@ -614,7 +614,7 @@ def aggregate_children(node, children_count, nodes_array, children, temp_childre
                 loss_val[compute_idx['loss_ptr_i']] = profile_temp_node_loss[sidx_val[node_sidx_cur]]
                 compute_idx['loss_ptr_i'] += 1
             for key_i in range(key_count):
-                temp_node_sidx[temp_node_keys[key_i]] = False
+                temp_node_sidx[temp_node_keys[key_i]] = 0
 
         else:
             node_keys = sorted_node_sidx(temp_node_keys, key_count, node_is_packed)
@@ -622,7 +622,7 @@ def aggregate_children(node, children_count, nodes_array, children, temp_childre
                 sidx = node_keys[key_i]
                 sidx_val[compute_idx['sidx_ptr_i']] = sidx
                 compute_idx['sidx_ptr_i'] += 1
-                temp_node_sidx[sidx] = False
+                temp_node_sidx[sidx] = 0
 
                 loss_val[compute_idx['loss_ptr_i']] = profile_temp_node_loss[sidx]
                 compute_idx['loss_ptr_i'] += 1
