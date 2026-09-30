@@ -10,6 +10,7 @@ same M entries the same number of times, so a location with N a multiple of M pr
 *constant* total, identical in every sample. The per-building marginals were fine and every
 test in the suite passed; only the aggregate gave it away.
 """
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -20,6 +21,14 @@ import pytest
 
 from oasislmf.pytools.common.data import correlations_dtype
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
+
+# Statistical, not functional: the assertions need up to 20,000 buildings, which is seconds once compiled and
+# hours interpreted. The four JIT-enabled CI legs run them; the coverage leg, which sets
+# NUMBA_DISABLE_JIT, does not.
+pytestmark = pytest.mark.skipif(
+    os.environ.get("NUMBA_DISABLE_JIT", "0") != "0",
+    reason="statistical test: up to 20,000 buildings is hours with the JIT disabled",
+)
 
 SRC_MODEL = Path(__file__).parents[2].joinpath("assets", "test_model_1")
 

@@ -6,6 +6,7 @@ distribution of that SUM. ``mean``, ``tiv`` and ``max_loss`` are additive and sc
 correlation: the buildings of an item share ``damage_eps_ij[peril_correlation_group]``, so their
 variances do not simply add.
 """
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -18,6 +19,14 @@ from oasislmf.pytools.common.data import correlations_dtype
 from oasislmf.pytools.common.event_stream import MEAN_IDX, STD_DEV_IDX
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
+
+# Statistical, not functional: the assertions need 2,000 samples per run, which is seconds once compiled and
+# hours interpreted. The four JIT-enabled CI legs run them; the coverage leg, which sets
+# NUMBA_DISABLE_JIT, does not.
+pytestmark = pytest.mark.skipif(
+    os.environ.get("NUMBA_DISABLE_JIT", "0") != "0",
+    reason="statistical test: 2,000 samples per run is hours with the JIT disabled",
+)
 
 SRC_MODEL = Path(__file__).parents[2].joinpath("assets", "test_model_1")
 SAMPLE_SIZE = 2000
