@@ -613,18 +613,32 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
 
 @njit(cache=True, fastmath=True)
-def write_packed_building_block(byte_mv, cursor, item_specials, b, sample_losses,
-                                sample_size, loss_threshold):
-    """Emit one building's block of a packed item: its shifted specials, then its samples.
-
-    ``item_specials`` is indexed by the negative special sidx directly (it is a column of
-    ``losses``, whose first axis wraps), and its values are building-independent -- only the
-    sidx they are written at shifts with ``b``.
+def write_packed_building_specials(byte_mv, cursor, item_specials, b, sample_size):
+    """Emit one building's analytic sidx.
 
     Args:
         byte_mv (numpy.ndarray): byte view of the output buffer.
         cursor (int): index in byte_mv at which to start writing.
         item_specials (numpy.array[oasis_float]): this item's ``losses[:, item_j]`` column.
+        b (int): 1-based building index.
+        sample_size (int): logical number of random samples per building (S).
+
+    Returns:
+        int: updated cursor.
+    """
+    for special_idx in SPECIAL_SIDX:
+        cursor = mv_write_sidx_loss(byte_mv, cursor, encode_sidx(b, special_idx, sample_size),
+                                    item_specials[special_idx])
+    return cursor
+
+
+@njit(cache=True, fastmath=True)
+def write_packed_building_samples(byte_mv, cursor, b, sample_losses, sample_size, loss_threshold):
+    """Emit one building's random samples, those above the threshold.
+
+    Args:
+        byte_mv (numpy.ndarray): byte view of the output buffer.
+        cursor (int): index in byte_mv at which to start writing.
         b (int): 1-based building index.
         sample_losses (numpy.array[oasis_float]): this building's S sample losses.
         sample_size (int): logical number of random samples per building (S).
@@ -633,9 +647,6 @@ def write_packed_building_block(byte_mv, cursor, item_specials, b, sample_losses
     Returns:
         int: updated cursor.
     """
-    for special_idx in SPECIAL_SIDX:
-        cursor = mv_write_sidx_loss(byte_mv, cursor, encode_sidx(b, special_idx, sample_size),
-                                    item_specials[special_idx])
     for sample_idx in range(1, sample_size + 1):
         loss = sample_losses[sample_idx - 1]
         if loss >= loss_threshold:
@@ -780,10 +791,18 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
         keep_separate = packed_item < 0
 
         if keep_separate:
+            # Every building's analytics, then every building's samples. A building's specials
+            # encode to local - NUM_SPECIAL_SIDX * (b - 1), so they ascend as b FALLS, and the
+            # samples ascend as b rises: the item comes out ascending end to end, which is what
+            # the loss stream requires and what lets a repeated sidx be caught by a comparison.
+            # The analytic values do not vary by building, so this only reorders writes.
+            for b in range(nb_item, 0, -1):
+                cursor = write_packed_building_specials(byte_mv, cursor, losses[:, item_j], b,
+                                                        sample_size)
             for b in range(1, nb_item + 1):
-                cursor = write_packed_building_block(byte_mv, cursor, losses[:, item_j], b,
-                                                     building_losses[:, item_j, b - 1],
-                                                     sample_size, loss_threshold)
+                cursor = write_packed_building_samples(byte_mv, cursor, b,
+                                                       building_losses[:, item_j, b - 1],
+                                                       sample_size, loss_threshold)
         else:
             # summed at source: an ordinary unpacked item covering all nb_item buildings
             cursor = write_summed_specials(byte_mv, cursor, losses[:, item_j], nb_item,
