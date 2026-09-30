@@ -40,12 +40,107 @@ The sign of the factor indicates the allocation direction:
 """
 
 from numba import njit
-from .common import DEDUCTIBLE, UNDERLIMIT, OVERLIMIT
+from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, TIV_IDX
+from .common import DEDUCTIBLE, UNDERLIMIT, OVERLIMIT, EXTRA_SIDX_COUNT
+
+
+@njit(cache=True, error_model="numpy")
+def is_canonical_sidx(node_sidx, max_sidx_val):
+    """True when ``node_sidx`` is exactly MAX_LOSS, TIV, MEAN, 1..max_sidx_val.
+
+    That is what the collapse emits, so it holds for every node at and above the collapse
+    level. Ascending and unique make these five checks sufficient: the tail then holds
+    max_sidx_val ascending values in [1, max_sidx_val], which only 1..max_sidx_val can be.
+
+    Args:
+        node_sidx: the node's ascending sidx values
+        max_sidx_val: sample size, the largest unpacked sample index
+
+    Returns:
+        bool: whether a position can be derived from a sidx by arithmetic alone
+    """
+    n = node_sidx.shape[0]
+    if max_sidx_val < 1 or n != max_sidx_val + EXTRA_SIDX_COUNT:
+        return False
+    return (node_sidx[0] == MAX_LOSS_IDX and node_sidx[1] == TIV_IDX and node_sidx[2] == MEAN_IDX
+            and node_sidx[3] == 1 and node_sidx[n - 1] == max_sidx_val)
+
+
+@njit(cache=True, error_model="numpy")
+def gallop(node_sidx, lo, target):
+    """Index of ``target`` in ascending ``node_sidx``, searching at or after ``lo``.
+
+    Exponential then binary search, which costs O(k log(n/k)) over k lookups into n values
+    rather than the O(n + k) of a lockstep walk -- the difference when a leaf carrying one
+    building is read against a node carrying many. ``target`` must be present at or after
+    ``lo``; the caller guarantees it by only ever looking up a subset.
+
+    Args:
+        node_sidx: ascending sidx values to search
+        lo: lower bound, the position after the previous hit
+        target: the sidx to locate
+
+    Returns:
+        int: index into node_sidx
+    """
+    n = node_sidx.shape[0]
+    if node_sidx[lo] == target:
+        return lo
+    step = 1
+    while lo + step < n and node_sidx[lo + step] < target:
+        lo += step
+        step <<= 1
+    hi = lo + step
+    if hi > n - 1:
+        hi = n - 1
+    lo += 1
+    while lo < hi:
+        mid = (lo + hi) >> 1
+        if node_sidx[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+@njit(cache=True, error_model="numpy")
+def resolve_positions(node_sidx, child_sidx, canonical, child_pos):
+    """Fill ``child_pos`` with the position in ``node_sidx`` of each value in ``child_sidx``.
+
+    Back allocation writes a factor per node value and reads it back per child value, over two
+    different sidx sets. Resolving the child's values to positions once lets both sides index
+    the factor array positionally, so it is sized by the node rather than by the packed sidx
+    range of the whole structure.
+
+    A node's sidx are the union of its children's, so a base child's are a subset of the
+    node's; both are ascending. Where the node carries the canonical collapsed set the
+    position is arithmetic, otherwise it is searched.
+
+    Args:
+        node_sidx: the node's ascending sidx values
+        child_sidx: the child's ascending sidx values, a subset of node_sidx
+        canonical: result of is_canonical_sidx for node_sidx
+        child_pos: output, at least child_sidx.shape[0] long
+    """
+    if canonical:
+        for val_i in range(child_sidx.shape[0]):
+            sidx = child_sidx[val_i]
+            if sidx < 0:
+                # the carried specials are -5, -3, -1: spaced two apart, so halving places them
+                child_pos[val_i] = (sidx + 5) >> 1
+            else:
+                child_pos[val_i] = sidx + EXTRA_SIDX_COUNT - 1
+    else:
+        pos = 0
+        for val_i in range(child_sidx.shape[0]):
+            pos = gallop(node_sidx, pos, child_sidx[val_i])
+            child_pos[val_i] = pos
+            pos += 1
 
 
 @njit(cache=True, fastmath=True, error_model="numpy")
 def back_alloc_extra_a2(base_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
-                        node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
+                        node_val_count, node_sidx, max_sidx_val, child_pos, sidx_indptr, sidx_indexes, sidx_val,
                         loss_in, loss_out, temp_node_loss, loss_indptr, loss_val,
                         extra, temp_node_extras, extras_indptr, extras_val):
     """Back-allocate loss AND extras to base children using allocation rule 2 (pro-rata).
@@ -90,16 +185,19 @@ def back_alloc_extra_a2(base_children_count, storage_is_base_child, temp_childre
         profile_i: Current profile/layer index
         node_val_count: Number of sidx values for this node
         node_sidx: Sample indices for this node
+        max_sidx_val: Sample size, to recognise the canonical collapsed layout
+        child_pos: Scratch for a child's positions in node_sidx
         sidx_indptr: CSR pointers for sidx
         sidx_indexes: Node to sidx mapping
         sidx_val: Sample index values
         loss_in: Aggregated loss before profile (input to calc)
         loss_out: Loss after profile application (output of calc)
-        temp_node_loss: Dense array for loss allocation factors
+        temp_node_loss: Loss allocation factors [profile, position in node_sidx]
         loss_indptr: CSR pointers for loss
         loss_val: Loss values to update
         extra: Extras after profile [val_count, 3]
-        temp_node_extras: Dense array with extras BEFORE profile [profile, sidx, 3]
+        temp_node_extras: Extras BEFORE the profile on entry, allocation factors on exit
+            [profile, position in node_sidx, 3]
         extras_indptr: CSR pointers for extras
         extras_val: Extras values to update
     """
@@ -117,44 +215,45 @@ def back_alloc_extra_a2(base_children_count, storage_is_base_child, temp_childre
         # else it is reallocated based on underlimit
 
         for val_i in range(node_val_count):
-            diff = extra[val_i, DEDUCTIBLE] - temp_node_extras[profile_i, node_sidx[val_i], DEDUCTIBLE]
+            diff = extra[val_i, DEDUCTIBLE] - temp_node_extras[profile_i, val_i, DEDUCTIBLE]
             if diff >= 0:
                 realloc = 0
                 if loss_in[val_i] > 0:
-                    temp_node_extras[profile_i, node_sidx[val_i], DEDUCTIBLE] = diff / loss_in[val_i]
-                    temp_node_loss[profile_i, node_sidx[val_i]] = loss_out[val_i] / loss_in[val_i]
+                    temp_node_extras[profile_i, val_i, DEDUCTIBLE] = diff / loss_in[val_i]
+                    temp_node_loss[profile_i, val_i] = loss_out[val_i] / loss_in[val_i]
                 else:
-                    temp_node_extras[profile_i, node_sidx[val_i], DEDUCTIBLE] = 0
-                    temp_node_loss[profile_i, node_sidx[val_i]] = 0
+                    temp_node_extras[profile_i, val_i, DEDUCTIBLE] = 0
+                    temp_node_loss[profile_i, val_i] = 0
             else:
                 realloc = diff  # to loss or to over
 
                 if extra[val_i, UNDERLIMIT] > 0:
-                    temp_node_extras[profile_i, node_sidx[val_i], DEDUCTIBLE] = diff / temp_node_extras[profile_i, node_sidx[val_i], UNDERLIMIT]
+                    temp_node_extras[profile_i, val_i, DEDUCTIBLE] = diff / temp_node_extras[profile_i, val_i, UNDERLIMIT]
                 else:
-                    temp_node_extras[profile_i, node_sidx[val_i], DEDUCTIBLE] = diff / temp_node_extras[profile_i, node_sidx[val_i], DEDUCTIBLE]
-                temp_node_loss[profile_i, node_sidx[val_i]] = loss_out[val_i] / (loss_in[val_i] - diff)
+                    temp_node_extras[profile_i, val_i, DEDUCTIBLE] = diff / temp_node_extras[profile_i, val_i, DEDUCTIBLE]
+                temp_node_loss[profile_i, val_i] = loss_out[val_i] / (loss_in[val_i] - diff)
 
-            diff = extra[val_i, OVERLIMIT] - temp_node_extras[profile_i, node_sidx[val_i], OVERLIMIT]
+            diff = extra[val_i, OVERLIMIT] - temp_node_extras[profile_i, val_i, OVERLIMIT]
             if diff > 0:
-                temp_node_extras[profile_i, node_sidx[val_i], OVERLIMIT] = diff / (loss_in[val_i] - realloc)
+                temp_node_extras[profile_i, val_i, OVERLIMIT] = diff / (loss_in[val_i] - realloc)
             elif diff == 0:
-                temp_node_extras[profile_i, node_sidx[val_i], OVERLIMIT] = 0
+                temp_node_extras[profile_i, val_i, OVERLIMIT] = 0
             else:  # we set it to <0 to be able to check it later
-                temp_node_extras[profile_i, node_sidx[val_i], OVERLIMIT] = - extra[val_i, OVERLIMIT] / temp_node_extras[
-                    profile_i, node_sidx[val_i], OVERLIMIT]
+                temp_node_extras[profile_i, val_i, OVERLIMIT] = - extra[val_i, OVERLIMIT] / temp_node_extras[
+                    profile_i, val_i, OVERLIMIT]
 
-            diff = extra[val_i, UNDERLIMIT] - temp_node_extras[profile_i, node_sidx[val_i], UNDERLIMIT]
+            diff = extra[val_i, UNDERLIMIT] - temp_node_extras[profile_i, val_i, UNDERLIMIT]
             if diff > 0:
-                temp_node_extras[profile_i, node_sidx[val_i], UNDERLIMIT] = diff / loss_in[val_i]
+                temp_node_extras[profile_i, val_i, UNDERLIMIT] = diff / loss_in[val_i]
             elif diff == 0:
-                temp_node_extras[profile_i, node_sidx[val_i], UNDERLIMIT] = 0
+                temp_node_extras[profile_i, val_i, UNDERLIMIT] = 0
             else:  # we set it to <0 to be able to check it later
-                temp_node_extras[profile_i, node_sidx[val_i], UNDERLIMIT] = - extra[val_i, UNDERLIMIT] / temp_node_extras[
-                    profile_i, node_sidx[val_i], UNDERLIMIT]
+                temp_node_extras[profile_i, val_i, UNDERLIMIT] = - extra[val_i, UNDERLIMIT] / temp_node_extras[
+                    profile_i, val_i, UNDERLIMIT]
 
             loss_in[val_i] = loss_out[val_i]
 
+        canonical = is_canonical_sidx(node_sidx, max_sidx_val)
         for base_child_i in range(base_children_count):
             child = nodes_array[temp_children_queue[base_child_i]]
 
@@ -166,50 +265,51 @@ def back_alloc_extra_a2(base_children_count, storage_is_base_child, temp_childre
             child_loss = loss_val[loss_indptr[child['loss'] + profile_i]: loss_indptr[child['loss'] + profile_i] + child_val_count]
             child_extra = extras_val[
                 extras_indptr[child['extra'] + profile_i]: extras_indptr[child['extra'] + profile_i] + child_val_count]
+            resolve_positions(node_sidx, child_sidx, canonical, child_pos)
 
             for val_i in range(child_val_count):
-                if temp_node_extras[profile_i, child_sidx[val_i], DEDUCTIBLE] < 0:  # realloc loss
-                    if temp_node_extras[profile_i, child_sidx[val_i], UNDERLIMIT] == 0:
-                        realloc = temp_node_extras[profile_i, child_sidx[val_i], DEDUCTIBLE] * child_extra[val_i, DEDUCTIBLE]
+                if temp_node_extras[profile_i, child_pos[val_i], DEDUCTIBLE] < 0:  # realloc loss
+                    if temp_node_extras[profile_i, child_pos[val_i], UNDERLIMIT] == 0:
+                        realloc = temp_node_extras[profile_i, child_pos[val_i], DEDUCTIBLE] * child_extra[val_i, DEDUCTIBLE]
                     else:
-                        realloc = temp_node_extras[profile_i, child_sidx[val_i], DEDUCTIBLE] * child_extra[val_i, UNDERLIMIT]
-                    if temp_node_extras[profile_i, child_sidx[val_i], OVERLIMIT] >= 0:
+                        realloc = temp_node_extras[profile_i, child_pos[val_i], DEDUCTIBLE] * child_extra[val_i, UNDERLIMIT]
+                    if temp_node_extras[profile_i, child_pos[val_i], OVERLIMIT] >= 0:
                         child_extra[val_i, OVERLIMIT] = child_extra[val_i, OVERLIMIT] + temp_node_extras[
-                            profile_i, child_sidx[val_i], OVERLIMIT] * (child_loss[val_i] - realloc)
+                            profile_i, child_pos[val_i], OVERLIMIT] * (child_loss[val_i] - realloc)
                     else:
-                        child_extra[val_i, OVERLIMIT] = - temp_node_extras[profile_i, child_sidx[val_i], OVERLIMIT] * child_extra[
+                        child_extra[val_i, OVERLIMIT] = - temp_node_extras[profile_i, child_pos[val_i], OVERLIMIT] * child_extra[
                             val_i, OVERLIMIT]
 
-                    child_loss[val_i] = (child_loss[val_i] - realloc) * temp_node_loss[profile_i, child_sidx[val_i]]
+                    child_loss[val_i] = (child_loss[val_i] - realloc) * temp_node_loss[profile_i, child_pos[val_i]]
                     child_extra[val_i, DEDUCTIBLE] = child_extra[val_i, DEDUCTIBLE] + realloc
-                    child_extra[val_i, UNDERLIMIT] = - temp_node_extras[profile_i, child_sidx[val_i], UNDERLIMIT] * child_extra[
+                    child_extra[val_i, UNDERLIMIT] = - temp_node_extras[profile_i, child_pos[val_i], UNDERLIMIT] * child_extra[
                         val_i, UNDERLIMIT]
 
                 else:
-                    if temp_node_extras[profile_i, child_sidx[val_i], OVERLIMIT] >= 0:
+                    if temp_node_extras[profile_i, child_pos[val_i], OVERLIMIT] >= 0:
                         child_extra[val_i, OVERLIMIT] = child_extra[val_i, OVERLIMIT] + temp_node_extras[
-                            profile_i, child_sidx[val_i], OVERLIMIT] * child_loss[val_i]
+                            profile_i, child_pos[val_i], OVERLIMIT] * child_loss[val_i]
                     else:
-                        child_extra[val_i, OVERLIMIT] = - temp_node_extras[profile_i, child_sidx[val_i], OVERLIMIT] * child_extra[
+                        child_extra[val_i, OVERLIMIT] = - temp_node_extras[profile_i, child_pos[val_i], OVERLIMIT] * child_extra[
                             val_i, OVERLIMIT]
 
-                    if temp_node_extras[profile_i, child_sidx[val_i], UNDERLIMIT] >= 0:
+                    if temp_node_extras[profile_i, child_pos[val_i], UNDERLIMIT] >= 0:
                         child_extra[val_i, UNDERLIMIT] = child_extra[val_i, UNDERLIMIT] + temp_node_extras[
-                            profile_i, child_sidx[val_i], UNDERLIMIT] * child_loss[val_i]
+                            profile_i, child_pos[val_i], UNDERLIMIT] * child_loss[val_i]
                     else:
-                        child_extra[val_i, UNDERLIMIT] = - temp_node_extras[profile_i, child_sidx[val_i], UNDERLIMIT] * child_extra[
+                        child_extra[val_i, UNDERLIMIT] = - temp_node_extras[profile_i, child_pos[val_i], UNDERLIMIT] * child_extra[
                             val_i, UNDERLIMIT]
 
                     child_extra[val_i, DEDUCTIBLE] = child_extra[val_i, DEDUCTIBLE] + temp_node_extras[
-                        profile_i, child_sidx[val_i], DEDUCTIBLE] * child_loss[val_i]
-                    child_loss[val_i] = child_loss[val_i] * temp_node_loss[profile_i, child_sidx[val_i]]
+                        profile_i, child_pos[val_i], DEDUCTIBLE] * child_loss[val_i]
+                    child_loss[val_i] = child_loss[val_i] * temp_node_loss[profile_i, child_pos[val_i]]
             # print('ba', child['level_id'], child['agg_id'], profile_i, loss_indptr[child['loss'] + profile_i], child_loss[0], temp_node_loss[profile_i, -3],
             # extras_indptr[child['extra'] + profile_i], child_extra[0])
 
 
 @njit(cache=True, fastmath=True, error_model="numpy")
 def back_alloc_a2(base_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
-                  node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
+                  node_val_count, node_sidx, max_sidx_val, child_pos, sidx_indptr, sidx_indexes, sidx_val,
                   loss_in, loss_out, temp_node_loss, loss_indptr, loss_val):
     """Back-allocate loss only (no extras) to base children using allocation rule 2.
 
@@ -237,12 +337,14 @@ def back_alloc_a2(base_children_count, storage_is_base_child, temp_children_queu
         profile_i: Current profile/layer index
         node_val_count: Number of sidx values
         node_sidx: Sample indices for this node
+        max_sidx_val: Sample size, to recognise the canonical collapsed layout
+        child_pos: Scratch for a child's positions in node_sidx
         sidx_indptr: CSR pointers for sidx
         sidx_indexes: Node to sidx mapping
         sidx_val: Sample index values
         loss_in: Loss before profile
         loss_out: Loss after profile
-        temp_node_loss: Dense array for factors [profile, sidx]
+        temp_node_loss: Factors [profile, position in node_sidx]
         loss_indptr: CSR pointers for loss
         loss_val: Loss values to update
     """
@@ -251,11 +353,12 @@ def back_alloc_a2(base_children_count, storage_is_base_child, temp_children_queu
     else:
         for val_i in range(node_val_count):
             if loss_out[val_i]:
-                temp_node_loss[profile_i, node_sidx[val_i]] = loss_out[val_i] / loss_in[val_i]
+                temp_node_loss[profile_i, val_i] = loss_out[val_i] / loss_in[val_i]
             else:
-                temp_node_loss[profile_i, node_sidx[val_i]] = 0
+                temp_node_loss[profile_i, val_i] = 0
             loss_in[val_i] = loss_out[val_i]
 
+        canonical = is_canonical_sidx(node_sidx, max_sidx_val)
         for base_child_i in range(base_children_count):
             child = nodes_array[temp_children_queue[base_child_i]]
 
@@ -265,9 +368,10 @@ def back_alloc_a2(base_children_count, storage_is_base_child, temp_children_queu
 
             child_sidx = sidx_val[child_sidx_start: child_sidx_end]
             child_loss = loss_val[loss_indptr[child['loss'] + profile_i]: loss_indptr[child['loss'] + profile_i] + child_val_count]
+            resolve_positions(node_sidx, child_sidx, canonical, child_pos)
 
             for val_i in range(child_val_count):
-                child_loss[val_i] = child_loss[val_i] * temp_node_loss[profile_i, child_sidx[val_i]]
+                child_loss[val_i] = child_loss[val_i] * temp_node_loss[profile_i, child_pos[val_i]]
             # print('ba', child['level_id'], child['agg_id'], profile_i, loss_indptr[child['loss'] + profile_i], child_loss[0], temp_node_loss[profile_i, -3])
 
 

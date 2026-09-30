@@ -50,7 +50,8 @@ from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUM_SP
 from .policy import calc
 from .policy_extras import calc as calc_extra
 from .common import EXTRA_SIDX_COUNT, compute_idx_dtype, DEDUCTIBLE, UNDERLIMIT, OVERLIMIT
-from .back_allocation import back_alloc_a2, back_alloc_extra_a2, back_alloc_layer, back_alloc_layer_extra
+from .back_allocation import (back_alloc_a2, back_alloc_extra_a2, back_alloc_layer, back_alloc_layer_extra,
+                              is_canonical_sidx, resolve_positions)
 
 from numba import njit, objmode
 import numpy as np
@@ -63,6 +64,10 @@ logger = logging.getLogger(__name__)
 # writer must be covered -- and they span this module and back_allocation. numba folds the
 # constant, so the check costs nothing while it is off.
 SIDX_MERGE_SENTINEL = np.iinfo(np.int64).max
+
+# nopython cannot call oasis_float: it is a dtype instance, not the scalar type. A module-level
+# constant gives the merge an accumulator at the stored width, which OASIS_FLOAT can change.
+OASIS_FLOAT_ZERO = oasis_float.type(0)
 
 DEBUG_TEMPS = False
 
@@ -367,45 +372,11 @@ def first_time_layer_extra(profile_count, base_children_count, temp_children_que
             compute_idx['extras_ptr_i'] += child_val_count
 
 
-@njit(cache=True, fastmath=True, inline='always')
-def mark_node_sidx(key, temp_node_sidx, temp_node_keys, key_count):
-    """Record that this node holds ``key``, the first time it is seen.
-
-    Collecting a node's sidx by scanning the dense flag array costs the whole sidx range --
-    ``max_buildings * (S + 6)`` under packing -- however few the node holds. That is 21e12
-    iterations on a 2.1M-node structure with one 630,510-building location. Keeping the keys as
-    they arrive makes collection cost the node's OWN size.
-
-    Returns:
-        int: the new key count.
-    """
-    if not temp_node_sidx[key]:
-        temp_node_sidx[key] = 1
-        temp_node_keys[key_count] = key
-        key_count += 1
-    return key_count
-
-
-@njit(cache=True, fastmath=True, inline='always')
-def sorted_node_sidx(temp_node_keys, key_count, node_is_packed):
-    """This node's sidx, ascending unless the order is about to be thrown away.
-
-    Only the writer needs ascending order, and positionally -- it reads -5, -3, -1 off the front
-    rather than searching. Everything else works by sidx value or by position. A packed node
-    never reaches the writer and the collapse rewrites its order anyway, so sorting
-    ``B * (S + 6)`` keys there is pure cost.
-    """
-    keys = temp_node_keys[:key_count]
-    if not node_is_packed:
-        keys.sort()
-    return keys
-
-
 @njit(cache=True, fastmath=True)
 def aggregate_children_extras(node, children_count, nodes_array, children, temp_children_queue, compute_idx,
-                              site_collapse_level, building_packing,
-                              temp_node_sidx, temp_node_keys, sidx_indexes, sidx_indptr, sidx_val,
-                              temp_node_loss, loss_indptr, loss_val,
+                              merge_sidx_i, merge_sidx_end, merge_loss_i, merge_extras_i,
+                              sidx_indexes, sidx_indptr, sidx_val,
+                              loss_indptr, loss_val,
                               temp_node_extras, extras_indptr, extras_val):
     """Aggregate losses AND extras from multiple children into a parent node.
 
@@ -431,40 +402,35 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
         compute_idx: Computation state pointers
         site_collapse_level: last level whose terms apply per building; a node at or below it
             have their building blocks merged as they are aggregated into a node above it
-        building_packing: whether this input set has packed items at all
-        temp_node_sidx: Dense boolean array marking active sidx values
-        temp_node_keys: scratch holding the sidx this node has marked, in arrival order
+        merge_sidx_i: scratch, each child's current position in sidx_val
+        merge_sidx_end: scratch, where each child's sidx run ends
+        merge_loss_i: scratch, each child's matching position in loss_val
+        merge_extras_i: scratch, each child's matching position in extras_val
+        temp_node_extras: receives the aggregated extras at [profile, position, 3]. Back
+            allocation reads them as the extras BEFORE the node's terms; on the single-child
+            path, where nothing aggregates, the caller copies them in instead
         sidx_indexes: Maps node_id to sidx array position
         sidx_indptr: Pointers into sidx_val
         sidx_val: Sample index values
-        all_sidx: All possible sidx values
-        temp_node_loss: Dense array for accumulating losses
         loss_indptr: Pointers into loss_val
         loss_val: Loss values
-        temp_node_extras: Dense array [profile, sidx, 3] for extras accumulation
         extras_indptr: Pointers into extras_val
         extras_val: Extras values [deductible, overlimit, underlimit]
 
     Returns:
         int: Number of sidx values for this node
     """
-    # its own order is discarded by the collapse, so it is not worth producing
-    node_is_packed = building_packing and node['level_id'] <= site_collapse_level
     sidx_created = False
     node_sidx_start = compute_idx['sidx_ptr_i']
-    node_sidx_end = 0
+    node_val_count = 0
     sidx_indexes[node['node_id']] = compute_idx['sidx_i']
     compute_idx['sidx_i'] += 1
 
     for profile_i in range(node['profile_len']):
-        profile_temp_node_loss = temp_node_loss[profile_i]
-        profile_temp_node_extras = temp_node_extras[profile_i]
-        key_count = 0
+        n_cur = 0
 
         for children_i in range(node['children'] + 1, node['children'] + children_count + 1):
             child = nodes_array[children[children_i]]
-            child_sidx_val = sidx_val[sidx_indptr[sidx_indexes[child['node_id']]]:
-                                      sidx_indptr[sidx_indexes[child['node_id']] + 1]]
 
             if profile_i == 1 and loss_indptr[child['loss'] + profile_i] == loss_indptr[child['loss']]:
                 # this is the first time child branch has multiple layer we create views for root children
@@ -477,53 +443,64 @@ def aggregate_children_extras(node, children_count, nodes_array, children, temp_
                     extras_indptr, extras_val,
                 )
 
-            child_loss = loss_val[loss_indptr[child['loss'] + profile_i]:
-                                  loss_indptr[child['loss'] + profile_i] + child_sidx_val.shape[0]]
-            child_extra = extras_val[extras_indptr[child['extra'] + profile_i]:
-                                     extras_indptr[child['extra'] + profile_i] + child_sidx_val.shape[0]]
-            # print('child', child['level_id'], child['agg_id'], profile_i, loss_indptr[child['loss'] + profile_i], child_loss[0], child['extra'], extras_indptr[child['extra'] + profile_i])
-            for val_i in range(child_sidx_val.shape[0]):
-                # no decode: a child crossing the collapse level has already been collapsed by its
-                # own site node, which check_collapse_is_reachable guarantees at structure build
-                key = child_sidx_val[val_i]
-                key_count = mark_node_sidx(key, temp_node_sidx, temp_node_keys, key_count)
-                profile_temp_node_loss[key] += child_loss[val_i]
-                profile_temp_node_extras[key] += child_extra[val_i]
-        # print('res', profile_i, profile_temp_node_loss[-3], profile_temp_node_extras[-3])
+            child_sidx_i = sidx_indptr[sidx_indexes[child['node_id']]]
+            merge_sidx_i[n_cur] = child_sidx_i
+            merge_sidx_end[n_cur] = sidx_indptr[sidx_indexes[child['node_id']] + 1]
+            merge_loss_i[n_cur] = loss_indptr[child['loss'] + profile_i]
+            merge_extras_i[n_cur] = extras_indptr[child['extra'] + profile_i]
+            n_cur += 1
 
         loss_indptr[node['loss'] + profile_i] = compute_idx['loss_ptr_i']
         extras_indptr[node['extra'] + profile_i] = compute_idx['extras_ptr_i']
-        if sidx_created:
-            for node_sidx_cur in range(node_sidx_start, node_sidx_end):
-                loss_val[compute_idx['loss_ptr_i']] = profile_temp_node_loss[sidx_val[node_sidx_cur]]
-                compute_idx['loss_ptr_i'] += 1
-                extras_val[compute_idx['extras_ptr_i']] = profile_temp_node_extras[sidx_val[node_sidx_cur]]
-                compute_idx['extras_ptr_i'] += 1
-            for key_i in range(key_count):
-                temp_node_sidx[temp_node_keys[key_i]] = 0
-
-        else:
-            node_keys = sorted_node_sidx(temp_node_keys, key_count, node_is_packed)
-            for key_i in range(key_count):
-                sidx = node_keys[key_i]
-                sidx_val[compute_idx['sidx_ptr_i']] = sidx
+        out_i = 0
+        # the merge of aggregate_children, carrying the three extras alongside the loss. No
+        # decode: a child crossing the collapse level has already been collapsed by its own
+        # site node, which check_collapse_is_reachable guarantees at structure build.
+        while True:
+            least = SIDX_MERGE_SENTINEL
+            for c in range(n_cur):
+                if merge_sidx_i[c] < merge_sidx_end[c]:
+                    candidate = sidx_val[merge_sidx_i[c]]
+                    if candidate < least:
+                        least = candidate
+            if least == SIDX_MERGE_SENTINEL:
+                break
+            # np.float64, not 0.0: a Python float is weak under NEP 50, so += an oasis_float
+            # value narrows the sum to the stored width wherever the JIT is off.
+            total = np.float64(0)
+            # stored width, not float64: the scatter this replaces accumulated into an
+            # oasis_float array, and summing the same children in the same order at the same
+            # width keeps the result bit-identical. k is 2 or 3, so the wider sum buys nothing.
+            total_deductible = OASIS_FLOAT_ZERO
+            total_overlimit = OASIS_FLOAT_ZERO
+            total_underlimit = OASIS_FLOAT_ZERO
+            for c in range(n_cur):
+                if merge_sidx_i[c] < merge_sidx_end[c] and sidx_val[merge_sidx_i[c]] == least:
+                    total += loss_val[merge_loss_i[c]]
+                    total_deductible += extras_val[merge_extras_i[c], DEDUCTIBLE]
+                    total_overlimit += extras_val[merge_extras_i[c], OVERLIMIT]
+                    total_underlimit += extras_val[merge_extras_i[c], UNDERLIMIT]
+                    merge_sidx_i[c] += 1
+                    merge_loss_i[c] += 1
+                    merge_extras_i[c] += 1
+            if not sidx_created:
+                sidx_val[compute_idx['sidx_ptr_i']] = least
                 compute_idx['sidx_ptr_i'] += 1
-                # temp_node_sidx is reused by every node of the event, so a node must leave it
-                # as it found it. Without this a node BELOW site_collapse_level leaves its
-                # PACKED indices set, and the collapsed node above collects them too.
-                temp_node_sidx[sidx] = 0
+            loss_val[compute_idx['loss_ptr_i']] = total
+            compute_idx['loss_ptr_i'] += 1
+            extras_val[compute_idx['extras_ptr_i'], DEDUCTIBLE] = total_deductible
+            extras_val[compute_idx['extras_ptr_i'], OVERLIMIT] = total_overlimit
+            extras_val[compute_idx['extras_ptr_i'], UNDERLIMIT] = total_underlimit
+            compute_idx['extras_ptr_i'] += 1
+            temp_node_extras[profile_i, out_i, DEDUCTIBLE] = total_deductible
+            temp_node_extras[profile_i, out_i, OVERLIMIT] = total_overlimit
+            temp_node_extras[profile_i, out_i, UNDERLIMIT] = total_underlimit
+            out_i += 1
 
-                loss_val[compute_idx['loss_ptr_i']] = profile_temp_node_loss[sidx]
-                compute_idx['loss_ptr_i'] += 1
-
-                extras_val[compute_idx['extras_ptr_i']] = profile_temp_node_extras[sidx]
-                compute_idx['extras_ptr_i'] += 1
-
-            node_sidx_end = compute_idx['sidx_ptr_i']
-            node_val_count = node_sidx_end - node_sidx_start
+        if not sidx_created:
+            node_val_count = compute_idx['sidx_ptr_i'] - node_sidx_start
             sidx_indptr[compute_idx['sidx_i']] = compute_idx['sidx_ptr_i']
             sidx_created = True
-    # print('node', node['node_id'], node['agg_id'], loss_indptr[node['loss']], temp_node_loss[:node['profile_len'], -3], temp_node_extras[:node['profile_len'], -3])
     # fill up all layer if necessary
     for layer_i in range(node['profile_len'], node['layer_len']):
         loss_indptr[node['loss'] + layer_i] = loss_indptr[node['loss']]
@@ -710,9 +687,9 @@ def effective_max_buildings(compute_info):
     buildings away as it reads (see ``collapse_on_read`` in manager.run_synchronous_sparse, which
     must stay the same predicate) and every stored sidx is local.
 
-    It has to be ONE function: ``all_sidx`` is the iteration domain and ``temp_node_sidx`` is
-    indexed by its values, so sizing them from two separate reads of ``max_buildings`` lets them
-    disagree -- and the scan then runs off the end of the dense temporaries, unchecked.
+    It has to be ONE function: ``all_sidx`` is the iteration domain, so sizing it from a second,
+    separate read of ``max_buildings`` lets the two disagree -- and the scan then runs off the
+    end, unchecked.
     """
     max_buildings = max(1, compute_info['max_buildings'])
     if max_buildings > 1 and compute_info['site_collapse_level'] < max(1, compute_info['start_level']):
@@ -801,12 +778,6 @@ def compute_event(compute_info,
     compute_idx['extras_ptr_i'] = 0
     compute_idx['compute_i'] = 0
 
-    # Dense boolean array: temp_node_sidx[sidx] = True if this sidx has a value
-    # Used during aggregation to track which samples have data
-    temp_node_sidx = np.zeros(len_array, dtype=oasis_int)
-    # the sidx a node actually holds, in arrival order
-    temp_node_keys = np.zeros(len_array, dtype=oasis_int)
-
     # Temporary storage for profile calculation output (loss after applying terms)
     temp_node_loss_sparse = np.zeros(len_array, dtype=oasis_float)
 
@@ -816,13 +787,17 @@ def compute_event(compute_info,
     # After cross-layer back allocation: loss for each layer [layer, sidx]
     temp_node_loss_layer_ba = np.zeros((compute_info['max_layer'], len_array), dtype=oasis_float)
 
-    # Dense accumulator for children aggregation, then reused for back alloc factors
+    # Dense accumulator for children aggregation, then reused for back alloc factors.
+    # Aggregation indexes it by sidx value, back allocation by position in the node.
     # Shape: [layer/profile, sidx] - uses float64 for precision during summation
     temp_node_loss = np.zeros((compute_info['max_layer'], len_array), dtype=np.float64)
 
     # Dense accumulator for extras during aggregation [layer, sidx, extra_type]
     # extra_type: 0=DEDUCTIBLE, 1=OVERLIMIT, 2=UNDERLIMIT
     temp_node_extras = np.zeros((compute_info['max_layer'], len_array, 3), dtype=oasis_float)
+
+    # where each of a child's sidx sits in its node's, for back allocation
+    child_pos = np.empty(len_array, dtype=oasis_int)
 
     # For cross-layer: merged extras before and after profile application
     temp_node_extras_layer_merge = np.zeros((len_array, 3), dtype=oasis_float)
@@ -834,6 +809,7 @@ def compute_event(compute_info,
     merge_sidx_i = np.empty(nodes_array.shape[0], dtype=np.int64)
     merge_sidx_end = np.empty(nodes_array.shape[0], dtype=np.int64)
     merge_loss_i = np.empty(nodes_array.shape[0], dtype=np.int64)
+    merge_extras_i = np.empty(nodes_array.shape[0], dtype=np.int64)
 
     # Scratch for collapsing a packed leaf, indexed by the COLLAPSED sample index, so it spans
     # max_sidx_val + 6 rather than the packed range.
@@ -910,9 +886,9 @@ def compute_event(compute_info,
                     else:
                         node_val_count = aggregate_children_extras(
                             storage_node, children_count, nodes_array, children, temp_children_queue, compute_idx,
-                            site_collapse_level, building_packing,
-                            temp_node_sidx, temp_node_keys, sidx_indexes, sidx_indptr, sidx_val,
-                            temp_node_loss, loss_indptr, loss_val,
+                            merge_sidx_i, merge_sidx_end, merge_loss_i, merge_extras_i,
+                            sidx_indexes, sidx_indptr, sidx_val,
+                            loss_indptr, loss_val,
                             temp_node_extras, extras_indptr, extras_val
                         )
                     node_sidx = sidx_val[compute_idx['sidx_ptr_i'] - node_val_count: compute_idx['sidx_ptr_i']]
@@ -974,8 +950,7 @@ def compute_event(compute_info,
                                 node_extras = extras_val[extras_indptr[storage_node['extra'] + profile_i]:
                                                          extras_indptr[storage_node['extra'] + profile_i] + node_val_count]
 
-                                for val_i in range(node_val_count):
-                                    temp_node_extras[profile_i, node_sidx[val_i]] = node_extras[val_i]
+                                temp_node_extras[profile_i, :node_val_count] = node_extras
 
             else:  # if no children and in compute then layer 1 loss is already set
                 # we create space for extras and copy loss from layer 1 to other layer if they exist
@@ -1143,7 +1118,7 @@ def compute_event(compute_info,
                                 storage_is_base_child = True
 
                         back_alloc_extra_a2(ba_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
-                                            node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
+                                            node_val_count, node_sidx, max_sidx_val, child_pos, sidx_indptr, sidx_indexes, sidx_val,
                                             loss_in, loss_out, temp_node_loss, loss_indptr, loss_val,
                                             extra, temp_node_extras, extras_indptr, extras_val)
                     else:
@@ -1179,7 +1154,7 @@ def compute_event(compute_info,
                                 storage_is_base_child = True
 
                         back_alloc_a2(ba_children_count, storage_is_base_child, temp_children_queue, nodes_array, profile_i,
-                                      node_val_count, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
+                                      node_val_count, node_sidx, max_sidx_val, child_pos, sidx_indptr, sidx_indexes, sidx_val,
                                       loss_in, loss_out, temp_node_loss, loss_indptr, loss_val)
 
             # =================================================================
@@ -1215,10 +1190,10 @@ def compute_event(compute_info,
                 if not base_children_count:
                     base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
                 if base_children_count > 1:
-                    # the aggregate's sums are still in temp_node_loss at node_sidx and the +=
-                    # below would build on them. a2 assigns rather than accumulates.
-                    for val_i in range(node_val_count):
-                        temp_node_loss[:, node_sidx[val_i]] = 0
+                    # the aggregate's sums are still in temp_node_loss and the += below would
+                    # build on them. a2 assigns rather than accumulates.
+                    temp_node_loss[:, :node_val_count] = 0
+                    canonical = is_canonical_sidx(node_sidx, max_sidx_val)
                     for base_child_i in range(base_children_count):
                         child = nodes_array[temp_children_queue[base_child_i]]
 
@@ -1228,18 +1203,19 @@ def compute_event(compute_info,
 
                         child_sidx = sidx_val[child_sidx_start: child_sidx_end]
                         child_loss = loss_val[loss_indptr[child['net_loss']]: loss_indptr[child['net_loss']] + child_val_count]
+                        resolve_positions(node_sidx, child_sidx, canonical, child_pos)
 
                         for val_i in range(child_val_count):
-                            temp_node_loss[:, child_sidx[val_i]] += child_loss[val_i]
+                            temp_node_loss[:, child_pos[val_i]] += child_loss[val_i]
 
                     for profile_i in range(compute_node['profile_len']):
                         node_loss = loss_val[loss_indptr[storage_node['loss'] + profile_i]:
                                              loss_indptr[storage_node['loss'] + profile_i] + node_val_count]
                         for val_i in range(node_val_count):
                             if node_loss[val_i]:
-                                temp_node_loss[profile_i, node_sidx[val_i]] = node_loss[val_i] / temp_node_loss[profile_i, node_sidx[val_i]]
+                                temp_node_loss[profile_i, val_i] = node_loss[val_i] / temp_node_loss[profile_i, val_i]
                             else:
-                                temp_node_loss[profile_i, node_sidx[val_i]] = 0
+                                temp_node_loss[profile_i, val_i] = 0
 
                         for base_child_i in range(base_children_count):
                             child = nodes_array[temp_children_queue[base_child_i]]
@@ -1251,18 +1227,10 @@ def compute_event(compute_info,
                             child_sidx = sidx_val[child_sidx_start: child_sidx_end]
                             child_loss = loss_val[loss_indptr[child['loss'] + profile_i]: loss_indptr[child['loss'] + profile_i] + child_val_count]
                             child_net = loss_val[loss_indptr[child['net_loss']]: loss_indptr[child['net_loss']] + child_val_count]
+                            resolve_positions(node_sidx, child_sidx, canonical, child_pos)
 
                             for val_i in range(child_val_count):
-                                child_loss[val_i] = child_net[val_i] * temp_node_loss[profile_i, child_sidx[val_i]]
-
-                    # the one write outside node_sidx: base children are leaves, still packed
-                    # below the collapse level. Every layer, matching the accumulation above.
-                    for base_child_i in range(base_children_count):
-                        child = nodes_array[temp_children_queue[base_child_i]]
-                        child_sidx = sidx_val[sidx_indptr[sidx_indexes[child['node_id']]]:
-                                              sidx_indptr[sidx_indexes[child['node_id']] + 1]]
-                        for val_i in range(child_sidx.shape[0]):
-                            temp_node_loss[:, child_sidx[val_i]] = 0
+                                child_loss[val_i] = child_net[val_i] * temp_node_loss[profile_i, child_pos[val_i]]
             elif is_allocation_rule_a0:
                 # Allocation Rule 0: No back allocation - output at aggregate level only
                 # Just ensure compute_node points to the correct storage location
@@ -1285,11 +1253,10 @@ def compute_event(compute_info,
                     collapse_loss, collapse_extras, collapse_net
                 )
 
-            # scratch for exactly one node. Clearing what it touched costs the node's size;
-            # the fill this replaces cost the whole packed range, sized for the largest location.
-            for val_i in range(node_val_count):
-                temp_node_loss[:, node_sidx[val_i]] = 0
-                temp_node_extras[:, node_sidx[val_i]] = 0
+            # scratch for exactly one node, now indexed by position rather than by sidx value,
+            # so clearing it is a contiguous run the length of the node.
+            temp_node_loss[:, :node_val_count] = 0
+            temp_node_extras[:, :node_val_count] = 0
 
         compute_idx['compute_i'] += 1
         if DEBUG_PROFILE and level < PROFILE_LEVELS:
