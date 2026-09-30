@@ -3,6 +3,7 @@ __all__ = [
     'update_config',
     'has_oasis_env',
     'get_oasis_env',
+    'load_json_config',
     'str2bool'
 ]
 
@@ -32,6 +33,26 @@ def get_oasis_env(name, dtype=None, default=None):
         return dtype(env_var)
     else:
         return env_var
+
+
+def load_json_config(config_fp):
+    """Load a JSON config file from disk, lower-casing its top-level keys.
+
+    Args:
+        config_fp (str): Path to the JSON config file
+
+    Returns:
+        dict: The parsed config
+
+    Raises:
+        OasisException: If the file does not exist
+        json.decoder.JSONDecodeError: If the file is not valid JSON
+    """
+    try:
+        with io.open(config_fp, 'r', encoding='utf-8') as f:
+            return {k.lower(): v for k, v in json.load(f).items()}
+    except FileNotFoundError:
+        raise OasisException('MDK config. file path {} provided does not exist'.format(config_fp))
 
 
 class InputValues(object):
@@ -71,11 +92,7 @@ class InputValues(object):
                 ))
 
     def load_config_file(self):
-        try:
-            with io.open(self.config_fp, 'r', encoding='utf-8') as f:
-                return {k.lower(): v for k, v in json.load(f).items()}
-        except FileNotFoundError:
-            raise OasisException('MDK config. file path {} provided does not exist'.format(self.config_fp))
+        return load_json_config(self.config_fp)
 
     def write_config_file(self, config_fp):
         with io.open(config_fp, 'w', encoding='utf-8') as f:

@@ -1,13 +1,17 @@
+import os
 import struct
+import threading
 import numpy as np
 import pandas as pd
 import pytest
 from pathlib import Path
 import shutil
+from contextlib import ExitStack
 from tempfile import TemporaryDirectory
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
-from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin, default_tobin, TOBIN_FUNC_MAP
+from oasislmf.pytools.converters.csvtobin.utils import footprint_tobin, vulnerability_tobin
 from oasislmf.pytools.converters.bintoparquet.manager import bintoparquet
 from oasislmf.pytools.converters.parquettobin.manager import parquettobin
 from oasislmf.pytools.converters.data import TOOL_INFO
@@ -540,6 +544,128 @@ def test_eve():
     case_runner("csvtobin", "eve", "input")
 
 
+def test_csvtobin_non_seekable_stream():
+    """default_tobin() must work when file_out is a pipe, not just a seekable file —
+    this is what execution/runner.py's rerun() pipes csvtobin's output into, and a
+    plain ndarray.tofile() call fails on a non-seekable destination."""
+    infile = Path(TESTS_ASSETS_DIR, "input", "eve.csv")
+    expected_outfile = Path(TESTS_ASSETS_DIR, "input", "eve.bin")
+    dtype = TOOL_INFO["eve"]["dtype"]
+
+    read_fd, write_fd = os.pipe()
+    with ExitStack() as stack, os.fdopen(write_fd, "wb") as file_out, os.fdopen(read_fd, "rb") as file_in:
+        default_tobin(stack, infile, file_out, "eve")
+        file_out.close()
+        actual_bytes = file_in.read()
+
+    assert actual_bytes == expected_outfile.read_bytes()
+    assert np.array_equal(np.frombuffer(actual_bytes, dtype=dtype), np.fromfile(expected_outfile, dtype=dtype))
+
+
+def _run_writer_via_pipe(write_fn):
+    """Run write_fn(file_out) with file_out as the write end of an OS pipe, draining the
+    read end concurrently on a thread. A synchronous write larger than the OS pipe buffer
+    (64KB on Linux) would otherwise deadlock: the writer blocks once the buffer fills,
+    and nothing is reading it back out yet.
+    """
+    read_fd, write_fd = os.pipe()
+    read_chunks = []
+
+    def _drain():
+        with os.fdopen(read_fd, "rb") as file_in:
+            read_chunks.append(file_in.read())
+
+    reader = threading.Thread(target=_drain)
+    reader.start()
+    with os.fdopen(write_fd, "wb") as file_out:
+        write_fn(file_out)
+    reader.join()
+    return read_chunks[0]
+
+
+@pytest.mark.parametrize(
+    "file_type, sub_dir, filename, kwargs",
+    [
+        ("gul", "misc", "raw_guls", dict(stream_type=2, max_sample_index=1)),
+        ("fm", "misc", "raw_ils", dict(stream_type=2, max_sample_index=1)),
+        ("summarycalc", "misc", "summary", dict(summary_set_id=1, max_sample_index=100)),
+        ("occurrence", "input", "occurrence", dict(no_of_periods=9)),
+        ("damagebin", "static", "damagebin", dict(no_validation=False)),
+        ("lossfactors", "static", "lossfactors", dict()),
+        ("amplifications", "input", "amplifications", dict()),
+        ("coverages", "input", "coverages", dict()),
+        ("complex_items", "input", "complex_items", dict()),
+        ("returnperiods", "input", "returnperiods", dict()),
+    ],
+)
+def test_csvtobin_pipe_output_matches_file_output(file_type, sub_dir, filename, kwargs):
+    """Every TOBIN_FUNC_MAP converter (not just the default_tobin fallback) must write
+    identical bytes whether file_out is a regular seekable file or a non-seekable pipe —
+    see test_csvtobin_non_seekable_stream."""
+    infile = Path(TESTS_ASSETS_DIR, sub_dir, f"{filename}.csv")
+    tobin_func = TOBIN_FUNC_MAP[file_type]
+
+    with TemporaryDirectory() as tmp_dir, ExitStack() as stack:
+        seekable_out = Path(tmp_dir, "seekable.bin")
+        with open(seekable_out, "wb") as file_out:
+            tobin_func(stack, infile, file_out, file_type, **kwargs)
+        expected_bytes = seekable_out.read_bytes()
+
+    with ExitStack() as stack:
+        actual_bytes = _run_writer_via_pipe(lambda file_out: tobin_func(stack, infile, file_out, file_type, **kwargs))
+
+    assert actual_bytes == expected_bytes
+
+
+def test_footprint_pipe_output_matches_file_output():
+    """footprint_tobin's main file_out must tolerate a non-seekable pipe (idx_file_out
+    is written separately and is not exercised as a pipe here)."""
+    infile = Path(TESTS_ASSETS_DIR, "static", "footprint.csv")
+    kwargs = dict(
+        max_intensity_bin_idx=3,
+        no_intensity_uncertainty=True,
+        decompressed_size=False,
+        no_validation=False,
+        zip_files=False,
+    )
+
+    with TemporaryDirectory() as tmp_dir, ExitStack() as stack:
+        seekable_out = Path(tmp_dir, "seekable.bin")
+        with open(seekable_out, "wb") as file_out:
+            footprint_tobin(stack, infile, file_out, "footprint", idx_file_out=Path(tmp_dir, "seekable.idx"), **kwargs)
+        expected_bytes = seekable_out.read_bytes()
+
+    with TemporaryDirectory() as tmp_dir, ExitStack() as stack:
+        actual_bytes = _run_writer_via_pipe(
+            lambda file_out: footprint_tobin(stack, infile, file_out, "footprint", idx_file_out=Path(tmp_dir, "pipe.idx"), **kwargs)
+        )
+
+    assert actual_bytes == expected_bytes
+
+
+def test_vulnerability_pipe_output_matches_file_output():
+    """vulnerability_tobin's no-idx path must tolerate a non-seekable pipe for file_out."""
+    infile = Path(TESTS_ASSETS_DIR, "static", "vulnerability_noidx.csv")
+    kwargs = dict(
+        idx_file_out=None,
+        max_damage_bin_idx=2,
+        no_validation=False,
+        suppress_int_bin_checks=False,
+        zip_files=False,
+    )
+
+    with TemporaryDirectory() as tmp_dir, ExitStack() as stack:
+        seekable_out = Path(tmp_dir, "seekable.bin")
+        with open(seekable_out, "wb") as file_out:
+            vulnerability_tobin(stack, infile, file_out, "vulnerability", **kwargs)
+        expected_bytes = seekable_out.read_bytes()
+
+    with ExitStack() as stack:
+        actual_bytes = _run_writer_via_pipe(lambda file_out: vulnerability_tobin(stack, infile, file_out, "vulnerability", **kwargs))
+
+    assert actual_bytes == expected_bytes
+
+
 def test_fm_policytc():
     case_runner("bintocsv", "fm_policytc", "input")
     case_runner("csvtobin", "fm_policytc", "input")
@@ -688,3 +814,107 @@ def test_summarycalc():
 
 def test_cdf():
     case_runner("bintocsv", "cdf", "cdftocsv", "getmodel", run_dir=Path(TESTS_ASSETS_DIR, "cdftocsv"))
+
+
+# --------------------------------------------------------------------------------------
+# conditional_vulnerability (coverage dependency): same flat layout as a vulnerability file
+# --------------------------------------------------------------------------------------
+CONDITIONAL_VULN_CSV = Path(__file__).parents[2].joinpath(
+    "assets", "test_model_8", "static", "conditional_vulnerability.csv")
+
+
+def test_conditionalvulnerability_round_trip():
+    """csv -> bin -> csv reproduces the input, and the binary matches the committed model asset,
+    so a converter-produced file is exactly what the engine loads."""
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        csvtobin(CONDITIONAL_VULN_CSV, d / "c.bin", "conditionalvulnerability",
+                 max_damage_bin_idx=12, no_validation=False)
+        bintocsv(d / "c.bin", d / "c.csv", "conditionalvulnerability")
+        pd.testing.assert_frame_equal(pd.read_csv(CONDITIONAL_VULN_CSV), pd.read_csv(d / "c.csv"))
+        assert (d / "c.bin").read_bytes() == CONDITIONAL_VULN_CSV.with_suffix(".bin").read_bytes()
+
+
+def test_conditionalvulnerability_rejects_partial_column():
+    """Each source damage bin's probabilities must sum to 1 — the same check the converter applies
+    to vulnerability.csv. A column summing to less than 1 samples past the top of its last defined
+    damage bin, which can push a loss above the coverage's TIV."""
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        df = pd.read_csv(CONDITIONAL_VULN_CSV)
+        df.loc[(df.vulnerability_id == 101) & (df.source_damage_bin == 5)
+               & (df.damage_bin == 5), "probability"] = 0.3
+        df.to_csv(d / "bad.csv", index=False)
+        with pytest.raises(OasisException, match="source_damage_bin"):
+            csvtobin(d / "bad.csv", d / "bad.bin", "conditionalvulnerability",
+                     max_damage_bin_idx=12, no_validation=False)
+        # -N skips validation, as it does for vulnerability
+        csvtobin(d / "bad.csv", d / "ok.bin", "conditionalvulnerability",
+                 max_damage_bin_idx=12, no_validation=True)
+        assert (d / "ok.bin").exists()
+
+
+def test_conditionalvulnerability_allows_an_undefined_source_bin():
+    """A source damage bin the source can never reach may be left out entirely; the engine reads
+    the gap as "that source damage produces no dependent damage". The completeness check the
+    converter applies to vulnerability intensity bins must therefore NOT apply here."""
+    df = pd.read_csv(CONDITIONAL_VULN_CSV)
+    defined = df[df.vulnerability_id == 103]["source_damage_bin"].unique()
+    assert 12 not in defined, "the asset is expected to leave source damage bin 12 undefined"
+    with TemporaryDirectory() as d:
+        csvtobin(CONDITIONAL_VULN_CSV, Path(d) / "c.bin", "conditionalvulnerability",
+                 max_damage_bin_idx=12, no_validation=False)  # must not raise
+
+
+def test_conditionalvulnerability_rejects_damage_bin_above_max():
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        df = pd.read_csv(CONDITIONAL_VULN_CSV)
+        df.loc[df.index[0], "damage_bin"] = 99
+        df.to_csv(d / "bad.csv", index=False)
+        with pytest.raises(OasisException, match="max_damage_bin_idx"):
+            csvtobin(d / "bad.csv", d / "bad.bin", "conditionalvulnerability",
+                     max_damage_bin_idx=12, no_validation=False)
+
+
+def test_conditionalvulnerability_rejects_duplicate_rows():
+    """A repeated (vulnerability_id, source_damage_bin, damage_bin) triple must be rejected. The
+    engine scatters records by assignment, so only the last row of a duplicated triple would
+    survive, leaving that source damage bin's column short of 1 with nothing to flag it. The
+    probability sum alone does not catch it: duplicates that add up to what one correct row held
+    keep the group summing to 1."""
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        df = pd.read_csv(CONDITIONAL_VULN_CSV)
+        target = (df.vulnerability_id == 101) & (df.source_damage_bin == 5) & (df.damage_bin == 5)
+        halves = pd.DataFrame([{'vulnerability_id': 101, 'source_damage_bin': 5, 'damage_bin': 5,
+                                'probability': float(df.loc[target, 'probability'].iloc[0]) / 2}] * 2)
+        out = pd.concat([df[~target], halves]).sort_values(
+            ['vulnerability_id', 'source_damage_bin', 'damage_bin'], kind='stable')
+        out.to_csv(d / "dup.csv", index=False)
+        # the group still sums to 1, so only the duplicate check can catch this
+        assert np.isclose(out[(out.vulnerability_id == 101)
+                              & (out.source_damage_bin == 5)]['probability'].sum(), 1.0)
+        with pytest.raises(OasisException, match="strictly increasing"):
+            csvtobin(d / "dup.csv", d / "dup.bin", "conditionalvulnerability",
+                     max_damage_bin_idx=12, no_validation=False)
+
+
+def test_vulnerability_rejects_duplicate_rows():
+    """The same duplicate check applies to vulnerability.csv, which shares the validator and the
+    same load-by-assignment behaviour in getmodel."""
+    src = Path(__file__).parents[2].joinpath("assets", "test_model_1", "static", "vulnerability.csv")
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        v = pd.read_csv(src)
+        first = v[(v.vulnerability_id == 1) & (v.intensity_bin_id == 1)].iloc[0]
+        halves = pd.DataFrame([{**first.to_dict(), 'probability': first['probability'] / 2}] * 2)
+        target = ((v.vulnerability_id == 1) & (v.intensity_bin_id == 1)
+                  & (v.damage_bin_id == first['damage_bin_id']))
+        out = pd.concat([v[~target], halves]).sort_values(
+            ['vulnerability_id', 'intensity_bin_id', 'damage_bin_id'], kind='stable')
+        out.to_csv(d / "dup.csv", index=False)
+        with pytest.raises(OasisException, match="strictly increasing"):
+            csvtobin(d / "dup.csv", d / "dup.bin", "vulnerability", idx_file_out=None,
+                     max_damage_bin_idx=12, no_validation=False, suppress_int_bin_checks=True,
+                     zip_files=False)

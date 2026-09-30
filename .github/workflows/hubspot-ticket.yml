@@ -4,11 +4,11 @@ env:
   # Comma-separated list of label names that gate syncing to HubSpot.
   # An issue must have at least one of these labels for its create/comment/close
   # events to be sent to HubSpot. Leave empty ("") to sync every issue.
-  HUBSPOT_SYNC_LABELS: "bug,enhancement,feature,production,support"
+  HUBSPOT_SYNC_LABELS: "hubspot"
 
 on:
   issues:
-    types: [opened, closed]
+    types: [opened, closed, labeled]
   issue_comment:
     types: [created]
   workflow_dispatch:
@@ -43,6 +43,7 @@ jobs:
   create-ticket:
     if: >-
       (github.event_name == 'issues' && github.event.action == 'opened') ||
+      (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'hubspot') ||
       (github.event_name == 'workflow_dispatch' && inputs.mode == 'create')
     runs-on: ubuntu-latest
     permissions:
@@ -58,10 +59,12 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
           REPO_NAME: ${{ github.repository }}
           ISSUE_LABELS_JSON: ${{ toJSON(github.event.issue.labels.*.name) }}
+          GITHUB_EVENT_ACTION: ${{ github.event.action }}
         run: |
           set -euo pipefail
 
           HUBSPOT_PIPELINE_ID="0"
+          TICKET_MARKER_REGEX='HubSpot ticket ID: [0-9]+'
 
           # Skip issues that don't carry one of the configured HUBSPOT_SYNC_LABELS
           # (manual workflow_dispatch runs always bypass this gate).
@@ -71,6 +74,19 @@ jobs:
               | any(.[]; IN($allowed_list[]))
             ' >/dev/null; then
               echo "Issue does not have any of the configured HUBSPOT_SYNC_LABELS ($HUBSPOT_SYNC_LABELS); skipping."
+              exit 0
+            fi
+          fi
+
+          # A 'labeled' event can fire on an issue that already has a ticket
+          # (e.g. the label was removed and re-added), so avoid creating a duplicate.
+          if [ "$GITHUB_EVENT_NAME" = "issues" ] && [ "$GITHUB_EVENT_ACTION" = "labeled" ]; then
+            existing_ticket_id=$(gh api "repos/$REPO_NAME/issues/$ISSUE_NUMBER/comments" --paginate --jq '.[].body' \
+              | grep -oE "$TICKET_MARKER_REGEX" \
+              | tail -n1 \
+              | grep -oE '[0-9]+$' || true)
+            if [ -n "$existing_ticket_id" ]; then
+              echo "Issue #$ISSUE_NUMBER already has HubSpot ticket $existing_ticket_id; skipping creation."
               exit 0
             fi
           fi

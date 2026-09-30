@@ -26,12 +26,15 @@ def logging_reset_handlers(logger_name):
     # revert all handlers to NOTSET
     for handler in logger.handlers:
         handler.setLevel(logging.NOTSET)
-        logger.propagate = True
     # Remove added handlers
     if 'oasislmf.' in logger_name:
         logger.handlers.clear()
-    else:
-        logger.setLevel(logging.NOTSET)
+    # Undo what logging_set_handlers did to the logger itself: leaving the level in place pinned
+    # every 'oasislmf.*' logger for the rest of the process. propagate is restored only where we
+    # cleared it — redirect_logging walks every logger, including the host application's.
+    if 'oasislmf.' in logger_name:
+        logger.propagate = True
+    logger.setLevel(logging.NOTSET)
 
 
 def redirect_logging(exec_name, log_dir='./log'):
@@ -67,7 +70,11 @@ def redirect_logging(exec_name, log_dir='./log'):
         def wrapper(*args, **kwargs):
             _tmp_dir = tempfile.mkdtemp(prefix=f'oasis_{exec_name}_', dir=os.environ.get('OASIS_TMPDIR')) \
                 if os.environ.get('OASIS_PYTEST_REDIRECT_LOGS') else None
-            _log_dir = _tmp_dir or log_dir
+            # OASIS_PYTOOLS_LOG_DIR lets the invoking bash script isolate each
+            # chunk's pytool logs into its own directory (e.g. log/<process_number>)
+            # instead of every concurrently-running chunk sharing the same flat
+            # './log', which is what `log_dir` would otherwise always resolve to.
+            _log_dir = _tmp_dir or os.environ.get('OASIS_PYTOOLS_LOG_DIR') or log_dir
             os.makedirs(_log_dir, exist_ok=True)
             logging_config = logging.root.manager.loggerDict.keys()
             logging.captureWarnings(True)

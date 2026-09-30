@@ -1,7 +1,7 @@
 import json
 import string
 from argparse import Namespace
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from unittest import TestCase
 
 import os
@@ -336,3 +336,25 @@ class InputValuesGet(TestCase):
             self.assertEqual(expected_result, result)
         finally:
             os.remove(conf_file.name)
+
+
+class InputValuesConfigFile(TestCase):
+    def test_config_file_does_not_exist___error_is_raised(self):
+        with TemporaryDirectory() as d:
+            args = Namespace(config=os.path.join(d, 'missing.json'))
+
+            with self.assertRaises(OasisException):
+                InputValues(args)
+
+    def test_write_config_file___config_round_trips(self):
+        with TemporaryDirectory() as d:
+            conf_fp = os.path.join(d, 'oasislmf.json')
+            out_fp = os.path.join(d, 'out.json')
+            with open(conf_fp, 'w') as f:
+                json.dump({'foo': 'bar'}, f)
+
+            inputs = InputValues(Namespace(config=conf_fp, foo=None))
+            inputs.write_config_file(out_fp)
+
+            with open(out_fp) as f:
+                self.assertEqual(json.load(f), inputs.config)

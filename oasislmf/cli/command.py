@@ -11,7 +11,8 @@ from argparsetree import BaseCommand
 from ods_tools.oed.settings import Settings, ROOT_USER_ROLE
 
 from ..utils.path import PathCleaner
-from ..utils.inputs import InputValues
+from ..utils.inputs import InputValues, load_json_config
+from ..utils.exceptions import OasisException
 
 from ..manager import OasisManager as om
 
@@ -118,10 +119,8 @@ class OasisBaseCommand(BaseCommand):
             return {}
 
         try:
-            with open(self.args.config, "r") as f:
-                config = json.load(f)
-            return config
-        except FileNotFoundError:
+            return load_json_config(self.args.config)
+        except OasisException:
             print(
                 f"Warning: Config file not found: {self.args.config}", file=sys.stderr
             )

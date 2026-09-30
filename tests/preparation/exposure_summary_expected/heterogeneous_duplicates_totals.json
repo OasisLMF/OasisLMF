@@ -1,16 +1,16 @@
 {
 "totals": {
 "modelled": {
-"number_of_buildings": 26,
-"number_of_locations": 11,
-"number_of_risks": 26,
-"tiv": 17165838.150000002
+"number_of_buildings": 28,
+"number_of_locations": 12,
+"number_of_risks": 28,
+"tiv": 14138199.42
 },
 "not-modelled": {
-"number_of_buildings": 34,
+"number_of_buildings": 32,
 "number_of_locations": 12,
-"number_of_risks": 34,
-"tiv": 25961449.23
+"number_of_risks": 32,
+"tiv": 25961449.229999997
 },
 "portfolio": {
 "number_of_buildings": 32,
