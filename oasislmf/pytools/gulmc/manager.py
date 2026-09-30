@@ -450,13 +450,9 @@ def run(run_dir,
         # Generator 2 is counter-based: a building's block is a pure function of the group key
         # and the building index, so it can be produced where it is consumed instead of the
         # whole event's draws being materialised up front. These hold one building's worth.
-        lazy_draws = np.int8(1 if random_generator == 2 else 0)
         vuln_draw_scratch = np.zeros(max(sample_size, 1), dtype='float64')
         haz_draw_scratch = np.zeros(max(sample_size, 1), dtype='float64')
         perm_scratch = np.zeros(max(sample_size, 1), dtype='float64')
-        # 2d like the real array: a 1d stand-in would make rndms_base[rng_index] a scalar on one
-        # branch and a row on the other, which numba cannot unify
-        empty_draws = np.empty((1, 1), dtype='float64')   # stands in for the array not built
         # Per item of the current coverage, the correlation between two of its buildings'
         # LOSSES -- what the variance of their sum actually needs. 0 unless the item is summed
         # and correlated, which is the only case that reads it.
@@ -603,15 +599,12 @@ def run(run_dir,
                 # for random values accounts for 25% of the runtime of the losses step not including
                 # the get_event despite having a sample size of 0.
                 if sample_size > 0:
-                    # One row of sample_size per rng group. Generator 2 is the only one that can
-                    # pack, and it draws each building's block where that block is used, so it
-                    # materialises nothing here -- see lazy_draws.
-                    if lazy_draws:
-                        vuln_rndms_base = empty_draws
-                        haz_rndms_base = empty_draws
-                    else:
-                        vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
-                        haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
+                    # One row of sample_size per rng GROUP, which is what a packed item's first
+                    # building gets too: random_LatinHypercube_Philox7 is a loop over
+                    # _lh_philox_block at building coordinate 0. So this row is shared by every
+                    # item of the group, and only buildings 2..N are drawn per item below.
+                    vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
+                    haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
                     if hazard_rng_index > 0:
                         haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
@@ -664,7 +657,6 @@ def run(run_dir,
                             haz_rndms_base,
                             vuln_seeds,
                             haz_seeds,
-                            lazy_draws,
                             vuln_draw_scratch,
                             haz_draw_scratch,
                             perm_scratch,
@@ -1257,7 +1249,6 @@ def compute_event_losses(compute_info,
                          haz_rndms_base,
                          vuln_seeds,
                          haz_seeds,
-                         lazy_draws,
                          vuln_draw_scratch,
                          haz_draw_scratch,
                          perm_scratch,
@@ -1343,14 +1334,11 @@ def compute_event_losses(compute_info,
           does not report the spread of a sum.
         hermite_coeffs (numpy.array[float64]): length HERMITE_TERMS scratch for that.
         vuln_rndms_base (numpy.array[float64]): 2d (damage rng groups, S) random draws, one row
-          per group. Empty when lazy_draws is set, where it is never read.
+          per group, which is also every packed item's first building.
         haz_rndms_base (numpy.array[float64]): the same for the hazard rng groups.
-        vuln_seeds (numpy.array[int]): per damage rng group, the Philox key. Read only when
-          lazy_draws is set, where it replaces the materialised array entirely.
+        vuln_seeds (numpy.array[int]): per damage rng group, the Philox key. Read for a packed
+          item's buildings 2..N, which are drawn per item rather than shared.
         haz_seeds (numpy.array[int]): the same for the hazard rng groups.
-        lazy_draws (int8): 1 when the generator is counter-based (generator 2), where a building's
-          block is produced on demand. It is also the only generator packing is allowed on, so
-          every other generator reaches the loop below with exactly one building.
         vuln_draw_scratch (numpy.array[float64]): length-S buffer for one building's damage block.
         haz_draw_scratch (numpy.array[float64]): the same for hazard.
         perm_scratch (numpy.array[float64]): length-S scratch the block generator permutes in.
@@ -1540,23 +1528,27 @@ def compute_event_losses(compute_info,
                 # column as views, so a building is just a different pair.
 
                 for b in range(1, n_buildings + 1):
-                    if lazy_draws:
+                    # Building 1 is the group's shared row, already drawn once for the event.
+                    # Only 2..N are per item, and reaching them at all means the item is packed,
+                    # which check_packing_supported allows on generator 2 alone -- so the block
+                    # generator is always the right one here.
+                    if b == 1:
+                        vuln_base_b = vuln_rndms_base[rng_index]
+                    else:
                         vs = np.uint64(vuln_seeds[rng_index])
                         _lh_philox_block(np.uint32(vs & PHILOX_U32_MASK),
                                          np.uint32(vs >> PHILOX_SHIFT32), b - 1, sample_size,
                                          perm_scratch[:sample_size], vuln_draw_scratch[:sample_size])
                         vuln_base_b = vuln_draw_scratch[:sample_size]
-                    else:
-                        vuln_base_b = vuln_rndms_base[rng_index]
                     if hazard_rng_index >= 0:
-                        if lazy_draws:
+                        if b == 1:
+                            haz_base_b = haz_rndms_base[hazard_rng_index]
+                        else:
                             hs = np.uint64(haz_seeds[hazard_rng_index])
                             _lh_philox_block(np.uint32(hs & PHILOX_U32_MASK),
                                              np.uint32(hs >> PHILOX_SHIFT32), b - 1, sample_size,
                                              perm_scratch[:sample_size], haz_draw_scratch[:sample_size])
                             haz_base_b = haz_draw_scratch[:sample_size]
-                        else:
-                            haz_base_b = haz_rndms_base[hazard_rng_index]
                     else:
                         haz_base_b = vuln_base_b  # unused; keeps the argument type stable
 
