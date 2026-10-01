@@ -655,14 +655,14 @@ def write_packed_building_samples(byte_mv, cursor, b, sample_losses, sample_size
 
 
 @njit(cache=True, fastmath=True)
-def write_summed_specials(byte_mv, cursor, item_specials, nb_item, loss_correlation):
+def write_summed_specials(byte_mv, cursor, item_specials, nb_buildings, loss_correlation):
     """Emit the specials of an item whose buildings are summed at source.
 
     Args:
         byte_mv (numpy.ndarray): byte view of the output buffer.
         cursor (int): index in byte_mv at which to start writing.
         item_specials (numpy.array[oasis_float]): this item's ``losses[:, item_j]`` column.
-        nb_item (int): how many buildings are summed into this item.
+        nb_buildings (int): how many buildings are summed into this item's loss.
         loss_correlation (oasis_float): the correlation between two of this item's buildings'
             LOSSES, not the copula correlation applied to their draws. The two differ because the
             damage curve attenuates the copula -- see loss_correlation() in gul.core. 0 where
@@ -686,10 +686,10 @@ def write_summed_specials(byte_mv, cursor, item_specials, nb_item, loss_correlat
             # correlation: the damage curve attenuates it. Passing the copula value here
             # instead overstated sigma by up to ~39%. gul.core.loss_correlation does the
             # conversion, exactly under the one-factor copula.
-            combined = nb_item + nb_item * (nb_item - 1) * loss_correlation
-            value = value * sqrt(combined if combined > 0 else nb_item)
+            combined = nb_buildings + nb_buildings * (nb_buildings - 1) * loss_correlation
+            value = value * sqrt(combined if combined > 0 else nb_buildings)
         else:
-            value = value * nb_item   # mean, tiv and max are additive
+            value = value * nb_buildings   # mean, tiv and max are additive
         cursor = mv_write_sidx_loss(byte_mv, cursor, special_idx, value)
     return cursor
 
@@ -739,7 +739,7 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
         n_buildings (numpy.array[int]): per item in ``item_ids``, the SIGNED building count. The
             magnitude is how many buildings the item carries; a negative sign means they must be
             emitted as separate blocks, positive that they are summed into one ordinary item. It
-            is unpacked into ``nb_item``/``keep_separate`` at the top of the write loop -- never
+            is unpacked into ``nb_buildings``/``keep_separate`` at the top of the write loop -- never
             use it raw as a bound.
         loss_correlation (numpy.array[oasis_float]): per item, the correlation between two of its
             buildings' LOSSES -- not the copula correlation applied to their draws, which the
@@ -754,22 +754,22 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
         int: updated cursor.
     """
     # n_buildings is SIGNED. Take the magnitude for anything used as a bound: comparing the raw
-    # value would leave max_nb at 0 for the keep-separate items, and ranging over it would index
-    # building_losses negatively.
-    max_nb = 0
+    # value would leave max_buildings_coverage at 0 for the keep-separate items, and ranging
+    # over it would index building_losses negatively.
+    max_buildings_coverage = 0
     for item_j in range(item_ids.shape[0]):
-        nb = abs(n_buildings[item_j])
-        if nb > max_nb:
-            max_nb = nb
+        nb_buildings = abs(n_buildings[item_j])
+        if nb_buildings > max_buildings_coverage:
+            max_buildings_coverage = nb_buildings
 
     # The alloc-rule passes below work across items at a fixed building index, so a slot no item
     # on this coverage wrote must read 0 rather than whatever a previous coverage left in the
     # reused buffer. Done here rather than in each compute loop because both bounds are known
-    # here: n_buildings per item, and max_nb, past which nothing is read at all.
+    # here: n_buildings per item, and max_buildings_coverage, past which nothing is read at all.
     if alloc_rule != 0:
         for item_j in range(item_ids.shape[0]):
-            nb = abs(n_buildings[item_j])
-            for b in range(nb, max_nb):
+            nb_buildings = abs(n_buildings[item_j])
+            for b in range(nb_buildings, max_buildings_coverage):
                 for sample_idx in range(sample_size):
                     building_losses[sample_idx, item_j, b] = 0
 
@@ -778,7 +778,7 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
     if alloc_rule != 0:
         for special in (TIV_IDX, MAX_LOSS_IDX, MEAN_IDX):
             apply_alloc_rule(losses[special], alloc_rule, tiv)
-        for b in range(max_nb):
+        for b in range(max_buildings_coverage):
             for sample_idx in range(sample_size):
                 apply_alloc_rule(building_losses[sample_idx, :, b], alloc_rule, tiv)
 
@@ -787,7 +787,7 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
         # Unpack the signed count into an unsigned bound and a flag. The raw value must never reach
         # a range(), which would silently iterate zero times and drop the item's buildings.
         packed_item = n_buildings[item_j]
-        nb_item = abs(packed_item)
+        nb_buildings = abs(packed_item)
         keep_separate = packed_item < 0
 
         if keep_separate:
@@ -796,20 +796,20 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
             # samples ascend as b rises: the item comes out ascending end to end, which is what
             # the loss stream requires and what lets a repeated sidx be caught by a comparison.
             # The analytic values do not vary by building, so this only reorders writes.
-            for b in range(nb_item, 0, -1):
+            for b in range(nb_buildings, 0, -1):
                 cursor = write_packed_building_specials(byte_mv, cursor, losses[:, item_j], b,
                                                         sample_size)
-            for b in range(1, nb_item + 1):
+            for b in range(1, nb_buildings + 1):
                 cursor = write_packed_building_samples(byte_mv, cursor, b,
                                                        building_losses[:, item_j, b - 1],
                                                        sample_size, loss_threshold)
         else:
-            # summed at source: an ordinary unpacked item covering all nb_item buildings
-            cursor = write_summed_specials(byte_mv, cursor, losses[:, item_j], nb_item,
+            # summed at source: an ordinary unpacked item covering all its buildings
+            cursor = write_summed_specials(byte_mv, cursor, losses[:, item_j], nb_buildings,
                                            loss_correlation[item_j])
             for sample_idx in range(1, sample_size + 1):
                 loss = 0.
-                for b in range(nb_item):
+                for b in range(nb_buildings):
                     loss += building_losses[sample_idx - 1, item_j, b]
                 if loss >= loss_threshold:
                     cursor = mv_write_sidx_loss(byte_mv, cursor, sample_idx, loss)
