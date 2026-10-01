@@ -803,12 +803,17 @@ def compute_max_dependency_depth(coverage_source_id):
 
 
 @nb.njit(fastmath=True, cache=True)
-def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_scaling):
+def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_scaling,
+                          src_bin_out, out_i):
     # find the damage cdf bin in which the random value `vuln_rval` falls into
     vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins - 1)
 
-    # compute ground-up losses; also return the sampled damage bin index (needed as the driving
-    # signal for coverage dependency — captured here rather than re-derived from the loss).
+    # The sampled bin is the driving signal for coverage dependency, captured here rather than
+    # re-derived from the loss. It goes to the caller's array rather than out with the loss: a
+    # tuple has to be materialised across the call, and this is called once per sample.
+    # src_bin_out is always a sample_size slice, so the store is unconditional and the caller
+    # keeps no branch in its loop.
+    src_bin_out[out_i] = vuln_bin_idx
     gul = get_gul(
         damage_bins['bin_from'][vuln_bin_idx],
         damage_bins['bin_to'][vuln_bin_idx],
@@ -818,7 +823,7 @@ def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_sc
         vuln_rval,
         bin_scaling,
     )
-    return gul, vuln_bin_idx
+    return gul
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
@@ -1116,7 +1121,7 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                        haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                        eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
                        damage_bins, damage_bin_scaling, out,
-                       is_dependent, store_source_bin, src_bin_out, parent_bins):
+                       is_dependent, src_bin_out, parent_bins):
     """Write the per-sample gul (or debug random values) for one item into ``losses``.
 
     In debug modes 1/2 the drawn hazard/damage random values are stored directly. Otherwise the
@@ -1127,7 +1132,7 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
 
     Coverage dependency: a dependent item (``is_dependent``, full Monte Carlo) selects its hazard
     bin as its source's per-sample sampled damage bin, read from ``parent_bins``, rather than by
-    drawing from the hazard CDF. When ``store_source_bin`` is set, this item's own sampled damage
+    drawing from the hazard CDF. This item's own sampled damage
     bin is recorded in ``src_bin_out`` so a dependent below it in the DFS can consume it. Both are
     slices of one building's bins, so a packed item's buildings each drive their own dependent.
 
@@ -1150,10 +1155,9 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
             an unpacked item is the single-building case. Taking a view rather than
             (buffer, index) is what lets both use this routine.
         is_dependent (bool): True if this item is driven by a source item's sampled damage bin.
-        store_source_bin (bool): True if this coverage's own sampled damage bin must be recorded
-          for the dependents below it in the DFS.
-        src_bin_out (np.array[int32]): this item and building's slice of the source damage-bin
-          stack, length ``sample_size``, written when ``store_source_bin``.
+        src_bin_out (np.array[int32]): where the sampled damage bin is written, one per sample.
+          The caller points it at this item's slice of the stack when something below will read
+          it, and at a discard slot otherwise, so the store here needs no condition.
         parent_bins (np.array[int32]): the source item's bins for the SAME building, read when
           ``is_dependent``. Aliases ``src_bin_out`` otherwise, which keeps the argument typed
           without giving it a meaning.
@@ -1171,16 +1175,16 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
     else:  # calculate gul
         if compute_info['effective_damageability']:
             for sample_idx in range(1, sample_size + 1):
-                out[sample_idx - 1], _ = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
-                                                               Neff_damage_bins, damage_bins, damage_bin_scaling)
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
+                                                            Neff_damage_bins, damage_bins, damage_bin_scaling,
+                                                            src_bin_out, sample_idx - 1)
         elif Nhaz_bins == 1:  # only one hazard possible
             Ndamage_bins = haz_i_to_Ndamage_bins[0]
             vuln_cdf = haz_i_to_vuln_cdf[0][:Ndamage_bins]
             for sample_idx in range(1, sample_size + 1):
-                out[sample_idx - 1], src_bin = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                     Ndamage_bins, damage_bins, damage_bin_scaling)
-                if store_source_bin:
-                    src_bin_out[sample_idx - 1] = src_bin
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling,
+                                                            src_bin_out, sample_idx - 1)
         elif is_dependent:
             # the dependent's "hazard bin" is the source's sampled damage bin, read straight from
             # the stack — no ratio round-trip, so a source of any damage type works
@@ -1188,10 +1192,9 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                 haz_bin_idx = parent_bins[sample_idx - 1]
                 Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
                 vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
-                out[sample_idx - 1], src_bin = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                     Ndamage_bins, damage_bins, damage_bin_scaling)
-                if store_source_bin:
-                    src_bin_out[sample_idx - 1] = src_bin
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling,
+                                                            src_bin_out, sample_idx - 1)
         else:
             for sample_idx in range(1, sample_size + 1):
                 # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
@@ -1204,10 +1207,9 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                 Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
                 vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
 
-                out[sample_idx - 1], src_bin = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                     Ndamage_bins, damage_bins, damage_bin_scaling)
-                if store_source_bin:
-                    src_bin_out[sample_idx - 1] = src_bin
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling,
+                                                            src_bin_out, sample_idx - 1)
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -1561,7 +1563,16 @@ def compute_event_losses(compute_info,
                     # as a packed sidx. A dependent reads its source's slice for the SAME building,
                     # so building b of the dependent is driven by building b of the source.
                     bin_off = (b - 1) * sample_size
-                    src_bin_out = source_damage_bin_stack[depth, item_j, bin_off: bin_off + sample_size]
+                    if store_source_bin:
+                        src_bin_out = source_damage_bin_stack[depth, item_j, bin_off: bin_off + sample_size]
+                    else:
+                        # The sampler stores the bin unconditionally, to keep the branch out of its
+                        # per-sample loop, so it needs somewhere in bounds to put a value nothing
+                        # will read. bin_off can run past the stack's width, which is only as wide
+                        # as a SOURCE item's buildings; the first building's slot never does, and
+                        # this item's slice is read only when it IS a source, which is the branch
+                        # above.
+                        src_bin_out = source_damage_bin_stack[depth, item_j, 0: sample_size]
                     if is_dependent:
                         parent_bins = source_damage_bin_stack[depth - 1, item_event_data['source_item_j'],
                                                               bin_off: bin_off + sample_size]
@@ -1573,7 +1584,7 @@ def compute_event_losses(compute_info,
                                        eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins,
                                        haz_i_to_vuln_cdf, damage_bins, damage_bin_scaling,
                                        building_losses[:, item_j, b - 1],
-                                       is_dependent, store_source_bin, src_bin_out, parent_bins)
+                                       is_dependent, src_bin_out, parent_bins)
 
             # effective damageability: record the eff-damage CDF instead, for a dependent below
             # to build its damage pmf from
