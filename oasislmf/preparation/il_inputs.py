@@ -10,6 +10,7 @@ __all__ = [
 import contextlib
 import copy
 import itertools
+import logging
 import os
 import time
 import warnings
@@ -41,6 +42,8 @@ from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION
                                DEDUCTIBLE_AND_LIMIT_TYPES, FM_LEVELS, FML_ACCALL, STEP_TRIGGER_TYPES,
                                SUPPORTED_FM_LEVELS, FM_TERMS, GROUPED_SUPPORTED_FM_LEVELS)
 from oasislmf.utils.log import oasis_log
+
+logger = logging.getLogger(__name__)
 from oasislmf.utils.path import as_path
 from oasislmf.utils.profiles import (get_default_step_policies_profile,
                                      get_grouped_fm_profile_by_level_and_term_group,
@@ -1143,6 +1146,30 @@ def write_level_policytc_and_programme(gul_inputs_df, level_id, fm_policytc_bin,
     else:
         fm_policytc_df = gul_inputs_df.loc[:, fm_policytc_headers]
     fm_policytc_dedup = fm_policytc_df.drop_duplicates()
+
+    # (level_id, agg_id, layer_id) is this file's primary key, and one profile per key suffices for
+    # every policy kind -- a step policy keeps its steps inside ONE profile_id, keyed by step_id in
+    # fm_profile, so it needs no second row either.
+    #
+    # Source rows for one subject-at-risk that disagree on a term break that. They share a loc_id,
+    # so they share an agg_id, but each builds its own profile: two rows, one key. The financial
+    # module reserves a loss slot per profile and treats the second as another layer, which sends
+    # the item's loss into the output stream twice -- 194,000 against a correct 99,000 on a
+    # two-row portfolio whose deductible differs. The ground-up inputs already resolve the same
+    # conflict by keeping the first row, so match them rather than let the two disagree.
+    conflicting = fm_policytc_dedup.duplicated(subset=['level_id', 'agg_id', 'layer_id'], keep='first')
+    if conflicting.any():
+        dropped = fm_policytc_dedup.loc[conflicting]
+        n_agg = dropped['agg_id'].nunique()
+        sample = ', '.join(str(a) for a in dropped['agg_id'].unique()[:5])
+        logger.warning(
+            f"level {level_id}: dropping {int(conflicting.sum())} fm_policytc row(s) over {n_agg} "
+            f"agg_id(s) that repeat a (level_id, agg_id, layer_id) already written, with a "
+            f"different profile_id. Source rows for one subject-at-risk disagree on a term; the "
+            f"first profile is kept, as the ground-up inputs do. agg_id(s): {sample}"
+            f"{' ...' if n_agg > 5 else ''}"
+        )
+        fm_policytc_dedup = fm_policytc_dedup.loc[~conflicting]
     df_to_ndarray(fm_policytc_dedup, fm_policytc_dtype).tofile(fm_policytc_bin)
     if fm_policytc_csv is not None:
         fm_policytc_dedup.astype(fm_policytc_pd_dtype).to_csv(fm_policytc_csv, index=False,
