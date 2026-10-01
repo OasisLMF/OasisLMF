@@ -61,6 +61,7 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', oasis_int),
                                           ('packable_node_len', oasis_int),
                                           ('packable_building_slots', oasis_int),
                                           ('packable_layer_slots', oasis_int),
+                                          ('packable_extra_slots', oasis_int),
                                           ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', oasis_int),
                                            ('i_end', oasis_int),
@@ -86,14 +87,15 @@ def load_fm_structure_info(static_path):
         static_path (str): path to the folder holding the static input files.
 
     Returns:
-        tuple(int, int, int): the level after which packed buildings collapse, the largest number
-        of buildings any one packed item carries, and the SUM of those counts over the items that
-        keep their buildings separate (0 when the file predates that field). ``(0, 1, 0)`` when the
-        file is absent -- which is every input set not generated with building-packing.
+        tuple(int, int, int, int): the level after which packed buildings collapse, the largest
+        number of buildings any one packed item carries, the SUM of those counts over the items that
+        keep their buildings separate, and the exact count of packed slices the arena owes (0 where
+        a field predates the file's layout). ``(0, 1, 0, 0)`` when the file is absent -- which is
+        every input set not generated with building-packing.
     """
     fp = os.path.join(static_path, FM_STRUCTURE_INFO_FILE)
     if not os.path.exists(fp):
-        return 0, 1, 0
+        return 0, 1, 0, 0
     record = np.fromfile(fp, dtype=fm_structure_info_dtype)
     if record.shape[0] == 0:
         # An empty file is the "nothing to collapse" case. Anything else that yields no record was
@@ -105,7 +107,7 @@ def load_fm_structure_info(static_path):
                 f"({fm_structure_info_dtype.itemsize} bytes: "
                 f"{', '.join(fm_structure_info_dtype.names)}). Regenerate the oasis files."
             )
-        return 0, 1, 0
+        return 0, 1, 0, 0
     site_collapse_level = int(record[0]['site_collapse_level'])
     max_buildings = max(1, int(record[0]['max_buildings']))
     total = int(record[0]['total_packed_buildings'])
@@ -117,7 +119,7 @@ def load_fm_structure_info(static_path):
             f"buildings, which cannot be right -- the total is a sum over the items the maximum "
             f"is taken from. Regenerate the oasis files."
         )
-    return site_collapse_level, max_buildings, total
+    return site_collapse_level, max_buildings, total, int(record[0]['packed_node_slots'])
 
 
 def load_static(static_path):
@@ -429,7 +431,8 @@ def prepare_profile_stepped(profile, tiv):
 
 @njit(cache=True)
 def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages,
-                                site_collapse_level=0, max_buildings=1, total_packed_buildings=0):
+                                site_collapse_level=0, max_buildings=1, total_packed_buildings=0,
+                                packed_node_slots=0):
     """Build the in-memory financial structure arrays from the raw fm input files.
 
     Args:
@@ -446,6 +449,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             terms per building, then collapse to the sample size. 0 means nothing to collapse.
         total_packed_buildings (int): sum of the per-item building counts over the items keeping
             their buildings separate; sizes the arena. 0 falls back to the node-count bound.
+        packed_node_slots (int): packed slices the arena owes over the packable levels,
+            counted per node at generation. 0 where generation did not record it, and the
+            total-times-levels bound is used instead.
         max_buildings (int): largest number of buildings any one packed item carries, which sizes
             the computation arrays up to the collapse level. 1 when there are none.
 
@@ -912,7 +918,10 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         int(np.count_nonzero(nodes_array[1:node_i]['level_id'] <= site_collapse_level))
         if max_buildings > 1 and site_collapse_level >= max(1, start_level) else 0
     )
-    # How many packed slices the arena owes, as a SUM rather than a count times the maximum.
+    # How many packed slices the arena owes. Generation counts them per node, where it has the
+    # building count on each; what follows is the bound used when it did not record them, which
+    # charges every packable level the portfolio's whole building total.
+    #
     # Budgeting every packable node at max_buildings charges each of them for the largest location
     # in the portfolio: on a 5.7M-building book, 241 TB against the 5 GB the data needs.
     #
@@ -925,10 +934,12 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     if compute_info['packable_node_len'] == 0:
         compute_info['packable_building_slots'] = 0
         compute_info['packable_layer_slots'] = 0
+        compute_info['packable_extra_slots'] = 0
     else:
         # Comfortably inside int32: it is a building count times the packable level count, so
         # 11.5M on a 5.7M-building book. The slot arithmetic that uses it is done in Python ints.
-        compute_info['packable_building_slots'] = total_packed_buildings * (site_collapse_level + 1)
+        compute_info['packable_building_slots'] = (
+            packed_node_slots if packed_node_slots else total_packed_buildings * (site_collapse_level + 1))
 
         # The loss and extras arenas need one packed slice per LAYER, where the sidx arena needs
         # only one per node. Charging every packed slice the portfolio's deepest layering bills a
@@ -942,9 +953,29 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         layer_slots = 0
         for level in range(0, site_collapse_level + 1):
             at_level = nodes_array[1:node_i][nodes_array[1:node_i]['level_id'] == level]
-            level_max_layer = int(at_level['layer_len'].max()) if at_level.shape[0] else 1
-            layer_slots += total_packed_buildings * max(1, level_max_layer)
+            if at_level.shape[0] == 0:
+                continue        # a level with no nodes owes nothing, whatever the bound says
+            level_max_layer = max(1, int(at_level['layer_len'].max()))
+            # The slices of one level, times its deepest layering. Where generation counted the
+            # slices exactly, that count is for ALL packable levels together, so charging it per
+            # level would multiply it back up -- take the portfolio's deepest layering once.
+            if packed_node_slots:
+                layer_slots = max(layer_slots, packed_node_slots * level_max_layer)
+            else:
+                layer_slots += total_packed_buildings * level_max_layer
         compute_info['packable_layer_slots'] = layer_slots
+
+        # The extras arena owes packed slices only where a PACKABLE node carries extras, which is
+        # a calcrule question and usually answered no: the need_extras rules are a minority, and a
+        # site level that uses none leaves the extras arena with nothing packed to hold. Without
+        # this it is charged the same packed allowance as the loss arena, which covers every
+        # packable node -- and extras are 3 floats a slot against the loss arena's 1, so it is the
+        # largest array in the module on a book that does not need it at all.
+        packable = nodes_array[1:node_i]['level_id'] <= site_collapse_level
+        has_extra = nodes_array[1:node_i]['extra'] != null_index
+        compute_info['packable_extra_slots'] = (
+            layer_slots if np.count_nonzero(packable & has_extra) else 0
+        )
 
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
 
@@ -1000,12 +1031,13 @@ def create_financial_structure(allocation_rule, static_path):
         allocation_rule = 2
 
     (fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages,
-     site_collapse_level, max_buildings, total_packed_buildings) = load_static(static_path)
+     site_collapse_level, max_buildings, total_packed_buildings,
+     packed_node_slots) = load_static(static_path)
     check_collapse_is_reachable(fm_programme, site_collapse_level, max_buildings)
     financial_structure = extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile,
                                                       stepped, fm_xref, items, coverages,
                                                       site_collapse_level, max_buildings,
-                                                      total_packed_buildings)
+                                                      total_packed_buildings, packed_node_slots)
     compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile = financial_structure
     logger.info(f'nodes_array has {len(nodes_array)} elements')
     logger.info(f'compute_info : {dict(zip(compute_info.dtype.names, compute_info[0]))}')

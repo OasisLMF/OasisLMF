@@ -203,10 +203,15 @@ correlations_headers, correlations_dtype, correlations_fmt = generate_output_met
 # packed buildings collapse after it, and 0 means there is no such level. max_buildings sizes the
 # computation arrays.
 total_packed_buildings = ("total_packed_buildings", 'i4', "%d")
+# The arena's packed allowance, summed over the packable levels at generation time where the
+# per-node building counts exist. 0 means "not recorded" and the reader falls back to the
+# total-times-levels bound, which over-reserves by about 2-3x on an aggregate-heavy book.
+packed_node_slots = ("packed_node_slots", 'i8', "%d")
 fm_structure_info_output = [
     site_collapse_level,
     max_buildings,
     total_packed_buildings,
+    packed_node_slots,
 ]
 fm_structure_info_headers, fm_structure_info_dtype, fm_structure_info_fmt = generate_output_metadata(
     fm_structure_info_output)
