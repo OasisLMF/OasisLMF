@@ -687,9 +687,8 @@ def effective_max_buildings(compute_info):
     buildings away as it reads (see ``collapse_on_read`` in manager.run_synchronous_sparse, which
     must stay the same predicate) and every stored sidx is local.
 
-    It has to be ONE function: ``all_sidx`` is the iteration domain, so sizing it from a second,
-    separate read of ``max_buildings`` lets the two disagree -- and the scan then runs off the
-    end, unchecked.
+    It has to be ONE function: it sizes both the arena's packed allowance and ``len_array``, so
+    reading ``max_buildings`` separately for each lets the two disagree.
     """
     max_buildings = max(1, compute_info['max_buildings'])
     if max_buildings > 1 and compute_info['site_collapse_level'] < max(1, compute_info['start_level']):
@@ -817,21 +816,6 @@ def compute_event(compute_info,
     collapse_loss = np.zeros((compute_info['max_layer'], collapse_len), dtype=np.float64)
     collapse_extras = np.zeros((compute_info['max_layer'], collapse_len, 3), dtype=oasis_float)
     collapse_net = np.zeros(collapse_len, dtype=np.float64)
-
-    # Every sidx a node can carry, ascending -- iterating it is what orders a parent's sidx
-    # array, so it must cover every value that can arrive. Under packing that includes each
-    # building's block: specials NUM_SPECIAL_SIDX lower per building, samples at (b-1)*S+1..b*S.
-    # max_buildings is 1 for an ordinary run, reducing this to (-5, -3, -1, 1..S).
-    n_buildings = effective_max_buildings(compute_info)
-    all_sidx = np.empty(n_buildings * (max_sidx_val + EXTRA_SIDX_COUNT), dtype=oasis_int)
-    i = 0
-    for b in range(n_buildings, 0, -1):
-        shift = (b - 1) * NUM_SPECIAL_SIDX
-        all_sidx[i] = MAX_LOSS_IDX - shift     # -5: maximum loss
-        all_sidx[i + 1] = TIV_IDX - shift      # -3: total insured value
-        all_sidx[i + 2] = MEAN_IDX - shift     # -1: mean/expected loss
-        i += EXTRA_SIDX_COUNT
-    all_sidx[i:] = np.arange(1, n_buildings * max_sidx_val + 1)  # sample indices, building-major
 
     # Last level whose terms apply per building; children at or below it merge their blocks when
     # aggregated into a node above it. 0 for an ordinary run, making the checks below no-ops.
@@ -1310,10 +1294,11 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_l
     # int(): max_sidx_val is an int32 from the stream header, and NEP 50 keeps int32 * python
     # int in int32. The arena sizes derived from it reach 3.3e9 slots and would wrap negative.
     max_sidx_count = int(max_sidx_val) + EXTRA_SIDX_COUNT
-    # dense temporaries are indexed by sidx *value*, and a packed item's sidx runs up to
-    # max_buildings * max_sidx_val with its specials wrapping onto the tail, so they span the
-    # whole packed range
-    len_array = max_buildings * (max_sidx_val + 6)
+    # The dense temporaries are indexed by POSITION in a node, so this is the widest node that
+    # can exist: a packed one carries EXTRA_SIDX_COUNT specials and max_sidx_val samples for each
+    # of its buildings. It was max_sidx_val + 6 while they were indexed by sidx VALUE, where a
+    # packed item's specials wrapped onto the array's tail and had to be allowed for.
+    len_array = max_buildings * (max_sidx_val + EXTRA_SIDX_COUNT)
 
     # One packed slice per packable node, budgeted as the SUM of their building counts rather
     # than their count times the largest location in the portfolio -- see packable_building_slots.
