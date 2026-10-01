@@ -1319,7 +1319,12 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_l
     # arena is indexed with int64 throughout, so only the sizing needs widening.
     node_slots = int(compute_info['node_len']) * max_sidx_count + extra_slots
     loss_slots = int(compute_info['loss_len']) * max_sidx_count + extra_layer_slots
-    extra_arena_slots = int(compute_info['extra_len']) * max_sidx_count + extra_layer_slots
+    # The extras arena takes its own packed allowance, which is 0 unless a packable node actually
+    # carries extras -- see packable_extra_slots. It is 3 floats a slot against the loss arena's 1.
+    extra_packed_slots = 0 if collapsed_on_read else int(compute_info['packable_extra_slots']) * max_sidx_count
+    if keep_input_loss:
+        extra_packed_slots += extra_slots if extra_packed_slots else 0
+    extra_arena_slots = int(compute_info['extra_len']) * max_sidx_count + extra_packed_slots
 
     if low_memory:
         sidx_val = np.memmap(os.path.join(temp_dir, "sidx_val.bin"), mode='w+',

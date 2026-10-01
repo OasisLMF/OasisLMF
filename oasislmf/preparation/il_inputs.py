@@ -1467,6 +1467,10 @@ def get_il_input_items(
         else:
             max_buildings = 1
             total_packed_buildings = 0
+        # The arena's packed allowance, accumulated per level below and summed over the packable
+        # ones once site_collapse_level is known. Exact, where total_packed_buildings x levels is
+        # a bound: the nodes of a level partition the buildings, and most levels carry one layer.
+        packed_slots_by_level = {}
 
         # How many buildings' TIV each node covers, for percentage-of-TIV terms. Under row
         # disaggregation every row is one building and both are 1. Under packing one row stands for N:
@@ -1679,6 +1683,16 @@ def get_il_input_items(
 
                 cur_level_id += 1
                 gul_inputs_df['level_id'] = cur_level_id
+                if max_buildings > 1:
+                    # A node needs a packed slice only where its buildings stay separate, which is
+                    # what tiv_buildings_site == 1 marks; one building needs none, the identity
+                    # encoding being the ordinary slice the base allowance already covers. Children
+                    # of a node share a location, so the node's count is their max, not their sum.
+                    sep_rows = gul_inputs_df[(gul_inputs_df['tiv_buildings_above'] > 1)
+                                             & (gul_inputs_df['tiv_buildings_site'] == 1)]
+                    if sep_rows.shape[0]:
+                        packed_slots_by_level[cur_level_id] = int(
+                            sep_rows.groupby('agg_id')['tiv_buildings_above'].max().sum())
                 if 'risk_id' in agg_key:
                     # The site levels are the ones keyed on risk_id. Under building-packing the
                     # buildings of an aggregate location carry their own terms (term/NumberOfRisks)
@@ -1706,14 +1720,15 @@ def get_il_input_items(
         if disaggregation == DISAGGREGATION_SAMPLES:
             # The financial module cannot derive this: fm_programme levels are compacted, so only levels
             # carrying terms get one and the numbering varies per portfolio.
+            packed_node_slots = sum(v for lv, v in packed_slots_by_level.items() if lv <= site_collapse_level)
             write_fm_structure_info(target_dir, site_collapse_level, max_buildings,
-                                    total_packed_buildings)
+                                    total_packed_buildings, packed_node_slots)
 
         return gul_inputs_df, il_input_files
 
 
 def write_fm_structure_info(target_dir, site_collapse_level, max_buildings=1,
-                            total_packed_buildings=0):
+                            total_packed_buildings=0, packed_node_slots=0):
     """Write the building-packing structure info consumed by the financial module.
 
     Args:
@@ -1728,6 +1743,11 @@ def write_fm_structure_info(target_dir, site_collapse_level, max_buildings=1,
             buildings stay separate. It sizes the fm arena, which needs one packed slice per
             packable node -- a sum, not a count times the maximum. 0 means "not recorded", and the
             reader then falls back to the old node-count bound.
+        packed_node_slots (int): packed slices the arena owes over the packable levels, summed per
+            node rather than bounded by the portfolio total times the level count. 0 if not recorded.
+            Only the node count: a node's LAYER count here is the layering of its own rows, which is
+            not what fm ends up with -- a branch under a layered parent has storage created for it
+            by first_time_layer -- so the layer weighting is left to fm, which can see it.
 
     Returns:
         str: path of the file written.
@@ -1737,6 +1757,7 @@ def write_fm_structure_info(target_dir, site_collapse_level, max_buildings=1,
     record[0]['site_collapse_level'] = int(site_collapse_level)
     record[0]['max_buildings'] = int(max_buildings)
     record[0]['total_packed_buildings'] = int(total_packed_buildings)
+    record[0]['packed_node_slots'] = int(packed_node_slots)
     record.tofile(fp)
     return fp
 

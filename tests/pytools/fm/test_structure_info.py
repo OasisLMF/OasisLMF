@@ -51,25 +51,25 @@ class TestLoadFmStructureInfo(TestCase):
     def test_absent_file_reads_as_nothing_to_collapse(self):
         """Every input set generated before building-packing has no such file."""
         with TemporaryDirectory() as d:
-            self.assertEqual(load_fm_structure_info(d), (0, 1, 0))
+            self.assertEqual(load_fm_structure_info(d), (0, 1, 0, 0))
 
     def test_values_are_read(self):
         """Round trip through the writer generation actually uses."""
         with TemporaryDirectory() as d:
-            write_fm_structure_info(d, 3, 7, 4200)
-            self.assertEqual(load_fm_structure_info(d), (3, 7, 4200))
+            write_fm_structure_info(d, 3, 7, 4200, 9100)
+            self.assertEqual(load_fm_structure_info(d), (3, 7, 4200, 9100))
 
     def test_an_empty_file_falls_back_to_the_default(self):
         """The fixed-width equivalent of a malformed file: no record to read."""
         with TemporaryDirectory() as d:
             open(os.path.join(d, FM_STRUCTURE_INFO_FILE), "wb").close()
-            self.assertEqual(load_fm_structure_info(d), (0, 1, 0))
+            self.assertEqual(load_fm_structure_info(d), (0, 1, 0, 0))
 
     def test_max_buildings_is_never_below_one(self):
         """It multiplies array sizes, so a bad value must not shrink them."""
         with TemporaryDirectory() as d:
             write_fm_structure_info(d, 1, 0, 0)
-            self.assertEqual(load_fm_structure_info(d), (1, 1, 0))
+            self.assertEqual(load_fm_structure_info(d), (1, 1, 0, 0))
 
     def test_a_file_of_the_wrong_layout_is_rejected(self):
         """Reading it as "no packing" would drop the collapse silently and give wrong losses.
