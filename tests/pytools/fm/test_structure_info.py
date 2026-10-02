@@ -17,8 +17,9 @@ from unittest import TestCase
 import numpy as np
 
 from oasislmf.preparation.il_inputs import write_fm_structure_info
-from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_policytc_dtype,
-                                          fm_profile_dtype, fm_programme_dtype, fm_xref_dtype)
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, coverages_bin_dtype,
+                                          fm_policytc_dtype, fm_profile_dtype,
+                                          fm_programme_dtype, fm_xref_dtype, items_dtype)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.fm.financial_structure import (
     compute_info_dtype,
@@ -132,3 +133,100 @@ class TestComputeInfoCarriesIt(TestCase):
             compute_info = load_financial_structure(0, d)[0][0]
             self.assertGreater(compute_info['packable_node_len'], 0)
             self.assertLessEqual(compute_info['packable_node_len'], compute_info['node_len'])
+
+
+# --- the extras arena's packed budget -----------------------------------------------------------
+
+def _write_extras_structure(d, extras_items, n_buildings, with_coverages=True):
+    """Four packed items, each its own site node at level 1, summed by one node at level 2.
+
+    ``extras_items`` are the item_ids whose site node carries a min/max deductible -- a
+    ``need_extras`` calcrule. The rest take a plain pass-through, so the fixture can show the
+    budget tracking which nodes were actually marked rather than how many could have been.
+
+    ``with_coverages`` writes items.bin and coverages.bin, which is where the per-node building
+    count comes from; omitting them is the fall-back case.
+    """
+    n_items = len(n_buildings)
+    programme = np.array([(i, 1, i) for i in range(1, n_items + 1)]
+                         + [(i, 2, 1) for i in range(1, n_items + 1)],
+                         dtype=fm_programme_dtype)
+    policytc = np.array([(1, i, 1, 1 if i in extras_items else 0) for i in range(1, n_items + 1)]
+                        + [(2, 1, 1, 0)], dtype=fm_policytc_dtype)
+    profile = np.zeros(2, dtype=fm_profile_dtype)
+    profile[0]['profile_id'], profile[0]['calcrule_id'] = 0, 12    # pass-through
+    profile[1]['profile_id'], profile[1]['calcrule_id'] = 1, 13    # deductible with a minimum
+    profile[1]['deductible1'], profile[1]['deductible2'] = 100., 50.
+    xref = np.array([(1, 1, 1)], dtype=fm_xref_dtype)
+
+    for name, arr in (('fm_programme', programme), ('fm_policytc', policytc),
+                      ('fm_profile', profile), ('fm_xref', xref)):
+        arr.tofile(os.path.join(d, f'{name}.bin'))
+
+    if with_coverages:
+        items = np.zeros(n_items, dtype=items_dtype)
+        items['item_id'] = np.arange(1, n_items + 1)
+        items['coverage_id'] = np.arange(1, n_items + 1)
+        items.tofile(os.path.join(d, 'items.bin'))
+        coverages = np.zeros(n_items, dtype=coverages_bin_dtype)
+        coverages['tiv'] = 1000.
+        coverages['n_building'] = n_buildings          # signed: negative keeps them separate
+        coverages.tofile(os.path.join(d, 'coverages.bin'))
+
+    max_buildings = int(max(abs(b) for b in n_buildings))
+    write_fm_structure_info(d, 1, max_buildings,
+                            total_packed_buildings=max_buildings * n_items)
+
+
+def _extras_budget(extras_items, n_buildings, with_coverages=True):
+    with TemporaryDirectory() as d:
+        _write_extras_structure(d, extras_items, n_buildings, with_coverages)
+        create_financial_structure(0, d)
+        compute_info = load_financial_structure(0, d)[0][0]
+    return compute_info
+
+
+class TestExtrasArenaPackedBudget(TestCase):
+    """The extras arena is charged per marked node, not per packable node.
+
+    Extras are 3 floats a slot against the loss arena's 1, so budgeting every packable node for
+    them makes the extras array the largest in the module on a book where a handful of locations
+    carry a min/max deductible. The counts come from coverages.bin, which is why the fall-back
+    below still has to work.
+    """
+
+    def test_only_the_marked_nodes_are_charged(self):
+        # four packed items, two of them with the min-deductible calcrule
+        info = _extras_budget(extras_items={1, 2}, n_buildings=[-4, -4, -1, -1])
+        # 2 nodes x 1 layer, each at its own building count
+        self.assertEqual(int(info['extra_len']), 2)
+        self.assertEqual(int(info['packable_extra_slots']), 4 + 4)
+        # the loss arena still covers every packable node, so the two now differ
+        self.assertGreater(int(info['packable_layer_slots']), int(info['packable_extra_slots']))
+
+    def test_a_single_building_node_is_still_charged_one_slice(self):
+        """The collapse appends the collapsed copy rather than shrinking in place, so even an
+        unpacked packable node owes a slice. A count of 1 must not read as 'nothing to reserve'."""
+        info = _extras_budget(extras_items={3}, n_buildings=[-4, -4, -1, -1])
+        self.assertEqual(int(info['packable_extra_slots']), 1)
+
+    def test_no_extras_rule_reserves_nothing(self):
+        info = _extras_budget(extras_items=set(), n_buildings=[-4, -4, -1, -1])
+        self.assertEqual(int(info['extra_len']), 0)
+        self.assertEqual(int(info['packable_extra_slots']), 0)
+
+    def test_every_node_marked_matches_the_portfolio_bound(self):
+        """With every packable node marked the exact sum is the bound, which pins the two against
+        each other -- a drift in either shows up here rather than as a corrupt arena."""
+        info = _extras_budget(extras_items={1, 2, 3, 4}, n_buildings=[-4, -4, -4, -4])
+        self.assertEqual(int(info['packable_extra_slots']), int(info['packable_layer_slots']))
+
+    def test_without_coverages_it_falls_back_to_the_bound(self):
+        """No items/coverages means no per-node counts, and the budget has to over-reserve rather
+        than guess: under-reserving is a write past the end of a numba array."""
+        info = _extras_budget(extras_items={1}, n_buildings=[-4, -4, -1, -1], with_coverages=False)
+        self.assertEqual(int(info['packable_extra_slots']), int(info['packable_layer_slots']))
+        self.assertGreater(int(info['packable_extra_slots']), 0)
+
+
+# --- which nodes the extras closure marks --------------------------------------------------------
