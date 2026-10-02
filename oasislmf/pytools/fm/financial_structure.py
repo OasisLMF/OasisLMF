@@ -826,6 +826,10 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             if level == start_level:
                 node['net_loss'], loss_i = loss_i, loss_i + 1
 
+            # Safe to set here rather than up front: the extras closure below only ever reaches
+            # this node and its descendants, all of which the loop has already written. That is
+            # check_one_parent_per_level's invariant -- a second parent at this level would put
+            # an unwritten node in reach, and the closure would read np.empty garbage.
             node['extra'] = null_index
             node['is_reallocating'] = 0
 
@@ -1071,6 +1075,52 @@ def check_collapse_is_reachable(fm_programme, site_collapse_level, max_buildings
         )
 
 
+def check_one_parent_per_level(fm_programme):
+    """No node may feed two nodes at the SAME level.
+
+    This is not a tree constraint, and the structure is not a tree: it is a forest, and a node
+    may legitimately have several parents as long as they sit at different levels. ``root_start``
+    produces exactly that -- an item feeds the level above it in the ordinary way AND is linked
+    straight into a higher level by a negative from_agg_id -- and it is common: 123 of the 614
+    nodes in ``insurance_policy_coverage`` have two parents, at levels (2, 3) or (2, 6). What may
+    not happen is two parents at ONE level, because the nodes of a level partition their children.
+
+    Generation never emits it: ``need_root_start`` in il_inputs detects a level whose aggregation
+    key is finer than the one below -- the only way a node could feed two nodes at one level --
+    and rewires the affected nodes to take their items directly. The negative form is one item,
+    which has one agg_id per level, so it cannot split either.
+
+    The extraction below relies on that. It walks the nodes in index order and, for a node
+    carrying a min/max deductible, marks every node sharing an item with it. With one parent per
+    level those are the node itself and its descendants, all already written. A second parent at
+    the same level would put a node the loop has NOT reached into that set, and what happens to
+    it then depends on the agg_id ordering. Rejecting the shape is cheaper and more honest than
+    making the extraction order-independent for a case nothing can generate.
+
+    Args:
+        fm_programme (numpy.ndarray): the fm_programme records, from_agg_id to to_agg_id per level.
+
+    Raises:
+        OasisException: if any child feeds more than one node at a single level.
+    """
+    order = np.lexsort((fm_programme['to_agg_id'], fm_programme['from_agg_id'],
+                        fm_programme['level_id']))
+    level = fm_programme['level_id'][order]
+    child = fm_programme['from_agg_id'][order]
+    parent = fm_programme['to_agg_id'][order]
+    # sorted, so a child with two parents at one level puts them in adjacent rows
+    bad = (level[1:] == level[:-1]) & (child[1:] == child[:-1]) & (parent[1:] != parent[:-1])
+    if bad.any():
+        offenders = sorted(set(zip(level[1:][bad].tolist(), child[1:][bad].tolist())))[:5]
+        raise OasisException(
+            f"fm_programme has a node feeding more than one node at the same level, at "
+            f"(level_id, from_agg_id) {offenders}. A node may have several parents -- root_start "
+            f"links an item straight into a higher level while it also feeds the level above it "
+            f"-- but at most one per level, since the nodes of a level partition their children. "
+            f"Regenerate the oasis files."
+        )
+
+
 def create_financial_structure(allocation_rule, static_path):
     """Compute the financial structure and save it as .npy files in ``static_path``.
 
@@ -1094,6 +1144,7 @@ def create_financial_structure(allocation_rule, static_path):
      site_collapse_level, max_buildings, total_packed_buildings,
      packed_node_slots) = load_static(static_path)
     check_collapse_is_reachable(fm_programme, site_collapse_level, max_buildings)
+    check_one_parent_per_level(fm_programme)
     financial_structure = extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile,
                                                       stepped, fm_xref, items, coverages,
                                                       site_collapse_level, max_buildings,
