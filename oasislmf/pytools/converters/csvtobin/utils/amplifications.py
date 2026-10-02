@@ -25,8 +25,8 @@ def amplifications_write_bin(data, file_out, *, _write_header=True, _prev_item_i
             raise ValueError('Item IDs are not contiguous')
 
     if _write_header:
-        np.array([0], dtype="i4").tofile(file_out)
-    data.tofile(file_out)
+        file_out.write(np.array([0], dtype="i4").tobytes())
+    file_out.write(data.tobytes())
 
 
 def amplifications_tobin(stack, file_in, file_out, file_type):

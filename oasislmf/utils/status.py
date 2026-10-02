@@ -12,6 +12,7 @@ OASIS_KEYS_FA = 'fail_ap'
 OASIS_KEYS_FV = 'fail_v'
 OASIS_KEYS_NR = 'notatrisk'
 OASIS_KEYS_XX = 'noreturn'
+OASIS_KEYS_NMOD = 'notmodelled'
 
 OASIS_KEYS_STATUS = {
     'success': {'id': OASIS_KEYS_SC, 'desc': 'Success'},
@@ -20,7 +21,8 @@ OASIS_KEYS_STATUS = {
     'fail_ap': {'id': OASIS_KEYS_FA, 'desc': 'Failure areaperil'},
     'fail_v': {'id': OASIS_KEYS_FV, 'desc': 'Failure vulnerability'},
     'notatrisk': {'id': OASIS_KEYS_NR, 'desc': 'Modelled but not at risk'},
-    'noreturn': {'id': OASIS_KEYS_XX, 'desc': 'No key returned from lookup'}
+    'noreturn': {'id': OASIS_KEYS_XX, 'desc': 'No key returned from lookup'},
+    'notmodelled': {'id': OASIS_KEYS_NMOD, 'desc': 'Not modelled'}
 }
 
 OASIS_UNKNOWN_ID = -1

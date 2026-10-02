@@ -44,6 +44,7 @@ try:  # needed for h3 lookup
 except ImportError:
     h3 = h3_int = None
 
+import logging
 import math
 import re
 
@@ -52,6 +53,8 @@ from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.peril import get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
+
+logger = logging.getLogger(__name__)
 
 OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
 
@@ -282,8 +285,21 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     "file_path": "%%KEYS_DATA_PATH%%/vulnerability_dict.csv",
                     "id_columns": ["vulnerability_id"]
                 }
+            },
+            "custom_status": {
+                "type": "set_status",
+                "columns": ["custom_status"],
+                "parameters": {
+                    "status_column": "custom_status"
+                }
             }
         }
+
+    ``set_status`` lets a model developer explicitly mark locations as, for example,
+    ``notatrisk`` or ``notmodelled`` (see ``oasislmf.utils.status.OASIS_KEYS_STATUS`` for the
+    full list of valid values) based on their own criteria — a spatial mask or lookup table
+    merged into the Locations DataFrame by an earlier step — rather than relying only on the
+    implicit success/fail logic derived from area_peril_id/vulnerability_id.
 
     Where each entry means:
 
@@ -379,6 +395,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return step_function
 
     def process_locations(self, locations):
+        missing = [key for key in ('step_definition', 'strategy') if not self.config.get(key)]
+        if missing:
+            raise OasisException(
+                f"lookup config is missing or has empty required key(s) {missing}. "
+                "A built-in lookup needs 'step_definition' to define its steps and 'strategy' to order them"
+            )
+
         # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
         useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))
@@ -575,13 +598,25 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return fct
 
     @staticmethod
-    def build_split_loc_perils_covered(model_perils_covered=None):
+    def build_split_loc_perils_covered(model_perils_covered=None, not_covered_status='notmodelled'):
         """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
 
         Useful inspirational code:
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
+
+        Args:
+            model_perils_covered (list, None): perils covered by the model. Locations whose
+                LocPerilsCovered/PolPerilsCovered has no peril in this list are marked with
+                ``not_covered_status``.
+            not_covered_status (str): status key (see ``oasislmf.utils.status.OASIS_KEYS_STATUS``)
+                to assign to locations with no peril covered by the model. Defaults to
+                ``'notmodelled'``. Set to ``'notatrisk'`` to restore the pre-4.x behaviour.
         """
+        if not_covered_status not in OASIS_KEYS_STATUS:
+            raise OasisException(
+                f"unknown not_covered_status '{not_covered_status}', must be one of {sorted(OASIS_KEYS_STATUS)}")
+
         peril_groups_df = get_peril_groups_df()
 
         def fct(locations):
@@ -607,10 +642,47 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                                                         sort=True)
             not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])].copy()
             if not not_covered_location.empty:
-                not_covered_location['status'] = OASIS_KEYS_STATUS['notatrisk']['id']
+                not_covered_location['status'] = OASIS_KEYS_STATUS[not_covered_status]['id']
                 not_covered_location['message'] = not_covered_location[perils_covered_column].astype(str) + " have no perils modelled"
                 peril_locations = pd.concat([peril_locations, not_covered_location], ignore_index=True)
             return peril_locations
+        return fct
+
+    @staticmethod
+    def build_set_status(status_column, message_column=None):
+        """Set the status (and optionally message) of locations from a model-developer-supplied column.
+
+        Allows a model developer to explicitly mark locations (e.g. as ``notatrisk`` or
+        ``notmodelled``) based on their own criteria (a spatial mask, a lookup table, ...) merged
+        into the Locations DataFrame ahead of this step, rather than relying on the implicit
+        success/fail logic derived from area_peril_id/vulnerability_id.
+
+        Args:
+            status_column (str): name of the column containing the status to set for each
+                location. Rows where this column is empty keep whatever status was already set.
+            message_column (str, None): name of the column containing the message to set
+                alongside the status. If not provided, the message is left untouched.
+        """
+        valid_status_ids = {status['id'] for status in OASIS_KEYS_STATUS.values()}
+
+        def fct(locations):
+            if status_column not in locations.columns:
+                raise OasisException(f"missing column {status_column} in location")
+
+            set_status = ~is_empty(locations, status_column)
+            unknown_status = set_status & ~locations[status_column].isin(valid_status_ids)
+            if unknown_status.any():
+                raise OasisException(
+                    f"unknown status value(s) {sorted(locations.loc[unknown_status, status_column].unique())} "
+                    f"in column {status_column}, must be one of {sorted(valid_status_ids)}")
+
+            locations.loc[set_status, 'status'] = locations.loc[set_status, status_column]
+            if message_column is not None:
+                if message_column not in locations.columns:
+                    raise OasisException(f"missing column {message_column} in location")
+                set_message = set_status & ~is_empty(locations, message_column)
+                locations.loc[set_message, 'message'] = locations.loc[set_message, message_column]
+            return locations
         return fct
 
     @staticmethod
@@ -1081,6 +1153,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         All non match column present in id_columns will be set to -1
 
         this is an efficient way to map a combination of column that have a finite scope to an idea.
+
+        If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
         """
         read_func = getattr(pd, f"read_{file_type}", None)
         if callable(read_func):
@@ -1091,9 +1165,71 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
+            if not rename_map:
+                raise OasisException(
+                    f"merge step: nothing to join on. '{file_path}' and the locations share no column "
+                    f"name (matched case-insensitively). Table columns: {sorted(df_to_merge.columns)}. "
+                    f"Location columns available to this step: {sorted(locations.columns)}. The join keys "
+                    f"are the names the two have in common.")
+            logger.debug("merge step: joining on %s", sorted(rename_map.values()))
             locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
             return self.set_id_columns(locations, id_columns)
         return merge
+
+    def build_geog_lookup(self, geog_scheme, output_column, slots=30,
+                          case_insensitive=True, on_missing='null'):
+        """Resolve an OED scheme-tagged value into a single column so it can be joined on.
+
+        OED stores a location code in a pair of columns ``GeogScheme{N}`` (the scheme, e.g.
+        ``W3W``) and ``GeogName{N}`` (the value), for ``N`` in ``1..slots``. The scheme of
+        interest can appear in any slot, so there is no fixed column a ``merge`` step can join
+        on. This step scans the pairs and, where ``GeogScheme{N}`` matches ``geog_scheme``,
+        copies the paired ``GeogName{N}`` into ``output_column``. A subsequent ``merge`` step
+        can then join on ``output_column``.
+
+        The lowest-numbered matching slot wins. Rows with no matching scheme get a null in
+        ``output_column`` (``on_missing='null'``) or raise (``on_missing='error'``).
+
+        Note: the ``GeogScheme{N}``/``GeogName{N}`` columns to consult must be listed in this
+        step's ``columns``, otherwise they are dropped before the step runs (see
+        ``process_locations``).
+
+        Args:
+            geog_scheme (str): the OED GeogScheme value to resolve (e.g. ``"W3W"``).
+            output_column (str): the column to write the resolved value into.
+            slots (int): highest ``GeogScheme{N}``/``GeogName{N}`` index to scan (default 30).
+            case_insensitive (bool): match the scheme ignoring case and surrounding whitespace.
+            on_missing (str): ``'null'`` to leave unmatched rows null, ``'error'`` to raise.
+        """
+        if on_missing not in ('null', 'error'):
+            raise OasisException(f"build_geog_lookup: on_missing must be 'null' or 'error', got {on_missing!r}")
+        target = geog_scheme.upper() if case_insensitive else geog_scheme
+
+        def geog_lookup(locations):
+            col_map = {col.lower(): col for col in locations.columns}
+            resolved = pd.Series(pd.NA, index=locations.index, dtype='object')
+            for n in range(1, slots + 1):
+                scheme_col, name_col = col_map.get(f"geogscheme{n}"), col_map.get(f"geogname{n}")
+                if scheme_col is None or name_col is None:
+                    continue
+                scheme_vals = locations[scheme_col].astype('string').str.strip()
+                if case_insensitive:
+                    scheme_vals = scheme_vals.str.upper()
+                # empty slots (NaN scheme) compare to NA; fillna(False) keeps the
+                # mask a plain boolean so .loc never sees NA (sparse slots are the
+                # common OED shape).
+                hit = ((scheme_vals == target) & resolved.isna()).fillna(False)
+                resolved.loc[hit] = locations.loc[hit, name_col]
+            n_resolved = int(resolved.notna().sum())
+            logger.info("geog_lookup(%s): resolved %d/%d locations into '%s'",
+                        geog_scheme, n_resolved, len(locations), output_column)
+            if on_missing == 'error' and n_resolved < len(locations):
+                raise OasisException(
+                    f"geog_lookup: {len(locations) - n_resolved} location(s) have no "
+                    f"GeogScheme == '{geog_scheme}' in slots 1..{slots}")
+            locations[output_column] = resolved
+            return locations
+        return geog_lookup
 
     @staticmethod
     def build_simple_pivot(pivots, remove_pivoted_col=True):
