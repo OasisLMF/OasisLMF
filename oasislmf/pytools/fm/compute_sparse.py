@@ -1298,7 +1298,7 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_l
     # can exist: a packed one carries EXTRA_SIDX_COUNT specials and max_sidx_val samples for each
     # of its buildings. It was max_sidx_val + 6 while they were indexed by sidx VALUE, where a
     # packed item's specials wrapped onto the array's tail and had to be allowed for.
-    len_array = max_buildings * (max_sidx_val + EXTRA_SIDX_COUNT)
+    len_array = max_buildings * max_sidx_count
 
     # One packed slice per packable node, budgeted as the SUM of their building counts rather
     # than their count times the largest location in the portfolio -- see packable_building_slots.

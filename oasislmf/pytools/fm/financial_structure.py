@@ -916,9 +916,13 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                                     if child['extra'] == null_index:
                                         child['extra'], extra_i = extra_i, extra_i + node['layer_len']
                                         # a packable child owes one packed slice per building per
-                                        # slot; node['layer_len'] is the slot count just reserved
-                                        packed_extra_slots += (int(node_buildings[child_node_idx])
-                                                               * node['layer_len'])
+                                        # slot; node['layer_len'] is the slot count just reserved.
+                                        # Guarded: without the counts node_buildings is a length-1
+                                        # placeholder, and child_node_idx would read off the end --
+                                        # which numba does not bounds-check by default.
+                                        if have_building_counts:
+                                            packed_extra_slots += (int(node_buildings[child_node_idx])
+                                                                   * node['layer_len'])
 
                             break
 
