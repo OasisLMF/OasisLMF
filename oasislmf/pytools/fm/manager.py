@@ -14,7 +14,8 @@ from .compute_sparse import init_variable as init_variable_sparse
 from .compute_sparse import reset_variable as reset_variable_sparse
 from .compute_sparse import load_net_value
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.pytools.common.event_stream import init_streams_in, GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID
+from oasislmf.pytools.common.event_stream import (init_streams_in, GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID,
+                                                  LOSS_STREAM_AGG_TYPES)
 from oasislmf.utils.exceptions import OasisStreamException
 
 
@@ -43,6 +44,13 @@ def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_meth
 
         if stream_source_type not in [GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID]:
             raise Exception(f'unsupported stream_type {stream_source_type} (most probable cause is that the up stream data are incorrect)')
+        # ITEM_PACKED_STREAM is read by the same path: an unpacked item is the one-building case
+        # of the packed encoding. The check is here so an aggregation type we have NOT defined --
+        # a future layout, or a stream from a newer writer -- is refused rather than read as if
+        # it were items, which would be a wrong loss and not a failure.
+        if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
+            raise Exception(f'unsupported stream aggregation type {stream_agg_type}, expected one of '
+                            f'{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)')
 
         if storage_method == "sparse":
             run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out=files_out, net_loss=net_loss, stack=stack,

@@ -3,9 +3,6 @@ import numpy as np
 
 from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int, item_adjustment_dtype, item_id, NAME_DTYPE_SLICE
 
-# gul stream type
-# probably need to set this dynamically depending on the stream type
-gul_header = np.int32(1 | 2 << 24).tobytes()
 
 # define the damage_bin_dict damage_types
 DAMAGE_TYPE_DEFAULT = 0

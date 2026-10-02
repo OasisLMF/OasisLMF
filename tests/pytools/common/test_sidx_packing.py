@@ -14,6 +14,13 @@ import numpy as np
 
 from oasislmf.pytools.common.data import oasis_int
 from oasislmf.pytools.common.event_stream import (
+    COVERAGE_STREAM,
+    ITEM_PACKED_STREAM,
+    ITEM_STREAM,
+    LOSS_STREAM_AGG_TYPES,
+    LOSS_STREAM_ID,
+    bytes_to_stream_types,
+    stream_info_to_bytes,
     NUM_SPECIAL_SIDX,
     MEAN_IDX,
     STD_DEV_IDX,
@@ -121,3 +128,69 @@ def test_max_emitted_blocks_ignores_a_huge_summed_item():
 
 if __name__ == "__main__":
     main()
+
+
+# --- the stream's declared aggregation type ------------------------------------------------------
+
+class TestPackedStreamIsDeclaredInTheHeader(TestCase):
+    """A packed loss stream says so in its header, and an unpacked one is unchanged.
+
+    The record layout is the same either way, which is why fmpy and summarypy read both with one
+    path. What differs is the RANGE of sidx: a reader that trusts ``sample_size`` from the header
+    would index past its sample array on the second building, and would not recognise that
+    building's specials -- silently, as a wrong loss rather than a failure. An outside consumer
+    has nothing else to go on, so the header has to carry it.
+    """
+
+    def test_the_two_types_round_trip_through_the_header_codec(self):
+        for agg in (ITEM_STREAM, ITEM_PACKED_STREAM):
+            with self.subTest(agg=agg):
+                header = stream_info_to_bytes(LOSS_STREAM_ID, agg)
+                source_out, agg_out = bytes_to_stream_types(header)
+                self.assertEqual(int(source_out), LOSS_STREAM_ID)
+                self.assertEqual(int(agg_out), agg)
+
+    def test_an_unpacked_header_is_byte_for_byte_what_it_always_was(self):
+        """The wire format predates packing, so the no-packing case must not move a single byte."""
+        self.assertEqual(stream_info_to_bytes(LOSS_STREAM_ID, ITEM_STREAM).hex(), '01000002')
+
+    def test_a_packed_header_is_distinguishable(self):
+        self.assertEqual(stream_info_to_bytes(LOSS_STREAM_ID, ITEM_PACKED_STREAM).hex(), '03000002')
+
+    def test_both_are_accepted_aggregation_types_for_a_loss_stream(self):
+        self.assertEqual(LOSS_STREAM_AGG_TYPES, (ITEM_STREAM, ITEM_PACKED_STREAM))
+
+    def test_coverage_stream_is_not_a_loss_aggregation_type(self):
+        """COVERAGE_STREAM has no producer anywhere in the codebase and no defined packed form,
+        so it is deliberately absent rather than carried forward untested."""
+        self.assertNotIn(COVERAGE_STREAM, LOSS_STREAM_AGG_TYPES)
+
+
+class TestWhichRunsDeclarePacked(TestCase):
+    """Only a stream that can actually carry a packed sidx is marked.
+
+    An item summed at source emits one ordinary block however many buildings it covers, so a run
+    that packs only those is byte-for-byte a legacy stream -- header included. Marking it would
+    make every such model look like a new format to an outside consumer for no reason.
+    """
+
+    def _agg_type(self, counts):
+        blocks = max_emitted_blocks(np.array(counts, dtype='i4'))
+        return ITEM_PACKED_STREAM if blocks > 1 else ITEM_STREAM
+
+    def test_no_packing_declares_item_stream(self):
+        self.assertEqual(self._agg_type([1, 1, 1]), ITEM_STREAM)
+
+    def test_summed_at_source_declares_item_stream(self):
+        """Positive count: the buildings are added together before the stream, so nothing packs."""
+        self.assertEqual(self._agg_type([4, 4, 1]), ITEM_STREAM)
+
+    def test_kept_separate_declares_packed(self):
+        self.assertEqual(self._agg_type([-2, 1, 1]), ITEM_PACKED_STREAM)
+
+    def test_one_kept_separate_item_is_enough(self):
+        """The header describes what a reader may MEET, not what is typical."""
+        self.assertEqual(self._agg_type([1] * 999 + [-2]), ITEM_PACKED_STREAM)
+
+    def test_an_empty_item_set_declares_item_stream(self):
+        self.assertEqual(self._agg_type([]), ITEM_STREAM)

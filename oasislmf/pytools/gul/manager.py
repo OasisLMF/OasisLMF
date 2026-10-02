@@ -16,7 +16,8 @@ from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_it
                                                   encode_sidx, max_emitted_blocks,
                                                   mv_write_item_header,
                                                   mv_write_sidx_loss,
-                                                  stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
+                                                  stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM,
+                                                  ITEM_PACKED_STREAM)
 from oasislmf.pytools.getmodel.common import oasis_float
 from oasislmf.pytools.common.data import areaperil_int, oasis_int
 from oasislmf.pytools.common.hashmap import (
@@ -225,10 +226,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         select_stream_list = [stream_out]
 
-        # prepare output buffer, write stream header
-        stream_out.write(stream_info_to_bytes(LOSS_STREAM_ID, ITEM_STREAM))
-        stream_out.write(np.int32(sample_size).tobytes())
-
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
@@ -243,7 +240,16 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         check_packing_supported(random_generator, n_buildings_by_item_id)
         # only kept-separate items meet either stream ceiling: a summed one writes a single
         # block at sidx 1..S however many buildings it carries
-        check_packed_item_fits(max_emitted_blocks(n_buildings_by_item_id), sample_size)
+        emitted_blocks = max_emitted_blocks(n_buildings_by_item_id)
+        check_packed_item_fits(emitted_blocks, sample_size)
+
+        # The header has to wait for the building counts: the aggregation type says whether a
+        # reader may meet a packed sidx, and only a kept-separate item emits one. A run that packs
+        # nothing -- or packs only items summed at source -- declares ITEM_STREAM and is
+        # byte-for-byte what it was before packing existed.
+        stream_out.write(stream_info_to_bytes(
+            LOSS_STREAM_ID, ITEM_PACKED_STREAM if emitted_blocks > 1 else ITEM_STREAM))
+        stream_out.write(np.int32(sample_size).tobytes())
 
         if alloc_rule not in [0, 1, 2, 3]:
             raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")

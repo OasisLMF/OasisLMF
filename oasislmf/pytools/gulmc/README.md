@@ -190,6 +190,33 @@ The field is **signed**, and the sign is not a detail: it decides where the buil
 and the packed generator's first block per seed is the legacy draw byte for byte, so the compute
 always takes the packed route.
 
+### How the stream declares it
+
+The record layout does not change, so fmpy and summarypy read a packed stream with the same code
+path -- an unpacked item is the one-building case of the packed encoding. What changes is the
+**range** of `sidx`: a positive one runs to `buildings * S` rather than `S`, and the negative
+specials repeat in blocks of 5 per building. An outside reader that trusts `sample_size` from the
+header would index past its sample array on the second building and would not recognise that
+building's specials -- silently, as a wrong loss rather than a failure.
+
+So the stream says which it is, in the **aggregation type** of the 4-byte header word:
+
+| aggregation type | value | meaning |
+|---|---|---|
+| `ITEM_STREAM` | 1 | one building per item; `sidx` in `[-5, S]` |
+| `ITEM_PACKED_STREAM` | 3 | buildings multiplexed; `sidx` in `[-5B, B*S]` |
+
+(2 is `COVERAGE_STREAM`, which has no producer and no defined packed form.)
+
+gulmc and gulpy declare `ITEM_PACKED_STREAM` only when the run can actually emit a packed
+`sidx` -- that is, when some item is **kept separate**. An item summed at source writes one
+ordinary block however many buildings it covers, so a run that packs only those is byte-for-byte
+a legacy stream, header included. fmpy's output is always `ITEM_STREAM`: the buildings have
+collapsed by the time it writes.
+
+Given `S` and the type, a reader recovers everything: `building = (sidx - 1) // S + 1` for a
+sample, and `(-sidx - 1) // 5 + 1` for a special. No extra header field is needed.
+
 ### The objects
 
 ![gulmc data structures: the static items and coverages tables, the per-event random draws and item data, the per-coverage loss buffers, and the output stream](diagrams/gulmc_objects.svg)
