@@ -26,7 +26,9 @@ from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, check_packing_supported, max_emitted_blocks)
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, ITEM_PACKED_STREAM, ITEM_STREAM, LOSS_STREAM_ID,
+                                                  check_packed_item_fits, check_packing_supported,
+                                                  max_emitted_blocks, stream_info_to_bytes)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
@@ -41,7 +43,6 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_RELATIVE,
                                            NP_BASE_ARRAY_SIZE,
                                            NormInversionParameters,
-                                           gul_header,
                                            gulSampleslevelHeader_size,
                                            gulSampleslevelRec_size,
                                            haz_arr_type, items_MC_data_type,
@@ -340,8 +341,12 @@ def run(run_dir,
 
         select_stream_list = [stream_out]
 
-        # prepare output stream
-        stream_out.write(gul_header)
+        # prepare output stream. The aggregation type says whether a reader may meet a packed
+        # sidx, and only a kept-separate item emits one -- a run that packs nothing, or packs only
+        # items summed at source, declares ITEM_STREAM and is byte-for-byte pre-packing.
+        stream_out.write(stream_info_to_bytes(
+            LOSS_STREAM_ID,
+            ITEM_PACKED_STREAM if max_emitted_blocks(items['packed_buildings']) > 1 else ITEM_STREAM))
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function

@@ -25,6 +25,21 @@ SUMMARY_STREAM_ID = 3
 # stream aggregation type (represent the time of aggregation used
 ITEM_STREAM = 1
 COVERAGE_STREAM = 2
+# A loss stream whose items multiplex several buildings into the sample dimension -- see
+# encode_sidx. The record layout is identical to ITEM_STREAM; what differs is the RANGE of sidx:
+# a positive one runs to buildings * sample_size rather than sample_size, and the negative
+# specials repeat in blocks of NUM_SPECIAL_SIDX per building. ITEM_STREAM is the one-building
+# case of it, so a reader written for packed streams reads both and fmpy and summarypy need no
+# second path. An outside reader does: one that trusts sample_size from the header would index
+# past its sample array on the second building and fail to recognise its specials, silently,
+# which is why the distinction is declared here rather than left to be inferred.
+#
+# Set only when the stream can actually carry a packed sidx -- items that are summed at source
+# emit a single ordinary block however many buildings they cover, and those streams stay
+# byte-for-byte legacy, header included.
+ITEM_PACKED_STREAM = 3
+# the aggregation types a loss stream may declare
+LOSS_STREAM_AGG_TYPES = (ITEM_STREAM, ITEM_PACKED_STREAM)
 
 
 # special sample id
