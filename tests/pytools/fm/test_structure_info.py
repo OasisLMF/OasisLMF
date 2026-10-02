@@ -378,3 +378,72 @@ class TestOneParentPerLevel(TestCase):
             multi_level += 1
         self.assertGreater(multi_level, 0,
                            'no node has several parents, so this proves nothing about them')
+
+
+# --- the item level in the packed-slice budget ----------------------------------------------------
+
+def _write_multi_peril_packed(d, n_items, buildings, packed_node_slots):
+    """n_items items feeding ONE node at level 1, which is what makes fm call it multi-peril.
+
+    multi_peril is `level 1 has from_agg_id != to_agg_id`, and it moves fm's start_level from 1
+    to 0 -- so the item nodes become real, packable nodes that the reader fills with packed sidx.
+    """
+    programme = np.array([(i, 1, 1) for i in range(1, n_items + 1)] + [(1, 2, 1)],
+                         dtype=fm_programme_dtype)
+    policytc = np.array([(1, 1, 1, 1), (2, 1, 1, 0)], dtype=fm_policytc_dtype)
+    profile = np.zeros(2, dtype=fm_profile_dtype)
+    profile[0]['profile_id'], profile[0]['calcrule_id'] = 0, 12
+    profile[1]['profile_id'], profile[1]['calcrule_id'] = 1, 12
+    profile[1]['deductible1'] = 1.0
+    xref = np.array([(i, i, 1) for i in range(1, n_items + 1)], dtype=fm_xref_dtype)
+    for name, arr in (('fm_programme', programme), ('fm_policytc', policytc),
+                      ('fm_profile', profile), ('fm_xref', xref)):
+        arr.tofile(os.path.join(d, f'{name}.bin'))
+    write_fm_structure_info(d, 1, buildings, total_packed_buildings=buildings * n_items,
+                            packed_node_slots=packed_node_slots)
+
+
+class TestTheItemLevelIsInThePackedBudget(TestCase):
+    """fm's item nodes owe packed slices too, and generation does not count them.
+
+    il_inputs accumulates its per-node counts inside the level loop, whose first level is 1, so
+    packed_node_slots covers levels 1..site_collapse_level. fm's item nodes sit at start_level,
+    which is 0 for a multi-peril structure -- and those are real nodes that the stream reader
+    fills with packed sidx and the collapse then copies. Reserving only what generation counted
+    left a 4-item, 10-building set with 10 slices against the 50 it writes, and the bump allocator
+    ran off the end of sidx_val. numba does not bounds-check, so that is a wrong loss or heap
+    corruption, not an exception -- which is why it survived every green test run.
+    """
+
+    N_ITEMS, BUILDINGS = 4, 10
+
+    def _slots(self, packed_node_slots):
+        with TemporaryDirectory() as d:
+            _write_multi_peril_packed(d, self.N_ITEMS, self.BUILDINGS, packed_node_slots)
+            create_financial_structure(2, d)
+            compute_info = load_financial_structure(2, d)[0][0]
+        return compute_info
+
+    def test_the_item_nodes_are_added_to_the_generated_count(self):
+        """What generation records (one level's worth) plus the items' own requirement."""
+        info = self._slots(packed_node_slots=self.BUILDINGS)
+        self.assertEqual(int(info['start_level']), 0, 'this fixture must be multi-peril')
+        # the item nodes plus the one node at level 1, each at its building count
+        self.assertEqual(int(info['packable_building_slots']),
+                         self.BUILDINGS * self.N_ITEMS + self.BUILDINGS)
+
+    def test_it_covers_every_packable_node(self):
+        """The budget must reach the number of nodes that will each append a collapsed slice."""
+        info = self._slots(packed_node_slots=self.BUILDINGS)
+        self.assertEqual(int(info['packable_node_len']), self.N_ITEMS + 1)
+        self.assertGreaterEqual(int(info['packable_building_slots']),
+                                int(info['packable_node_len']))
+
+    def test_the_fallback_already_covered_the_item_level(self):
+        """packed_node_slots == 0 takes the total-times-levels bound, whose (scl + 1) counts the
+        item level -- so the exact count was the only path that lost it, and the fallback stays
+        the safe side of it."""
+        fallback = self._slots(packed_node_slots=0)
+        exact = self._slots(packed_node_slots=self.BUILDINGS)
+        self.assertGreaterEqual(int(fallback['packable_building_slots']),
+                                int(exact['packable_building_slots']))
