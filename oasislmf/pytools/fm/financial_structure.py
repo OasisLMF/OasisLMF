@@ -764,6 +764,52 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     extra_i = 0
     output_i = 0
 
+    # Per-node building count, for the extras arena's packed budget below.
+    #
+    # 0 means "not a packable node"; a packable one holds its own count, which is at least 1. A
+    # packable node with a single building still owes a slice, because the collapse appends its
+    # collapsed copy rather than shrinking in place -- so the distinction between 0 and 1 here is
+    # load-bearing and the array cannot be initialised to ones.
+    #
+    # Only filled up to the collapse level: nothing above it carries a building dimension. Below
+    # it a node's buildings are the union of its children's, and children of one node share a
+    # location, so the max over children is the count itself rather than a bound.
+    #
+    # Skipped unless some calcrule actually needs extras -- it is a minority of books, and the
+    # whole budget is zero without one. Skipped too when items or coverages are unavailable (a
+    # hand-built structure, most fm unit tests), where the portfolio-wide bound stands in.
+    any_extras_rule = False
+    for profile_i_scan in range(fm_profile.shape[0]):
+        if fm_profile[profile_i_scan]['calcrule_id'] in need_extras:
+            any_extras_rule = True
+            break
+    have_building_counts = (any_extras_rule
+                            and max_buildings > 1
+                            and site_collapse_level >= max(1, start_level)
+                            and items.shape[0] > 0
+                            and coverages.shape[0] > 0)
+    node_buildings = np.zeros(total_nodes if have_building_counts else 1, dtype=np.int32)
+    packed_extra_slots = 0
+    if have_building_counts:
+        # A pass of its own rather than a line in the node loop below: the extras closure reaches
+        # nodes at the level it is currently on, including ones that loop has not visited yet, and
+        # a count of 0 read for one of those would under-reserve the arena -- which numba does not
+        # bounds-check, so it would corrupt rather than raise.
+        for level in range(start_level, site_collapse_level + 1):
+            for agg_id in range(1, level_node_len[level] + 1):
+                node_idx = node_level_start[level] + agg_id
+                if level == start_level:
+                    # the item nodes: agg_id is the item_id, and the count rides on its coverage
+                    node_buildings[node_idx] = abs(
+                        coverages[items[agg_id - 1]['coverage_id'] - 1]['n_building'])
+                else:
+                    buildings = 1
+                    for ci in range(children_indptr[node_idx], children_indptr[node_idx + 1]):
+                        child_buildings = node_buildings[children_data[ci]]
+                        if child_buildings > buildings:
+                            buildings = child_buildings
+                    node_buildings[node_idx] = buildings
+
     for level in range(start_level, max_level + 1):
         for agg_id in range(1, level_node_len[level] + 1):
             node = nodes_array[node_i]
@@ -865,6 +911,10 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                                     child = nodes_array[child_node_idx]
                                     if child['extra'] == null_index:
                                         child['extra'], extra_i = extra_i, extra_i + node['layer_len']
+                                        # a packable child owes one packed slice per building per
+                                        # slot; node['layer_len'] is the slot count just reserved
+                                        packed_extra_slots += (int(node_buildings[child_node_idx])
+                                                               * node['layer_len'])
 
                             break
 
@@ -973,11 +1023,19 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         # this it is charged the same packed allowance as the loss arena, which covers every
         # packable node -- and extras are 3 floats a slot against the loss arena's 1, so it is the
         # largest array in the module on a book that does not need it at all.
-        packable = nodes_array[1:node_i]['level_id'] <= site_collapse_level
-        has_extra = nodes_array[1:node_i]['extra'] != null_index
-        compute_info['packable_extra_slots'] = (
-            layer_slots if np.count_nonzero(packable & has_extra) else 0
-        )
+        #
+        # Where the per-node building counts were available, the budget is the exact sum over the
+        # nodes that were actually marked, so a book where one location in a thousand carries a
+        # min/max deductible pays for that one rather than for every packable node. Otherwise it
+        # falls back to the loss arena's allowance, which covers them all.
+        if have_building_counts:
+            compute_info['packable_extra_slots'] = packed_extra_slots
+        else:
+            packable = nodes_array[1:node_i]['level_id'] <= site_collapse_level
+            has_extra = nodes_array[1:node_i]['extra'] != null_index
+            compute_info['packable_extra_slots'] = (
+                layer_slots if np.count_nonzero(packable & has_extra) else 0
+            )
 
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
 
