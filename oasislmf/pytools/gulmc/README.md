@@ -62,7 +62,8 @@ gul/
 
 ### Items Table (`items`)
 
-Structured numpy array built during setup by merging `items.bin` with `correlations.bin`.
+Structured numpy array built during setup by merging `items.bin` with `correlations.bin`, plus
+`packed_buildings` read off `coverages.bin` via each item's `coverage_id`.
 Extended with sequential index fields for O(1) lookups:
 
 | Field | Type | Description |
@@ -79,7 +80,7 @@ Extended with sequential index fields for O(1) lookups:
 | `damage_correlation_value` | float | Damage correlation strength |
 | `hazard_correlation_value` | float | Hazard correlation strength |
 | `source_item_id` | int32 | Coverage dependency: the item whose sampled damage drives this one; 0 if independent |
-| `packed_buildings` | int32 | **Signed.** Magnitude is how many buildings this item carries; a negative sign means they must reach the financial module as separate blocks. 1 is the unpacked case. See [Building packing](#building-packing) |
+| `packed_buildings` | int32 | **Signed.** Magnitude is how many buildings this item carries; a negative sign means they must reach the financial module as separate blocks. 1 is the unpacked case. Read off the item's coverage, not stored per item. See [Building packing](#building-packing) |
 
 ### Per-Event Item Data (`items_event_data`)
 
@@ -174,11 +175,12 @@ from the lookup Dict before overwriting.
 A location with `NumberOfBuildings > 1` can be modelled without expanding it into one item per
 building. `disaggregation='samples'` keeps a single item per (location, peril, coverage type) and
 multiplexes that location's buildings into the **sample dimension** of one stream item. The
-per-item building count travels on the correlations table as `packed_buildings`.
+building count travels on the **coverages** table as `n_building`: buildings belong to the
+location, so the coverage is where the value is true, and every item of a coverage inherits it.
 
 The field is **signed**, and the sign is not a detail: it decides where the buildings collapse.
 
-| `packed_buildings` | set when | gulmc writes | the buildings collapse |
+| `n_building` | set when | gulmc writes | the buildings collapse |
 |---|---|---|---|
 | `-N` | `IsAggregate = 1` | N blocks in one stream item | in fmpy, after `site_collapse_level` |
 | `+N` | `IsAggregate = 0` | one ordinary block, summed | here, at source |
@@ -192,7 +194,7 @@ always takes the packed route.
 
 ![gulmc data structures: the static items and coverages tables, the per-event random draws and item data, the per-coverage loss buffers, and the output stream](diagrams/gulmc_objects.svg)
 
-The building dimension appears in three places: `packed_buildings` on the items table, the flat
+The building dimension appears in three places: `n_building` on the coverages table, the flat
 random arrays (one block of S per building, per rng group), and `building_losses`, which holds one
 column per building.
 

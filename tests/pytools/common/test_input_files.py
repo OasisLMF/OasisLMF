@@ -99,10 +99,10 @@ def test_read_correlations():
     # correlations.csv carries source_item_id; the reader requires every column, so a legacy
     # 5-column file is rejected rather than upgraded
     correlations_expected = np.array([
-        (1, 1, 0.700000, 123451, 0.000000, 0, 1),
-        (2, 2, 0.500000, 123451, 0.300000, 0, 1),
-        (3, 1, 0.700000, 123452, 0.000000, 0, 1),
-        (4, 2, 0.500000, 123452, 0.300000, 0, 1),
+        (1, 1, 0.700000, 123451, 0.000000, 0),
+        (2, 2, 0.500000, 123451, 0.300000, 0),
+        (3, 1, 0.700000, 123452, 0.000000, 0),
+        (4, 2, 0.500000, 123452, 0.300000, 0),
     ], dtype=correlations_dtype)
     correlations_actual = read_correlations(run_dir, filename=filename)
 
@@ -133,7 +133,6 @@ def _write_correlations_bin(run_dir, num_items):
     """Write a well-formed correlations.bin holding ``num_items`` records."""
     correlations = np.zeros(num_items, dtype=correlations_dtype)
     correlations["item_id"] = np.arange(1, num_items + 1)
-    correlations["packed_buildings"] = 1
     correlations.tofile(Path(run_dir, "correlations.bin"))
     return correlations
 
@@ -142,7 +141,6 @@ def _write_correlations_csv(run_dir, num_items):
     """Write a well-formed correlations.csv holding ``num_items`` records."""
     correlations = np.zeros(num_items, dtype=correlations_dtype)
     correlations["item_id"] = np.arange(1, num_items + 1)
-    correlations["packed_buildings"] = 1
     np.savetxt(Path(run_dir, "correlations.csv"), correlations, delimiter=",",
                fmt=correlations_fmt, header=",".join(correlations_headers), comments="")
     return correlations
@@ -162,23 +160,21 @@ def test_read_correlations_bin__partial_record_is_rejected():
             read_correlations(d)
 
 
-# the record layout before each field was added, oldest first
+# the record layout before source_item_id was added
 _BASE_CORRELATIONS_FIELDS = [("item_id", "<i4"), ("peril_correlation_group", "<i4"),
                              ("damage_correlation_value", "<f4"), ("hazard_group_id", "<i4"),
                              ("hazard_correlation_value", "<f4")]
 PRE_SOURCE_ITEM_DTYPE = np.dtype(_BASE_CORRELATIONS_FIELDS)
-PRE_PACKING_DTYPE = np.dtype(_BASE_CORRELATIONS_FIELDS + [("source_item_id", "<i4")])
 
 
-@pytest.mark.parametrize("old_dtype", [PRE_SOURCE_ITEM_DTYPE, PRE_PACKING_DTYPE],
-                         ids=["pre-source_item_id", "pre-packed_buildings"])
-@pytest.mark.parametrize("num_items", [7, 14, 70])
+@pytest.mark.parametrize("old_dtype", [PRE_SOURCE_ITEM_DTYPE], ids=["pre-source_item_id"])
+@pytest.mark.parametrize("num_items", [6, 12, 60])
 def test_read_correlations_bin__older_file_that_divides_evenly_is_rejected(old_dtype, num_items):
     """The silent mis-parse: an older record size with a count whose byte total divides by the
     current itemsize too, so numpy.memmap accepts it and reads other fields' bytes as the new one.
 
-    Both older layouts (20 and 24 bytes) land on this for counts that are a multiple of 7 against
-    today's 28, so the parametrization is the case under test, not an arbitrary set of sizes.
+    The 20-byte layout lands on this for counts that are a multiple of 6 against today's 24, so
+    the parametrization is the case under test, not an arbitrary set of sizes.
     """
     assert old_dtype.itemsize * num_items % correlations_dtype.itemsize == 0, "not the case under test"
     old = np.zeros(num_items, dtype=old_dtype)
@@ -207,7 +203,6 @@ def test_read_correlations_bin__non_dense_item_ids_are_accepted(item_ids):
     good["damage_correlation_value"] = 0.5
     good["hazard_group_id"] = 2
     good["hazard_correlation_value"] = 0.25
-    good["packed_buildings"] = 1
     with TemporaryDirectory() as d:
         good.tofile(Path(d, "correlations.bin"))
         actual = read_correlations(d)
@@ -256,12 +251,13 @@ def test_read_coverages():
     filename = "coverages.csv"
 
     coverages_expected = np.array(
-        [(1, 100.15), (2, 200.05), (3, 300.4), (4, 400.1), (5, 500.3)],
+        [(1, 100.15, 1), (2, 200.05, 1), (3, 300.4, 1), (4, 400.1, 1), (5, 500.3, 1)],
         dtype=coverages_dtype
     )
     coverages_actual = read_coverages(run_dir, filename=filename)
 
-    np.testing.assert_array_almost_equal(coverages_expected["tiv"], coverages_actual, decimal=3, verbose=True)
+    np.testing.assert_array_almost_equal(coverages_expected["tiv"], coverages_actual["tiv"], decimal=3, verbose=True)
+    np.testing.assert_array_equal(coverages_expected["n_building"], coverages_actual["n_building"])
 
 
 def test_read_event_rates():

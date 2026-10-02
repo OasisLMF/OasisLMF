@@ -13,13 +13,14 @@ from numba import from_dtype, njit
 
 
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_info_dtype, load_as_ndarray, load_as_array, almost_equal,
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_info_dtype, load_as_ndarray, almost_equal,
+                                          coverages_bin_dtype,
                                           fm_policytc_dtype,
                                           fm_profile_dtype, fm_profile_step_dtype,
                                           fm_programme_dtype,
                                           fm_xref_dtype,
                                           items_dtype,
-                                          oasis_int, nb_oasis_int, oasis_float, null_index)
+                                          oasis_int, nb_oasis_int, null_index)
 from .common import (allowed_allocation_rule, need_extras, need_tiv_policy)
 
 logger = logging.getLogger(__name__)
@@ -139,8 +140,8 @@ def load_static(static_path):
             - xref: node to output_id
             - items: items (item_id and coverage_id mapping), empty when items and coverages
               disagree on the number of coverages
-            - coverages: Tiv value for each coverage id, empty when items and coverages disagree
-              on the number of coverages
+            - coverages: ``tiv`` and the signed ``n_building`` for each coverage id, empty when
+              items and coverages disagree on the number of coverages
             - site_collapse_level: last level whose aggregation key includes ``risk_id``, after
               which building-packed items collapse to the sample size. 0 when the input set has
               no packed buildings (which is every input set not generated with building-packing)
@@ -161,11 +162,11 @@ def load_static(static_path):
     xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype)
 
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
-    coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
+    coverages = load_as_ndarray(static_path, 'coverages', coverages_bin_dtype, must_exist=False)
     if np.unique(items['coverage_id']).shape[0] != coverages.shape[0]:
         # one of the file is missing we default to empty array
         items = np.empty(0, dtype=items_dtype)
-        coverages = np.empty(0, dtype=oasis_float)
+        coverages = np.empty(0, dtype=coverages_bin_dtype)
 
     return (programme, policytc, profile, stepped, xref, items, coverages) + load_fm_structure_info(static_path)
 
@@ -300,14 +301,14 @@ def get_tiv_csr(children_indices, children_len, items, coverages, node_level_sta
         children_indices (np.ndarray[oasis_int]): Array of child node indices (item level nodes)
         children_len (int): Number of valid entries in children_indices
         items (np.ndarray[items_dtype]): Items array mapping item_id to coverage_id
-        coverages (np.ndarray[oasis_float]): Coverage values
+        coverages (np.ndarray[coverages_bin_dtype]): per-coverage ``tiv`` and ``n_building``
         node_level_start (np.ndarray[oasis_int]): Array for converting index to level/agg_id
         start_level (int): The start level (item level)
 
     Returns:
         float: Total insured value for the children, counting each coverage at most once
     """
-    used_cov = np.zeros_like(coverages, dtype=np.uint8)
+    used_cov = np.zeros(coverages.shape[0], dtype=np.uint8)
     tiv = 0
     item_level_start = node_level_start[start_level]
 
@@ -318,7 +319,7 @@ def get_tiv_csr(children_indices, children_len, items, coverages, node_level_sta
         coverage_i = items[agg_id - 1]['coverage_id'] - 1
         if not used_cov[coverage_i]:
             used_cov[coverage_i] = 1
-            tiv += coverages[coverage_i]
+            tiv += coverages[coverage_i]['tiv']
     return tiv
 
 
@@ -443,7 +444,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         stepped (Optional[bool]): True when fm_profile holds step policies, None otherwise
         fm_xref (np.ndarray[fm_xref_dtype]): mapping between the output of the allocation and output item_id
         items (np.ndarray[items_dtype]): item_id and coverage_id mapping, empty when unavailable
-        coverages (np.ndarray[oasis_float]): Tiv value for each coverage id, empty when unavailable
+        coverages (np.ndarray[coverages_bin_dtype]): per-coverage ``tiv`` and ``n_building``,
+            empty when unavailable
         site_collapse_level (int): the last level whose aggregation key includes ``risk_id``.
             Building-packed items keep their buildings apart until this level has applied its
             terms per building, then collapse to the sample size. 0 means nothing to collapse.

@@ -23,23 +23,25 @@ from oasislmf.pytools.common.event_stream import (SIDX_DTYPE, check_packed_item_
                                                   max_packed_buildings)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.gul.structure import build_structures
+from tests.pytools.utils import set_coverage_buildings
 
 MODEL = Path(__file__).parents[2] / "assets" / "test_model_1"
 
 
-def _with_correlations(dst, number_of_buildings, keep_separate):
-    """Copy the test model and set the packing fields on every correlations row."""
+def _with_packing(dst, number_of_buildings, keep_separate):
+    """Copy the test model and set the packing field on every coverage.
+
+    Returns the correlations table, whose item_ids the callers index by.
+    """
     shutil.copytree(MODEL, dst, dirs_exist_ok=True)
-    path = os.path.join(dst, 'input', 'correlations.bin')
-    corr = np.fromfile(path, dtype=correlations_dtype)
     # one signed field on the wire: magnitude is the count, negative means "keep separate"
-    corr['packed_buildings'] = -number_of_buildings if keep_separate else number_of_buildings
-    corr.tofile(path)
+    set_coverage_buildings(os.path.join(dst, 'input'),
+                           -number_of_buildings if keep_separate else number_of_buildings)
     # a stale cached structure would be loaded in preference to the files
     cache = os.path.join(dst, 'input', 'gulpy_structure')
     if os.path.isdir(cache):
         shutil.rmtree(cache)
-    return corr
+    return np.fromfile(os.path.join(dst, 'input', 'correlations.bin'), dtype=correlations_dtype)
 
 
 class TestPackedItemMustFitTheStream(TestCase):
@@ -133,7 +135,7 @@ class TestGulpyPackingStructures(TestCase):
     def test_one_building_reads_as_no_packing(self):
         """The default, and every input set generated without building packing."""
         with TemporaryDirectory() as d:
-            corr = _with_correlations(d, 1, 0)
+            corr = _with_packing(d, 1, 0)
             s = build_structures(d, set(), [])
             self.assertEqual(s['building_packing'], 0)
             # The array always spans every item, so the compute can index it unconditionally:
@@ -146,12 +148,12 @@ class TestGulpyPackingStructures(TestCase):
 
         It used to be a length-1 sentinel when nothing was packed, which is why the reader
         carried an ``item_id < shape[0]`` guard. Collapsing the packed and unpacked paths
-        removed that guard, so the sizing is now load-bearing. Sizing from correlations alone
-        is not enough -- items is the table that is indexed -- so truncate correlations and
-        check the array still reaches the last item.
+        removed that guard, so the sizing is now load-bearing. correlations is the one input
+        that can legitimately be short -- it is optional and unrelated to the count now -- so
+        truncate it and check the array still reaches the last item.
         """
         with TemporaryDirectory() as d:
-            _with_correlations(d, 1, 0)
+            _with_packing(d, 1, 0)
             path = os.path.join(d, 'input', 'correlations.bin')
             corr = np.fromfile(path, dtype=correlations_dtype)
             corr[:len(corr) // 2].tofile(path)
@@ -166,7 +168,7 @@ class TestGulpyPackingStructures(TestCase):
 
     def test_several_buildings_turn_packing_on(self):
         with TemporaryDirectory() as d:
-            corr = _with_correlations(d, 3, 1)
+            corr = _with_packing(d, 3, 1)
             s = build_structures(d, set(), [])
             self.assertEqual(s['building_packing'], 1)
             # indexed by item_id, so entry 0 is unused and the rest carry the count
@@ -177,7 +179,7 @@ class TestGulpyPackingStructures(TestCase):
     def test_the_separability_flag_is_carried_independently(self):
         """Packed but summed at source: several buildings, none needing to stay apart."""
         with TemporaryDirectory() as d:
-            corr = _with_correlations(d, 4, 0)
+            corr = _with_packing(d, 4, 0)
             s = build_structures(d, set(), [])
             self.assertEqual(s['building_packing'], 1)
             for item_id in corr['item_id']:
@@ -188,7 +190,7 @@ class TestGulpyPackingStructures(TestCase):
         """run() prefers the cached structure, so the fields have to survive it."""
         from oasislmf.pytools.gul.structure import create_gulpy_structure, load_gulpy_structure
         with TemporaryDirectory() as d:
-            corr = _with_correlations(d, 5, 1)
+            corr = _with_packing(d, 5, 1)
             create_gulpy_structure(d, set(), [])
             s = load_gulpy_structure(d)
             self.assertEqual(s['building_packing'], 1)
@@ -209,7 +211,7 @@ class TestGulpyPackingStructures(TestCase):
         from oasislmf.pytools.gul.structure import (METADATA_FIELDS, create_gulpy_structure,
                                                     gulpy_structure_exists)
         with TemporaryDirectory() as d:
-            _with_correlations(d, 2, 1)
+            _with_packing(d, 2, 1)
             create_gulpy_structure(d, set(), [])
             cache = os.path.join(d, 'input', 'gulpy_structure')
             self.assertTrue(gulpy_structure_exists(d))
@@ -253,7 +255,6 @@ class TestCorrelationIsLookedUpByItemId(TestCase):
             corr["item_id"] = item_ids
             corr["peril_correlation_group"] = groups
             corr["damage_correlation_value"] = rhos
-            corr["packed_buildings"] = 1
             corr.tofile(dst / "input" / "correlations.bin")
             return build_structures(str(dst), set(), [])
 

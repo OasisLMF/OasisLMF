@@ -22,6 +22,7 @@ from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.gul.common import (NUM_IDX, gulSampleslevelHeader_size,
                                          gulSampleslevelRec_size)
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
+from tests.pytools.utils import set_coverage_buildings
 
 SRC_MODEL = Path(__file__).parents[2].joinpath("assets", "test_model_1")
 SAMPLE_SIZE = 64
@@ -63,13 +64,14 @@ def _run(n_buildings, alloc_rule, sample_size=SAMPLE_SIZE, packed_sign=-1):
 
         corr = np.zeros(len(items), dtype=correlations_dtype)
         corr['item_id'] = items['item_id'].to_numpy()
-        corr['packed_buildings'] = packed_sign * n_buildings
         corr['peril_correlation_group'] = 1
         corr['damage_correlation_value'] = 0.5
         corr['hazard_group_id'] = 1
         corr.tofile(run_dir / 'input' / 'correlations.bin')
         pd.DataFrame({k: corr[k] for k in corr.dtype.names}).to_csv(
             run_dir / 'input' / 'correlations.csv', index=False)
+        set_coverage_buildings(run_dir / 'input', packed_sign * n_buildings,
+                               item_to_coverage=items['coverage_id'].to_numpy())
         # one event: the building counts needed to outgrow the buffer are large, and every
         # event repeats the same code path
         np.fromfile(run_dir / 'input' / 'events.bin', dtype='i4')[:1].tofile(

@@ -366,8 +366,9 @@ the kernel carries that cost.
 carries ``N × S`` samples, laid out as building 1's ``S`` samples, then building 2's, and so on.
 Each building draws its own random numbers, so the buildings are independent by construction.
 
-The per-building count travels with the item on the **correlations** file, in the
-``packed_buildings`` column, which is 1:1 with the items file. No separate side file is written.
+The building count travels on the **coverages** file, in the ``n_building`` column: buildings
+belong to the location, so the coverage is where the value is true, and every item of a coverage
+inherits it. No separate side file is written.
 
 Building 1 uses the same encoding as an unpacked run, so a location with a single building
 produces a byte-for-byte identical stream to the one it would produce without packing.

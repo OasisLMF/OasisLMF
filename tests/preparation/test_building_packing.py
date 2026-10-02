@@ -2,9 +2,9 @@
 
 Building-packing mode (``disaggregation='samples'``) keeps one item per
 (location, peril, coverage_type) instead of expanding one row per building, and carries
-the per-item building count on the ``correlations`` table (the ``packed_buildings``
-column, 1:1 with items) so the buildings can be multiplexed into the sample dimension
-downstream (gulmc/gulpy). It is no longer a separate side file.
+the building count on the ``coverages`` table (the ``n_building`` column, one row per
+coverage) so the buildings can be multiplexed into the sample dimension downstream
+(gulmc/gulpy). It is no longer a separate side file.
 """
 import os
 from tempfile import TemporaryDirectory
@@ -21,7 +21,7 @@ from oasislmf.preparation.gul_inputs import (
     write_gul_input_files,
 )
 from oasislmf.preparation.summaries import get_summary_mapping, _location_tiv_total
-from oasislmf.pytools.common.input_files import read_correlations
+from oasislmf.pytools.common.input_files import read_coverages
 from oasislmf.utils.profiles import get_oed_hierarchy
 from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_NONE,
                                      DISAGGREGATION_SAMPLES)
@@ -169,8 +169,12 @@ class TestBuildingPacking(TestCase):
         packed = get_gul_input_items(_loc_df(), _keys_df(), damage_group_id_cols=['loc_id'], disaggregation=DISAGGREGATION_SAMPLES)
         self.assertEqual(packed['group_id'].nunique(), packed['loc_id'].nunique())
 
-    def test_building_count_carried_on_correlations(self):
-        """The per-item count rides on correlations.bin; no side file is written."""
+    def test_building_count_carried_on_coverages(self):
+        """The count rides on coverages.bin; no side file is written.
+
+        Buildings belong to the LOCATION, so the coverage is where the value is true -- every item
+        of a coverage inherits it. The expected lists are per COVERAGE, not per item.
+        """
         loc = _loc_df()
         loc['IsAggregate'] = 0  # summed before any term -> packable
         for mode, kw, expected in [
@@ -185,10 +189,9 @@ class TestBuildingPacking(TestCase):
                 # number_of_buildings is no longer a side file
                 self.assertFalse(os.path.exists(os.path.join(d, 'number_of_buildings.bin')))
                 self.assertFalse(os.path.exists(os.path.join(d, 'number_of_buildings.csv')))
-                # it is present on correlations.bin, 1:1 with items
-                corr = read_correlations(d)
-                self.assertIn('packed_buildings', corr.dtype.names)
-                self.assertEqual(sorted(np.asarray(corr['packed_buildings']).tolist()), expected)
+                cov = read_coverages(d)
+                self.assertIn('n_building', cov.dtype.names)
+                self.assertEqual(sorted(np.asarray(cov['n_building']).tolist()), expected)
 
 
 class TestWhichLocationsArePacked(TestCase):
@@ -285,7 +288,7 @@ class TestThreeDisaggregationModes(TestCase):
       are separated in the sample dimension, so they draw independently.
 
     The per-item building count is what tells the loss side which of these it is: it is > 1 only
-    under packing, and gulmc derives the mode from ``items['packed_buildings'].max() > 1``.
+    under packing, and gulmc derives the mode from the coverage's ``n_building`` exceeding 1.
     """
 
     def _run(self, **kwargs):

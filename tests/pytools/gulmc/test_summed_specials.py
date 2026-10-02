@@ -1,6 +1,6 @@
 """The analytic specials a summed packed item reports must match the samples it emits.
 
-A positive ``packed_buildings`` is summed at source, so the item's five special sidx describe the
+A positive ``n_building`` on the coverage is summed at source, so the item's five special sidx describe the
 distribution of that SUM. ``mean``, ``tiv`` and ``max_loss`` are additive and scale by N;
 ``chance_of_loss`` is a probability and is taken once. ``std_dev`` is the one that needs the
 correlation: the buildings of an item share ``damage_eps_ij[peril_correlation_group]``, so their
@@ -19,6 +19,7 @@ from oasislmf.pytools.common.data import correlations_dtype
 from oasislmf.pytools.common.event_stream import MEAN_IDX, STD_DEV_IDX
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
+from tests.pytools.utils import set_coverage_buildings
 
 # Statistical, not functional: the assertions need 2,000 samples per run, which is seconds once compiled and
 # hours interpreted. The four JIT-enabled CI legs run them; the coverage leg, which sets
@@ -42,13 +43,15 @@ def _run(n_buildings, rho):
         items = pd.read_csv(run_dir / 'input' / 'items.csv')
         corr = np.zeros(len(items), dtype=correlations_dtype)
         corr['item_id'] = items['item_id'].to_numpy()
-        corr['packed_buildings'] = n_buildings          # positive: summed at source
         corr['peril_correlation_group'] = 1
         corr['damage_correlation_value'] = rho
         corr['hazard_group_id'] = 1
         corr.tofile(run_dir / 'input' / 'correlations.bin')
         pd.DataFrame({k: corr[k] for k in corr.dtype.names}).to_csv(
             run_dir / 'input' / 'correlations.csv', index=False)
+        # positive: summed at source. The count lives on the coverage.
+        set_coverage_buildings(run_dir / 'input', n_buildings,
+                               item_to_coverage=items['coverage_id'].to_numpy())
 
         run_gulmc(run_dir=run_dir, ignore_file_type=set(),
                   file_in=run_dir / 'input' / 'events.bin', file_out=run_dir / 'o.bin',
@@ -102,31 +105,3 @@ def test_correlated_buildings_combine_variances(rho):
             f"{empirical:,.0f}")
         assert abs(std - empirical) < abs(copula - empirical), (
             f"N={n}, rho={rho}: no better than substituting the copula correlation")
-
-
-def test_a_coverage_may_not_mix_building_counts():
-    """The alloc-rule cap pairs a coverage's items by building index, so every item of a coverage
-    has to mean the same thing by "building b".
-
-    They do by construction -- a coverage is one (location, building, coverage type) and the count
-    comes from the location -- but the count travels on the correlations table, a separate file
-    that can be hand-written or regenerated out of step with items.bin. A mismatch would not
-    fail on its own: it would quietly cap one item's building against a different building of
-    another item.
-    """
-    from oasislmf.pytools.gulmc.manager import check_uniform_building_count_per_coverage
-    from oasislmf.utils.exceptions import OasisException
-
-    dt = np.dtype([('coverage_id', 'i4'), ('packed_buildings', 'i4')])
-
-    check_uniform_building_count_per_coverage(np.array([], dtype=dt))            # no items
-    check_uniform_building_count_per_coverage(
-        np.array([(1, -4), (1, -4), (2, 9), (2, 9)], dtype=dt))                  # uniform
-    check_uniform_building_count_per_coverage(
-        np.array([(1, -4), (2, -7)], dtype=dt))                                  # differ, but
-    #                                                                              across coverages
-
-    with pytest.raises(OasisException, match="different building counts"):
-        check_uniform_building_count_per_coverage(np.array([(1, -4), (1, -7)], dtype=dt))
-    # the sign is the keep-separate flag, not part of the count, so these agree
-    check_uniform_building_count_per_coverage(np.array([(1, -4), (1, 4)], dtype=dt))

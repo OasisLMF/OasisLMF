@@ -112,7 +112,10 @@ limit1 = ("limit1", oasis_float, "%f")
 limit2 = ("limit2", oasis_float, "%f")
 loss = ("loss", oasis_float, "%.2f")
 model_data_len = ("model_data_len", 'u4', "%u")
-packed_buildings = ("packed_buildings", 'i4', "%d")
+# signed: magnitude is the building count, negative means the buildings stay separate. Lives on
+# the coverage because that is where it is true -- buildings belong to the LOCATION, so every
+# coverage of one, and every item of those coverages, carries the same value.
+n_building = ("n_building", 'i4', "%d")
 site_collapse_level = ("site_collapse_level", 'i4', "%d")
 max_buildings = ("max_buildings", 'i4', "%d")
 occ_date_id = ("occ_date_id", 'i4', "%d")
@@ -193,9 +196,6 @@ correlations_output = [
     hazard_group_id,
     hazard_correlation_value,
     source_item_id,
-    # signed: magnitude is the count, negative means the buildings stay separate (see
-    # gul/structure.py, which unpacks it)
-    packed_buildings,
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
 
@@ -219,8 +219,12 @@ fm_structure_info_headers, fm_structure_info_dtype, fm_structure_info_fmt = gene
 coverages_output = [
     coverage_id,
     tiv,
+    n_building,
 ]
 coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(coverages_output)
+# What coverages.bin actually holds. coverage_id is the record's position, not a stored field, so
+# the binary carries only the values; the CSV form keeps the id for readability.
+coverages_bin_dtype = np.dtype([('tiv', oasis_float), ('n_building', 'i4')])
 
 damagebin_output = [
     bin_index,

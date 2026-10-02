@@ -424,10 +424,10 @@ class TestGenFiles(ComputationChecker):
     @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
     def test_files__building_packing_packs_the_building_count(self, mock_output_dir):
         """disaggregation='samples' keeps one item per (loc,peril,cov) and carries NumberOfBuildings
-        on correlations.bin, instead of expanding one item per building ('items')."""
+        on coverages.bin, instead of expanding one item per building ('items')."""
         import io
         import numpy as np
-        from oasislmf.pytools.common.input_files import read_correlations
+        from oasislmf.pytools.common.input_files import read_coverages
 
         # location with a 3-building aggregate
         loc_df = pd.read_csv(io.StringIO(MIN_LOC))
@@ -439,18 +439,18 @@ class TestGenFiles(ComputationChecker):
             run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
             mock_output_dir.return_value = run_dir
             self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir, 'disaggregation': 'samples'})
-            packed = read_correlations(run_dir)
-            self.assertIn('packed_buildings', packed.dtype.names)
-            self.assertTrue(np.all(np.asarray(packed['packed_buildings']) == 3))
+            packed = read_coverages(run_dir)
+            self.assertIn('n_building', packed.dtype.names)
+            self.assertTrue(np.all(np.asarray(packed['n_building']) == 3))
             n_packed = len(packed)
 
-        # disaggregation run (default): one row per building -> 3x the items, count == 1
+        # disaggregation run (default): one coverage per building -> 3x the coverages, count == 1
         with self.tmp_dir() as t_dir:
             run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
             mock_output_dir.return_value = run_dir
             self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir})
-            disagg = read_correlations(run_dir)
-            self.assertTrue(np.all(np.asarray(disagg['packed_buildings']) == 1))
+            disagg = read_coverages(run_dir)
+            self.assertTrue(np.all(np.asarray(disagg['n_building']) == 1))
             self.assertEqual(len(disagg), n_packed * 3)
 
     @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
@@ -479,7 +479,7 @@ class TestGenFiles(ComputationChecker):
         """
         import io
         import numpy as np
-        from oasislmf.pytools.common.data import fm_profile_dtype
+        from oasislmf.pytools.common.data import coverages_bin_dtype, fm_profile_dtype
 
         acc_df = pd.read_csv(io.StringIO(MIN_ACC))
         acc_df['PolDed6All'] = 0.2          # 20% ...
@@ -500,7 +500,7 @@ class TestGenFiles(ComputationChecker):
                 mock_output_dir.return_value = run_dir
                 written = self.manager.generate_files(**{**self.il_args, 'oasis_files_dir': t_dir, **mode})
                 profile = np.fromfile(written['fm_profile'], dtype=fm_profile_dtype)
-                tiv = np.fromfile(written['coverages'], dtype='f4')
+                tiv = np.fromfile(written['coverages'], dtype=coverages_bin_dtype)['tiv']
                 return sorted({round(float(d), 4) for d in profile['deductible1'] if d}), tiv
 
         # (site term, policy term): the policy term covers all three buildings either way

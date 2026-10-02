@@ -152,9 +152,6 @@ def make_correlations(num_items):
         # coverage dependency: 0 = independent. A distinct pattern from the columns above, so the
         # by-name-keying test below can still tell the columns apart.
         'source_item_id': np.arange(num_items, dtype='int32') % 5,
-        # building-packed streams carry the per-item building count here, signed
-        'packed_buildings': np.arange(num_items, dtype='int32') % 4 + 1,
-        'keep_buildings_separate': (np.arange(num_items, dtype='int32') % 2),
     })[correlations_headers]
 
 

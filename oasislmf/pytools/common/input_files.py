@@ -6,12 +6,12 @@ import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import (
-    oasis_int, oasis_float,
-    areaperil_int, load_as_ndarray, correlations_headers, correlations_dtype, coverages_headers,
-    occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
-    quantile_interval_dtype, returnperiods_dtype,
-)
+from oasislmf.pytools.common.data import (coverages_bin_dtype,
+                                          oasis_int, oasis_float,
+                                          areaperil_int, load_as_ndarray, correlations_headers, correlations_dtype, coverages_headers,
+                                          occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
+                                          quantile_interval_dtype, returnperiods_dtype,
+                                          )
 from oasislmf.pytools.common.event_stream import mv_read
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as _id_index_build, get_idx as _id_index_get_idx, NOT_FOUND as _OCC_IDX_NOT_FOUND
@@ -121,8 +121,8 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
 def _stale_correlations_msg(path):
     """Message for a correlations.bin written against an older record layout.
 
-    The record has gained a field more than once (source_item_id, then packed_buildings), so the
-    message names the layout expected now rather than any particular older size.
+    The record has gained a field before (source_item_id), so the message names the layout
+    expected now rather than any particular older size.
     """
     return (
         f"{path} does not match the current correlations record layout "
@@ -143,8 +143,8 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
     Returns:
         numpy.array[correlations_dtype]: one row per item, holding item_id,
             peril_correlation_group, damage_correlation_value, hazard_group_id,
-            hazard_correlation_value, source_item_id and packed_buildings. A memmap when read
-            from the binary file.
+            hazard_correlation_value and source_item_id. A memmap when read from the binary
+            file.
 
     Raises:
         OasisException: if the binary file was not written by the current record layout.
@@ -210,7 +210,8 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
 
     Returns:
-        numpy.array[oasis_float]: array with the coverage values for each coverage_id.
+        numpy.array[coverages_bin_dtype]: ``tiv`` and the signed ``n_building`` for each coverage,
+        indexed by ``coverage_id - 1`` -- the id is the record's position, not a stored field.
     """
     supported_exts = ["bin", "csv"]
 
@@ -219,12 +220,16 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
         first_line_elements = [header.strip() for header in lines[0].strip().split(',')]
         has_header = first_line_elements == coverages_headers
         data_lines = lines[1:] if has_header else lines
-        return np.loadtxt(
-            data_lines,
-            dtype=oasis_float,
-            delimiter=",",
-            ndmin=1
-        )[:, 1]
+        raw = np.loadtxt(data_lines, dtype=oasis_float, delimiter=",", ndmin=2)
+        if raw.shape[1] != len(coverages_headers):
+            raise OasisException(
+                f"coverages csv has {raw.shape[1]} columns, expected {len(coverages_headers)} "
+                f"({', '.join(coverages_headers)}). Regenerate the oasis files."
+            )
+        out = np.empty(raw.shape[0], dtype=coverages_bin_dtype)
+        out['tiv'] = raw[:, 1]
+        out['n_building'] = raw[:, 2].astype('i4')
+        return out
 
     # STDIN
     if use_stdin:
@@ -232,7 +237,7 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
             if ext in ignore_file_type:
                 continue
             if ext == "bin":
-                return np.frombuffer(sys.stdin.buffer.read(), dtype=oasis_float)
+                return np.frombuffer(sys.stdin.buffer.read(), dtype=coverages_bin_dtype)
             elif ext == "csv":
                 lines = sys.stdin.readlines()
                 return read_csv_lines(lines)
@@ -251,7 +256,18 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
             continue
 
         if ext == "bin":
-            return np.memmap(coverages_file, dtype=oasis_float, mode='r')
+            # A file written to the old tiv-only layout is an exact multiple of the new record
+            # size whenever the coverage count is even, so it would memmap to half the coverages
+            # with garbage tivs rather than fail. The size check is the only guard available
+            # here -- the record carries no magic and coverage_id is positional, not stored.
+            size = coverages_file.stat().st_size
+            if size % coverages_bin_dtype.itemsize:
+                raise OasisException(
+                    f"{coverages_file} is {size} bytes, not a multiple of the "
+                    f"{coverages_bin_dtype.itemsize}-byte coverages record "
+                    f"({', '.join(coverages_bin_dtype.names)}). Regenerate the oasis files."
+                )
+            return np.memmap(coverages_file, dtype=coverages_bin_dtype, mode='r')
         elif ext == "csv":
             with ExitStack() as stack:
                 fin = stack.enter_context(open(coverages_file, "r"))

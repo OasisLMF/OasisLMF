@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 
 from oasislmf.pytools.common.data import (correlations_headers, correlations_dtype, amplifications_dtype, items_dtype,
+                                          coverages_bin_dtype,
                                           coverages_dtype, item_adjustment_dtype,
                                           complex_items_meta_dtype,
                                           item_id, coverage_id, group_id, section_id,
@@ -58,7 +59,17 @@ def prepare_sections_df(gul_inputs_df):
 
 
 def coverages_write_gul_bin(data, file_path, dtype):
-    df_to_ndarray(data, dtype)["tiv"].tofile(file_path)
+    """Write coverages.bin: one (tiv, n_building) record per coverage, in coverage_id order.
+
+    coverage_id is the record's POSITION rather than a stored field, so a coverage missing from
+    the frame would silently shift every record after it and every reader would take the wrong
+    tiv. n_building is signed: magnitude is the count, negative means the buildings stay separate.
+    """
+    arr = df_to_ndarray(data, dtype)
+    out = np.empty(arr.shape[0], dtype=coverages_bin_dtype)
+    out['tiv'] = arr['tiv']
+    out['n_building'] = arr['n_building']
+    out.tofile(file_path)
 
 
 def complex_items_write_gul_bin(data, file_path, dtype):
@@ -552,12 +563,22 @@ def get_gul_input_items(
         gul_inputs_df = gul_inputs_df.copy()
         gul_inputs_df['building_id'] = 1
 
-    # Both are correlations columns, so they must exist on every path. Outside packing each item is
-    # a single building.
+    # Both must exist on every path -- il_inputs reads them separately to split the terms.
+    # Outside packing each item is a single building.
     if 'number_of_buildings' not in gul_inputs_df.columns:
         gul_inputs_df['number_of_buildings'] = np.int32(1)
     if 'keep_buildings_separate' not in gul_inputs_df.columns:
         gul_inputs_df['keep_buildings_separate'] = np.int32(0)
+
+    # The wire form for coverages.bin: the two columns above folded into one signed field, so the
+    # count and the keep-separate flag cannot be read apart from each other downstream. A plain
+    # single-building coverage stays +1, exactly as before packing existed. It sits on the COVERAGE
+    # because buildings belong to the location, so every coverage of one carries the same value.
+    gul_inputs_df['n_building'] = np.where(
+        gul_inputs_df['keep_buildings_separate'] == 1,
+        -gul_inputs_df['number_of_buildings'],
+        gul_inputs_df['number_of_buildings'],
+    ).astype('i4')
 
     # =========================================================================
     # ID ASSIGNMENT: Compute item_id, coverage_id, group_id, hazard_group_id
@@ -661,6 +682,7 @@ def get_gul_input_items(
         ['group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] +
         (['number_of_buildings'] if 'number_of_buildings' in gul_inputs_df else []) +
         (['keep_buildings_separate'] if 'keep_buildings_separate' in gul_inputs_df else []) +
+        ['n_building'] +
         tiv_cols +
         ["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value",
          "source_item_id"]
@@ -696,34 +718,19 @@ def write_file(gul_inputs_df, file_path, file_dtype, chunksize=100000):
 
 
 def build_correlations_frame(gul_inputs_df):
-    """Select the correlations columns and fold the building-packing flag into the count's sign.
+    """Select the correlations columns.
 
-    ``correlations.bin`` carries the per-item building data as a single signed field to keep the
-    record at 24 bytes: the magnitude is the number of buildings, and a negative sign marks the
-    buildings that have to reach the financial module as separate blocks. In memory the two stay
-    separate columns -- ``number_of_buildings`` and ``keep_buildings_separate`` -- because
-    ``il_inputs`` reads them independently to split the terms; only the wire form is packed, which
-    is why the column is renamed to ``packed_buildings`` on the way out.
+    The building count used to ride here as a signed ``packed_buildings`` field. It lives on
+    coverages.bin now -- buildings belong to the LOCATION, so the coverage is where the value is
+    actually true, and it keeps the count out of a table that is otherwise about correlation.
 
     Args:
-        gul_inputs_df (pd.DataFrame): the GUL inputs frame. ``number_of_buildings`` and
-            ``keep_buildings_separate`` are defaulted upstream, so both are always present.
+        gul_inputs_df (pd.DataFrame): the GUL inputs frame.
 
     Returns:
-        pd.DataFrame: the correlations columns, carrying the signed ``packed_buildings``.
+        pd.DataFrame: the correlations columns.
     """
-    in_memory_headers = ['number_of_buildings' if h == 'packed_buildings' else h for h in correlations_headers]
-    correlations_df = gul_inputs_df[in_memory_headers].copy()
-    correlations_df.columns = correlations_headers
-    if 'keep_buildings_separate' in gul_inputs_df.columns:
-        # negative marks "keep separate"; a plain single-building record stays +1, exactly as it
-        # was before packing existed
-        correlations_df['packed_buildings'] = np.where(
-            gul_inputs_df['keep_buildings_separate'] == 1,
-            -correlations_df['packed_buildings'],
-            correlations_df['packed_buildings'],
-        ).astype('i4')
-    return correlations_df
+    return gul_inputs_df[list(correlations_headers)].copy()
 
 
 @oasis_log

@@ -21,6 +21,7 @@ import pytest
 
 from oasislmf.pytools.common.data import correlations_dtype
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
+from tests.pytools.utils import set_coverage_buildings
 
 # Statistical, not functional: the assertions need up to 20,000 buildings, which is seconds once compiled and
 # hours interpreted. The four JIT-enabled CI legs run them; the coverage leg, which sets
@@ -42,13 +43,15 @@ def _location_totals(n_buildings, sample_size):
         items = pd.read_csv(run_dir / 'input' / 'items.csv')
         corr = np.zeros(len(items), dtype=correlations_dtype)
         corr['item_id'] = items['item_id'].to_numpy()
-        corr['packed_buildings'] = n_buildings        # positive: summed, so the item IS the total
         corr['peril_correlation_group'] = 1
         corr['damage_correlation_value'] = 0.
         corr['hazard_group_id'] = 1
         corr.tofile(run_dir / 'input' / 'correlations.bin')
         pd.DataFrame({k: corr[k] for k in corr.dtype.names}).to_csv(
             run_dir / 'input' / 'correlations.csv', index=False)
+        # positive: summed, so the item IS the total. The count lives on the coverage.
+        set_coverage_buildings(run_dir / 'input', n_buildings,
+                               item_to_coverage=items['coverage_id'].to_numpy())
         out = run_dir / 'out.bin'
         run_gulmc(run_dir=run_dir, ignore_file_type=set(),
                   file_in=run_dir / 'input' / 'events.bin', file_out=out,

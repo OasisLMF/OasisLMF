@@ -33,5 +33,6 @@ def coverages_tocsv(stack, file_in, file_out, file_type, noheader):
         end = min(start + DEFAULT_BUFFER_SIZE, n)
         batch = buf[:end - start]
         batch["coverage_id"] = np.arange(start + 1, end + 1)
-        batch["tiv"] = coverages[start:end]
+        batch["tiv"] = coverages["tiv"][start:end]
+        batch["n_building"] = coverages["n_building"][start:end]
         write_ndarray_to_fmt_csv(file_out, batch, headers, fmt)
