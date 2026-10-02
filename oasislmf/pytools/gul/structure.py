@@ -112,9 +112,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
 
     # --- coverages -------------------------------------------------------------
     logger.debug('import coverages')
-    coverages_tiv = read_coverages(input_path, ignore_file_type)
-    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
-    coverages[1:]['tiv'] = coverages_tiv
+    coverages_data = read_coverages(input_path, ignore_file_type)
+    coverages = np.zeros(coverages_data.shape[0] + 1, coverage_type)
+    coverages[1:]['tiv'] = coverages_data['tiv']
 
     # --- items + peril filter --------------------------------------------------
     logger.debug('import items')
@@ -163,7 +163,6 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
         # NOTE: field first, THEN the fancy index. `a[idx]['field'] = v` assigns into a copy and
         # is silently a no-op.
         corr_data_by_item_id = np.zeros(max_item_id + 1, dtype=correlations_dtype)
-        corr_data_by_item_id['packed_buildings'][:] = 1       # default for an absent item
         corr_data_by_item_id['peril_correlation_group'][data['item_id']] = data['peril_correlation_group']
         corr_data_by_item_id['damage_correlation_value'][data['item_id']] = data['damage_correlation_value']
         unique_peril_correlation_groups = np.unique(data['peril_correlation_group'])
@@ -178,28 +177,28 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
         norm_cdf = np.zeros(1, dtype='float64')
 
     # --- building packing ------------------------------------------------------
-    # The per-item building count and the keep-separate flag ride on the correlations table as ONE
-    # signed field, kept signed into the compute and unpacked into (count, flag) at the top of each
-    # consuming loop. NOTHING may use the raw value as a bound: range() over a negative silently
-    # does nothing. Packing is derived, not configured: more than one building is the signal.
-    building_counts = np.abs(data['packed_buildings']) if len(data) else data['packed_buildings']
-
-    # Always indexed by item_id, so it always spans every item: an unpacked run is the all-ones
-    # case, which is what lets the compute treat packing as N == 1 rather than as a second path.
+    # The building count and the keep-separate flag are ONE signed field on the COVERAGE: buildings
+    # belong to the location, so every coverage of one -- and every item of those coverages --
+    # carries the same value. Kept signed into the compute and unpacked into (count, flag) at the
+    # top of each consuming loop. NOTHING may use the raw value as a bound: range() over a negative
+    # silently does nothing. Packing is derived, not configured: more than one building is the
+    # signal.
+    #
+    # Indexed by item_id here because that is what the compute walks; an unpacked run is the
+    # all-ones case, which is what lets it treat packing as N == 1 rather than as a second path.
     n_buildings_by_item_id = np.ones(max_item_id + 1, dtype='i4')
-
-    building_packing = bool(len(data) and building_counts.max() > 1)
-    if building_packing:
-        # The two files are 1:1. An item past the end of correlations would silently keep the
-        # default of 1 building rather than the count it was generated with, so reject the pair.
-        if len(items) and int(items['item_id'].max()) > int(data['item_id'].max()):
+    if len(items):
+        cov_i = items['coverage_id'] - 1
+        if cov_i.min() < 0 or cov_i.max() >= coverages_data.shape[0]:
             raise OasisException(
-                f"items.bin holds item_id up to {int(items['item_id'].max())} but correlations "
-                f"only covers up to {int(data['item_id'].max())}; the two files are 1:1 and must "
-                f"be regenerated together."
+                f"items.bin references coverage_id outside 1..{coverages_data.shape[0]} covered by "
+                f"coverages.bin; the two files must be regenerated together."
             )
-        # stored signed, exactly as it arrived on the wire
-        n_buildings_by_item_id[data['item_id']] = data['packed_buildings']
+        n_buildings_by_item_id[items['item_id']] = coverages_data['n_building'][cov_i]
+
+    building_counts = np.abs(n_buildings_by_item_id)
+    building_packing = bool(building_counts.max() > 1)
+    if building_packing:
         logger.info(f'building-packing ENABLED: up to {building_counts.max()} buildings packed per item.')
 
     # The writer needs a summed item's damage correlation to combine its buildings' variances,

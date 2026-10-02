@@ -22,9 +22,9 @@ import pytest
 
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 from oasislmf.pytools.common.event_stream import decode_building, decode_local_sidx
-from oasislmf.pytools.common.data import oasis_float, correlations_dtype
-from oasislmf.pytools.common.input_files import read_correlations
+from oasislmf.pytools.common.data import oasis_float
 from oasislmf.utils.exceptions import OasisException
+from tests.pytools.utils import set_coverage_buildings
 
 TESTS_DIR = Path(__file__).parent.parent.parent
 SRC_MODEL = TESTS_DIR.joinpath("assets", "test_model_1")
@@ -89,15 +89,12 @@ def test_building_packing_building1_matches_legacy(tmp_path):
     legacy = _parse_stream(legacy_out)
     assert legacy, "legacy run produced no output"
 
-    # packed run with two buildings for every item, kept separate. The correlations table (1:1
-    # with items, joined into the items array downstream) carries this as one signed field:
-    # magnitude 2 buildings, negative sign meaning "emit them as separate blocks". Positive would
-    # make gulmc sum the buildings at source instead.
+    # packed run with two buildings for every coverage, kept separate. coverages.bin carries this
+    # as one signed field: magnitude 2 buildings, negative sign meaning "emit them as separate
+    # blocks". Positive would make gulmc sum the buildings at source instead.
     packed_dir = tmp_path / "packed"
     _fresh_copy(packed_dir)
-    corr = np.array(read_correlations(packed_dir / "input"), dtype=correlations_dtype)
-    corr['packed_buildings'] = -2
-    corr.tofile(packed_dir / "input" / "correlations.bin")
+    set_coverage_buildings(packed_dir / "input", -2)
     packed_out = packed_dir / "packed.bin"
     _run(packed_dir, packed_out, random_generator)
     packed = _parse_stream(packed_out)
@@ -139,9 +136,7 @@ def test_a_packed_run_is_refused_on_the_other_generators(tmp_path, random_genera
     """
     packed_dir = tmp_path / "packed"
     _fresh_copy(packed_dir)
-    corr = np.array(read_correlations(packed_dir / "input"), dtype=correlations_dtype)
-    corr['packed_buildings'] = -2
-    corr.tofile(packed_dir / "input" / "correlations.bin")
+    set_coverage_buildings(packed_dir / "input", -2)
 
     with pytest.raises(OasisException) as raised:
         _run(packed_dir, packed_dir / "packed.bin", random_generator)

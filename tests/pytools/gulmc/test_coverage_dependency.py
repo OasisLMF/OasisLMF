@@ -26,6 +26,7 @@ from oasislmf.pytools.gulmc.structure import build_coverage_dependency_forest
 from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.utils.data import prepare_oed_exposure
 from oasislmf.utils.exceptions import OasisException
+from tests.pytools.utils import set_coverage_buildings
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets")
 SRC_MODEL = TESTS_ASSETS_DIR.joinpath("test_model_1")
@@ -659,12 +660,11 @@ def _write_correlations(run_dir, dependent_to_source, buildings=1):
     Args:
         run_dir (Path): run directory containing input/items.csv.
         dependent_to_source (dict[int, int]): mapping dependent coverage_id -> source coverage_id.
-        buildings (int): buildings packed into every item's sample dimension. 1 is the unpacked
-            identity.
+        buildings (int): buildings packed into every coverage's sample dimension. 1 is the
+            unpacked identity.
     """
     items = pd.read_csv(run_dir / 'input' / 'items.csv')
     corr = np.zeros(len(items), dtype=correlations_dtype)
-    corr['packed_buildings'] = buildings
     corr['item_id'] = items['item_id'].to_numpy()
     for dep_cov, src_cov in dependent_to_source.items():
         for row in items[items['coverage_id'] == dep_cov].itertuples():
@@ -674,6 +674,8 @@ def _write_correlations(run_dir, dependent_to_source, buildings=1):
                 corr['source_item_id'][corr['item_id'] == row.item_id] = int(match.iloc[0])
     corr.tofile(run_dir / 'input' / 'correlations.bin')
     pd.DataFrame({k: corr[k] for k in corr.dtype.names}).to_csv(run_dir / 'input' / 'correlations.csv', index=False)
+    set_coverage_buildings(run_dir / 'input', buildings,
+                           item_to_coverage=items['coverage_id'].to_numpy())
 
 
 def _setup(tmp, dependent_to_source):
@@ -855,7 +857,8 @@ def test_dependent_coverage_runs_when_its_source_coverage_is_absent_from_the_eve
                               'group_id': [11, 22, 22]})
         items.to_csv(run_dir / 'input' / 'items.csv', index=False)
         (run_dir / 'input' / 'items.bin').unlink()
-        pd.DataFrame({'coverage_id': [1, 2], 'tiv': [220000.0, 790000.0]}).to_csv(
+        pd.DataFrame({'coverage_id': [1, 2], 'tiv': [220000.0, 790000.0],
+                      'n_building': [1, 1]}).to_csv(
             run_dir / 'input' / 'coverages.csv', index=False)
         (run_dir / 'input' / 'coverages.bin').unlink()
 
@@ -866,7 +869,6 @@ def test_dependent_coverage_runs_when_its_source_coverage_is_absent_from_the_eve
                 f.write(f'101,{k},{k},1.0\n')
 
         corr = np.zeros(3, dtype=correlations_dtype)
-        corr['packed_buildings'] = 1   # one building per item: the unpacked identity
         corr['item_id'] = [1, 2, 3]
         corr['source_item_id'] = [0, 1, 0]          # item 2 paired to item 1; item 3 unpaired
         corr.tofile(run_dir / 'input' / 'correlations.bin')
@@ -942,7 +944,6 @@ def test_mixed_conditional_and_hazard_indexed_on_one_coverage_type():
         cond_item = int(items[(items.coverage_id == 2) & (items.areaperil_id == 154)]['item_id'].iloc[0])
         indep_item = int(items[(items.coverage_id == 2) & (items.areaperil_id == 54)]['item_id'].iloc[0])
         corr = np.zeros(len(items), dtype=correlations_dtype)
-        corr['packed_buildings'] = 1   # one building per item: the unpacked identity
         corr['item_id'] = items['item_id'].to_numpy()
         corr['source_item_id'][corr['item_id'] == cond_item] = source_item
         corr.tofile(run_dir / 'input' / 'correlations.bin')
@@ -1183,15 +1184,12 @@ def test_narrow_bin_stack_is_not_overrun_by_an_unrelated_packed_item():
                 f.write(f'101,{k},{k},1.0\n')
 
         _write_correlations(run_dir, {2: 1})
-        corr = pd.read_csv(run_dir / 'input' / 'correlations.csv')
         in_forest = items['coverage_id'].isin([1, 2])
-        forest_items = set(items.loc[in_forest, 'item_id'])
-        assert len(forest_items) and len(forest_items) < len(items), "need items both in and out of the forest"
+        assert in_forest.any() and not in_forest.all(), "need items both in and out of the forest"
         # two buildings inside the forest, far more on an unrelated coverage
-        corr['packed_buildings'] = np.where(corr['item_id'].isin(forest_items), -2, -64)
-        corr.to_csv(run_dir / 'input' / 'correlations.csv', index=False)
-        np.array([tuple(r) for r in corr.to_numpy()],
-                 dtype=correlations_dtype).tofile(run_dir / 'input' / 'correlations.bin')
+        set_coverage_buildings(run_dir / 'input',
+                               np.where(in_forest.to_numpy(), -2, -64),
+                               item_to_coverage=items['coverage_id'].to_numpy())
 
         script = (
             "from pathlib import Path;"

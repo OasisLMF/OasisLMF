@@ -457,9 +457,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
 
     # --- coverages -------------------------------------------------------------
     logger.debug('import coverages')
-    coverages_tb = read_coverages(input_path, ignore_file_type)
-    coverages = np.zeros(coverages_tb.shape[0] + 1, coverage_type)
-    coverages[1:]['tiv'] = coverages_tb
+    coverages_data = read_coverages(input_path, ignore_file_type)
+    coverages = np.zeros(coverages_data.shape[0] + 1, coverage_type)
+    coverages[1:]['tiv'] = coverages_data['tiv']
 
     # --- aggregate vulnerability -----------------------------------------------
     logger.debug('import aggregate vulnerability definitions and vulnerability weights')
@@ -490,21 +490,29 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                   'damage_correlation_value': 0.,
                   'hazard_group_id': 0,
                   'hazard_correlation_value': 0.,
-                  'source_item_id': 0,
-                  # building-packing, signed: magnitude is the number of buildings multiplexed
-                  # into each item's sample dimension, a negative sign marks the ones that must
-                  # reach the financial module as separate blocks. Carried signed all the way to
-                  # the compute and unpacked into locals there. 1 == one building per item
-                  # (legacy / disaggregation).
-                  'packed_buildings': 1}
+                  'source_item_id': 0}
     )
     if valid_areaperil_id is not None:
         items = items[np.isin(items['areaperil_id'], valid_areaperil_id)]
     items = rfn.merge_arrays((items,
                               np.empty(items.shape,
                                        dtype=nb.from_dtype(np.dtype([("vulnerability_idx", oasis_int),
-                                                                     ("areaperil_agg_vuln_idx", oasis_int)])))),
+                                                                     ("areaperil_agg_vuln_idx", oasis_int),
+                                                                     ("packed_buildings", np.int32)])))),
                              flatten=True)
+    # building-packing, signed: magnitude is the number of buildings multiplexed into each item's
+    # sample dimension, a negative sign marks the ones that must reach the financial module as
+    # separate blocks. Carried signed all the way to the compute and unpacked into locals there.
+    # 1 == one building per item (legacy / disaggregation). It is a property of the LOCATION, so it
+    # arrives on the coverage and every item of a coverage inherits the same value.
+    if items.shape[0]:
+        cov_i = items['coverage_id'] - 1
+        if cov_i.min() < 0 or cov_i.max() >= coverages_data.shape[0]:
+            raise OasisException(
+                f"items.bin references coverage_id outside 1..{coverages_data.shape[0]} covered by "
+                f"coverages.bin; the two files must be regenerated together."
+            )
+        items['packed_buildings'] = coverages_data['n_building'][cov_i]
     items['areaperil_agg_vuln_idx'] = -1
     # generate_item_map only assigns vulnerability_idx for non-aggregate items; initialise it so an
     # aggregate item never carries uninitialised memory into an array index
