@@ -5,14 +5,13 @@ import numpy as np
 import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           write_ndarray_to_fmt_csv, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, reservation_overflows, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import occ_get, occ_get_date, read_occurrence, read_periods, read_quantile
+from oasislmf.pytools.common.parquet import BufferedParquetWriter
 from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
 
@@ -561,9 +560,7 @@ def run(
                 if not outmap[out_type]["compute"]:
                     continue
                 dtype = plt_reader.get_data(out_type).dtype
-                schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
-                outmap[out_type]["schema"] = schema
-                outmap[out_type]["file"] = stack.enter_context(pq.ParquetWriter(outmap[out_type]["file_path"], schema))
+                outmap[out_type]["file"] = stack.enter_context(BufferedParquetWriter(outmap[out_type]["file_path"], dtype))
         else:
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
@@ -587,9 +584,7 @@ def run(
                     if output_binary:
                         data.tofile(outmap[out_type]["file"])
                     elif output_parquet:
-                        arrays = [pa.array(data[name]) for name in data.dtype.names]
-                        data_table = pa.Table.from_arrays(arrays, schema=outmap[out_type]["schema"])
-                        outmap[out_type]["file"].write_table(data_table)
+                        outmap[out_type]["file"].write(data)
                     else:
                         write_ndarray_to_fmt_csv(
                             outmap[out_type]["file"],

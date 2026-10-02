@@ -7,13 +7,12 @@ import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
 from oasislmf.pytools.summary.manager import SUMMARY_META_SIZE
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE,
                                           summary_stream_index_dtype, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_get, read_occurrence, read_periods, read_returnperiods
+from oasislmf.pytools.common.parquet import BufferedParquetWriter
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
                                        OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR,
                                        OUTLOSS_DTYPE, EPT_dtype, EPT_fmt, EPT_headers, PSEPT_dtype, PSEPT_fmt, PSEPT_headers)
@@ -342,9 +341,7 @@ def _open_output_files(outmap, stack, output_binary, output_parquet, noheader):
             if not outmap[out_type]["compute"]:
                 continue
             dtype = outmap[out_type]["dtype"]
-            schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
-            outmap[out_type]["schema"] = schema
-            outmap[out_type]["file"] = stack.enter_context(pq.ParquetWriter(outmap[out_type]["file_path"], schema))
+            outmap[out_type]["file"] = stack.enter_context(BufferedParquetWriter(outmap[out_type]["file_path"], dtype))
     else:
         for out_type in outmap:
             if not outmap[out_type]["compute"]:
