@@ -219,7 +219,9 @@ def _save_chunk(summaries_data, summaries_idx, path, chunk_index, temp_files, ma
     return chunk_index + 1, max(max_summary_id, int(np.max(chunk["summary_id"])))
 
 
-@nb.njit(cache=True, error_model="numpy")
+# Not cached: a disk-cached generator is never registered for lowering, so a jitted
+# consumer (run_aal) that recompiles against it raises KeyError (#1970).
+@nb.njit(error_model="numpy")
 def merge_sorted_chunks(memmaps):
     """Merge sorted chunks using a k-way merge algorithm and yield next smallest row
 
