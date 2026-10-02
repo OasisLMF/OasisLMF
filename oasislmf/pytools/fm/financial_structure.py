@@ -1003,10 +1003,22 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         compute_info['packable_layer_slots'] = 0
         compute_info['packable_extra_slots'] = 0
     else:
+        # Generation counts the slices per node, but only over the levels IT builds, which start at
+        # 1. fm's item nodes sit at start_level, and that is 0 for a multi-peril structure -- real
+        # nodes, which the reader fills with packed sidx and the collapse then copies. They are
+        # counted in packable_node_len and covered by the fallback's (site_collapse_level + 1), so
+        # the exact count was the one place the item level went missing: a 4-item 10-building
+        # multi-peril set reserved 10 slices against the 50 it writes, and ran off the end of
+        # sidx_val. Their requirement is exactly total_packed_buildings -- the sum of the
+        # per-item counts over the items keeping their buildings separate.
+        #
+        # Corrected here rather than in generation so that oasis files already written with the
+        # short value stay usable.
+        packed_slots = packed_node_slots + (total_packed_buildings if start_level == 0 else 0)
         # Comfortably inside int32: it is a building count times the packable level count, so
         # 11.5M on a 5.7M-building book. The slot arithmetic that uses it is done in Python ints.
         compute_info['packable_building_slots'] = (
-            packed_node_slots if packed_node_slots else total_packed_buildings * (site_collapse_level + 1))
+            packed_slots if packed_node_slots else total_packed_buildings * (site_collapse_level + 1))
 
         # The loss and extras arenas need one packed slice per LAYER, where the sidx arena needs
         # only one per node. Charging every packed slice the portfolio's deepest layering bills a
@@ -1027,7 +1039,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             # slices exactly, that count is for ALL packable levels together, so charging it per
             # level would multiply it back up -- take the portfolio's deepest layering once.
             if packed_node_slots:
-                layer_slots = max(layer_slots, packed_node_slots * level_max_layer)
+                layer_slots = max(layer_slots, packed_slots * level_max_layer)
             else:
                 layer_slots += total_packed_buildings * level_max_layer
         compute_info['packable_layer_slots'] = layer_slots
