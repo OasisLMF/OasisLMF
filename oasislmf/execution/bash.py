@@ -247,12 +247,11 @@ def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=
     """
     check_function = """
 check_complete(){
-    set +e
     proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
     has_error=0
     for p in $proc_list; do
         started=$(find $LOG_DIR -name "${p}_[0-9]*.log" | wc -l)
-        finished=$(find $LOG_DIR -name "${p}_[0-9]*.log" -exec grep -l "finish" {} + | wc -l)
+        finished=$(find $LOG_DIR -name "${p}_[0-9]*.log" -exec grep -l "finish" {} + | wc -l || true)
         if [ "$finished" -lt "$started" ]; then
             echo "[ERROR] $p - $((started-finished)) processes lost"
             has_error=1
@@ -264,8 +263,8 @@ check_complete(){
     # Add in check for custom gulcalc if settings are provided
     if custom_gulcalc_log_start and custom_gulcalc_log_finish:
         check_function += f"""
-    started=$( grep "{custom_gulcalc_log_start}" log/gul_stderror.err | wc -l)
-    finished=$( grep "{custom_gulcalc_log_finish}" log/gul_stderror.err | wc -l)
+    started=$( grep "{custom_gulcalc_log_start}" log/gul_stderror.err | wc -l || true)
+    finished=$( grep "{custom_gulcalc_log_finish}" log/gul_stderror.err | wc -l || true)
     if [ "$finished" -lt "$started" ]; then
         echo "[ERROR] gulcalc - $((started-finished)) processes lost"
         has_error=1
