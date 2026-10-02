@@ -12,7 +12,7 @@ from itertools import chain
 
 import pandas as pd
 
-from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.base import DISAGGREGATION_HELP, ComputationStep
 from oasislmf.computation.generate.files import GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
@@ -21,9 +21,10 @@ from oasislmf.preparation.il_inputs import get_oed_hierarchy
 from oasislmf.preparation.summaries import calculated_summary_cols
 from oasislmf.pytools.fm.portfolio_complexity import (
     compute_portfolio_complexity, format_complexity_report)
-from oasislmf.utils.data import (get_dataframe, get_exposure_data,
+from oasislmf.utils.data import (get_dataframe, get_exposure_data, resolve_disaggregation,
                                  print_dataframe)
-from oasislmf.utils.defaults import (KERNEL_ALLOC_FM_MAX,
+from oasislmf.utils.defaults import (DISAGGREGATION_MODES, DISAGGREGATION_NONE,
+                                     DISAGGREGATION_SAMPLES, KERNEL_ALLOC_FM_MAX,
                                      KERNEL_ALLOC_IL_DEFAULT,
                                      KERNEL_ALLOC_RI_DEFAULT,
                                      OASIS_FILES_PREFIXES,
@@ -65,8 +66,12 @@ class RunExposure(ComputationStep):
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
-        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
-         'help': 'if True run the oasis disaggregation.'},
+        {'name': 'disaggregation', 'type': str, 'default': None, 'choices': DISAGGREGATION_MODES,
+         'help': DISAGGREGATION_HELP + " 'samples' has no deterministic equivalent and is run as "
+                 "'none' here, so the same settings can be used to check a run before launching "
+                 "it."},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
+         'help': 'DEPRECATED, use --disaggregation. if True run the oasis disaggregation.'},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
@@ -121,6 +126,19 @@ class RunExposure(ComputationStep):
 
         include_loss_factor = not (len(self.loss_factor) == 1)
 
+        disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation)
+
+        if disaggregation == DISAGGREGATION_SAMPLES:
+            self.logger.info(
+                "disaggregation='samples' has no deterministic equivalent: generation divides a "
+                "location's TIV by NumberOfBuildings for packing, and only the ground-up tools "
+                "write the sample dimension that puts the buildings back, so packed inputs here "
+                "would understate every loss by that factor. Running as 'none' instead, which "
+                "gives the correct location totals -- but site terms then apply once to the "
+                "location rather than once per building, so an IsAggregate=1 location's "
+                "per-building terms are not exercised on this step.")
+            disaggregation = DISAGGREGATION_NONE
+
         self._check_alloc_rules()
 
         self.oasis_files_dir = src_dir
@@ -150,7 +168,8 @@ class RunExposure(ComputationStep):
             oasis_files_dir=run_dir,
             exposure_data=exposure_data,
             keys_data_path=keys_fp,
-            do_disaggregation=self.do_disaggregation,
+            # the resolved mode, not the deprecated boolean, which would warn again downstream
+            disaggregation=disaggregation,
             intermediary_csv=self.intermediary_csv,
         ).run()
 

@@ -10,11 +10,10 @@ from collections import Counter
 
 import numpy as np
 
-from oasislmf.pytools.common.data import (
-    fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype,
-    fm_programme_dtype, fm_xref_dtype, items_dtype, load_as_array,
-    load_as_ndarray, oasis_float,
-)
+from oasislmf.pytools.common.data import (coverages_bin_dtype,
+                                          fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype,
+                                          fm_programme_dtype, fm_xref_dtype, items_dtype, load_as_ndarray,
+                                          )
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +148,7 @@ def compute_portfolio_complexity(static_path):
     # Portfolio dimensions (GUL — always available)
     # ------------------------------------------------------------------
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)
-    coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
+    coverages = load_as_ndarray(static_path, 'coverages', coverages_bin_dtype, must_exist=False)
 
     if len(items) > 0:
         num_items = int(np.unique(items['item_id']).size)

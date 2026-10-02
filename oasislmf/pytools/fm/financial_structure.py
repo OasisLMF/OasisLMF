@@ -12,13 +12,16 @@ import numpy as np
 from numba import from_dtype, njit
 
 
-from oasislmf.pytools.common.data import (load_as_ndarray, load_as_array, almost_equal,
+from oasislmf.utils.exceptions import OasisException
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_info_dtype, load_as_ndarray, almost_equal,
+                                          coverages_bin_dtype,
                                           fm_policytc_dtype,
                                           fm_profile_dtype, fm_profile_step_dtype,
                                           fm_programme_dtype,
                                           fm_xref_dtype,
                                           items_dtype,
-                                          oasis_int, nb_oasis_int, oasis_float, null_index)
+                                          oasis_int, nb_oasis_int, null_index)
+from oasislmf.pytools.common.input_files import validate_coverages
 from .common import (allowed_allocation_rule, need_extras, need_tiv_policy)
 
 logger = logging.getLogger(__name__)
@@ -55,6 +58,12 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', oasis_int),
                                           ('items_len', oasis_int),
                                           ('output_len', oasis_int),
                                           ('stepped', np.bool_),
+                                          ('site_collapse_level', oasis_int),
+                                          ('max_buildings', oasis_int),
+                                          ('packable_node_len', oasis_int),
+                                          ('packable_building_slots', oasis_int),
+                                          ('packable_layer_slots', oasis_int),
+                                          ('packable_extra_slots', oasis_int),
                                           ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', oasis_int),
                                            ('i_end', oasis_int),
@@ -66,6 +75,55 @@ profile_entry_dtype = np.dtype([('layer_id', oasis_int),
                                 ('i_end', oasis_int)])
 
 
+def load_fm_structure_info(static_path):
+    """Read the building-packing structure info written next to the fm input files.
+
+    Building-packed items keep their buildings apart until the site levels (the ones whose
+    aggregation key includes ``risk_id``) have applied their terms per building. Neither which
+    level that is nor how many buildings to make room for can be derived here: fm_programme levels
+    are compacted, so only levels carrying terms get one and the numbering varies per portfolio,
+    and the building counts live on the correlations table the financial module does not read.
+    Generation records both instead.
+
+    Args:
+        static_path (str): path to the folder holding the static input files.
+
+    Returns:
+        tuple(int, int, int, int): the level after which packed buildings collapse, the largest
+        number of buildings any one packed item carries, the SUM of those counts over the items that
+        keep their buildings separate, and the exact count of packed slices the arena owes (0 where
+        a field predates the file's layout). ``(0, 1, 0, 0)`` when the file is absent -- which is
+        every input set not generated with building-packing.
+    """
+    fp = os.path.join(static_path, FM_STRUCTURE_INFO_FILE)
+    if not os.path.exists(fp):
+        return 0, 1, 0, 0
+    record = np.fromfile(fp, dtype=fm_structure_info_dtype)
+    if record.shape[0] == 0:
+        # An empty file is the "nothing to collapse" case. Anything else that yields no record was
+        # written against a different layout, and must fail rather than read as "no packing" --
+        # that would drop the collapse silently and give wrong losses.
+        if os.path.getsize(fp) != 0:
+            raise OasisException(
+                f"{fp} does not match the current structure-info record layout "
+                f"({fm_structure_info_dtype.itemsize} bytes: "
+                f"{', '.join(fm_structure_info_dtype.names)}). Regenerate the oasis files."
+            )
+        return 0, 1, 0, 0
+    site_collapse_level = int(record[0]['site_collapse_level'])
+    max_buildings = max(1, int(record[0]['max_buildings']))
+    total = int(record[0]['total_packed_buildings'])
+    if max_buildings > 1 and total < max_buildings:
+        # total sizes the arena and can only be short of it by being wrong: under-reserving is a
+        # write past the end of a numba array, which corrupts rather than raises.
+        raise OasisException(
+            f"{fp} declares max_buildings={max_buildings:,} but a total of only {total:,} packed "
+            f"buildings, which cannot be right -- the total is a sum over the items the maximum "
+            f"is taken from. Regenerate the oasis files."
+        )
+    return site_collapse_level, max_buildings, total, int(record[0]['packed_node_slots'])
+
+
 def load_static(static_path):
     """Load the raw financial data from static_path as numpy ndarray
     first check if .bin file is present then try .cvs
@@ -75,7 +133,7 @@ def load_static(static_path):
         static_path (str): path to the folder holding the static input files
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[bool], np.ndarray, np.ndarray, np.ndarray]:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[bool], np.ndarray, np.ndarray, np.ndarray, int, int]:
             - programme: link between nodes
             - policytc: info on layer
             - profile: policy profile can be profile_step or profile
@@ -83,8 +141,12 @@ def load_static(static_path):
             - xref: node to output_id
             - items: items (item_id and coverage_id mapping), empty when items and coverages
               disagree on the number of coverages
-            - coverages: Tiv value for each coverage id, empty when items and coverages disagree
-              on the number of coverages
+            - coverages: ``tiv`` and the signed ``n_building`` for each coverage id, empty when
+              items and coverages disagree on the number of coverages
+            - site_collapse_level: last level whose aggregation key includes ``risk_id``, after
+              which building-packed items collapse to the sample size. 0 when the input set has
+              no packed buildings (which is every input set not generated with building-packing)
+            - max_buildings: largest number of buildings any one packed item carries, 1 when none
 
     Raises:
         FileNotFoundError: if one of the static is missing
@@ -101,13 +163,19 @@ def load_static(static_path):
     xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype)
 
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
-    coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
+    # validate_coverages, not just the read: this path memmaps the file directly rather than
+    # going through read_coverages, and an older tiv-only file read at the wrong stride would
+    # otherwise reach the mismatch below, empty BOTH arrays as if a file were missing, and leave
+    # every TIV-dependent calcrule computing against a tiv of 0 -- a wrong loss with no error.
+    coverages = validate_coverages(
+        load_as_ndarray(static_path, 'coverages', coverages_bin_dtype, must_exist=False),
+        os.path.join(static_path, 'coverages.bin'))
     if np.unique(items['coverage_id']).shape[0] != coverages.shape[0]:
         # one of the file is missing we default to empty array
         items = np.empty(0, dtype=items_dtype)
-        coverages = np.empty(0, dtype=oasis_float)
+        coverages = np.empty(0, dtype=coverages_bin_dtype)
 
-    return programme, policytc, profile, stepped, xref, items, coverages
+    return (programme, policytc, profile, stepped, xref, items, coverages) + load_fm_structure_info(static_path)
 
 
 @njit(cache=True)
@@ -240,14 +308,14 @@ def get_tiv_csr(children_indices, children_len, items, coverages, node_level_sta
         children_indices (np.ndarray[oasis_int]): Array of child node indices (item level nodes)
         children_len (int): Number of valid entries in children_indices
         items (np.ndarray[items_dtype]): Items array mapping item_id to coverage_id
-        coverages (np.ndarray[oasis_float]): Coverage values
+        coverages (np.ndarray[coverages_bin_dtype]): per-coverage ``tiv`` and ``n_building``
         node_level_start (np.ndarray[oasis_int]): Array for converting index to level/agg_id
         start_level (int): The start level (item level)
 
     Returns:
         float: Total insured value for the children, counting each coverage at most once
     """
-    used_cov = np.zeros_like(coverages, dtype=np.uint8)
+    used_cov = np.zeros(coverages.shape[0], dtype=np.uint8)
     tiv = 0
     item_level_start = node_level_start[start_level]
 
@@ -258,7 +326,7 @@ def get_tiv_csr(children_indices, children_len, items, coverages, node_level_sta
         coverage_i = items[agg_id - 1]['coverage_id'] - 1
         if not used_cov[coverage_i]:
             used_cov[coverage_i] = 1
-            tiv += coverages[coverage_i]
+            tiv += coverages[coverage_i]['tiv']
     return tiv
 
 
@@ -370,7 +438,9 @@ def prepare_profile_stepped(profile, tiv):
 
 
 @njit(cache=True)
-def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages):
+def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages,
+                                site_collapse_level=0, max_buildings=1, total_packed_buildings=0,
+                                packed_node_slots=0):
     """Build the in-memory financial structure arrays from the raw fm input files.
 
     Args:
@@ -381,7 +451,18 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         stepped (Optional[bool]): True when fm_profile holds step policies, None otherwise
         fm_xref (np.ndarray[fm_xref_dtype]): mapping between the output of the allocation and output item_id
         items (np.ndarray[items_dtype]): item_id and coverage_id mapping, empty when unavailable
-        coverages (np.ndarray[oasis_float]): Tiv value for each coverage id, empty when unavailable
+        coverages (np.ndarray[coverages_bin_dtype]): per-coverage ``tiv`` and ``n_building``,
+            empty when unavailable
+        site_collapse_level (int): the last level whose aggregation key includes ``risk_id``.
+            Building-packed items keep their buildings apart until this level has applied its
+            terms per building, then collapse to the sample size. 0 means nothing to collapse.
+        total_packed_buildings (int): sum of the per-item building counts over the items keeping
+            their buildings separate; sizes the arena. 0 falls back to the node-count bound.
+        packed_node_slots (int): packed slices the arena owes over the packable levels,
+            counted per node at generation. 0 where generation did not record it, and the
+            total-times-levels bound is used instead.
+        max_buildings (int): largest number of buildings any one packed item carries, which sizes
+            the computation arrays up to the collapse level. 1 when there are none.
 
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -398,10 +479,13 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     ##### profile_id_to_profile_index ####
     # policies may have multiple step, create a mapping between profile_id and the start and end index in fm_profile file
     max_profile_id = np.max(fm_profile['profile_id'])
-    profile_id_to_profile_index = np.empty(max_profile_id + 1, dtype=profile_index_dtype)
+    # zeros, not empty: the pair is read for every fm_policytc row, and fm_policytc may name a
+    # profile_id fm_profile never defines. (0, 0) reads back as an empty range, so no profile is
+    # applied; uninitialised memory reads back as an arbitrary index into fm_profile.
+    profile_id_to_profile_index = np.zeros(max_profile_id + 1, dtype=profile_index_dtype)
     # is_tiv_profile[profile_id] = 1 if profile requires TIV calculation
     is_tiv_profile = np.zeros(max_profile_id + 1, dtype=np.uint8)
-    last_profile_id = 0  # real profile_id start at 1
+    last_profile_id = -1  # 0 is a usable profile_id, so it cannot double as "nothing seen yet"
     for i in range(fm_profile.shape[0]):
         if fm_profile[i]['calcrule_id'] in need_tiv_policy:
             is_tiv_profile[fm_profile[i]['profile_id']] = 1
@@ -687,6 +771,52 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     extra_i = 0
     output_i = 0
 
+    # Per-node building count, for the extras arena's packed budget below.
+    #
+    # 0 means "not a packable node"; a packable one holds its own count, which is at least 1. A
+    # packable node with a single building still owes a slice, because the collapse appends its
+    # collapsed copy rather than shrinking in place -- so the distinction between 0 and 1 here is
+    # load-bearing and the array cannot be initialised to ones.
+    #
+    # Only filled up to the collapse level: nothing above it carries a building dimension. Below
+    # it a node's buildings are the union of its children's, and children of one node share a
+    # location, so the max over children is the count itself rather than a bound.
+    #
+    # Skipped unless some calcrule actually needs extras -- it is a minority of books, and the
+    # whole budget is zero without one. Skipped too when items or coverages are unavailable (a
+    # hand-built structure, most fm unit tests), where the portfolio-wide bound stands in.
+    any_extras_rule = False
+    for profile_i_scan in range(fm_profile.shape[0]):
+        if fm_profile[profile_i_scan]['calcrule_id'] in need_extras:
+            any_extras_rule = True
+            break
+    have_building_counts = (any_extras_rule
+                            and max_buildings > 1
+                            and site_collapse_level >= max(1, start_level)
+                            and items.shape[0] > 0
+                            and coverages.shape[0] > 0)
+    node_buildings = np.zeros(total_nodes if have_building_counts else 1, dtype=np.int32)
+    packed_extra_slots = 0
+    if have_building_counts:
+        # A pass of its own rather than a line in the node loop below: the extras closure reaches
+        # nodes at the level it is currently on, including ones that loop has not visited yet, and
+        # a count of 0 read for one of those would under-reserve the arena -- which numba does not
+        # bounds-check, so it would corrupt rather than raise.
+        for level in range(start_level, site_collapse_level + 1):
+            for agg_id in range(1, level_node_len[level] + 1):
+                node_idx = node_level_start[level] + agg_id
+                if level == start_level:
+                    # the item nodes: agg_id is the item_id, and the count rides on its coverage
+                    node_buildings[node_idx] = abs(
+                        coverages[items[agg_id - 1]['coverage_id'] - 1]['n_building'])
+                else:
+                    buildings = 1
+                    for ci in range(children_indptr[node_idx], children_indptr[node_idx + 1]):
+                        child_buildings = node_buildings[children_data[ci]]
+                        if child_buildings > buildings:
+                            buildings = child_buildings
+                    node_buildings[node_idx] = buildings
+
     for level in range(start_level, max_level + 1):
         for agg_id in range(1, level_node_len[level] + 1):
             node = nodes_array[node_i]
@@ -703,6 +833,10 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             if level == start_level:
                 node['net_loss'], loss_i = loss_i, loss_i + 1
 
+            # Safe to set here rather than up front: the extras closure below only ever reaches
+            # this node and its descendants, all of which the loop has already written. That is
+            # check_one_parent_per_level's invariant -- a second parent at this level would put
+            # an unwritten node in reach, and the closure would read np.empty garbage.
             node['extra'] = null_index
             node['is_reallocating'] = 0
 
@@ -788,6 +922,14 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                                     child = nodes_array[child_node_idx]
                                     if child['extra'] == null_index:
                                         child['extra'], extra_i = extra_i, extra_i + node['layer_len']
+                                        # a packable child owes one packed slice per building per
+                                        # slot; node['layer_len'] is the slot count just reserved.
+                                        # Guarded: without the counts node_buildings is a length-1
+                                        # placeholder, and child_node_idx would read off the end --
+                                        # which numba does not bounds-check by default.
+                                        if have_building_counts:
+                                            packed_extra_slots += (int(node_buildings[child_node_idx])
+                                                                   * node['layer_len'])
 
                             break
 
@@ -832,8 +974,174 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     compute_info['output_len'] = output_len
     compute_info['stepped'] = stepped is not None
     compute_info['max_layer'] = max(nodes_array['layer_len'][1:])
+    compute_info['site_collapse_level'] = site_collapse_level
+    compute_info['max_buildings'] = max_buildings
+    # Nodes at or below the collapse level carry a building dimension; everything above sees the
+    # collapsed loss. The item nodes sit at start_level, which is 1 for a single-peril structure,
+    # and 0 is the "no risk-keyed level" marker -- hence max(1, start_level). Below that, nothing
+    # would ever collapse the buildings, so the reader sums them away (collapse_on_read) instead.
+    # Count from index 1: nodes_array is np.empty and node 0 is a never-written sentinel.
+    compute_info['packable_node_len'] = (
+        int(np.count_nonzero(nodes_array[1:node_i]['level_id'] <= site_collapse_level))
+        if max_buildings > 1 and site_collapse_level >= max(1, start_level) else 0
+    )
+    # How many packed slices the arena owes. Generation counts them per node, where it has the
+    # building count on each; what follows is the bound used when it did not record them, which
+    # charges every packable level the portfolio's whole building total.
+    #
+    # Budgeting every packable node at max_buildings charges each of them for the largest location
+    # in the portfolio: on a 5.7M-building book, 241 TB against the 5 GB the data needs.
+    #
+    # One factor of (site_collapse_level + 1) covers the packable LEVELS -- the item nodes plus
+    # each level up to the collapse. It is an upper bound rather than an exact count, and safely
+    # so: aggregation can only merge building sets, never grow them, since a node's buildings are
+    # the union of its children's and children of one node share a location. Exact per-node counts
+    # would need the building count on each node, which the fm structure does not carry.
+    #
+    if compute_info['packable_node_len'] == 0:
+        compute_info['packable_building_slots'] = 0
+        compute_info['packable_layer_slots'] = 0
+        compute_info['packable_extra_slots'] = 0
+    else:
+        # Generation counts the slices per node, but only over the levels IT builds, which start at
+        # 1. fm's item nodes sit at start_level, and that is 0 for a multi-peril structure -- real
+        # nodes, which the reader fills with packed sidx and the collapse then copies. They are
+        # counted in packable_node_len and covered by the fallback's (site_collapse_level + 1), so
+        # the exact count was the one place the item level went missing: a 4-item 10-building
+        # multi-peril set reserved 10 slices against the 50 it writes, and ran off the end of
+        # sidx_val. Their requirement is exactly total_packed_buildings -- the sum of the
+        # per-item counts over the items keeping their buildings separate.
+        #
+        # Corrected here rather than in generation so that oasis files already written with the
+        # short value stay usable.
+        packed_slots = packed_node_slots + (total_packed_buildings if start_level == 0 else 0)
+        # Comfortably inside int32: it is a building count times the packable level count, so
+        # 11.5M on a 5.7M-building book. The slot arithmetic that uses it is done in Python ints.
+        compute_info['packable_building_slots'] = (
+            packed_slots if packed_node_slots else total_packed_buildings * (site_collapse_level + 1))
+
+        # The loss and extras arenas need one packed slice per LAYER, where the sidx arena needs
+        # only one per node. Charging every packed slice the portfolio's deepest layering bills a
+        # book that is 99% single-layer for the 2 layers its rare multi-layer nodes carry. Sum the
+        # deepest layering of each packable level instead: the nodes of one level partition the
+        # buildings, so sum(B_node * layers) over a level cannot exceed total_packed_buildings
+        # times that level's maximum, which keeps this an upper bound and never under-reserves --
+        # under-reserving is a write past the end of a numba array, which corrupts rather than
+        # raises. Exact per-node weighting would need the building count on each node, which the
+        # fm structure does not carry.
+        layer_slots = 0
+        for level in range(0, site_collapse_level + 1):
+            at_level = nodes_array[1:node_i][nodes_array[1:node_i]['level_id'] == level]
+            if at_level.shape[0] == 0:
+                continue        # a level with no nodes owes nothing, whatever the bound says
+            level_max_layer = max(1, int(at_level['layer_len'].max()))
+            # The slices of one level, times its deepest layering. Where generation counted the
+            # slices exactly, that count is for ALL packable levels together, so charging it per
+            # level would multiply it back up -- take the portfolio's deepest layering once.
+            if packed_node_slots:
+                layer_slots = max(layer_slots, packed_slots * level_max_layer)
+            else:
+                layer_slots += total_packed_buildings * level_max_layer
+        compute_info['packable_layer_slots'] = layer_slots
+
+        # The extras arena owes packed slices only where a PACKABLE node carries extras, which is
+        # a calcrule question and usually answered no: the need_extras rules are a minority, and a
+        # site level that uses none leaves the extras arena with nothing packed to hold. Without
+        # this it is charged the same packed allowance as the loss arena, which covers every
+        # packable node -- and extras are 3 floats a slot against the loss arena's 1, so it is the
+        # largest array in the module on a book that does not need it at all.
+        #
+        # Where the per-node building counts were available, the budget is the exact sum over the
+        # nodes that were actually marked, so a book where one location in a thousand carries a
+        # min/max deductible pays for that one rather than for every packable node. Otherwise it
+        # falls back to the loss arena's allowance, which covers them all.
+        if have_building_counts:
+            compute_info['packable_extra_slots'] = packed_extra_slots
+        else:
+            packable = nodes_array[1:node_i]['level_id'] <= site_collapse_level
+            has_extra = nodes_array[1:node_i]['extra'] != null_index
+            compute_info['packable_extra_slots'] = (
+                layer_slots if np.count_nonzero(packable & has_extra) else 0
+            )
 
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
+
+
+def check_collapse_is_reachable(fm_programme, site_collapse_level, max_buildings):
+    """Every packed node must pass through the collapse level on its way up.
+
+    A node reaching a level above the collapse without having been collapsed would carry packed
+    sample indices into a computation that reads them as ordinary ones -- a wrong loss, not a
+    failure. fm used to guard that per value; it is a property of the programme, so check it once
+    here instead.
+
+    Args:
+        fm_programme (numpy.ndarray): the fm_programme records, from_agg_id to to_agg_id per level.
+        site_collapse_level (int): the last level whose aggregation key includes ``risk_id``.
+        max_buildings (int): largest number of buildings any one packed item carries.
+
+    Raises:
+        OasisException: if an edge would deliver a packed child above the collapse level.
+    """
+    if max_buildings <= 1 or site_collapse_level <= 0:
+        return
+    parent_level = fm_programme['level_id'].astype(np.int64)
+    # a negative from_agg_id links the item itself, which is a base child of its own site node
+    child_level = np.where(fm_programme['from_agg_id'] > 0, parent_level - 1, site_collapse_level)
+    bad = (child_level < site_collapse_level) & (site_collapse_level < parent_level)
+    if bad.any():
+        levels = sorted(set(zip(child_level[bad].tolist(), parent_level[bad].tolist())))
+        raise OasisException(
+            f"fm_programme links a level below the building-collapse level ({site_collapse_level}) "
+            f"straight to one above it: {levels}. Those nodes would reach the levels above still "
+            f"carrying packed sample indices, which read as ordinary ones and give wrong losses."
+        )
+
+
+def check_one_parent_per_level(fm_programme):
+    """No node may feed two nodes at the SAME level.
+
+    This is not a tree constraint, and the structure is not a tree: it is a forest, and a node
+    may legitimately have several parents as long as they sit at different levels. ``root_start``
+    produces exactly that -- an item feeds the level above it in the ordinary way AND is linked
+    straight into a higher level by a negative from_agg_id -- and it is common: 123 of the 614
+    nodes in ``insurance_policy_coverage`` have two parents, at levels (2, 3) or (2, 6). What may
+    not happen is two parents at ONE level, because the nodes of a level partition their children.
+
+    Generation never emits it: ``need_root_start`` in il_inputs detects a level whose aggregation
+    key is finer than the one below -- the only way a node could feed two nodes at one level --
+    and rewires the affected nodes to take their items directly. The negative form is one item,
+    which has one agg_id per level, so it cannot split either.
+
+    The extraction below relies on that. It walks the nodes in index order and, for a node
+    carrying a min/max deductible, marks every node sharing an item with it. With one parent per
+    level those are the node itself and its descendants, all already written. A second parent at
+    the same level would put a node the loop has NOT reached into that set, and what happens to
+    it then depends on the agg_id ordering. Rejecting the shape is cheaper and more honest than
+    making the extraction order-independent for a case nothing can generate.
+
+    Args:
+        fm_programme (numpy.ndarray): the fm_programme records, from_agg_id to to_agg_id per level.
+
+    Raises:
+        OasisException: if any child feeds more than one node at a single level.
+    """
+    order = np.lexsort((fm_programme['to_agg_id'], fm_programme['from_agg_id'],
+                        fm_programme['level_id']))
+    level = fm_programme['level_id'][order]
+    child = fm_programme['from_agg_id'][order]
+    parent = fm_programme['to_agg_id'][order]
+    # sorted, so a child with two parents at one level puts them in adjacent rows
+    bad = (level[1:] == level[:-1]) & (child[1:] == child[:-1]) & (parent[1:] != parent[:-1])
+    if bad.any():
+        offenders = sorted(set(zip(level[1:][bad].tolist(), child[1:][bad].tolist())))[:5]
+        raise OasisException(
+            f"fm_programme has a node feeding more than one node at the same level, at "
+            f"(level_id, from_agg_id) {offenders}. A node may have several parents -- root_start "
+            f"links an item straight into a higher level while it also feeds the level above it "
+            f"-- but at most one per level, since the nodes of a level partition their children. "
+            f"Regenerate the oasis files."
+        )
 
 
 def create_financial_structure(allocation_rule, static_path):
@@ -855,9 +1163,15 @@ def create_financial_structure(allocation_rule, static_path):
     if allocation_rule == 3:
         allocation_rule = 2
 
-    fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages = load_static(static_path)
+    (fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages,
+     site_collapse_level, max_buildings, total_packed_buildings,
+     packed_node_slots) = load_static(static_path)
+    check_collapse_is_reachable(fm_programme, site_collapse_level, max_buildings)
+    check_one_parent_per_level(fm_programme)
     financial_structure = extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile,
-                                                      stepped, fm_xref, items, coverages)
+                                                      stepped, fm_xref, items, coverages,
+                                                      site_collapse_level, max_buildings,
+                                                      total_packed_buildings, packed_node_slots)
     compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile = financial_structure
     logger.info(f'nodes_array has {len(nodes_array)} elements')
     logger.info(f'compute_info : {dict(zip(compute_info.dtype.names, compute_info[0]))}')

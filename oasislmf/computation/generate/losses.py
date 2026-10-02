@@ -25,7 +25,8 @@ from subprocess import CalledProcessError
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
-from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, oasis_int_size
+from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, coverages_bin_dtype, oasis_int_size
+from oasislmf.pytools.common.input_files import validate_coverages
 import pandas as pd
 import numpy as np
 
@@ -816,8 +817,14 @@ class GenerateLossesDeterministic(ComputationStep):
         move_bin(self.oasis_files_dir, output_dir)
 
         # Generate an items and coverages dataframe and set column types (important!!)
-        cov_df = pd.DataFrame(load_as_ndarray(self.output_dir, 'coverages', np.dtype(
-            [tiv_dtype[0:2]]), must_exist=True)).reset_index(names="coverage_id")
+        # validate_coverages: this reads coverages.bin directly, and the deterministic step takes
+        # a pre-existing oasis_files_dir -- so it can be handed a file written to the older
+        # tiv-only layout, which at an even coverage count is also a whole number of the current
+        # record and would memmap to half the coverages, each holding another's tiv.
+        cov_df = pd.DataFrame(validate_coverages(
+            load_as_ndarray(self.output_dir, 'coverages', coverages_bin_dtype, must_exist=True),
+            os.path.join(self.output_dir, 'coverages.bin'),
+        ))[['tiv']].reset_index(names="coverage_id")
         cov_df["coverage_id"] += 1
         items = merge_dataframes(
             pd.DataFrame(load_as_ndarray(self.output_dir, 'items', items_dtype, must_exist=True)),

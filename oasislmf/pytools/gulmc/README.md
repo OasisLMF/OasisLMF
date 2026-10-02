@@ -51,7 +51,7 @@ gul/
                      │     → areaperil_ids, haz_arr_i mapping, haz_pdf       │
                      │  4. reconstruct_coverages()                           │
                      │     → items_event_data, seeds, eff_cdf_ids            │
-                     │  5. generate_rndm() × 4 (haz, vuln, haz_corr, dmg)   │
+                     │  5. 2 sample draws + 2 correlation draws              │
                      │  6. Reset CDF cache lookup (Dict only, array reused)  │
                      │  7. compute_event_losses() [may loop for large events]│
                      │  8. Write output buffer to stream                     │
@@ -62,7 +62,8 @@ gul/
 
 ### Items Table (`items`)
 
-Structured numpy array built during setup by merging `items.bin` with `correlations.bin`.
+Structured numpy array built during setup by merging `items.bin` with `correlations.bin`, plus
+`packed_buildings` read off `coverages.bin` via each item's `coverage_id`.
 Extended with sequential index fields for O(1) lookups:
 
 | Field | Type | Description |
@@ -78,6 +79,8 @@ Extended with sequential index fields for O(1) lookups:
 | `peril_correlation_group` | int32 | Peril correlation group |
 | `damage_correlation_value` | float | Damage correlation strength |
 | `hazard_correlation_value` | float | Hazard correlation strength |
+| `source_item_id` | int32 | Coverage dependency: the item whose sampled damage drives this one; 0 if independent |
+| `packed_buildings` | int32 | **Signed.** Magnitude is how many buildings this item carries; a negative sign means they must reach the financial module as separate blocks. 1 is the unpacked case. Read off the item's coverage, not stored per item. See [Building packing](#building-packing) |
 
 ### Per-Event Item Data (`items_event_data`)
 
@@ -92,7 +95,10 @@ Structured array of type `items_MC_data_type`, populated per event by `reconstru
 | `hazard_rng_index` | int32 | Index into haz_seeds / haz_rndms_base |
 | `intensity_adjustment` | int32 | Dynamic footprint intensity adjustment |
 | `return_period` | int32 | Dynamic footprint return period |
+| `event_rp` | int32 | Dynamic footprint return period of this event at the item's areaperil |
 | `eff_cdf_id` | int32 | Sequential CDF group id for cache key construction (O5) |
+| `source_item_j` | int32 | Coverage dependency: the source item's position within its coverage; < 0 if independent |
+| `packed_buildings` | int32 | The signed building count, carried through from the items table |
 
 ### Vulnerability CDF Cache
 
@@ -163,6 +169,85 @@ May return early (False) if the output buffer is full; the caller flushes and re
 
 Stores a CDF in the circular cache. If the target slot is occupied, evicts the old entry
 from the lookup Dict before overwriting.
+
+## Building packing
+
+A location with `NumberOfBuildings > 1` can be modelled without expanding it into one item per
+building. `disaggregation='samples'` keeps a single item per (location, peril, coverage type) and
+multiplexes that location's buildings into the **sample dimension** of one stream item. The
+building count travels on the **coverages** table as `n_building`: buildings belong to the
+location, so the coverage is where the value is true, and every item of a coverage inherits it.
+
+The field is **signed**, and the sign is not a detail: it decides where the buildings collapse.
+
+| `n_building` | set when | gulmc writes | the buildings collapse |
+|---|---|---|---|
+| `-N` | `IsAggregate = 1` | N blocks in one stream item | in fmpy, after `site_collapse_level` |
+| `+N` | `IsAggregate = 0` | one ordinary block, summed | here, at source |
+| `1` | not packed | one ordinary block | nothing to collapse |
+
+`N == 1` is not a special case in the code. An unpacked run is every item carrying one building,
+and the packed generator's first block per seed is the legacy draw byte for byte, so the compute
+always takes the packed route.
+
+### How the stream declares it
+
+The record layout does not change, so fmpy and summarypy read a packed stream with the same code
+path -- an unpacked item is the one-building case of the packed encoding. What changes is the
+**range** of `sidx`: a positive one runs to `buildings * S` rather than `S`, and the negative
+specials repeat in blocks of 5 per building. An outside reader that trusts `sample_size` from the
+header would index past its sample array on the second building and would not recognise that
+building's specials -- silently, as a wrong loss rather than a failure.
+
+So the stream says which it is, in the **aggregation type** of the 4-byte header word:
+
+| aggregation type | value | meaning |
+|---|---|---|
+| `ITEM_STREAM` | 1 | one building per item; `sidx` in `[-5, S]` |
+| `ITEM_PACKED_STREAM` | 3 | buildings multiplexed; `sidx` in `[-5B, B*S]` |
+
+(2 is `COVERAGE_STREAM`, which has no producer and no defined packed form.)
+
+gulmc and gulpy declare `ITEM_PACKED_STREAM` only when the run can actually emit a packed
+`sidx` -- that is, when some item is **kept separate**. An item summed at source writes one
+ordinary block however many buildings it covers, so a run that packs only those is byte-for-byte
+a legacy stream, header included. fmpy's output is always `ITEM_STREAM`: the buildings have
+collapsed by the time it writes.
+
+Given `S` and the type, a reader recovers everything: `building = (sidx - 1) // S + 1` for a
+sample, and `(-sidx - 1) // 5 + 1` for a special. No extra header field is needed.
+
+### The objects
+
+![gulmc data structures: the static items and coverages tables, the per-event random draws and item data, the per-coverage loss buffers, and the output stream](diagrams/gulmc_objects.svg)
+
+The building dimension appears in three places: `n_building` on the coverages table, the flat
+random arrays (one block of S per building, per rng group), and `building_losses`, which holds one
+column per building.
+
+### How a packed item is written
+
+![The two packing modes: buildings kept separate are emitted as N blocks with shifted sidx, buildings summed at source are emitted as a single ordinary block with scaled specials](diagrams/gulmc_packing.svg)
+
+Both modes draw the same way — each building gets its own block of S random values, so the
+buildings differ only in their draws, never in their CDF. They diverge only at the writer.
+
+A summed item scales its specials rather than repeating them: `mean`, `tiv` and `max_loss` are
+additive so they are multiplied by N; `std_dev` grows with the root of the count, because the
+buildings draw independently and it is their variances that add; `chance_of_loss` is a
+probability, not a loss, so it is taken once.
+
+### What reaches the stream
+
+![Record layout for one item with two buildings and three samples, in both modes](diagrams/gulmc_sidx_layout.svg)
+
+    sample  (b, s)      ->  sidx = (b - 1) * S + s
+    special local < 0   ->  sidx = local - (b - 1) * NUM_SPECIAL_SIDX
+
+One header and one delimiter bracket the whole item, whatever its building count. Consumers
+recover the building from the sidx alone, which is why only one of the two forms may ever be
+emitted for a given item: the reader discriminates on the sidx range, so if both kinds were
+written packed it could not tell which to collapse.
 
 ## Computation Modes
 

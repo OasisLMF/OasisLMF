@@ -675,7 +675,9 @@ def check_conversion_tools(il=False):
         input_files = (f for f in INPUT_FILES.values() if f['type'] != 'il')
 
     for input_file in input_files:
-        tool = input_file['conversion_tool']
+        tool = input_file.get('conversion_tool')
+        if tool is None:  # binary-only input, nothing to convert from
+            continue
         if shutil.which(tool) is None:
             error_message = "Failed to find conversion tool: {}".format(tool)
             logging.error(error_message)

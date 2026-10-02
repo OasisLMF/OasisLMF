@@ -11,14 +11,17 @@ import pandas as pd
 import numpy as np
 
 from oasislmf.pytools.common.data import (correlations_headers, correlations_dtype, amplifications_dtype, items_dtype,
+                                          coverages_bin_dtype,
                                           coverages_dtype, item_adjustment_dtype,
                                           complex_items_meta_dtype,
                                           item_id, coverage_id, group_id, section_id,
                                           DTYPE_IDX)
 from oasislmf.pytools.converters.csvtobin.utils import complex_items_write_bin, amplifications_write_bin
 from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
-from oasislmf.utils.data import assign_risk_ids, merge_dataframes, structured_dtype_to_pandas
-from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
+from oasislmf.utils.data import (assign_risk_ids, merge_dataframes, resolve_disaggregation,
+                                 structured_dtype_to_pandas)
+from oasislmf.utils.defaults import (CORRELATION_GROUP_ID, DISAGGREGATION_ITEMS,
+                                     DISAGGREGATION_NONE, DISAGGREGATION_SAMPLES,
                                      DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
                                      OASIS_FILES_PREFIXES, SOURCE_IDX,
@@ -56,7 +59,17 @@ def prepare_sections_df(gul_inputs_df):
 
 
 def coverages_write_gul_bin(data, file_path, dtype):
-    df_to_ndarray(data, dtype)["tiv"].tofile(file_path)
+    """Write coverages.bin: one (tiv, n_building) record per coverage, in coverage_id order.
+
+    coverage_id is the record's POSITION rather than a stored field, so a coverage missing from
+    the frame would silently shift every record after it and every reader would take the wrong
+    tiv. n_building is signed: magnitude is the count, negative means the buildings stay separate.
+    """
+    arr = df_to_ndarray(data, dtype)
+    out = np.empty(arr.shape[0], dtype=coverages_bin_dtype)
+    out['tiv'] = arr['tiv']
+    out['n_building'] = arr['n_building']
+    out.tofile(file_path)
 
 
 def complex_items_write_gul_bin(data, file_path, dtype):
@@ -92,7 +105,7 @@ files_write_info = {
                  "prepare_data": prepare_sections_df,
                  "required_col": {'section_id'}},
     'item_adjustments': {"csv_dtype": structured_dtype_to_pandas(item_adjustment_dtype),
-                         "required_col": {'intensity_adjustment'}}
+                         "required_col": {'intensity_adjustment'}},
 }
 
 
@@ -204,6 +217,42 @@ def validate_single_source_per_coverage(gul_inputs_df):
         )
 
 
+def validate_source_and_dependent_building_counts(gul_inputs_df):
+    """Check that a dependent item and its source pack the same number of buildings.
+
+    gulmc drives building b of a dependent from building b of its source, so the pairing is only
+    meaningful if the two items carry the same count. A dependent and its source share a location,
+    so this holds by construction; a mismatch means the link was resolved across locations, and the
+    per-building correspondence would be silently wrong rather than detectably so.
+
+    Args:
+        gul_inputs_df (pandas.DataFrame): GUL input items, carrying columns source_item_id, item_id
+            and (when disaggregation packs buildings) number_of_buildings.
+
+    Raises:
+        OasisException: if any linked item's building count differs from its source's.
+    """
+    if 'number_of_buildings' not in gul_inputs_df.columns:
+        return
+    linked_mask = gul_inputs_df['source_item_id'] > 0
+    if not linked_mask.any():
+        return
+    # first-occurrence view: duplicate item_id labels cannot be reindexed against
+    item_to_buildings = gul_inputs_df.drop_duplicates(subset='item_id').set_index('item_id')['number_of_buildings']
+    linked = gul_inputs_df.loc[linked_mask, ['item_id', 'source_item_id', 'number_of_buildings']]
+    source_buildings = item_to_buildings.reindex(linked['source_item_id'].to_numpy()).to_numpy()
+    # a source_item_id with no matching item is a different fault; leave it to whatever owns that
+    known = ~pd.isna(source_buildings)
+    mismatch = known & (source_buildings != linked['number_of_buildings'].to_numpy())
+    if mismatch.any():
+        sample = linked.loc[mismatch, ['item_id', 'source_item_id']].head(5).to_dict('records')
+        raise OasisException(
+            f"coverage dependency: {int(mismatch.sum())} item(s) pack a different number of "
+            f"buildings than the source item they depend on, so building b of the dependent has "
+            f"no building b in the source. First few: {sample}."
+        )
+
+
 @oasis_log
 def get_gul_input_items(
     location_df,
@@ -213,7 +262,7 @@ def get_gul_input_items(
     exposure_profile=get_default_exposure_profile(),
     damage_group_id_cols=None,
     hazard_group_id_cols=None,
-    do_disaggregation=True,
+    disaggregation=None,
     coverage_dependency_settings=None
 ):
     """Generates GUL (Ground-Up Loss) input items by combining location and keys data.
@@ -250,7 +299,7 @@ def get_gul_input_items(
 
     Disaggregation:
     ==============
-    When do_disaggregation=True and NumberOfBuildings > 1:
+    When disaggregation=DISAGGREGATION_ITEMS and NumberOfBuildings > 1:
     - TIV is divided by NumberOfBuildings
     - Rows are repeated NumberOfBuildings times
     - Each repeated row gets a unique building_id (1 to NumberOfBuildings)
@@ -270,8 +319,12 @@ def get_gul_input_items(
             via hashing. Default: ['loc_id', 'peril_correlation_group'].
         hazard_group_id_cols (list[str], optional): Columns used to compute hazard_group_id
             via hashing. Default: ['loc_id'].
-        do_disaggregation (bool, optional): If True, split aggregate locations by
-            NumberOfBuildings. Default True.
+        disaggregation (str, optional): where a location's NumberOfBuildings is separated.
+            ``DISAGGREGATION_NONE`` keeps one item holding the whole location;
+            ``DISAGGREGATION_ITEMS`` expands one item per building; ``DISAGGREGATION_SAMPLES``
+            keeps one item per (location, peril, coverage_type) and carries NumberOfBuildings per
+            item (on the correlations table) so the buildings can be multiplexed into the sample
+            dimension downstream. Default ``DISAGGREGATION_ITEMS``.
         coverage_dependency_settings (list[tuple[int, int]], optional): coverage dependency pairs
             as (source_coverage_type, dependent_coverage_type), from
             model_settings.coverage_dependency_settings. Each dependent item is linked to the
@@ -288,6 +341,8 @@ def get_gul_input_items(
         OasisException: If merge of location and keys data produces empty result.
         OasisException: If all rows have zero TIV after filtering.
     """
+    disaggregation = resolve_disaggregation(disaggregation)
+
     # =========================================================================
     # SETUP PHASE: Load profiles and extract configuration
     # =========================================================================
@@ -336,9 +391,21 @@ def get_gul_input_items(
     else:
         location_df['NumberOfBuildings'] = location_df['NumberOfBuildings'].fillna(1)
 
+    # Whether a location's buildings must stay separate downstream. The site fm levels aggregate on
+    # ('loc_id', 'risk_id') and assign_risk_ids only gives a building its own risk_id when
+    # IsAggregate == 1, so only then does each building get its own site node carrying
+    # term/NumberOfRisks. Otherwise they share one node and are summed before any term applies, so
+    # the building dimension is already dead and the ground-up tool sums them at source.
+    if disaggregation == DISAGGREGATION_SAMPLES:
+        location_df['keep_buildings_separate'] = (
+            (location_df['IsAggregate'] == 1) & (location_df['NumberOfBuildings'] > 1)
+        ).astype('int8')
+
     # Select only the columns required. This reduces memory use significantly for portfolios
     # that include many OED columns.
     exposure_df_gul_inputs_cols = ['loc_id', portfolio_num, acc_num, loc_num, 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] + tiv_cols
+    if disaggregation == DISAGGREGATION_SAMPLES:
+        exposure_df_gul_inputs_cols.append('keep_buildings_separate')
     if SOURCE_IDX['loc'] in location_df:
         exposure_df_gul_inputs_cols += [SOURCE_IDX['loc']]
 
@@ -450,8 +517,10 @@ def get_gul_input_items(
             'tiv_col': tiv_col
         }
 
-    # If disaggregating, divide TIV by NumberOfBuildings before assigning
-    if do_disaggregation:
+    # If disaggregating (or packing), divide TIV by NumberOfBuildings so each building
+    # carries an equal share. In packing mode the single item holds the per-building TIV
+    # and gulmc replicates it across the N building blocks it generates.
+    if disaggregation != DISAGGREGATION_NONE:
         # split TIV
         gul_inputs_df[tiv_cols] = gul_inputs_df[tiv_cols].div(np.maximum(1, gul_inputs_df['NumberOfBuildings']), axis=0)
 
@@ -474,7 +543,15 @@ def get_gul_input_items(
     # =========================================================================
     # For aggregate locations (NumberOfBuildings > 1), create one row per building
     # Each building gets a unique building_id and its share of the TIV
-    if do_disaggregation:
+    if disaggregation == DISAGGREGATION_SAMPLES:
+        # One item per (loc, peril, coverage_type); the buildings ride in the sample dimension
+        # downstream and the per-item count rides on the correlations table. building_id stays 1,
+        # so listing it in the group_id columns no longer separates a location's buildings.
+        gul_inputs_df = gul_inputs_df.copy()
+        gul_inputs_df['number_of_buildings'] = np.maximum(
+            1, gul_inputs_df['NumberOfBuildings'].values).astype('int32')
+        gul_inputs_df['building_id'] = 1
+    elif disaggregation == DISAGGREGATION_ITEMS:
         repeat_counts = np.maximum(1, gul_inputs_df['NumberOfBuildings'].values).astype(int)
         # Repeat rows using np.repeat + iloc (faster than iterative expansion)
         gul_inputs_df = gul_inputs_df.iloc[np.repeat(np.arange(len(gul_inputs_df)), repeat_counts)].reset_index(drop=True)
@@ -485,6 +562,23 @@ def get_gul_input_items(
     else:
         gul_inputs_df = gul_inputs_df.copy()
         gul_inputs_df['building_id'] = 1
+
+    # Both must exist on every path -- il_inputs reads them separately to split the terms.
+    # Outside packing each item is a single building.
+    if 'number_of_buildings' not in gul_inputs_df.columns:
+        gul_inputs_df['number_of_buildings'] = np.int32(1)
+    if 'keep_buildings_separate' not in gul_inputs_df.columns:
+        gul_inputs_df['keep_buildings_separate'] = np.int32(0)
+
+    # The wire form for coverages.bin: the two columns above folded into one signed field, so the
+    # count and the keep-separate flag cannot be read apart from each other downstream. A plain
+    # single-building coverage stays +1, exactly as before packing existed. It sits on the COVERAGE
+    # because buildings belong to the location, so every coverage of one carries the same value.
+    gul_inputs_df['n_building'] = np.where(
+        gul_inputs_df['keep_buildings_separate'] == 1,
+        -gul_inputs_df['number_of_buildings'],
+        gul_inputs_df['number_of_buildings'],
+    ).astype('i4')
 
     # =========================================================================
     # ID ASSIGNMENT: Compute item_id, coverage_id, group_id, hazard_group_id
@@ -543,6 +637,7 @@ def get_gul_input_items(
         gul_inputs_df.loc[dep_mask, 'source_item_id'] = merged['_src_item_id'].fillna(0).to_numpy().astype('int32')
 
     validate_single_source_per_coverage(gul_inputs_df)
+    validate_source_and_dependent_building_counts(gul_inputs_df)
 
     # group_id and hazard_group_id: Correlation groups for damage/hazard sampling
     # If the group id is set according to the correlation group field then map this field
@@ -585,6 +680,9 @@ def get_gul_input_items(
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
         # disagg_id is needed for fm_summary_map
         ['group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] +
+        (['number_of_buildings'] if 'number_of_buildings' in gul_inputs_df else []) +
+        (['keep_buildings_separate'] if 'keep_buildings_separate' in gul_inputs_df else []) +
+        ['n_building'] +
         tiv_cols +
         ["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value",
          "source_item_id"]
@@ -617,6 +715,22 @@ def write_file(gul_inputs_df, file_path, file_dtype, chunksize=100000):
         raise OasisException(f"Exception raised while writing {file_path} {file_dtype}", e)
 
     return file_path
+
+
+def build_correlations_frame(gul_inputs_df):
+    """Select the correlations columns.
+
+    The building count used to ride here as a signed ``packed_buildings`` field. It lives on
+    coverages.bin now -- buildings belong to the LOCATION, so the coverage is where the value is
+    actually true, and it keeps the count out of a table that is otherwise about correlation.
+
+    Args:
+        gul_inputs_df (pd.DataFrame): the GUL inputs frame.
+
+    Returns:
+        pd.DataFrame: the correlations columns.
+    """
+    return gul_inputs_df[list(correlations_headers)].copy()
 
 
 @oasis_log

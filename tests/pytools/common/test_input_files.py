@@ -4,9 +4,11 @@ import pytest
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (
-    oasis_int, oasis_float, coverages_dtype, correlations_dtype, periods_dtype,
-    quantile_interval_dtype, returnperiods_dtype
+    oasis_int, oasis_float, coverages_dtype, coverages_bin_dtype, coverages_headers,
+    correlations_dtype, correlations_fmt, correlations_headers, items_dtype,
+    periods_dtype, quantile_interval_dtype, returnperiods_dtype
 )
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as OCC_IDX_NOT_FOUND
 from oasislmf.pytools.common.input_files import (
     read_amplifications,
@@ -128,6 +130,121 @@ def test_read_correlations():
     np.testing.assert_array_almost_equal(hazard_correlation_value_expected, hazard_correlation_value_actual, decimal=3, verbose=True)
 
 
+def _write_correlations_bin(run_dir, num_items):
+    """Write a well-formed correlations.bin holding ``num_items`` records."""
+    correlations = np.zeros(num_items, dtype=correlations_dtype)
+    correlations["item_id"] = np.arange(1, num_items + 1)
+    correlations.tofile(Path(run_dir, "correlations.bin"))
+    return correlations
+
+
+def _write_correlations_csv(run_dir, num_items):
+    """Write a well-formed correlations.csv holding ``num_items`` records."""
+    correlations = np.zeros(num_items, dtype=correlations_dtype)
+    correlations["item_id"] = np.arange(1, num_items + 1)
+    np.savetxt(Path(run_dir, "correlations.csv"), correlations, delimiter=",",
+               fmt=correlations_fmt, header=",".join(correlations_headers), comments="")
+    return correlations
+
+
+def test_read_correlations_bin__well_formed_file_is_read():
+    with TemporaryDirectory() as d:
+        _write_correlations_bin(d, 10)
+        assert len(read_correlations(d)) == 10
+
+
+def test_read_correlations_bin__partial_record_is_rejected():
+    """A byte count that is not a whole number of records cannot be this layout."""
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").write_bytes(b"\x01" * (correlations_dtype.itemsize + 5))
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
+
+
+# the record layout before source_item_id was added
+_BASE_CORRELATIONS_FIELDS = [("item_id", "<i4"), ("peril_correlation_group", "<i4"),
+                             ("damage_correlation_value", "<f4"), ("hazard_group_id", "<i4"),
+                             ("hazard_correlation_value", "<f4")]
+PRE_SOURCE_ITEM_DTYPE = np.dtype(_BASE_CORRELATIONS_FIELDS)
+
+
+@pytest.mark.parametrize("old_dtype", [PRE_SOURCE_ITEM_DTYPE], ids=["pre-source_item_id"])
+@pytest.mark.parametrize("num_items", [6, 12, 60])
+def test_read_correlations_bin__older_file_that_divides_evenly_is_rejected(old_dtype, num_items):
+    """The silent mis-parse: an older record size with a count whose byte total divides by the
+    current itemsize too, so numpy.memmap accepts it and reads other fields' bytes as the new one.
+
+    The 20-byte layout lands on this for counts that are a multiple of 6 against today's 24, so
+    the parametrization is the case under test, not an arbitrary set of sizes.
+    """
+    assert old_dtype.itemsize * num_items % correlations_dtype.itemsize == 0, "not the case under test"
+    old = np.zeros(num_items, dtype=old_dtype)
+    old["item_id"] = np.arange(1, num_items + 1)
+    old["peril_correlation_group"] = 1
+    old["damage_correlation_value"] = 0.5
+    old["hazard_group_id"] = 2
+    old["hazard_correlation_value"] = 0.5
+    with TemporaryDirectory() as d:
+        old.tofile(Path(d, "correlations.bin"))
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
+
+
+@pytest.mark.parametrize("item_ids", [[5, 6, 7], [1, 4, 9], [100, 200, 300]],
+                         ids=["offset", "gapped", "sparse"])
+def test_read_correlations_bin__non_dense_item_ids_are_accepted(item_ids):
+    """A current-layout table is valid whatever its ids; only the LAYOUT is under suspicion here.
+
+    The guard used to require a dense 1..N and rejected these with "written by an earlier
+    version ... Regenerate the oasis files", which is both a false rejection and wrong advice.
+    """
+    good = np.zeros(len(item_ids), dtype=correlations_dtype)
+    good["item_id"] = item_ids
+    good["peril_correlation_group"] = 1
+    good["damage_correlation_value"] = 0.5
+    good["hazard_group_id"] = 2
+    good["hazard_correlation_value"] = 0.25
+    with TemporaryDirectory() as d:
+        good.tofile(Path(d, "correlations.bin"))
+        actual = read_correlations(d)
+    np.testing.assert_array_equal(actual["item_id"], item_ids)
+    np.testing.assert_allclose(actual["damage_correlation_value"], 0.5)
+
+
+def test_read_correlations_bin__out_of_range_correlation_is_rejected():
+    """The second net under the id check: a mis-parse puts the correlation floats outside [0, 1]."""
+    bad = np.zeros(3, dtype=correlations_dtype)
+    bad["item_id"] = [1, 2, 3]
+    bad["damage_correlation_value"] = [0.5, 4.2, 0.1]
+    with TemporaryDirectory() as d:
+        bad.tofile(Path(d, "correlations.bin"))
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
+
+
+def test_read_correlations_bin__empty_file_falls_back_to_the_csv():
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").touch()
+        _write_correlations_csv(d, 7)
+        assert len(read_correlations(d)) == 7
+
+
+def test_read_correlations_bin__empty_file_with_no_csv_is_not_found():
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").touch()
+        with pytest.raises(FileNotFoundError):
+            read_correlations(d)
+
+
+def test_read_correlations_bin__fallback_still_honours_ignore_file_type():
+    """Falling back off an empty bin must not read a csv the caller excluded."""
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").touch()
+        _write_correlations_csv(d, 7)
+        with pytest.raises(FileNotFoundError):
+            read_correlations(d, ignore_file_type={"csv"})
+
+
 def test_read_coverages():
     """Tests read_coverages
     """
@@ -135,12 +252,13 @@ def test_read_coverages():
     filename = "coverages.csv"
 
     coverages_expected = np.array(
-        [(1, 100.15), (2, 200.05), (3, 300.4), (4, 400.1), (5, 500.3)],
+        [(1, 100.15, 1), (2, 200.05, 1), (3, 300.4, 1), (4, 400.1, 1), (5, 500.3, 1)],
         dtype=coverages_dtype
     )
     coverages_actual = read_coverages(run_dir, filename=filename)
 
-    np.testing.assert_array_almost_equal(coverages_expected["tiv"], coverages_actual, decimal=3, verbose=True)
+    np.testing.assert_array_almost_equal(coverages_expected["tiv"], coverages_actual["tiv"], decimal=3, verbose=True)
+    np.testing.assert_array_equal(coverages_expected["n_building"], coverages_actual["n_building"])
 
 
 def test_read_event_rates():
@@ -322,3 +440,92 @@ def test_read_return_periods_no_file():
 
     with pytest.raises(RuntimeError, match="ERROR: Return Periods file not found at"):
         read_returnperiods(use_return_periods, run_dir, filename)
+
+
+# --- a coverages file at the wrong stride ---------------------------------------------------------
+
+def _write_old_tiv_only_coverages(run_dir, tivs):
+    """Write a pre-packing coverages.bin: bare float32 tiv, no n_building field."""
+    np.array(tivs, dtype='f4').tofile(Path(run_dir, "coverages.bin"))
+
+
+def test_read_coverages__an_old_tiv_only_file_with_an_even_count_is_rejected():
+    """The silent mis-parse the size check cannot see.
+
+    A tiv-only record is 4 bytes and the current one is 8, so a file with an EVEN number of
+    coverages -- the common case -- is an exact multiple of the current record size. numpy would
+    memmap it to half the coverages, each carrying a DIFFERENT coverage's tiv, with no error. The
+    records themselves have to be checked: a float32 tiv reinterpreted as the int32 n_building is
+    enormous, where a real building count is small.
+    """
+    for n in (2, 4, 10, 1000):
+        with TemporaryDirectory() as d:
+            _write_old_tiv_only_coverages(d, [100000.0 + i for i in range(n)])
+            with pytest.raises(OasisException, match="far beyond any real building count"):
+                read_coverages(d, ignore_file_type={"csv"})
+
+
+def test_read_coverages__an_old_file_of_zero_tivs_is_rejected():
+    """Zero tivs reinterpret to n_building 0, which the magnitude test cannot catch -- but a
+    coverage always has at least one building, so zero is invalid on its own terms."""
+    with TemporaryDirectory() as d:
+        _write_old_tiv_only_coverages(d, [0.0, 0.0, 0.0, 0.0])
+        with pytest.raises(OasisException, match="n_building 0"):
+            read_coverages(d, ignore_file_type={"csv"})
+
+
+def test_read_coverages__an_odd_count_is_still_caught_by_the_size_check():
+    """The case the size check does cover, kept so both guards stay exercised."""
+    with TemporaryDirectory() as d:
+        _write_old_tiv_only_coverages(d, [100000.0, 250000.0, 50000.0])
+        with pytest.raises(OasisException, match="not a multiple of"):
+            read_coverages(d, ignore_file_type={"csv"})
+
+
+def test_read_coverages__a_current_file_is_accepted_including_a_large_negative_count():
+    """The guard must not reject real data: the count is SIGNED, and the project's own benchmark
+    book carries 630,510 buildings on one location."""
+    good = np.zeros(3, dtype=coverages_bin_dtype)
+    good["tiv"] = [1e5, 2e5, 3e5]
+    good["n_building"] = [1, -630510, 12]
+    with TemporaryDirectory() as d:
+        good.tofile(Path(d, "coverages.bin"))
+        actual = read_coverages(d, ignore_file_type={"csv"})
+    np.testing.assert_array_equal(actual["n_building"], [1, -630510, 12])
+    np.testing.assert_allclose(actual["tiv"], [1e5, 2e5, 3e5])
+
+
+def test_read_coverages__the_fm_loader_rejects_it_too():
+    """fm memmaps coverages.bin directly rather than going through read_coverages. Without its own
+    check the bad file reaches the coverage-count mismatch in load_static, which empties BOTH
+    arrays as if a file were missing -- and every TIV-dependent calcrule then computes against a
+    tiv of 0, silently."""
+    from oasislmf.pytools.common.data import (fm_policytc_dtype, fm_profile_dtype,
+                                              fm_programme_dtype, fm_xref_dtype)
+    from oasislmf.pytools.fm.financial_structure import load_static
+    with TemporaryDirectory() as d:
+        _write_old_tiv_only_coverages(d, [100000.0, 250000.0, 50000.0, 75000.0])
+        items = np.zeros(4, dtype=items_dtype)
+        items["item_id"] = [1, 2, 3, 4]
+        items["coverage_id"] = [1, 2, 3, 4]
+        items.tofile(Path(d, "items.bin"))
+        # the smallest coherent fm input set, so the failure is the coverages file and not a
+        # missing one
+        np.array([(i, 1, 1) for i in (1, 2, 3, 4)], dtype=fm_programme_dtype).tofile(
+            Path(d, "fm_programme.bin"))
+        np.array([(1, 1, 1, 1)], dtype=fm_policytc_dtype).tofile(Path(d, "fm_policytc.bin"))
+        profile = np.zeros(2, dtype=fm_profile_dtype)
+        profile[1]["profile_id"], profile[1]["calcrule_id"] = 1, 12
+        profile.tofile(Path(d, "fm_profile.bin"))
+        np.array([(1, 1, 1)], dtype=fm_xref_dtype).tofile(Path(d, "fm_xref.bin"))
+        with pytest.raises(OasisException, match="far beyond any real building count"):
+            load_static(d)
+
+
+def test_read_coverages__an_empty_csv_reads_as_no_coverages():
+    """A header with no rows is a well-formed current-format file, not a wrong column count."""
+    with TemporaryDirectory() as d:
+        Path(d, "coverages.csv").write_text(",".join(coverages_headers) + "\n")
+        actual = read_coverages(d, ignore_file_type={"bin"})
+    assert len(actual) == 0
+    assert actual.dtype == coverages_bin_dtype

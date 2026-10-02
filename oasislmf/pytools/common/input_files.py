@@ -6,13 +6,14 @@ import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import (
-    oasis_int, oasis_float,
-    areaperil_int, load_as_ndarray, correlations_headers, correlations_dtype, coverages_headers,
-    occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
-    quantile_interval_dtype, returnperiods_dtype,
-)
+from oasislmf.pytools.common.data import (coverages_bin_dtype,
+                                          oasis_int, oasis_float,
+                                          areaperil_int, load_as_ndarray, correlations_headers, correlations_dtype, coverages_headers,
+                                          occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
+                                          quantile_interval_dtype, returnperiods_dtype,
+                                          )
 from oasislmf.pytools.common.event_stream import mv_read
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as _id_index_build, get_idx as _id_index_get_idx, NOT_FOUND as _OCC_IDX_NOT_FOUND
 
 
@@ -117,6 +118,20 @@ def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=Fals
     return result
 
 
+def _stale_correlations_msg(path):
+    """Message for a correlations.bin written against an older record layout.
+
+    The record has gained a field before (source_item_id), so the message names the layout
+    expected now rather than any particular older size.
+    """
+    return (
+        f"{path} does not match the current correlations record layout "
+        f"({correlations_dtype.itemsize} bytes: {', '.join(correlations_headers)}). It was most "
+        f"likely written by an earlier version, before the record gained one of these fields. "
+        f"Regenerate the oasis files."
+    )
+
+
 def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FILENAME):
     """Load the correlations from the correlations file.
 
@@ -127,10 +142,12 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
 
     Returns:
         numpy.array[correlations_dtype]: one row per item, holding item_id,
-            peril_correlation_group, damage_correlation_value, hazard_group_id and
-            hazard_correlation_value. A memmap when read from the binary file.
+            peril_correlation_group, damage_correlation_value, hazard_group_id,
+            hazard_correlation_value and source_item_id. A memmap when read from the binary
+            file.
 
     Raises:
+        OasisException: if the binary file was not written by the current record layout.
         FileNotFoundError: if no correlations file is found with a non-ignored extension
     """
     for ext in ["bin", "csv"]:
@@ -138,32 +155,101 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
             continue
 
         correlations_file = Path(run_dir, filename).with_suffix("." + ext)
-        if correlations_file.exists():
-            logger.debug(f"loading {correlations_file}")
-            if ext == "bin":
-                try:
-                    correlations = np.memmap(correlations_file, dtype=correlations_dtype, mode='r')
-                except ValueError:
-                    logger.debug("binary file is empty, numpy.memmap failed. trying to read correlations.csv.")
-                    correlations = read_correlations(run_dir, ignore_file_type={'bin'}, filename=correlations_file.with_suffix(".csv").name)
-            elif ext == "csv":
-                # Check for header
-                with open(correlations_file, "r") as fin:
-                    first_line = fin.readline()
-                    first_line_elements = [header.strip() for header in first_line.strip().split(',')]
-                    has_header = first_line_elements == correlations_headers
-                correlations = np.loadtxt(
-                    correlations_file,
-                    dtype=correlations_dtype,
-                    delimiter=",",
-                    skiprows=1 if has_header else 0,
-                    ndmin=1
-                )
-            else:
-                raise RuntimeError(f"Cannot read correlations file of type {ext}. Not Implemented.")
-            return correlations
+        if not correlations_file.exists():
+            continue
+        logger.debug(f"loading {correlations_file}")
+
+        if ext == "csv":
+            with open(correlations_file, "r") as fin:
+                first_line_elements = [header.strip() for header in fin.readline().strip().split(',')]
+            return np.loadtxt(
+                correlations_file,
+                dtype=correlations_dtype,
+                delimiter=",",
+                skiprows=1 if first_line_elements == correlations_headers else 0,
+                ndmin=1
+            )
+
+        if correlations_file.stat().st_size == 0:
+            logger.debug("binary correlations file is empty, falling back to the csv.")
+            continue
+        try:
+            correlations = np.memmap(correlations_file, dtype=correlations_dtype, mode='r')
+        except ValueError:  # not a whole number of records
+            raise OasisException(_stale_correlations_msg(correlations_file))
+        # A whole number of records is not proof of the layout: an older record file whose count
+        # divides evenly by the current itemsize too (a 20- or 24-byte record file holding a
+        # multiple of 7 records, against today's 28) parses silently into the wrong number of
+        # records, with other fields' bytes read as the new one.
+        #
+        # The check is on field PLAUSIBILITY, not on the id scheme. Requiring a dense 1..N would
+        # reject a valid table whose ids are sparse -- with a message telling the user to
+        # regenerate files that are in fact current. A misparse scrambles every field, so there is
+        # plenty to catch it on: ids stop ascending and the correlation floats leave [0, 1].
+        item_id = correlations["item_id"]
+        if len(item_id):
+            plausible = item_id.min() >= 1 and np.all(np.diff(item_id.astype('int64')) > 0)
+            for field in ("damage_correlation_value", "hazard_correlation_value"):
+                values = correlations[field]
+                plausible = plausible and bool(np.all(np.isfinite(values))
+                                               and values.min() >= 0.0 and values.max() <= 1.0)
+            if not plausible:
+                raise OasisException(_stale_correlations_msg(correlations_file))
+        return correlations
 
     raise FileNotFoundError(f'correlations file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')
+
+
+# Any float32 at or above ~1.1e-19 has its exponent bits set, so reinterpreting one as the i4
+# n_building field yields a magnitude of at least 2**29. A real building count is nowhere near
+# that -- the largest in the project's own benchmark book is 630,510 -- so the two ranges do not
+# overlap and the bound separates them cleanly.
+MAX_PLAUSIBLE_BUILDINGS = 1 << 29
+
+
+def validate_coverages(coverages, source):
+    """Reject a coverages array that is really an older tiv-only file read at the wrong stride.
+
+    The record carries no magic and coverage_id is positional, so a size check alone cannot do
+    this: a tiv-only file (4 bytes a record) has a byte count that is an exact multiple of the
+    8-byte record whenever the coverage count is EVEN, which is the common case. It would memmap
+    to half the coverages, each holding another coverage's tiv -- wrong losses, no error.
+
+    ``n_building`` is what separates them. It must be non-zero, because every coverage has at
+    least one building, which catches a file of zero tivs; and a tiv reinterpreted as an int is
+    enormous, which catches everything else. Both are properties of the data rather than of the
+    file size, so this also guards the paths that memmap the file without going through
+    read_coverages.
+
+    Args:
+        coverages (numpy.array[coverages_bin_dtype]): the array as read.
+        source (str | os.PathLike): what to name in the error.
+
+    Returns:
+        numpy.array[coverages_bin_dtype]: ``coverages`` unchanged, so this can wrap a read.
+
+    Raises:
+        OasisException: if the records cannot be a current-layout coverages file.
+    """
+    if coverages.shape[0] == 0:
+        return coverages
+    n_building = coverages['n_building']
+    if not n_building.all():
+        raise OasisException(
+            f"{source} holds a coverage with n_building 0, which is not a valid building count. "
+            f"The most likely cause is a coverages file written to the older tiv-only layout, "
+            f"whose byte count is also a multiple of the current {coverages_bin_dtype.itemsize}-"
+            f"byte record. Regenerate the oasis files."
+        )
+    worst = int(np.abs(n_building).max())
+    if worst >= MAX_PLAUSIBLE_BUILDINGS:
+        raise OasisException(
+            f"{source} holds a coverage with n_building {worst}, far beyond any real building "
+            f"count. The most likely cause is a coverages file written to the older tiv-only "
+            f"layout, read at the wrong stride so a tiv has been reinterpreted as a building "
+            f"count. Regenerate the oasis files."
+        )
+    return coverages
 
 
 def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, use_stdin=False):
@@ -176,7 +262,8 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
 
     Returns:
-        numpy.array[oasis_float]: array with the coverage values for each coverage_id.
+        numpy.array[coverages_bin_dtype]: ``tiv`` and the signed ``n_building`` for each coverage,
+        indexed by ``coverage_id - 1`` -- the id is the record's position, not a stored field.
     """
     supported_exts = ["bin", "csv"]
 
@@ -185,12 +272,18 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
         first_line_elements = [header.strip() for header in lines[0].strip().split(',')]
         has_header = first_line_elements == coverages_headers
         data_lines = lines[1:] if has_header else lines
-        return np.loadtxt(
-            data_lines,
-            dtype=oasis_float,
-            delimiter=",",
-            ndmin=1
-        )[:, 1]
+        raw = np.loadtxt(data_lines, dtype=oasis_float, delimiter=",", ndmin=2)
+        if raw.shape[0] == 0:        # a header with no rows is well-formed, not malformed
+            return np.empty(0, dtype=coverages_bin_dtype)
+        if raw.shape[1] != len(coverages_headers):
+            raise OasisException(
+                f"coverages csv has {raw.shape[1]} columns, expected {len(coverages_headers)} "
+                f"({', '.join(coverages_headers)}). Regenerate the oasis files."
+            )
+        out = np.empty(raw.shape[0], dtype=coverages_bin_dtype)
+        out['tiv'] = raw[:, 1]
+        out['n_building'] = raw[:, 2].astype('i4')
+        return out
 
     # STDIN
     if use_stdin:
@@ -198,7 +291,8 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
             if ext in ignore_file_type:
                 continue
             if ext == "bin":
-                return np.frombuffer(sys.stdin.buffer.read(), dtype=oasis_float)
+                return validate_coverages(
+                    np.frombuffer(sys.stdin.buffer.read(), dtype=coverages_bin_dtype), "coverages on stdin")
             elif ext == "csv":
                 lines = sys.stdin.readlines()
                 return read_csv_lines(lines)
@@ -217,7 +311,20 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
             continue
 
         if ext == "bin":
-            return np.memmap(coverages_file, dtype=oasis_float, mode='r')
+            size = coverages_file.stat().st_size
+            if size % coverages_bin_dtype.itemsize:
+                raise OasisException(
+                    f"{coverages_file} is {size} bytes, not a multiple of the "
+                    f"{coverages_bin_dtype.itemsize}-byte coverages record "
+                    f"({', '.join(coverages_bin_dtype.names)}). Regenerate the oasis files."
+                )
+            if size == 0:
+                logger.debug("binary coverages file is empty, falling back to the csv.")
+                continue
+            # the size is a multiple either way for an EVEN number of old records, so the
+            # records themselves have to be checked -- see validate_coverages
+            return validate_coverages(np.memmap(coverages_file, dtype=coverages_bin_dtype, mode='r'),
+                                      coverages_file)
         elif ext == "csv":
             with ExitStack() as stack:
                 fin = stack.enter_context(open(coverages_file, "r"))

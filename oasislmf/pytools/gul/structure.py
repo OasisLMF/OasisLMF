@@ -12,10 +12,11 @@ import os
 
 import numpy as np
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import correlations_dtype, load_as_ndarray
+from oasislmf.pytools.common.data import correlations_dtype, load_as_ndarray, oasis_float
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.gul.common import coverage_type
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.gul.manager import gul_get_items, generate_item_map
 from oasislmf.pytools.gul.random import (
     compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
@@ -37,6 +38,8 @@ ARRAY_FILES = [
     'unique_peril_correlation_groups',
     'norm_inv_cdf',
     'norm_cdf',
+    'n_buildings_by_item_id',
+    'damage_correlation_by_item_id',
 ]
 
 
@@ -44,9 +47,40 @@ def _structure_path(run_dir):
     return os.path.join(run_dir, 'input', STRUCTURE_DIR)
 
 
+# every scalar load_gulpy_structure reads out of metadata.npy, in order
+METADATA_FIELDS = ['do_correlation', 'building_packing']
+
+
 def gulpy_structure_exists(run_dir):
-    """Check whether pre-computed gulpy structures exist."""
-    return os.path.isfile(os.path.join(_structure_path(run_dir), 'metadata.npy'))
+    """Check whether a usable pre-computed gulpy structure cache is present.
+
+    The cache is built once per run by ``create_gulpy_structure`` and memory-mapped by every
+    parallel gulpy process, so it is always written and read by the same version -- there is no
+    version skew to defend against. What can happen is a partially written cache, if the build was
+    interrupted. The caller falls back to building the structures itself, so anything unreadable
+    counts as absent and is rebuilt, which is always safe.
+
+    The metadata width is checked because it is read positionally (see ``METADATA_FIELDS``): a
+    short one would be an IndexError at load rather than a fallback.
+
+    Args:
+        run_dir (str): path to the run directory.
+
+    Returns:
+        bool: True when a usable cache is present.
+    """
+    metadata_path = os.path.join(_structure_path(run_dir), 'metadata.npy')
+    if not os.path.isfile(metadata_path):
+        return False
+    try:
+        if np.load(metadata_path).shape[0] < len(METADATA_FIELDS):
+            logger.info('pre-computed gulpy structures are incomplete: rebuilding')
+            return False
+    except Exception:
+        # a truncated or half-written metadata.npy raises EOFError, a 0-d one IndexError
+        logger.info('pre-computed gulpy structures are unreadable: rebuilding')
+        return False
+    return True
 
 
 def build_structures(run_dir, ignore_file_type, peril_filter):
@@ -78,9 +112,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
 
     # --- coverages -------------------------------------------------------------
     logger.debug('import coverages')
-    coverages_tiv = read_coverages(input_path, ignore_file_type)
-    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
-    coverages[1:]['tiv'] = coverages_tiv
+    coverages_data = read_coverages(input_path, ignore_file_type)
+    coverages = np.zeros(coverages_data.shape[0] + 1, coverage_type)
+    coverages[1:]['tiv'] = coverages_data['tiv']
 
     # --- items + peril filter --------------------------------------------------
     logger.debug('import items')
@@ -112,25 +146,71 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     if Nperil_correlation_groups > 0 and any(data['damage_correlation_value'] > 0):
         do_correlation = True
 
+    # Shared by all three by-item_id lookups below. An item absent from correlations keeps the
+    # zeroed/default row, which is the "no correlation, one building" case.
+    max_item_id = 0
+    if len(items):
+        max_item_id = int(items['item_id'].max())
+    if len(data):
+        max_item_id = max(max_item_id, int(data['item_id'].max()))
+
     if do_correlation:
-        corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=correlations_dtype)
-        corr_data_by_item_id[0] = (0, 0., 0., 0, 0., 0)
-        corr_data_by_item_id[1:]['peril_correlation_group'] = data['peril_correlation_group']
-        corr_data_by_item_id[1:]['damage_correlation_value'] = data['damage_correlation_value']
-        unique_peril_correlation_groups = np.unique(
-            corr_data_by_item_id[1:]['peril_correlation_group'])
+        # Indexed BY item_id, so it is scattered by item_id rather than filled positionally.
+        # Filling it in row order and then reading it by id silently requires item_id to be a
+        # dense 1..N, which nothing guarantees: a table whose ids are sparse read the wrong row,
+        # and a row past the end read out of bounds -- unchecked, inside njit. Dense ids cost
+        # nothing here because max_item_id then equals len(data).
+        # NOTE: field first, THEN the fancy index. `a[idx]['field'] = v` assigns into a copy and
+        # is silently a no-op.
+        corr_data_by_item_id = np.zeros(max_item_id + 1, dtype=correlations_dtype)
+        corr_data_by_item_id['peril_correlation_group'][data['item_id']] = data['peril_correlation_group']
+        corr_data_by_item_id['damage_correlation_value'][data['item_id']] = data['damage_correlation_value']
+        unique_peril_correlation_groups = np.unique(data['peril_correlation_group'])
 
         # pre-compute Gaussian lookup tables
         norm_inv_cdf = compute_norm_inv_cdf_lookup(x_min, x_max, norm_inv_N)
         norm_cdf = compute_norm_cdf_lookup(cdf_min, cdf_max, norm_inv_N)
     else:
-        corr_data_by_item_id = np.ndarray(1, dtype=correlations_dtype)
+        corr_data_by_item_id = np.zeros(1, dtype=correlations_dtype)
         unique_peril_correlation_groups = np.empty(0, dtype='int64')
         norm_inv_cdf = np.zeros(1, dtype='float64')
         norm_cdf = np.zeros(1, dtype='float64')
 
+    # --- building packing ------------------------------------------------------
+    # The building count and the keep-separate flag are ONE signed field on the COVERAGE: buildings
+    # belong to the location, so every coverage of one -- and every item of those coverages --
+    # carries the same value. Kept signed into the compute and unpacked into (count, flag) at the
+    # top of each consuming loop. NOTHING may use the raw value as a bound: range() over a negative
+    # silently does nothing. Packing is derived, not configured: more than one building is the
+    # signal.
+    #
+    # Indexed by item_id here because that is what the compute walks; an unpacked run is the
+    # all-ones case, which is what lets it treat packing as N == 1 rather than as a second path.
+    n_buildings_by_item_id = np.ones(max_item_id + 1, dtype='i4')
+    if len(items):
+        cov_i = items['coverage_id'] - 1
+        if cov_i.min() < 0 or cov_i.max() >= coverages_data.shape[0]:
+            raise OasisException(
+                f"items.bin references coverage_id outside 1..{coverages_data.shape[0]} covered by "
+                f"coverages.bin; the two files must be regenerated together."
+            )
+        n_buildings_by_item_id[items['item_id']] = coverages_data['n_building'][cov_i]
+
+    building_counts = np.abs(n_buildings_by_item_id)
+    building_packing = bool(building_counts.max() > 1)
+    if building_packing:
+        logger.info(f'building-packing ENABLED: up to {building_counts.max()} buildings packed per item.')
+
+    # The writer needs a summed item's damage correlation to combine its buildings' variances,
+    # and only there -- indexed by item_id like the count above. Zero everywhere when correlation
+    # is off, which is what was actually drawn and reduces the combination to sqrt(N).
+    damage_correlation_by_item_id = np.zeros(max_item_id + 1, dtype=oasis_float)
+    if do_correlation and len(data):
+        damage_correlation_by_item_id[data['item_id']] = data['damage_correlation_value']
+
     # --- pack everything into a dict -------------------------------------------
     return {
+        'damage_correlation_by_item_id': damage_correlation_by_item_id,
         'damage_bins': damage_bins,
         'coverages': coverages,
         'items': items,
@@ -141,8 +221,10 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
         'unique_peril_correlation_groups': unique_peril_correlation_groups,
         'norm_inv_cdf': norm_inv_cdf,
         'norm_cdf': norm_cdf,
+        'n_buildings_by_item_id': n_buildings_by_item_id,
         # scalars
         'do_correlation': int(do_correlation),
+        'building_packing': int(building_packing),
     }
 
 
@@ -163,9 +245,7 @@ def create_gulpy_structure(run_dir, ignore_file_type, peril_filter):
         np.save(os.path.join(structure_path, name), structures[name])
 
     # save scalar metadata
-    metadata = np.array([
-        structures['do_correlation'],
-    ], dtype=np.int64)
+    metadata = np.array([structures[name] for name in METADATA_FIELDS], dtype=np.int64)
     np.save(os.path.join(structure_path, 'metadata'), metadata)
 
     total_bytes = sum(
@@ -194,6 +274,7 @@ def load_gulpy_structure(run_dir):
         result[name] = np.load(os.path.join(structure_path, f'{name}.npy'), mmap_mode='r')
 
     metadata = np.load(os.path.join(structure_path, 'metadata.npy'))
-    result['do_correlation'] = int(metadata[0])
+    for i, name in enumerate(METADATA_FIELDS):
+        result[name] = int(metadata[i])
 
     return result

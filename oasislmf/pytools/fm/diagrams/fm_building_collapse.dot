@@ -1,0 +1,30 @@
+// Where a packed item's buildings collapse. Render: dot -Tsvg fm_building_collapse.dot -o fm_building_collapse.svg
+digraph building_collapse {
+    rankdir=BT;
+    bgcolor="transparent";
+    nodesep=0.4; ranksep=0.55;
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+          fillcolor="#eef3fb", color="#4a6fa5"];
+    edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+    subgraph cluster_packed {
+        label="carries a building dimension"; labelloc=b;
+        fontname="Helvetica"; fontsize=10; color="#b06000"; style=dashed;
+        item [label="item\none location, N buildings\nin the sample dimension",
+              fillcolor="#fdf0e0", color="#c8863c"];
+        site [label="site levels, up to site_collapse_level\nterms applied per building",
+              fillcolor="#fdf0e0", color="#c8863c"];
+        item -> site;
+    }
+
+    above [label="levels above\naccount, policy, layer"];
+    out   [label="output\nordinary sample indices", fillcolor="#f2f2f2", color="#888888"];
+
+    site -> above [label="  aggregating past site_collapse_level:\l  index the accumulator by the local sidx,\l  which merges the buildings\l",
+                   style=bold, color="#2f5596", fontcolor="#2f5596"];
+    above -> out;
+
+    leaf [label="collapse_packed_leaves\nnothing aggregates a leaf, so it is given\ncollapsed storage before back allocation",
+          shape=note, fillcolor="#fffbe6", color="#b0a060", style=filled];
+    leaf -> item [style=dotted, color="#b0a060", arrowhead=none];
+}

@@ -39,7 +39,9 @@ from oasislmf.pytools.common.data import (def_to_type_and_size, load_as_ndarray,
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
-                                                  MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
+                                                  LOSS_STREAM_AGG_TYPES,
+                                                  MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX,
+                                                  NUM_SPECIAL_SIDX, decode_local_sidx)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
 from oasislmf.pytools.utils import redirect_logging
 
@@ -177,6 +179,11 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
     """Read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
+    # A summary is per item, so a packed item's buildings share a bucket: decode onto the sample the
+    # index represents and let the accumulation below add them. Identity for an ordinary stream.
+    # Known gap: risks are keyed on (loc_id, building_id) and packing writes building_id 1, so a
+    # packed location counts as one affected risk where row disaggregation counts N.
+    max_sidx_val = loss_summary.shape[1] - SPECIAL_SIDX_COUNT
     while True:
         if item_id:
             n_sidx_loss = (valid_buff - cursor) // loss_pair_size
@@ -197,6 +204,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
+                # Only the positive branch divides by the sample size, and a zero-sample stream carries no
+                # positive sidx -- but it does carry per-building specials, which must still be decoded.
+                if (max_sidx_val > 0 and sidx > max_sidx_val) or sidx < -NUM_SPECIAL_SIDX:
+                    sidx = decode_local_sidx(sidx, max_sidx_val)
                 if sidx > 0 or sidx in [-1, -3, -5]:
                     for summary_set_index in range(summary_sets_id.shape[0]):
                         loss_summary[loss_index[summary_set_index], sidx] += loss
@@ -418,6 +429,11 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
         if stream_source_type not in (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID):
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
+        # summarypy sums over the sidx it is given, so a packed stream needs no second path -- but
+        # an aggregation type we have not defined must be refused rather than silently summed.
+        if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
+            raise Exception(f"unsupported stream aggregation type {stream_agg_type}, expected one of "
+                            f"{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)")
 
         summary_object = load_summary_object(static_path, run_type)
         summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i = summary_object
