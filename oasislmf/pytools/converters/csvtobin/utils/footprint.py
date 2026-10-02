@@ -192,9 +192,9 @@ def footprint_tobin(
     idx_file_out = resolve_file(idx_file_out, "wb", stack)
 
     # Write bin file header
-    np.array([max_intensity_bin_idx], dtype=np.int32).tofile(file_out)
+    file_out.write(np.array([max_intensity_bin_idx], dtype=np.int32).tobytes())
     zip_opts = decompressed_size << 1 | (not no_intensity_uncertainty)
-    np.array([zip_opts], dtype=np.int32).tofile(file_out)
+    file_out.write(np.array([zip_opts], dtype=np.int32).tobytes())
     offset = np.dtype(np.int32).itemsize * 2
 
     idx_entries = []
@@ -319,4 +319,4 @@ def footprint_tobin(
             f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"
         )
 
-    np.array(idx_entries, dtype=idx_dtype).tofile(idx_file_out)
+    idx_file_out.write(np.array(idx_entries, dtype=idx_dtype).tobytes())

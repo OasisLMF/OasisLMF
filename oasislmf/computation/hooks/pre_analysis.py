@@ -4,13 +4,100 @@ __all__ = [
 
 import json
 import pathlib
-from ods_tools.oed import UnknownColumnSaveOption
+from collections import defaultdict
+
+import pandas as pd
+from ods_tools.oed import OED_TYPE_TO_NAME, PANDAS_COMPRESSION_MAP, UnknownColumnSaveOption
 
 from ..base import ComputationStep
+from .pre_analysis_multiproc import run_pre_analysis_multiproc
 from ...utils.data import get_exposure_data, prepare_oed_exposure, analysis_settings_loader, model_settings_loader
+from ...utils.defaults import SAR_ID
 from ...utils.inputs import str2bool
+from ...utils.parallel import resolve_partition_count
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
+
+
+def get_source_compression(oed_source):
+    """Derive the compression/format to use when persisting a pre-analysis
+    exposure snapshot, based on the oed_source's original source file extension.
+
+    Exposure.save() defaults to csv whenever no explicit compression is given
+    and the current source version has no recorded 'extension' (which is
+    always true for a freshly loaded source - see ods_tools
+    OedSource.from_filepath). Without this, the raw/adjusted exposure
+    snapshots below are silently written as csv even when the original input
+    was e.g. parquet, which can be drastically slower for large portfolios.
+
+    A csv source is upgraded to parquet, since parquet is much more
+    efficient to read/write for large portfolios and there is no reason to
+    keep a snapshot in the slower format just because the original input
+    happened to be csv. Any other recognized format is preserved as-is.
+
+    Args:
+        oed_source (OedSource): a single OED source of the loaded exposure data
+
+    Returns:
+        str or None: a key of ods_tools.oed.common.PANDAS_COMPRESSION_MAP
+                      to save the source as, or None if the source's format
+                      can't be determined (Exposure.save() then falls back
+                      to its default of csv, unchanged from current
+                      behaviour).
+    """
+    source = oed_source.current_source
+    if source.get('source_type') != 'filepath':
+        return None
+    suffix = pathlib.Path(source['filepath']).suffix.lstrip('.').lower()
+    for compression, mapped_suffix in PANDAS_COMPRESSION_MAP.items():
+        if mapped_suffix.lstrip('.') == suffix:
+            return 'parquet' if compression == 'csv' else compression
+    return None
+
+
+def save_exposure_data(exposure_data, path, version_name, save_config, unknown_columns):
+    """Save each OED source of exposure_data preserving its own original file
+    format, rather than forcing every source to the same one.
+
+    OedExposure.save() only accepts a single 'compression' value which it
+    applies to every source it saves, so a compression derived from one
+    source (e.g. location) would silently force-convert the other sources
+    (account, ri_info, ri_scope) to that same format. To avoid this, sources
+    are grouped by their own derived compression and saved in separate
+    calls, temporarily hiding the other sources from exposure_data so each
+    call only saves its group.
+
+    Args:
+        exposure_data (OedExposure): the loaded exposure data
+        path (str): output folder, passed through to OedExposure.save()
+        version_name (str): passed through to OedExposure.save()
+        save_config (bool): if true save the Exposure config as json, once
+                             all sources have been saved
+        unknown_columns (UnknownColumnSaveOption or Dict): passed through to
+                                                             OedExposure.save()
+    """
+    original_sources = {oed_name: getattr(exposure_data, oed_name) for oed_name in OED_TYPE_TO_NAME.values()}
+
+    sources_by_compression = defaultdict(list)
+    for oed_name, oed_source in original_sources.items():
+        if oed_source:
+            sources_by_compression[get_source_compression(oed_source)].append(oed_name)
+
+    try:
+        for compression, oed_names in sources_by_compression.items():
+            for oed_name, oed_source in original_sources.items():
+                setattr(exposure_data, oed_name, oed_source if oed_name in oed_names else None)
+            # save_config also makes OedExposure.save() record each filepath relative to the
+            # config file rather than absolute; the partial config each call writes is
+            # overwritten below once all sources are restored.
+            exposure_data.save(path=path, version_name=version_name, compression=compression,
+                               save_config=save_config, unknown_columns=unknown_columns)
+    finally:
+        for oed_name, oed_source in original_sources.items():
+            setattr(exposure_data, oed_name, oed_source)
+
+    if save_config:
+        exposure_data.save_config(pathlib.Path(path, exposure_data.DEFAULT_EXPOSURE_CONFIG_NAME))
 
 
 class ExposurePreAnalysis(ComputationStep):
@@ -36,6 +123,13 @@ class ExposurePreAnalysis(ComputationStep):
                     'help': 'Name of the class to use for the exposure_pre_analysis'},
                    {'name': 'exposure_pre_analysis_setting_json', 'is_path': True, 'pre_exist': True,
                     'help': 'Exposure Pre-Analysis config JSON file path'},
+                   {'name': 'lookup_num_processes', 'type': int, 'default': -1,
+                    'help': 'Number of workers in multiprocess pools (also used by pre-analysis hooks that set multiproc_enabled)'},
+                   {'name': 'lookup_num_chunks', 'type': int, 'default': -1,
+                    'help': 'Number of chunks to split the location file into for multiprocessing '
+                            '(also used by pre-analysis hooks that set multiproc_enabled)'},
+                   {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
+                    'help': 'Flag to enable/disable lookup multiprocessing (also used by pre-analysis hooks that set multiproc_enabled)'},
                    {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
                    {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
                    {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
@@ -98,8 +192,7 @@ class ExposurePreAnalysis(ComputationStep):
 
         ids_option = {'loc_id': UnknownColumnSaveOption.DELETE,
                       'loc_idx': UnknownColumnSaveOption.DELETE}
-        exposure_data.save(path=input_dir, version_name='raw', save_config=True, unknown_columns=ids_option)
-        kwargs['exposure_data'] = exposure_data
+        save_exposure_data(exposure_data, path=input_dir, version_name='raw', save_config=True, unknown_columns=ids_option)
         kwargs['input_dir'] = input_dir
         kwargs['model_data_dir'] = self.model_data_dir
         kwargs['user_data_dir'] = self.user_data_dir
@@ -122,20 +215,76 @@ class ExposurePreAnalysis(ComputationStep):
         self.logger.info('\nPre-analysis original files: {}'.format(
             json.dumps(original_files, indent=4)))
 
-        print(kwargs)
-        print(_class(**kwargs))
-        _class_return = _class(**kwargs).run()
+        sar_source = exposure_data.get_subject_at_risk_source()
+        group_cols = ['PortNumber', 'AccNumber']
+        has_location = exposure_data.location is not None
+        can_group_by_account = (
+            has_location
+            and all(col in exposure_data.location.dataframe.columns for col in group_cols)
+            and (exposure_data.account is None
+                 or all(col in exposure_data.account.dataframe.columns for col in group_cols))
+        )
+        # Like a lookup class, a hook must opt in to multiprocessing: only its author knows
+        # whether chunking changes its output (e.g. a counter or row numbering spanning the
+        # whole portfolio would be restarted or interleaved per chunk).
+        multiproc_enabled = self.lookup_multiprocessing and getattr(_class, 'multiproc_enabled', False)
+        if self.lookup_multiprocessing and not multiproc_enabled:
+            self.logger.info(f'\n{self.exposure_pre_analysis_class_name} does not set multiproc_enabled = True, '
+                             'running pre-analysis in a single process')
+        if exposure_data.account is not None and not can_group_by_account:
+            # Without PortNumber/AccNumber on both location and account, a location-only chunk
+            # split (below) could split a single account's rows across chunks, or dispatch a
+            # chunk whose account rows can't be grouped - not safe to merge back.
+            multiproc_enabled = False
+        if multiproc_enabled and not has_location:
+            # Chunks are split off the location file, so account only exposure (e.g. cyber)
+            # runs single-process.
+            self.logger.info('\nNo location file, running pre-analysis in a single process')
+            multiproc_enabled = False
 
-        exposure_data.save(path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
-        # regenerate ids
-        exposure_data.location.dataframe = exposure_data.location.dataframe.drop(columns=['loc_id', 'loc_idx'])
+        # Size partitions off the actual subject at risk (location, or account if there's no
+        # location file) row count - the real per-hook workload - rather than the number of
+        # account groups, so a portfolio with few accounts but many locations per account
+        # still gets chunked.
+        row_count = sar_source.dataframe.shape[0]
+        pool_count, part_count = resolve_partition_count(row_count, self.lookup_num_processes, self.lookup_num_chunks)
+
+        if can_group_by_account:
+            # Can't usefully split into more chunks than there are distinct (PortNumber,
+            # AccNumber) groups to assign them to - an explicit lookup_num_chunks larger than
+            # this would otherwise dispatch empty chunks to the hook (see exposure_producer).
+            group_keys = exposure_data.location.dataframe[group_cols]
+            if exposure_data.account is not None:
+                group_keys = pd.concat([group_keys, exposure_data.account.dataframe[group_cols]], ignore_index=True)
+            num_groups = group_keys.drop_duplicates().shape[0]
+            if num_groups > 0:
+                part_count = min(part_count, num_groups)
+                pool_count = min(pool_count, part_count)
+
+        if multiproc_enabled and pool_count > 1:
+            self.logger.info(f'\nRunning pre-analysis across {pool_count} processes, {part_count} chunks')
+            location_df, account_df, class_returns = run_pre_analysis_multiproc(
+                exposure_data, _class, kwargs, pool_count, part_count,
+                group_cols if can_group_by_account else None)
+            exposure_data.location.dataframe = location_df
+            if exposure_data.account is not None:
+                exposure_data.account.dataframe = account_df
+        else:
+            kwargs['exposure_data'] = exposure_data
+            class_returns = [_class(**kwargs).run()]
+
+        save_exposure_data(exposure_data, path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
+        # regenerate ids, on the subject at risk source, as there's no location file for
+        # account only exposure (e.g. cyber). loc_idx / acc_idx are overwritten by prepare_oed_exposure
+        sar_source = exposure_data.get_subject_at_risk_source()  # hook may have replaced the source
+        sar_source.dataframe = sar_source.dataframe.drop(columns=[SAR_ID], errors='ignore')
         prepare_oed_exposure(exposure_data)
 
         modified_files = {oed_source.oed_name: str(oed_source.current_source['filepath']) for oed_source in exposure_data.get_oed_sources()}
         self.logger.info('\nPre-analysis modified files: {}'.format(
             json.dumps(modified_files, indent=4)))
         return {
-            "class": _class_return,
+            "class": class_returns,
             "modified": modified_files,
             "original": original_files,
         }

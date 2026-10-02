@@ -1,15 +1,140 @@
+import glob
 import logging
 import os
 import shutil
 import subprocess
 import json
 import re
+import time
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import (bash_wrapper, create_bash_analysis,
                    create_bash_outputs, genbash)
-from .resource_monitor import ResourceMonitor
+from .resource_monitor import MONITORED_TOOLS, ResourceMonitor
+
+
+def _snapshot_log_dir(log_dir):
+    """(path -> (size, mtime)) for every regular file under log_dir."""
+    snapshot = {}
+    for root, _dirs, files in os.walk(log_dir):
+        for name in files:
+            path = os.path.join(root, name)
+            try:
+                st = os.stat(path)
+            except OSError:
+                # file replaced/removed between listing and stat - not settled
+                continue
+            snapshot[path] = (st.st_size, st.st_mtime)
+    return snapshot
+
+
+def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_seconds=10.0):
+    """Block until files under log_dir stop changing, or timeout elapses.
+
+    Only called once `_find_incomplete_pytool_logs` has already found something
+    missing its "finish" marker - so this exists purely to give a genuinely
+    still-running (but not yet finished) worker a chance to catch up, not as
+    a blanket tax on every run. It does not raise on its own timeout: the
+    caller always re-checks completeness afterward and raises with the
+    specific tool/files still missing, which is a more useful error than a
+    generic "timed out waiting" here.
+
+    bash's `wait` only reaps the direct child PIDs it captured with `$!`.
+    A pytool (e.g. gulmc, fmpy) that internally forks worker processes for
+    parallel computation can leave those workers running past that point,
+    still writing to their log files, since they are reparented rather than
+    tracked by the script's `wait` calls. Without this check, callers that
+    archive `log_dir` immediately after `run_analysis`/`run_outputs` returns
+    can capture a snapshot with truncated log files.
+
+    Settled means every file's (size, mtime) has been unchanged for at least
+    `stable_seconds`. This needs no special permissions and works regardless
+    of which host/process is writing, but a short window gives false
+    positives whenever a writer has a quiet gap (e.g. it is still computing
+    between log lines), so `stable_seconds` should comfortably exceed that.
+    """
+    log_dir = os.path.abspath(log_dir)
+    logging.debug("Waiting for writers under %s to finish", log_dir)
+    deadline = time.time() + timeout
+    previous = _snapshot_log_dir(log_dir)
+    stable_since = None
+    attempt = 0
+    while time.time() < deadline:
+        attempt += 1
+        time.sleep(poll_interval)
+        current = _snapshot_log_dir(log_dir)
+
+        if current == previous:
+            stable_since = stable_since or time.time() - poll_interval
+            if time.time() - stable_since >= stable_seconds:
+                logging.debug("Files under %s settled after %d attempt(s)", log_dir, attempt)
+                return
+        else:
+            stable_since = None
+
+        logging.debug("Attempt %d: files under %s not yet settled", attempt, log_dir)
+        previous = current
+    logging.warning(
+        "Timed out after %.1fs waiting for files under %s to stop changing",
+        timeout, log_dir,
+    )
+
+
+def _find_incomplete_pytool_logs(log_dir):
+    """Return {tool: [path, ...]} for every pytool log under log_dir missing its 'finish' marker.
+
+    Python-side equivalent of bash's own `check_complete()` function. Empty
+    dict means every log file found reached "finish" (see
+    oasislmf/pytools/utils.py's `redirect_logging`, which writes 'finishing
+    process' on a clean exit) - i.e. nothing here needs waiting or raising on.
+    """
+    lost = {}
+    for tool in sorted(MONITORED_TOOLS):
+        log_files = glob.glob(os.path.join(log_dir, f'{tool}_[0-9]*.log'))
+        if not log_files:
+            continue
+        missing = []
+        for path in log_files:
+            try:
+                with open(path) as f:
+                    content = f.read()
+            except OSError:
+                missing.append(path)
+                continue
+            if 'finish' not in content:
+                missing.append(path)
+        if missing:
+            lost[tool] = missing
+    return lost
+
+
+def _ensure_pytool_logs_complete(log_dir):
+    """Check log_dir is complete; if not, wait for stragglers and check again.
+
+    Cheap in the common case: if every pytool log already has its "finish"
+    marker by the time the bash script's tracked process has exited, this
+    returns immediately with no polling at all. Only when something is
+    actually missing does it fall back to `_wait_for_log_writers` (to give a
+    genuinely still-running, reparented worker a chance to catch up) and
+    re-check - raising `OasisException`, naming exactly which tool/files are
+    still incomplete, only if it's still missing after that.
+    """
+    lost = _find_incomplete_pytool_logs(log_dir)
+    if not lost:
+        return
+
+    logging.warning(
+        "Incomplete pytool logs found under %s before any wait: %s - waiting for stragglers to finish",
+        log_dir, lost,
+    )
+    _wait_for_log_writers(log_dir)
+    lost = _find_incomplete_pytool_logs(log_dir)
+    if lost:
+        summary = ", ".join(f"{tool} ({len(paths)} lost)" for tool, paths in lost.items())
+        raise OasisException(
+            "Incomplete pytool logs found under {}: {}. Details: {}".format(log_dir, summary, lost)
+        )
 
 
 @oasis_log()
@@ -118,6 +243,10 @@ def run(analysis_settings,
     logging.info(stdout.decode('utf-8'))
 
 
+# matches a trailing output redirect (e.g. `> /path/to/fifo` or `2>> log/err`)
+STALE_REDIRECT_RE = re.compile(r'\s*\d*>>?\s*\S+$')
+
+
 def rerun():
     """A function to find where an error was made and to rerun that part of the script without
     NumBa to give better error messages
@@ -142,6 +271,10 @@ def rerun():
     gul_cmd = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('gul'))].pop(0)
     fm_cmds = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('fm'))]
 
+    # strip a trailing output redirect from the extracted command (e.g. to a fifo whose
+    # reader has already exited in the main run) before pointing it at our own output file
+    gul_cmd = STALE_REDIRECT_RE.sub('', gul_cmd).strip()
+
     pipe_output = "/tmp/il_P1"
     summary_output = "/tmp/il_S1_summary_P1"
     gul_output = f"{event_error}_gul.bin"
@@ -152,7 +285,7 @@ def rerun():
 
     fm_input = gul_output
     for i in range(len(fm_cmds)):
-        fm_cmd = re.sub(r"-\s*>\s*\S+", f"-o 64_ri{i + 1}.bin", fm_cmds[i])
+        fm_cmd = STALE_REDIRECT_RE.sub('', fm_cmds[i]).strip()
         fm_output = f"{event_error}_fm{i + 1}.bin"
         fm_pipe = f"{fm_cmd} -o {fm_output} -i {fm_input}"
         with open("fm_errors.log", "a") as error_log:
@@ -172,7 +305,8 @@ def run_analysis(**params):
                       params['bash_trace'],
                       params['stderr_guard'],
                       log_sub_dir=params.get("process_number", None),
-                      process_number=params.get("process_number", None)):
+                      process_number=params.get("process_number", None),
+                      run_check_complete=False):
         create_bash_analysis(**params)
 
     process_number = params.get('process_number')
@@ -184,8 +318,18 @@ def run_analysis(**params):
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
     monitor.stop()
+    logging.debug("run_analysis: bash script (pid=%s) exited with code %s, checking log completeness in %s",
+                  proc.pid, proc.returncode, monitor_dir)
+    check_start = time.time()
+
+    # Check for bash errors
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
+
+    # Check and wait for loggers to complete
+    _ensure_pytool_logs_complete(monitor_dir)
+    logging.debug("run_analysis: log completeness check for %s took %.2fs", monitor_dir, time.time() - check_start)
+
     bash_trace = stdout.decode('utf-8')
     logging.info(bash_trace)
     return params['fifo_queue_dir'], bash_trace
@@ -195,7 +339,8 @@ def run_analysis(**params):
 def run_outputs(**params):
     resource_monitor_interval = params.pop('resource_monitor_interval', 1.0)
 
-    with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'], log_sub_dir='out'):
+    with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'],
+                      log_sub_dir='out', run_check_complete=False):
         create_bash_outputs(**params)
 
     run_dir = os.path.dirname(params['filename'])
@@ -205,8 +350,19 @@ def run_outputs(**params):
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
     monitor.stop()
+    out_log_dir = os.path.join(log_root, 'out')
+    logging.debug("run_outputs: bash script (pid=%s) exited with code %s, checking log completeness in %s",
+                  proc.pid, proc.returncode, out_log_dir)
+    check_start = time.time()
+
+    # Check for bash errors
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
+
+    # Check and wait for loggers to complete
+    _ensure_pytool_logs_complete(out_log_dir)
+    logging.debug("run_outputs: log completeness check for %s took %.2fs", out_log_dir, time.time() - check_start)
+
     bash_trace = stdout.decode('utf-8')
     logging.info(bash_trace)
     return bash_trace
