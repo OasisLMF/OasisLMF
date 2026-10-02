@@ -21,6 +21,7 @@ from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_i
                                           fm_xref_dtype,
                                           items_dtype,
                                           oasis_int, nb_oasis_int, null_index)
+from oasislmf.pytools.common.input_files import validate_coverages
 from .common import (allowed_allocation_rule, need_extras, need_tiv_policy)
 
 logger = logging.getLogger(__name__)
@@ -162,7 +163,13 @@ def load_static(static_path):
     xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype)
 
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
-    coverages = load_as_ndarray(static_path, 'coverages', coverages_bin_dtype, must_exist=False)
+    # validate_coverages, not just the read: this path memmaps the file directly rather than
+    # going through read_coverages, and an older tiv-only file read at the wrong stride would
+    # otherwise reach the mismatch below, empty BOTH arrays as if a file were missing, and leave
+    # every TIV-dependent calcrule computing against a tiv of 0 -- a wrong loss with no error.
+    coverages = validate_coverages(
+        load_as_ndarray(static_path, 'coverages', coverages_bin_dtype, must_exist=False),
+        os.path.join(static_path, 'coverages.bin'))
     if np.unique(items['coverage_id']).shape[0] != coverages.shape[0]:
         # one of the file is missing we default to empty array
         items = np.empty(0, dtype=items_dtype)
