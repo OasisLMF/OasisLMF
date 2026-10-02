@@ -11,10 +11,13 @@ An input set without the file reads as 0, meaning there is nothing to collapse. 
 input set not generated with building-packing, so the default has to stay backward compatible.
 """
 import os
+import shutil
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
+import pandas as pd
 
 from oasislmf.preparation.il_inputs import write_fm_structure_info
 from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, coverages_bin_dtype,
@@ -22,6 +25,7 @@ from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, coverages_bin_
                                           fm_programme_dtype, fm_xref_dtype, items_dtype)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.fm.financial_structure import (
+    check_one_parent_per_level,
     compute_info_dtype,
     create_financial_structure,
     load_financial_structure,
@@ -230,3 +234,147 @@ class TestExtrasArenaPackedBudget(TestCase):
 
 
 # --- which nodes the extras closure marks --------------------------------------------------------
+
+def _write_shared_item_structure(d, extras_on_agg):
+    r"""Three items, two level-2 nodes, and item 2 belonging to BOTH of them.
+
+        items/level1:   1     2     3
+                         \   / \   /
+        level2:           (2,1)  (2,2)      <- item 2 has two parents at the same level
+                             \   /
+        level3:               (3,1)
+
+    ``extras_on_agg`` puts the min/max deductible on one of the two level-2 nodes. The closure
+    that marks extras walks node -> its items -> every parent of those items AT THE NODE'S OWN
+    LEVEL -> all their descendants, so either placement has to mark the same set: the two nodes
+    share item 2 and its loss is split between them.
+    """
+    programme = np.array([
+        (1, 1, 1), (2, 1, 2), (3, 1, 3),       # items -> their own level-1 nodes
+        (1, 2, 1), (2, 2, 1),                  # (2,1) <- items 1, 2
+        (2, 2, 2), (3, 2, 2),                  # (2,2) <- items 2, 3
+        (1, 3, 1), (2, 3, 1),                  # both -> (3,1)
+    ], dtype=fm_programme_dtype)
+    policytc = np.array(
+        [(1, a, 1, 0) for a in (1, 2, 3)]
+        + [(2, a, 1, 1 if a == extras_on_agg else 0) for a in (1, 2)]
+        + [(3, 1, 1, 0)], dtype=fm_policytc_dtype)
+    profile = np.zeros(2, dtype=fm_profile_dtype)
+    profile[0]['profile_id'], profile[0]['calcrule_id'] = 0, 12     # pass-through
+    profile[1]['profile_id'], profile[1]['calcrule_id'] = 1, 13     # deductible with a minimum
+    profile[1]['deductible1'], profile[1]['deductible2'] = 100., 50.
+    xref = np.array([(a, a, 1) for a in (1, 2, 3)], dtype=fm_xref_dtype)
+    for name, arr in (('fm_programme', programme), ('fm_policytc', policytc),
+                      ('fm_profile', profile), ('fm_xref', xref)):
+        arr.tofile(os.path.join(d, f'{name}.bin'))
+
+
+def _write_tree_structure(d):
+    """The same programme with item 2 under ONE parent -- the shape generation actually emits."""
+    programme = np.array([
+        (1, 1, 1), (2, 1, 2), (3, 1, 3),
+        (1, 2, 1), (2, 2, 1),                  # (2,1) <- items 1, 2
+        (3, 2, 2),                             # (2,2) <- item 3 only
+        (1, 3, 1), (2, 3, 1),
+    ], dtype=fm_programme_dtype)
+    policytc = np.array(
+        [(1, a, 1, 0) for a in (1, 2, 3)]
+        + [(2, 1, 1, 1), (2, 2, 1, 0)]
+        + [(3, 1, 1, 0)], dtype=fm_policytc_dtype)
+    profile = np.zeros(2, dtype=fm_profile_dtype)
+    profile[0]['profile_id'], profile[0]['calcrule_id'] = 0, 12
+    profile[1]['profile_id'], profile[1]['calcrule_id'] = 1, 13
+    profile[1]['deductible1'], profile[1]['deductible2'] = 100., 50.
+    xref = np.array([(a, a, 1) for a in (1, 2, 3)], dtype=fm_xref_dtype)
+    for name, arr in (('fm_programme', programme), ('fm_policytc', policytc),
+                      ('fm_profile', profile), ('fm_xref', xref)):
+        arr.tofile(os.path.join(d, f'{name}.bin'))
+
+
+class TestOneParentPerLevel(TestCase):
+    """A node feeding two nodes at ONE level is rejected, loudly, when the structure is built.
+
+    The structure is a forest, not a tree, and several parents on one node are fine as long as
+    they sit at different levels -- root_start produces exactly that. Only two at the same level
+    are wrong, so the last two tests here matter as much as the first two: a check that also
+    rejected multi-level parents would reject every generated set that uses root_start.
+
+    The extraction walks nodes in index order and, for a node carrying a min/max deductible,
+    marks every node that shares an item with it -- with one parent per level, itself and its
+    descendants, all already written. A second parent at the same level would put a node the
+    loop has not reached into that set, and whether it kept its extras would then depend on the
+    agg_id ordering.
+    """
+
+    def test_a_shared_parent_level_is_rejected(self):
+        with TemporaryDirectory() as d:
+            _write_shared_item_structure(d, extras_on_agg=1)
+            with self.assertRaises(OasisException) as raised:
+                create_financial_structure(2, d)
+        message = str(raised.exception)
+        self.assertIn("more than one node at the same level", message)
+        self.assertIn("(2, 2)", message, "the message must name the offending (level, child)")
+
+    def test_it_is_rejected_whichever_node_carries_the_policy(self):
+        """The shape is what is wrong, not where the deductible sits -- and it was the placement
+        that decided whether the old extraction went wrong, so both have to be refused."""
+        for extras_on_agg in (1, 2):
+            with self.subTest(extras_on_agg=extras_on_agg):
+                with TemporaryDirectory() as d:
+                    _write_shared_item_structure(d, extras_on_agg)
+                    with self.assertRaises(OasisException):
+                        create_financial_structure(2, d)
+
+    def test_a_plain_tree_is_accepted(self):
+        """The same programme with item 2 under one parent only must build."""
+        with TemporaryDirectory() as d:
+            _write_tree_structure(d)
+            create_financial_structure(2, d)          # must not raise
+            compute_info = load_financial_structure(2, d)[0][0]
+            self.assertGreater(int(compute_info['extra_len']), 0, "the deductible still applies")
+
+    EXPECTED_DIR = Path(__file__).parents[2].parent.joinpath(
+        'validation', 'insurance_policy_coverage', 'expected')
+
+    def test_a_generated_root_start_programme_is_accepted(self):
+        """Checked against a REAL generated programme rather than a hand-built shape, because
+        what must keep working is what generation actually emits."""
+        path = self.EXPECTED_DIR.joinpath('fm_programme.csv')
+        if not path.exists():
+            self.skipTest(f'{path} not available')
+        df = pd.read_csv(path)
+        self.assertTrue((df['from_agg_id'] < 0).any(),
+                        'this fixture is only meaningful while that set still uses root_start')
+        programme = np.zeros(len(df), dtype=fm_programme_dtype)
+        for name in fm_programme_dtype.names:
+            programme[name] = df[name].to_numpy()
+        check_one_parent_per_level(programme)          # must not raise
+
+    def test_parents_at_different_levels_survive_the_build(self):
+        """The supported case, end to end: that same set really does carry nodes with two
+        parents, they are at different levels, and the structure builds. Without the existence
+        assertion the check above would pass vacuously if root_start ever stopped firing.
+        """
+        if not self.EXPECTED_DIR.joinpath('fm_programme.csv').exists():
+            self.skipTest('validation set not available')
+        with TemporaryDirectory() as d:
+            for f in os.listdir(self.EXPECTED_DIR):
+                if f.startswith(('fm_', 'items', 'coverages')) and f.endswith(('.bin', '.csv')):
+                    shutil.copy(os.path.join(self.EXPECTED_DIR, f), d)
+            create_financial_structure(2, d)           # must not raise
+            compute_infos, nodes, parents = load_financial_structure(2, d)[:3]
+
+        n = int(compute_infos[0]['node_len'])
+        level_of = np.zeros(nodes.shape[0], dtype=np.int64)
+        level_of[1:n] = nodes[1:n]['level_id']
+        multi_level = 0
+        for i in range(1, n):
+            parent_len = int(nodes[i]['parent_len'])
+            if parent_len < 2:
+                continue
+            levels = [int(level_of[parents[nodes[i]['parent'] + k]]) for k in range(parent_len)]
+            self.assertEqual(len(set(levels)), len(levels),
+                             f'node {i} has two parents at one level: {sorted(levels)}')
+            multi_level += 1
+        self.assertGreater(multi_level, 0,
+                           'no node has several parents, so this proves nothing about them')
