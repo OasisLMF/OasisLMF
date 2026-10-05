@@ -787,6 +787,26 @@ def generate_summaryxref_files(
             os.path.join(output_dir, 'ri_inuring_priority_output_levels.json'),
         )
 
+        if rl_summaries:
+            rl_summaryxref_df, rl_summary_desc = get_summary_xref_df(
+                il_map_df,
+                location_df,
+                account_df,
+                analysis_settings['rl_summaries'],
+                'rl'
+            )
+
+            df_to_ndarray(rl_summaryxref_df, rl_summary_desc).tofile(os.path.join(model_run_fp, 'input', f"{SUMMARY_OUTPUT['rl']}.bin"))
+
+            if intermediary_csv:
+                write_df_to_csv_file(rl_summaryxref_df, os.path.join(model_run_fp, 'input'), f"{SUMMARY_OUTPUT['rl']}.csv")
+
+            for desc_key in rl_summary_desc:
+                if desc_key.split('.')[-1] == 'parquet':
+                    write_df_to_parquet_file(rl_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+                else:
+                    write_df_to_csv_file(rl_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+
 
 def code_column(name):
     """Name of the coded column for the exposure summary field `name`.
