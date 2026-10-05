@@ -952,10 +952,7 @@ def do_summarycalcs(
     if process_id == 1:
         print_command(filename, '')
 
-    if runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
-        summarycalc_switch = '-t ri'
-    else:
-        summarycalc_switch = f'-t {runtype}'
+    summarycalc_switch = f'-t {runtype}'
 
     summarycalc_directory_switch = ""
     inuring_priority_text = ''   # Only relevant for reinsurance
