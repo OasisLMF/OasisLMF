@@ -307,6 +307,44 @@ class TestGetVulns(TestCase):
             idx_with_adj = np.where(vulns_id_idx_adj == vuln_id)[0][0]
             self.assertTrue(np.array_equal(vuln_array_idx[idx_no_adj], vuln_array_idx_adj[idx_with_adj]))
 
+    def test_get_vulns_zipped(self):
+        # zipped bin + idx, read under the ktools names (.z) and under the uncompressed names
+        zip_dir = os.path.join(self.temp_dir, 'zipped')
+        os.makedirs(zip_dir)
+        csvtobin(
+            file_in=os.path.join(self.temp_dir, 'vulnerability.csv'),
+            file_out=os.path.join(zip_dir, 'vulnerability.bin.z'),
+            idx_file_out=os.path.join(zip_dir, 'vulnerability.idx.z'),
+            file_type='vulnerability',
+            max_damage_bin_idx=3,
+            no_validation=False,
+            suppress_int_bin_checks=False,
+            zip_files=True
+        )
+        settings_patch = {'vulnerability_adjustments': {'replace_file': str(os.path.join(self.static_path, "vulnerability_adj.csv"))}}
+        for bin_name, idx_name in [('vulnerability.bin.z', 'vulnerability.idx.z'), ('vulnerability.bin', 'vulnerability.idx')]:
+            run_dir = os.path.join(self.temp_dir, f'run_{bin_name}')
+            os.makedirs(run_dir)
+            shutil.copy(os.path.join(zip_dir, 'vulnerability.bin.z'), os.path.join(run_dir, bin_name))
+            shutil.copy(os.path.join(zip_dir, 'vulnerability.idx.z'), os.path.join(run_dir, idx_name))
+            model_storage = LocalStorage(root_dir=run_dir, cache_dir=None)
+
+            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, run_dir, self.vuln_map, self.vuln_map_keys,
+                                                              self.num_intensity_bins)
+            self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+            for vuln_id in vulns_id:
+                actual_index = np.where(vulns_id == vuln_id)[0][0]
+                self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array'][self.vuln_dict_base[vuln_id]]))
+
+            with mock.patch('os.path.exists', return_value=True), \
+                    mock.patch('oasislmf.pytools.getmodel.manager.analysis_settings_loader', return_value=settings_patch), \
+                    mock.patch('oasislmf.utils.data.analysis_settings_loader', return_value=settings_patch):
+                vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, run_dir, self.vuln_map, self.vuln_map_keys,
+                                                                  self.num_intensity_bins)
+            for vuln_id in vulns_id:
+                actual_index = np.where(vulns_id == vuln_id)[0][0]
+                self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array_adj'][self.vuln_dict_base[vuln_id]]))
+
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
 

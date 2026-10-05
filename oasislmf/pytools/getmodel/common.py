@@ -21,6 +21,8 @@ parquetfootprint_chunked_lookup = 'footprint_lookup.parquet'
 footprint_bin_lookup = 'footprint_lookup.bin'
 footprint_csv_lookup = 'footprint_lookup.csv'
 parquetfootprint_meta_filename = 'footprint_parquet_meta.json'
+zvulnerability_filename = 'vulnerability.bin.z'
+zvulnerability_index_filename = 'vulnerability.idx.z'
 event_defintion_filename = 'event_definition.parquet'
 hazard_case_filename = 'hazard_case.parquet'
 
