@@ -40,7 +40,7 @@ from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, 
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
-from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
+from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_GROSS_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -99,6 +99,10 @@ def get_summary_object(static_path, run_type):
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
         summary_map = None  # numba use none to optimise function when some part are not used
 
+    elif run_type == RUNTYPE_REINSURANCE_GROSS_LOSS:
+        summary_xref = load_as_ndarray(static_path, 'rlsummaryxref', fm_summary_xref_dtype)
+        summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
+        summary_map = load_as_ndarray(static_path, 'rl_summary_map', summary_map_dtype, col_map={'item_id': 'output_id'})
     else:
         raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
 
