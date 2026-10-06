@@ -9,7 +9,7 @@ import numpy as np
 import json
 from unittest import TestCase
 
-from tests.pytools.converters.test_converters import compare_conversion_outputs, TESTS_ASSETS_DIR
+from tests.pytools.converters.helpers import compare_conversion_outputs, TESTS_ASSETS_DIR
 
 _DTYPE_EXT = "dtype.json"
 
