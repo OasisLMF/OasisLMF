@@ -833,7 +833,8 @@ class TestPlatformRun(ComputationChecker):
     @patch('oasislmf.computation.run.platform.APIClient.run_analysis', return_value=True)
     @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
     @patch('oasislmf.computation.run.platform.APIClient.run_generate_and_analysis')
-    def test_run__no_analysis_settings__inputs_and_losses_run_separately(self, mock_generate_and_run, mock_run_generate, mock_run_analysis, mock_download):
+    def test_run__no_analysis_settings__inputs_and_losses_run_separately(
+            self, mock_generate_and_run, mock_run_generate, mock_run_analysis, mock_download):
         ID = 4
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_run_responses(rsps, ID, {'model': 1, 'settings_file': None})
