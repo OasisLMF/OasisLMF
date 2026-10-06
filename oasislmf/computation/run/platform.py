@@ -345,6 +345,8 @@ class PlatformList(PlatformBase):
                     self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
                 except HTTPError as e:
                     self.logger.info(msg + e.response.text)
+                    continue
+                self.print_chunking('Model', self.server.models, Id)
 
         if self.portfolios:
             for Id in self.portfolios:
@@ -372,6 +374,16 @@ class PlatformList(PlatformBase):
                     self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
                 except HTTPError as e:
                     self.logger.info(msg + e.response.text)
+                    continue
+                self.print_chunking('Analysis', self.server.analyses, Id)
+
+    def print_chunking(self, label, endpoint, Id):
+        msg = f'{label} chunking configuration (id={Id}): \n'
+        try:
+            rsp = endpoint.chunking_configuration.get(Id)
+            self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
+        except HTTPError as e:
+            self.logger.info(msg + e.response.text)
 
 
 class PlatformRunInputs(PlatformBase):
