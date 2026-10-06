@@ -279,6 +279,8 @@ def encode_peril_id(peril_id):
 def load_vuln_probability(vuln_array, vuln, vuln_id):
     if vuln_array.shape[0] < vuln['damage_bin_id']:
         raise Exception("vulnerability_id " + str(vuln_id) + " has damage_bin_id bigger that expected maximum")
+    if vuln['damage_bin_id'] < 1 or vuln['intensity_bin_id'] < 1:
+        raise Exception("vulnerability_id " + str(vuln_id) + " has a damage_bin_id or intensity_bin_id lower than 1")
     if vuln['intensity_bin_id'] <= vuln_array.shape[1]:  # intensity in vulnerability curve but not in the footprint, we can ignore
         vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
 

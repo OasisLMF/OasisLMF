@@ -980,3 +980,34 @@ def test_vulnerability_rejects_duplicate_rows():
             csvtobin(d / "dup.csv", d / "dup.bin", "vulnerability", idx_file_out=None,
                      max_damage_bin_idx=12, no_validation=False, suppress_int_bin_checks=True,
                      zip_files=False)
+
+
+@pytest.mark.parametrize("column", ["damage_bin_id", "intensity_bin_id"])
+@pytest.mark.parametrize("idx", [False, True])
+def test_vulnerability_rejects_bin_id_below_one(column, idx):
+    """Bin ids are 1-based: getmodel indexes them with id - 1, so a 0 would silently wrap to the last
+    bin. Validation must reject them on both the idx and no-idx paths."""
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        Path(d, "bad.csv").write_text(
+            "vulnerability_id,intensity_bin_id,damage_bin_id,probability\n"
+            "1,1,1,0.6\n"
+            "1,1,2,0.4\n"
+        )
+        df = pd.read_csv(d / "bad.csv")
+        df.loc[0, column] = 0
+        df.to_csv(d / "bad.csv", index=False)
+        with pytest.raises(OasisException, match="must both be >= 1"):
+            csvtobin(d / "bad.csv", d / "bad.bin", "vulnerability", idx_file_out=d / "bad.idx" if idx else None,
+                     max_damage_bin_idx=3, no_validation=False, suppress_int_bin_checks=True, zip_files=False)
+
+
+def test_conditionalvulnerability_rejects_bin_below_one():
+    with TemporaryDirectory() as d:
+        d = Path(d)
+        df = pd.read_csv(CONDITIONAL_VULN_CSV)
+        df.loc[df.index[0], "damage_bin"] = 0
+        df.to_csv(d / "bad.csv", index=False)
+        with pytest.raises(OasisException, match="must both be >= 1"):
+            csvtobin(d / "bad.csv", d / "bad.bin", "conditionalvulnerability",
+                     max_damage_bin_idx=12, no_validation=False)
