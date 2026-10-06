@@ -754,38 +754,39 @@ def generate_summaryxref_files(
             )
             il_map_df = il_map_df[list(set(il_map_df).intersection(MAP_SUMMARY_DTYPES))]
 
-        ri_summaryxref_df, ri_summary_desc = get_summary_xref_df(
-            il_map_df,
-            location_df,
-            account_df,
-            analysis_settings['ri_summaries'],
-            'ri'
-        )
-        # Write Xref file for each inuring priority where output has been requested.
-        summary_ri_fps = get_ri_summaryxref_dirs(
-            os.path.join(model_run_fp, 'input'), analysis_settings, all_layers=bool(rl_summaries)
-        )
+        if ri_summaries:
+            ri_summaryxref_df, ri_summary_desc = get_summary_xref_df(
+                il_map_df,
+                location_df,
+                account_df,
+                analysis_settings['ri_summaries'],
+                'ri'
+            )
+            # Write Xref file for each inuring priority where output has been requested.
+            summary_ri_fps = get_ri_summaryxref_dirs(
+                os.path.join(model_run_fp, 'input'), analysis_settings, all_layers=bool(rl_summaries)
+            )
 
-        for summary_ri_fp in summary_ri_fps:
-            df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.bin"))
-            if intermediary_csv:
-                write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.csv")
+            for summary_ri_fp in summary_ri_fps:
+                df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.bin"))
+                if intermediary_csv:
+                    write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.csv")
 
-        # Write summary_id description files
-        output_dir = os.path.join(model_run_fp, 'output')
-        for desc_key in ri_summary_desc:
-            if desc_key.split('.')[-1] == 'parquet':
-                write_df_to_parquet_file(ri_summary_desc[desc_key], output_dir, desc_key)
-            else:
-                write_df_to_csv_file(ri_summary_desc[desc_key], output_dir, desc_key)
+            # Write summary_id description files
+            output_dir = os.path.join(model_run_fp, 'output')
+            for desc_key in ri_summary_desc:
+                if desc_key.split('.')[-1] == 'parquet':
+                    write_df_to_parquet_file(ri_summary_desc[desc_key], output_dir, desc_key)
+                else:
+                    write_df_to_csv_file(ri_summary_desc[desc_key], output_dir, desc_key)
 
-        # Copy the inuring-priority-to-output-level mapping into the output directory so it is
-        # available alongside the results for downstream consumers.
-        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(
-            os.path.join(model_run_fp, 'input', 'ri_inuring_priority_output_levels.json'),
-            os.path.join(output_dir, 'ri_inuring_priority_output_levels.json'),
-        )
+            # Copy the inuring-priority-to-output-level mapping into the output directory so it is
+            # available alongside the results for downstream consumers.
+            pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(
+                os.path.join(model_run_fp, 'input', 'ri_inuring_priority_output_levels.json'),
+                os.path.join(output_dir, 'ri_inuring_priority_output_levels.json'),
+            )
 
         if rl_summaries:
             rl_summaryxref_df, rl_summary_desc = get_summary_xref_df(
