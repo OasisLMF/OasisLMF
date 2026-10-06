@@ -33,7 +33,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from ...execution import bash, runner
-from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
+from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_GROSS_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set,
                               set_hazard_case_set)
@@ -386,12 +386,12 @@ class GenerateLossesDir(GenerateLossesBase):
                 peril_filter=self._get_peril_filter(self.settings),
             )
 
-        for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
+        for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, RUNTYPE_REINSURANCE_GROSS_LOSS]:
             if self.settings.get(f'{runtype}_output'):
                 summaries = self.settings.get('{}_summaries'.format(runtype), [])
                 summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                 if summary_sets_id.shape[0]:
-                    if runtype == RUNTYPE_REINSURANCE_LOSS:
+                    if runtype == RUNTYPE_REINSURANCE_LOSS or runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
                         # Intermediate RI layers are computed but never summarised, so only the
                         # output levels hold an fmsummaryxref - unless gross RL output is also
                         # requested, which writes one into every layer. Mirrors the argument

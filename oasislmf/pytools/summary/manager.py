@@ -102,7 +102,7 @@ def get_summary_object(static_path, run_type):
     elif run_type == RUNTYPE_REINSURANCE_GROSS_LOSS:
         summary_xref = load_as_ndarray(static_path, 'rlsummaryxref', fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
-        summary_map = load_as_ndarray(static_path, 'rl_summary_map', summary_map_dtype, col_map={'item_id': 'output_id'})
+        summary_map = None
     else:
         raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
 
