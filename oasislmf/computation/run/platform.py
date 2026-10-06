@@ -392,7 +392,14 @@ class PlatformRunInputs(PlatformBase):
     ]
 
     def run(self):
-        # Run Input geneneration from ID
+        self.prepare_analysis()
+        self.server.run_generate(self.analysis_id)
+        return self.analysis_id
+
+    def prepare_analysis(self):
+        """Select or create the analysis to generate inputs for, cancelling any
+        in-progress execution of it, and return its `id`.
+        """
         if self.analysis_id:
             try:
                 status = self.server.analyses.status(self.analysis_id)
@@ -400,7 +407,6 @@ class PlatformRunInputs(PlatformBase):
                     self.server.cancel_analysis(self.analysis_id)
                 elif status in ['INPUTS_GENERATION_QUEUED', 'INPUTS_GENERATION_STARTED']:
                     self.server.cancel_generate(self.analysis_id)
-                self.server.run_generate(self.analysis_id)
                 return self.analysis_id
             except HTTPError as e:
                 raise OasisException(f'Error running analysis ({self.analysis_id}) - {e}')
@@ -452,9 +458,6 @@ class PlatformRunInputs(PlatformBase):
                 "lookup_strategy": "FIXED_CHUNKS",
                 "fixed_lookup_chunks": self.lookup_chunks
             })
-
-        # Execure run
-        self.server.run_generate(self.analysis_id)
         return self.analysis_id
 
 
@@ -469,22 +472,49 @@ class PlatformRunLosses(PlatformBase):
     ]
 
     def run(self):
+        self.set_chunking()
+        self.server.run_analysis(self.analysis_id, self.analysis_settings_json)
+        self.server.download_output(self.analysis_id, self.output_dir)
+
+    def set_chunking(self):
         if self.analysis_chunks:
             self.server.analyses.chunking_configuration.post(self.analysis_id, {
                 "loss_strategy": "FIXED_CHUNKS",
                 "fixed_analysis_chunks": self.analysis_chunks
             })
-        self.server.run_analysis(self.analysis_id, self.analysis_settings_json)
-        self.server.download_output(self.analysis_id, self.output_dir)
 
 
 class PlatformRun(PlatformBase):
-    """End to End - run model via the Oasis Platform API"""
+    """End to End - run model via the Oasis Platform API
+
+    On the v2 API with a V2 (distributed) model this uses the `generate_and_run`
+    endpoint, so input generation and the loss run are executed as a single
+    server side task chain. Otherwise inputs and losses are run as two separate calls.
+    """
     chained_commands = [PlatformRunInputs, PlatformRunLosses]
 
     def run(self):
-        self.kwargs['analysis_id'] = PlatformRunInputs(**self.kwargs).run()
-        PlatformRunLosses(**self.kwargs).run()
+        inputs = PlatformRunInputs(**self.kwargs)
+        self.kwargs['analysis_id'] = inputs.prepare_analysis()
+        losses = PlatformRunLosses(**self.kwargs)
+
+        if self.supports_generate_and_run(self.kwargs['analysis_id']):
+            losses.set_chunking()
+            if self.server.run_generate_and_analysis(self.kwargs['analysis_id'], self.analysis_settings_json):
+                self.server.download_output(self.kwargs['analysis_id'], self.output_dir)
+        else:
+            self.server.run_generate(self.kwargs['analysis_id'])
+            losses.run()
+
+    def supports_generate_and_run(self, analysis_id):
+        """`generate_and_run` needs the v2 API, a V2 model and analysis settings"""
+        if self.server_version.lower() == 'v1':
+            return False
+        analysis = self.server.analyses.get(analysis_id).json()
+        if not (self.analysis_settings_json or analysis.get('settings_file')):
+            return False
+        model = self.server.models.get(analysis['model']).json()
+        return model.get('run_mode') == 'V2'
 
 
 class PlatformReconnect(PlatformBase):
