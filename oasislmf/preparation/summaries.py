@@ -797,10 +797,15 @@ def generate_summaryxref_files(
                 'rl'
             )
 
-            df_to_ndarray(rl_summaryxref_df, rl_summary_desc).tofile(os.path.join(model_run_fp, 'input', f"{SUMMARY_OUTPUT['rl']}.bin"))
+            summary_rl_fps = get_ri_summaryxref_dirs(
+                os.path.join(model_run_fp, 'input'), analysis_settings, all_layers=True
+            )
 
-            if intermediary_csv:
-                write_df_to_csv_file(rl_summaryxref_df, os.path.join(model_run_fp, 'input'), f"{SUMMARY_OUTPUT['rl']}.csv")
+            for summary_rl_fp in summary_rl_fps:
+                df_to_ndarray(rl_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_rl_fp, f"{SUMMARY_OUTPUT['rl']}.bin"))
+
+                if intermediary_csv:
+                    write_df_to_csv_file(rl_summaryxref_df, summary_rl_fp, f"{SUMMARY_OUTPUT['rl']}.csv")
 
             for desc_key in rl_summary_desc:
                 if desc_key.split('.')[-1] == 'parquet':
