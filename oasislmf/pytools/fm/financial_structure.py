@@ -893,9 +893,10 @@ def create_financial_structure(allocation_rule, static_path):
     np.save(os.path.join(static_path, f'node_parents_array_{allocation_rule}'), node_parents_array)
     np.save(os.path.join(static_path, f'node_profiles_array_{allocation_rule}'), node_profiles_array)
     np.save(os.path.join(static_path, f'output_array_{allocation_rule}'), output_array)
-    np.save(os.path.join(static_path, f'ceded_output_array_{allocation_rule}'), ceded_output_array)
     np.save(os.path.join(static_path, 'fm_profile'), fm_profile)
 
+    if ceded_fm_xref.shape[0] > 0:
+        np.save(os.path.join(static_path, f'ceded_output_array_{allocation_rule}'), ceded_output_array)
 
 def load_financial_structure(allocation_rule, static_path):
     compute_info = np.load(os.path.join(static_path, f'compute_info_{allocation_rule}.npy'), mmap_mode='r')
