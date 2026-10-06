@@ -370,7 +370,9 @@ def prepare_profile_stepped(profile, tiv):
 
 
 @njit(cache=True)
-def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages):
+def extract_financial_structure(allocation_rule, fm_programme, fm_policytc,
+                                fm_profile, stepped, fm_xref, ceded_fm_xref, items,
+                                coverages):
     """Build the in-memory financial structure arrays from the raw fm input files.
 
     Args:
@@ -380,16 +382,18 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         fm_profile (np.ndarray): definition of the policy_id, of fm_profile_dtype or fm_profile_step_dtype
         stepped (Optional[bool]): True when fm_profile holds step policies, None otherwise
         fm_xref (np.ndarray[fm_xref_dtype]): mapping between the output of the allocation and output item_id
+        ceded_fm_xref (np.ndarray[fm_xref_dtype]):  optional second mapping, empty when not used, between the output of the allocation and output item_id for secondary ceded fm_xref
         items (np.ndarray[items_dtype]): item_id and coverage_id mapping, empty when unavailable
         coverages (np.ndarray[oasis_float]): Tiv value for each coverage id, empty when unavailable
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             - compute_infos: array describing the steps of the computation to perform
             - nodes_array: array of the nodes of the financial structure
             - node_parents_array: array mapping each node to its parent nodes
             - node_profiles_array: array mapping each node to its profiles
             - output_array: array mapping each output to its node
+            - ceded_output_array: same as output_array but holding the output_ids for ceded_fm_xref
             - fm_profile: the fm_profile array used by the computation
 
     Raises:
@@ -549,6 +553,19 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
         output_id_arr[xref['agg_id'], xref['layer_id']] = xref['output']
 
+    if ceded_fm_xref.shape[0] > 0:
+        max_ceded_layer_id = np.max(ceded_fm_xref['layer_id'])
+    else:
+        max_ceded_layer_id = 1
+
+    ceded_output_id_arr = np.zeros((max_agg_id_out + 1, max_ceded_layer_id + 1), dtype=oasis_int)
+
+    for i in range(ceded_fm_xref.shape[0]):
+        xref = ceded_fm_xref[i]
+        ceded_output_id_arr[xref['agg_id'], xref['layer_id']] = xref['output']
+    ceded_named = np.count_nonzero(ceded_output_id_arr)
+    ceded_placed = 0
+
     ##### programme ####
     # node_layers will contain the number of layers for each node
     # Using array indexed by node_level_start[level] + agg_id (0 = not set)
@@ -678,6 +695,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     node_parents_array = np.empty(parents_len, dtype=oasis_int)
     node_profiles_array = np.zeros(fm_policytc.shape[0] + 1, dtype=profile_index_dtype)
     output_array = np.zeros(output_array_size, dtype=oasis_int)
+    ceded_output_array = np.zeros(output_array_size, dtype=oasis_int)
 
     node_i = 1
     children_i = 1
@@ -813,8 +831,14 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                         layer_id = profiles_data[src_prof_start + i]['layer_id']
                         if output_id_arr[agg_id, layer_id] != 0:
                             output_array[node['output_ids'] + i] = output_id_arr[agg_id, layer_id]
+                        if ceded_output_id_arr[agg_id, layer_id] != 0:
+                            ceded_output_array[node['output_ids'] + 1] = ceded_output_id_arr[agg_id, layer_id]
+                            ceded_placed += 1
                 else:
                     raise KeyError("Some output nodes are missing output_ids")
+
+    if ceded_placed != ceded_named:
+        raise ValueError("fm_xref_ceded names (agg_id, layer_id) pairs that are not layers of an output level node")
 
     compute_infos = np.empty(1, dtype=compute_info_dtype)
     compute_info = compute_infos[0]
@@ -833,7 +857,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     compute_info['stepped'] = stepped is not None
     compute_info['max_layer'] = max(nodes_array['layer_len'][1:])
 
-    return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
+    return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, ceded_output_array, fm_profile
 
 
 def create_financial_structure(allocation_rule, static_path):
