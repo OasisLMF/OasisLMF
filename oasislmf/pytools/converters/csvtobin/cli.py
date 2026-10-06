@@ -22,7 +22,8 @@ def add_custom_args(file_type, parser):
         parser.add_argument('-z', '--zip_files', action='store_true', help='Zip input files flag')
         parser.add_argument('-m', '--max_intensity_bin_idx', type=int, required=True, help='Maximum intensity bin index')
         parser.add_argument('-n', '--no_intensity_uncertainty', action='store_true', help='No intensity uncertainty')
-        parser.add_argument('-d', '--decompressed_size', action='store_true', help='If True, add the decompressed size to the index file (only with -z, ignored otherwise)')
+        parser.add_argument('-d', '--decompressed_size', action='store_true',
+                            help='If True, add the decompressed size to the index file (only with -z, ignored otherwise)')
         parser.add_argument('-N', '--no_validation', action='store_true', help='No validation checks')
     if file_type == "summarycalc":
         parser.add_argument('-t', '--summary_set_id', type=int, default=1, help='Summary Set Id. Default 1')
