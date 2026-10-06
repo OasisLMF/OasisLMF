@@ -191,6 +191,13 @@ def footprint_tobin(
     from oasislmf.pytools.converters.csvtobin.manager import logger
 
     dtype = TOOL_INFO[file_type]["dtype"]
+
+    # The runtime looks for zipped footprints as footprint.bin.z / footprint.idx.z
+    out_names = [str(idx_file_out), getattr(file_out, "name", None)]
+    if zip_files and any(isinstance(name, str) and name not in ("-", "<stdout>") and not name.endswith(".z")
+                         for name in out_names):
+        logger.warning("WARNING: zipped footprint files should be named with a .z extension (footprint.bin.z / footprint.idx.z)")
+
     idx_file_out = resolve_file(idx_file_out, "wb", stack)
 
     # The decompressed size only applies to zipped footprints (as in ktools footprinttobin)

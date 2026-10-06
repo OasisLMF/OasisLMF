@@ -6,7 +6,7 @@ import mmap
 import os
 from contextlib import ExitStack
 from typing import Dict, List, Union
-from zlib import decompress
+from zlib import decompress, error as ZlibError
 
 import numpy as np
 import pandas as pd
@@ -282,6 +282,7 @@ class FootprintBin(Footprint):
         num_intensity_bins (int): number of intensity bins in the data
         has_intensity_uncertainty (bool): if the data has uncertainty
         footprint_index (dict): map of footprint IDs with the index in the data
+        compressed (bool): if the events are zlib compressed despite the uncompressed file names
     """
     footprint_filenames = [footprint_filename, footprint_index_filename]
 
@@ -301,6 +302,10 @@ class FootprintBin(Footprint):
         footprint_mmap = np.memmap(f, dtype=EventIndexBinZ if uncompressed_size else EventIndexBin, mode='r')
 
         self.footprint_index = np.array(footprint_mmap)
+        self.compressed = self._is_compressed()
+        if self.compressed:
+            logger.warning(f"{footprint_filename} holds zlib compressed events, reading it as a compressed footprint. "
+                           f"Compressed footprints should be named {zfootprint_filename} and {zfootprint_index_filename}")
         try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
             with lookup_file as f:
@@ -315,6 +320,22 @@ class FootprintBin(Footprint):
             self.events_dict = None
 
         return self
+
+    def _is_compressed(self):
+        """Whether the events are zlib compressed, as csvtobin writes them when zipping under the
+        uncompressed file names. Checked on the first event: a complete zlib stream (header, deflate data
+        and adler32 checksum) cannot realistically occur in uncompressed event data.
+
+        Returns: (bool) True if the events are compressed
+        """
+        if len(self.footprint_index) == 0:
+            return False
+        first = self.footprint_index[0]
+        try:
+            decompress(self.footprint[int(first['offset']): int(first['offset']) + int(first['size'])])
+        except ZlibError:
+            return False
+        return True
 
     def get_event(self, event_id):
         """Gets the event from self.footprint based off the event ID passed in.
@@ -332,7 +353,10 @@ class FootprintBin(Footprint):
         if idx >= len(self.footprint_index) or self.footprint_index['event_id'][idx] != event_id:
             return None
         event_info = self.footprint_index[idx]
-        return np.frombuffer(self.footprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])], Event)
+        data = self.footprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])]
+        if self.compressed:
+            data = decompress(data)
+        return np.frombuffer(data, Event)
 
 
 class FootprintBinZ(Footprint):

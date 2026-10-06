@@ -249,6 +249,56 @@ def test_footprint_uncompressed_with_decompressed_size_index():
                 np.testing.assert_allclose(event["probability"], rows["probability"], rtol=1e-6)
 
 
+@pytest.mark.parametrize("filename", ["footprint_zip", "footprint_zip_dsize"])
+def test_footprint_zipped_under_uncompressed_names(filename, caplog):
+    """csvtobin does not add .z to zipped output names, so zipped footprints can arrive as
+    footprint.bin / footprint.idx. FootprintBin must detect the compression and decompress the events
+    instead of reading the compressed bytes as event rows."""
+    static = Path(TESTS_ASSETS_DIR, "static")
+    expected = pd.read_csv(Path(static, f"{filename}.csv"))
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "footprint.bin").write_bytes(Path(static, f"{filename}.bin.z").read_bytes())
+        Path(tmp, "footprint.idx").write_bytes(Path(static, f"{filename}.idx.z").read_bytes())
+
+        with caplog.at_level("WARNING"), Footprint.load(LocalStorage(root_dir=tmp, cache_dir=None)) as footprint:
+            assert isinstance(footprint, FootprintBin)
+            assert footprint.compressed
+            for event_id, rows in expected.groupby("event_id"):
+                event = footprint.get_event(event_id)
+                assert event["areaperil_id"].tolist() == rows["areaperil_id"].tolist()
+                assert event["intensity_bin_id"].tolist() == rows["intensity_bin_id"].tolist()
+                np.testing.assert_allclose(event["probability"], rows["probability"], rtol=1e-6)
+        assert "holds zlib compressed events" in caplog.text
+
+
+def test_footprint_uncompressed_not_detected_as_compressed():
+    with Footprint.load(LocalStorage(root_dir=Path(TESTS_ASSETS_DIR, "static"), cache_dir=None)) as footprint:
+        assert isinstance(footprint, FootprintBin)
+        assert not footprint.compressed
+
+
+@pytest.mark.parametrize("bin_name, idx_name, warns", [
+    ("footprint.bin", "footprint.idx", True),
+    ("footprint.bin.z", "footprint.idx", True),
+    ("footprint.bin.z", "footprint.idx.z", False),
+])
+def test_footprint_zip_output_names_warning(bin_name, idx_name, warns, caplog):
+    """Zipped output should use the .z names the runtime looks for; warn when it does not."""
+    with TemporaryDirectory() as tmp, caplog.at_level("WARNING"):
+        csvtobin(
+            file_in=Path(TESTS_ASSETS_DIR, "static", "footprint.csv"),
+            file_out=Path(tmp, bin_name),
+            idx_file_out=Path(tmp, idx_name),
+            file_type="footprint",
+            max_intensity_bin_idx=3,
+            no_intensity_uncertainty=True,
+            decompressed_size=False,
+            no_validation=False,
+            zip_files=True,
+        )
+    assert ("should be named with a .z extension" in caplog.text) == warns
+
+
 # --------------------------------------------------------------------------------------
 # Regression tests for large AreaPeril IDs exceeding uint32 range.
 #
