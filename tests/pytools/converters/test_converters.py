@@ -15,7 +15,9 @@ from oasislmf.pytools.converters.csvtobin.utils import footprint_tobin, vulnerab
 from oasislmf.pytools.converters.bintoparquet.manager import bintoparquet
 from oasislmf.pytools.converters.parquettobin.manager import parquettobin
 from oasislmf.pytools.converters.data import TOOL_INFO
-from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype
+from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype, EventIndexBinZ_dtype
+from oasislmf.pytools.getmodel.footprint import Footprint, FootprintBin
 from oasislmf.pytools.getmodel.manager import VulnerabilityIndex_dtype
 from oasislmf.utils.exceptions import OasisException
 
@@ -363,6 +365,66 @@ def test_footprint_unsorted_index():
         assert data["event_id"].tolist() == [1, 2], (
             f"Expected sorted output [1, 2], got {data['event_id'].tolist()}"
         )
+
+
+def test_footprint_decompressed_size_without_zip_is_ignored(caplog):
+    """decompressed_size only applies to zipped footprints: without zip_files it is ignored with a
+    warning, so the output is identical to a plain uncompressed footprint."""
+    kwargs = dict(
+        file_in=Path(TESTS_ASSETS_DIR, "static", "footprint.csv"),
+        file_type="footprint",
+        max_intensity_bin_idx=3,
+        no_intensity_uncertainty=True,
+        no_validation=False,
+        zip_files=False,
+    )
+    with TemporaryDirectory() as tmp:
+        csvtobin(file_out=Path(tmp, "plain.bin"), idx_file_out=Path(tmp, "plain.idx"), decompressed_size=False, **kwargs)
+        with caplog.at_level("WARNING"):
+            csvtobin(file_out=Path(tmp, "dsize.bin"), idx_file_out=Path(tmp, "dsize.idx"), decompressed_size=True, **kwargs)
+
+        assert "decompressed_size only applies to zipped footprints" in caplog.text
+        assert Path(tmp, "dsize.bin").read_bytes() == Path(tmp, "plain.bin").read_bytes()
+        assert Path(tmp, "dsize.idx").read_bytes() == Path(tmp, "plain.idx").read_bytes()
+
+
+def test_footprint_uncompressed_with_decompressed_size_index():
+    """Uncompressed footprints written with the decompressed size flag set (4-field index), as older
+    csvtobin versions did with decompressed_size and no zip_files, are read by bintocsv and the runtime."""
+    static = Path(TESTS_ASSETS_DIR, "static")
+    with TemporaryDirectory() as tmp:
+        # rebuild the static footprint in the legacy layout: header flag set, idx entries with d_size
+        data = bytearray(Path(static, "footprint.bin").read_bytes())
+        header = np.frombuffer(bytes(data[:8]), dtype=np.int32).copy()
+        header[1] |= 1 << 1
+        data[:8] = header.tobytes()
+        Path(tmp, "footprint.bin").write_bytes(data)
+        idx = np.fromfile(Path(static, "footprint.idx"), dtype=EventIndexBin_dtype)
+        idx_dsize = np.empty(len(idx), dtype=EventIndexBinZ_dtype)
+        for field in EventIndexBin_dtype.names:
+            idx_dsize[field] = idx[field]
+        idx_dsize["d_size"] = idx["size"]
+        idx_dsize.tofile(Path(tmp, "footprint.idx"))
+
+        bintocsv(
+            file_in=Path(tmp, "footprint.bin"),
+            file_out=Path(tmp, "footprint.csv"),
+            file_type="footprint",
+            noheader=False,
+            idx_file_in=Path(tmp, "footprint.idx"),
+            zip_files=False,
+            event_from_to=None,
+        )
+        expected = pd.read_csv(Path(static, "footprint.csv"))
+        pd.testing.assert_frame_equal(pd.read_csv(Path(tmp, "footprint.csv")), expected)
+
+        with Footprint.load(LocalStorage(root_dir=tmp, cache_dir=None)) as footprint:
+            assert isinstance(footprint, FootprintBin)
+            for event_id, rows in expected.groupby("event_id"):
+                event = footprint.get_event(event_id)
+                assert event["areaperil_id"].tolist() == rows["areaperil_id"].tolist()
+                assert event["intensity_bin_id"].tolist() == rows["intensity_bin_id"].tolist()
+                np.testing.assert_allclose(event["probability"], rows["probability"], rtol=1e-6)
 
 
 def test_lossfactors():

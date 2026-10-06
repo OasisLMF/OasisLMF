@@ -99,20 +99,19 @@ def _read_footprint_zips(stack, file_in, idx_file_in):
     else:
         footprint = np.memmap(footprint_file, dtype="u1", mode='r')
 
-    footprint_header = np.frombuffer(footprint[:FootprintHeader.itemsize].tobytes(), dtype=FootprintHeader)
-
-    uncompressedMask = 1 << 1
-    uncompressed_size = int(footprint_header['has_intensity_uncertainty'].item() & uncompressedMask)
-
-    if uncompressed_size:
-        index_dtype = EventIndexBinZ_dtype
-    else:
-        index_dtype = EventIndexBin_dtype
-
     footprint_index_file = resolve_file(idx_file_in, mode="rb", stack=stack)
-    footprint_index = np.memmap(footprint_index_file, dtype=index_dtype, mode='r')
+    footprint_index = np.memmap(footprint_index_file, dtype=_get_index_dtype(footprint), mode='r')
 
     return footprint, footprint_index
+
+
+def _get_index_dtype(footprint):
+    """Index entries carry the decompressed size when the footprint header says so"""
+    footprint_header = np.frombuffer(footprint[:FootprintHeader.itemsize].tobytes(), dtype=FootprintHeader)
+    uncompressedMask = 1 << 1
+    if footprint_header['has_intensity_uncertainty'].item() & uncompressedMask:
+        return EventIndexBinZ_dtype
+    return EventIndexBin_dtype
 
 
 def _read_footprint_bins(stack, file_in, idx_file_in):
@@ -124,7 +123,7 @@ def _read_footprint_bins(stack, file_in, idx_file_in):
         footprint = np.memmap(footprint_file, dtype="u1", mode='r')
 
     footprint_index_file = resolve_file(idx_file_in, mode="rb", stack=stack)
-    footprint_index = np.memmap(footprint_index_file, dtype=EventIndexBin_dtype, mode='r')
+    footprint_index = np.memmap(footprint_index_file, dtype=_get_index_dtype(footprint), mode='r')
 
     return footprint, footprint_index
 

@@ -188,8 +188,15 @@ def footprint_tobin(
     decompressed_size,
     no_validation
 ):
+    from oasislmf.pytools.converters.csvtobin.manager import logger
+
     dtype = TOOL_INFO[file_type]["dtype"]
     idx_file_out = resolve_file(idx_file_out, "wb", stack)
+
+    # The decompressed size only applies to zipped footprints (as in ktools footprinttobin)
+    if decompressed_size and not zip_files:
+        logger.warning("WARNING: decompressed_size only applies to zipped footprints, ignoring it as zip_files is not set")
+        decompressed_size = False
 
     # Write bin file header
     file_out.write(np.array([max_intensity_bin_idx], dtype=np.int32).tobytes())

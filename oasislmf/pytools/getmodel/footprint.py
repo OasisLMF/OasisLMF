@@ -294,9 +294,11 @@ class FootprintBin(Footprint):
 
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'].item())
         self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'].item() & intensityMask)
+        # the idx entries carry the decompressed size when the header says so, even uncompressed
+        uncompressed_size = int((footprint_header['has_intensity_uncertainty'].item() & uncompressedMask) >> 1)
 
         f = self.stack.enter_context(self.storage.with_fileno(footprint_index_filename))
-        footprint_mmap = np.memmap(f, dtype=EventIndexBin, mode='r')
+        footprint_mmap = np.memmap(f, dtype=EventIndexBinZ if uncompressed_size else EventIndexBin, mode='r')
 
         self.footprint_index = np.array(footprint_mmap)
         try:
