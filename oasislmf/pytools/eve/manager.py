@@ -6,12 +6,18 @@ from pathlib import Path
 import numpy as np
 
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.pytools.common.data import oasis_int, resolve_file
+from oasislmf.pytools.common.data import def_to_type_and_size, resolve_file
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_EVENTS_FILE = Path('input/events.bin')
 NUMPY_RANDOM_SEED = 723706
+
+# event_id is always a fixed-width 4-byte int in events.bin, regardless of OASIS_INT -- matching
+# both csvtobin's eve writer and every other id field (event_id, item_id, sidx, ...) in the
+# binary streams, none of which vary with OASIS_INT. Reading with oasis_int (e.g. i8) would
+# misinterpret the file's actual bytes instead of just under/overcounting events.
+event_id_dtype, event_id_size = def_to_type_and_size('event_id')
 
 
 def read_events(input_file):
@@ -21,9 +27,9 @@ def read_events(input_file):
         input_file (str | os.PathLike): Path to binary events file.
 
     Returns:
-        np.array[oasis_int]: the event IDs, in the order they are held in the file.
+        np.array[event_id_dtype]: the event IDs, in the order they are held in the file.
     """
-    return np.fromfile(input_file, dtype=oasis_int)
+    return np.fromfile(input_file, dtype=event_id_dtype)
 
 
 def stream_events(events, stream_out):

@@ -314,3 +314,78 @@ def test_summarycalc_oasis_float_f8_round_trips_through_eltpy():
         _, _, _, loss, impacted_exposure = row.split(",")
         assert loss == "1234567.89"
         assert impacted_exposure == "1234567.89"
+
+
+def test_eve_oasis_int_i8_round_trips_through_evepy():
+    # event_id in events.bin is a fixed-width 4-byte int regardless of OASIS_INT, matching
+    # ktools' eve.cpp (plain C "int", never configurable) and every other id field (event_id,
+    # item_id, sidx, ...) in pytools' own binary streams. read_events used oasis_int instead, so
+    # with OASIS_INT=i8 it read the file at double its real record width, corrupting every id.
+    csv = "event_id\n1\n2\n3\n4\n"
+
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "events.csv").write_text(csv)
+
+        script = dedent(f"""\
+                from pathlib import Path
+                from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+                from oasislmf.pytools.eve.manager import main as eve_main
+
+                work_dir = Path(r"{tmp}")
+                csvtobin(work_dir / "events.csv", work_dir / "events.bin", "eve")
+                eve_main(input_file=str(work_dir / "events.bin"), process_number=1, total_processes=1,
+                         no_shuffle=True, output_file=str(work_dir / "out.bin"))
+                """)
+        script_path = Path(tmp, "script.py")
+        script_path.write_text(script)
+
+        env = {**os.environ, "OASIS_INT": "i8"}
+        result = subprocess.run([sys.executable, str(script_path)], env=env,
+                                capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, (
+            f"subprocess failed ({result.returncode}):\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+
+        # evepy's own output stream is always a fixed int32, regardless of OASIS_INT
+        out_events = np.fromfile(Path(tmp, "out.bin"), dtype=np.int32)
+
+    assert list(out_events) == [1, 2, 3, 4]
+
+
+def test_generate_losses_events_total_matches_real_event_count_under_oasis_int_i8():
+    # GenerateLosses reported progress by dividing events.bin's byte size by oasis_int_size
+    # (os.path.getsize("input/events.bin") // oasis_int_size), which under/overcounts
+    # events.bin's actual (always-4-byte) records whenever OASIS_INT != i4. event_id_size is
+    # the module-level constant the fix introduced for this computation, always resolving to 4.
+    csv = "event_id\n1\n2\n3\n4\n"
+
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "events.csv").write_text(csv)
+
+        script = dedent(f"""\
+                from pathlib import Path
+                import os
+                from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+                from oasislmf.pytools.common.data import oasis_int_size
+                from oasislmf.computation.generate.losses import event_id_size
+
+                work_dir = Path(r"{tmp}")
+                csvtobin(work_dir / "events.csv", work_dir / "events.bin", "eve")
+                size = os.path.getsize(work_dir / "events.bin")
+
+                # the old formula: wrong under OASIS_INT=i8 (demonstrates the bug directly)
+                assert size // oasis_int_size != 4, "oasis_int_size-based count unexpectedly correct"
+
+                # the fixed formula: always matches the real (fixed-width) event count
+                events_total = size // event_id_size
+                assert events_total == 4, f"expected 4 events, got {{events_total}}"
+                """)
+        script_path = Path(tmp, "script.py")
+        script_path.write_text(script)
+
+        env = {**os.environ, "OASIS_INT": "i8"}
+        result = subprocess.run([sys.executable, str(script_path)], env=env,
+                                capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, (
+            f"subprocess failed ({result.returncode}):\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )

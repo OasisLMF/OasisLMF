@@ -25,7 +25,7 @@ from subprocess import CalledProcessError
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
-from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, oasis_int_size
+from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, def_to_type_and_size
 import pandas as pd
 import numpy as np
 
@@ -59,6 +59,10 @@ from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
 from ...utils.ping import oasis_ping
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
+# event_id in events.bin is always a fixed-width 4-byte int, regardless of OASIS_INT -- dividing
+# by oasis_int_size (which varies, e.g. i8) under/overcounts events instead of matching the file.
+_, event_id_size = def_to_type_and_size('event_id')
 
 
 class GenerateLossesBase(ComputationStep):
@@ -522,7 +526,7 @@ class GenerateLossesPartial(GenerateLossesDir):
                     ))
                 else:
                     self.logger.info('All {} Loss chunks generated in {}'.format(bash_params['max_process_id'], model_run_fp))
-                oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
+                oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") // event_id_size)})
                 return model_runner_module.run_analysis(**bash_params)
             except CalledProcessError as e:
                 log_fp = os.path.join(model_run_fp, 'log', str(bash_params.get('process_number', '')))
@@ -687,9 +691,9 @@ class GenerateLosses(GenerateLossesDir):
                 self.logger.info("Set `OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT` or `OASIS_ANALYSIS_STATUS_URL` "
                                  "environment variables for run progress updates")
             elif 'analysis_pk' in self.kwargs:
-                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
+                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // event_id_size)})
             else:
-                socket_server_size = os.path.getsize("input/events.bin") // oasis_int_size
+                socket_server_size = os.path.getsize("input/events.bin") // event_id_size
                 socket_host = os.environ.get('OASIS_SOCKET_SERVER_IP', SERVER_DEFAULT_IP)
                 socket_preferred_port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', SERVER_DEFAULT_PORT))
                 socket_server_port = self._find_available_port(socket_host, socket_preferred_port)
