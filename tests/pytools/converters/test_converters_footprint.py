@@ -9,6 +9,7 @@ from unittest import mock
 import oasislmf.pytools.converters.csvtobin.utils.footprint as footprint_utils
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype, EventIndexBinZ_dtype
@@ -457,6 +458,46 @@ def test_footprint_accepts_valid_intensity_bin_id():
     "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,\n1,1,2,1.0\n",
 ])
 def test_footprint_rejects_nan_probability(csv):
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "bad.csv").write_text(csv)
+        with pytest.raises(OasisException, match="Probabilities do not sum to 1"):
+            csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "footprint", idx_file_out=Path(tmp, "bad.idx"),
+                     max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
+                     no_validation=False, zip_files=False)
+
+
+def test_footprint_accepts_thirds_summing_to_point99999():
+    # 0.33333 * 3 = 0.99999, off from 1.0 by 1e-5. #1693 used np.isclose(atol=1e-6), whose
+    # default rtol=1e-5 gives an effective tolerance of ~1.1e-5 (same as vulnerability.py still
+    # uses), but #1947's streaming rewrite dropped the rtol term, leaving a bare atol=1e-6 that
+    # rejects this common repeating-decimal split.
+    csv = "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,0.33333\n1,1,2,0.33333\n1,1,3,0.33333\n"
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "ok.csv").write_text(csv)
+        csvtobin(Path(tmp, "ok.csv"), Path(tmp, "ok.bin"), "footprint", idx_file_out=Path(tmp, "ok.idx"),
+                 max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
+                 no_validation=False, zip_files=False)
+
+
+def test_footprint_accepts_thirds_as_final_group():
+    # same tolerance, exercised through the end-of-file finalisation check rather than the
+    # mid-file group-boundary check (forced by shrinking the chunk size to 1 row)
+    csv = "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,0.33333\n1,1,2,0.33333\n1,1,3,0.33333\n"
+
+    def _small_chunks(stack, file_in, dtype):
+        return iter_csv_as_ndarray(stack, file_in, dtype, chunksize=1)
+
+    with TemporaryDirectory() as tmp, mock.patch.object(footprint_utils, "iter_csv_as_ndarray", _small_chunks):
+        Path(tmp, "ok.csv").write_text(csv)
+        csvtobin(Path(tmp, "ok.csv"), Path(tmp, "ok.bin"), "footprint", idx_file_out=Path(tmp, "ok.idx"),
+                 max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
+                 no_validation=False, zip_files=False)
+
+
+def test_footprint_still_rejects_genuinely_bad_probability_sum():
+    # a real error (0.9, not a rounded repeating decimal) must still be rejected under the
+    # loosened tolerance
+    csv = "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,0.9\n"
     with TemporaryDirectory() as tmp:
         Path(tmp, "bad.csv").write_text(csv)
         with pytest.raises(OasisException, match="Probabilities do not sum to 1"):

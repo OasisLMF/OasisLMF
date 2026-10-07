@@ -53,10 +53,14 @@ def _check_sorted(event_ids, areaperil_ids, prev_event_id, prev_areaperil_id, fi
 @nb.njit(cache=True, error_model="numpy")
 def _check_prob_sums(event_ids, areaperil_ids, probs,
                      prev_event_id, prev_areaperil_id, running_sum, first_chunk,
-                     atol=1e-6):
+                     atol=1e-6, rtol=1e-5):
     """Incremental probability sum check assuming sorted data.
     Returns (bad_idx, last_event_id, last_areaperil_id, running_sum).
     bad_idx=-1 means valid; the final group is not finalised here — check after last chunk.
+
+    atol/rtol match np.isclose's defaults (target is always 1.0, so the combined tolerance is
+    just atol + rtol): this is the tolerance #1693 used before #1947's streaming rewrite dropped
+    the rtol term, leaving a check over 10x stricter than vulnerability's equivalent check.
     """
     if len(event_ids) == 0:
         return np.int64(-1), prev_event_id, prev_areaperil_id, running_sum
@@ -71,7 +75,7 @@ def _check_prob_sums(event_ids, areaperil_ids, probs,
         if event_ids[i] != prev_event_id or areaperil_ids[i] != prev_areaperil_id:
             # NaN comparisons are always False, so "> atol" alone would silently accept a NaN
             # probability (e.g. from a blank CSV field) instead of flagging it as unresolved.
-            if not (abs(running_sum - 1.0) <= atol):
+            if not (abs(running_sum - 1.0) <= atol + rtol):
                 return np.int64(i - 1), prev_event_id, prev_areaperil_id, running_sum
             running_sum = np.float64(probs[i])
             prev_event_id = event_ids[i]
@@ -335,7 +339,7 @@ def footprint_tobin(
         )
 
     # Finalise last probability group (not checked inside the loop)
-    if not no_validation and any_data and not (abs(running_sum - 1.0) <= 1e-6):
+    if not no_validation and any_data and not (abs(running_sum - 1.0) <= 1e-6 + 1e-5):
         raise OasisException(
             f"Probabilities do not sum to 1 for final group: "
             f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"
