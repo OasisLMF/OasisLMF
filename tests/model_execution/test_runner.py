@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import tempfile
 from tempfile import TemporaryDirectory
 from unittest import TestCase, mock
@@ -136,6 +137,56 @@ class TestFindIncompletePytoolLogs(TestCase):
                 lost = runner._find_incomplete_pytool_logs(tmp_dir)
 
             self.assertEqual(lost, {'fmpy': [path]})
+
+    def test_lost_custom_gulcalc_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, 'gul_stderror.err')
+            with open(path, 'w') as f:
+                f.write('gulcalc started\ngulcalc started\ngulcalc finished\n')
+            lost = runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', 'gulcalc finished')
+            self.assertEqual(lost, {'gulcalc': [path]})
+
+    def test_finished_custom_gulcalc_is_complete(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with open(os.path.join(tmp_dir, 'gul_stderror.err'), 'w') as f:
+                f.write('gulcalc started\ngulcalc finished\n')
+            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', 'gulcalc finished'), {})
+
+    def test_custom_gulcalc_ignored_without_markers(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with open(os.path.join(tmp_dir, 'gul_stderror.err'), 'w') as f:
+                f.write('gulcalc started\n')
+            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir), {})
+            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', None), {})
+
+    def test_missing_gul_stderror_is_complete(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', 'gulcalc finished'), {})
+
+
+class TestRunChecksLogsComplete(TestCase):
+    def _run(self, tmp_dir, returncode, **kwargs):
+        proc = mock.Mock(pid=1, returncode=returncode)
+        proc.communicate.return_value = (b'', None)
+        with mock.patch('oasislmf.execution.runner.genbash'), \
+                mock.patch('oasislmf.execution.runner.ResourceMonitor'), \
+                mock.patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc), \
+                mock.patch('oasislmf.execution.runner._ensure_pytool_logs_complete') as mock_ensure:
+            try:
+                runner.run({}, filename=os.path.join(tmp_dir, 'run_kernel.sh'), **kwargs)
+            except subprocess.CalledProcessError:
+                pass
+        return mock_ensure
+
+    def test_checks_run_dir_logs_after_successful_script(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            mock_ensure = self._run(tmp_dir, 0, custom_gulcalc_log_start='start', custom_gulcalc_log_finish='finish')
+        mock_ensure.assert_called_once_with(os.path.join(tmp_dir, 'log'), 'start', 'finish')
+
+    def test_failed_script_skips_log_check(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            mock_ensure = self._run(tmp_dir, 1)
+        mock_ensure.assert_not_called()
 
 
 class TestEnsurePytoolLogsComplete(TestCase):

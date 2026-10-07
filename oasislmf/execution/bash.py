@@ -213,7 +213,7 @@ exit_handler(){
    # disable handler
    trap - QUIT HUP INT KILL TERM ERR EXIT
 
-   kill -9 $pid0 2> /dev/null
+   kill -9 $pid0 2> /dev/null || true
    [ -n "${spid:-}" ] && kill -9 "$spid" 2>/dev/null || true
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
@@ -236,51 +236,6 @@ exit_handler(){
    fi
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
-
-
-def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=None):
-    """Creates a bash function to check the logs to ensure same number of process started and finsished.
-
-    Args:
-        custom_gulcalc_log_start (str): Custom message printed to the logs when a process starts.
-        custom_gulcalc_log_finish (str): Custom message printed to the logs when a process ends.
-    """
-    check_function = """
-check_complete(){
-    set +e
-    proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
-    has_error=0
-    for p in $proc_list; do
-        started=$(find $LOG_DIR -name "${p}_[0-9]*.log" | wc -l)
-        finished=$(find $LOG_DIR -name "${p}_[0-9]*.log" -exec grep -l "finish" {} + | wc -l)
-        if [ "$finished" -lt "$started" ]; then
-            echo "[ERROR] $p - $((started-finished)) processes lost"
-            has_error=1
-        elif [ "$started" -gt 0 ]; then
-            echo "[OK] $p"
-        fi
-    done
-"""
-    # Add in check for custom gulcalc if settings are provided
-    if custom_gulcalc_log_start and custom_gulcalc_log_finish:
-        check_function += f"""
-    started=$( grep "{custom_gulcalc_log_start}" log/gul_stderror.err | wc -l)
-    finished=$( grep "{custom_gulcalc_log_finish}" log/gul_stderror.err | wc -l)
-    if [ "$finished" -lt "$started" ]; then
-        echo "[ERROR] gulcalc - $((started-finished)) processes lost"
-        has_error=1
-    elif [ "$started" -gt 0 ]; then
-        echo "[OK] gulcalc"
-    fi
-"""
-
-    check_function += """    if [ "$has_error" -ne 0 ]; then
-        false # raise non-zero exit code
-    else
-        echo 'Run Completed'
-    fi
-}"""
-    return check_function
 
 
 BASH_TRACE = """
@@ -2119,44 +2074,26 @@ def bash_wrapper(
     stderr_guard,
     log_sub_dir=None,
     process_number=None,
-    custom_gulcalc_log_start=None,
-    custom_gulcalc_log_finish=None,
-    run_check_complete=True,
 ):
     """Context manager that wraps the script body with header and footer boilerplate.
 
     On entry, writes the bash shebang, shell options (``set -euET``), log
-    directory setup, optional bash tracing, the error-trap function, and the
-    completion-check function.
+    directory setup, optional bash tracing and the error-trap function.
 
-    On exit (after the ``yield``), writes the footer: a ``check_complete``
-    call when `run_check_complete` is True, and (independently, when
-    `process_number` is set) a chunk-validation block that verifies no
-    output files are empty.
+    On exit (after the ``yield``), writes the footer: when `process_number`
+    is set, a chunk-validation block that verifies no output files are
+    empty. Checking that every pytool process finished is done in Python
+    after the script exits (see `runner.py`'s
+    `_ensure_pytool_logs_complete`).
 
     Args:
         filename (str): Path to the bash script being generated.
         bash_trace (bool): If True, enable bash ``-x`` tracing.
-        stderr_guard (bool): If True, install the error trap and write the
-            completion-check function.
+        stderr_guard (bool): If True, install the error trap.
         log_sub_dir (str or None): Sub-directory under ``log/`` for chunk
             mode logging.
         process_number (int or None): Chunk number when running in
             distributed mode.
-        custom_gulcalc_log_start (str or None): Custom log-start marker for
-            the completion check.
-        custom_gulcalc_log_finish (str or None): Custom log-finish marker for
-            the completion check.
-        run_check_complete (bool): If True, call the bash `check_complete`
-            function (which scans `$LOG_DIR` for pytool logs and verifies
-            each reached a "finish" marker) before the script exits. This is
-            only meaningful for a script that owns the entirety of `$LOG_DIR`
-            for its run - e.g. the single combined script from `genbash()`.
-            `run_analysis()`/`run_outputs()` (each one script per chunk/stage,
-            run from a distributed worker) pass False here and instead run an
-            equivalent Python-side check on their own log directory, waiting
-            for any straggling writers before re-checking (see `runner.py`'s
-            `_ensure_pytool_logs_complete`).
 
     Yields:
         None: Control is yielded to the caller to write the script body.
@@ -2189,8 +2126,6 @@ def bash_wrapper(
         print_command(filename, BASH_TRACE)
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
-        if run_check_complete:
-            print_command(filename, get_check_function(custom_gulcalc_log_start, custom_gulcalc_log_finish))
     print_command(filename, FIFO_CHECK_FUNC)
     print_command(filename, WAIT_FUNC)
 
@@ -2198,10 +2133,6 @@ def bash_wrapper(
     yield
 
     # Script footer
-    if stderr_guard and run_check_complete:
-        # run process dropped check (single script run, owns all of $LOG_DIR)
-        print_command(filename, '')
-        print_command(filename, 'check_complete')
     if stderr_guard and process_number:
         # check stderror.err before exit (fallback check in case of short run)
         print_command(filename, 'if [ -s $LOG_DIR/stderror.err ]; then')
@@ -3103,13 +3034,7 @@ def genbash(
     params['socket_server_size'] = socket_server_size
     params['socket_server_port'] = socket_server_port
 
-    with bash_wrapper(
-        filename,
-        bash_trace,
-        stderr_guard,
-        custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
-        custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
-    ):
+    with bash_wrapper(filename, bash_trace, stderr_guard):
         create_bash_analysis(**params)
         create_bash_outputs(**params)
 
