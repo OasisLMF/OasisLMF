@@ -1,4 +1,5 @@
 
+import csv
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
@@ -6,6 +7,7 @@ from unittest import mock
 import pytest
 
 from oasislmf.pytools.common.input_files import read_returnperiods
+from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.pla.structure import read_lossfactors
@@ -16,6 +18,19 @@ from tests.pytools.converters.helpers import case_runner
 def test_lossfactors():
     case_runner("bintocsv", "lossfactors", "static")
     case_runner("csvtobin", "lossfactors", "static")
+
+
+def test_lossfactors_bintocsv_keeps_factor_precision():
+    # factor was formatted "%.2f" (1.0375 -> 1.04), changing the model's own factors on a
+    # bin -> csv -> bin round trip; ktools' lossfactorstocsv used the default "%f" (6 d.p.)
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "in.csv").write_text("event_id,amplification_id,factor\n1,1,1.0375\n")
+        csvtobin(Path(tmp, "in.csv"), Path(tmp, "in.bin"), "lossfactors")
+        bintocsv(Path(tmp, "in.bin"), Path(tmp, "out.csv"), "lossfactors")
+        with open(Path(tmp, "out.csv")) as f:
+            row = next(csv.DictReader(f))
+
+    assert float(row["factor"]) == pytest.approx(1.0375, abs=1e-6)
 
 
 def _small_chunks(stack, file_in, dtype):
