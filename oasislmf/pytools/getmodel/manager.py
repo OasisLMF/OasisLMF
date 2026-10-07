@@ -584,12 +584,23 @@ def get_vulns(
 
         df_reader_config = clean_config(InputReaderConfig(filepath=vulnerability_dataset, engine=df_engine))
         df_reader_config["engine"]["options"]["storage"] = storage
-        reader = get_df_reader(df_reader_config, filters=[[('vulnerability_id', '==', vuln_id)] for vuln_id in vuln_map_keys])
+        # A single "in" filter is one is_in call; a clause-per-id OR expression segfaults pyarrow
+        # past ~9000 vulnerability ids.
+        reader = get_df_reader(df_reader_config, filters=[('vulnerability_id', 'in', vuln_map_keys.tolist())])
         df = reader.as_pandas()
         num_damage_bins = meta_data['num_damage_bins']
-        vuln_array_parquet = np.vstack(df['vuln_array'].to_numpy()).reshape(len(df['vuln_array']),
-                                                                            num_damage_bins,
-                                                                            num_intensity_bins)
+        # Reshape into the dimensions the parquet file was actually written with -- its own
+        # num_intensity_bins can legitimately be smaller than this run's (footprint-derived) one.
+        meta_num_intensity_bins = meta_data['num_intensity_bins']
+        vuln_array_parquet_raw = np.vstack(df['vuln_array'].to_numpy()).reshape(len(df['vuln_array']),
+                                                                                num_damage_bins,
+                                                                                meta_num_intensity_bins)
+        if meta_num_intensity_bins == num_intensity_bins:
+            vuln_array_parquet = vuln_array_parquet_raw
+        else:
+            # Zero-pad up to num_intensity_bins, matching the bin path's handling of absent bins.
+            vuln_array_parquet = np.zeros((len(df['vuln_array']), num_damage_bins, num_intensity_bins), dtype=oasis_float)
+            vuln_array_parquet[:, :, :meta_num_intensity_bins] = vuln_array_parquet_raw
         parquet_vuln_ids = df['vulnerability_id'].to_numpy()
         missing_vuln_ids = {v for v in vuln_ids_set.difference(parquet_vuln_ids) if int(v) not in allowed_missing}
         if missing_vuln_ids:

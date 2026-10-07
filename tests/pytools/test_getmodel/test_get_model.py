@@ -345,6 +345,108 @@ class TestGetVulns(TestCase):
                 actual_index = np.where(vulns_id == vuln_id)[0][0]
                 self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array_adj'][self.vuln_dict_base[vuln_id]]))
 
+    def test_get_vulns_parquet_handles_many_vulnerability_ids(self):
+        # get_vulns built one OR'd pyarrow filter clause per vulnerability_id, which segfaults
+        # pyarrow past ~9000 distinct ids. A single "in" filter avoids it.
+        n_vulns, n_int, n_dmg = 9500, 2, 2
+        rows = ["vulnerability_id,intensity_bin_id,damage_bin_id,probability"]
+        for v in range(1, n_vulns + 1):
+            rows += [f"{v},1,1,0.6", f"{v},1,2,0.4", f"{v},2,1,0.3", f"{v},2,2,0.7"]
+        run_dir = os.path.join(self.temp_dir, 'parquet_many_ids')
+        os.makedirs(run_dir)
+        csv_path = os.path.join(run_dir, 'vulnerability.csv')
+        with open(csv_path, 'w') as f:
+            f.write("\n".join(rows) + "\n")
+        csvtobin(
+            file_in=csv_path,
+            file_out=os.path.join(run_dir, 'vulnerability.bin'),
+            file_type='vulnerability',
+            idx_file_out=None,
+            max_damage_bin_idx=n_dmg,
+            no_validation=False,
+            suppress_int_bin_checks=False,
+            zip_files=False,
+        )
+        vulnerability_to_parquet(run_dir)
+
+        vuln_ids_sorted = np.arange(1, n_vulns + 1, dtype=np.int32)
+        vuln_key_table = np.empty(len(vuln_ids_sorted), dtype=np.int32)
+        vuln_table = hm_init_dict(len(vuln_ids_sorted))
+        hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
+        n_unique = hm_index_dtype(0)
+        for vid in vuln_ids_sorted:
+            vuln_key_table[n_unique] = vid
+            result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vid, n_unique)
+            while result == hm_i_add_key_fail:
+                vuln_table = hm_rehash(vuln_table, vuln_key_table)
+                hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
+                result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vid, n_unique)
+            if result & hm_new_slot_bit:
+                n_unique += hm_index_dtype(1)
+        vuln_map = vuln_table
+        vuln_map_keys = vuln_key_table[:n_unique]
+
+        model_storage = LocalStorage(root_dir=run_dir, cache_dir=None)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(
+            model_storage, run_dir, vuln_map, vuln_map_keys, num_intensity_bins=n_int,
+            ignore_file_type={'bin', 'csv'},
+        )
+
+        self.assertEqual(vuln_array.shape, (n_vulns, n_dmg, n_int))
+        self.assertEqual(len(vulns_id), n_vulns)
+        for vuln_id in (1, n_vulns // 2, n_vulns):
+            actual_index = np.where(vulns_id == vuln_id)[0][0]
+            np.testing.assert_allclose(vuln_array[actual_index], [[0.6, 0.3], [0.4, 0.7]], atol=1e-6)
+
+    def test_get_vulns_parquet_matches_bin_path_dimensions(self):
+        # vulnerability_to_parquet derived its bin counts from the max id in the data, not the
+        # header (damage bins) or footprint (intensity bins), either of which a vulnerability
+        # function can legitimately fall short of. Data here only uses ids 1-2 for both; the
+        # header declares max_damage_bin_idx=3 and the (simulated) footprint num_intensity_bins=3.
+        csv = (
+            "vulnerability_id,intensity_bin_id,damage_bin_id,probability\n"
+            "1,1,1,0.6\n1,1,2,0.4\n1,2,1,0.3\n1,2,2,0.7\n"
+            "2,1,1,0.5\n2,1,2,0.5\n2,2,1,0.2\n2,2,2,0.8\n"
+            "3,1,1,0.9\n3,1,2,0.1\n3,2,1,0.1\n3,2,2,0.9\n"
+        )
+        run_dir = os.path.join(self.temp_dir, 'parquet_dims')
+        os.makedirs(run_dir)
+        csv_path = os.path.join(run_dir, 'vulnerability.csv')
+        with open(csv_path, 'w') as f:
+            f.write(csv)
+        csvtobin(
+            file_in=csv_path,
+            file_out=os.path.join(run_dir, 'vulnerability.bin'),
+            file_type='vulnerability',
+            idx_file_out=None,
+            max_damage_bin_idx=3,  # header declares 3; data only reaches damage_bin_id 2
+            no_validation=False,
+            suppress_int_bin_checks=False,
+            zip_files=False,
+        )
+        vulnerability_to_parquet(run_dir)
+
+        # num_intensity_bins=3 simulates a footprint with more intensity bins than any
+        # vulnerability function in this file actually populates (which only reaches 2)
+        model_storage = LocalStorage(root_dir=run_dir, cache_dir=None)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(
+            model_storage, run_dir, self.vuln_map, self.vuln_map_keys, num_intensity_bins=3,
+            ignore_file_type={'bin', 'csv'},
+        )
+
+        # num_damage_bins must match the header (what the bin path would also report), not the
+        # max damage_bin_id (2) actually present in the data
+        self.assertEqual(num_damage_bins, 3)
+        self.assertEqual(vuln_array.shape, (3, 3, 3))
+        expected = {
+            1: [[0.6, 0.3, 0.0], [0.4, 0.7, 0.0], [0.0, 0.0, 0.0]],
+            2: [[0.5, 0.2, 0.0], [0.5, 0.8, 0.0], [0.0, 0.0, 0.0]],
+            3: [[0.9, 0.1, 0.0], [0.1, 0.9, 0.0], [0.0, 0.0, 0.0]],
+        }
+        for vuln_id in vulns_id:
+            actual_index = np.where(vulns_id == vuln_id)[0][0]
+            np.testing.assert_allclose(vuln_array[actual_index], expected[int(vuln_id)], atol=1e-6)
+
     def test_get_vulns_rejects_bin_id_below_one(self):
         # bin ids are 1-based; a 0 written without validation must not wrap to the last bin on load
         bad_data = self.mock_vuln_data.copy()

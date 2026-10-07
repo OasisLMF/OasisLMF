@@ -60,8 +60,7 @@ from ...utils.ping import oasis_ping
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-# event_id in events.bin is always a fixed-width 4-byte int, regardless of OASIS_INT -- dividing
-# by oasis_int_size (which varies, e.g. i8) under/overcounts events instead of matching the file.
+# event_id in events.bin is a fixed-width 4-byte int, regardless of OASIS_INT.
 _, event_id_size = def_to_type_and_size('event_id')
 
 

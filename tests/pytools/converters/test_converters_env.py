@@ -317,10 +317,8 @@ def test_summarycalc_oasis_float_f8_round_trips_through_eltpy():
 
 
 def test_eve_oasis_int_i8_round_trips_through_evepy():
-    # event_id in events.bin is a fixed-width 4-byte int regardless of OASIS_INT, matching
-    # ktools' eve.cpp (plain C "int", never configurable) and every other id field (event_id,
-    # item_id, sidx, ...) in pytools' own binary streams. read_events used oasis_int instead, so
-    # with OASIS_INT=i8 it read the file at double its real record width, corrupting every id.
+    # event_id in events.bin is a fixed 4-byte int regardless of OASIS_INT; read_events used
+    # oasis_int, so OASIS_INT=i8 read the file at double its real record width, corrupting ids.
     csv = "event_id\n1\n2\n3\n4\n"
 
     with TemporaryDirectory() as tmp:
@@ -353,10 +351,8 @@ def test_eve_oasis_int_i8_round_trips_through_evepy():
 
 
 def test_generate_losses_events_total_matches_real_event_count_under_oasis_int_i8():
-    # GenerateLosses reported progress by dividing events.bin's byte size by oasis_int_size
-    # (os.path.getsize("input/events.bin") // oasis_int_size), which under/overcounts
-    # events.bin's actual (always-4-byte) records whenever OASIS_INT != i4. event_id_size is
-    # the module-level constant the fix introduced for this computation, always resolving to 4.
+    # GenerateLosses divided events.bin's byte size by oasis_int_size to estimate event count,
+    # which is wrong whenever OASIS_INT != i4; event_id_size is the fixed-width fix.
     csv = "event_id\n1\n2\n3\n4\n"
 
     with TemporaryDirectory() as tmp:
