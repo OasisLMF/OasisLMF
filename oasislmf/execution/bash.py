@@ -560,7 +560,7 @@ def do_post_wait_processing(
                 outfile_ext = 'csv'
                 aal_csv_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["csv_flag"]
                 if summary.get('ord_output', {}).get('parquet_format'):
-                    cmd = f"{cmd} -E parquet {aal_csv_flag} {altmeanonly_outfile_stem}.cparquetsv"
+                    cmd = f"{cmd} -E parquet {aal_csv_flag} {altmeanonly_outfile_stem}.parquet"
                     outfile_ext = 'parquet'
                 else:
                     cmd = f"{cmd} {aal_csv_flag} {altmeanonly_outfile_stem}.csv"
