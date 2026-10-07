@@ -683,7 +683,13 @@ def build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, Ndamage_bins_max,
             for j in range(n_sub):
                 vuln_i = areaperil_agg_vuln_idx_ja_data[ptr + j]['vuln_idx']
                 for haz_i in range(Nhaz_bins):
-                    vuln_pdf[haz_i] += vuln_array[vuln_i, :, haz_bin_id[haz_i] - 1]
+                    has_prob = False
+                    for damage_bin_i in range(Ndamage_bins_max):
+                        if vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1] > 0:
+                            has_prob = True
+                            vuln_pdf[haz_i, damage_bin_i] += vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1]
+                    if not has_prob:
+                        vuln_pdf[haz_i, 0] += 1.
             vuln_pdf /= n_sub
     else:
         for haz_i in range(Nhaz_bins):
