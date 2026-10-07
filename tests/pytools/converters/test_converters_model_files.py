@@ -1,4 +1,12 @@
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest import mock
+
+import pytest
+
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+from oasislmf.utils.exceptions import OasisException
 from tests.pytools.converters.helpers import case_runner
 
 
@@ -35,6 +43,30 @@ def test_complex_items():
 def test_coverages():
     case_runner("bintocsv", "coverages", "input")
     case_runner("csvtobin", "coverages", "input")
+
+
+@pytest.mark.parametrize("csv, match", [
+    # unordered: TIVs would otherwise be written by position, silently landing against the wrong
+    # coverage_id (coverage.bin has no id column — the engine looks up coverage n at index n - 1)
+    ("coverage_id,tiv\n2,200\n1,100\n4,400\n", "coverage_id 2 at row 1 is not contiguous; expected 1"),
+    ("coverage_id,tiv\n1,100\n3,300\n", "coverage_id 3 at row 2 is not contiguous; expected 2"),  # gap
+    ("coverage_id,tiv\n0,100\n", "coverage_id 0 at row 1 is not contiguous; expected 1"),  # must start at 1
+])
+def test_coverages_rejects_non_contiguous_ids(csv, match):
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "bad.csv").write_text(csv)
+        with pytest.raises(OasisException, match=match):
+            csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "coverages")
+
+
+def test_coverages_rejects_non_contiguous_ids_across_chunk_boundary():
+    rows = [f"{i},{i * 10}" for i in range(1, 8)]
+    rows[5] = "999,999"  # break contiguity mid-file, past the first chunk when buffer size is small
+    csv = "coverage_id,tiv\n" + "\n".join(rows) + "\n"
+    with TemporaryDirectory() as tmp, mock.patch("oasislmf.pytools.converters.csvtobin.utils.coverages.DEFAULT_BUFFER_SIZE", 3):
+        Path(tmp, "bad.csv").write_text(csv)
+        with pytest.raises(OasisException, match="coverage_id 999 at row 6 is not contiguous; expected 6"):
+            csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "coverages")
 
 
 def test_eve():
