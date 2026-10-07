@@ -24,7 +24,7 @@ from oasislmf.pytools.fm.portfolio_complexity import (
 from oasislmf.utils.data import (get_dataframe, get_exposure_data, resolve_disaggregation,
                                  print_dataframe)
 from oasislmf.utils.defaults import (DISAGGREGATION_MODES, DISAGGREGATION_NONE,
-                                     DISAGGREGATION_SAMPLES, KERNEL_ALLOC_FM_MAX,
+                                     DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES, KERNEL_ALLOC_FM_MAX,
                                      KERNEL_ALLOC_IL_DEFAULT,
                                      KERNEL_ALLOC_RI_DEFAULT,
                                      OASIS_FILES_PREFIXES,
@@ -66,12 +66,16 @@ class RunExposure(ComputationStep):
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
-        {'name': 'disaggregation', 'type': str, 'default': None, 'choices': DISAGGREGATION_MODES,
+        # 'items' here, not the 'samples' that generation defaults to: a deterministic run has no
+        # sample dimension to multiplex buildings into, so 'samples' is downgraded to 'none' below
+        # -- and defaulting to it would quietly move every exposure run from per-building site
+        # terms to per-location ones. An explicit --disaggregation samples still downgrades.
+        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_ITEMS, 'choices': DISAGGREGATION_MODES,
          'help': DISAGGREGATION_HELP + " 'samples' has no deterministic equivalent and is run as "
                  "'none' here, so the same settings can be used to check a run before launching "
                  "it."},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
-         'help': 'DEPRECATED, use --disaggregation. if True run the oasis disaggregation.'},
+         'help': "DEPRECATED and ignored. Use --disaggregation items if you explicitly want a location's buildings split into separate items."},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',

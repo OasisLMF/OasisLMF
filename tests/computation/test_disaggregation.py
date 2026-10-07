@@ -20,9 +20,14 @@ class TestResolveDisaggregation(TestCase):
             with self.subTest(mode=mode):
                 self.assertEqual(resolve_disaggregation(mode, None), mode)
 
-    def test_nothing_given_keeps_the_historical_default(self):
-        """One item per building, which is what do_disaggregation defaulted to."""
-        self.assertEqual(resolve_disaggregation(None, None), 'items')
+    def test_nothing_given_is_samples(self):
+        """'samples' is the default, and the API agrees with the command line.
+
+        It was 'items' -- what do_disaggregation defaulted to -- until packing made 'samples' the
+        better representation of a multi-building location. The deprecated boolean still names the
+        two modes it could, below.
+        """
+        self.assertEqual(resolve_disaggregation(None, None), 'samples')
 
     def test_the_deprecated_boolean_is_still_honoured(self):
         for do_disaggregation, expected in ((True, 'items'), (False, 'none')):

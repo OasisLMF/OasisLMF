@@ -63,7 +63,8 @@ gul/
 ### Items Table (`items`)
 
 Structured numpy array built during setup by merging `items.bin` with `correlations.bin`, plus
-`packed_buildings` read off `coverages.bin` via each item's `coverage_id`.
+`packed_buildings` read off `coverage_buildings` via each item's `coverage_id` (all ones when
+that file is absent).
 Extended with sequential index fields for O(1) lookups:
 
 | Field | Type | Description |
@@ -175,10 +176,14 @@ from the lookup Dict before overwriting.
 A location with `NumberOfBuildings > 1` can be modelled without expanding it into one item per
 building. `disaggregation='samples'` keeps a single item per (location, peril, coverage type) and
 multiplexes that location's buildings into the **sample dimension** of one stream item. The
-building count travels on the **coverages** table as `n_building`: buildings belong to the
-location, so the coverage is where the value is true, and every item of a coverage inherits it.
+building count travels in its own `coverage_buildings` file, one signed record per coverage:
+buildings belong to the location, so the coverage is the granularity at which the value is true,
+and every item of a coverage inherits it. It is a file of its own rather than a column on
+`coverages.bin` because that file is a published format third-party models parse directly.
 
-The field is **signed**, and the sign is not a detail: it decides where the buildings collapse.
+The file exists only when some location has more than one building; absent, every count reads
+as 1. The field is **signed**, and the sign is not a detail: it decides where the buildings
+collapse.
 
 | `n_building` | set when | gulmc writes | the buildings collapse |
 |---|---|---|---|
@@ -221,7 +226,7 @@ sample, and `(-sidx - 1) // 5 + 1` for a special. No extra header field is neede
 
 ![gulmc data structures: the static items and coverages tables, the per-event random draws and item data, the per-coverage loss buffers, and the output stream](diagrams/gulmc_objects.svg)
 
-The building dimension appears in three places: `n_building` on the coverages table, the flat
+The building dimension appears in three places: `n_building` in the coverage_buildings file, the flat
 random arrays (one block of S per building, per rng group), and `building_losses`, which holds one
 column per building.
 

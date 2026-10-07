@@ -63,7 +63,7 @@ from tabulate import tabulate
 
 from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.defaults import (SOURCE_IDX, SAR_ID, DISAGGREGATION_MODES, DISAGGREGATION_NONE,
-                                     DISAGGREGATION_ITEMS)
+                                     DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -1090,7 +1090,8 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None):
     ``do_disaggregation``, which could only name two of the three.
 
     Args:
-        disaggregation (str | None): the mode, or None when not given.
+        disaggregation (str | None): the mode, or None when not given, which resolves to
+            ``DISAGGREGATION_SAMPLES`` -- the same default the command line applies.
         do_disaggregation (bool | None): deprecated. True means one item per building.
 
     Returns:
@@ -1108,7 +1109,8 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None):
 
     if disaggregation is None:
         if not deprecated_given:
-            return DISAGGREGATION_ITEMS
+            # matches the CLI default, so the Python API and the command line agree
+            return DISAGGREGATION_SAMPLES
         disaggregation = DISAGGREGATION_ITEMS if do_disaggregation else DISAGGREGATION_NONE
         warn_deprecated(
             f"do_disaggregation is deprecated and may be removed in a future version. Use "

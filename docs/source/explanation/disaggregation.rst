@@ -258,8 +258,8 @@ three modes, and every one of them conserves the location's total insured value.
     :header: "Mode", "Items written", "TIV per item", "Where the buildings live"
 
     "``none``", "one per location", "the whole location TIV", "nowhere — the buildings are implicitly perfectly correlated, so they need no dimension of their own"
-    "``items`` (default)", "one per building", "location TIV ÷ N", "one item row each"
-    "``samples``", "one per location", "location TIV ÷ N", "the sample dimension of that single item"
+    "``items``", "one per building", "location TIV ÷ N", "one item row each"
+    "``samples`` (default)", "one per location", "location TIV ÷ N", "the sample dimension of that single item"
 
 For example, to model each location as a single risk regardless of its NumberOfBuildings:
 
@@ -267,9 +267,10 @@ For example, to model each location as a single risk regardless of its NumberOfB
 
     oasislmf model run --disaggregation none -C oasislmf.json
 
-The older ``--do-disaggregation`` switch is **deprecated** and emits a ``DeprecationWarning``. It
-could only name two of the three modes: ``True`` is equivalent to ``--disaggregation items`` and
-``False`` to ``--disaggregation none``. If both are given, ``--disaggregation`` wins.
+The older ``--do-disaggregation`` switch is **deprecated and ignored**, and emits a
+``DeprecationWarning``. It could only name two of the three modes, which is why it was replaced:
+``True`` meant ``--disaggregation items`` and ``False`` meant ``--disaggregation none``. Because
+``--disaggregation`` now has a default of its own, it always wins.
 
 |
 
@@ -283,8 +284,8 @@ pairs that took a loss, so it depends on which mode wrote the items. For one loc
     :header: "Mode", "Affected risks reported"
 
     "``none``", "1"
-    "``items`` (default)", "3"
-    "``samples``", "1"
+    "``items``", "3"
+    "``samples`` (default)", "1"
 
 ``samples`` reports what ``none`` reports, because both write a single item per location with
 ``building_id = 1``; ``items`` is the mode that differs. ``IsAggregate`` does not change any of
@@ -366,9 +367,18 @@ the kernel carries that cost.
 carries ``N × S`` samples, laid out as building 1's ``S`` samples, then building 2's, and so on.
 Each building draws its own random numbers, so the buildings are independent by construction.
 
-The building count travels on the **coverages** file, in the ``n_building`` column: buildings
-belong to the location, so the coverage is where the value is true, and every item of a coverage
-inherits it. No separate side file is written.
+The building count travels in its own ``coverage_buildings`` file, one signed record per
+coverage: buildings belong to the location, so the coverage is the granularity at which the value
+is true, and every item of a coverage inherits it.
+
+It is a file of its own rather than a column on ``coverages.bin`` because that file is a published
+input format -- third-party models parse it directly as a bare array of TIVs, and widening its
+record would have them read alternate words as TIVs with no error. ``coverages.bin`` is therefore
+unchanged.
+
+The file is written **only when it says something**: a run where every location has one building
+-- including one with no ``NumberOfBuildings`` column at all -- produces no file, and the readers
+treat its absence as a count of one everywhere. So an ordinary portfolio gains nothing to carry.
 
 Building 1 uses the same encoding as an unpacked run, so a location with a single building
 produces a byte-for-byte identical stream to the one it would produce without packing.
@@ -379,20 +389,39 @@ produces a byte-for-byte identical stream to the one it would produce without pa
   dimension; an engine that does not understand the encoding would misread the sample indices.
 * Nothing in the model files. Packing is derived from the exposure, not configured by the modeller.
 
-.. warning::
+**Models with their own ground-up binary**
 
-   A model supplying its own ground-up binary through ``model_custom_gulcalc`` bypasses
-   ``gulmc`` and ``gulpy`` entirely, and nothing currently stops it being combined with
-   ``--disaggregation samples``.
+A model supplying its own binary through ``model_custom_gulcalc`` bypasses ``gulmc`` and ``gulpy``
+entirely. Packing would be unsafe there: generation has already divided each item's TIV by the
+building count -- correct for packing, where the engine is expected to put the buildings back in
+the sample dimension -- so a binary that knows nothing about packing sees an ordinary item at one
+building's TIV and writes ordinary sample indices. The run completes and the losses are a factor
+of ``NumberOfBuildings`` too small, with no error anywhere.
 
-   This fails quietly rather than loudly. Generation has already divided each item's TIV by the
-   building count -- correct for packing, where the engine is expected to put the buildings back
-   in the sample dimension -- so a binary that knows nothing about packing sees an ordinary item
-   at one building's TIV and writes ordinary sample indices. The run completes and the losses are
-   a factor of ``NumberOfBuildings`` too small.
+Generation therefore falls back to ``items`` for such a model, and says so:
 
-   Use ``items`` (the default) with a custom ground-up binary unless that binary is known to
-   implement the packed sidx encoding.
+.. code-block:: text
+
+    disaggregation='samples' is not applied to this run: it uses the custom gulcalc
+    'Supplier_Model_gulcalc', which has not declared that it understands building-packed
+    streams. ... Generating with 'items' instead.
+
+The binary is often not configured at all -- a model that sets none of ``gulmc``/``gulpy``/
+``modelpy`` is picked up by probing ``PATH`` for ``<supplier>_<model>_gulcalc`` -- so the check
+performs the same lookup rather than trusting ``model_custom_gulcalc`` alone.
+
+A binary that *does* implement the packed encoding opts in with
+``custom_gulcalc_supports_packing``, normally declared once by the model itself:
+
+.. code-block:: json
+
+    "computation_settings": {
+        "boolean_parameters": [
+            {"name": "custom_gulcalc_supports_packing",
+             "desc": "this model's custom gulcalc understands building-packed streams",
+             "default": true}
+        ]
+    }
 
 **Interaction with the financial module**
 
