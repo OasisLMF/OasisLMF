@@ -369,3 +369,57 @@ def test_large_areaperil_id_preserved_with_uint64():
         stored_id = int(data["areaperil_id"][0])
 
     assert stored_id == LARGE_AREAPERIL_ID
+
+
+def _write_footprint(tmp, zip_files=False):
+    csv_path = Path(tmp, "footprint.csv")
+    csv_path.write_text("event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,1.0\n")
+    bin_path, idx_path = Path(tmp, "footprint.bin"), Path(tmp, "footprint.idx")
+    csvtobin(csv_path, bin_path, "footprint", idx_file_out=idx_path, max_intensity_bin_idx=1,
+             no_intensity_uncertainty=True, decompressed_size=False, no_validation=True, zip_files=zip_files)
+    return bin_path, idx_path
+
+
+@pytest.mark.parametrize("zip_files", [False, True])
+def test_bintocsv_footprint_rejects_idx_past_end_of_file(zip_files):
+    """A truncated footprint.bin or a footprint.idx from a different (larger) file must be
+    rejected before the batched njit loop — which indexes without bounds checking — can read
+    past the end of the mapped file."""
+    with TemporaryDirectory() as tmp:
+        bin_path, idx_path = _write_footprint(tmp, zip_files=zip_files)
+        idx = np.fromfile(idx_path, dtype=EventIndexBin_dtype)
+        idx["offset"][0] = 2_000_000_000
+        idx.tofile(idx_path)
+        with pytest.raises(OasisException, match="references bytes .* but the footprint file is only"):
+            bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
+                     idx_file_in=idx_path, zip_files=zip_files, event_from_to=None)
+
+
+def test_bintocsv_footprint_rejects_truncated_bin_matching_a_real_mismatch():
+    """Same check, exercised by directly truncating a real footprint.bin rather than editing the
+    idx, matching how this surfaces in practice (a bin file cut short of its index)."""
+    with TemporaryDirectory() as tmp:
+        bin_path, idx_path = _write_footprint(tmp)
+        bin_path.write_bytes(bin_path.read_bytes()[:-1])  # one byte short of the last event
+        with pytest.raises(OasisException, match="references bytes .* but the footprint file is only"):
+            bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
+                     idx_file_in=idx_path, zip_files=False, event_from_to=None)
+
+
+def test_bintocsv_footprint_rejects_footprint_file_too_short_for_header():
+    """An empty or near-empty footprint.bin (e.g. empty stdin) used to fail inside
+    _get_index_dtype with a bare 'can only convert an array of size 1 to a Python scalar'."""
+    with TemporaryDirectory() as tmp:
+        _, idx_path = _write_footprint(tmp)
+        Path(tmp, "footprint.bin").write_bytes(b"\x00\x00")
+        with pytest.raises(OasisException, match="too short to hold its"):
+            bintocsv(Path(tmp, "footprint.bin"), Path(tmp, "out.csv"), "footprint", noheader=False,
+                     idx_file_in=idx_path, zip_files=False, event_from_to=None)
+
+
+def test_bintocsv_footprint_accepts_valid_file():
+    with TemporaryDirectory() as tmp:
+        bin_path, idx_path = _write_footprint(tmp)
+        bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
+                 idx_file_in=idx_path, zip_files=False, event_from_to=None)
+        assert Path(tmp, "out.csv").read_text() == "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,1.000000\n"

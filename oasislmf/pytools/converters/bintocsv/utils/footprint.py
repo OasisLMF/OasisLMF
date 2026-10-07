@@ -5,7 +5,11 @@
 # Processing proceeds as follows:
 #
 #   1. Index loading: the .idx file is memory-mapped as EventIndexBin_dtype or
-#      EventIndexBinZ_dtype (when the binary carries a decompressed-size field).
+#      EventIndexBinZ_dtype (when the binary carries a decompressed-size field). Every entry's
+#      byte range is checked against the footprint file's actual size before anything reads
+#      it: the batched njit loop below indexes without bounds checking, so a truncated or
+#      mismatched idx/bin pair would otherwise read past the mapped file — silently wrong
+#      data at best, a crash at worst.
 #      If the index is out of order it is sorted by event_id once upfront via argsort;
 #      the common case (already sorted) skips this entirely.
 #
@@ -34,6 +38,7 @@ from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.getmodel.common import (
     Event_dtype, EventIndexBin_dtype, EventIndexBinZ_dtype, FootprintHeader
 )
+from oasislmf.utils.exceptions import OasisException
 
 # Number of output rows to accumulate before flushing to write_ndarray_to_fmt_csv.
 _BATCH_ROWS = 1 << 13  # 8 K rows
@@ -107,6 +112,11 @@ def _read_footprint_zips(stack, file_in, idx_file_in):
 
 def _get_index_dtype(footprint):
     """Index entries carry the decompressed size when the footprint header says so"""
+    if len(footprint) < FootprintHeader.itemsize:
+        raise OasisException(
+            f"Error: footprint file is only {len(footprint)} bytes, too short to hold its "
+            f"{FootprintHeader.itemsize}-byte header; it is empty or truncated."
+        )
     footprint_header = np.frombuffer(footprint[:FootprintHeader.itemsize].tobytes(), dtype=FootprintHeader)
     uncompressedMask = 1 << 1
     if footprint_header['has_intensity_uncertainty'].item() & uncompressedMask:
@@ -128,6 +138,24 @@ def _read_footprint_bins(stack, file_in, idx_file_in):
     return footprint, footprint_index
 
 
+def _check_index_bounds(footprint, footprint_index):
+    """Raise a clear error if any idx entry's byte range falls outside the footprint data,
+    instead of letting the read below silently clip, read mmap zero-padding, or — for the
+    batched njit loops, which index without bounds checking — read past the mapped file
+    entirely (undefined behaviour, up to and including a crash).
+    """
+    starts = footprint_index['offset'].astype(np.int64)
+    ends = starts + footprint_index['size'].astype(np.int64)
+    bad = np.flatnonzero((starts < 0) | (ends > len(footprint)))
+    if bad.size:
+        i = int(bad[0])
+        raise OasisException(
+            f"Error: footprint index entry for event_id {int(footprint_index['event_id'][i])} references "
+            f"bytes [{int(starts[i])}, {int(ends[i])}) but the footprint file is only {len(footprint)} "
+            "bytes; the index and footprint files do not match, or the footprint file is truncated."
+        )
+
+
 def footprint_tocsv(stack, file_in, file_out, file_type, noheader, idx_file_in, zip_files, event_from_to):
     headers = TOOL_INFO[file_type]["headers"]
     dtype = TOOL_INFO[file_type]["dtype"]
@@ -138,6 +166,7 @@ def footprint_tocsv(stack, file_in, file_out, file_type, noheader, idx_file_in, 
         footprint, footprint_index = _read_footprint_zips(stack, file_in, idx_file_in)
     else:
         footprint, footprint_index = _read_footprint_bins(stack, file_in, idx_file_in)
+    _check_index_bounds(footprint, footprint_index)
 
     if not noheader:
         file_out.write(",".join(headers) + "\n")
