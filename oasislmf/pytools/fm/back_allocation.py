@@ -116,6 +116,18 @@ def resolve_positions(node_sidx, child_sidx, canonical, child_pos):
     node's; both are ascending. Where the node carries the canonical collapsed set the
     position is arithmetic, otherwise it is searched.
 
+    The search is a gallop rather than a plain binary search because it probes ``lo`` first, so a
+    child that is DENSE in its node costs one comparison per value. That is the ordinary case:
+    the building count is uniform across a location's items, and what varies is only which sidx
+    survive -- the loss threshold, a peril with no hazard, an undamaged coverage type. Measured
+    on a 64-building node the cost is near-flat from a full child (9.7us) to a tenth of one
+    (5.2us), so it already adapts to how much of the node a child holds.
+
+    An equal-length fast path was tried -- a subset of the node's size IS the node, so the
+    position would be the index -- and removed: it needs the sets to be exactly equal, which the
+    thinning above makes rare, and on the fullmc benchmark it moved the run by nothing
+    (2:06.3/2:04.9 against 2:05.6/2:06.6 without it).
+
     Args:
         node_sidx: the node's ascending sidx values
         child_sidx: the child's ascending sidx values, a subset of node_sidx
