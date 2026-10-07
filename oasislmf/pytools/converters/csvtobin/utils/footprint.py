@@ -69,7 +69,9 @@ def _check_prob_sums(event_ids, areaperil_ids, probs,
         i_start = 0
     for i in range(i_start, len(event_ids)):
         if event_ids[i] != prev_event_id or areaperil_ids[i] != prev_areaperil_id:
-            if abs(running_sum - 1.0) > atol:
+            # NaN comparisons are always False, so "> atol" alone would silently accept a NaN
+            # probability (e.g. from a blank CSV field) instead of flagging it as unresolved.
+            if not (abs(running_sum - 1.0) <= atol):
                 return np.int64(i - 1), prev_event_id, prev_areaperil_id, running_sum
             running_sum = np.float64(probs[i])
             prev_event_id = event_ids[i]
@@ -333,7 +335,7 @@ def footprint_tobin(
         )
 
     # Finalise last probability group (not checked inside the loop)
-    if not no_validation and any_data and abs(running_sum - 1.0) > 1e-6:
+    if not no_validation and any_data and not (abs(running_sum - 1.0) <= 1e-6):
         raise OasisException(
             f"Probabilities do not sum to 1 for final group: "
             f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"

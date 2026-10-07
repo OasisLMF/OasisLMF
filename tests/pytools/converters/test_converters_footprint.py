@@ -447,3 +447,19 @@ def test_footprint_accepts_valid_intensity_bin_id():
         csvtobin(Path(tmp, "ok.csv"), Path(tmp, "ok.bin"), "footprint", idx_file_out=Path(tmp, "ok.idx"),
                  max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
                  no_validation=False, zip_files=False)
+
+
+@pytest.mark.parametrize("csv", [
+    # a blank probability field is read as NaN by pandas; "abs(nan - 1) > atol" is always False,
+    # so this slipped past validation instead of being flagged as a bad probability sum
+    "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,\n",
+    # NaN mid-group likewise corrupts the running sum without being caught
+    "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,\n1,1,2,1.0\n",
+])
+def test_footprint_rejects_nan_probability(csv):
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "bad.csv").write_text(csv)
+        with pytest.raises(OasisException, match="Probabilities do not sum to 1"):
+            csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "footprint", idx_file_out=Path(tmp, "bad.idx"),
+                     max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
+                     no_validation=False, zip_files=False)
