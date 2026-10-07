@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import numpy as np
-from oasislmf.pytools.common.data import (coverages_bin_dtype, coverages_headers,
+from oasislmf.pytools.common.data import (COVERAGE_BUILDINGS_FILE, coverage_buildings_dtype,
                                           summary_stream_index_dtype)
 from oasislmf.pytools.common.input_files import read_coverages
 
@@ -30,19 +30,21 @@ def make_idx_from_bin(bin_path: Path, idx_path: Path) -> None:
 
 
 def set_coverage_buildings(input_dir, n_building, item_to_coverage=None):
-    """Rewrite a test input dir's coverages.bin with a given signed building count, keeping the tivs.
+    """Write a test input dir's coverage_buildings file with the given signed building count.
 
-    The count lives on the COVERAGE, so a fixture that wants "N buildings on every item" has to
-    say it per coverage. ``n_building`` is either one value for every coverage, or an array
-    indexed by ``coverage_id - 1``. Pass ``item_to_coverage`` (the items table's ``coverage_id``
-    column, parallel to a per-item array) to spread per-item intent onto the coverages instead;
-    items of one coverage must agree, which is now true by construction everywhere but here.
+    The count lives on the COVERAGE and in a file of its own -- coverages.bin stays the published
+    tiv-only format -- so a fixture that wants "N buildings on every item" has to say it per
+    coverage. ``n_building`` is either one value for every coverage, or an array indexed by
+    ``coverage_id - 1``. Pass ``item_to_coverage`` (the items table's ``coverage_id`` column,
+    parallel to a per-item array) to spread per-item intent onto the coverages instead.
 
     Returns the signed per-coverage array that was written.
     """
     input_dir = Path(input_dir)
-    # whichever form the fixture left behind -- some delete the bin and hand-write the csv
-    out = np.array(read_coverages(input_dir), dtype=coverages_bin_dtype)
+    n_coverages = read_coverages(input_dir).shape[0]
+    out = np.zeros(n_coverages, dtype=coverage_buildings_dtype)
+    out['coverage_id'] = np.arange(1, n_coverages + 1)
+    out['n_building'] = 1
     if item_to_coverage is not None:
         wanted = np.asarray(n_building, dtype='i4')
         if wanted.ndim == 0:
@@ -50,15 +52,6 @@ def set_coverage_buildings(input_dir, n_building, item_to_coverage=None):
         out['n_building'][np.asarray(item_to_coverage, dtype='i8') - 1] = wanted
     else:
         out['n_building'] = np.asarray(n_building, dtype='i4')
-    cov_path = input_dir / 'coverages.bin'
-    if cov_path.exists():
-        out.tofile(cov_path)
 
-    csv_path = input_dir / 'coverages.csv'
-    if csv_path.exists():
-        with open(csv_path, 'w') as fout:
-            fout.write(','.join(coverages_headers) + '\n')
-            for i, rec in enumerate(out, start=1):
-                fout.write(f"{i},{float(rec['tiv']):.6f},{int(rec['n_building'])}\n")
-
+    out.tofile(input_dir / f'{COVERAGE_BUILDINGS_FILE}.bin')
     return out['n_building']

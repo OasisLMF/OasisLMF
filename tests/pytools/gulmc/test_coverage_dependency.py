@@ -857,8 +857,7 @@ def test_dependent_coverage_runs_when_its_source_coverage_is_absent_from_the_eve
                               'group_id': [11, 22, 22]})
         items.to_csv(run_dir / 'input' / 'items.csv', index=False)
         (run_dir / 'input' / 'items.bin').unlink()
-        pd.DataFrame({'coverage_id': [1, 2], 'tiv': [220000.0, 790000.0],
-                      'n_building': [1, 1]}).to_csv(
+        pd.DataFrame({'coverage_id': [1, 2], 'tiv': [220000.0, 790000.0]}).to_csv(
             run_dir / 'input' / 'coverages.csv', index=False)
         (run_dir / 'input' / 'coverages.bin').unlink()
 

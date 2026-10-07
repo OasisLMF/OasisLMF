@@ -219,12 +219,32 @@ fm_structure_info_headers, fm_structure_info_dtype, fm_structure_info_fmt = gene
 coverages_output = [
     coverage_id,
     tiv,
-    n_building,
 ]
 coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(coverages_output)
-# What coverages.bin actually holds. coverage_id is the record's position, not a stored field, so
-# the binary carries only the values; the CSV form keeps the id for readability.
-coverages_bin_dtype = np.dtype([('tiv', oasis_float), ('n_building', 'i4')])
+
+# The per-coverage building count, in a file of its OWN rather than a field on coverages.bin.
+#
+# coverages.bin is a published input format: it is documented as internal data for gulpy and
+# fmpy, and third-party models read it directly -- PiWindComplexModel does, as a bare float32
+# array. Widening its record would have gone unnoticed by every such reader, which would then
+# take alternate words as TIVs. It carries no magic and coverage_id is positional, so there is
+# nowhere to put a version marker either. So the count lives beside it.
+#
+# coverage_id is stored rather than implied, unlike coverages.bin: it costs 4 bytes a coverage
+# and makes a truncated or mis-ordered file detectable, where a positional file would silently
+# shift every record after the gap.
+#
+# n_building is SIGNED. The magnitude is how many buildings the coverage's location carries; a
+# negative sign means they must reach the financial module as separate blocks, and 1 is the
+# unpacked identity. Never use it raw as a bound -- range() over a negative silently does
+# nothing.
+COVERAGE_BUILDINGS_FILE = 'coverage_buildings'
+coverage_buildings_output = [
+    coverage_id,
+    n_building,
+]
+(coverage_buildings_headers, coverage_buildings_dtype,
+ coverage_buildings_fmt) = generate_output_metadata(coverage_buildings_output)
 
 damagebin_output = [
     bin_index,

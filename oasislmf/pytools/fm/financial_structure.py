@@ -13,15 +13,14 @@ from numba import from_dtype, njit
 
 
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_info_dtype, load_as_ndarray, almost_equal,
-                                          coverages_bin_dtype,
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_info_dtype, load_as_ndarray, load_as_array, almost_equal,
                                           fm_policytc_dtype,
                                           fm_profile_dtype, fm_profile_step_dtype,
                                           fm_programme_dtype,
                                           fm_xref_dtype,
                                           items_dtype,
-                                          oasis_int, nb_oasis_int, null_index)
-from oasislmf.pytools.common.input_files import validate_coverages
+                                          oasis_int, nb_oasis_int, oasis_float, null_index)
+from oasislmf.pytools.common.input_files import read_coverage_buildings
 from .common import (allowed_allocation_rule, need_extras, need_tiv_policy)
 
 logger = logging.getLogger(__name__)
@@ -163,19 +162,27 @@ def load_static(static_path):
     xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype)
 
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
-    # validate_coverages, not just the read: this path memmaps the file directly rather than
-    # going through read_coverages, and an older tiv-only file read at the wrong stride would
-    # otherwise reach the mismatch below, empty BOTH arrays as if a file were missing, and leave
-    # every TIV-dependent calcrule computing against a tiv of 0 -- a wrong loss with no error.
-    coverages = validate_coverages(
-        load_as_ndarray(static_path, 'coverages', coverages_bin_dtype, must_exist=False),
-        os.path.join(static_path, 'coverages.bin'))
+    coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
     if np.unique(items['coverage_id']).shape[0] != coverages.shape[0]:
         # one of the file is missing we default to empty array
         items = np.empty(0, dtype=items_dtype)
-        coverages = np.empty(0, dtype=coverages_bin_dtype)
+        coverages = np.empty(0, dtype=oasis_float)
 
-    return (programme, policytc, profile, stepped, xref, items, coverages) + load_fm_structure_info(static_path)
+    # The per-coverage building count, from its own file -- coverages.bin stays the published
+    # tiv-only format. Absent for every unpacked input set, and then the extras budget falls back
+    # to its bound. Scattered to a dense array indexed by coverage_id - 1, matching coverages.
+    buildings = read_coverage_buildings(static_path)
+    n_building = np.ones(coverages.shape[0], dtype=np.int32)
+    if buildings.shape[0] and coverages.shape[0]:
+        if buildings.shape[0] != coverages.shape[0]:
+            raise OasisException(
+                f"coverage_buildings holds {buildings.shape[0]} coverages where coverages holds "
+                f"{coverages.shape[0]}; the two are written together and must agree. "
+                f"Regenerate the oasis files."
+            )
+        n_building[buildings['coverage_id'] - 1] = buildings['n_building']
+
+    return (programme, policytc, profile, stepped, xref, items, coverages, n_building) + load_fm_structure_info(static_path)
 
 
 @njit(cache=True)
@@ -308,7 +315,7 @@ def get_tiv_csr(children_indices, children_len, items, coverages, node_level_sta
         children_indices (np.ndarray[oasis_int]): Array of child node indices (item level nodes)
         children_len (int): Number of valid entries in children_indices
         items (np.ndarray[items_dtype]): Items array mapping item_id to coverage_id
-        coverages (np.ndarray[coverages_bin_dtype]): per-coverage ``tiv`` and ``n_building``
+        coverages (np.ndarray[oasis_float]): the tiv for each coverage
         node_level_start (np.ndarray[oasis_int]): Array for converting index to level/agg_id
         start_level (int): The start level (item level)
 
@@ -326,7 +333,7 @@ def get_tiv_csr(children_indices, children_len, items, coverages, node_level_sta
         coverage_i = items[agg_id - 1]['coverage_id'] - 1
         if not used_cov[coverage_i]:
             used_cov[coverage_i] = 1
-            tiv += coverages[coverage_i]['tiv']
+            tiv += coverages[coverage_i]
     return tiv
 
 
@@ -439,7 +446,7 @@ def prepare_profile_stepped(profile, tiv):
 
 @njit(cache=True)
 def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages,
-                                site_collapse_level=0, max_buildings=1, total_packed_buildings=0,
+                                n_building, site_collapse_level=0, max_buildings=1, total_packed_buildings=0,
                                 packed_node_slots=0):
     """Build the in-memory financial structure arrays from the raw fm input files.
 
@@ -451,8 +458,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         stepped (Optional[bool]): True when fm_profile holds step policies, None otherwise
         fm_xref (np.ndarray[fm_xref_dtype]): mapping between the output of the allocation and output item_id
         items (np.ndarray[items_dtype]): item_id and coverage_id mapping, empty when unavailable
-        coverages (np.ndarray[coverages_bin_dtype]): per-coverage ``tiv`` and ``n_building``,
-            empty when unavailable
+        coverages (np.ndarray[oasis_float]): the tiv for each coverage, empty when unavailable
+        n_building (np.ndarray[int32]): the signed per-coverage building count, all ones when
+            there is no coverage_buildings file
         site_collapse_level (int): the last level whose aggregation key includes ``risk_id``.
             Building-packed items keep their buildings apart until this level has applied its
             terms per building, then collapse to the sample size. 0 means nothing to collapse.
@@ -794,7 +802,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                             and max_buildings > 1
                             and site_collapse_level >= max(1, start_level)
                             and items.shape[0] > 0
-                            and coverages.shape[0] > 0)
+                            and n_building.shape[0] > 0)
     node_buildings = np.zeros(total_nodes if have_building_counts else 1, dtype=np.int32)
     packed_extra_slots = 0
     if have_building_counts:
@@ -807,8 +815,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 node_idx = node_level_start[level] + agg_id
                 if level == start_level:
                     # the item nodes: agg_id is the item_id, and the count rides on its coverage
-                    node_buildings[node_idx] = abs(
-                        coverages[items[agg_id - 1]['coverage_id'] - 1]['n_building'])
+                    node_buildings[node_idx] = abs(n_building[items[agg_id - 1]['coverage_id'] - 1])
                 else:
                     buildings = 1
                     for ci in range(children_indptr[node_idx], children_indptr[node_idx + 1]):
@@ -1163,13 +1170,13 @@ def create_financial_structure(allocation_rule, static_path):
     if allocation_rule == 3:
         allocation_rule = 2
 
-    (fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages,
+    (fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages, n_building,
      site_collapse_level, max_buildings, total_packed_buildings,
      packed_node_slots) = load_static(static_path)
     check_collapse_is_reachable(fm_programme, site_collapse_level, max_buildings)
     check_one_parent_per_level(fm_programme)
     financial_structure = extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile,
-                                                      stepped, fm_xref, items, coverages,
+                                                      stepped, fm_xref, items, coverages, n_building,
                                                       site_collapse_level, max_buildings,
                                                       total_packed_buildings, packed_node_slots)
     compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile = financial_structure

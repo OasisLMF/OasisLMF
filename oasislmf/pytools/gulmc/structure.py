@@ -18,6 +18,7 @@ from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, oasis_floa
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
+from oasislmf.pytools.gul.structure import coverage_building_counts
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import (
     get_damage_bins, get_vulns, get_intensity_bin_dict, read_conditional_vulnerability,
@@ -457,9 +458,10 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
 
     # --- coverages -------------------------------------------------------------
     logger.debug('import coverages')
-    coverages_data = read_coverages(input_path, ignore_file_type)
-    coverages = np.zeros(coverages_data.shape[0] + 1, coverage_type)
-    coverages[1:]['tiv'] = coverages_data['tiv']
+    coverages_tiv = read_coverages(input_path, ignore_file_type)
+    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
+    coverages[1:]['tiv'] = coverages_tiv
+    n_building_by_coverage = coverage_building_counts(input_path, ignore_file_type, coverages_tiv.shape[0])
 
     # --- aggregate vulnerability -----------------------------------------------
     logger.debug('import aggregate vulnerability definitions and vulnerability weights')
@@ -507,12 +509,12 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # arrives on the coverage and every item of a coverage inherits the same value.
     if items.shape[0]:
         cov_i = items['coverage_id'] - 1
-        if cov_i.min() < 0 or cov_i.max() >= coverages_data.shape[0]:
+        if cov_i.min() < 0 or cov_i.max() >= n_building_by_coverage.shape[0]:
             raise OasisException(
-                f"items.bin references coverage_id outside 1..{coverages_data.shape[0]} covered by "
-                f"coverages.bin; the two files must be regenerated together."
+                f"items.bin references coverage_id outside 1..{n_building_by_coverage.shape[0]} "
+                f"covered by coverages.bin; the two files must be regenerated together."
             )
-        items['packed_buildings'] = coverages_data['n_building'][cov_i]
+        items['packed_buildings'] = n_building_by_coverage[cov_i]
     items['areaperil_agg_vuln_idx'] = -1
     # generate_item_map only assigns vulnerability_idx for non-aggregate items; initialise it so an
     # aggregate item never carries uninitialised memory into an array index

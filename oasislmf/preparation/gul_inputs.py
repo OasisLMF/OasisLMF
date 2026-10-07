@@ -11,7 +11,8 @@ import pandas as pd
 import numpy as np
 
 from oasislmf.pytools.common.data import (correlations_headers, correlations_dtype, amplifications_dtype, items_dtype,
-                                          coverages_bin_dtype,
+                                          COVERAGE_BUILDINGS_FILE, coverage_buildings_dtype,
+                                          coverage_buildings_headers,
                                           coverages_dtype, item_adjustment_dtype,
                                           complex_items_meta_dtype,
                                           item_id, coverage_id, group_id, section_id,
@@ -24,7 +25,7 @@ from oasislmf.utils.defaults import (CORRELATION_GROUP_ID, DISAGGREGATION_ITEMS,
                                      DISAGGREGATION_NONE, DISAGGREGATION_SAMPLES,
                                      DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
-                                     OASIS_FILES_PREFIXES, SOURCE_IDX,
+                                     OASIS_FILES_PREFIXES, SOURCE_IDX, WRITE_CHUNKSIZE,
                                      get_default_exposure_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
@@ -59,17 +60,51 @@ def prepare_sections_df(gul_inputs_df):
 
 
 def coverages_write_gul_bin(data, file_path, dtype):
-    """Write coverages.bin: one (tiv, n_building) record per coverage, in coverage_id order.
+    """Write coverages.bin: one tiv per coverage, in coverage_id order.
 
     coverage_id is the record's POSITION rather than a stored field, so a coverage missing from
     the frame would silently shift every record after it and every reader would take the wrong
-    tiv. n_building is signed: magnitude is the count, negative means the buildings stay separate.
+    tiv. The file is a published format that third-party models parse directly, so it holds the
+    tiv and nothing else -- the building count goes to coverage_buildings, see
+    write_coverage_buildings.
     """
-    arr = df_to_ndarray(data, dtype)
-    out = np.empty(arr.shape[0], dtype=coverages_bin_dtype)
-    out['tiv'] = arr['tiv']
-    out['n_building'] = arr['n_building']
-    out.tofile(file_path)
+    df_to_ndarray(data, dtype)['tiv'].tofile(file_path)
+
+
+def write_coverage_buildings(gul_inputs_df, target_dir, intermediary_csv=False, chunksize=WRITE_CHUNKSIZE):
+    """Write the per-coverage building count, when there is anything to say.
+
+    Written only when some coverage carries more than one building: an unpacked input set has
+    nothing to record, and emitting an all-ones file for every model would make a file that is
+    almost always noise. The readers treat absence as all-ones, which is the same path packing
+    takes with N == 1.
+
+    coverage_id is stored rather than positional here, unlike coverages.bin -- 4 bytes a coverage
+    to make a truncated file detectable rather than silently shifted.
+
+    Args:
+        gul_inputs_df (pd.DataFrame): the GUL inputs frame, carrying coverage_id and n_building.
+        target_dir (str): directory to write into.
+        intermediary_csv (bool): also write the csv form.
+        chunksize (int): chunk size for writing the csv.
+
+    Returns:
+        str | None: the path written, or None when there was nothing to write.
+    """
+    if 'n_building' not in gul_inputs_df.columns:
+        return None
+    data = (gul_inputs_df[list(coverage_buildings_headers)]
+            .drop_duplicates(subset='coverage_id')
+            .sort_values('coverage_id'))
+    if data.empty or int(data['n_building'].abs().max()) <= 1:
+        return None
+
+    file_path = os.path.join(target_dir, f'{COVERAGE_BUILDINGS_FILE}.bin')
+    df_to_ndarray(data, coverage_buildings_dtype).tofile(file_path)
+    if intermediary_csv:
+        write_file(data, os.path.join(target_dir, f'{COVERAGE_BUILDINGS_FILE}.csv'),
+                   structured_dtype_to_pandas(coverage_buildings_dtype), chunksize=chunksize)
+    return file_path
 
 
 def complex_items_write_gul_bin(data, file_path, dtype):
@@ -805,5 +840,9 @@ def write_gul_input_files(
             file_path = os.path.join(target_dir, f"{file_name}.csv")
             gul_input_files[fm_name] = file_path
             write_file(data, file_path, file_write_info['csv_dtype'], chunksize=chunksize)
+
+    buildings_path = write_coverage_buildings(gul_inputs_df, target_dir, intermediary_csv, chunksize)
+    if buildings_path is not None:
+        gul_input_files[COVERAGE_BUILDINGS_FILE] = buildings_path
 
     return gul_input_files

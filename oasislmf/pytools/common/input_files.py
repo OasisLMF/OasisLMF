@@ -6,7 +6,8 @@ import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import (coverages_bin_dtype,
+from oasislmf.pytools.common.data import (COVERAGE_BUILDINGS_FILE, coverage_buildings_dtype,
+                                          coverage_buildings_headers,
                                           oasis_int, oasis_float,
                                           areaperil_int, load_as_ndarray, correlations_headers, correlations_dtype, coverages_headers,
                                           occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
@@ -200,56 +201,70 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
     raise FileNotFoundError(f'correlations file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')
 
 
-# Any float32 at or above ~1.1e-19 has its exponent bits set, so reinterpreting one as the i4
-# n_building field yields a magnitude of at least 2**29. A real building count is nowhere near
-# that -- the largest in the project's own benchmark book is 630,510 -- so the two ranges do not
-# overlap and the bound separates them cleanly.
-MAX_PLAUSIBLE_BUILDINGS = 1 << 29
+def read_coverage_buildings(run_dir="", ignore_file_type=set(), filename=COVERAGE_BUILDINGS_FILE):
+    """Load the per-coverage building count, or an all-ones stand-in when the file is absent.
 
+    A file of its own rather than a field on coverages.bin, which is a published format that
+    third-party models parse directly -- see the note on coverage_buildings_dtype.
 
-def validate_coverages(coverages, source):
-    """Reject a coverages array that is really an older tiv-only file read at the wrong stride.
-
-    The record carries no magic and coverage_id is positional, so a size check alone cannot do
-    this: a tiv-only file (4 bytes a record) has a byte count that is an exact multiple of the
-    8-byte record whenever the coverage count is EVEN, which is the common case. It would memmap
-    to half the coverages, each holding another coverage's tiv -- wrong losses, no error.
-
-    ``n_building`` is what separates them. It must be non-zero, because every coverage has at
-    least one building, which catches a file of zero tivs; and a tiv reinterpreted as an int is
-    enormous, which catches everything else. Both are properties of the data rather than of the
-    file size, so this also guards the paths that memmap the file without going through
-    read_coverages.
+    Absent is the ordinary case, not an error: every input set generated before building packing
+    has none, and so does every unpacked run. The caller gets ones back and takes the one-building
+    path, which is the same path packing uses with N == 1.
 
     Args:
-        coverages (numpy.array[coverages_bin_dtype]): the array as read.
-        source (str | os.PathLike): what to name in the error.
+        run_dir (str): path to the coverage buildings file
+        ignore_file_type (Set[str]): file extension to ignore when loading.
+        filename (str | os.PathLike): coverage buildings file name
 
     Returns:
-        numpy.array[coverages_bin_dtype]: ``coverages`` unchanged, so this can wrap a read.
+        numpy.array[coverage_buildings_dtype]: ``coverage_id`` and the signed ``n_building``,
+            empty when the file is absent.
 
     Raises:
-        OasisException: if the records cannot be a current-layout coverages file.
+        OasisException: if the binary file is not a whole number of records, or its coverage_ids
+            are not the dense 1..N the writer produces.
     """
-    if coverages.shape[0] == 0:
-        return coverages
-    n_building = coverages['n_building']
-    if not n_building.all():
-        raise OasisException(
-            f"{source} holds a coverage with n_building 0, which is not a valid building count. "
-            f"The most likely cause is a coverages file written to the older tiv-only layout, "
-            f"whose byte count is also a multiple of the current {coverages_bin_dtype.itemsize}-"
-            f"byte record. Regenerate the oasis files."
-        )
-    worst = int(np.abs(n_building).max())
-    if worst >= MAX_PLAUSIBLE_BUILDINGS:
-        raise OasisException(
-            f"{source} holds a coverage with n_building {worst}, far beyond any real building "
-            f"count. The most likely cause is a coverages file written to the older tiv-only "
-            f"layout, read at the wrong stride so a tiv has been reinterpreted as a building "
-            f"count. Regenerate the oasis files."
-        )
-    return coverages
+    for ext in ["bin", "csv"]:
+        if ext in ignore_file_type:
+            continue
+        path = Path(run_dir, filename).with_suffix("." + ext)
+        if not path.exists():
+            continue
+        if ext == "bin":
+            size = path.stat().st_size
+            if size % coverage_buildings_dtype.itemsize:
+                raise OasisException(
+                    f"{path} is {size} bytes, not a multiple of the "
+                    f"{coverage_buildings_dtype.itemsize}-byte record "
+                    f"({', '.join(coverage_buildings_headers)}). Regenerate the oasis files."
+                )
+            if size == 0:
+                continue
+            data = np.memmap(path, dtype=coverage_buildings_dtype, mode='r')
+        else:
+            with open(path, "r") as fin:
+                lines = fin.readlines()
+            if not lines:
+                continue
+            has_header = [h.strip() for h in lines[0].strip().split(',')] == coverage_buildings_headers
+            data_lines = lines[1:] if has_header else lines
+            if not data_lines:
+                continue
+            data = np.loadtxt(data_lines, dtype=coverage_buildings_dtype, delimiter=",", ndmin=1)
+
+        # The writer emits one row per coverage in coverage_id order, so anything else is a file
+        # that has been truncated, concatenated or hand-edited -- and the consumers scatter by
+        # coverage_id into an array sized from the coverages, where a stale id would land in the
+        # wrong slot or out of range.
+        ids = data['coverage_id']
+        if ids.shape[0] and (ids[0] != 1 or not np.array_equal(ids, np.arange(1, ids.shape[0] + 1))):
+            raise OasisException(
+                f"{path} does not hold a dense 1..{ids.shape[0]} coverage_id sequence "
+                f"(first {int(ids[0])}, last {int(ids[-1])}). Regenerate the oasis files."
+            )
+        return data
+
+    return np.empty(0, dtype=coverage_buildings_dtype)
 
 
 def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, use_stdin=False):
@@ -262,8 +277,9 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
         use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
 
     Returns:
-        numpy.array[coverages_bin_dtype]: ``tiv`` and the signed ``n_building`` for each coverage,
-        indexed by ``coverage_id - 1`` -- the id is the record's position, not a stored field.
+        numpy.array[oasis_float]: the tiv for each coverage, indexed by ``coverage_id - 1``.
+            coverages.bin is a published format read by third-party models, so it stays a bare
+            array of tiv; the building count lives in its own file, see read_coverage_buildings.
     """
     supported_exts = ["bin", "csv"]
 
@@ -274,16 +290,8 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
         data_lines = lines[1:] if has_header else lines
         raw = np.loadtxt(data_lines, dtype=oasis_float, delimiter=",", ndmin=2)
         if raw.shape[0] == 0:        # a header with no rows is well-formed, not malformed
-            return np.empty(0, dtype=coverages_bin_dtype)
-        if raw.shape[1] != len(coverages_headers):
-            raise OasisException(
-                f"coverages csv has {raw.shape[1]} columns, expected {len(coverages_headers)} "
-                f"({', '.join(coverages_headers)}). Regenerate the oasis files."
-            )
-        out = np.empty(raw.shape[0], dtype=coverages_bin_dtype)
-        out['tiv'] = raw[:, 1]
-        out['n_building'] = raw[:, 2].astype('i4')
-        return out
+            return np.empty(0, dtype=oasis_float)
+        return raw[:, 1]
 
     # STDIN
     if use_stdin:
@@ -291,8 +299,7 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
             if ext in ignore_file_type:
                 continue
             if ext == "bin":
-                return validate_coverages(
-                    np.frombuffer(sys.stdin.buffer.read(), dtype=coverages_bin_dtype), "coverages on stdin")
+                return np.frombuffer(sys.stdin.buffer.read(), dtype=oasis_float)
             elif ext == "csv":
                 lines = sys.stdin.readlines()
                 return read_csv_lines(lines)
@@ -311,20 +318,10 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
             continue
 
         if ext == "bin":
-            size = coverages_file.stat().st_size
-            if size % coverages_bin_dtype.itemsize:
-                raise OasisException(
-                    f"{coverages_file} is {size} bytes, not a multiple of the "
-                    f"{coverages_bin_dtype.itemsize}-byte coverages record "
-                    f"({', '.join(coverages_bin_dtype.names)}). Regenerate the oasis files."
-                )
-            if size == 0:
+            if coverages_file.stat().st_size == 0:
                 logger.debug("binary coverages file is empty, falling back to the csv.")
                 continue
-            # the size is a multiple either way for an EVEN number of old records, so the
-            # records themselves have to be checked -- see validate_coverages
-            return validate_coverages(np.memmap(coverages_file, dtype=coverages_bin_dtype, mode='r'),
-                                      coverages_file)
+            return np.memmap(coverages_file, dtype=oasis_float, mode='r')
         elif ext == "csv":
             with ExitStack() as stack:
                 fin = stack.enter_context(open(coverages_file, "r"))

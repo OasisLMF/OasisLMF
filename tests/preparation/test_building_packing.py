@@ -2,8 +2,7 @@
 
 Building-packing mode (``disaggregation='samples'``) keeps one item per
 (location, peril, coverage_type) instead of expanding one row per building, and carries
-the building count on the ``coverages`` table (the ``n_building`` column, one row per
-coverage) so the buildings can be multiplexed into the sample dimension downstream
+the building count in its own ``coverage_buildings`` file (one row per coverage) so the buildings can be multiplexed into the sample dimension downstream
 (gulmc/gulpy). It is no longer a separate side file.
 """
 import os
@@ -21,7 +20,7 @@ from oasislmf.preparation.gul_inputs import (
     write_gul_input_files,
 )
 from oasislmf.preparation.summaries import get_summary_mapping, _location_tiv_total
-from oasislmf.pytools.common.input_files import read_coverages
+from oasislmf.pytools.common.input_files import read_coverage_buildings, read_coverages
 from oasislmf.utils.profiles import get_oed_hierarchy
 from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_NONE,
                                      DISAGGREGATION_SAMPLES)
@@ -169,11 +168,13 @@ class TestBuildingPacking(TestCase):
         packed = get_gul_input_items(_loc_df(), _keys_df(), damage_group_id_cols=['loc_id'], disaggregation=DISAGGREGATION_SAMPLES)
         self.assertEqual(packed['group_id'].nunique(), packed['loc_id'].nunique())
 
-    def test_building_count_carried_on_coverages(self):
-        """The count rides on coverages.bin; no side file is written.
+    def test_building_count_carried_on_its_own_file(self):
+        """The count rides on coverage_buildings, at coverage granularity.
 
         Buildings belong to the LOCATION, so the coverage is where the value is true -- every item
-        of a coverage inherits it. The expected lists are per COVERAGE, not per item.
+        of a coverage inherits it. It is a file of its OWN rather than a field on coverages.bin,
+        which is a published format third-party models parse directly. The expected lists are per
+        COVERAGE, not per item.
         """
         loc = _loc_df()
         loc['IsAggregate'] = 0  # summed before any term -> packable
@@ -189,9 +190,14 @@ class TestBuildingPacking(TestCase):
                 # number_of_buildings is no longer a side file
                 self.assertFalse(os.path.exists(os.path.join(d, 'number_of_buildings.bin')))
                 self.assertFalse(os.path.exists(os.path.join(d, 'number_of_buildings.csv')))
-                cov = read_coverages(d)
-                self.assertIn('n_building', cov.dtype.names)
-                self.assertEqual(sorted(np.asarray(cov['n_building']).tolist()), expected)
+                # coverages.bin is untouched: still one bare tiv per coverage
+                self.assertEqual(read_coverages(d).shape[0], len(expected))
+                buildings = read_coverage_buildings(d)
+                if max(expected) > 1 or min(expected) < -1:
+                    self.assertEqual(sorted(np.asarray(buildings['n_building']).tolist()), expected)
+                else:
+                    # nothing packs, so no file is written and the readers take all-ones
+                    self.assertEqual(buildings.shape[0], 0)
 
 
 class TestWhichLocationsArePacked(TestCase):

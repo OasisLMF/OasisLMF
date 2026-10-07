@@ -47,6 +47,14 @@ INPUT_FILES = {
         'name': 'fm_structure_info',
         'type': 'optional',
     },
+    # The per-coverage building count. A file of its own rather than a field on coverages.bin,
+    # which is a published format third-party models parse directly. Optional for the same reason
+    # as fm_structure_info: only a building-packed input set has one, and the readers take an
+    # absent file as all-ones.
+    'coverage_buildings': {
+        'name': 'coverage_buildings',
+        'type': 'optional',
+    },
     'amplifications': {
         'name': 'amplifications',
         'type': 'optional',

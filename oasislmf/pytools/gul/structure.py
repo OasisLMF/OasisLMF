@@ -13,7 +13,7 @@ import os
 import numpy as np
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import correlations_dtype, load_as_ndarray, oasis_float
-from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
+from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverage_buildings, read_coverages, read_correlations
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.gul.common import coverage_type
 from oasislmf.utils.exceptions import OasisException
@@ -83,6 +83,37 @@ def gulpy_structure_exists(run_dir):
     return True
 
 
+def coverage_building_counts(input_path, ignore_file_type, n_coverages):
+    """The signed building count per coverage, as a dense array indexed by ``coverage_id - 1``.
+
+    From coverage_buildings, a file of its own: coverages.bin is a published format that
+    third-party models parse directly, so it stays a bare array of tiv. An absent file is the
+    ordinary unpacked case and reads as all ones.
+
+    Args:
+        input_path (str | os.PathLike): the input directory.
+        ignore_file_type (Set[str]): file extensions to ignore.
+        n_coverages (int): how many coverages coverages.bin holds, which the file must match.
+
+    Returns:
+        numpy.array[int32]: the signed count per coverage, all ones when the file is absent.
+
+    Raises:
+        OasisException: if the file covers a different number of coverages than coverages.bin.
+    """
+    counts = np.ones(n_coverages, dtype='i4')
+    buildings = read_coverage_buildings(input_path, ignore_file_type)
+    if buildings.shape[0] == 0:
+        return counts
+    if buildings.shape[0] != n_coverages:
+        raise OasisException(
+            f"coverage_buildings holds {buildings.shape[0]} coverages where coverages.bin holds "
+            f"{n_coverages}; the two are written together and must agree. Regenerate the oasis files."
+        )
+    counts[buildings['coverage_id'] - 1] = buildings['n_building']
+    return counts
+
+
 def build_structures(run_dir, ignore_file_type, peril_filter):
     """Build all read-only gulpy data structures from input files.
 
@@ -112,9 +143,10 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
 
     # --- coverages -------------------------------------------------------------
     logger.debug('import coverages')
-    coverages_data = read_coverages(input_path, ignore_file_type)
-    coverages = np.zeros(coverages_data.shape[0] + 1, coverage_type)
-    coverages[1:]['tiv'] = coverages_data['tiv']
+    coverages_tiv = read_coverages(input_path, ignore_file_type)
+    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
+    coverages[1:]['tiv'] = coverages_tiv
+    n_building_by_coverage = coverage_building_counts(input_path, ignore_file_type, coverages_tiv.shape[0])
 
     # --- items + peril filter --------------------------------------------------
     logger.debug('import items')
@@ -189,12 +221,12 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     n_buildings_by_item_id = np.ones(max_item_id + 1, dtype='i4')
     if len(items):
         cov_i = items['coverage_id'] - 1
-        if cov_i.min() < 0 or cov_i.max() >= coverages_data.shape[0]:
+        if cov_i.min() < 0 or cov_i.max() >= n_building_by_coverage.shape[0]:
             raise OasisException(
-                f"items.bin references coverage_id outside 1..{coverages_data.shape[0]} covered by "
-                f"coverages.bin; the two files must be regenerated together."
+                f"items.bin references coverage_id outside 1..{n_building_by_coverage.shape[0]} "
+                f"covered by coverages.bin; the two files must be regenerated together."
             )
-        n_buildings_by_item_id[items['item_id']] = coverages_data['n_building'][cov_i]
+        n_buildings_by_item_id[items['item_id']] = n_building_by_coverage[cov_i]
 
     building_counts = np.abs(n_buildings_by_item_id)
     building_packing = bool(building_counts.max() > 1)

@@ -20,7 +20,8 @@ import numpy as np
 import pandas as pd
 
 from oasislmf.preparation.il_inputs import write_fm_structure_info
-from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, coverages_bin_dtype,
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, COVERAGE_BUILDINGS_FILE,
+                                          coverage_buildings_dtype, oasis_float,
                                           fm_policytc_dtype, fm_profile_dtype,
                                           fm_programme_dtype, fm_xref_dtype, items_dtype)
 from oasislmf.utils.exceptions import OasisException
@@ -172,10 +173,12 @@ def _write_extras_structure(d, extras_items, n_buildings, with_coverages=True):
         items['item_id'] = np.arange(1, n_items + 1)
         items['coverage_id'] = np.arange(1, n_items + 1)
         items.tofile(os.path.join(d, 'items.bin'))
-        coverages = np.zeros(n_items, dtype=coverages_bin_dtype)
-        coverages['tiv'] = 1000.
-        coverages['n_building'] = n_buildings          # signed: negative keeps them separate
-        coverages.tofile(os.path.join(d, 'coverages.bin'))
+        # coverages.bin stays the published tiv-only format; the count has its own file
+        np.full(n_items, 1000., dtype=oasis_float).tofile(os.path.join(d, 'coverages.bin'))
+        buildings = np.zeros(n_items, dtype=coverage_buildings_dtype)
+        buildings['coverage_id'] = np.arange(1, n_items + 1)
+        buildings['n_building'] = n_buildings          # signed: negative keeps them separate
+        buildings.tofile(os.path.join(d, f'{COVERAGE_BUILDINGS_FILE}.bin'))
 
     max_buildings = int(max(abs(b) for b in n_buildings))
     write_fm_structure_info(d, 1, max_buildings,
