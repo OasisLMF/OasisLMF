@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 
+from oasislmf.pytools.common.input_files import read_returnperiods
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.pla.structure import read_lossfactors
@@ -177,3 +178,14 @@ def test_quantile():
 def test_returnperiods():
     case_runner("bintocsv", "returnperiods", "input")
     case_runner("csvtobin", "returnperiods", "input")
+
+
+def test_returnperiods_removes_duplicates():
+    # e.g. "return_periods": [10, 100, 100] in analysis settings; lecpy rejects duplicates outright
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "in.csv").write_text("return_period\n10\n100\n100\n")
+        csvtobin(Path(tmp, "in.csv"), Path(tmp, "returnperiods.bin"), "returnperiods")
+        returnperiods, use_return_period_file = read_returnperiods(True, tmp, filename="returnperiods.bin")
+
+    assert use_return_period_file is True
+    assert list(returnperiods) == [100, 10]
