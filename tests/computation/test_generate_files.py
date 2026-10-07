@@ -245,6 +245,51 @@ class TestGenFiles(ComputationChecker):
             call_args = {**self.ri_args, 'oasis_files_dir': t_dir, 'model_settings_json': model_settings_file.name}
             file_gen_return = self.manager.generate_files(**call_args)
 
+    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
+    def test_files__group_id_cols_override_the_model_settings(self, mock_output_dir):
+        """--damage-group-id-cols must beat data_settings.damage_group_fields, as the help says.
+
+        The guard that implements "unless set on the CLI" read self.kwargs['group_id_cols'],
+        which is not the name of any parameter -- so it was always falsy, the model settings
+        always won, and -G was silently ignored. Only the damage branch was affected; the hazard
+        one next to it already used the right key and is unaffected -- hazard_group_id lives on
+        correlations.bin rather than items.bin, so it is not asserted here.
+
+        Asserted through the group_id values rather than the resolved column list, because that
+        is what a caller actually gets: adding building_id to the hash of a 3-building location
+        has to produce three distinct groups where the model settings' location-level fields
+        produce one.
+        """
+        import io
+        import numpy as np
+        from oasislmf.pytools.common.data import items_dtype
+
+        loc_df = pd.read_csv(io.StringIO(MIN_LOC))
+        loc_df['NumberOfBuildings'] = 3
+        self.write_str(self.tmp_files.get('oed_location_csv'), loc_df.to_csv(index=False))
+        model_settings_file = self.tmp_files.get('model_settings_json')
+        self.write_json(model_settings_file, GROUP_FIELDS_MODEL_SETTINGS)
+
+        def damage_groups(extra_cols):
+            with self.tmp_dir() as t_dir:
+                run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
+                mock_output_dir.return_value = run_dir
+                self.manager.generate_files(**{
+                    **self.min_args, 'oasis_files_dir': t_dir,
+                    'model_settings_json': model_settings_file.name,
+                    # 'items' so each building is its own item and the hash has something to
+                    # separate; under the default 'samples' a location is a single item
+                    'disaggregation': 'items',
+                    **extra_cols})
+                items = np.fromfile(os.path.join(run_dir, 'items.bin'), dtype=items_dtype)
+            return len(set(items['group_id'].tolist()))
+
+        self.assertEqual(damage_groups({}), 1,
+                         'the model settings hash a location as a whole')
+        self.assertEqual(
+            damage_groups({'damage_group_id_cols': ['PortNumber', 'AccNumber', 'LocNumber', 'building_id']}), 3,
+            '-G must reach the hash and separate the buildings')
+
     def test_files__keys_csv__is_given(self):
 
         keys_file = self.tmp_files.get('keys_data_path').name
