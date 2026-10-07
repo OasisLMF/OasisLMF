@@ -6,6 +6,8 @@ from unittest import mock
 import pytest
 
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
+from oasislmf.pytools.pla.structure import read_lossfactors
 from oasislmf.utils.exceptions import OasisException
 from tests.pytools.converters.helpers import case_runner
 
@@ -13,6 +15,60 @@ from tests.pytools.converters.helpers import case_runner
 def test_lossfactors():
     case_runner("bintocsv", "lossfactors", "static")
     case_runner("csvtobin", "lossfactors", "static")
+
+
+def _small_chunks(stack, file_in, dtype):
+    return iter_csv_as_ndarray(stack, file_in, dtype, chunksize=1)
+
+
+# event_id 5 appears in two non-adjacent runs: a genuinely non-contiguous sequence.
+# The runtime reads (event_id, amplification_id) -> factor into a dict (pla/structure.py
+# read_lossfactors), so this is valid input regardless of event_id order -- the only
+# requirement is that no (event_id, amplification_id) pair is duplicated with a different
+# value. ktools' own lossfactorstobin had no sort check either, grouping purely by
+# contiguous runs, so this is what "correct" means for this format.
+_NON_CONTIGUOUS_CSV = "event_id,amplification_id,factor\n1,1,1.1\n5,1,5.1\n5,2,5.2\n3,1,3.1\n5,3,5.3\n2,1,2.1\n"
+_NON_CONTIGUOUS_EXPECTED = {
+    (1, 1): pytest.approx(1.1), (2, 1): pytest.approx(2.1), (3, 1): pytest.approx(3.1),
+    (5, 1): pytest.approx(5.1), (5, 2): pytest.approx(5.2), (5, 3): pytest.approx(5.3),
+}
+
+
+def test_lossfactors_handles_non_contiguous_event_id_single_chunk():
+    # the whole file fits in one chunk, so there is no cross-chunk boundary to get wrong
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "in.csv").write_text(_NON_CONTIGUOUS_CSV)
+        csvtobin(Path(tmp, "in.csv"), Path(tmp, "out.bin"), "lossfactors")
+        plafactors = read_lossfactors(run_dir=tmp, ignore_file_type={"csv"}, filename="out.bin")
+
+    assert dict(plafactors) == _NON_CONTIGUOUS_EXPECTED
+
+
+def test_lossfactors_handles_non_contiguous_event_id_across_chunk_boundary():
+    # same input, forced across several single-row chunks: previously the searchsorted-based
+    # chunk-boundary carry-over assumed event_ids was sorted and silently dropped/misattributed
+    # rows once a partial event continued into a chunk it couldn't find by binary search
+    with TemporaryDirectory() as tmp, mock.patch(
+            "oasislmf.pytools.converters.csvtobin.utils.lossfactors.iter_csv_as_ndarray", _small_chunks):
+        Path(tmp, "in.csv").write_text(_NON_CONTIGUOUS_CSV)
+        csvtobin(Path(tmp, "in.csv"), Path(tmp, "out.bin"), "lossfactors")
+        plafactors = read_lossfactors(run_dir=tmp, ignore_file_type={"csv"}, filename="out.bin")
+
+    assert dict(plafactors) == _NON_CONTIGUOUS_EXPECTED
+
+
+def test_lossfactors_accepts_sorted_event_id_across_chunk_boundary():
+    csv = "event_id,amplification_id,factor\n1,1,1.1\n2,1,2.1\n3,1,3.1\n5,1,5.1\n5,2,5.2\n5,3,5.3\n"
+    with TemporaryDirectory() as tmp, mock.patch(
+            "oasislmf.pytools.converters.csvtobin.utils.lossfactors.iter_csv_as_ndarray", _small_chunks):
+        Path(tmp, "ok.csv").write_text(csv)
+        csvtobin(Path(tmp, "ok.csv"), Path(tmp, "ok.bin"), "lossfactors")
+        plafactors = read_lossfactors(run_dir=tmp, ignore_file_type={"csv"}, filename="ok.bin")
+
+    assert dict(plafactors) == {
+        (1, 1): pytest.approx(1.1), (2, 1): pytest.approx(2.1), (3, 1): pytest.approx(3.1),
+        (5, 1): pytest.approx(5.1), (5, 2): pytest.approx(5.2), (5, 3): pytest.approx(5.3),
+    }
 
 
 def test_random():
