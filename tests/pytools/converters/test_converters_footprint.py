@@ -423,3 +423,27 @@ def test_bintocsv_footprint_accepts_valid_file():
         bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
                  idx_file_in=idx_path, zip_files=False, event_from_to=None)
         assert Path(tmp, "out.csv").read_text() == "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,1.000000\n"
+
+
+@pytest.mark.parametrize("intensity_bin_id", [0, -2])
+@pytest.mark.parametrize("no_validation", [False, True])
+def test_footprint_rejects_intensity_bin_id_below_one(intensity_bin_id, no_validation):
+    """intensity_bin_id is 1-based: gulmc indexes vuln_array with intensity_bin_id - 1, so 0 or
+    below would silently wrap to the last intensity column. Checked alongside the pre-existing
+    upper-bound check, which already runs regardless of no_validation (a structural constraint on
+    the fixed-size header, not a skippable data-quality check)."""
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "bad.csv").write_text(
+            f"event_id,areaperil_id,intensity_bin_id,probability\n1,1,{intensity_bin_id},1.0\n")
+        with pytest.raises(OasisException, match=r"outside the valid range \[1, 3\]"):
+            csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "footprint", idx_file_out=Path(tmp, "bad.idx"),
+                     max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
+                     no_validation=no_validation, zip_files=False)
+
+
+def test_footprint_accepts_valid_intensity_bin_id():
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "ok.csv").write_text("event_id,areaperil_id,intensity_bin_id,probability\n1,1,2,1.0\n")
+        csvtobin(Path(tmp, "ok.csv"), Path(tmp, "ok.bin"), "footprint", idx_file_out=Path(tmp, "ok.idx"),
+                 max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
+                 no_validation=False, zip_files=False)

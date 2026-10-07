@@ -2,6 +2,17 @@ import numpy as np
 from oasislmf.pytools.common.data import generate_output_metadata, occurrence_dtype, occurrence_granular_dtype
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
+from oasislmf.utils.exceptions import OasisException
+
+
+def _check_period_no(period_no, no_of_periods):
+    # period_no is 1-based: lecpy/aalpy index their period buffers with period_no - 1, so 0 or
+    # below would silently wrap to the last period's slot instead of raising.
+    if np.any(period_no < 1):
+        bad = period_no[period_no < 1][0]
+        raise OasisException(f"Error: period_no {bad} is less than 1.")
+    if np.any(period_no > no_of_periods):
+        raise RuntimeError("FATAL: Period number exceeds maximum supplied")
 
 
 def occurrence_tobin(stack, file_in, file_out, file_type, no_of_periods, no_date_alg=False, granular=False):
@@ -15,8 +26,7 @@ def occurrence_tobin(stack, file_in, file_out, file_type, no_of_periods, no_date
     if no_date_alg:
         dtype = TOOL_INFO[file_type]["dtype"]
         for chunk in iter_csv_as_ndarray(stack, file_in, dtype):
-            if np.any(chunk["period_no"] > no_of_periods):
-                raise RuntimeError("FATAL: Period number exceeds maximum supplied")
+            _check_period_no(chunk["period_no"], no_of_periods)
             file_out.write(chunk.tobytes())
     else:
         occ_csv_output = [
@@ -46,6 +56,5 @@ def occurrence_tobin(stack, file_in, file_out, file_type, no_of_periods, no_date
                 date_id = date_id * 1440 + 60 * chunk["occ_hour"].astype(np.int64) + chunk["occ_minute"].astype(np.int64)
             out["occ_date_id"] = date_id
 
-            if np.any(out["period_no"] > no_of_periods):
-                raise RuntimeError("FATAL: Period number exceeds maximum supplied")
+            _check_period_no(out["period_no"], no_of_periods)
             file_out.write(out.tobytes())

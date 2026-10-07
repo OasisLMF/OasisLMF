@@ -144,6 +144,26 @@ def test_occurrence():
     case_runner("csvtobin", "occurrence", "input", "occurrence_noalg", no_of_periods=9, no_date_alg=True)
 
 
+@pytest.mark.parametrize("period_no, no_date_alg", [(0, False), (-3, False), (0, True)])
+def test_occurrence_rejects_period_no_below_one(period_no, no_date_alg):
+    """period_no is 1-based: lecpy/aalpy index their period buffers with period_no - 1, so 0 or
+    below would silently wrap to the last period's slot instead of raising."""
+    with TemporaryDirectory() as tmp:
+        if no_date_alg:
+            csv = f"event_id,period_no,occ_date_id\n1,{period_no},730000\n"
+        else:
+            csv = f"event_id,period_no,occ_year,occ_month,occ_day\n1,{period_no},2000,1,1\n"
+        Path(tmp, "bad.csv").write_text(csv)
+        with pytest.raises(OasisException, match=f"period_no {period_no} is less than 1"):
+            csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "occurrence", no_of_periods=5, no_date_alg=no_date_alg)
+
+
+def test_occurrence_accepts_valid_period_no():
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "ok.csv").write_text("event_id,period_no,occ_year,occ_month,occ_day\n1,3,2000,1,1\n")
+        csvtobin(Path(tmp, "ok.csv"), Path(tmp, "ok.bin"), "occurrence", no_of_periods=5)
+
+
 def test_periods():
     case_runner("bintocsv", "periods", "input")
     case_runner("csvtobin", "periods", "input")
