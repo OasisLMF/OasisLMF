@@ -112,6 +112,18 @@ def test_complex_items():
     case_runner("csvtobin", "complex_items", "input")
 
 
+def test_complex_items_preserves_numeric_looking_model_data():
+    # model_data is opaque pass-through data; without an explicit dtype, pandas silently coerces
+    # a numeric-looking column to float ("007" -> 7.0, "1e3" -> 1000.0) with no warning.
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "in.csv").write_text("item_id,coverage_id,model_data,group_id\n1,1,007,1\n2,2,1e3,1\n")
+        csvtobin(Path(tmp, "in.csv"), Path(tmp, "in.bin"), "complex_items")
+        bintocsv(Path(tmp, "in.bin"), Path(tmp, "out.csv"), "complex_items")
+        rows = Path(tmp, "out.csv").read_text().strip().splitlines()[1:]
+
+    assert [row.split(",")[2] for row in rows] == ["007", "1e3"]
+
+
 def test_coverages():
     case_runner("bintocsv", "coverages", "input")
     case_runner("csvtobin", "coverages", "input")
