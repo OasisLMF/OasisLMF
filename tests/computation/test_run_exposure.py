@@ -321,35 +321,57 @@ class _RunExposureIntegrationBase(ComputationChecker):
         self.assertTrue(il)
         self.assertTrue(ril)
 
-    def _multi_building_location(self, n_buildings=3):
+    def _multi_building_location(self, n_buildings=3, is_aggregate=0):
         """The stock fixture has no NumberOfBuildings, so 'samples' would be a no-op on it."""
         loc_df = pd.read_csv(LOCATION)
         loc_df['NumberOfBuildings'] = n_buildings
-        loc_df['IsAggregate'] = 0
+        loc_df['IsAggregate'] = is_aggregate
         path = os.path.join(self.tmp.name, 'location_multi_building.csv')
         loc_df.to_csv(path, index=False)
         return path
 
-    def test_sample_disaggregation_runs_as_none(self):
-        """'samples' has no deterministic equivalent, so this step downgrades it rather than fail.
+    def _losses_by_mode(self, location, disaggregation):
+        out = os.path.join(self.tmp.name, f'output_{disaggregation}.csv')
+        self._run(out, disaggregation=disaggregation,
+                  oed_location_csv=location, oed_accounts_csv=ACCOUNTS)
+        df = pd.read_csv(out)
+        return df['loss_gul'].sum(), df['loss_il'].sum()
 
-        The step is routinely used to check a portfolio before launching the real run, so the same
-        settings have to be accepted. What must NOT happen is running with packed files: generation
-        divides a location's TIV by NumberOfBuildings for packing, and the deterministic generator
-        has no sample dimension to put the buildings back from, so every loss would come out at
-        1/N. Running as 'none' keeps the location totals right.
+    def test_sample_disaggregation_matches_whole_location_when_buildings_are_summed(self):
+        """A non-aggregate location's buildings are summed at source, so 'samples' changes nothing.
+
+        Generation divides the location's TIV by NumberOfBuildings for packing. With IsAggregate=0
+        nothing downstream can tell the buildings apart, so the deterministic generator writes the
+        item as a single block carrying all N of them -- which has to come back to the location's
+        own TIV. Getting this wrong shows up as every loss at 1/N.
 
         The fixture needs NumberOfBuildings > 1 or the two modes are trivially equal and this
-        asserts nothing -- the first version of this test passed with the downgrade removed.
+        asserts nothing.
+
+        Only approximately equal: dividing the TIV by N and summing N shares back is not exact in
+        float, and the same round trip happens in a real packed run.
         """
-        location = self._multi_building_location(n_buildings=3)
-        packed = self._run_capturing_summary(
-            self._output_file(), disaggregation='samples',
-            oed_location_csv=location, oed_accounts_csv=ACCOUNTS)
-        whole_location = self._run_capturing_summary(
-            self._output_file(), disaggregation='none',
-            oed_location_csv=location, oed_accounts_csv=ACCOUNTS)
-        self.assertEqual(packed, whole_location)
+        location = self._multi_building_location(n_buildings=3, is_aggregate=0)
+        packed = self._losses_by_mode(location, 'samples')
+        whole_location = self._losses_by_mode(location, 'none')
+        self.assertAlmostEqual(packed[0], whole_location[0], delta=0.1)
+        self.assertAlmostEqual(packed[1], whole_location[1], delta=0.1)
+
+    def test_disaggregation_defaults_to_none(self):
+        """A deterministic run reports the location's own TIV unless asked to split it.
+
+        Generation defaults to 'samples'; this step does not, because splitting a location's TIV
+        across buildings moves the numbers for reasons that have nothing to do with the terms the
+        run exists to exercise.
+        """
+        declared = {p['name']: p for p in RunExposure.step_params}['disaggregation']
+        self.assertEqual(declared['default'], 'none')
+
+        location = self._multi_building_location(n_buildings=3, is_aggregate=1)
+        default = self._losses_by_mode(location, None)
+        self.assertEqual(default, self._losses_by_mode(location, 'none'))
+        # and that the default is not simply the same number every mode gives
+        self.assertNotEqual(default, self._losses_by_mode(location, 'items'))
 
     def test_invalid_location_file_raises(self):
         with self.assertRaises(Exception):

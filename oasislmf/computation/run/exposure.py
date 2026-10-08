@@ -23,8 +23,9 @@ from oasislmf.pytools.fm.portfolio_complexity import (
     compute_portfolio_complexity, format_complexity_report)
 from oasislmf.utils.data import (get_dataframe, get_exposure_data, resolve_disaggregation,
                                  print_dataframe)
-from oasislmf.utils.defaults import (DISAGGREGATION_MODES, DISAGGREGATION_NONE,
-                                     DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES, KERNEL_ALLOC_FM_MAX,
+from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_MODES,
+                                     DISAGGREGATION_NONE,
+                                     KERNEL_ALLOC_FM_MAX,
                                      KERNEL_ALLOC_IL_DEFAULT,
                                      KERNEL_ALLOC_RI_DEFAULT,
                                      OASIS_FILES_PREFIXES,
@@ -66,14 +67,14 @@ class RunExposure(ComputationStep):
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
-        # 'items' here, not the 'samples' that generation defaults to: a deterministic run has no
-        # sample dimension to multiplex buildings into, so 'samples' is downgraded to 'none' below
-        # -- and defaulting to it would quietly move every exposure run from per-building site
-        # terms to per-location ones. An explicit --disaggregation samples still downgrades.
-        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_ITEMS, 'choices': DISAGGREGATION_MODES,
-         'help': DISAGGREGATION_HELP + " 'samples' has no deterministic equivalent and is run as "
-                 "'none' here, so the same settings can be used to check a run before launching "
-                 "it."},
+        # 'none' here, not the 'samples' that generation defaults to. A deterministic run exists to
+        # show what the terms do to a known loss, and splitting a location's TIV across buildings
+        # changes those numbers for reasons that have nothing to do with the policy under test.
+        # All three modes work; the other two are opt-in.
+        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_NONE, 'choices': DISAGGREGATION_MODES,
+         'help': DISAGGREGATION_HELP + " Defaults to 'none' here rather than the 'samples' that "
+                 "generation defaults to, so a deterministic run reports the location's own TIV "
+                 "unless you ask for the buildings to be separated."},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
          'help': "DEPRECATED and ignored. Use --disaggregation items if you explicitly want a location's buildings split into separate items."},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
@@ -131,17 +132,6 @@ class RunExposure(ComputationStep):
         include_loss_factor = not (len(self.loss_factor) == 1)
 
         disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation)
-
-        if disaggregation == DISAGGREGATION_SAMPLES:
-            self.logger.info(
-                "disaggregation='samples' has no deterministic equivalent: generation divides a "
-                "location's TIV by NumberOfBuildings for packing, and only the ground-up tools "
-                "write the sample dimension that puts the buildings back, so packed inputs here "
-                "would understate every loss by that factor. Running as 'none' instead, which "
-                "gives the correct location totals -- but site terms then apply once to the "
-                "location rather than once per building, so an IsAggregate=1 location's "
-                "per-building terms are not exercised on this step.")
-            disaggregation = DISAGGREGATION_NONE
 
         self._check_alloc_rules()
 
@@ -390,6 +380,20 @@ class RunFmTest(ComputationStep):
         {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected', 'default': False},
         {'name': 'expected_output_dir', 'default': "expected"},
+        # Pinned to 'items', not RunExposure's 'none' default: the expected results of every unit
+        # with NumberOfBuildings > 1 were generated with the buildings split, and a test case means
+        # the mode it was written under. 'samples' packs them into the sample dimension instead,
+        # which is what a real model run does.
+        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_ITEMS,
+         'choices': DISAGGREGATION_MODES,
+         'help': "How a location's NumberOfBuildings is separated when running the test case."},
+        # Running a case under a different disaggregation mode is the reason this exists: the
+        # per-item files (items, coverages, the fm structure, the summary maps) describe where the
+        # buildings live and so differ by mode on purpose, while loc_summary.csv is the same risk
+        # either way. Comparing the full set across modes would report those by-design differences
+        # as failures.
+        {'name': 'compare_files', 'nargs': '+', 'default': None,
+         'help': 'Only compare these files against the expected directory, instead of all of them.'},
     ]
 
     def search_test_cases(self):
@@ -487,6 +491,7 @@ class RunFmTest(ComputationStep):
             fmpy_sort_output=self.fmpy_sort_output,
             keys_format='oasis',
             intermediary_csv=True,
+            disaggregation=self.disaggregation,
         ).run()
 
         expected_data_dir = os.path.join(test_dir, self.expected_output_dir)
@@ -502,16 +507,19 @@ class RunFmTest(ComputationStep):
                     'set of GUL, IL and optionally the RI loss files'
                 )
 
-        files = ['keys.csv', 'loc_summary.csv']
-        files += [
-            '{}.csv'.format(fn)
-            for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
-        ]
-        files += ['gul_summary_map.csv', 'guls.csv']
-        if il:
-            files += ['fm_summary_map.csv', 'ils.csv']
-        if ril:
-            files += ['rils.csv']
+        if self.compare_files:
+            files = list(self.compare_files)
+        else:
+            files = ['keys.csv', 'loc_summary.csv']
+            files += [
+                '{}.csv'.format(fn)
+                for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
+            ]
+            files += ['gul_summary_map.csv', 'guls.csv']
+            if il:
+                files += ['fm_summary_map.csv', 'ils.csv']
+            if ril:
+                files += ['rils.csv']
 
         test_result = True
         for f in files:
