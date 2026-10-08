@@ -88,10 +88,16 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_MODELS[0])
+                rsps.get(f'{url_1}chunking_configuration/', json={'strategy': 'FIXED_CHUNKS', 'fixed_analysis_chunks': 1})
                 rsps.get(url_2, json=RETURN_MODELS[1])
+                rsps.get(f'{url_2}chunking_configuration/', json={'error': 'not found'}, status=404)
                 self.manager.platform_list(**called_args)
-                self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
-                self.assertIn('Model (id=2):', "\n".join(self._caplog.messages))
+                logs = "\n".join(self._caplog.messages)
+                self.assertIn('Model (id=1):', logs)
+                self.assertIn('Model chunking configuration (id=1):', logs)
+                self.assertIn('"fixed_analysis_chunks": 1', logs)
+                self.assertIn('Model (id=2):', logs)
+                self.assertIn('Model chunking configuration (id=2): \n{"error": "not found"}', logs)
 
     def test_list_models__logs_error(self):
         called_args = self.combine_args([self.min_args, {'models': [1, 2]}])
@@ -102,6 +108,7 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_MODELS[0])
+                rsps.get(f'{url_1}chunking_configuration/', json={'strategy': 'FIXED_CHUNKS', 'fixed_analysis_chunks': 1})
                 rsps.get(url_2, json={'error': 'model not found'}, status=404)
                 self.manager.platform_list(**called_args)
                 self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
@@ -116,10 +123,16 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_PORT[0])
+                rsps.get(f'{url_1}storage_links/', json={'location_file': 'loc_1.csv'})
                 rsps.get(url_2, json=RETURN_PORT[1])
+                rsps.get(f'{url_2}storage_links/', json={'error': 'not found'}, status=404)
                 self.manager.platform_list(**called_args)
-                self.assertIn('Portfolio (id=1):', "\n".join(self._caplog.messages))
-                self.assertIn('Portfolio (id=2):', "\n".join(self._caplog.messages))
+                logs = "\n".join(self._caplog.messages)
+                self.assertIn('Portfolio (id=1):', logs)
+                self.assertIn('Portfolio storage links (id=1):', logs)
+                self.assertIn('"location_file": "loc_1.csv"', logs)
+                self.assertIn('Portfolio (id=2):', logs)
+                self.assertIn('Portfolio storage links (id=2): \n{"error": "not found"}', logs)
 
     def test_list_portfolios__logs_error(self):
         called_args = self.combine_args([self.min_args, {'portfolios': [1, 2]}])
@@ -130,6 +143,7 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_PORT[0])
+                rsps.get(f'{url_1}storage_links/', json={'location_file': 'loc_1.csv'})
                 rsps.get(url_2, json={'error': 'portfolio not found'}, status=404)
                 self.manager.platform_list(**called_args)
                 self.assertIn('Portfolio (id=1):', "\n".join(self._caplog.messages))
@@ -143,8 +157,12 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url, json=RETURN_ANALYSIS[0])
+                rsps.get(f'{url}chunking_configuration/', json={'strategy': 'FIXED_CHUNKS', 'fixed_analysis_chunks': 1})
                 self.manager.platform_list(**called_args)
-                self.assertIn('Analysis (id=4):', "\n".join(self._caplog.messages))
+                logs = "\n".join(self._caplog.messages)
+                self.assertIn('Analysis (id=4):', logs)
+                self.assertIn('Analysis chunking configuration (id=4):', logs)
+                self.assertIn('"strategy": "FIXED_CHUNKS"', logs)
 
     def test_list_analyses__logs_error__and_model_success(self):
         called_args = self.combine_args([self.min_args, {'models': [1], 'analyses': [4]}])
@@ -155,6 +173,7 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_MODELS[0])
+                rsps.get(f'{url_1}chunking_configuration/', json={'strategy': 'FIXED_CHUNKS', 'fixed_analysis_chunks': 1})
                 rsps.get(url_2, json={'error': 'analysis not found'}, status=404)
                 self.manager.platform_list(**called_args)
                 self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
@@ -680,6 +699,29 @@ class TestPlatformRun(ComputationChecker):
         responses.stop()
         responses.reset()
 
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responce_queue.get(
+            url=f'{self.api_url}/server_info/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def add_run_responses(self, rsps, ID, analysis, model=None):
+        """Responses for PlatformRun up to choosing between `generate_and_run` and the two step run"""
+        self.add_connection_startup(rsps)  # PlatformRun
+        self.add_connection_startup(rsps)  # PlatformRunInputs
+        rsps.get(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/', json={'id': ID, 'status': 'NEW'})
+        self.add_connection_startup(rsps)  # PlatformRunLosses
+        rsps.get(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/', json={'id': ID, **analysis})
+        if model:
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/models/{analysis["model"]}/', json=model)
+
     def test_args__default_combine(self):
         expt_combined_args = self.combine_args([
             self.gen_files_args,
@@ -736,9 +778,8 @@ class TestPlatformRun(ComputationChecker):
                 call_args[k] = None
 
         run_mock = Mock()
-        # run_mock.run.side_effect = lambda *args, **kwargs: 23
         analysis_id_return = analysis_id if analysis_id else 42
-        run_mock.run.side_effect = lambda *args, **kwargs: analysis_id_return
+        run_mock.prepare_analysis.side_effect = lambda *args, **kwargs: analysis_id_return
         plat_files_mock = Mock()
         plat_losses_mock = Mock()
 
@@ -751,13 +792,75 @@ class TestPlatformRun(ComputationChecker):
             headers={"authorization": "Bearer acc_tkn"})
 
         with patch.object(oasislmf.computation.run.platform, 'PlatformRunInputs', plat_files_mock), \
-                patch.object(oasislmf.computation.run.platform, 'PlatformRunLosses', plat_losses_mock):
+                patch.object(oasislmf.computation.run.platform, 'PlatformRunLosses', plat_losses_mock), \
+                patch.object(oasislmf.computation.run.platform.PlatformRun, 'supports_generate_and_run', return_value=False), \
+                patch.object(oasislmf.computation.run.platform.APIClient, 'run_generate') as mock_run_generate:
             plat_files_mock.return_value = run_mock
             self.manager.platform_run(**call_args)
 
         plat_files_mock.assert_called_once_with(**call_args)
         call_args['analysis_id'] = analysis_id_return
         plat_losses_mock.assert_called_once_with(**call_args)
+        mock_run_generate.assert_called_once_with(analysis_id_return)
+        plat_losses_mock.return_value.run.assert_called_once_with()
+
+    @patch('oasislmf.computation.run.platform.APIClient.download_output')
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate_and_analysis', return_value=True)
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate')
+    def test_run__v2_model__generate_and_run_is_called(self, mock_run_generate, mock_generate_and_run, mock_download):
+        ID = 4
+        settings_file = self.tmp_files.get('analysis_settings_json').name
+        output_dir = self.tmp_dirs.get('output_dir').name
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_run_responses(rsps, ID, {'model': 1, 'settings_file': None}, {'id': 1, 'run_mode': 'V2'})
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/chunking_configuration/',
+                      match=[json_params_matcher({"loss_strategy": "FIXED_CHUNKS", "fixed_analysis_chunks": 3})])
+            self.manager.platform_run(
+                analysis_id=ID, analysis_settings_json=settings_file, output_dir=output_dir, analysis_chunks=3)
+
+        mock_generate_and_run.assert_called_once_with(ID, settings_file)
+        mock_download.assert_called_once_with(ID, output_dir)
+        mock_run_generate.assert_not_called()
+
+    @patch('oasislmf.computation.run.platform.APIClient.download_output')
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate_and_analysis', return_value=False)
+    def test_run__generate_and_run_fails__output_not_downloaded(self, mock_generate_and_run, mock_download):
+        ID = 4
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_run_responses(rsps, ID, {'model': 1, 'settings_file': 'http://settings'}, {'id': 1, 'run_mode': 'V2'})
+            self.manager.platform_run(analysis_id=ID)
+
+        mock_generate_and_run.assert_called_once_with(ID, None)
+        mock_download.assert_not_called()
+
+    @patch('oasislmf.computation.run.platform.APIClient.download_output')
+    @patch('oasislmf.computation.run.platform.APIClient.run_analysis', return_value=True)
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate_and_analysis')
+    def test_run__v1_model__inputs_and_losses_run_separately(self, mock_generate_and_run, mock_run_generate, mock_run_analysis, mock_download):
+        ID = 4
+        settings_file = self.tmp_files.get('analysis_settings_json').name
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_run_responses(rsps, ID, {'model': 1, 'settings_file': None}, {'id': 1, 'run_mode': 'V1'})
+            self.manager.platform_run(analysis_id=ID, analysis_settings_json=settings_file)
+
+        mock_generate_and_run.assert_not_called()
+        mock_run_generate.assert_called_once_with(ID)
+        mock_run_analysis.assert_called_once_with(ID, settings_file)
+
+    @patch('oasislmf.computation.run.platform.APIClient.download_output')
+    @patch('oasislmf.computation.run.platform.APIClient.run_analysis', return_value=True)
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate_and_analysis')
+    def test_run__no_analysis_settings__inputs_and_losses_run_separately(
+            self, mock_generate_and_run, mock_run_generate, mock_run_analysis, mock_download):
+        ID = 4
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_run_responses(rsps, ID, {'model': 1, 'settings_file': None})
+            self.manager.platform_run(analysis_id=ID)
+
+        mock_generate_and_run.assert_not_called()
+        mock_run_generate.assert_called_once_with(ID)
 
 
 class TestPlatformDelete(ComputationChecker):
