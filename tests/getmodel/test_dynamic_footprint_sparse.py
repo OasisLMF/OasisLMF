@@ -113,6 +113,19 @@ def open_footprint(storage, run_dir, areaperil_ids=None,
             yield footprint
 
 
+def record_reads(monkeypatch):
+    """Record the path of every parquet read the footprint makes."""
+    reads = []
+    original_get_df_reader = FootprintParquetDynamic.get_df_reader
+
+    def recording_get_df_reader(self, filepath, **kwargs):
+        reads.append(filepath)
+        return original_get_df_reader(self, filepath, **kwargs)
+
+    monkeypatch.setattr(FootprintParquetDynamic, 'get_df_reader', recording_get_df_reader)
+    return reads
+
+
 def areaperils_of(event_footprint):
     return set() if event_footprint is None else set(event_footprint['areaperil_id'])
 
@@ -148,26 +161,49 @@ def test_hazard_case_is_read_once_per_run(tmp_path, monkeypatch, partition_event
                                           partition_hazard_case):
     """The hazard case does not depend on the event, so no layout may re-read it per event.
 
-    Reading it per call costs a partition discovery over the whole dataset each time, which
-    scales with the sections the model has rather than with the sections the event needs.
+    Re-reading it per call would cost a read of every portfolio section each time, which
+    scales with the events in the model rather than once per run.
     """
     storage, run_dir = build_model(tmp_path, partition_event_definition=partition_event_definition,
                                    partition_hazard_case=partition_hazard_case)
-
-    reads = []
-    original_get_df_reader = FootprintParquetDynamic.get_df_reader
-
-    def counting_get_df_reader(self, filepath, **kwargs):
-        reads.append(filepath)
-        return original_get_df_reader(self, filepath, **kwargs)
-
-    monkeypatch.setattr(FootprintParquetDynamic, 'get_df_reader', counting_get_df_reader)
+    reads = record_reads(monkeypatch)
 
     with open_footprint(storage, run_dir) as footprint:
         for event_id in (1, 2, 3, 1, 2, 3):
             footprint.get_event(event_id)
 
-    assert reads.count(hazard_case_filename) == 1
+    hazard_reads = [path for path in reads if path.split('/')[0] == hazard_case_filename]
+    assert hazard_reads
+    assert len(hazard_reads) == len(set(hazard_reads))
+
+
+@pytest.mark.parametrize('df_engine', DF_ENGINES)
+def test_partitioned_files_read_only_the_portfolio_sections(tmp_path, monkeypatch, df_engine):
+    """A partitioned file is read through its section_id=N/ directories, never as a whole dataset.
+
+    Discovering the whole dataset lists every section of the model before any filter applies,
+    which takes minutes on a large model even when the portfolio needs only a few sections.
+    """
+    storage, run_dir = build_model(tmp_path, sections=[1])
+    reads = record_reads(monkeypatch)
+
+    with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
+        assert areaperils_of(footprint.get_event(1)) == {100, 101}
+        assert footprint.get_event(2) is None
+
+    assert sorted(reads) == [f'{event_defintion_filename}/section_id=1', f'{hazard_case_filename}/section_id=1']
+
+
+def test_opening_the_footprint_reads_no_section_data(tmp_path, monkeypatch):
+    """gulmc opens the footprint once just for num_intensity_bins, so the sections load on first use."""
+    storage, run_dir = build_model(tmp_path)
+    reads = record_reads(monkeypatch)
+
+    with open_footprint(storage, run_dir) as footprint:
+        assert footprint.num_intensity_bins == 10
+        assert reads == []
+        footprint.get_event(1)
+        assert reads
 
 
 # ---------------------------------------------------------------------------
