@@ -46,6 +46,98 @@ VALID_OASIS_GROUP_COLS = [
 
 PERIL_CORRELATION_GROUP_COL = 'peril_correlation_group'
 
+ITEM_KEY_COLS = [
+    'areaperil_id',
+    'vulnerability_id',
+    'amplification_id',
+    'intensity_adjustment',
+    'return_period',
+    'model_data',
+]
+
+KEYS_COLUMN_RENAME = {
+    'perilid': 'peril_id',
+    'coveragetypeid': 'coverage_type_id',
+    'areaperilid': 'areaperil_id',
+    'vulnerabilityid': 'vulnerability_id',
+    'amplificationid': 'amplification_id',
+    'modeldata': 'model_data',
+    'intensityadjustment': 'intensity_adjustment',
+    'returnperiod': 'return_period'
+}
+
+
+def check_has_loc_id(df, name):
+    """Raise if ``df`` has no ``loc_id`` column to join the keys and locations on.
+
+    Args:
+        df (pandas.DataFrame): the keys or location dataframe
+        name (str): which of the two ``df`` is, for the error message
+    """
+    if 'loc_id' not in df:
+        raise OasisException(
+            f"The {name} dataframe has no 'loc_id' column to join the keys and locations on. "
+            f"Columns found: {sorted(df.columns)}")
+
+
+def merge_item_key_rows(gul_inputs_df):
+    """Combine the keys rows that share an item_id before the item is reduced to one row.
+
+    A key server may return several rows for the same (location, peril, coverage type,
+    building), one per section the location falls in. Only one row per item is kept, so
+    the sections of the other rows are joined into the kept row's ``section_id`` with
+    ``;``, the format ``prepare_sections_df`` splits when building sections.csv.
+
+    Rows of one item that also differ in a key field (areaperil, vulnerability,
+    amplification, intensity adjustment, return period or model data) cannot be combined
+    into one item. They are reported in a warning and the first row is kept.
+
+    Args:
+        gul_inputs_df (pandas.DataFrame): GUL inputs with an ``item_id`` column
+
+    Returns:
+        pandas.DataFrame: ``gul_inputs_df`` with ``section_id`` combined across the rows
+        of each item
+    """
+    dup_mask = gul_inputs_df.duplicated(subset='item_id', keep=False).to_numpy()
+    if not dup_mask.any():
+        return gul_inputs_df
+
+    dups = gul_inputs_df.loc[dup_mask]
+
+    key_cols = [col for col in ITEM_KEY_COLS if col in dups]
+    if key_cols:
+        n_values = dups[key_cols].astype(str).groupby(dups['item_id'].to_numpy(), sort=False).nunique()
+        conflicts = n_values[(n_values > 1).any(axis=1)]
+        if not conflicts.empty:
+            first_rows = dups.drop_duplicates('item_id').set_index('item_id')
+            detail = "; ".join(
+                f"loc_id {first_rows.at[item, 'loc_id']} peril {first_rows.at[item, 'peril_id']} "
+                f"coverage type {first_rows.at[item, 'coverage_type_id']} "
+                f"building {first_rows.at[item, 'building_id']}: differing "
+                f"{', '.join(col for col in key_cols if conflicts.at[item, col] > 1)}"
+                for item in conflicts.index[:5])
+            logger.warning(
+                "keys: %d item(s) have several keys rows that differ in more than section_id; only "
+                "the first row of each is used, so the others' areaperil/vulnerability are ignored. "
+                "Check the lookup for these items (%s)", len(conflicts), detail)
+
+    if 'section_id' in dups:
+        sections = (
+            dups[['item_id']]
+            .assign(section_id=dups['section_id'].astype(str).str.split(';'))
+            .explode('section_id')
+        )
+        sections['section_id'] = pd.to_numeric(sections['section_id'], errors='coerce')
+        sections = sections.dropna().drop_duplicates().sort_values(['item_id', 'section_id'], kind='stable')
+        combined = (sections['section_id'].astype('int64').astype(str)
+                    .groupby(sections['item_id'], sort=False).agg(';'.join))
+        section_ids = gul_inputs_df['section_id'].astype(object)
+        section_ids.loc[dup_mask] = dups['item_id'].map(combined).to_numpy()
+        gul_inputs_df['section_id'] = section_ids
+
+    return gul_inputs_df
+
 
 def prepare_sections_df(gul_inputs_df):
     sections = gul_inputs_df.loc[:, ['section_id']].drop_duplicates()
@@ -320,7 +412,7 @@ def get_gul_input_items(
     tiv_cols = list(set(tiv_col for tiv_col in tiv_terms.values() if tiv_col in location_df.columns))
 
     # Create the basic GUL inputs dataframe from merging the exposure and
-    # keys dataframes on loc. number/loc. ID; filter out any rows with
+    # keys dataframes on loc_id; filter out any rows with
     # zeros for TIVs for all coverage types, and replace any nulls in the
     # cond.num. and TIV columns with zeros
 
@@ -391,6 +483,7 @@ def get_gul_input_items(
     location_df[actual_tiv_cols] = location_df[actual_tiv_cols].fillna(0.0)
     location_df = location_df[(location_df[actual_tiv_cols] != 0).any(axis=1)]
 
+    check_has_loc_id(location_df, 'location')
     gul_inputs_df = (location_df[list(set(exposure_df_gul_inputs_cols).intersection(location_df.columns))]
                      .drop_duplicates('loc_id', ignore_index=True))
 
@@ -398,21 +491,13 @@ def get_gul_input_items(
     # MERGE PHASE: Join location data with model keys
     # =========================================================================
     # Keys file uses camelCase headers; rename to snake_case for consistency
+    keys_df.columns = keys_df.columns.str.lower()
     keys_df.rename(
-        columns={
-            'locid': 'loc_id' if 'loc_id' not in keys_df else 'locid',
-            'perilid': 'peril_id',
-            'coveragetypeid': 'coverage_type_id',
-            'areaperilid': 'areaperil_id',
-            'vulnerabilityid': 'vulnerability_id',
-            'amplificationid': 'amplification_id',
-            'modeldata': 'model_data',
-            'intensityadjustment': 'intensity_adjustment',
-            'returnperiod': 'return_period'
-        },
+        columns={'locid': 'loc_id' if 'loc_id' not in keys_df else 'locid', **KEYS_COLUMN_RENAME},
         inplace=True,
         copy=False  # Pandas copies column data by default on rename
     )
+    check_has_loc_id(keys_df, 'keys')
 
     # If the keys file relates to a complex/custom model then look for a
     # ``modeldata`` column in the keys file, and ignore the area peril
@@ -428,12 +513,10 @@ def get_gul_input_items(
     )
     if gul_inputs_df.empty:
         raise OasisException(
-            'Inner merge of the exposure file dataframe '
-            'and the keys file dataframe on loc. number/loc. ID '
-            'is empty - '
-            'please check that the loc. number and loc. ID columns '
-            'in the exposure and keys files respectively have a non-empty '
-            'intersection'
+            "Joining the keys and locations on 'loc_id' matched no row. A keys row joins a "
+            "location when its LocID equals the location's loc_id. Sample keys loc_id values: "
+            f"{keys_df['loc_id'].drop_duplicates().head(5).tolist()}, sample location loc_id values: "
+            f"{location_df['loc_id'].drop_duplicates().head(5).tolist()}"
         )
 
     # Free memory after merge, before memory-intensive restructuring of data
@@ -593,8 +676,7 @@ def get_gul_input_items(
     usecols = [col for col in usecols if col in gul_inputs_df]
 
     gul_inputs_df = (
-        gul_inputs_df
-        [usecols]
+        merge_item_key_rows(gul_inputs_df[usecols])
         .drop_duplicates(subset='item_id')
         .sort_values("item_id", kind='stable')
         .reset_index()
