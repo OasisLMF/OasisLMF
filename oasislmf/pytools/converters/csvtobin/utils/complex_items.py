@@ -38,7 +38,11 @@ def complex_items_tobin(stack, file_in, file_out, file_type):
     file_in = resolve_file(file_in, "r", stack)
 
     try:
-        items_df = pd.read_csv(file_in)
+        # model_data is opaque pass-through data (often a JSON string); without an explicit
+        # dtype, pandas silently coerces a numeric-looking column to float (e.g. "007" -> 7.0,
+        # "1e3" -> 1000.0). The real pipeline (preparation/gul_inputs.py) already reads it as
+        # str for the same reason.
+        items_df = pd.read_csv(file_in, dtype={'model_data': str})
     except pd.errors.EmptyDataError:
         file_out.write(np.empty(0, dtype=header_dtype).tobytes())
         return

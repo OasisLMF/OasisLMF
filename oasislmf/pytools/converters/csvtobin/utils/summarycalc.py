@@ -1,38 +1,37 @@
 import numba as nb
 import numpy as np
-from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, def_to_type_and_size
-from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, def_to_type_and_size, loss_pair_dtype
+from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, mv_write_summary_header, mv_write_sidx_loss
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
 
 summaryset_id_dtype, _ = def_to_type_and_size('summaryset_id')
+event_id_dtype, event_id_size = def_to_type_and_size('event_id')
+summary_id_dtype, summary_id_size = def_to_type_and_size('summary_id')
+# Loss and ImpactedExposure share the oasis_float wire type/size (f4 or f8, per OASIS_FLOAT)
+loss_dtype, loss_size = def_to_type_and_size('loss')
 
-_CHUNK_OUT_SIZE = DEFAULT_BUFFER_SIZE * 7 + 5
+# Worst case: every input row opens a new group (header + delimiter + data pair)
+_HEADER_SIZE = event_id_size + summary_id_size + loss_size
+_CHUNK_OUT_SIZE = DEFAULT_BUFFER_SIZE * (_HEADER_SIZE + loss_pair_dtype.itemsize * 2)
 
 
 @nb.njit(cache=True, error_model="numpy")
-def _fill_summarycalc_chunk(event_ids, summary_ids, expvals_i32, sidxs, losses_i32,
-                            max_sample_index, out, pos,
-                            prev_event_id, prev_summary_id, prev_expval_i32):
+def _fill_summarycalc_chunk(event_ids, summary_ids, expvals, sidxs, losses,
+                            max_sample_index, out, cursor,
+                            prev_event_id, prev_summary_id, prev_expval, event_id_dtype):
     for i in range(len(event_ids)):
         if (event_ids[i] != prev_event_id or summary_ids[i] != prev_summary_id
-                or expvals_i32[i] != prev_expval_i32):
-            if prev_event_id != np.int32(-1):
-                out[pos] = np.int32(0)
-                out[pos + 1] = np.int32(0)
-                pos += 2
-            out[pos] = event_ids[i]
-            out[pos + 1] = summary_ids[i]
-            out[pos + 2] = expvals_i32[i]
-            pos += 3
+                or expvals[i] != prev_expval):
+            if prev_event_id != event_id_dtype.type(-1):
+                cursor = mv_write_sidx_loss(out, cursor, 0, 0.)  # delimiter
+            cursor = mv_write_summary_header(out, cursor, event_ids[i], summary_ids[i], expvals[i])
             prev_event_id = event_ids[i]
             prev_summary_id = summary_ids[i]
-            prev_expval_i32 = expvals_i32[i]
+            prev_expval = expvals[i]
         if sidxs[i] <= max_sample_index:
-            out[pos] = sidxs[i]
-            out[pos + 1] = losses_i32[i]
-            pos += 2
-    return pos, prev_event_id, prev_summary_id, prev_expval_i32
+            cursor = mv_write_sidx_loss(out, cursor, sidxs[i], losses[i])
+    return cursor, prev_event_id, prev_summary_id, prev_expval
 
 
 def summarycalc_tobin(stack, file_in, file_out, file_type, max_sample_index, summary_set_id):
@@ -44,24 +43,24 @@ def summarycalc_tobin(stack, file_in, file_out, file_type, max_sample_index, sum
     file_out.write(np.array([max_sample_index], dtype="i4").tobytes())
     file_out.write(np.array([summary_set_id], dtype=summaryset_id_dtype).tobytes())
 
-    buf = np.empty(_CHUNK_OUT_SIZE, dtype=np.int32)
-    prev_event_id = np.int32(-1)
-    prev_summary_id = np.int32(-1)
-    prev_expval_i32 = np.int32(-1)
+    buf = np.empty(_CHUNK_OUT_SIZE, dtype='b')
+    prev_event_id = event_id_dtype.type(-1)
+    prev_summary_id = summary_id_dtype.type(-1)
+    prev_expval = loss_dtype.type(-1)
 
     for chunk in iter_csv_as_ndarray(stack, file_in, dtype):
         event_ids = np.ascontiguousarray(chunk["EventId"])
         summary_ids = np.ascontiguousarray(chunk["SummaryId"])
-        expvals_i32 = chunk["ImpactedExposure"].astype(np.float32).view(np.int32)
+        expvals = np.ascontiguousarray(chunk["ImpactedExposure"])
         sidxs = np.ascontiguousarray(chunk["SampleId"])
-        losses_i32 = chunk["Loss"].astype(np.float32).view(np.int32)
+        losses = np.ascontiguousarray(chunk["Loss"])
 
-        pos, prev_event_id, prev_summary_id, prev_expval_i32 = _fill_summarycalc_chunk(
-            event_ids, summary_ids, expvals_i32, sidxs, losses_i32,
+        cursor, prev_event_id, prev_summary_id, prev_expval = _fill_summarycalc_chunk(
+            event_ids, summary_ids, expvals, sidxs, losses,
             max_sample_index, buf, np.int64(0),
-            prev_event_id, prev_summary_id, prev_expval_i32
+            prev_event_id, prev_summary_id, prev_expval, event_id_dtype
         )
-        file_out.write(buf[:pos].tobytes())
+        file_out.write(buf[:cursor].tobytes())
 
-    if prev_event_id != np.int32(-1):
-        file_out.write(np.array([0, 0], dtype=np.int32).tobytes())
+    if prev_event_id != event_id_dtype.type(-1):
+        file_out.write(np.array([0], dtype=loss_pair_dtype).tobytes())  # final delimiter
