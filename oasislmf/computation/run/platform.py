@@ -356,6 +356,8 @@ class PlatformList(PlatformBase):
                     self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
                 except HTTPError as e:
                     self.logger.info(msg + e.response.text)
+                    continue
+                self.print_storage_links('Portfolio', self.server.portfolios, Id)
 
         if self.subtask:
             for Id in self.subtask:
@@ -381,6 +383,14 @@ class PlatformList(PlatformBase):
         msg = f'{label} chunking configuration (id={Id}): \n'
         try:
             rsp = endpoint.chunking_configuration.get(Id)
+            self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
+        except HTTPError as e:
+            self.logger.info(msg + e.response.text)
+
+    def print_storage_links(self, label, endpoint, Id):
+        msg = f'{label} storage links (id={Id}): \n'
+        try:
+            rsp = endpoint.storage_links.get(Id)
             self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
         except HTTPError as e:
             self.logger.info(msg + e.response.text)

@@ -88,10 +88,16 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_MODELS[0])
+                rsps.get(f'{url_1}chunking_configuration/', json={'strategy': 'FIXED_CHUNKS', 'fixed_analysis_chunks': 1})
                 rsps.get(url_2, json=RETURN_MODELS[1])
+                rsps.get(f'{url_2}chunking_configuration/', json={'error': 'not found'}, status=404)
                 self.manager.platform_list(**called_args)
-                self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
-                self.assertIn('Model (id=2):', "\n".join(self._caplog.messages))
+                logs = "\n".join(self._caplog.messages)
+                self.assertIn('Model (id=1):', logs)
+                self.assertIn('Model chunking configuration (id=1):', logs)
+                self.assertIn('"fixed_analysis_chunks": 1', logs)
+                self.assertIn('Model (id=2):', logs)
+                self.assertIn('Model chunking configuration (id=2): \n{"error": "not found"}', logs)
 
     def test_list_models__logs_error(self):
         called_args = self.combine_args([self.min_args, {'models': [1, 2]}])
@@ -102,6 +108,7 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_MODELS[0])
+                rsps.get(f'{url_1}chunking_configuration/', json={'strategy': 'FIXED_CHUNKS', 'fixed_analysis_chunks': 1})
                 rsps.get(url_2, json={'error': 'model not found'}, status=404)
                 self.manager.platform_list(**called_args)
                 self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
@@ -116,10 +123,16 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_PORT[0])
+                rsps.get(f'{url_1}storage_links/', json={'location_file': 'loc_1.csv'})
                 rsps.get(url_2, json=RETURN_PORT[1])
+                rsps.get(f'{url_2}storage_links/', json={'error': 'not found'}, status=404)
                 self.manager.platform_list(**called_args)
-                self.assertIn('Portfolio (id=1):', "\n".join(self._caplog.messages))
-                self.assertIn('Portfolio (id=2):', "\n".join(self._caplog.messages))
+                logs = "\n".join(self._caplog.messages)
+                self.assertIn('Portfolio (id=1):', logs)
+                self.assertIn('Portfolio storage links (id=1):', logs)
+                self.assertIn('"location_file": "loc_1.csv"', logs)
+                self.assertIn('Portfolio (id=2):', logs)
+                self.assertIn('Portfolio storage links (id=2): \n{"error": "not found"}', logs)
 
     def test_list_portfolios__logs_error(self):
         called_args = self.combine_args([self.min_args, {'portfolios': [1, 2]}])
@@ -130,6 +143,7 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_PORT[0])
+                rsps.get(f'{url_1}storage_links/', json={'location_file': 'loc_1.csv'})
                 rsps.get(url_2, json={'error': 'portfolio not found'}, status=404)
                 self.manager.platform_list(**called_args)
                 self.assertIn('Portfolio (id=1):', "\n".join(self._caplog.messages))
@@ -143,8 +157,12 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url, json=RETURN_ANALYSIS[0])
+                rsps.get(f'{url}chunking_configuration/', json={'strategy': 'FIXED_CHUNKS', 'fixed_analysis_chunks': 1})
                 self.manager.platform_list(**called_args)
-                self.assertIn('Analysis (id=4):', "\n".join(self._caplog.messages))
+                logs = "\n".join(self._caplog.messages)
+                self.assertIn('Analysis (id=4):', logs)
+                self.assertIn('Analysis chunking configuration (id=4):', logs)
+                self.assertIn('"strategy": "FIXED_CHUNKS"', logs)
 
     def test_list_analyses__logs_error__and_model_success(self):
         called_args = self.combine_args([self.min_args, {'models': [1], 'analyses': [4]}])
@@ -155,6 +173,7 @@ class TestPlatformList(ComputationChecker):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
                 rsps.get(url_1, json=RETURN_MODELS[0])
+                rsps.get(f'{url_1}chunking_configuration/', json={'strategy': 'FIXED_CHUNKS', 'fixed_analysis_chunks': 1})
                 rsps.get(url_2, json={'error': 'analysis not found'}, status=404)
                 self.manager.platform_list(**called_args)
                 self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
