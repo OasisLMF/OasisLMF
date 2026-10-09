@@ -526,7 +526,7 @@ The default behaviour is that disaggregated risks will be fully correlated for b
 
 .. note::
 
-    This section describes ``--disaggregation items``, the default, where each building is its own
+    This section describes ``--disaggregation items``, where each building is its own
     item and so its own row to group on. Under ``--disaggregation samples`` a location keeps a
     single item and its buildings are separated in the sample dimension instead, so ``group_id``
     is location level and building-level group fields have nothing to differentiate. See

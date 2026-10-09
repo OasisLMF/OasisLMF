@@ -260,6 +260,39 @@ Financial profiles define the calc rules (deductibles, limits, shares) applied a
    - `node_profile['i_start'] < node_profile['i_end']`
    - Steps applied sequentially
 
+A cross-layer profile sums **both** loss and extras across the layers to recover the node's
+total, applies its terms once, and back-allocates the result to each layer.
+
+### Per-layer storage
+
+A branch computed with one layer gets per-layer storage lazily, the first time a node above it
+has layers of its own. The trigger is pointer equality — `loss_indptr[child + 1] ==
+loss_indptr[child]` means nothing has split this branch yet — and the initialisation is:
+
+| | new layers start as |
+|---|---|
+| loss | a **copy** of layer 0 |
+| extras | **zero** |
+
+The asymmetry is forced by the cross-layer merge above. Every layer is offered the whole loss and
+then carves its own slice out of it through its attachment and limit, so summing the layers
+afterwards gives the true total. Extras are carved by nothing: they are a single accumulated
+quantity, and the invariant is
+
+```
+sum over layers of extras == the node's accumulated extras
+```
+
+Layer 0 already holds the whole amount when the layers are created, so the others have to start
+at zero. Copying would make each of them hold it in full and the merge would count it once per
+layer — which shows up as a deductible applied once but charged N times.
+
+Three places do this and they all apply the same rule: `first_time_layer` / `first_time_layer_extra`
+for the base children of a branch, the single-child path in `compute_event` for the branch's own
+node, and the base-level path for a leaf that already has layers. `base_children_count > 1` gates
+the first of these, but only as "is there anything below this node still to initialise" — with one
+base child that child *is* the node, already handled. It is not a policy switch.
+
 ### Profile Application Flow
 
 ```python
@@ -387,17 +420,26 @@ Building 1 is the identity encoding, so an item carrying one building is an ordi
 
 ### Structure info
 
-Generation writes `fm_structure_info.bin` (8 bytes) alongside the other static files:
+Generation writes two files alongside the other static ones. `coverage_buildings.bin` carries the
+per-coverage count, one `(coverage_id, n_building)` record each, with `n_building` **signed**: a
+negative count marks a location whose buildings are kept separate and so arrive as their own
+blocks, a positive one a location summed at source. It is absent whenever every location has a
+single building.
+
+`fm_structure_info.bin` carries the portfolio-wide figures the arena is sized on, in one 20-byte
+record:
 
 | Field | Meaning |
 |-------|---------|
 | `site_collapse_level` | Last level whose aggregation key includes `risk_id`. `0` means no level does |
-| `max_buildings` | Largest building count any one item carries |
+| `max_buildings` | Largest building count any one item carries. Sizes the dense temporaries, which are indexed by sidx VALUE and so span the whole packed range |
+| `total_packed_buildings` | SUM of those counts over the items that keep their buildings separate |
+| `packed_node_slots` | Packed slices the arena owes over the packable levels |
 
-Neither can be derived here: `fm_programme` levels are compacted, so which level is the last
-risk-keyed one varies per portfolio, and the building counts live on the correlations table,
-which the financial module does not read. `load_fm_structure_info` returns `(0, 1)` when the
-file is absent, which is every structure generated without packing.
+None of it can be derived here: `fm_programme` levels are compacted, so which level is the last
+risk-keyed one varies per portfolio, and the arena has to be sized before any item is read.
+`load_fm_structure_info` returns `(0, 1, 0, 0)` when the file is absent, which is every structure
+generated without packing.
 
 ### Where the buildings collapse
 
@@ -429,6 +471,14 @@ parent. The old slice becomes dead space that the capacity bound already allows 
 
 This runs before back-allocation, which is what keeps back-allocation unchanged: the factor is
 looked up by sample index, and a collapsed leaf's indices line up with its node's.
+
+A layer that arrives **aliased** onto layer 0 is repointed at the new layer 0 rather than given a
+copy of its own. Its values are layer 0's by construction, since the collapse read both from the
+same slice, and the aliasing is load-bearing: a node whose `profile_len` is below its `layer_len`
+leaves the surplus layers aliased deliberately, and that is how the first node above with layers
+of its own detects that per-layer storage has yet to be created beneath it (see *Per-layer
+storage*). De-aliasing here would report the layers as already split when nothing had split
+them, leaving the upper layers sharing layer 0's storage.
 
 ### Arena capacity
 

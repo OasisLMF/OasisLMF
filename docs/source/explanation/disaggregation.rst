@@ -438,13 +438,17 @@ decides whether each building gets its own site node in the financial structure:
 Generation records what the financial module needs to do this in ``fm_structure_info.bin``,
 alongside the other fm input files.
 
-**Not available for deterministic runs**
+**Deterministic runs default to** ``none``
 
-``oasislmf exposure run`` performs a deterministic calculation with no ground-up sampling stage, so
-there is no sample dimension to put the buildings back into. Passing ``--disaggregation samples``
-there logs an informational message and runs as ``none`` instead, which gives the correct location
-totals. Note that site terms then apply once to the location rather than once per building, so an
-``IsAggregate = 1`` location's per-building terms are not exercised on that step.
+``oasislmf exposure run`` supports all three modes, but unlike generation it defaults to ``none``
+rather than ``samples``. A deterministic run exists to show what a policy's terms do to a known
+loss, and splitting a location's TIV across its buildings moves those numbers for reasons that
+have nothing to do with the terms under test. Ask for the other two explicitly.
+
+Under ``--disaggregation samples`` the deterministic generator puts the buildings back the way the
+ground-up tools do: a location whose buildings are kept separate emits one block per building at
+building-shifted sample indices, and one whose buildings are summed at source stays a single block
+carrying them all.
 
 |
 

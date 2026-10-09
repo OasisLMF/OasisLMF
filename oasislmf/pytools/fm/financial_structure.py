@@ -81,8 +81,9 @@ def load_fm_structure_info(static_path):
     aggregation key includes ``risk_id``) have applied their terms per building. Neither which
     level that is nor how many buildings to make room for can be derived here: fm_programme levels
     are compacted, so only levels carrying terms get one and the numbering varies per portfolio,
-    and the building counts live on the correlations table the financial module does not read.
-    Generation records both instead.
+    and the arena has to be sized before any item is read. Generation records both instead. The
+    per-coverage counts themselves come from ``coverage_buildings`` (see read_coverage_buildings);
+    this file carries only the portfolio-wide figures the arena is sized on.
 
     Args:
         static_path (str): path to the folder holding the static input files.
