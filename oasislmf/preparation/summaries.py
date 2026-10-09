@@ -64,6 +64,11 @@ MAP_SUMMARY_DTYPES = {
     'tiv': 'float',
     'building_id': 'int',
     'risk_id': 'int',
+    # Needed by _location_tiv_total: a packed location contributes one row standing for N
+    # buildings, and the map is filtered to these columns before that sum is taken. Dropping it
+    # here silently reports one building's share as the location's TIV. Maps written before
+    # building packing do not carry it, hence the intersection at every read site.
+    'number_of_buildings': 'int',
 }
 
 logger = logging.getLogger(__name__)

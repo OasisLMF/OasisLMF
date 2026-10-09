@@ -19,7 +19,8 @@ from oasislmf.preparation.gul_inputs import (
     process_group_id_cols,
     write_gul_input_files,
 )
-from oasislmf.preparation.summaries import get_summary_mapping, _location_tiv_total
+from oasislmf.preparation.summaries import (MAP_SUMMARY_DTYPES, get_summary_mapping,
+                                            _location_tiv_total)
 from oasislmf.pytools.common.input_files import read_coverage_buildings, read_coverages
 from oasislmf.utils.profiles import get_oed_hierarchy
 from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_NONE,
@@ -281,6 +282,20 @@ class TestSummaryMapTiv(TestCase):
                 m = self._map(mode)
                 self.assertIn('number_of_buildings', m.columns)
                 self.assertEqual(sorted(set(m['number_of_buildings'])), [expected])
+
+    def test_the_count_survives_the_summary_map_column_filter(self):
+        """The loader keeps only MAP_SUMMARY_DTYPES, and the multiplication needs the count.
+
+        write_summary_xref reads the map back from disk and narrows it to those columns before
+        taking the TIV total. Testing _location_tiv_total on the in-memory map cannot see a column
+        dropped there, which is how a packed run came to report one building's share as the
+        location's TIV on a real portfolio while the test above stayed green.
+        """
+        packed = self._map(DISAGGREGATION_SAMPLES)
+        # exactly what write_summary_xref does to a map it has just read
+        narrowed = packed[list(set(packed).intersection(MAP_SUMMARY_DTYPES))]
+        self.assertIn('number_of_buildings', narrowed.columns)
+        self.assertAlmostEqual(_location_tiv_total(narrowed), _location_tiv_total(packed), places=4)
 
 
 class TestThreeDisaggregationModes(TestCase):
