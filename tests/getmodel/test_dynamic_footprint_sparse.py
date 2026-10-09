@@ -177,21 +177,67 @@ def test_hazard_case_is_read_once_per_run(tmp_path, monkeypatch, partition_event
     assert len(hazard_reads) == len(set(hazard_reads))
 
 
+def build_many_section_model(tmp_path, num_sections, sections):
+    """Lay out a model with one event touching every section, each section with its own areaperil."""
+    model_sections = range(1, num_sections + 1)
+    event_definition = make_event_definition([(1, section, 10, 20, 0.5, 15) for section in model_sections])
+    hazard_case = make_hazard_case([(section, 1000 + section, return_period, intensity)
+                                    for section in model_sections
+                                    for return_period, intensity in ((10, 4), (20, 8))])
+    return build_model(tmp_path, event_definition=event_definition, hazard_case=hazard_case, sections=sections)
+
+
 @pytest.mark.parametrize('df_engine', DF_ENGINES)
 def test_partitioned_files_read_only_the_portfolio_sections(tmp_path, monkeypatch, df_engine):
-    """A partitioned file is read through its section_id=N/ directories, never as a whole dataset.
+    """A portfolio needing few of a partitioned file's sections reads only their section_id=N/ directories.
 
     Discovering the whole dataset lists every section of the model before any filter applies,
     which takes minutes on a large model even when the portfolio needs only a few sections.
     """
-    storage, run_dir = build_model(tmp_path, sections=[1])
+    storage, run_dir = build_many_section_model(tmp_path, num_sections=16, sections=[1, 99])
     reads = record_reads(monkeypatch)
 
     with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
-        assert areaperils_of(footprint.get_event(1)) == {100, 101}
+        assert areaperils_of(footprint.get_event(1)) == {1001}
         assert footprint.get_event(2) is None
 
     assert sorted(reads) == [f'{event_defintion_filename}/section_id=1', f'{hazard_case_filename}/section_id=1']
+
+
+@pytest.mark.parametrize('df_engine', DF_ENGINES)
+def test_portfolio_needing_most_sections_reads_each_file_once(tmp_path, monkeypatch, df_engine):
+    """Past a small share of the sections, one filtered read beats opening every partition in turn."""
+    storage, run_dir = build_many_section_model(tmp_path, num_sections=16, sections=list(range(1, 13)))
+    reads = record_reads(monkeypatch)
+
+    with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
+        assert areaperils_of(footprint.get_event(1)) == {1000 + section for section in range(1, 13)}
+
+    assert sorted(reads) == [event_defintion_filename, hazard_case_filename]
+
+
+@pytest.mark.parametrize('partition_event_definition', [True, False])
+def test_failed_first_load_is_retried_not_silent(tmp_path, monkeypatch, partition_event_definition):
+    """A load that fails once must not leave every later event looking unaffected.
+
+    The footprint server catches exceptions per request and keeps serving, so a silently
+    empty footprint after one transient error would turn the rest of the run into zero losses.
+    """
+    storage, run_dir = build_model(tmp_path, partition_event_definition=partition_event_definition)
+    original_get_df_reader = FootprintParquetDynamic.get_df_reader
+    failures = [OSError('transient read failure')]
+
+    def failing_once_get_df_reader(self, filepath, **kwargs):
+        if failures and filepath.split('/')[0] == hazard_case_filename:
+            raise failures.pop()
+        return original_get_df_reader(self, filepath, **kwargs)
+
+    monkeypatch.setattr(FootprintParquetDynamic, 'get_df_reader', failing_once_get_df_reader)
+
+    with open_footprint(storage, run_dir) as footprint:
+        with pytest.raises(OSError, match='transient read failure'):
+            footprint.get_event(1)
+        assert intensity_by_areaperil(footprint.get_event(1)) == {100: 6, 101: 8, 200: 4}
 
 
 def test_opening_the_footprint_reads_no_section_data(tmp_path, monkeypatch):
