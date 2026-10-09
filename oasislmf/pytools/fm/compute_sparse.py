@@ -236,18 +236,39 @@ def _emit_collapsed(node, compute_idx, max_sidx_val, has_net_loss, has_extras, l
             loss_val[compute_idx['loss_ptr_i']] = collapse_net[sidx_val[new_start + val_i]]
             compute_idx['loss_ptr_i'] += 1
 
+    # A layer that arrives aliased onto layer 0 holds layer 0's values by construction -- the
+    # collapse above read both from the same slice. Point it at the NEW layer 0 instead of giving
+    # it a copy of its own. Giving it one would not be merely wasteful: a node whose profile_len
+    # is below its layer_len leaves the surplus layers aliased deliberately, and that aliasing is
+    # how the first node above with layers of its own detects that per-layer storage has yet to be
+    # created beneath it. Breaking the alias here tells that node the layers were already split
+    # when nothing has split them, and it then leaves the upper layers sharing layer 0's storage.
+    loss_in_layer0 = loss_indptr[node['loss']]
+    loss_out_layer0 = compute_idx['loss_ptr_i']
+    # unconditional so the variable is defined on every path numba types, not just the extras one
+    extras_in_layer0 = extras_indptr[node['extra']] if has_extras else 0
+    extras_out_layer0 = compute_idx['extras_ptr_i']
+
     for layer_i in range(layer_count):
-        loss_indptr[node['loss'] + layer_i] = compute_idx['loss_ptr_i']
-        for val_i in range(new_val_count):
-            loss_val[compute_idx['loss_ptr_i']] = collapse_loss[layer_i, sidx_val[new_start + val_i]]
-            compute_idx['loss_ptr_i'] += 1
-        if has_extras:
-            extras_indptr[node['extra'] + layer_i] = compute_idx['extras_ptr_i']
+        # read before the write below replaces it; layers are visited in order so this is the
+        # pointer the node arrived with
+        if layer_i > 0 and loss_indptr[node['loss'] + layer_i] == loss_in_layer0:
+            loss_indptr[node['loss'] + layer_i] = loss_out_layer0
+        else:
+            loss_indptr[node['loss'] + layer_i] = compute_idx['loss_ptr_i']
             for val_i in range(new_val_count):
-                for extra_i in range(3):
-                    extras_val[compute_idx['extras_ptr_i'], extra_i] = collapse_extras[
-                        layer_i, sidx_val[new_start + val_i], extra_i]
-                compute_idx['extras_ptr_i'] += 1
+                loss_val[compute_idx['loss_ptr_i']] = collapse_loss[layer_i, sidx_val[new_start + val_i]]
+                compute_idx['loss_ptr_i'] += 1
+        if has_extras:
+            if layer_i > 0 and extras_indptr[node['extra'] + layer_i] == extras_in_layer0:
+                extras_indptr[node['extra'] + layer_i] = extras_out_layer0
+            else:
+                extras_indptr[node['extra'] + layer_i] = compute_idx['extras_ptr_i']
+                for val_i in range(new_val_count):
+                    for extra_i in range(3):
+                        extras_val[compute_idx['extras_ptr_i'], extra_i] = collapse_extras[
+                            layer_i, sidx_val[new_start + val_i], extra_i]
+                    compute_idx['extras_ptr_i'] += 1
 
 
 @njit(cache=True, fastmath=True)
@@ -333,9 +354,19 @@ def first_time_layer_extra(profile_count, base_children_count, temp_children_que
     """Initialize multi-layer loss AND extras storage for base children.
 
     Same as first_time_layer but also handles the extras array (deductible, overlimit, underlimit).
-    For aggregation cases (single base child), extras are copied from layer 0.
-    For back allocation cases (multiple base children), extras are zeroed for new layers
-    since each layer will compute its own extras through back allocation.
+
+    Loss is COPIED to each new layer and extras are ZEROED, and the asymmetry is the point. Every
+    layer is offered the whole loss and then carves its own slice out of it through its attachment
+    and limit, so summing the layers afterwards gives the true total. Extras are not carved by
+    anything: they are a single accumulated quantity, and the invariant a cross-layer profile
+    relies on when it merges the layers (see STEP 2 in compute_event) is
+
+        sum over layers of extras == the node's accumulated extras
+
+    Layer 0 already holds the whole amount at this point, so the other layers have to start at
+    zero; copying would make each of them hold it in full and the merge would count it N times.
+    This is what "allocate deductible underlimit overlimit to layer 1 on creation" meant in #1235,
+    and it is what the base-level path in compute_event does unconditionally.
 
     Args:
         profile_count: Number of profiles/layers to create
@@ -355,12 +386,6 @@ def first_time_layer_extra(profile_count, base_children_count, temp_children_que
         child_val_count = sidx_indptr[sidx_indexes[child['node_id']] + 1] - sidx_indptr[sidx_indexes[child['node_id']]]
         child_loss_val_layer_0 = loss_val[loss_indptr[child['loss']]:
                                           loss_indptr[child['loss']] + child_val_count]
-        if base_children_count == 1:  # aggregation case
-            child_extra_val_layer_0 = extras_val[extras_indptr[child['extra']]:
-                                                 extras_indptr[child['extra']] + child_val_count]
-        else:  # back allocation case
-            child_extra_val_layer_0 = np.zeros_like(extras_val[extras_indptr[child['extra']]:
-                                                               extras_indptr[child['extra']] + child_val_count])
 
         for profile_i in range(1, profile_count):
             loss_indptr[child['loss'] + profile_i] = compute_idx['loss_ptr_i']
@@ -368,7 +393,7 @@ def first_time_layer_extra(profile_count, base_children_count, temp_children_que
             compute_idx['loss_ptr_i'] += child_val_count
 
             extras_indptr[child['extra'] + profile_i] = compute_idx['extras_ptr_i']
-            extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_count] = child_extra_val_layer_0
+            extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_count].fill(0)
             compute_idx['extras_ptr_i'] += child_val_count
 
 
@@ -897,12 +922,19 @@ def compute_event(compute_info,
                             compute_idx['loss_ptr_i'] += node_val_count
 
                         if compute_node['extra'] != null_index:
-                            node_extras = extras_val[extras_indptr[storage_node['extra']]:extras_indptr[storage_node['extra']] + node_val_count]
+                            # Loss copies, extras zero -- the same rule first_time_layer_extra and
+                            # the base-level path below apply. Layer 0 holds the whole accumulated
+                            # extras and a cross-layer profile sums the layers to recover it, so
+                            # copying here would count it once per layer.
                             for profile_i in range(1, compute_node['profile_len']):
                                 extras_indptr[storage_node['extra'] + profile_i] = compute_idx['extras_ptr_i']
-                                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + node_val_count] = node_extras
+                                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + node_val_count].fill(0)
                                 compute_idx['extras_ptr_i'] += node_val_count
 
+                        # Whether anything BELOW storage_node still needs per-layer storage, not a
+                        # policy switch: with one base child that child is storage_node itself and
+                        # the loop above has already done it. Both branches apply the same rule --
+                        # loss copied, extras zeroed.
                         base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
                         if base_children_count > 1:
                             if compute_node['extra'] != null_index:

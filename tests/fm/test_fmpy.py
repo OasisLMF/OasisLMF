@@ -59,13 +59,6 @@ class FmAcceptanceTests(TestCase):
     def test_building_packing(self):
         self.run_test('building_packing', ['BBF'], fmpy=True)
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "Packing changes the base-child count the layer initialisation branches on. "
-        "compute_sparse.py guards the multi-layer loss/extras initialisation with "
-        "'if base_children_count > 1', and get_base_children counts LEAF nodes, so this case's "
-        "four building leaves become one packed item: the guard fires when disaggregated and "
-        "does not when packed, leaving the second layer on the first layer's storage. The "
-        "location's loss_il comes out 200,000 high. Remove this marker with the fix."))
     def test_building_packing_samples_matches_items(self):
         """Packing a location's buildings into the sample dimension must not change the loss.
 
