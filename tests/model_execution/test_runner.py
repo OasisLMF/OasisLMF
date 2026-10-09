@@ -1,11 +1,13 @@
 import json
 import os
+import subprocess
 import tempfile
 from tempfile import TemporaryDirectory
 from unittest import TestCase, mock
 from unittest.mock import patch
 
 from oasislmf.execution import runner
+from oasislmf.execution.bash import bash_params
 from oasislmf.execution.runner import rerun
 from oasislmf.utils.exceptions import OasisException
 
@@ -136,6 +138,98 @@ class TestFindIncompletePytoolLogs(TestCase):
                 lost = runner._find_incomplete_pytool_logs(tmp_dir)
 
             self.assertEqual(lost, {'fmpy': [path]})
+
+    def test_lost_custom_gulcalc_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, 'gul_stderror.err')
+            with open(path, 'w') as f:
+                f.write('gulcalc started\ngulcalc started\ngulcalc finished\n')
+            lost = runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', 'gulcalc finished')
+            self.assertEqual(lost, {'gulcalc': [path]})
+
+    def test_finished_custom_gulcalc_is_complete(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with open(os.path.join(tmp_dir, 'gul_stderror.err'), 'w') as f:
+                f.write('gulcalc started\ngulcalc finished\n')
+            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', 'gulcalc finished'), {})
+
+    def test_custom_gulcalc_ignored_without_markers(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with open(os.path.join(tmp_dir, 'gul_stderror.err'), 'w') as f:
+                f.write('gulcalc started\n')
+            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir), {})
+            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', None), {})
+
+    def test_missing_gul_stderror_is_complete(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', 'gulcalc finished'), {})
+
+    def test_non_utf8_gul_stderror_is_still_counted(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with open(os.path.join(tmp_dir, 'gul_stderror.err'), 'wb') as f:
+                f.write(b'gulcalc started\xff\xfe\ngulcalc finished\n\xc3gulcalc started\n')
+            lost = runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', 'gulcalc finished')
+            self.assertEqual(lost, {'gulcalc': [os.path.join(tmp_dir, 'gul_stderror.err')]})
+
+    def test_markers_match_as_grep_basic_regex(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with open(os.path.join(tmp_dir, 'gul_stderror.err'), 'w') as f:
+                f.write('Start (gulcalc) 1\nStart (gulcalc) 2\nfinished after 12 events\nfinished after 7 events\n')
+            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir, 'Start (gulcalc)', 'finished.*[0-9]\\+ events'), {})
+
+    def test_invalid_marker_raises(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with open(os.path.join(tmp_dir, 'gul_stderror.err'), 'w') as f:
+                f.write('gulcalc started\n')
+            with self.assertRaisesRegex(OasisException, 'Invalid custom gulcalc log marker'):
+                runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc [started', 'gulcalc finished')
+
+
+class TestRunChecksLogsComplete(TestCase):
+    def _run(self, tmp_dir, returncode, analysis_settings=None, **kwargs):
+        proc = mock.Mock(pid=1, returncode=returncode)
+        proc.communicate.return_value = (b'', None)
+        with mock.patch('oasislmf.execution.runner.genbash'), \
+                mock.patch('oasislmf.execution.runner.ResourceMonitor'), \
+                mock.patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc), \
+                mock.patch('oasislmf.execution.runner._ensure_pytool_logs_complete') as mock_ensure:
+            try:
+                runner.run(analysis_settings or {}, filename=os.path.join(tmp_dir, 'run_kernel.sh'), **kwargs)
+            except subprocess.CalledProcessError:
+                pass
+        return mock_ensure
+
+    def test_checks_run_dir_logs_after_successful_script(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            mock_ensure = self._run(tmp_dir, 0, custom_gulcalc_log_start='start', custom_gulcalc_log_finish='finish')
+        mock_ensure.assert_called_once_with(os.path.join(tmp_dir, 'log'), 'start', 'finish')
+
+    def test_markers_set_only_in_analysis_settings_are_checked(self):
+        settings = {'model_custom_gulcalc_log_start': 'start', 'model_custom_gulcalc_log_finish': 'finish'}
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            mock_ensure = self._run(tmp_dir, 0, analysis_settings=settings)
+        mock_ensure.assert_called_once_with(os.path.join(tmp_dir, 'log'), 'start', 'finish')
+
+    def test_failed_script_skips_log_check(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            mock_ensure = self._run(tmp_dir, 1)
+        mock_ensure.assert_not_called()
+
+
+GUL_OUTPUT = {'gul_output': True, 'gul_summaries': [{'id': 1}]}
+
+
+class TestBashParamsCustomGulcalcMarkers(TestCase):
+    """run_analysis reads the markers from bash_params, so they must be set on every path."""
+
+    def test_markers_set_with_custom_gulcalc_cmd(self):
+        settings = {'model_custom_gulcalc_log_start': 'start', 'model_custom_gulcalc_log_finish': 'finish', **GUL_OUTPUT}
+        params = bash_params(settings, custom_gulcalc_cmd='ls')
+        self.assertEqual(('start', 'finish'), (params['custom_gulcalc_log_start'], params['custom_gulcalc_log_finish']))
+
+    def test_markers_set_without_custom_gulcalc_cmd(self):
+        params = bash_params(dict(GUL_OUTPUT), custom_gulcalc_log_start='start', custom_gulcalc_log_finish='finish')
+        self.assertEqual(('start', 'finish'), (params['custom_gulcalc_log_start'], params['custom_gulcalc_log_finish']))
 
 
 class TestEnsurePytoolLogsComplete(TestCase):
