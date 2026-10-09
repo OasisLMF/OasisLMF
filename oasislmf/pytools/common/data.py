@@ -31,6 +31,10 @@ null_index = oasis_int.type(-1)
 # A default buffer size for nd arrays to be initialised to
 DEFAULT_BUFFER_SIZE = int(os.environ.get('OASIS_DEFAULT_BUFFER_SIZE', 1_000_000))
 
+# Written beside the fm input files by IL generation, read by the financial module. Absent means
+# no packed buildings. A .bin so the *.bin globs that stage and tar the fm inputs pick it up.
+FM_STRUCTURE_INFO_FILE = 'fm_structure_info.bin'
+
 # Mean type numbers for outputs (SampleType)
 MEAN_TYPE_ANALYTICAL = 1
 MEAN_TYPE_SAMPLE = 2
@@ -108,6 +112,12 @@ limit1 = ("limit1", oasis_float, "%f")
 limit2 = ("limit2", oasis_float, "%f")
 loss = ("loss", oasis_float, "%.2f")
 model_data_len = ("model_data_len", 'u4', "%u")
+# signed: magnitude is the building count, negative means the buildings stay separate. Lives on
+# the coverage because that is where it is true -- buildings belong to the LOCATION, so every
+# coverage of one, and every item of those coverages, carries the same value.
+n_building = ("n_building", 'i4', "%d")
+site_collapse_level = ("site_collapse_level", 'i4', "%d")
+max_buildings = ("max_buildings", 'i4', "%d")
 occ_date_id = ("occ_date_id", 'i4', "%d")
 occ_date_id_granular = ("occ_date_id", 'i8', "%d")
 output_id = ("output_id", 'i4', "%d")
@@ -189,11 +199,52 @@ correlations_output = [
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
 
+# One record. site_collapse_level is the last fm level whose aggregation key includes risk_id --
+# packed buildings collapse after it, and 0 means there is no such level. max_buildings sizes the
+# computation arrays.
+total_packed_buildings = ("total_packed_buildings", 'i4', "%d")
+# The arena's packed allowance, summed over the packable levels at generation time where the
+# per-node building counts exist. 0 means "not recorded" and the reader falls back to the
+# total-times-levels bound, which over-reserves by about 2-3x on an aggregate-heavy book.
+packed_node_slots = ("packed_node_slots", 'i8', "%d")
+fm_structure_info_output = [
+    site_collapse_level,
+    max_buildings,
+    total_packed_buildings,
+    packed_node_slots,
+]
+fm_structure_info_headers, fm_structure_info_dtype, fm_structure_info_fmt = generate_output_metadata(
+    fm_structure_info_output)
+
 coverages_output = [
     coverage_id,
     tiv,
 ]
 coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(coverages_output)
+
+# The per-coverage building count, in a file of its OWN rather than a field on coverages.bin.
+#
+# coverages.bin is a published input format: it is documented as internal data for gulpy and
+# fmpy, and third-party models read it directly -- PiWindComplexModel does, as a bare float32
+# array. Widening its record would have gone unnoticed by every such reader, which would then
+# take alternate words as TIVs. It carries no magic and coverage_id is positional, so there is
+# nowhere to put a version marker either. So the count lives beside it.
+#
+# coverage_id is stored rather than implied, unlike coverages.bin: it costs 4 bytes a coverage
+# and makes a truncated or mis-ordered file detectable, where a positional file would silently
+# shift every record after the gap.
+#
+# n_building is SIGNED. The magnitude is how many buildings the coverage's location carries; a
+# negative sign means they must reach the financial module as separate blocks, and 1 is the
+# unpacked identity. Never use it raw as a bound -- range() over a negative silently does
+# nothing.
+COVERAGE_BUILDINGS_FILE = 'coverage_buildings'
+coverage_buildings_output = [
+    coverage_id,
+    n_building,
+]
+(coverage_buildings_headers, coverage_buildings_dtype,
+ coverage_buildings_fmt) = generate_output_metadata(coverage_buildings_output)
 
 damagebin_output = [
     bin_index,

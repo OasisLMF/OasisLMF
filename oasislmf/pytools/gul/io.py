@@ -158,7 +158,8 @@ def read_getmodel_stream(stream_in, items,
 def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
                    item_map_hm, item_map_hm_keys, item_map_ja_offsets,
                    coverages,
-                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
+                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
+                   damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
 
     Args:

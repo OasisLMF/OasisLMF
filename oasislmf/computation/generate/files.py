@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List
 import pandas as pd
 
-from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.base import DISAGGREGATION_HELP, ComputationStep
 from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
                                                             CoveragesFile,
                                                             DamageBinDictFile,
@@ -33,7 +33,8 @@ from oasislmf.computation.generate.keys import GenerateKeys
 from oasislmf.preparation.correlations import map_data, get_coverage_dependency_settings
 from oasislmf.preparation.dir_inputs import (create_target_directory,
                                              prepare_input_files_directory)
-from oasislmf.preparation.gul_inputs import (get_gul_input_items,
+from oasislmf.preparation.gul_inputs import (build_correlations_frame,
+                                             get_gul_input_items,
                                              process_group_id_cols,
                                              write_gul_input_files)
 from oasislmf.preparation.il_inputs import (get_il_input_items,
@@ -45,20 +46,21 @@ from oasislmf.preparation.summaries import (get_summary_mapping,
                                             write_exposure_summary,
                                             write_mapping_file,
                                             write_summary_levels)
-from oasislmf.pytools.common.data import correlations_headers
-from oasislmf.utils.data import (establish_correlations, get_dataframe,
+from oasislmf.utils.data import (establish_correlations, get_dataframe, resolve_disaggregation,
                                  get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df,
                                  prepare_reinsurance_df, validate_analysis_oed_fields, validate_vulnerability_replacements,
                                  analysis_settings_loader, model_settings_loader)
 
-from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
+from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_MODES, DISAGGREGATION_SAMPLES,
+                                     DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
                                      OASIS_FILES_PREFIXES, WRITE_CHUNKSIZE,
                                      get_default_accounts_profile,
                                      get_default_exposure_profile,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException, OasisExceptionNoKeys
+from oasislmf.execution.bash import resolve_custom_gulcalc_cmd
 from oasislmf.utils.inputs import str2bool
 
 
@@ -109,7 +111,18 @@ class GenerateFiles(ComputationStep):
          'help': 'Disables creation of an exposure summary report'},
         {'name': 'damage_group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': DAMAGE_GROUP_ID_COLS},
         {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
-        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
+        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_SAMPLES, 'choices': DISAGGREGATION_MODES,
+         'help': DISAGGREGATION_HELP},
+        {'name': 'custom_gulcalc_supports_packing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': "set when this model's custom gulcalc understands building-packed streams. Without it a "
+                 "complex model is generated with --disaggregation items instead of samples, because a gulcalc "
+                 "that ignores the packing would understate every loss by the building count. A model normally "
+                 "declares this once, in model_settings.json under computation_settings.boolean_parameters."},
+        {'name': 'model_custom_gulcalc', 'default': None,
+         'help': 'Custom gulcalc binary name. Declared here too so generation can tell a complex model from the '
+                 'built-in pipeline when choosing how to represent buildings.'},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
+         'help': "DEPRECATED and ignored. Use --disaggregation items if you explicitly want a location's buildings split into separate items."},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -163,6 +176,44 @@ class GenerateFiles(ComputationStep):
             'disable_oed_version_update': self.disable_oed_version_update,
         }
 
+    def _disaggregation_for_this_engine(self, disaggregation):
+        """Fall back from 'samples' to 'items' for a complex model that has not declared support.
+
+        Packing divides a location's TIV by NumberOfBuildings and leaves the buildings to be put
+        back by the ground-up tool, which multiplexes them into the sample dimension. gulpy and
+        gulmc do that; a third-party gulcalc reading items.bin knows nothing about it, emits one
+        block per item, and every loss comes out a factor of NumberOfBuildings too small -- with
+        no error anywhere. So a complex model is generated unpacked unless it says otherwise.
+
+        Downgraded rather than refused: 'samples' is now the default, so refusing would break
+        every complex model on upgrade for a choice the user did not make. A model that handles
+        packing sets custom_gulcalc_supports_packing, normally once in its own model_settings.json
+        under computation_settings.boolean_parameters.
+
+        Args:
+            disaggregation (str): the resolved mode.
+
+        Returns:
+            str: the mode to generate with.
+        """
+        if disaggregation != DISAGGREGATION_SAMPLES or self.custom_gulcalc_supports_packing:
+            return disaggregation
+
+        # Frequently not configured at all: a model that sets none of gulmc/gulpy/modelpy is
+        # picked up by probing PATH, so testing model_custom_gulcalc alone misses the usual case.
+        custom_gulcalc_cmd = resolve_custom_gulcalc_cmd(self.model_custom_gulcalc, self.settings)
+        if not custom_gulcalc_cmd:
+            return disaggregation
+
+        self.logger.warning(
+            f"disaggregation='{DISAGGREGATION_SAMPLES}' is not applied to this run: it uses the custom gulcalc "
+            f"'{custom_gulcalc_cmd}', which has not declared that it understands building-packed streams. "
+            f"Packing would leave it to put the buildings back, and a gulcalc that does not would understate "
+            f"every loss by NumberOfBuildings. Generating with '{DISAGGREGATION_ITEMS}' instead. Set "
+            f"custom_gulcalc_supports_packing if this gulcalc does handle them."
+        )
+        return DISAGGREGATION_ITEMS
+
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
 
@@ -176,6 +227,9 @@ class GenerateFiles(ComputationStep):
                 'version file path + lookup package path must be provided'
             )
         self.oasis_files_dir = self._get_output_dir()
+        disaggregation = self._disaggregation_for_this_engine(
+            resolve_disaggregation(self.disaggregation, self.do_disaggregation))
+
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
         oed_compression = 'csv' if self.intermediary_csv else 'parquet'
@@ -318,8 +372,12 @@ class GenerateFiles(ComputationStep):
         except (KeyError, AttributeError, OasisException) as e:
             self.logger.warning(f'WARNING: Failed to load "hazard_group_fields", file: {self.model_settings_json}, error: {e}')
 
-        # load group columns from model_settings.json if not set in kwargs (CLI)
-        if model_damage_group_fields and not self.kwargs.get('group_id_cols'):
+        # load group columns from model_settings.json if not set in kwargs (CLI).
+        # The key is 'damage_group_id_cols', which is what the parameter is called -- it read
+        # 'group_id_cols' from the rename in #1181 until 2026-10, so the model settings always
+        # won and --damage-group-id-cols could not override them. The hazard branch below kept
+        # the right key, which is why only the damage hash was stuck.
+        if model_damage_group_fields and not self.kwargs.get('damage_group_id_cols'):
             damage_group_id_cols = model_damage_group_fields
         # otherwise load group cols from args
         else:
@@ -346,7 +404,7 @@ class GenerateFiles(ComputationStep):
             exposure_profile=location_profile,
             damage_group_id_cols=damage_group_id_cols,
             hazard_group_id_cols=hazard_group_id_cols,
-            do_disaggregation=self.do_disaggregation,
+            disaggregation=disaggregation,
             coverage_dependency_settings=get_coverage_dependency_settings(data=model_settings)
         )
 
@@ -372,7 +430,7 @@ class GenerateFiles(ComputationStep):
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
-            correlations_df=gul_inputs_df[correlations_headers],
+            correlations_df=build_correlations_frame(gul_inputs_df),
             output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
@@ -395,7 +453,7 @@ class GenerateFiles(ComputationStep):
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile,
-            do_disaggregation=self.do_disaggregation,
+            disaggregation=disaggregation,
             target_dir=target_dir,
             oasis_files_prefixes=files_prefixes['il'],
             chunksize=self.write_chunksize,

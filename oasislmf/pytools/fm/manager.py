@@ -1,3 +1,5 @@
+import os
+import time
 import tempfile
 import logging
 import numpy as np
@@ -7,11 +9,13 @@ from contextlib import ExitStack
 from .financial_structure import create_financial_structure, load_financial_structure
 from .stream_sparse import FMReader, EventWriterSparse, EventWriterOrderedOutputSparse
 from .compute_sparse import compute_event as compute_event_sparse
+from .compute_sparse import DEBUG_PROFILE, PROFILE_LEVELS, PROFILE_METRICS
 from .compute_sparse import init_variable as init_variable_sparse
 from .compute_sparse import reset_variable as reset_variable_sparse
 from .compute_sparse import load_net_value
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.pytools.common.event_stream import init_streams_in, GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID
+from oasislmf.pytools.common.event_stream import (init_streams_in, GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID,
+                                                  LOSS_STREAM_AGG_TYPES)
 from oasislmf.utils.exceptions import OasisStreamException
 
 
@@ -40,6 +44,13 @@ def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_meth
 
         if stream_source_type not in [GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID]:
             raise Exception(f'unsupported stream_type {stream_source_type} (most probable cause is that the up stream data are incorrect)')
+        # ITEM_PACKED_STREAM is read by the same path: an unpacked item is the one-building case
+        # of the packed encoding. The check is here so an aggregation type we have NOT defined --
+        # a future layout, or a stream from a newer writer -- is refused rather than read as if
+        # it were items, which would be a wrong loss and not a failure.
+        if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
+            raise Exception(f'unsupported stream aggregation type {stream_agg_type}, expected one of '
+                            f'{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)')
 
         if storage_method == "sparse":
             run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out=files_out, net_loss=net_loss, stack=stack,
@@ -61,17 +72,18 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
         event_writer_cls = EventWriterSparse
 
     with tempfile.TemporaryDirectory() as tempdir:
+        # net_loss storage is reserved by init, so resolve the flag before it rather than after:
+        # rule 1 always keeps the input loss, and every net-loss output mode does too.
+        keep_input_loss = compute_info['allocation_rule'] == 1 or net_loss is not None
+
         (max_sidx_val, max_sidx_count, len_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
-         extras_indptr, extras_val, children, computes, item_parent_i, compute_idx) = init_variable_sparse(compute_info, max_sidx_val, tempdir, low_memory)
+         extras_indptr, extras_val, children, computes, item_parent_i, compute_idx) = init_variable_sparse(
+            compute_info, max_sidx_val, tempdir, low_memory, keep_input_loss)
 
         if allocation_rule == 0:
             pass_through_out = np.zeros_like(pass_through)
         else:
             pass_through_out = pass_through
-
-        keep_input_loss = False
-        if compute_info['allocation_rule'] == 1:
-            keep_input_loss = True
 
         if net_loss is None:  # stream out need to provide gross loss
             gross_writer = stack.enter_context(
@@ -128,9 +140,29 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
             keep_input_loss = True
 
         fm_reader = FMReader(nodes_array, sidx_indexes, sidx_indptr, sidx_val,
-                             loss_indptr, loss_val, pass_through, len_array, computes, compute_idx)
+                             loss_indptr, loss_val, pass_through, len_array, computes, compute_idx, max_sidx_val,
+                             compute_info['max_buildings'] > 1,
+                             # packed input, but no level applies terms per building. 0 is the "no risk-keyed level"
+                             # marker, so it means nothing to collapse whatever start_level is -- hence max(1, ...).
+                             compute_info['max_buildings'] > 1
+                             and compute_info['site_collapse_level'] < max(1, compute_info['start_level']))
+        fm_profile_stats = np.zeros((PROFILE_LEVELS, PROFILE_METRICS), dtype=np.float64)
+        phase = {'read': 0.0, 'compute': 0.0, 'write': 0.0, 'events': 0}
         try:
-            for event_i, event_id in enumerate(fm_reader.read_streams(streams_in)):
+            event_i = -1
+            _events = fm_reader.read_streams(streams_in)
+            while True:
+                if DEBUG_PROFILE:
+                    _t = time.perf_counter()
+                try:
+                    event_id = next(_events)
+                except StopIteration:
+                    break
+                event_i += 1
+                if DEBUG_PROFILE:
+                    _r = time.perf_counter()
+                    phase['read'] += _r - _t
+                    phase['events'] += 1
                 compute_event_sparse(
                     compute_info,
                     keep_input_loss,
@@ -143,13 +175,20 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
                     compute_idx,
                     item_parent_i,
                     fm_profile,
-                    stepped)
+                    stepped,
+                    fm_profile_stats)
+                if DEBUG_PROFILE:
+                    _c = time.perf_counter()
+                    phase['compute'] += _c - _r
                 if gross_writer:
                     gross_writer.write(event_id, compute_idx)
                 if net_writer:
                     load_net_value(computes, compute_idx, nodes_array, sidx_indptr, sidx_indexes, loss_indptr, loss_val)
                     net_writer.write(event_id, compute_idx)
                 reset_variable_sparse(children, compute_idx, computes)
+                if DEBUG_PROFILE:
+                    phase['write'] += time.perf_counter() - _c
+            _dump_fm_profile(fm_profile_stats, phase)
         except OasisStreamException:
             logger.error("Stream read error in fm")
             raise
@@ -167,3 +206,25 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
 
             logger.error(f"event index={event_i} id={event_id}, at node level_id={node['level_id']} agg_id={node['agg_id']} failed in fm")
             raise
+
+
+def _dump_fm_profile(stats, phase=None):
+    """Append the per-level profile to $FM_PROFILE_OUT, one row per level.
+
+    fmpy writes the IL stream on stdout, so profiling output has to go to a file.
+    """
+    if not DEBUG_PROFILE:
+        return
+    path = os.environ.get("FM_PROFILE_OUT")
+    if not path:
+        return
+    with open(path, "a") as fh:
+        if phase is not None:
+            fh.write("PHASE\tread=%.4f\tcompute=%.4f\twrite=%.4f\tevents=%d\n" % (
+                phase['read'], phase['compute'], phase['write'], phase['events']))
+        for lvl in range(stats.shape[0]):
+            if stats[lvl, 1] == 0 and stats[lvl, 0] == 0:
+                continue
+            fh.write("%d\t%.4f\t%d\t%d\t%d\t%d\t%d\n" % (
+                lvl, stats[lvl, 0], stats[lvl, 1], stats[lvl, 2],
+                stats[lvl, 3], stats[lvl, 4], stats[lvl, 5]))

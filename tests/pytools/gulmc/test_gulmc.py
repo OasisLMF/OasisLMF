@@ -239,6 +239,53 @@ def test_debug_flag(test_model: Tuple[str, str],
         file_out.unlink()
 
 
+@pytest.mark.parametrize("debug", [1, 2], ids=lambda x: f"debug={x} ")
+@pytest.mark.parametrize("sample_size", [1, 7], ids=lambda x: f"S{x} ")
+def test_debug_writes_the_random_values_and_leaves_the_specials_alone(sample_size, debug):
+    """debug 1/2 replaces the sample losses with the random values, and nothing else.
+
+    The special (negative) sidx records are derived from the cdf, not from the draw, so they
+    must be identical to a debug=0 run. This is only reachable with alloc_rule 0.
+
+    Regression guard: the write target used to be sized ``S + NUM_IDX`` while the debug branch
+    assigns a length-``S`` slice, so debug raised ValueError for S > 1 and overwrote the
+    specials for S == 1. Nothing ran debug with alloc_rule 0, so neither was noticed.
+    """
+    test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
+
+    def run(debug_value, out):
+        run_gulmc(
+            run_dir=test_model_dir,
+            ignore_file_type=set(),
+            file_in=test_model_dir.joinpath("input").joinpath("events.bin"),
+            file_out=out,
+            sample_size=sample_size,
+            loss_threshold=0.,
+            alloc_rule=0,
+            debug=debug_value,
+            random_generator=0,
+            ignore_correlation=True,
+            effective_damageability=False,
+        )
+        bintocsv(out, out.with_suffix(".csv"), "gul")
+        return pd.read_csv(out.with_suffix(".csv"))
+
+    with TemporaryDirectory() as tmp:
+        plain = run(0, Path(tmp, "plain.bin"))
+        dbg = run(debug, Path(tmp, "dbg.bin"))
+
+    specials_plain = plain[plain["sidx"] < 0].reset_index(drop=True)
+    specials_dbg = dbg[dbg["sidx"] < 0].reset_index(drop=True)
+    assert not specials_plain.empty, "no special records to compare"
+    pd.testing.assert_frame_equal(specials_plain, specials_dbg)
+
+    # and the sample records are the random values, so they differ from the losses
+    samples_plain = plain[plain["sidx"] > 0]["loss"].to_numpy()
+    samples_dbg = dbg[dbg["sidx"] > 0]["loss"].to_numpy()
+    assert samples_plain.shape == samples_dbg.shape
+    assert ((samples_dbg >= 0) & (samples_dbg <= 1)).all(), "debug output should be random values in [0, 1]"
+
+
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
 @pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")

@@ -18,6 +18,19 @@ from oasislmf.utils.log import oasis_log
 from ..utils.log_config import OasisLogConfig
 
 
+DISAGGREGATION_HELP = (
+    "where a location's NumberOfBuildings is separated: "
+    "'none' keeps one item holding the whole location (buildings implicitly perfectly "
+    "correlated); "
+    "'items' expands one item per building; "
+    "'samples' keeps one item per (location, peril, coverage_type) and multiplexes the buildings "
+    "into the sample dimension, which needs the pure-Python gulmc/gulpy pipeline. "
+    "Default 'samples'. Supersedes --do-disaggregation, which is deprecated and ignored. "
+    "A model whose own ground-up binary does not understand packed streams is generated as "
+    "'items' instead, unless it sets custom_gulcalc_supports_packing."
+)
+
+
 class ComputationStep:
     """"Abstract" Class for all Computation Step (ExposurePreAnalysis, GulCalc, ...)
     initialise the object with all specified param un step_param and sub- ComputationStep

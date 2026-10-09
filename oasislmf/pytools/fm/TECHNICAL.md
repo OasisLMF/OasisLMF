@@ -10,9 +10,10 @@ This document provides detailed technical documentation for the Financial Module
 4. [Aggregation](#aggregation)
 5. [Profile Application](#profile-application)
 6. [Back Allocation](#back-allocation)
-7. [Stream I/O](#stream-io)
-8. [Memory Management](#memory-management)
-9. [Performance Considerations](#performance-considerations)
+7. [Building Packing](#building-packing)
+8. [Stream I/O](#stream-io)
+9. [Memory Management](#memory-management)
+10. [Performance Considerations](#performance-considerations)
 
 ---
 
@@ -41,7 +42,10 @@ fm/
 ├── stream_sparse.py    # Binary stream reading/writing
 ├── policy.py           # Financial term calculations (calc rules)
 ├── policy_extras.py    # Calc rules with extras tracking (deductible, over_limit, under_limit)
-└── common.py           # Shared constants and data types
+├── common.py           # Shared constants and data types
+├── cli.py              # fmpy command line entry point
+├── compare.py          # Compare two FM output streams
+└── portfolio_complexity.py  # Report on the shape of a portfolio's structure
 ```
 
 ---
@@ -82,23 +86,26 @@ Special negative indices carry metadata:
 Each node in `nodes_array` contains:
 
 ```python
-node_dtype = np.dtype([
-    ('node_id', 'i4'),      # Unique node identifier
-    ('agg_id', 'i4'),       # Aggregation ID from fm_programme
-    ('level_id', 'i4'),     # Hierarchy level (1 = items)
-    ('layer_len', 'i4'),    # Number of output layers
-    ('profile_len', 'i4'),  # Number of profiles (may differ from layer_len)
-    ('parent', 'i4'),       # Index into node_parents_array
-    ('parent_len', 'i4'),   # Number of parents
-    ('children', 'i4'),     # Index into children array
-    ('loss', 'i4'),         # Index into loss_indptr
-    ('extra', 'i4'),        # Index into extras_indptr (or null_index)
-    ('net_loss', 'i4'),     # Index for net loss storage
-    ('output_ids', 'i4'),   # Index into output_array
-    ('profiles', 'i4'),     # Index into node_profiles_array
-    ('cross_layer_profile', 'i1'),  # True if single profile for all layers
+nodes_array_dtype = np.dtype([
+    ('node_id', np.uint64),          # Unique node identifier
+    ('level_id', oasis_int),         # Hierarchy level (1 = items)
+    ('agg_id', oasis_int),           # Aggregation ID from fm_programme
+    ('layer_len', oasis_int),        # Number of output layers
+    ('cross_layer_profile', oasis_int),  # True if one profile covers all layers
+    ('profile_len', oasis_int),      # Number of profiles (may differ from layer_len)
+    ('profiles', oasis_int),         # Index into node_profiles_array
+    ('loss', oasis_int),             # Index into loss_indptr
+    ('net_loss', oasis_int),         # Index for net loss storage
+    ('extra', oasis_int),            # Index into extras_indptr (or null_index)
+    ('is_reallocating', np.uint8),   # Node redistributes its loss to its children
+    ('parent_len', oasis_int),       # Number of parents
+    ('parent', oasis_int),           # Index into node_parents_array
+    ('children', oasis_int),         # Index into children array
+    ('output_ids', oasis_int),       # Index into output_array
 ])
 ```
+
+Defined in `financial_structure.py`.
 
 ### Computation Index Structure
 
@@ -106,15 +113,17 @@ The `compute_idx` tracks computation state:
 
 ```python
 compute_idx_dtype = np.dtype([
-    ('compute_i', 'i4'),           # Current node being processed
-    ('next_compute_i', 'i4'),      # End of current level / start of next
-    ('level_start_compute_i', 'i4'), # Start of current level (for output)
-    ('sidx_i', 'i4'),              # Next sidx array index
-    ('sidx_ptr_i', 'i8'),          # Next position in sidx_val
-    ('loss_ptr_i', 'i8'),          # Next position in loss_val
-    ('extras_ptr_i', 'i8'),        # Next position in extras_val
+    ('level_start_compute_i', int),  # Start of current level (for output)
+    ('next_compute_i', int),         # End of current level / start of next
+    ('compute_i', int),              # Current node being processed
+    ('sidx_i', int),                 # Next sidx array index
+    ('sidx_ptr_i', int),             # Next position in sidx_val
+    ('loss_ptr_i', int),             # Next position in loss_val
+    ('extras_ptr_i', int),           # Next position in extras_val
 ])
 ```
+
+Defined in `common.py`.
 
 ### Extras Array
 
@@ -145,6 +154,24 @@ For each event:
             d. QUEUE PARENTS: Add parents for next level
     3. Write output losses to stream
 ```
+
+### Pipeline
+
+![fmpy pipeline: static files to financial structure, then reader, compute and writer per event](diagrams/fm_pipeline.svg)
+
+The financial structure is built once from the static files; the reader, computation and
+writer then run per event.
+
+### Loss Flow Through One Node
+
+Each node repeats the same four steps. Losses move up the hierarchy; the effect of the
+terms comes back down.
+
+![Loss flow through one node: aggregate, apply profile, back allocate, queue parents](diagrams/fm_node_loss_flow.svg)
+
+With a single child the aggregation is skipped and the child's storage becomes the node's,
+so `loss_in` already *is* the child's array. That is why back allocation can then assign
+`loss_out` straight into it rather than computing a ratio.
 
 ### Level Traversal
 
@@ -233,6 +260,39 @@ Financial profiles define the calc rules (deductibles, limits, shares) applied a
    - `node_profile['i_start'] < node_profile['i_end']`
    - Steps applied sequentially
 
+A cross-layer profile sums **both** loss and extras across the layers to recover the node's
+total, applies its terms once, and back-allocates the result to each layer.
+
+### Per-layer storage
+
+A branch computed with one layer gets per-layer storage lazily, the first time a node above it
+has layers of its own. The trigger is pointer equality — `loss_indptr[child + 1] ==
+loss_indptr[child]` means nothing has split this branch yet — and the initialisation is:
+
+| | new layers start as |
+|---|---|
+| loss | a **copy** of layer 0 |
+| extras | **zero** |
+
+The asymmetry is forced by the cross-layer merge above. Every layer is offered the whole loss and
+then carves its own slice out of it through its attachment and limit, so summing the layers
+afterwards gives the true total. Extras are carved by nothing: they are a single accumulated
+quantity, and the invariant is
+
+```
+sum over layers of extras == the node's accumulated extras
+```
+
+Layer 0 already holds the whole amount when the layers are created, so the others have to start
+at zero. Copying would make each of them hold it in full and the merge would count it once per
+layer — which shows up as a deductible applied once but charged N times.
+
+Three places do this and they all apply the same rule: `first_time_layer` / `first_time_layer_extra`
+for the base children of a branch, the single-child path in `compute_event` for the branch's own
+node, and the base-level path for a leaf that already has layers. `base_children_count > 1` gates
+the first of these, but only as "is there anything below this node still to initialise" — with one
+base child that child *is* the node, already handled. It is not a policy switch.
+
 ### Profile Application Flow
 
 ```python
@@ -257,10 +317,10 @@ The `calc` function applies financial terms based on `calcrule_id`:
 | Rule | Description |
 |------|-------------|
 | 1 | Deductible and limit |
-| 2 | Deductible, attachment, limit |
-| 3 | Franchise deductible |
-| 12 | Deductible % TIV |
-| 14 | Limit % loss |
+| 2 | Deductible, attachment, limit and share |
+| 3 | Franchise deductible and limit |
+| 12 | Deductible only |
+| 14 | Limit only |
 | ... | (see policy.py for full list) |
 
 ---
@@ -276,12 +336,13 @@ After applying financial terms at an aggregate level, results must be distribute
 | 0 | No allocation | Output at aggregate level only |
 | 1 | Proportional to input | `factor = output / sum(original_input)` |
 | 2 | Pro-rata (proportional to computed) | `factor = output / input` at each level |
+| 3 | Alias of rule 2 | mapped to 2 on entry; the distinction is in the ground-up stage |
 
-### Rule 2 Algorithm
+### Algorithm
 
 ```python
-def back_alloc_a2(children, loss_in, loss_out, ...):
-    if single_child:
+def back_alloc_a2(base_children_count, storage_is_base_child, ...):
+    if base_children_count == 1 and storage_is_base_child:
         loss_in[:] = loss_out  # Direct assignment
     else:
         # Compute factor for each sample
@@ -293,6 +354,18 @@ def back_alloc_a2(children, loss_in, loss_out, ...):
             for sidx in child_sidx:
                 child_loss[sidx] *= factor[sidx]
 ```
+
+![The two back-allocation paths: direct assignment when the node's storage is the single base child, otherwise a per-sample factor applied to every base child](diagrams/fm_back_allocation.svg)
+
+The direct assignment writes the post-profile loss straight to the node's input
+storage, which is only correct when that storage belongs to the single base child.
+`storage_is_base_child` says whether it does; a forced aggregation can give a node
+one base child whose storage is somewhere else.
+
+Rules 0 and 1 pass a count of `1` whatever the node really has, meaning "take the
+direct assignment". The flag is set alongside it so the pair agrees — the two
+arguments must describe the same node, or the caller asks for a state that has no
+meaning.
 
 ### Extras Back Allocation
 
@@ -330,6 +403,99 @@ factor = loss_out / loss_in
 for layer in layers:
     layer_loss_after = layer_loss_before * factor
 ```
+
+---
+
+## Building Packing
+
+A location's buildings can arrive multiplexed into the sample dimension of a single item
+rather than as one item each. The financial module applies the site levels' terms per
+building and then collapses them.
+
+### The packed sample index
+
+An item carrying `N` buildings encodes building `b` (1-based), sample `s`, at
+`sidx = (b - 1) * S + s`, and the negative specials at `sidx = local - (b - 1) * NUM_SPECIAL_SIDX`.
+Building 1 is the identity encoding, so an item carrying one building is an ordinary item.
+
+### Structure info
+
+Generation writes two files alongside the other static ones. `coverage_buildings.bin` carries the
+per-coverage count, one `(coverage_id, n_building)` record each, with `n_building` **signed**: a
+negative count marks a location whose buildings are kept separate and so arrive as their own
+blocks, a positive one a location summed at source. It is absent whenever every location has a
+single building.
+
+`fm_structure_info.bin` carries the portfolio-wide figures the arena is sized on, in one 20-byte
+record:
+
+| Field | Meaning |
+|-------|---------|
+| `site_collapse_level` | Last level whose aggregation key includes `risk_id`. `0` means no level does |
+| `max_buildings` | Largest building count any one item carries. Sizes the dense temporaries, which are indexed by sidx VALUE and so span the whole packed range |
+| `total_packed_buildings` | SUM of those counts over the items that keep their buildings separate |
+| `packed_node_slots` | Packed slices the arena owes over the packable levels |
+
+None of it can be derived here: `fm_programme` levels are compacted, so which level is the last
+risk-keyed one varies per portfolio, and the arena has to be sized before any item is read.
+`load_fm_structure_info` returns `(0, 1, 0, 0)` when the file is absent, which is every structure
+generated without packing.
+
+### Where the buildings collapse
+
+Two paths, chosen in `manager.py` from the structure info:
+
+**No level applies terms per building** — `site_collapse_level < max(1, start_level)`. The
+reader sums the buildings away as it reads (`collapse_on_read`), storing each record at its
+local sidx, and the computation sees an ordinary stream. `0` is the "no risk-keyed level"
+marker rather than a level number, hence `max(1, ...)`.
+
+**A site level does apply terms per building** — the building dimension is carried up to and
+including `site_collapse_level`. `collapses_buildings()` reports when aggregating a child into
+a node crosses that point; indexing the dense accumulator by the local sidx instead of the
+packed one is what performs the merge, and the parent's sidx array comes out unpacked.
+
+![Where a packed item's buildings collapse: the site levels carry a building dimension, the levels above see one collapsed loss](diagrams/fm_building_collapse.svg)
+
+### Leaves
+
+Nothing aggregates a leaf, so a packed leaf keeps its packed storage. With an allocation rule
+above 0, back-allocation writes to the leaves and the output is read from them, so they would
+emit packed sample indices. `collapse_packed_leaves()` gives them collapsed storage once their
+terms have been applied.
+
+The storage cannot be collapsed where it lies: the arrays are one arena and a node's range is
+`[sidx_indptr[i], sidx_indptr[i + 1])`, whose end is the next node's start. Fresh storage is
+appended at the bump pointer and the leaf repointed, exactly as an aggregation does for a
+parent. The old slice becomes dead space that the capacity bound already allows for.
+
+This runs before back-allocation, which is what keeps back-allocation unchanged: the factor is
+looked up by sample index, and a collapsed leaf's indices line up with its node's.
+
+A layer that arrives **aliased** onto layer 0 is repointed at the new layer 0 rather than given a
+copy of its own. Its values are layer 0's by construction, since the collapse read both from the
+same slice, and the aliasing is load-bearing: a node whose `profile_len` is below its `layer_len`
+leaves the surplus layers aliased deliberately, and that is how the first node above with layers
+of its own detects that per-layer storage has yet to be created beneath it (see *Per-layer
+storage*). De-aliasing here would report the layers as already split when nothing had split
+them, leaving the upper layers sharing layer 0's storage.
+
+### Arena capacity
+
+`packable_node_len` counts the nodes at or below the collapse level, and is `0` unless the
+structure is packed. Each such node needs room for its own packed blocks, plus the collapsed
+copy appended rather than shrunk in place:
+
+```python
+extra_slots = packable_nodes * max_buildings * max_sidx_count
+extra_layer_slots = extra_slots * (max_layer + 1)   # one slice per layer, plus net_loss
+```
+
+`sidx_val` takes `extra_slots`; `loss_val` and `extras_val` take `extra_layer_slots`, since a
+packable node may carry several layers and the net-loss slice lives in `loss_val` beside them.
+`sidx_indptr` gains one entry per packable node, because each appended slice is a further
+allocation.
+
 
 ---
 

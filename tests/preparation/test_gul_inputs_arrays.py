@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from oasislmf.preparation.gul_inputs import get_gul_input_items, write_gul_input_files
+from oasislmf.utils.defaults import DISAGGREGATION_ITEMS, DISAGGREGATION_NONE
 from oasislmf.pytools.common.data import correlations_dtype, correlations_headers
 
 COVERAGE_TYPE_IDS = [1, 3]
@@ -52,7 +53,10 @@ def reference_building_ids(repeat_counts):
 ])
 def test_building_ids_number_each_locations_buildings(number_of_buildings):
     exposure = make_exposure(number_of_buildings)
-    gul_inputs = get_gul_input_items(exposure, make_keys(exposure), damage_group_id_cols=['loc_id'])
+    # 'items' is what gives a location one row per building; it is stated because the default is
+    # 'samples', which keeps one row per location and leaves building_id at 1 throughout
+    gul_inputs = get_gul_input_items(exposure, make_keys(exposure), damage_group_id_cols=['loc_id'],
+                                     disaggregation=DISAGGREGATION_ITEMS)
 
     tiv_by_coverage = {1: 'BuildingTIV', 3: 'ContentsTIV'}
     for coverage_type_id in COVERAGE_TYPE_IDS:
@@ -72,10 +76,14 @@ def test_disaggregation_is_driven_by_the_building_count_not_the_aggregate_flag(i
     Every other test here runs with IsAggregate=1, so the flag is otherwise only ever a
     passed-through column. It feeds risk_id/NumberOfRisks in assign_risk_ids rather than the
     building numbering, and a location splits into one row per building either way.
+
+    Run with 'items' explicitly: the expansion under test is that mode's, and the default is
+    'samples', which keeps one row per location whatever IsAggregate says.
     """
     number_of_buildings = [1, 3, 2]
     exposure = make_exposure(number_of_buildings, is_aggregate=[is_aggregate] * len(number_of_buildings))
-    gul_inputs = get_gul_input_items(exposure, make_keys(exposure), damage_group_id_cols=['loc_id'])
+    gul_inputs = get_gul_input_items(exposure, make_keys(exposure), damage_group_id_cols=['loc_id'],
+                                     disaggregation=DISAGGREGATION_ITEMS)
 
     for coverage_type_id in COVERAGE_TYPE_IDS:
         coverage = gul_inputs[gul_inputs['coverage_type_id'] == coverage_type_id]
@@ -87,7 +95,7 @@ def test_disaggregation_is_driven_by_the_building_count_not_the_aggregate_flag(i
 def test_building_ids_are_all_one_without_disaggregation():
     exposure = make_exposure([1, 3, 2])
     gul_inputs = get_gul_input_items(exposure, make_keys(exposure), damage_group_id_cols=['loc_id'],
-                                     do_disaggregation=False)
+                                     disaggregation=DISAGGREGATION_NONE)
 
     assert set(gul_inputs['building_id']) == {1}
 
