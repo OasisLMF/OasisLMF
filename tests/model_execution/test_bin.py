@@ -36,7 +36,7 @@ from oasislmf.execution.bin import (
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
-from oasislmf.pytools.getmodel.common import hazard_case_filename
+from oasislmf.pytools.getmodel.common import hazard_case_filename, event_defintion_filename
 
 from tests.data import il_input_files, tar_file_targets
 
@@ -998,52 +998,98 @@ class SetHazardCaseSet(TestCase):
     def setUp(self):
         self.setting_val = 'defended'
         self.stem, self.ext = hazard_case_filename.split('.', 1)
+        self.event_defn_stem, self.event_defn_ext = event_defintion_filename.split('.', 1)
+
+    def _make_dataset_dir(self, run_dir, stem, ext, identifier):
+        os.makedirs(os.path.join(run_dir, 'static'), exist_ok=True)
+        os.makedirs(os.path.join(run_dir, 'static', f'{stem}_{identifier}.{ext}'))
 
     def _make_hazard_case_dir(self, run_dir, identifier):
-        os.makedirs(os.path.join(run_dir, 'static'), exist_ok=True)
-        os.makedirs(os.path.join(run_dir, 'static', f'{self.stem}_{identifier}.{self.ext}'))
+        self._make_dataset_dir(run_dir, self.stem, self.ext, identifier)
+
+    def _make_event_definition_dir(self, run_dir, identifier):
+        self._make_dataset_dir(run_dir, self.event_defn_stem, self.event_defn_ext, identifier)
+
+    def _make_both_dirs(self, run_dir, identifier):
+        self._make_hazard_case_dir(run_dir, identifier)
+        self._make_event_definition_dir(run_dir, identifier)
 
     def test_symbolic_link_creation(self):
-        """ Symlink hazard_case.parquet → hazard_case_defended.parquet is created. """
+        """ Symlinks hazard_case.parquet and event_definition.parquet → the '_defended' datasets are created. """
         with TemporaryDirectory() as d:
-            self._make_hazard_case_dir(d, self.setting_val)
+            self._make_both_dirs(d, self.setting_val)
             set_hazard_case_set(self.setting_val, d)
 
-            src = os.path.join(d, 'static', f'{self.stem}_{self.setting_val}.{self.ext}')
-            target = os.path.join(d, 'static', hazard_case_filename)
-            self.assertTrue(os.path.islink(target))
-            self.assertEqual(os.readlink(target), src)
+            hazard_src = os.path.join(d, 'static', f'{self.stem}_{self.setting_val}.{self.ext}')
+            hazard_target = os.path.join(d, 'static', hazard_case_filename)
+            self.assertTrue(os.path.islink(hazard_target))
+            self.assertEqual(os.readlink(hazard_target), hazard_src)
+
+            event_defn_src = os.path.join(d, 'static', f'{self.event_defn_stem}_{self.setting_val}.{self.event_defn_ext}')
+            event_defn_target = os.path.join(d, 'static', event_defintion_filename)
+            self.assertTrue(os.path.islink(event_defn_target))
+            self.assertEqual(os.readlink(event_defn_target), event_defn_src)
 
     def test_normalised_identifier_resolves(self):
-        """ 'Defended Case' normalises to 'defended_case' and resolves correctly. """
+        """ 'Defended Case' normalises to 'defended_case' and resolves correctly for both datasets. """
         with TemporaryDirectory() as d:
-            self._make_hazard_case_dir(d, 'defended_case')
+            self._make_both_dirs(d, 'defended_case')
             set_hazard_case_set('Defended Case', d)
 
-            target = os.path.join(d, 'static', hazard_case_filename)
-            self.assertTrue(os.path.islink(target))
-            src = os.path.join(d, 'static', f'{self.stem}_defended_case.{self.ext}')
-            self.assertEqual(os.readlink(target), src)
+            hazard_target = os.path.join(d, 'static', hazard_case_filename)
+            self.assertTrue(os.path.islink(hazard_target))
+            hazard_src = os.path.join(d, 'static', f'{self.stem}_defended_case.{self.ext}')
+            self.assertEqual(os.readlink(hazard_target), hazard_src)
+
+            event_defn_target = os.path.join(d, 'static', event_defintion_filename)
+            self.assertTrue(os.path.islink(event_defn_target))
+            event_defn_src = os.path.join(d, 'static', f'{self.event_defn_stem}_defended_case.{self.event_defn_ext}')
+            self.assertEqual(os.readlink(event_defn_target), event_defn_src)
 
     def test_existing_default_symlink_is_replaced(self):
-        """ Pre-existing hazard_case.parquet symlink (from prepare_run_directory) is replaced. """
+        """ Pre-existing hazard_case.parquet/event_definition.parquet symlinks (from prepare_run_directory) are replaced. """
         with TemporaryDirectory() as d:
-            self._make_hazard_case_dir(d, self.setting_val)
-            default_src = os.path.join(d, 'static', f'{self.stem}_default.{self.ext}')
-            target = os.path.join(d, 'static', hazard_case_filename)
-            os.makedirs(default_src)
-            os.symlink(default_src, target)
+            self._make_both_dirs(d, self.setting_val)
+            for stem, ext, filename in (
+                (self.stem, self.ext, hazard_case_filename),
+                (self.event_defn_stem, self.event_defn_ext, event_defintion_filename),
+            ):
+                default_src = os.path.join(d, 'static', f'{stem}_default.{ext}')
+                target = os.path.join(d, 'static', filename)
+                os.makedirs(default_src)
+                os.symlink(default_src, target)
 
             set_hazard_case_set(self.setting_val, d)
 
-            expected_src = os.path.join(d, 'static', f'{self.stem}_{self.setting_val}.{self.ext}')
-            self.assertTrue(os.path.islink(target))
-            self.assertEqual(os.readlink(target), expected_src)
+            hazard_target = os.path.join(d, 'static', hazard_case_filename)
+            expected_hazard_src = os.path.join(d, 'static', f'{self.stem}_{self.setting_val}.{self.ext}')
+            self.assertTrue(os.path.islink(hazard_target))
+            self.assertEqual(os.readlink(hazard_target), expected_hazard_src)
+
+            event_defn_target = os.path.join(d, 'static', event_defintion_filename)
+            expected_event_defn_src = os.path.join(d, 'static', f'{self.event_defn_stem}_{self.setting_val}.{self.event_defn_ext}')
+            self.assertTrue(os.path.islink(event_defn_target))
+            self.assertEqual(os.readlink(event_defn_target), expected_event_defn_src)
 
     def test_missing_hazard_case_dir_raises_exception(self):
         """ OasisException raised when no matching hazard case directory exists. """
         with TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, 'static'), exist_ok=True)
+            with self.assertRaises(OasisException):
+                set_hazard_case_set(self.setting_val, d)
+
+    def test_missing_event_definition_dir_raises_exception(self):
+        """ OasisException raised when the hazard case dataset exists but the matching event definition dataset does not. """
+        with TemporaryDirectory() as d:
+            self._make_hazard_case_dir(d, self.setting_val)
+            with self.assertRaises(OasisException):
+                set_hazard_case_set(self.setting_val, d)
+
+    def test_mismatched_suffix_not_picked_up(self):
+        """ A differently-suffixed event definition dataset is not silently used - suffixes must match across both files. """
+        with TemporaryDirectory() as d:
+            self._make_hazard_case_dir(d, self.setting_val)
+            self._make_event_definition_dir(d, 'undefended')
             with self.assertRaises(OasisException):
                 set_hazard_case_set(self.setting_val, d)
 
