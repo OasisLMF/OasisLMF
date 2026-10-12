@@ -600,9 +600,8 @@ def get_vulns(
         else:
             # meta_num_intensity_bins < num_intensity_bins: zero-pad, matching the bin path's own
             # handling of a bin absent from the data. meta_num_intensity_bins > num_intensity_bins
-            # means the parquet file has intensity bins this run's footprint doesn't declare; the
-            # bin path has no safe handling for that case at all (load_vulns_bin's njit write is
-            # unchecked), so dropping the extra bins here is strictly safer, not equivalent to it.
+            # means the parquet file has intensity bins this run's footprint doesn't declare; drop
+            # them, matching load_vuln_probability, which skips intensity_bin_id > num_intensity_bins.
             n_copy = min(meta_num_intensity_bins, num_intensity_bins)
             vuln_array_parquet = np.zeros((len(df['vuln_array']), num_damage_bins, num_intensity_bins), dtype=oasis_float)
             vuln_array_parquet[:, :, :n_copy] = vuln_array_parquet_raw[:, :, :n_copy]

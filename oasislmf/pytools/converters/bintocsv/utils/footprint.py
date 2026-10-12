@@ -148,20 +148,21 @@ def _read_footprint_bins(stack, file_in, idx_file_in):
 
 
 def _check_index_bounds(footprint, footprint_index):
-    """Raise a clear error if any idx entry's byte range falls outside the footprint data,
+    """Raise a clear error if any idx entry's byte range falls outside the footprint data
+    (i.e. before the end of the header, or past the end of the file),
     instead of letting the read below silently clip, read mmap zero-padding, or — for the
     batched njit loops, which index without bounds checking — read past the mapped file
     entirely (undefined behaviour, up to and including a crash).
     """
     starts = footprint_index['offset'].astype(np.int64)
     ends = starts + footprint_index['size'].astype(np.int64)
-    bad = np.flatnonzero((starts < 0) | (ends > len(footprint)))
+    bad = np.flatnonzero((starts < FootprintHeader.itemsize) | (ends > len(footprint)))
     if bad.size:
         i = int(bad[0])
         raise OasisException(
             f"Error: footprint index entry for event_id {int(footprint_index['event_id'][i])} references "
-            f"bytes [{int(starts[i])}, {int(ends[i])}) but the footprint file is only {len(footprint)} "
-            "bytes; the index and footprint files do not match, or the footprint file is truncated."
+            f"bytes [{int(starts[i])}, {int(ends[i])}) outside the footprint file's data "
+            f"[{FootprintHeader.itemsize}, {len(footprint)}); the index and footprint files do not match, or the footprint file is truncated."
         )
 
 

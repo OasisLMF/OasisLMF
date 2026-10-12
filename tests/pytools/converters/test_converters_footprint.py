@@ -410,7 +410,21 @@ def test_bintocsv_footprint_rejects_idx_past_end_of_file(zip_files):
         idx = np.fromfile(idx_path, dtype=EventIndexBin_dtype)
         idx["offset"][0] = 2_000_000_000
         idx.tofile(idx_path)
-        with pytest.raises(OasisException, match="references bytes .* but the footprint file is only"):
+        with pytest.raises(OasisException, match="references bytes .* outside the footprint file's data"):
+            bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
+                     idx_file_in=idx_path, zip_files=zip_files, event_from_to=None)
+
+
+@pytest.mark.parametrize("zip_files", [False, True])
+def test_bintocsv_footprint_rejects_idx_inside_header(zip_files):
+    """An offset inside the header would give a negative element offset, which the njit loop
+    silently wraps to the last row."""
+    with TemporaryDirectory() as tmp:
+        bin_path, idx_path = _write_footprint(tmp, zip_files=zip_files)
+        idx = np.fromfile(idx_path, dtype=EventIndexBin_dtype)
+        idx["offset"][0] = 0
+        idx.tofile(idx_path)
+        with pytest.raises(OasisException, match="references bytes .* outside the footprint file's data"):
             bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
                      idx_file_in=idx_path, zip_files=zip_files, event_from_to=None)
 
@@ -421,7 +435,7 @@ def test_bintocsv_footprint_rejects_truncated_bin_matching_a_real_mismatch():
     with TemporaryDirectory() as tmp:
         bin_path, idx_path = _write_footprint(tmp)
         bin_path.write_bytes(bin_path.read_bytes()[:-1])  # one byte short of the last event
-        with pytest.raises(OasisException, match="references bytes .* but the footprint file is only"):
+        with pytest.raises(OasisException, match="references bytes .* outside the footprint file's data"):
             bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
                      idx_file_in=idx_path, zip_files=False, event_from_to=None)
 
