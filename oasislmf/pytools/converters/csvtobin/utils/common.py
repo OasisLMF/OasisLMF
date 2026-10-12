@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, resolve_file
+from oasislmf.utils.exceptions import OasisException
 
 
 def df_to_ndarray(df, dtype):
@@ -35,6 +36,13 @@ def iter_csv_as_ndarray(stack, file_in, dtype, chunksize=DEFAULT_BUFFER_SIZE):
             yield df_to_ndarray(df_chunk, dtype)
     except pd.errors.EmptyDataError:
         return
+    except ValueError as e:
+        if "Usecols do not match" in str(e):
+            raise OasisException(
+                f"Error: CSV header does not match the expected columns {list(csv_dtype.keys())} "
+                f"(check header name case/whitespace): {e}"
+            ) from e
+        raise
 
 
 def read_csv_as_ndarray(stack, file_in, headers, dtype):
@@ -45,5 +53,12 @@ def read_csv_as_ndarray(stack, file_in, headers, dtype):
         df = pd.read_csv(file_in, delimiter=',', dtype=csv_dtype, usecols=list(csv_dtype.keys()))
     except pd.errors.EmptyDataError:
         return np.empty(0, dtype=dtype)
+    except ValueError as e:
+        if "Usecols do not match" in str(e):
+            raise OasisException(
+                f"Error: CSV header does not match the expected columns {list(csv_dtype.keys())} "
+                f"(check header name case/whitespace): {e}"
+            ) from e
+        raise
 
     return df_to_ndarray(df, dtype)

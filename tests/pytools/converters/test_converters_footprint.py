@@ -150,6 +150,25 @@ def test_footprint_no_validation_unsorted():
         )
 
 
+def test_footprint_validation_reports_absolute_row_number_across_chunks():
+    """Row numbers in validation errors were relative to the current chunk, not the whole file,
+    so the same error pointed at the wrong row once the input spanned more than one chunk."""
+    csv = (
+        "event_id,areaperil_id,intensity_bin_id,probability\n"
+        "1,1,1,1.0\n2,1,1,1.0\n3,2,1,1.0\n2,1,1,1.0\n"  # absolute row 3 breaks ascending order
+    )
+
+    def _small_chunks(stack, file_in, dtype):
+        return iter_csv_as_ndarray(stack, file_in, dtype, chunksize=2)
+
+    with TemporaryDirectory() as tmp, mock.patch.object(footprint_utils, "iter_csv_as_ndarray", _small_chunks):
+        Path(tmp, "bad.csv").write_text(csv)
+        with pytest.raises(OasisException, match="at row 3"):
+            csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "footprint", idx_file_out=Path(tmp, "bad.idx"),
+                     max_intensity_bin_idx=1, no_intensity_uncertainty=True, decompressed_size=False,
+                     no_validation=False, zip_files=False)
+
+
 def test_footprint_unsorted_index():
     """bintocsv must sort events by event_id even when the index is out of order."""
     # Build a binary footprint: header + event 2 data (offset 8) + event 1 data (offset 20)
@@ -407,12 +426,34 @@ def test_bintocsv_footprint_rejects_truncated_bin_matching_a_real_mismatch():
                      idx_file_in=idx_path, zip_files=False, event_from_to=None)
 
 
+def test_bintocsv_footprint_wraps_zlib_error_with_clear_message():
+    """zip_files=True against a footprint that isn't actually compressed raised a bare
+    zlib.error with no indication of what went wrong or which event."""
+    with TemporaryDirectory() as tmp:
+        bin_path, idx_path = _write_footprint(tmp, zip_files=False)
+        with pytest.raises(OasisException, match="failed to decompress event_id 1"):
+            bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
+                     idx_file_in=idx_path, zip_files=True, event_from_to=None)
+
+
 def test_bintocsv_footprint_rejects_footprint_file_too_short_for_header():
     """An empty or near-empty footprint.bin (e.g. empty stdin) used to fail inside
     _get_index_dtype with a bare 'can only convert an array of size 1 to a Python scalar'."""
     with TemporaryDirectory() as tmp:
         _, idx_path = _write_footprint(tmp)
         Path(tmp, "footprint.bin").write_bytes(b"\x00\x00")
+        with pytest.raises(OasisException, match="too short to hold its"):
+            bintocsv(Path(tmp, "footprint.bin"), Path(tmp, "out.csv"), "footprint", noheader=False,
+                     idx_file_in=idx_path, zip_files=False, event_from_to=None)
+
+
+def test_bintocsv_footprint_rejects_literal_zero_byte_file():
+    """A literal 0-byte footprint.bin (as opposed to merely too-short) used to crash np.memmap
+    itself with a bare 'cannot mmap an empty file' before _get_index_dtype's own check ran;
+    stdin already handled this fine via np.frombuffer, which never touches memmap."""
+    with TemporaryDirectory() as tmp:
+        _, idx_path = _write_footprint(tmp)
+        Path(tmp, "footprint.bin").write_bytes(b"")
         with pytest.raises(OasisException, match="too short to hold its"):
             bintocsv(Path(tmp, "footprint.bin"), Path(tmp, "out.csv"), "footprint", noheader=False,
                      idx_file_in=idx_path, zip_files=False, event_from_to=None)

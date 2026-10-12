@@ -27,6 +27,7 @@
 #      the index carries a d_size field (decompressed size), a single reusable buffer is
 #      pre-allocated at the maximum event size; otherwise a new buffer is allocated per event.
 
+import os
 import zlib
 import numba as nb
 import numpy as np
@@ -101,6 +102,10 @@ def _read_footprint_zips(stack, file_in, idx_file_in):
 
     if footprint_file == sys.stdin.buffer:
         footprint = np.frombuffer(footprint_file.read(), dtype="u1")
+    elif os.fstat(footprint_file.fileno()).st_size == 0:
+        # np.memmap raises "cannot mmap an empty file" for a 0-byte file; an empty array lets
+        # _get_index_dtype give a clear "too short to hold its header" error instead.
+        footprint = np.empty(0, dtype="u1")
     else:
         footprint = np.memmap(footprint_file, dtype="u1", mode='r')
 
@@ -129,6 +134,10 @@ def _read_footprint_bins(stack, file_in, idx_file_in):
 
     if footprint_file == sys.stdin.buffer:
         footprint = np.frombuffer(footprint_file.read(), dtype="u1")
+    elif os.fstat(footprint_file.fileno()).st_size == 0:
+        # np.memmap raises "cannot mmap an empty file" for a 0-byte file; an empty array lets
+        # _get_index_dtype give a clear "too short to hold its header" error instead.
+        footprint = np.empty(0, dtype="u1")
     else:
         footprint = np.memmap(footprint_file, dtype="u1", mode='r')
 
@@ -257,10 +266,14 @@ def _footprint_tocsv_zip(footprint, sorted_index, file_out, dtype, headers, fmt)
         event_id = int(row['event_id'])
         offset = int(row['offset'])
         compressed_size = int(row['size'])
-        event_data = np.frombuffer(
-            zlib.decompress(footprint[offset:offset + compressed_size].tobytes()),
-            dtype=Event_dtype,
-        )
+        try:
+            decompressed = zlib.decompress(footprint[offset:offset + compressed_size].tobytes())
+        except zlib.error as e:
+            raise OasisException(
+                f"Error: failed to decompress event_id {event_id} with zip_files=True; "
+                f"the file may not actually be zipped: {e}"
+            ) from e
+        event_data = np.frombuffer(decompressed, dtype=Event_dtype)
         n = len(event_data)
         buf = event_csv_data[:n] if event_csv_data is not None else np.empty(n, dtype=dtype)
         buf['event_id'] = event_id

@@ -6,10 +6,13 @@ from pathlib import Path
 from contextlib import ExitStack
 from tempfile import TemporaryDirectory
 
-from oasislmf.pytools.converters.csvtobin.manager import default_tobin, TOBIN_FUNC_MAP
-from oasislmf.pytools.converters.csvtobin.utils import footprint_tobin, vulnerability_tobin
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin, default_tobin, TOBIN_FUNC_MAP
+from oasislmf.pytools.converters.csvtobin.utils import footprint_tobin, vulnerability_tobin, conditional_vulnerability_tobin
 from oasislmf.pytools.converters.data import TOOL_INFO
+from oasislmf.utils.exceptions import OasisException
 from tests.pytools.converters.helpers import TESTS_ASSETS_DIR
+
+CONDITIONAL_VULN_CSV = Path(TESTS_ASSETS_DIR).parent.joinpath("test_model_8", "static", "conditional_vulnerability.csv")
 
 
 def test_csvtobin_non_seekable_stream():
@@ -28,6 +31,15 @@ def test_csvtobin_non_seekable_stream():
 
     assert actual_bytes == expected_outfile.read_bytes()
     assert np.array_equal(np.frombuffer(actual_bytes, dtype=dtype), np.fromfile(expected_outfile, dtype=dtype))
+
+
+def test_csvtobin_mismatched_header_gives_clear_error():
+    """A header with the wrong case or whitespace gave a bare pandas 'Usecols do not match
+    columns' error with no indication of what was actually expected."""
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "in.csv").write_text("Event_ID\n1\n")
+        with pytest.raises(OasisException, match="does not match the expected columns"):
+            csvtobin(Path(tmp, "in.csv"), Path(tmp, "out.bin"), "eve")
 
 
 def _run_writer_via_pipe(write_fn):
@@ -130,5 +142,24 @@ def test_vulnerability_pipe_output_matches_file_output():
 
     with ExitStack() as stack:
         actual_bytes = _run_writer_via_pipe(lambda file_out: vulnerability_tobin(stack, infile, file_out, "vulnerability", **kwargs))
+
+    assert actual_bytes == expected_bytes
+
+
+def test_conditionalvulnerability_pipe_output_matches_file_output():
+    """conditional_vulnerability_tobin used ndarray.tofile(), which requires a seekable file and
+    raises "obtaining file position failed" on a pipe or tty."""
+    kwargs = dict(max_damage_bin_idx=12, no_validation=False)
+
+    with TemporaryDirectory() as tmp_dir, ExitStack() as stack:
+        seekable_out = Path(tmp_dir, "seekable.bin")
+        with open(seekable_out, "wb") as file_out:
+            conditional_vulnerability_tobin(stack, CONDITIONAL_VULN_CSV, file_out, "conditionalvulnerability", **kwargs)
+        expected_bytes = seekable_out.read_bytes()
+
+    with ExitStack() as stack:
+        actual_bytes = _run_writer_via_pipe(
+            lambda file_out: conditional_vulnerability_tobin(stack, CONDITIONAL_VULN_CSV, file_out, "conditionalvulnerability", **kwargs)
+        )
 
     assert actual_bytes == expected_bytes

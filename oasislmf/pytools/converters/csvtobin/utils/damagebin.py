@@ -53,7 +53,7 @@ def _validate_chunk(data, logger, first_chunk, prev_last_bin_index, row_offset):
             f"Row {row_offset + i}: damage_type={val}, damage_type must be in {VALID_DAMAGE_TYPE}"
             for i, val in zip(invalid_indices, invalid_values)
         )
-        logger.warning(f"Error: Invalid damage_type values found:\n{warning_msg}")
+        logger.warning(f"Warning: Invalid damage_type values found:\n{warning_msg}")
 
 
 def damagebin_tobin(stack, file_in, file_out, file_type, no_validation):

@@ -115,7 +115,7 @@ def _intensity_out_of_range(intensity_bin_ids, max_val):
     return False
 
 
-def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
+def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk, row_offset,
                     prev_sort_event, prev_sort_areaperil,
                     prev_prob_event, prev_prob_areaperil, running_sum,
                     prev_dup_event, prev_dup_areaperil, prev_dup_intensity):
@@ -127,7 +127,7 @@ def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
     )
     if bad_idx != -1:
         raise OasisException(
-            f"IDs not in ascending order at row {bad_idx}: {chunk[bad_idx]}"
+            f"IDs not in ascending order at row {row_offset + bad_idx}: {chunk[bad_idx]}"
         )
 
     # Check probability sums to 1 per (event_id, areaperil_id) group
@@ -137,7 +137,7 @@ def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
     )
     if bad_idx != -1:
         raise OasisException(
-            f"Probabilities do not sum to 1 for group ending at row {bad_idx}: "
+            f"Probabilities do not sum to 1 for group ending at row {row_offset + bad_idx}: "
             f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"
         )
 
@@ -148,7 +148,7 @@ def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
     )
     if bad_idx != -1:
         raise OasisException(
-            f"Duplicate intensity_bin_id at row {bad_idx}: "
+            f"Duplicate intensity_bin_id at row {row_offset + bad_idx}: "
             f"event_id={chunk['event_id'][bad_idx]}, areaperil_id={chunk['areaperil_id'][bad_idx]}, "
             f"intensity_bin_id={chunk['intensity_bin_id'][bad_idx]}"
         )
@@ -223,6 +223,7 @@ def footprint_tobin(
 
     first_chunk = True
     any_data = False
+    row_offset = 0
 
     # Validation carry state (dummy initial values; first_chunk=True prevents their use)
     prev_sort_event = np.int32(0)
@@ -249,7 +250,7 @@ def footprint_tobin(
             (prev_sort_event, prev_sort_areaperil,
              prev_prob_event, prev_prob_areaperil, running_sum,
              prev_dup_event, prev_dup_areaperil, prev_dup_intensity) = _validate_chunk(
-                chunk, event_ids, areaperil_ids, first_chunk,
+                chunk, event_ids, areaperil_ids, first_chunk, row_offset,
                 prev_sort_event, prev_sort_areaperil,
                 prev_prob_event, prev_prob_areaperil, running_sum,
                 prev_dup_event, prev_dup_areaperil, prev_dup_intensity,
@@ -257,6 +258,7 @@ def footprint_tobin(
 
         first_chunk = False
         any_data = True
+        row_offset += len(chunk)
 
         pos = 0
 
