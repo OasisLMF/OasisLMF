@@ -455,6 +455,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'kernel_fifo_queue_dir', 'default': None, 'is_path': True, 'help': 'Override the path used for fifo processing'},
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
          'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
+        {'name': 'disable_resource_report', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Disable the resource monitor: no resource_monitor.csv files are collected and no resource report is generated'},
     ]
 
     def run(self):
@@ -511,6 +513,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             bash_params['fifo_queue_dir'] = self.kernel_fifo_queue_dir
         bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
+        bash_params['disable_resource_report'] = self.disable_resource_report
 
         with setcwd(model_run_fp):
             try:
@@ -551,7 +554,7 @@ class GenerateLossesOutput(GenerateLossesDir):
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
          'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
         {'name': 'disable_resource_report', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'Skip building the resource monitor report (markdown + plots) after the run; the resource_monitor.csv files are still written'},
+         'help': 'Disable the resource monitor: no resource_monitor.csv files are collected and no resource report is generated'},
     ]
 
     def run(self):
@@ -665,7 +668,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
          'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
         {'name': 'disable_resource_report', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'Skip building the resource monitor report (markdown + plots) after the run; the resource_monitor.csv files are still written'},
+         'help': 'Disable the resource monitor: no resource_monitor.csv files are collected and no resource report is generated'},
     ]
 
     def run(self):

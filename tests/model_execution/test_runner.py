@@ -6,6 +6,7 @@ from unittest import TestCase, mock
 from unittest.mock import patch
 
 from oasislmf.execution import runner
+from oasislmf.execution.resource_monitor import ResourceMonitor
 from oasislmf.execution.runner import rerun
 from oasislmf.utils.exceptions import OasisException
 
@@ -249,29 +250,49 @@ class RerunTestCase(TestCase):
         self.assertTrue(fm_pipe.startswith("fmcalc"))
 
 
-class TestRunOutputsResourceReport(TestCase):
-    def _run_outputs(self, **extra):
+class TestDisableResourceReport(TestCase):
+    def _run(self, func, create_bash_name, **extra):
         proc = mock.Mock(pid=123, returncode=0)
         proc.communicate.return_value = (b'', None)
         with TemporaryDirectory() as tmp_dir, \
                 patch('oasislmf.execution.runner.bash_wrapper'), \
-                patch('oasislmf.execution.runner.create_bash_outputs') as create_bash, \
+                patch(f'oasislmf.execution.runner.{create_bash_name}') as create_bash, \
                 patch('oasislmf.execution.runner._ensure_pytool_logs_complete'), \
                 patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc), \
                 patch('oasislmf.execution.runner.ResourceMonitor') as monitor_cls:
-            runner.run_outputs(filename=os.path.join(tmp_dir, 'run_outputs.sh'),
-                               bash_trace=False, stderr_guard=True, **extra)
+            func(filename=os.path.join(tmp_dir, 'run.sh'), bash_trace=False, stderr_guard=True,
+                 fifo_queue_dir='fifo', **extra)
         return monitor_cls, create_bash
 
-    def test_report_generated_by_default(self):
-        monitor_cls, _ = self._run_outputs()
-        self.assertTrue(monitor_cls.call_args.kwargs['generate_report'])
+    def test_run_outputs_monitor_enabled_by_default(self):
+        monitor_cls, _ = self._run(runner.run_outputs, 'create_bash_outputs')
+        self.assertTrue(monitor_cls.call_args.kwargs['enabled'])
 
-    def test_disable_resource_report_skips_report(self):
-        monitor_cls, _ = self._run_outputs(disable_resource_report=True)
-        self.assertFalse(monitor_cls.call_args.kwargs['generate_report'])
-        monitor_cls.return_value.stop.assert_called_once()
-
-    def test_flag_not_passed_to_bash_generation(self):
-        _, create_bash = self._run_outputs(disable_resource_report=True)
+    def test_run_outputs_flag_disables_monitor(self):
+        monitor_cls, create_bash = self._run(runner.run_outputs, 'create_bash_outputs', disable_resource_report=True)
+        self.assertFalse(monitor_cls.call_args.kwargs['enabled'])
         self.assertNotIn('disable_resource_report', create_bash.call_args.kwargs)
+
+    def test_run_analysis_monitor_enabled_by_default(self):
+        monitor_cls, _ = self._run(runner.run_analysis, 'create_bash_analysis', process_number=1)
+        self.assertTrue(monitor_cls.call_args.kwargs['enabled'])
+
+    def test_run_analysis_flag_disables_monitor(self):
+        monitor_cls, create_bash = self._run(runner.run_analysis, 'create_bash_analysis', process_number=1,
+                                             disable_resource_report=True)
+        self.assertFalse(monitor_cls.call_args.kwargs['enabled'])
+        self.assertNotIn('disable_resource_report', create_bash.call_args.kwargs)
+
+
+class TestResourceMonitorDisabled(TestCase):
+    def test_disabled_monitor_writes_no_csv_or_report(self):
+        with TemporaryDirectory() as tmp_dir:
+            log_root = os.path.join(tmp_dir, 'log')
+            monitor = ResourceMonitor(output_dir=os.path.join(log_root, 'out'), poll_interval=0.1,
+                                      log_root=log_root, enabled=False)
+            with patch.object(monitor, '_generate_report') as generate_report:
+                monitor.start(os.getpid())
+                monitor.stop()
+            self.assertIsNone(monitor._thread)
+            generate_report.assert_not_called()
+            self.assertFalse(os.path.exists(log_root))
