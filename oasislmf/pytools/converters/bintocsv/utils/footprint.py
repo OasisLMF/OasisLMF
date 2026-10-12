@@ -35,6 +35,7 @@ import re
 import sys
 
 from oasislmf.pytools.common.data import resolve_file, write_ndarray_to_fmt_csv
+from oasislmf.pytools.converters.bintocsv.utils.common import check_index_bounds
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.getmodel.common import (
     Event_dtype, EventIndexBin_dtype, EventIndexBinZ_dtype, FootprintHeader
@@ -109,8 +110,16 @@ def _read_footprint_zips(stack, file_in, idx_file_in):
     else:
         footprint = np.memmap(footprint_file, dtype="u1", mode='r')
 
+    idx_dtype = _get_index_dtype(footprint)
     footprint_index_file = resolve_file(idx_file_in, mode="rb", stack=stack)
-    footprint_index = np.memmap(footprint_index_file, dtype=_get_index_dtype(footprint), mode='r')
+    if footprint_index_file == sys.stdin.buffer:
+        footprint_index = np.frombuffer(footprint_index_file.read(), dtype=idx_dtype)
+    elif os.fstat(footprint_index_file.fileno()).st_size == 0:
+        # a footprint with zero events writes a 0-byte idx file; np.memmap raises "cannot mmap
+        # an empty file" for it, same as the footprint.bin case above.
+        footprint_index = np.empty(0, dtype=idx_dtype)
+    else:
+        footprint_index = np.memmap(footprint_index_file, dtype=idx_dtype, mode='r')
 
     return footprint, footprint_index
 
@@ -141,29 +150,35 @@ def _read_footprint_bins(stack, file_in, idx_file_in):
     else:
         footprint = np.memmap(footprint_file, dtype="u1", mode='r')
 
+    idx_dtype = _get_index_dtype(footprint)
     footprint_index_file = resolve_file(idx_file_in, mode="rb", stack=stack)
-    footprint_index = np.memmap(footprint_index_file, dtype=_get_index_dtype(footprint), mode='r')
+    if footprint_index_file == sys.stdin.buffer:
+        footprint_index = np.frombuffer(footprint_index_file.read(), dtype=idx_dtype)
+    elif os.fstat(footprint_index_file.fileno()).st_size == 0:
+        # a footprint with zero events writes a 0-byte idx file; np.memmap raises "cannot mmap
+        # an empty file" for it, same as the footprint.bin case above.
+        footprint_index = np.empty(0, dtype=idx_dtype)
+    else:
+        footprint_index = np.memmap(footprint_index_file, dtype=idx_dtype, mode='r')
 
     return footprint, footprint_index
 
 
-def _check_index_bounds(footprint, footprint_index):
-    """Raise a clear error if any idx entry's byte range falls outside the footprint data
-    (i.e. before the end of the header, or past the end of the file),
-    instead of letting the read below silently clip, read mmap zero-padding, or — for the
-    batched njit loops, which index without bounds checking — read past the mapped file
-    entirely (undefined behaviour, up to and including a crash).
+def _is_compressed(footprint, footprint_index):
+    """Whether the events are zlib compressed, as csvtobin writes them when zipping under the
+    uncompressed file names. Checked on the first event, matching
+    getmodel.footprint.FootprintBin._is_compressed, whose runtime path this method mirrors.
+
+    Returns: (bool) True if the events are compressed
     """
-    starts = footprint_index['offset'].astype(np.int64)
-    ends = starts + footprint_index['size'].astype(np.int64)
-    bad = np.flatnonzero((starts < FootprintHeader.itemsize) | (ends > len(footprint)))
-    if bad.size:
-        i = int(bad[0])
-        raise OasisException(
-            f"Error: footprint index entry for event_id {int(footprint_index['event_id'][i])} references "
-            f"bytes [{int(starts[i])}, {int(ends[i])}) outside the footprint file's data "
-            f"[{FootprintHeader.itemsize}, {len(footprint)}); the index and footprint files do not match, or the footprint file is truncated."
-        )
+    if len(footprint_index) == 0:
+        return False
+    first = footprint_index[0]
+    try:
+        zlib.decompress(footprint[int(first['offset']): int(first['offset']) + int(first['size'])].tobytes())
+    except zlib.error:
+        return False
+    return True
 
 
 def footprint_tocsv(stack, file_in, file_out, file_type, noheader, idx_file_in, zip_files, event_from_to):
@@ -176,7 +191,15 @@ def footprint_tocsv(stack, file_in, file_out, file_type, noheader, idx_file_in, 
         footprint, footprint_index = _read_footprint_zips(stack, file_in, idx_file_in)
     else:
         footprint, footprint_index = _read_footprint_bins(stack, file_in, idx_file_in)
-    _check_index_bounds(footprint, footprint_index)
+    check_index_bounds(footprint, footprint_index, FootprintHeader.itemsize, 'event_id', 'footprint')
+
+    if not zip_files and _is_compressed(footprint, footprint_index):
+        from oasislmf.pytools.converters.bintocsv.manager import logger
+        logger.warning(
+            "WARNING: footprint holds zlib compressed events despite zip_files=False (saved under "
+            "uncompressed names); reading it as a compressed footprint."
+        )
+        zip_files = True
 
     if not noheader:
         file_out.write(",".join(headers) + "\n")

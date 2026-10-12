@@ -450,6 +450,22 @@ def test_bintocsv_footprint_wraps_zlib_error_with_clear_message():
                      idx_file_in=idx_path, zip_files=True, event_from_to=None)
 
 
+def test_bintocsv_footprint_detects_zip_data_saved_under_uncompressed_names(caplog):
+    """zip_files=False against data that is actually compressed (saved under uncompressed
+    names, as csvtobin -z writes when not given a .z output name) used to crash with a dtype
+    error, or silently misread as garbage when the compressed size happened to be a multiple of
+    the Event_dtype row size -- matching the runtime's own FootprintBin._is_compressed detection
+    instead of failing or corrupting."""
+    with TemporaryDirectory() as tmp:
+        bin_path, idx_path = _write_footprint(tmp, zip_files=True)
+        with caplog.at_level("WARNING"):
+            bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
+                     idx_file_in=idx_path, zip_files=False, event_from_to=None)
+
+        assert "reading it as a compressed footprint" in caplog.text
+        assert Path(tmp, "out.csv").read_text() == "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,1.000000\n"
+
+
 def test_bintocsv_footprint_rejects_footprint_file_too_short_for_header():
     """An empty or near-empty footprint.bin (e.g. empty stdin) used to fail inside
     _get_index_dtype with a bare 'can only convert an array of size 1 to a Python scalar'."""
@@ -471,6 +487,24 @@ def test_bintocsv_footprint_rejects_literal_zero_byte_file():
         with pytest.raises(OasisException, match="too short to hold its"):
             bintocsv(Path(tmp, "footprint.bin"), Path(tmp, "out.csv"), "footprint", noheader=False,
                      idx_file_in=idx_path, zip_files=False, event_from_to=None)
+
+
+def test_bintocsv_footprint_handles_zero_event_footprint():
+    """A footprint csv with zero event rows writes a header-only footprint.bin and a literal
+    0-byte footprint.idx (no events to index). np.memmap on that 0-byte idx file raised "cannot
+    mmap an empty file", both here and in the real runtime (FootprintBin.__enter__)."""
+    with TemporaryDirectory() as tmp:
+        csv_path = Path(tmp, "footprint.csv")
+        csv_path.write_text("event_id,areaperil_id,intensity_bin_id,probability\n")
+        bin_path, idx_path = Path(tmp, "footprint.bin"), Path(tmp, "footprint.idx")
+        csvtobin(csv_path, bin_path, "footprint", idx_file_out=idx_path, max_intensity_bin_idx=1,
+                 no_intensity_uncertainty=True, decompressed_size=False, no_validation=False, zip_files=False)
+        assert idx_path.stat().st_size == 0
+
+        bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
+                 idx_file_in=idx_path, zip_files=False, event_from_to=None)
+
+        assert Path(tmp, "out.csv").read_text() == "event_id,areaperil_id,intensity_bin_id,probability\n"
 
 
 def test_bintocsv_footprint_accepts_valid_file():

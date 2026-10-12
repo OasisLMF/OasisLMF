@@ -21,8 +21,14 @@ def _fill_summarycalc_chunk(event_ids, summary_ids, expvals, sidxs, losses,
                             max_sample_index, out, cursor,
                             prev_event_id, prev_summary_id, prev_expval, event_id_dtype):
     for i in range(len(event_ids)):
-        if (event_ids[i] != prev_event_id or summary_ids[i] != prev_summary_id
-                or expvals[i] != prev_expval):
+        # NaN != NaN is always True under IEEE semantics, so a plain "!=" would start a new
+        # group on every row with a repeated blank/NaN ImpactedExposure -- fragmenting what
+        # should be one summary record into many (and corrupting any downstream statistic
+        # computed per group, e.g. MELT's chance_of_loss/meanloss/sdloss). Two NaNs are treated
+        # as unchanged, matching the old int32 bit-pattern comparison's behaviour for a repeated
+        # identical NaN (replaced by this oasis_float-aware comparison for the OASIS_FLOAT fix).
+        new_exp = expvals[i] != prev_expval and not (np.isnan(expvals[i]) and np.isnan(prev_expval))
+        if (event_ids[i] != prev_event_id or summary_ids[i] != prev_summary_id or new_exp):
             if prev_event_id != event_id_dtype.type(-1):
                 cursor = mv_write_sidx_loss(out, cursor, 0, 0.)  # delimiter
             cursor = mv_write_summary_header(out, cursor, event_ids[i], summary_ids[i], expvals[i])

@@ -42,16 +42,22 @@ def bintoparquet(file_in, file_out, file_type, **kwargs):
         file_type (str): File type str from SUPPORTED_BINTOPARQUET
         **kwargs: additional keyword arguments forwarded to the file type specific converter
     """
+    opened_out = False
     try:
         with ExitStack() as stack:
             resolved_out = resolve_file(file_out, "wb", stack)
+            opened_out = True
             default_toparquet(stack, file_in, resolved_out, file_type, **kwargs)
     except Exception:
         # parquet is self-validating per row group, so a failed conversion that stops partway
         # through still closes into a structurally valid, readable file with silently fewer rows
         # -- unlike a truncated flat binary file, which is visibly wrong on the next read. Remove
         # it so a failure doesn't leave behind something that looks like a successful, if partial,
-        # conversion.
-        if str(file_out) != "-" and os.path.exists(file_out):
+        # conversion. Only remove it if we opened it (so a failure to open, e.g. a read-only
+        # pre-existing file, doesn't delete a file this conversion never touched) and only if
+        # it's a real regular file, not a symlink (e.g. /dev/stdout) or special file (e.g. a
+        # FIFO) -- those aren't this conversion's to delete, and doing so can mask the real
+        # error with an unrelated PermissionError, or delete a resource another process depends on.
+        if opened_out and str(file_out) != "-" and os.path.isfile(file_out) and not os.path.islink(file_out):
             os.remove(file_out)
         raise

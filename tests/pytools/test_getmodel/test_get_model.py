@@ -518,6 +518,28 @@ class TestGetVulns(TestCase):
         with self.assertRaisesRegex(Exception, "lower than 1"):
             vulnerability_to_parquet(os.path.join(self.temp_dir, 'bad_None'))
 
+    def test_vulnerability_to_parquet_rejects_damage_bin_id_above_header_max(self):
+        """num_damage_bins is now read from the header (not the data's own max), so a row
+        exceeding it is no longer structurally impossible. get_array's upper-bound check must
+        catch it -- otherwise the out-of-bounds write lands in the *next* vulnerability_id's
+        slice, silently corrupting it (confirmed: without the check, vulnerability_id 2 here
+        comes out as [1.0, 0.5] instead of [1.0, 0.0]). csvtobin itself already rejects writing
+        such a file (both the idx and no-idx paths check this unconditionally), so the bin file
+        is hand-crafted here to represent an externally-generated or pre-existing file instead.
+        """
+        bad_data = np.array([
+            (1, 1, 1, 0.5),
+            (1, 1, 4, 0.5),  # damage_bin_id=4 exceeds the header's max_damage_bin_idx=2 below
+            (2, 1, 1, 1.0),
+        ], dtype=self.mock_vuln_data.dtype)
+        run_dir = os.path.join(self.temp_dir, 'bad_upper')
+        os.makedirs(run_dir)
+        with open(os.path.join(run_dir, 'vulnerability.bin'), 'wb') as f:
+            f.write(np.array([2], dtype='i4').tobytes())  # header: max_damage_bin_idx=2
+            f.write(bad_data.tobytes())
+        with self.assertRaisesRegex(Exception, "bigger that expected maximum"):
+            vulnerability_to_parquet(run_dir)
+
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
 

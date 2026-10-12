@@ -8,6 +8,7 @@ from zlib import compress
 
 from .getmodel.common import (FootprintHeader, EventIndexBin, EventIndexBinZ,
                               footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename)
+from .getmodel.footprint import uncompressedMask
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -18,6 +19,12 @@ def compress_footprint(static_path, decompressed_size=True, compression_level=-1
         footprint_obj = stack.enter_context(open(os.path.join(static_path, footprint_filename), 'rb'))
         footprint_map = mmap.mmap(footprint_obj.fileno(), length=0, access=mmap.ACCESS_READ)
         footprint_header = np.frombuffer(bytearray(footprint_map[:FootprintHeader.itemsize]), dtype=FootprintHeader)
+        # The input footprint.idx's own entry layout (with or without d_size) is determined by
+        # the header bit as it already is on disk -- independent of decompressed_size, which only
+        # controls the *output* zipped index's layout below.
+        input_has_d_size = bool(footprint_header['has_intensity_uncertainty'].item() & uncompressedMask)
+        input_index_dtype = EventIndexBinZ if input_has_d_size else EventIndexBin
+
         if decompressed_size:
             footprint_header['has_intensity_uncertainty'] |= 2  # set compressed byte of has_intensity_uncertainty to 1
             index_dtype = EventIndexBinZ
@@ -27,7 +34,7 @@ def compress_footprint(static_path, decompressed_size=True, compression_level=-1
         zfootprint_obj = stack.enter_context(open(os.path.join(static_path, zfootprint_filename), 'wb'))
         zfootprint_obj.write(footprint_header.tobytes())
 
-        footprint_idx_bin = np.memmap(os.path.join(static_path, footprint_index_filename), dtype=EventIndexBin, mode='r')
+        footprint_idx_bin = np.memmap(os.path.join(static_path, footprint_index_filename), dtype=input_index_dtype, mode='r')
         zfootprint_idx_bin = np.memmap(os.path.join(static_path, zfootprint_index_filename), dtype=index_dtype, mode='w+',
                                        shape=footprint_idx_bin.shape)
 

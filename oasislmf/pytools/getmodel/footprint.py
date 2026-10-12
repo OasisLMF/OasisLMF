@@ -299,9 +299,13 @@ class FootprintBin(Footprint):
         uncompressed_size = int((footprint_header['has_intensity_uncertainty'].item() & uncompressedMask) >> 1)
 
         f = self.stack.enter_context(self.storage.with_fileno(footprint_index_filename))
-        footprint_mmap = np.memmap(f, dtype=EventIndexBinZ if uncompressed_size else EventIndexBin, mode='r')
-
-        self.footprint_index = np.array(footprint_mmap)
+        idx_dtype = EventIndexBinZ if uncompressed_size else EventIndexBin
+        if os.fstat(f.fileno()).st_size == 0:
+            # a footprint with zero events writes a 0-byte idx file; np.memmap raises "cannot
+            # mmap an empty file" for it.
+            self.footprint_index = np.empty(0, dtype=idx_dtype)
+        else:
+            self.footprint_index = np.array(np.memmap(f, dtype=idx_dtype, mode='r'))
         self.compressed = self._is_compressed()
         if self.compressed:
             logger.warning(f"{footprint_filename} holds zlib compressed events, reading it as a compressed footprint. "

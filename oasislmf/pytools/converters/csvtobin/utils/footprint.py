@@ -50,10 +50,14 @@ def _check_sorted(event_ids, areaperil_ids, prev_event_id, prev_areaperil_id, fi
     return np.int64(-1), event_ids[-1], areaperil_ids[-1]
 
 
+_PROB_SUM_ATOL = 1e-6
+_PROB_SUM_RTOL = 1e-5
+
+
 @nb.njit(cache=True, error_model="numpy")
 def _check_prob_sums(event_ids, areaperil_ids, probs,
                      prev_event_id, prev_areaperil_id, running_sum, first_chunk,
-                     atol=1e-6, rtol=1e-5):
+                     atol=_PROB_SUM_ATOL, rtol=_PROB_SUM_RTOL):
     """Incremental probability sum check assuming sorted data.
     Returns (bad_idx, last_event_id, last_areaperil_id, running_sum).
     bad_idx=-1 means valid; the final group is not finalised here — check after last chunk.
@@ -323,8 +327,9 @@ def footprint_tobin(
                 batch_idx["event_id"] = batch_event_ids
                 batch_idx["offset"] = batch_offsets
                 batch_idx["size"] = batch_sizes
-                if decompressed_size:
-                    batch_idx["d_size"] = batch_sizes
+                # decompressed_size is always False here: it's forced off whenever zip_files is
+                # False (above), and this is the non-zip path -- so idx_dtype never has a d_size
+                # field to set in this branch.
                 idx_file_out.write(batch_idx.tobytes())
                 offset += int(batch_sizes.sum())
 
@@ -341,7 +346,7 @@ def footprint_tobin(
         )
 
     # Finalise last probability group (not checked inside the loop)
-    if not no_validation and any_data and not (abs(running_sum - 1.0) <= 1e-6 + 1e-5):
+    if not no_validation and any_data and not (abs(running_sum - 1.0) <= _PROB_SUM_ATOL + _PROB_SUM_RTOL):
         raise OasisException(
             f"Probabilities do not sum to 1 for final group: "
             f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"
