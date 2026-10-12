@@ -153,6 +153,7 @@ def run(analysis_settings,
         model_df_engine=None,
         dynamic_footprint=False,
         resource_monitor_interval=1,
+        disable_resource_report=False,
         log_level=None,
         **kwargs
         ):
@@ -233,6 +234,7 @@ def run(analysis_settings,
     monitor = ResourceMonitor(
         output_dir='log',
         poll_interval=resource_monitor_interval,
+        generate_report=not disable_resource_report,
     )
     proc = subprocess.Popen(['bash', filename], stdout=subprocess.PIPE)
     monitor.start(proc.pid)
@@ -338,6 +340,7 @@ def run_analysis(**params):
 @oasis_log()
 def run_outputs(**params):
     resource_monitor_interval = params.pop('resource_monitor_interval', 1.0)
+    disable_resource_report = params.pop('disable_resource_report', False)
 
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'],
                       log_sub_dir='out', run_check_complete=False):
@@ -345,7 +348,8 @@ def run_outputs(**params):
 
     run_dir = os.path.dirname(params['filename'])
     log_root = os.path.join(run_dir, 'log')
-    monitor = ResourceMonitor(output_dir=os.path.join(log_root, 'out'), poll_interval=resource_monitor_interval, log_root=log_root)
+    monitor = ResourceMonitor(output_dir=os.path.join(log_root, 'out'), poll_interval=resource_monitor_interval,
+                              generate_report=not disable_resource_report, log_root=log_root)
     proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()

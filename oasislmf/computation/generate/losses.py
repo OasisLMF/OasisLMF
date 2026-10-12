@@ -550,6 +550,8 @@ class GenerateLossesOutput(GenerateLossesDir):
         {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `kernel_num_processes` if not set'},
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
          'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
+        {'name': 'disable_resource_report', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Skip building the resource monitor report (markdown + plots) after the run; the resource_monitor.csv files are still written'},
     ]
 
     def run(self):
@@ -579,6 +581,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             model_run_dir=model_run_fp,
         )
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
+        bash_params['disable_resource_report'] = self.disable_resource_report
         with setcwd(model_run_fp):
             try:
                 self.logger.info('Generating Loss outputs in {}'.format(model_run_fp))
@@ -661,6 +664,8 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'},
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
          'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
+        {'name': 'disable_resource_report', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Skip building the resource monitor report (markdown + plots) after the run; the resource_monitor.csv files are still written'},
     ]
 
     def run(self):
@@ -727,6 +732,7 @@ class GenerateLosses(GenerateLossesDir):
                         socket_server_size=socket_server_size,
                         socket_server_port=socket_server_port,
                         resource_monitor_interval=self.resource_monitor_interval,
+                        disable_resource_report=self.disable_resource_report,
                         log_level=self.logger.getEffectiveLevel(),
                     )
                     model_runner_module.run(self.settings, **run_args)

@@ -247,3 +247,31 @@ class RerunTestCase(TestCase):
         self.assertNotIn("/tmp/il_P1", fm_pipe)
         self.assertIn("-o 1_fm1.bin", fm_pipe)
         self.assertTrue(fm_pipe.startswith("fmcalc"))
+
+
+class TestRunOutputsResourceReport(TestCase):
+    def _run_outputs(self, **extra):
+        proc = mock.Mock(pid=123, returncode=0)
+        proc.communicate.return_value = (b'', None)
+        with TemporaryDirectory() as tmp_dir, \
+                patch('oasislmf.execution.runner.bash_wrapper'), \
+                patch('oasislmf.execution.runner.create_bash_outputs') as create_bash, \
+                patch('oasislmf.execution.runner._ensure_pytool_logs_complete'), \
+                patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc), \
+                patch('oasislmf.execution.runner.ResourceMonitor') as monitor_cls:
+            runner.run_outputs(filename=os.path.join(tmp_dir, 'run_outputs.sh'),
+                               bash_trace=False, stderr_guard=True, **extra)
+        return monitor_cls, create_bash
+
+    def test_report_generated_by_default(self):
+        monitor_cls, _ = self._run_outputs()
+        self.assertTrue(monitor_cls.call_args.kwargs['generate_report'])
+
+    def test_disable_resource_report_skips_report(self):
+        monitor_cls, _ = self._run_outputs(disable_resource_report=True)
+        self.assertFalse(monitor_cls.call_args.kwargs['generate_report'])
+        monitor_cls.return_value.stop.assert_called_once()
+
+    def test_flag_not_passed_to_bash_generation(self):
+        _, create_bash = self._run_outputs(disable_resource_report=True)
+        self.assertNotIn('disable_resource_report', create_bash.call_args.kwargs)
