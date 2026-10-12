@@ -447,6 +447,48 @@ class TestGetVulns(TestCase):
             actual_index = np.where(vulns_id == vuln_id)[0][0]
             np.testing.assert_allclose(vuln_array[actual_index], expected[int(vuln_id)], atol=1e-6)
 
+    def test_get_vulns_parquet_truncates_when_data_has_more_intensity_bins_than_footprint(self):
+        # the reverse of test_get_vulns_parquet_matches_bin_path_dimensions: the parquet file's
+        # own num_intensity_bins (derived from the data) is larger than this run's footprint-
+        # declared count. load_vulns_bin (the bin path) has no safe handling for this at all --
+        # its njit write is unchecked -- so the parquet path truncating instead of crashing is
+        # strictly safer, not required to match the bin path's (undefined) behaviour.
+        csv = (
+            "vulnerability_id,intensity_bin_id,damage_bin_id,probability\n"
+            "1,1,1,1.0\n1,2,1,1.0\n1,3,1,1.0\n"
+            "2,1,1,1.0\n2,2,1,1.0\n2,3,1,1.0\n"
+            "3,1,1,1.0\n3,2,1,1.0\n3,3,1,1.0\n"
+        )
+        run_dir = os.path.join(self.temp_dir, 'parquet_dims_reverse')
+        os.makedirs(run_dir)
+        csv_path = os.path.join(run_dir, 'vulnerability.csv')
+        with open(csv_path, 'w') as f:
+            f.write(csv)
+        csvtobin(
+            file_in=csv_path,
+            file_out=os.path.join(run_dir, 'vulnerability.bin'),
+            file_type='vulnerability',
+            idx_file_out=None,
+            max_damage_bin_idx=1,
+            no_validation=False,
+            suppress_int_bin_checks=False,
+            zip_files=False,
+        )
+        vulnerability_to_parquet(run_dir)  # meta num_intensity_bins = 3 (max in the data)
+
+        # num_intensity_bins=2 simulates a footprint declaring fewer intensity bins than the
+        # vulnerability data actually populates
+        model_storage = LocalStorage(root_dir=run_dir, cache_dir=None)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(
+            model_storage, run_dir, self.vuln_map, self.vuln_map_keys, num_intensity_bins=2,
+            ignore_file_type={'bin', 'csv'},
+        )
+
+        self.assertEqual(vuln_array.shape, (3, 1, 2))
+        for vuln_id in vulns_id:
+            actual_index = np.where(vulns_id == vuln_id)[0][0]
+            np.testing.assert_allclose(vuln_array[actual_index], [[1.0, 1.0]], atol=1e-6)
+
     def test_get_vulns_rejects_bin_id_below_one(self):
         # bin ids are 1-based; a 0 written without validation must not wrap to the last bin on load
         bad_data = self.mock_vuln_data.copy()

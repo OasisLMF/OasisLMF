@@ -598,9 +598,14 @@ def get_vulns(
         if meta_num_intensity_bins == num_intensity_bins:
             vuln_array_parquet = vuln_array_parquet_raw
         else:
-            # Zero-pad up to num_intensity_bins, matching the bin path's handling of absent bins.
+            # meta_num_intensity_bins < num_intensity_bins: zero-pad, matching the bin path's own
+            # handling of a bin absent from the data. meta_num_intensity_bins > num_intensity_bins
+            # means the parquet file has intensity bins this run's footprint doesn't declare; the
+            # bin path has no safe handling for that case at all (load_vulns_bin's njit write is
+            # unchecked), so dropping the extra bins here is strictly safer, not equivalent to it.
+            n_copy = min(meta_num_intensity_bins, num_intensity_bins)
             vuln_array_parquet = np.zeros((len(df['vuln_array']), num_damage_bins, num_intensity_bins), dtype=oasis_float)
-            vuln_array_parquet[:, :, :meta_num_intensity_bins] = vuln_array_parquet_raw
+            vuln_array_parquet[:, :, :n_copy] = vuln_array_parquet_raw[:, :, :n_copy]
         parquet_vuln_ids = df['vulnerability_id'].to_numpy()
         missing_vuln_ids = {v for v in vuln_ids_set.difference(parquet_vuln_ids) if int(v) not in allowed_missing}
         if missing_vuln_ids:
