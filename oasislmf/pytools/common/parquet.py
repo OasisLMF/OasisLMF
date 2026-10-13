@@ -53,7 +53,4 @@ class BufferedParquetWriter:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type is None:
-            self.close()
-        else:
-            self.writer.close()
+        self.close()
