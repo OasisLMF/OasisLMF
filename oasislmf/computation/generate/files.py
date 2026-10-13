@@ -190,6 +190,12 @@ class GenerateFiles(ComputationStep):
         packing sets custom_gulcalc_supports_packing, normally once in its own model_settings.json
         under computation_settings.boolean_parameters.
 
+        This check is best-effort and deliberately not the only one. The binary is inferred from
+        ``model_supplier_id``/``model_name_id``, which exist only when generation is given
+        analysis settings; ``generate-oasis-files`` without them infers ``None_None_gulcalc``,
+        finds nothing, and packs. The loss step re-checks against the engine actually configured
+        there -- see ``GenerateLossesDir._check_packed_inputs_can_be_run``.
+
         Args:
             disaggregation (str): the resolved mode.
 
@@ -201,7 +207,13 @@ class GenerateFiles(ComputationStep):
 
         # Frequently not configured at all: a model that sets none of gulmc/gulpy/modelpy is
         # picked up by probing PATH, so testing model_custom_gulcalc alone misses the usual case.
-        custom_gulcalc_cmd = resolve_custom_gulcalc_cmd(self.model_custom_gulcalc, self.settings)
+        try:
+            custom_gulcalc_cmd = resolve_custom_gulcalc_cmd(self.model_custom_gulcalc, self.settings)
+        except OasisException:
+            # Explicitly configured but not on PATH. That still answers the question being asked
+            # -- this IS a complex model -- and generation has no business failing over a binary
+            # only the loss step runs, which a machine that merely prepares inputs need not have.
+            custom_gulcalc_cmd = self.model_custom_gulcalc
         if not custom_gulcalc_cmd:
             return disaggregation
 

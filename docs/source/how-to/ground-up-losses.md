@@ -73,21 +73,29 @@ three ways, chosen with `--disaggregation`:
 | Mode | What it does |
 |---|---|
 | `none` | One item holding the whole location TIV. No building dimension. |
-| `items` *(default)* | One item per building, TIV split between them. |
-| `samples` | One item per location, buildings multiplexed into the sample dimension. |
+| `items` | One item per building, TIV split between them. |
+| `samples` *(default)* | One item per location, buildings multiplexed into the sample dimension. |
 
 ```bash
 # model each location as a single risk
 oasislmf model run --disaggregation none -C oasislmf.json
 
-# keep one item per location and put the buildings in the sample dimension
+# give each building its own item row
+oasislmf model run --disaggregation items -C oasislmf.json
+
+# the default: one item per location, buildings in the sample dimension
 oasislmf model run --disaggregation samples -C oasislmf.json
 ```
 
-`samples` keeps the items file from growing with the building count, and needs
-`gulmc` or `gulpy` — the engines that write the sample dimension. It has no
-deterministic equivalent, so `oasislmf exposure run` logs a notice and runs it
-as `none`.
+`samples` keeps the items file from growing with the building count. It needs
+`gulmc` or `gulpy` — the engines that write the sample dimension — and random
+generator 2, the only one that can address a building. A model supplying its own
+gulcalc is generated as `items` unless it sets `custom_gulcalc_supports_packing`.
+
+`oasislmf exposure run` supports all three, but defaults to `none` rather than
+`samples`: a deterministic run exists to show what the terms do to a known loss,
+and splitting a location's TIV across buildings moves those numbers for reasons
+unrelated to the terms under test.
 
 The older `--do-disaggregation` flag is deprecated: `True` means `items` and
 `False` means `none`.

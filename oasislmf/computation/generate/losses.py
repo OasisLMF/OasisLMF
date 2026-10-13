@@ -35,6 +35,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from ...execution import bash, runner
+from ...execution.bash import resolve_custom_gulcalc_cmd
 from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set,
@@ -115,6 +116,52 @@ class GenerateLossesBase(ComputationStep):
             rule_val = int(getattr(self, rule))
             if (rule_val < 0) or (rule_val > rule_ranges[rule]):
                 raise OasisException(f'Error: {rule}={rule_val} - Not within valid ranges [0..{rule_ranges[rule]}]')
+
+    def _check_packed_inputs_can_be_run(self, analysis_settings):
+        """Refuse a packed input set the configured ground-up engine cannot put back together.
+
+        Generation divides a location's TIV by NumberOfBuildings and leaves the buildings to be
+        restored in the sample dimension. Two engines cannot do that, and both failures are
+        silent-by-default rather than loud:
+
+        * a third-party gulcalc reading items.bin emits one block per item, so every loss comes
+          out a factor of NumberOfBuildings too small with no error anywhere;
+        * random generators 0 and 1 cannot address a building, so ``check_packing_supported``
+          raises mid-run, after generation has already succeeded.
+
+        Generation tries to avoid both by downgrading to ``items``, but it cannot always see
+        them: ``_disaggregation_for_this_engine`` infers the binary from analysis settings that
+        ``generate-oasis-files`` is not required to be given, and the random generator is a
+        loss-step parameter it never sees at all. This is the check that does not depend on
+        generation and losses being configured the same way.
+
+        Args:
+            analysis_settings (dict): resolved analysis settings for this run.
+
+        Raises:
+            OasisException: if the inputs are packed and the engine cannot read them.
+        """
+        counts = read_coverage_buildings(os.path.join(self.oasis_files_dir, 'input'))
+        if counts.shape[0] == 0 or int(np.abs(counts['n_building']).max()) <= 1:
+            return  # nothing packed; every engine is fine
+
+        if int(self.gul_random_generator) != 2:
+            raise OasisException(
+                f"These inputs are building-packed, which random generator "
+                f"{int(self.gul_random_generator)} cannot read: only generator 2 (Philox) can "
+                f"address a building. Regenerate with --disaggregation items, or run with "
+                f"--gul-random-generator 2."
+            )
+
+        custom_gulcalc_cmd = resolve_custom_gulcalc_cmd(self.model_custom_gulcalc, analysis_settings)
+        if custom_gulcalc_cmd and not self.custom_gulcalc_supports_packing:
+            raise OasisException(
+                f"These inputs are building-packed, but this run uses the custom gulcalc "
+                f"'{custom_gulcalc_cmd}', which has not declared that it understands them. It "
+                f"would emit one block per item and understate every loss by NumberOfBuildings, "
+                f"with no error. Regenerate with --disaggregation items, or set "
+                f"custom_gulcalc_supports_packing if this gulcalc does handle packed streams."
+            )
 
     def _store_run_settings(self, analysis_settings, target_dir):
         """Writes the analysis settings file to the `target_dir` path"""
@@ -215,6 +262,10 @@ class GenerateLossesDir(GenerateLossesBase):
         # going to run.
         {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
+        # Needed here as well as in generation: the loss step is where a packed input set meets
+        # the binary that has to read it, and the two steps can be configured separately.
+        {'name': 'custom_gulcalc_supports_packing', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Set when a custom gulcalc understands building-packed streams, so packed inputs are not refused'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'dynamic_footprint', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'Dynamic Footprint'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
@@ -461,6 +512,7 @@ class GenerateLossesPartial(GenerateLossesDir):
 
     def run(self):
         GenerateLossesDir._check_ktool_rules(self)
+        GenerateLossesDir._check_packed_inputs_can_be_run(self, self.settings)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
 
         # distributed worker will pass in run settings as JSON, if not given load settings
@@ -668,6 +720,7 @@ class GenerateLosses(GenerateLossesDir):
     def run(self):
         # prep losses run dir / Setup
         GenerateLossesDir._check_ktool_rules(self)
+        GenerateLossesDir._check_packed_inputs_can_be_run(self, self.settings)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
         GenerateLossesDir.run(self)
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_kernel.sh')

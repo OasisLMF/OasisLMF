@@ -4,7 +4,7 @@
 Sweeps a range of per-location building counts and, for each, builds an Oasis input set two
 ways and runs the pure-Python loss pipeline end to end:
 
-  * disaggregated : one item per building (legacy `do_disaggregation`)
+  * disaggregated : one item per building (`--disaggregation items`)
   * packed        : one item per (location, peril, coverage_type) with N buildings multiplexed
                     into the sample dimension (`building_packing`)
 
@@ -80,6 +80,7 @@ def write_oed(d, n_buildings, loc_ded=0.0, is_aggregate=0):
 def generate_files(run_dir, n_buildings, mode, oed):
     """Generate the Oasis input set into run_dir/input via the real GenerateFiles pipeline."""
     from oasislmf.manager import OasisManager
+    from oasislmf.utils.defaults import DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES
     input_dir = run_dir / "input"
     input_dir.mkdir(parents=True, exist_ok=True)
     t = time.time()
@@ -89,8 +90,7 @@ def generate_files(run_dir, n_buildings, mode, oed):
         oed_accounts_csv=str(oed / "account.csv"),
         keys_data_path=str(oed / "keys.csv"),
         model_settings_json=str(oed / "model_settings.json"),
-        building_packing=(mode == "packed"),
-        do_disaggregation=(mode == "disagg"),
+        disaggregation=DISAGGREGATION_ITEMS if mode == "disagg" else DISAGGREGATION_SAMPLES,
     )
     gen_wall = time.time() - t
     n_items = (input_dir / "items.bin").stat().st_size // ITEMS_ITEMSIZE
