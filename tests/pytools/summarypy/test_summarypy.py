@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from oasislmf.pytools.common.data import def_to_type_and_size
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_headers
 from oasislmf.pytools.summary.cli import parser, manager
 
@@ -14,6 +15,10 @@ from oasislmf.pytools.summary.cli import parser, manager
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_summarypy")
 
 IDX_DTYPE = np.dtype([('summary_id', '<i4'), ('offset', '<i8')])  # fix dtype to reproduce test setup
+EVENT_ID_DTYPE, _ = def_to_type_and_size('event_id')
+SUMMARY_ID_DTYPE, _ = def_to_type_and_size('summary_id')
+SIDX_DTYPE, _ = def_to_type_and_size('sidx')
+LOSS_DTYPE, _ = def_to_type_and_size('loss')
 
 
 def case_runner(test_name, test_case):
@@ -81,17 +86,23 @@ def test_multiple_summary_set():
 
 def read_summary_bin_as_rows(file_path):
     """Decode a binary summary stream into (EventId, SummaryId, SampleId, Loss, ImpactedExposure) rows."""
-    data = np.fromfile(file_path, dtype='<i4')[3:]  # skip stream type, sample size and summary set id
+    buf = np.fromfile(file_path, dtype=np.uint8)
+
+    def read(dtype, cursor):
+        return np.frombuffer(buf, dtype, count=1, offset=cursor)[0], cursor + dtype.itemsize
+
+    cursor = manager.SUMMARY_META_SIZE
     rows = []
-    i = 0
-    while i < data.shape[0]:
-        event_id, summary_id = data[i], data[i + 1]
-        impacted_exposure = data[i + 2:i + 3].view('<f4')[0]
-        i += 3
-        while data[i] != 0:
-            rows.append((event_id, summary_id, data[i], data[i + 1:i + 2].view('<f4')[0], impacted_exposure))
-            i += 2
-        i += 2
+    while cursor < buf.shape[0]:
+        event_id, cursor = read(EVENT_ID_DTYPE, cursor)
+        summary_id, cursor = read(SUMMARY_ID_DTYPE, cursor)
+        impacted_exposure, cursor = read(LOSS_DTYPE, cursor)
+        while True:
+            sidx, cursor = read(SIDX_DTYPE, cursor)
+            loss, cursor = read(LOSS_DTYPE, cursor)
+            if sidx == 0:
+                break
+            rows.append((event_id, summary_id, sidx, loss, impacted_exposure))
     return np.array(rows, dtype=SELT_dtype)
 
 
