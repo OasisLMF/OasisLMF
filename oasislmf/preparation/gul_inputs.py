@@ -170,6 +170,40 @@ def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_gr
     return group_id_cols
 
 
+BUILDING_LEVEL_GROUP_COLS = ('building_id', 'risk_id')
+
+
+def warn_if_building_group_cols_are_inert(damage_group_id_cols, hazard_group_id_cols, disaggregation):
+    """Warn when a building-level group field cannot do anything in the chosen mode.
+
+    Under ``samples`` a location keeps one item and ``building_id`` is pinned to 1, so a
+    building-level field is consumed by the hash and changes nothing. The buildings are already
+    independent -- each draws its own random block -- which is the opposite of what a reader of
+    the setting expects it to be arranging. Silence here is the dangerous outcome: the run
+    succeeds, the losses look reasonable, and a correlation assumption the modeller configured
+    has quietly stopped applying.
+
+    A warning rather than an error. The run is correct; it is the setting that has become
+    meaningless, and a model carrying it for ``items`` use must keep working.
+
+    Args:
+        damage_group_id_cols (list[str] | None): resolved damage group columns.
+        hazard_group_id_cols (list[str] | None): resolved hazard group columns.
+        disaggregation (str | None): the resolved disaggregation mode.
+    """
+    if disaggregation != DISAGGREGATION_SAMPLES:
+        return
+    for name, cols in (('damage', damage_group_id_cols), ('hazard', hazard_group_id_cols)):
+        inert = sorted(set(cols or ()).intersection(BUILDING_LEVEL_GROUP_COLS))
+        if inert:
+            warnings.warn(
+                f"{', '.join(inert)} in the {name} group fields has no effect under "
+                f"--disaggregation samples: a location keeps one item and its buildings already "
+                f"draw independently of each other. Use --disaggregation items to group on "
+                f"buildings, or --disaggregation none for buildings that move together."
+            )
+
+
 def resolve_zero_tiv_dependency_sources(gul_inputs_df, coverage_dependency_settings):
     """Mark zero-TIV coverages that must be kept because they drive a kept dependent.
 
@@ -477,6 +511,9 @@ def get_gul_input_items(
             pass
         elif col not in exposure_df_gul_inputs_cols:
             exposure_df_gul_inputs_cols.append(col)
+
+    # Both lists are resolved by here, so the mode can be checked against them once.
+    warn_if_building_group_cols_are_inert(damage_group_id_cols, hazard_group_id_cols, disaggregation)
 
     # Check if correlation group field is used to drive damage group id
     # and test that it's present and populated with integers

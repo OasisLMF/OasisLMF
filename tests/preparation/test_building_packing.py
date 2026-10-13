@@ -6,6 +6,7 @@ the building count in its own ``coverage_buildings`` file (one row per coverage)
 (gulmc/gulpy). It is no longer a separate side file.
 """
 import os
+import warnings
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
@@ -395,3 +396,40 @@ def test_building_count_check_is_inert_without_packing_or_dependency():
     validate_source_and_dependent_building_counts(
         pd.DataFrame({'item_id': [1, 2], 'source_item_id': [0, 0],
                       'number_of_buildings': [4, 9]}))                        # nothing linked
+
+
+class TestInertBuildingGroupColsWarn(TestCase):
+    """A building-level group field that cannot do anything must say so.
+
+    Under ``samples`` ``building_id`` is pinned to 1, so listing it is consumed by the hash and
+    changes nothing -- the buildings are already independent. A model carrying that setting for
+    ``items`` use goes on working, but the correlation assumption it encodes has stopped applying,
+    and nothing else in the run says so.
+    """
+
+    def _run(self, disaggregation, cols):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            get_gul_input_items(_one_loc(n=3, is_aggregate=1), _one_key(),
+                                damage_group_id_cols=list(cols), disaggregation=disaggregation)
+        return [str(w.message) for w in caught
+                if 'no effect under --disaggregation samples' in str(w.message)]
+
+    def test_samples_warns_for_a_building_level_group_field(self):
+        for col in ('building_id', 'risk_id'):
+            with self.subTest(col=col):
+                hits = self._run(DISAGGREGATION_SAMPLES, ['loc_id', col])
+                self.assertEqual(len(hits), 1, f'expected one warning for {col}, got {hits}')
+                self.assertIn(col, hits[0])
+                self.assertIn('--disaggregation items', hits[0])
+
+    def test_no_warning_where_the_field_still_works_or_was_not_asked_for(self):
+        """The half that keeps this from becoming noise."""
+        cases = [
+            (DISAGGREGATION_ITEMS, ['loc_id', 'building_id'], 'items: the field still splits them'),
+            (DISAGGREGATION_NONE, ['loc_id', 'building_id'], 'none: no building dimension at all'),
+            (DISAGGREGATION_SAMPLES, ['loc_id'], 'samples: nothing building-level was asked for'),
+        ]
+        for mode, cols, why in cases:
+            with self.subTest(reason=why):
+                self.assertEqual(self._run(mode, cols), [], why)
