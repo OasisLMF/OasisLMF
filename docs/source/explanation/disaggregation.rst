@@ -257,9 +257,9 @@ three modes, and every one of them conserves the location's total insured value.
 .. csv-table::
     :header: "Mode", "Items written", "TIV per item", "Where the buildings live"
 
-    "``none``", "one per location", "the whole location TIV", "nowhere — the buildings are implicitly perfectly correlated, so they need no dimension of their own"
-    "``items``", "one per building", "location TIV ÷ N", "one item row each"
-    "``samples`` (default)", "one per location", "location TIV ÷ N", "the sample dimension of that single item"
+    "``none``", "one per location", "the whole location TIV", "nowhere — one risk, so the buildings are implicitly perfectly correlated"
+    "``items``", "one per building", "location TIV ÷ N", "one item row each — fully correlated unless ``building_id``/``risk_id`` is in the group fields"
+    "``samples`` (default)", "one per location", "location TIV ÷ N", "the sample dimension of that single item — each building draws independently, and no group field changes that"
 
 For example, to model each location as a single risk regardless of its NumberOfBuildings:
 
