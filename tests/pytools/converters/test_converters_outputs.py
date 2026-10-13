@@ -95,6 +95,23 @@ def test_gul():
     case_runner("csvtobin", "gul", "misc", "raw_guls", abnormal_dtype=True, stream_type=2, max_sample_index=1)
 
 
+def test_gul_tobin_rejects_invalid_stream_type():
+    # ktools only ever wrote stream_type 1 or 2; any other value overflows the int32
+    # stream_info bit-shift (stream_type << 24) deep inside gul_tobin with a cryptic
+    # OverflowError instead of a clear, actionable message.
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "in.csv").write_text("event_id,item_id,sidx,loss\n1,1,1,1.0\n")
+        with pytest.raises(OasisException, match="stream_type must be 1 or 2, got 300"):
+            csvtobin(Path(tmp, "in.csv"), Path(tmp, "out.bin"), "gul", stream_type=300, max_sample_index=10)
+
+
+def test_fm_tobin_rejects_invalid_stream_type():
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "in.csv").write_text("event_id,output_id,sidx,loss\n1,1,1,1.0\n")
+        with pytest.raises(OasisException, match="stream_type must be 1 or 2, got 300"):
+            csvtobin(Path(tmp, "in.csv"), Path(tmp, "out.bin"), "fm", stream_type=300, max_sample_index=10)
+
+
 def test_summarycalc():
     case_runner("csvtobin", "summarycalc", "misc", "summary", abnormal_dtype=True, summary_set_id=1, max_sample_index=100)
 
