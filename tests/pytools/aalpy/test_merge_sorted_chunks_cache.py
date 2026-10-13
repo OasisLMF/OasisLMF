@@ -40,5 +40,5 @@ def test_jitted_consumer_compiles_against_warm_cache(tmp_path):
     env = {**os.environ, "NUMBA_CACHE_DIR": str(tmp_path / "numba_cache")}
 
     for run in ("cold", "warm"):
-        result = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True)
+        result = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True, timeout=300)
         assert result.returncode == 0, f"{run} run failed:\n{result.stderr[-3000:]}"
