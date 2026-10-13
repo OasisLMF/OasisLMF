@@ -1,6 +1,8 @@
 # plt/manager.py
 
 import logging
+from math import sqrt
+
 import numpy as np
 import numba as nb
 from contextlib import ExitStack
@@ -270,7 +272,7 @@ def read_buffer(
                 diff = np.float64(l) - meanloss
                 sum_sq_dev += diff * diff
             variance = sum_sq_dev / np.float64(n - 1)
-            sdloss = np.sqrt(variance)
+            sdloss = sqrt(variance)   # scalar, so math.sqrt rather than np.sqrt
         else:
             sdloss = np.float64(0.0)
         return meanloss, sdloss
