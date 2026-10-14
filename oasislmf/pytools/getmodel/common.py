@@ -61,6 +61,20 @@ EventIndexBinZ_dtype = np.dtype([
 ])
 EventIndexBinZ = nb.from_dtype(EventIndexBinZ_dtype)
 
+VulnerabilityIndex_dtype = np.dtype([
+    ('vulnerability_id', np.int32),
+    ('offset', np.int64),
+    ('size', np.int64),
+    ('original_size', np.int64)
+])
+
+VulnerabilityRow_dtype = np.dtype([
+    ('intensity_bin_id', np.int32),
+    ('damage_bin_id', np.int32),
+    ('probability', oasis_float)
+])
+vuln_offset = 4
+
 Index_type = nb.from_dtype(np.dtype([('start', np.int64),
                                      ('end', np.int64)
                                      ]))

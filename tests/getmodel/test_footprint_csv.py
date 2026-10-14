@@ -6,7 +6,7 @@ import pandas as pd
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
-from oasislmf.pytools.getmodel.footprint import Footprint, FootprintBin, FootprintCsv
+from oasislmf.pytools.getmodel.footprint import Footprint, FootprintBin, FootprintBinZ, FootprintCsv
 
 footprints_path = Path(__file__).resolve().parent / "footprints"
 
@@ -43,5 +43,23 @@ def test_footprint_bin_handles_zero_event_footprint():
         assert idx_path.stat().st_size == 0
 
         with FootprintBin(LocalStorage(tmp)) as footprint:
+            assert len(footprint.footprint_index) == 0
+            assert footprint.get_event(1) is None
+
+
+def test_footprint_binz_handles_zero_event_footprint():
+    """FootprintBin.__enter__ guards against a 0-byte footprint.idx (a footprint with zero
+    events), but FootprintBinZ.__enter__ -- the compressed-format reader -- had no such guard,
+    so a zero-event footprint.idx.z crashed np.memmap even though the uncompressed path was
+    already fixed."""
+    with TemporaryDirectory() as tmp:
+        csv_path = Path(tmp, "footprint.csv")
+        csv_path.write_text("event_id,areaperil_id,intensity_bin_id,probability\n")
+        bin_path, idx_path = Path(tmp, "footprint.bin.z"), Path(tmp, "footprint.idx.z")
+        csvtobin(csv_path, bin_path, "footprint", idx_file_out=idx_path, max_intensity_bin_idx=1,
+                 no_intensity_uncertainty=True, decompressed_size=False, no_validation=False, zip_files=True)
+        assert idx_path.stat().st_size == 0
+
+        with FootprintBinZ(LocalStorage(tmp)) as footprint:
             assert len(footprint.footprint_index) == 0
             assert footprint.get_event(1) is None

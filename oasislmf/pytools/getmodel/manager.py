@@ -41,7 +41,10 @@ from oasislmf.pytools.common.id_index import (
     NOT_FOUND as ID_INDEX_NOT_FOUND,
 )
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.common import Index_type, zvulnerability_filename, zvulnerability_index_filename
+from oasislmf.pytools.getmodel.common import (
+    Index_type, zvulnerability_filename, zvulnerability_index_filename,
+    VulnerabilityIndex_dtype, VulnerabilityRow_dtype, vuln_offset,
+)
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.ping import oasis_ping
@@ -59,21 +62,8 @@ areaperil_int_relative_size = areaperil_int_size // oasis_int_size
 oasis_float_relative_size = oasis_float_size // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
-VulnerabilityIndex_dtype = np.dtype([
-    ('vulnerability_id', np.int32),
-    ('offset', np.int64),
-    ('size', np.int64),
-    ('original_size', np.int64)
-])
 VulnerabilityIndex = nb.from_dtype(VulnerabilityIndex_dtype)
-
-VulnerabilityRow_dtype = np.dtype([
-    ('intensity_bin_id', np.int32),
-    ('damage_bin_id', np.int32),
-    ('probability', oasis_float)
-])
 VulnerabilityRow = nb.from_dtype(VulnerabilityRow_dtype)
-vuln_offset = 4
 
 
 @nb.njit(cache=True)
@@ -531,10 +521,15 @@ def decompress_vulns_bin_idx(storage, bin_filename, vulns_idx_bin, vuln_ids_set)
     vulns_bin_bytes = vulns_bin.view(np.uint8)
 
     out_offset = 0
-    with storage.open(bin_filename, 'rb') as f:
+    # with_fileno downloads the file to local disk once up front (unlike storage.open, which on
+    # a remote backend issues a separate HTTP range request per seek+read below -- one per needed
+    # vulnerability), so every seek/read after this is local.
+    with storage.with_fileno(bin_filename) as f:
+        bin_mmap = np.memmap(f, dtype=np.uint8, mode='r')
         for i in range(len(needed_idx)):
-            f.seek(int(needed_idx['offset'][i]))
-            data = zlib.decompress(f.read(int(needed_idx['size'][i])))
+            offset = int(needed_idx['offset'][i])
+            size = int(needed_idx['size'][i])
+            data = zlib.decompress(bin_mmap[offset:offset + size].tobytes())
             if len(data) != needed_idx['original_size'][i]:
                 raise Exception(
                     f"vulnerability_id {needed_idx['vulnerability_id'][i]} decompressed to {len(data)} bytes in "

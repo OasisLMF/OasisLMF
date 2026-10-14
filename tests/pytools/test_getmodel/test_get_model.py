@@ -540,6 +540,38 @@ class TestGetVulns(TestCase):
         with self.assertRaisesRegex(Exception, "bigger that expected maximum"):
             vulnerability_to_parquet(run_dir)
 
+    def test_vulnerability_to_parquet_reads_zipped_pair(self):
+        """vulnerability_to_parquet hardcoded vulnerability.bin and had no zlib/.z-detection
+        logic at all, unlike get_vulns (which get_vulns now reads per #2176) or the bintocsv
+        vulnerability reader. A model shipping only the zipped vulnerability.bin.z/.idx.z pair
+        couldn't be converted to parquet at all."""
+        import zlib
+        from oasislmf.pytools.getmodel.common import (
+            VulnerabilityIndex_dtype, VulnerabilityRow_dtype, zvulnerability_filename, zvulnerability_index_filename,
+        )
+
+        run_dir = os.path.join(self.temp_dir, 'zipped')
+        os.makedirs(run_dir)
+        with open(os.path.join(run_dir, zvulnerability_filename), 'wb') as f:
+            f.write(np.array([2], dtype='i4').tobytes())  # header: max_damage_bin_idx=2
+            offset = 4
+            idx_rows = []
+            for vid, rows in [(1, [(1, 1, 0.3), (1, 2, 0.7)]), (2, [(1, 1, 0.5), (1, 2, 0.5), (2, 1, 1.0)])]:
+                arr = np.array(rows, dtype=VulnerabilityRow_dtype)
+                comp = zlib.compress(arr.tobytes())
+                f.write(comp)
+                idx_rows.append((vid, offset, len(comp), arr.nbytes))
+                offset += len(comp)
+        np.array(idx_rows, dtype=VulnerabilityIndex_dtype).tofile(os.path.join(run_dir, zvulnerability_index_filename))
+
+        vulnerability_to_parquet(run_dir)
+
+        import pyarrow.parquet as pq
+        table = pq.read_table(os.path.join(run_dir, 'vulnerability_dataset.parquet', 'part_0.parquet')).to_pandas()
+        self.assertEqual(list(table['vulnerability_id']), [1, 2])
+        np.testing.assert_allclose(table['vuln_array'][0], [0.3, 0.0, 0.7, 0.0])
+        np.testing.assert_allclose(table['vuln_array'][1], [0.5, 1.0, 0.5, 0.0])
+
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
 

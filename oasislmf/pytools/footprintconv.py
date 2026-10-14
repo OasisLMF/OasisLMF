@@ -26,9 +26,13 @@ def compress_footprint(static_path, decompressed_size=True, compression_level=-1
         input_index_dtype = EventIndexBinZ if input_has_d_size else EventIndexBin
 
         if decompressed_size:
-            footprint_header['has_intensity_uncertainty'] |= 2  # set compressed byte of has_intensity_uncertainty to 1
+            footprint_header['has_intensity_uncertainty'] |= uncompressedMask
             index_dtype = EventIndexBinZ
         else:
+            # The output index is written without d_size below; clear the bit even if the input
+            # file had it set (e.g. written by csvtobin -d without -z), or the output header would
+            # claim 28-byte entries while the index actually written uses 20-byte ones.
+            footprint_header['has_intensity_uncertainty'] &= ~uncompressedMask
             index_dtype = EventIndexBin
 
         zfootprint_obj = stack.enter_context(open(os.path.join(static_path, zfootprint_filename), 'wb'))

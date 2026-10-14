@@ -466,6 +466,30 @@ def test_bintocsv_footprint_detects_zip_data_saved_under_uncompressed_names(capl
         assert Path(tmp, "out.csv").read_text() == "event_id,areaperil_id,intensity_bin_id,probability\n1,1,1,1.000000\n"
 
 
+def test_bintocsv_footprint_rejects_mismatched_d_size_in_zip_path():
+    """When the index's d_size understates an event's real decompressed length, the pre-allocated
+    buffer (sized from the index's own max d_size) was too small, so numpy's field assignment
+    raised a bare 'could not broadcast' ValueError instead of a clear, actionable OasisException."""
+    with TemporaryDirectory() as tmp:
+        csv_path = Path(tmp, "footprint.csv")
+        csv_path.write_text(
+            "event_id,areaperil_id,intensity_bin_id,probability\n"
+            "1,1,1,1.0\n"
+            "2,1,1,0.2\n2,1,2,0.2\n2,1,3,0.2\n2,1,4,0.2\n2,1,5,0.2\n"
+        )
+        bin_path, idx_path = Path(tmp, "footprint.bin.z"), Path(tmp, "footprint.idx.z")
+        csvtobin(csv_path, bin_path, "footprint", idx_file_out=idx_path, max_intensity_bin_idx=5,
+                 no_intensity_uncertainty=True, decompressed_size=True, no_validation=True, zip_files=True)
+
+        idx = np.fromfile(idx_path, dtype=EventIndexBinZ_dtype)
+        idx["d_size"][1] = idx["d_size"][0]  # event 2's real size is understated as event 1's (smaller)
+        idx.tofile(idx_path)
+
+        with pytest.raises(OasisException, match="event_id 2 decompressed to .* expected d_size"):
+            bintocsv(bin_path, Path(tmp, "out.csv"), "footprint", noheader=False,
+                     idx_file_in=idx_path, zip_files=True, event_from_to=None)
+
+
 def test_bintocsv_footprint_rejects_footprint_file_too_short_for_header():
     """An empty or near-empty footprint.bin (e.g. empty stdin) used to fail inside
     _get_index_dtype with a bare 'can only convert an array of size 1 to a Python scalar'."""
@@ -590,6 +614,29 @@ def test_footprint_still_rejects_genuinely_bad_probability_sum():
     with TemporaryDirectory() as tmp:
         Path(tmp, "bad.csv").write_text(csv)
         with pytest.raises(OasisException, match="Probabilities do not sum to 1"):
+            csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "footprint", idx_file_out=Path(tmp, "bad.idx"),
+                     max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
+                     no_validation=False, zip_files=False)
+
+
+def test_footprint_still_rejects_bad_probability_sum_ending_exactly_at_chunk_boundary():
+    # _check_prob_sums returned bad_idx=i-1 for a group ending mid-chunk. When that group's last
+    # row was itself the last row of the *previous* chunk, i=0 on this chunk's first (new) group,
+    # so i-1 collided with -1 -- the function's own "no error" sentinel -- silently accepting a
+    # group that only summed to 0.8.
+    csv = (
+        "event_id,areaperil_id,intensity_bin_id,probability\n"
+        "1,1,1,0.5\n1,1,2,0.3\n"  # group (1,1) ends here (chunk boundary below), sums to 0.8 -- bad
+        "2,1,1,1.0\n"             # new group starts at chunk 2's row 0
+    )
+
+    def small_chunks(stack, file_in, dtype):
+        return iter_csv_as_ndarray(stack, file_in, dtype, chunksize=2)
+
+    with TemporaryDirectory() as tmp, mock.patch(
+            "oasislmf.pytools.converters.csvtobin.utils.footprint.iter_csv_as_ndarray", small_chunks):
+        Path(tmp, "bad.csv").write_text(csv)
+        with pytest.raises(OasisException, match="Probabilities do not sum to 1 for group ending at row 1"):
             csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "footprint", idx_file_out=Path(tmp, "bad.idx"),
                      max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
                      no_validation=False, zip_files=False)

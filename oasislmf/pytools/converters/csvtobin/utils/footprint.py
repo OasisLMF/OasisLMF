@@ -23,6 +23,7 @@
 # no_validation=True skips step 1 and writes events in whatever order they appear in the
 # CSV — the caller is responsible for ensuring the input is sorted by (event_id, areaperil_id).
 
+import logging
 import zlib
 import numba as nb
 import numpy as np
@@ -32,6 +33,10 @@ from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarra
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype, EventIndexBinZ_dtype
 from oasislmf.utils.exceptions import OasisException
+
+# Named explicitly (not __name__) to share csvtobin.manager's logger -- the one cli.py configures
+# -- without importing manager.py here, which would be circular (manager.py imports this module).
+logger = logging.getLogger("oasislmf.pytools.converters.csvtobin.manager")
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -61,6 +66,10 @@ def _check_prob_sums(event_ids, areaperil_ids, probs,
     """Incremental probability sum check assuming sorted data.
     Returns (bad_idx, last_event_id, last_areaperil_id, running_sum).
     bad_idx=-1 means valid; the final group is not finalised here — check after last chunk.
+    bad_idx=-2 means the bad group ended on the last row of the *previous* chunk (so the row
+    itself isn't in this chunk's arrays) — the caller reports it as row_offset - 1. Kept distinct
+    from -1 so this case can't collide with "valid": i - 1 would otherwise be -1 too when the new
+    group starts at i=0, silently passing a bad group whose last row fell on a chunk boundary.
 
     atol/rtol match np.isclose's defaults (target is always 1.0, so the combined tolerance is
     just atol + rtol): this is the tolerance #1693 used before #1947's streaming rewrite dropped
@@ -80,7 +89,8 @@ def _check_prob_sums(event_ids, areaperil_ids, probs,
             # NaN comparisons are always False, so "> atol" alone would silently accept a NaN
             # probability (e.g. from a blank CSV field) instead of flagging it as unresolved.
             if not (abs(running_sum - 1.0) <= atol + rtol):
-                return np.int64(i - 1), prev_event_id, prev_areaperil_id, running_sum
+                bad_idx = np.int64(i - 1) if i > 0 else np.int64(-2)
+                return bad_idx, prev_event_id, prev_areaperil_id, running_sum
             running_sum = np.float64(probs[i])
             prev_event_id = event_ids[i]
             prev_areaperil_id = areaperil_ids[i]
@@ -139,7 +149,12 @@ def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk, row_offset,
         event_ids, areaperil_ids, np.ascontiguousarray(chunk["probability"]),
         prev_prob_event, prev_prob_areaperil, running_sum, first_chunk,
     )
-    if bad_idx != -1:
+    if bad_idx == -2:
+        raise OasisException(
+            f"Probabilities do not sum to 1 for group ending at row {row_offset - 1}: "
+            f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"
+        )
+    elif bad_idx != -1:
         raise OasisException(
             f"Probabilities do not sum to 1 for group ending at row {row_offset + bad_idx}: "
             f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"
@@ -200,8 +215,6 @@ def footprint_tobin(
     decompressed_size,
     no_validation
 ):
-    from oasislmf.pytools.converters.csvtobin.manager import logger
-
     dtype = TOOL_INFO[file_type]["dtype"]
 
     # The runtime looks for zipped footprints as footprint.bin.z / footprint.idx.z
