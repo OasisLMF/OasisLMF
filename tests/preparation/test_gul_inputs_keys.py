@@ -57,16 +57,24 @@ def test_rows_differing_only_in_section_are_combined(caplog):
 
 
 def test_rows_differing_in_areaperil_warn_and_keep_the_first(caplog):
-    keys = make_keys([(1, 1, 10, 1, 1), (1, 1, 12, 1, 2), (2, 1, 11, 1, 3)])
+    keys = make_keys([(1, 1, 10, 1, 1), (1, 1, 12, 1, 2), (1, 1, 10, 1, 4), (2, 1, 11, 1, 3)])
     with caplog.at_level(logging.WARNING, logger='oasislmf.preparation.gul_inputs'):
         gul_inputs = get_gul_input_items(make_exposure(), keys)
 
     assert gul_inputs['areaperil_id'].tolist() == [10, 11]
-    assert sections_of(gul_inputs) == [1, 2, 3]
+    assert gul_inputs['section_id'].astype(str).tolist() == ['1;4', '3']
+    assert sections_of(gul_inputs) == [1, 3, 4]
     assert len(caplog.records) == 1
     message = caplog.records[0].getMessage()
     assert '1 item(s)' in message
     assert 'loc_id 1 peril WTC coverage type 1 building 1: differing areaperil_id' in message
+
+
+@pytest.mark.parametrize('bad_section', ['A', float('nan')])
+def test_invalid_section_on_item_with_several_rows_raises(bad_section):
+    keys = make_keys([(1, 1, 10, 1, bad_section), (1, 1, 10, 1, 2), (2, 1, 11, 1, 3)])
+    with pytest.raises(OasisException, match=r"section_id value\(s\) are missing or not integers.*item 1"):
+        get_gul_input_items(make_exposure(), keys)
 
 
 def test_keys_columns_are_matched_case_insensitively():
