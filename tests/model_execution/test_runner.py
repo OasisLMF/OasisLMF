@@ -283,6 +283,25 @@ class TestDisableResourceReport(TestCase):
         self.assertFalse(monitor_cls.call_args.kwargs['enabled'])
         self.assertNotIn('disable_resource_report', create_bash.call_args.kwargs)
 
+    def _run_single_script(self, **extra):
+        proc = mock.Mock(pid=123, returncode=0)
+        proc.communicate.return_value = (b'', None)
+        with TemporaryDirectory() as tmp_dir, \
+                patch('oasislmf.execution.runner.genbash') as genbash, \
+                patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc), \
+                patch('oasislmf.execution.runner.ResourceMonitor') as monitor_cls:
+            runner.run({}, filename=os.path.join(tmp_dir, 'run_kernel.sh'), **extra)
+        return monitor_cls, genbash
+
+    def test_run_monitor_enabled_by_default(self):
+        monitor_cls, _ = self._run_single_script()
+        self.assertTrue(monitor_cls.call_args.kwargs['enabled'])
+
+    def test_run_flag_disables_monitor(self):
+        monitor_cls, genbash = self._run_single_script(disable_resource_report=True)
+        self.assertFalse(monitor_cls.call_args.kwargs['enabled'])
+        self.assertNotIn('disable_resource_report', genbash.call_args.kwargs)
+
 
 class TestResourceMonitorDisabled(TestCase):
     def test_disabled_monitor_writes_no_csv_or_report(self):
