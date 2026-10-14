@@ -27,6 +27,7 @@ SCRIPT = textwrap.dedent("""
     chunk["summary_id"] = [1, 2, 3]
     memmaps = [chunk]
 
+    # Must run before count_rows: loading from cache first is what triggers #1970.
     assert len(list(merge_sorted_chunks(memmaps))) == 3
     assert count_rows(memmaps) == 3
 """)
