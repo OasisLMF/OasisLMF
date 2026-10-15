@@ -2,7 +2,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-DEFAULT_ROW_GROUP_SIZE = 100_000
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE
 
 
 class BufferedParquetWriter:
@@ -11,10 +11,10 @@ class BufferedParquetWriter:
     Args:
         file_path (str | os.PathLike): Output parquet file path.
         dtype (np.dtype): Structured numpy dtype of the rows to write.
-        row_group_size (int): Number of rows per row group. Defaults to DEFAULT_ROW_GROUP_SIZE.
+        row_group_size (int): Number of rows per row group. Defaults to DEFAULT_BUFFER_SIZE.
     """
 
-    def __init__(self, file_path, dtype, row_group_size=DEFAULT_ROW_GROUP_SIZE):
+    def __init__(self, file_path, dtype, row_group_size=DEFAULT_BUFFER_SIZE):
         self.schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
         self.writer = pq.ParquetWriter(file_path, self.schema)
         self.buffer = np.empty(row_group_size, dtype=dtype)
