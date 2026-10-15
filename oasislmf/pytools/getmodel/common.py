@@ -21,6 +21,8 @@ parquetfootprint_chunked_lookup = 'footprint_lookup.parquet'
 footprint_bin_lookup = 'footprint_lookup.bin'
 footprint_csv_lookup = 'footprint_lookup.csv'
 parquetfootprint_meta_filename = 'footprint_parquet_meta.json'
+zvulnerability_filename = 'vulnerability.bin.z'
+zvulnerability_index_filename = 'vulnerability.idx.z'
 event_defintion_filename = 'event_definition.parquet'
 hazard_case_filename = 'hazard_case.parquet'
 
@@ -58,6 +60,20 @@ EventIndexBinZ_dtype = np.dtype([
     ('d_size', np.int64)
 ])
 EventIndexBinZ = nb.from_dtype(EventIndexBinZ_dtype)
+
+VulnerabilityIndex_dtype = np.dtype([
+    ('vulnerability_id', np.int32),
+    ('offset', np.int64),
+    ('size', np.int64),
+    ('original_size', np.int64)
+])
+
+VulnerabilityRow_dtype = np.dtype([
+    ('intensity_bin_id', np.int32),
+    ('damage_bin_id', np.int32),
+    ('probability', oasis_float)
+])
+vuln_offset = 4
 
 Index_type = nb.from_dtype(np.dtype([('start', np.int64),
                                      ('end', np.int64)

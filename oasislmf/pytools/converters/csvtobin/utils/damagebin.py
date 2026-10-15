@@ -1,8 +1,13 @@
+import logging
 import numpy as np
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.gulmc.common import VALID_DAMAGE_TYPE
 from oasislmf.utils.exceptions import OasisException
+
+# Named explicitly (not __name__) to share csvtobin.manager's logger -- the one cli.py configures
+# -- without importing manager.py here, which would be circular (manager.py imports this module).
+logger = logging.getLogger("oasislmf.pytools.converters.csvtobin.manager")
 
 
 def _validate_chunk(data, logger, first_chunk, prev_last_bin_index, row_offset):
@@ -53,11 +58,10 @@ def _validate_chunk(data, logger, first_chunk, prev_last_bin_index, row_offset):
             f"Row {row_offset + i}: damage_type={val}, damage_type must be in {VALID_DAMAGE_TYPE}"
             for i, val in zip(invalid_indices, invalid_values)
         )
-        logger.warning(f"Error: Invalid damage_type values found:\n{warning_msg}")
+        logger.warning(f"Warning: Invalid damage_type values found:\n{warning_msg}")
 
 
 def damagebin_tobin(stack, file_in, file_out, file_type, no_validation):
-    from oasislmf.pytools.converters.csvtobin.manager import logger
     dtype = TOOL_INFO[file_type]["dtype"]
 
     first_chunk = True
