@@ -504,3 +504,130 @@ def test_geog_lookup_sparse_and_null_slots():
     result = fct(locations)
     assert result["w3w"].tolist()[:2] == ["a.b.c", "d.e.f"]
     assert pd.isna(result["w3w"].iloc[2])
+
+
+@pytest.fixture
+def vulnerability_dict_path(tmp_path):
+    """A vulnerability dict reused from a French model: it still carries the FR
+    'countrycode' it was built with, which German locations won't match on."""
+    path = tmp_path / "vulnerability_dict.csv"
+    pd.DataFrame({
+        "peril_id": ["WTC", "WTC"],
+        "coverage_type": [1, 3],
+        "occupancycode": [1000, 1000],
+        "countrycode": ["FR", "FR"],
+        "vulnerability_id": [10, 30],
+    }).to_csv(path, index=False)
+    return path
+
+
+def _strict_columns_config(vulnerability_dict_path, strict_columns, strategy=("areaperil", "vulnerability")):
+    return {
+        "strategy": list(strategy),
+        "step_definition": {
+            "areaperil": {
+                "type": "prepare",
+                "columns": ["countrycode"],
+                "parameters": {"area_peril_id": {"default": 1}},
+            },
+            "vulnerability": {
+                "type": "merge",
+                "columns": ["peril_id", "coverage_type", "occupancycode"],
+                "strict_columns": strict_columns,
+                "parameters": {
+                    "file_path": str(vulnerability_dict_path),
+                    "file_type": "csv",
+                    "id_columns": ["vulnerability_id"],
+                },
+            },
+        },
+    }
+
+
+@pytest.fixture
+def german_locations():
+    return pd.DataFrame({
+        "loc_id": [1, 2],
+        "peril_id": ["WTC", "WTC"],
+        "coverage_type": [1, 3],
+        "occupancycode": [1000, 1000],
+        "countrycode": ["DE", "DE"],
+    })
+
+
+def test_process_locations_without_strict_columns_leaks_columns_across_steps(vulnerability_dict_path, german_locations):
+    """Without strict_columns, the merge step also sees 'countrycode' (needed by the
+    'areaperil' step), so pandas.merge implicitly joins on it too and nothing matches."""
+    config = _strict_columns_config(vulnerability_dict_path, strict_columns=False)
+    result = Lookup(config=config).process_locations(german_locations)
+    assert (result["vulnerability_id"] == OASIS_UNKNOWN_ID).all()
+
+
+def test_process_locations_strict_columns_scopes_step_to_its_own_columns(vulnerability_dict_path, german_locations):
+    """With strict_columns, the merge step only sees the columns it declared, so the dict
+    file's leftover 'countrycode' is never used as an implicit join key and the merge succeeds."""
+    config = _strict_columns_config(vulnerability_dict_path, strict_columns=True)
+    result = Lookup(config=config).process_locations(german_locations)
+    assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, 30]
+    # the 'areaperil' step still had access to its own declared column
+    assert (result["area_peril_id"] == 1).all()
+    assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()
+
+
+def test_process_locations_strict_columns_restores_hidden_columns_for_later_steps(vulnerability_dict_path, german_locations):
+    """The dict file's own 'countrycode' (FR) must not clash with the hidden locations
+    'countrycode' (DE) when reassembling, so a later step can still use the original column."""
+    config = _strict_columns_config(vulnerability_dict_path, strict_columns=True, strategy=["vulnerability", "areaperil"])
+    lookup = Lookup(config=config)
+    seen = {}
+    areaperil = lookup.set_step_function("areaperil", config["step_definition"]["areaperil"])
+
+    def spy(locations):
+        seen["countrycode"] = locations["countrycode"].tolist()
+        return areaperil(locations)
+    lookup.areaperil = spy
+
+    result = lookup.process_locations(german_locations)
+    assert seen["countrycode"] == ["DE", "DE"]
+    assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, 30]
+    assert (result["area_peril_id"] == 1).all()
+
+
+def test_process_locations_strict_columns_applies_to_combine_children(vulnerability_dict_path, german_locations):
+    config = _strict_columns_config(vulnerability_dict_path, strict_columns=True)
+    config["step_definition"]["vulnerability_fr_dict"] = config["step_definition"].pop("vulnerability")
+    config["step_definition"]["vulnerability"] = {
+        "type": "combine",
+        "columns": ["peril_id", "coverage_type", "occupancycode"],
+        "parameters": {"id_columns": ["vulnerability_id"], "strategy": ["vulnerability_fr_dict"]},
+    }
+    result = Lookup(config=config).process_locations(german_locations)
+    assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, 30]
+    assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()
+
+
+def test_combine_skips_child_whose_own_columns_are_missing():
+    """A combine child is skipped when the columns *it* declares are absent from the
+    exposure, so the next child can act as a fallback (rather than the child crashing)."""
+    class PostcodeLookup(Lookup):
+        def build_by_postcode(self):
+            return lambda locations: locations.assign(
+                vulnerability_id=locations["postalcode"].map({"AB1": 5}).fillna(OASIS_UNKNOWN_ID).astype(int))
+
+    config = {
+        "strategy": ["areaperil", "vulnerability"],
+        "step_definition": {
+            "areaperil": {"type": "prepare", "parameters": {"area_peril_id": {"default": 1}}},
+            "vulnerability": {
+                "type": "combine",
+                "columns": ["peril_id", "coverage_type"],
+                "parameters": {"id_columns": ["vulnerability_id"], "strategy": ["by_postcode", "fallback"]},
+            },
+            "by_postcode": {"type": "by_postcode", "columns": ["postalcode"], "parameters": {}},
+            "fallback": {"type": "prepare", "columns": ["peril_id"], "parameters": {"vulnerability_id": {"default": 7}}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no PostalCode
+    result = PostcodeLookup(config=config).process_locations(locations)
+    assert result["vulnerability_id"].tolist() == [7]
+    assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()

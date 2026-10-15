@@ -44,6 +44,7 @@ try:  # needed for h3 lookup
 except ImportError:
     h3 = h3_int = None
 
+import functools
 import logging
 import math
 import re
@@ -309,6 +310,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     - **columns**: the columns required to apply the step. These matter because any column
       (except ``loc_id``) from the original Locations DataFrame that is not used by any step is
       dropped to reduce memory consumption.
+    - **strict_columns** (optional, default ``False``): if ``True``, the step only sees its own
+      declared ``columns`` (plus a small set of pipeline columns such as ``loc_id``, ``status``,
+      ``message`` and any key columns already produced by earlier steps) instead of every column
+      requested across all steps. Use this to stop a step's implicit-merge-key behaviour (e.g.
+      ``pandas.merge`` joining on any column name shared with the lookup data file) from picking
+      up a column that another step needs but this one doesn't — for example reusing a
+      ``vulnerability_dict.parquet`` from one country on another model without also matching on
+      its leftover ``CountryCode`` column. Columns hidden from the step are restored afterwards
+      with their original values, even if the step itself produced a column of the same name.
+      This also applies to steps used as children of a ``combine`` step.
     - **parameters**: the parameters passed to the function factory.
 
     Once all the functions have been defined, the order in which they are applied is set in the
@@ -382,16 +393,56 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
                 functions = []
                 for child_step_name in step_config["parameters"]['strategy']:
+                    child_step_config = self.config['step_definition'][child_step_name]
                     child_fct = self.set_step_function(
                         step_name=child_step_name,
-                        step_config=self.config['step_definition'][child_step_name],
+                        step_config=child_step_config,
                         function_being_set=function_being_set)
-                    functions.append({'function': child_fct, 'columns': set(step_config.get("columns", []))})
+                    if child_step_config.get('strict_columns', False):
+                        child_fct = functools.partial(self._call_step, child_fct, child_step_config)
+                    functions.append({'function': child_fct, 'columns': set(child_step_config.get("columns", []))})
                 step_config['parameters']['strategy'] = functions
 
             step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
             setattr(self, step_name, step_function)
         return step_function
+
+    # the fixed set of output columns process_locations produces; also doubles as the set of
+    # columns that must keep flowing to later steps even when a step is scoped down with
+    # "strict_columns", regardless of whether that step itself declared them
+    _KEY_COLUMNS = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
+    _ADDITIONAL_COLUMNS = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
+    # internal column used to reassemble the full locations DataFrame after a step has only
+    # been given a restricted view of it (see "strict_columns")
+    _STRICT_ROW_ID = '__strict_row_id__'
+
+    def _call_step(self, step_function, step_config, locations):
+        """Call a step function, optionally restricting the columns it can see to those it
+        declared in ``columns`` (plus a few pipeline columns that must always survive) when the
+        step config sets ``strict_columns``. This stops the step from being affected by columns
+        it never asked for that another step needs, e.g. an implicit ``pandas.merge`` join key.
+        """
+        if not step_config.get('strict_columns', False):
+            return step_function(locations)
+
+        visible_columns = (set(step_config.get("columns", [])) | {'loc_id', 'status', 'message'}
+                           | set(self._KEY_COLUMNS + self._ADDITIONAL_COLUMNS))
+        view_columns = [col for col in locations.columns if col in visible_columns]
+        other_columns = [col for col in locations.columns if col not in visible_columns]
+        if not other_columns:
+            return step_function(locations)
+
+        locations = locations.assign(**{self._STRICT_ROW_ID: np.arange(len(locations))})
+        result = step_function(locations[view_columns + [self._STRICT_ROW_ID]])
+        if self._STRICT_ROW_ID not in result.columns:
+            raise OasisException(
+                f"Key Server Issue: step with strict_columns dropped the internal column {self._STRICT_ROW_ID}, "
+                "so the columns hidden from it cannot be restored")
+        # hidden columns keep their original values: drop any same-named column the step produced
+        # (e.g. a leftover column pulled in from a merge file) so the merge back doesn't add suffixes
+        result = result.drop(columns=[col for col in other_columns if col in result.columns])
+        result = result.merge(locations[[self._STRICT_ROW_ID] + other_columns], on=self._STRICT_ROW_ID, how='left')
+        return result.drop(columns=self._STRICT_ROW_ID)
 
     def process_locations(self, locations):
         missing = [key for key in ('step_definition', 'strategy') if not self.config.get(key)]
@@ -423,14 +474,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 raise OasisException(
                     f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             step_function = self.set_step_function(step_name, step_config)
-            locations = step_function(locations)
+            locations = self._call_step(step_function, step_config, locations)
 
-        key_columns = [
-            'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
-            'vulnerability_id', 'status', 'message'
-        ]
-        additional_columns = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
-        for col in additional_columns:
+        key_columns = list(self._KEY_COLUMNS)
+        for col in self._ADDITIONAL_COLUMNS:
             if col in locations.columns:
                 key_columns += [col]
 
