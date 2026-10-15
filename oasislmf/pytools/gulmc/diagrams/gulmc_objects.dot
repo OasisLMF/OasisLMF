@@ -1,0 +1,53 @@
+// The arrays gulmc computes over, and what flows between them.
+// Render: dot -Tsvg gulmc_objects.dot -o gulmc_objects.svg
+digraph gulmc_objects {
+    rankdir=TB;
+    bgcolor="transparent";
+    nodesep=0.35; ranksep=0.5;
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+          fillcolor="#eef3fb", color="#4a6fa5"];
+    edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+    subgraph cluster_static {
+        label="built once, from the input files"; labelloc=b;
+        fontname="Helvetica"; fontsize=10; color="#888888"; style=dashed;
+        items [label="items  [N_items]\litem_id, coverage_id, areaperil_id, vulnerability_id\lgroup_id, hazard_group_id, source_item_id\lpacked_buildings  (SIGNED)\l",
+               fillcolor="#fdf0e0", color="#c8863c"];
+        coverages [label="coverages  [N_coverages]\ltiv, max_items\l"];
+        model [label="footprint / vulnerability / damage_bins"];
+    }
+
+    subgraph cluster_event {
+        label="rebuilt every event"; labelloc=b;
+        fontname="Helvetica"; fontsize=10; color="#888888"; style=dashed;
+        ied [label="items_event_data  [items present]\lrng_index, hazard_rng_index, eff_cdf_id\lsource_item_j, packed_buildings\l",
+             fillcolor="#fdf0e0", color="#c8863c"];
+        rnd [label="vuln_rndms_base / haz_rndms_base  [rng groups, S]\lone row of S per rng group (generators 0 and 1)\lnot built on generator 2, which draws per building on demand\l",
+             fillcolor="#fdf0e0", color="#c8863c"];
+    }
+
+    subgraph cluster_cov {
+        label="per coverage, reused"; labelloc=b;
+        fontname="Helvetica"; fontsize=10; color="#888888"; style=dashed;
+        losses [label="losses  [S + NUM_IDX + 1, max_items]\lonly the analytic rows are read by the writer:\lmean, std_dev, tiv, chance_of_loss, max_loss\l"];
+        bl [label="building_losses  [S, max_items, max_buildings]\lone column per building\l",
+            fillcolor="#fdf0e0", color="#c8863c"];
+        stack [label="source_damage_bin_stack\l[depth+1, max_items, max_source_buildings * S]\lcoverage dependency only\l"];
+    }
+
+    out [label="byte_mv  ->  output stream", fillcolor="#f2f2f2", color="#888888"];
+
+    items -> ied [label="  items present in this event"];
+    coverages -> ied [style=dotted, label="  grouped by coverage"];
+    items -> rnd [label="  one row per rng group"];
+    model -> losses [label="  CDFs -> analytic specials"];
+    rnd -> bl [label="  one building's block of S\l  -> one column\l", color="#b06000", fontcolor="#b06000", style=bold];
+    seeds_lazy [label="vuln_seeds / haz_seeds  [rng groups]\lPhilox keys; generator 2 draws\l_lh_philox_block(key, building) on demand\l",
+                fillcolor="#fdf0e0", color="#c8863c"];
+    seeds_lazy -> bl [label="  generator 2: no array at all\l", color="#b06000", fontcolor="#b06000"];
+    ied -> bl [style=dotted, label="  n_buildings = |packed_buildings|"];
+    bl -> stack [style=dotted, label="  sampled damage bin,\l  per building\l"];
+    stack -> bl [style=dotted, label="  drives a dependent's\l  matching building\l"];
+    losses -> out [label="  write_losses"];
+    bl -> out [label="  write_losses", color="#b06000", fontcolor="#b06000", style=bold];
+}

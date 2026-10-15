@@ -274,5 +274,4 @@ Output Stream (FM)
 ## Further Reading
 
 - [Technical Documentation](TECHNICAL.md) - Detailed implementation documentation
-- [FM Architecture](../fm_architecture.md) - High-level architecture overview
 - [OasisLMF Documentation](https://oasislmf.github.io/) - Full platform documentation

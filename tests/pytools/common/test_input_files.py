@@ -4,12 +4,16 @@ import pytest
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (
-    oasis_int, oasis_float, coverages_dtype, correlations_dtype, periods_dtype,
-    quantile_interval_dtype, returnperiods_dtype
+    oasis_int, oasis_float, coverages_dtype, COVERAGE_BUILDINGS_FILE,
+    coverage_buildings_dtype, coverage_buildings_headers,
+    correlations_dtype, correlations_fmt, correlations_headers,
+    periods_dtype, quantile_interval_dtype, returnperiods_dtype
 )
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as OCC_IDX_NOT_FOUND
 from oasislmf.pytools.common.input_files import (
     read_amplifications,
+    read_coverage_buildings,
     read_coverages,
     read_correlations,
     read_event_rates,
@@ -126,6 +130,121 @@ def test_read_correlations():
     np.testing.assert_array_almost_equal(damage_correlation_value_expected, damage_correlation_value_actual, decimal=3, verbose=True)
     np.testing.assert_array_almost_equal(hazard_group_id_expected, hazard_group_id_actual, decimal=3, verbose=True)
     np.testing.assert_array_almost_equal(hazard_correlation_value_expected, hazard_correlation_value_actual, decimal=3, verbose=True)
+
+
+def _write_correlations_bin(run_dir, num_items):
+    """Write a well-formed correlations.bin holding ``num_items`` records."""
+    correlations = np.zeros(num_items, dtype=correlations_dtype)
+    correlations["item_id"] = np.arange(1, num_items + 1)
+    correlations.tofile(Path(run_dir, "correlations.bin"))
+    return correlations
+
+
+def _write_correlations_csv(run_dir, num_items):
+    """Write a well-formed correlations.csv holding ``num_items`` records."""
+    correlations = np.zeros(num_items, dtype=correlations_dtype)
+    correlations["item_id"] = np.arange(1, num_items + 1)
+    np.savetxt(Path(run_dir, "correlations.csv"), correlations, delimiter=",",
+               fmt=correlations_fmt, header=",".join(correlations_headers), comments="")
+    return correlations
+
+
+def test_read_correlations_bin__well_formed_file_is_read():
+    with TemporaryDirectory() as d:
+        _write_correlations_bin(d, 10)
+        assert len(read_correlations(d)) == 10
+
+
+def test_read_correlations_bin__partial_record_is_rejected():
+    """A byte count that is not a whole number of records cannot be this layout."""
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").write_bytes(b"\x01" * (correlations_dtype.itemsize + 5))
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
+
+
+# the record layout before source_item_id was added
+_BASE_CORRELATIONS_FIELDS = [("item_id", "<i4"), ("peril_correlation_group", "<i4"),
+                             ("damage_correlation_value", "<f4"), ("hazard_group_id", "<i4"),
+                             ("hazard_correlation_value", "<f4")]
+PRE_SOURCE_ITEM_DTYPE = np.dtype(_BASE_CORRELATIONS_FIELDS)
+
+
+@pytest.mark.parametrize("old_dtype", [PRE_SOURCE_ITEM_DTYPE], ids=["pre-source_item_id"])
+@pytest.mark.parametrize("num_items", [6, 12, 60])
+def test_read_correlations_bin__older_file_that_divides_evenly_is_rejected(old_dtype, num_items):
+    """The silent mis-parse: an older record size with a count whose byte total divides by the
+    current itemsize too, so numpy.memmap accepts it and reads other fields' bytes as the new one.
+
+    The 20-byte layout lands on this for counts that are a multiple of 6 against today's 24, so
+    the parametrization is the case under test, not an arbitrary set of sizes.
+    """
+    assert old_dtype.itemsize * num_items % correlations_dtype.itemsize == 0, "not the case under test"
+    old = np.zeros(num_items, dtype=old_dtype)
+    old["item_id"] = np.arange(1, num_items + 1)
+    old["peril_correlation_group"] = 1
+    old["damage_correlation_value"] = 0.5
+    old["hazard_group_id"] = 2
+    old["hazard_correlation_value"] = 0.5
+    with TemporaryDirectory() as d:
+        old.tofile(Path(d, "correlations.bin"))
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
+
+
+@pytest.mark.parametrize("item_ids", [[5, 6, 7], [1, 4, 9], [100, 200, 300]],
+                         ids=["offset", "gapped", "sparse"])
+def test_read_correlations_bin__non_dense_item_ids_are_accepted(item_ids):
+    """A current-layout table is valid whatever its ids; only the LAYOUT is under suspicion here.
+
+    The guard used to require a dense 1..N and rejected these with "written by an earlier
+    version ... Regenerate the oasis files", which is both a false rejection and wrong advice.
+    """
+    good = np.zeros(len(item_ids), dtype=correlations_dtype)
+    good["item_id"] = item_ids
+    good["peril_correlation_group"] = 1
+    good["damage_correlation_value"] = 0.5
+    good["hazard_group_id"] = 2
+    good["hazard_correlation_value"] = 0.25
+    with TemporaryDirectory() as d:
+        good.tofile(Path(d, "correlations.bin"))
+        actual = read_correlations(d)
+    np.testing.assert_array_equal(actual["item_id"], item_ids)
+    np.testing.assert_allclose(actual["damage_correlation_value"], 0.5)
+
+
+def test_read_correlations_bin__out_of_range_correlation_is_rejected():
+    """The second net under the id check: a mis-parse puts the correlation floats outside [0, 1]."""
+    bad = np.zeros(3, dtype=correlations_dtype)
+    bad["item_id"] = [1, 2, 3]
+    bad["damage_correlation_value"] = [0.5, 4.2, 0.1]
+    with TemporaryDirectory() as d:
+        bad.tofile(Path(d, "correlations.bin"))
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
+
+
+def test_read_correlations_bin__empty_file_falls_back_to_the_csv():
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").touch()
+        _write_correlations_csv(d, 7)
+        assert len(read_correlations(d)) == 7
+
+
+def test_read_correlations_bin__empty_file_with_no_csv_is_not_found():
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").touch()
+        with pytest.raises(FileNotFoundError):
+            read_correlations(d)
+
+
+def test_read_correlations_bin__fallback_still_honours_ignore_file_type():
+    """Falling back off an empty bin must not read a csv the caller excluded."""
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").touch()
+        _write_correlations_csv(d, 7)
+        with pytest.raises(FileNotFoundError):
+            read_correlations(d, ignore_file_type={"csv"})
 
 
 def test_read_coverages():
@@ -322,3 +441,69 @@ def test_read_return_periods_no_file():
 
     with pytest.raises(RuntimeError, match="ERROR: Return Periods file not found at"):
         read_returnperiods(use_return_periods, run_dir, filename)
+
+
+# --- the per-coverage building count, in its own file --------------------------------------------
+
+def _write_coverage_buildings(run_dir, counts):
+    out = np.zeros(len(counts), dtype=coverage_buildings_dtype)
+    out["coverage_id"] = np.arange(1, len(counts) + 1)
+    out["n_building"] = counts
+    out.tofile(Path(run_dir, f"{COVERAGE_BUILDINGS_FILE}.bin"))
+    return out
+
+
+def test_read_coverage_buildings__absent_is_the_ordinary_case():
+    """Every input set generated before building packing has no such file, and so does every
+    unpacked run. The caller takes an empty result as all-ones rather than failing."""
+    with TemporaryDirectory() as d:
+        assert len(read_coverage_buildings(d)) == 0
+
+
+def test_read_coverage_buildings__round_trips_a_signed_count():
+    """The count is SIGNED: negative keeps the buildings separate through the financial module."""
+    with TemporaryDirectory() as d:
+        _write_coverage_buildings(d, [1, -630510, 12])
+        actual = read_coverage_buildings(d, ignore_file_type={"csv"})
+    np.testing.assert_array_equal(actual["coverage_id"], [1, 2, 3])
+    np.testing.assert_array_equal(actual["n_building"], [1, -630510, 12])
+
+
+def test_read_coverage_buildings__a_partial_record_is_rejected():
+    with TemporaryDirectory() as d:
+        Path(d, f"{COVERAGE_BUILDINGS_FILE}.bin").write_bytes(
+            b"\x01" * (coverage_buildings_dtype.itemsize + 3))
+        with pytest.raises(OasisException, match="not a multiple of"):
+            read_coverage_buildings(d, ignore_file_type={"csv"})
+
+
+def test_read_coverage_buildings__a_non_dense_id_sequence_is_rejected():
+    """coverage_id is STORED here, unlike coverages.bin, precisely so a truncated or concatenated
+    file is detectable instead of silently shifting every record after the gap."""
+    for ids in ([1, 2, 4], [2, 3, 4], [1, 1, 2]):
+        with TemporaryDirectory() as d:
+            out = np.zeros(len(ids), dtype=coverage_buildings_dtype)
+            out["coverage_id"] = ids
+            out["n_building"] = 2
+            out.tofile(Path(d, f"{COVERAGE_BUILDINGS_FILE}.bin"))
+            with pytest.raises(OasisException, match="dense"):
+                read_coverage_buildings(d, ignore_file_type={"csv"})
+
+
+def test_read_coverage_buildings__csv_is_read_with_or_without_a_header():
+    for lines in ([",".join(coverage_buildings_headers), "1,3", "2,-4"], ["1,3", "2,-4"]):
+        with TemporaryDirectory() as d:
+            Path(d, f"{COVERAGE_BUILDINGS_FILE}.csv").write_text("\n".join(lines) + "\n")
+            actual = read_coverage_buildings(d, ignore_file_type={"bin"})
+        np.testing.assert_array_equal(actual["n_building"], [3, -4])
+
+
+def test_read_coverages__is_the_published_tiv_only_format():
+    """coverages.bin is parsed directly by third-party models as a bare float array, so it must
+    stay exactly that -- the building count lives beside it, not inside it."""
+    tivs = np.array([100000.0, 250000.0, 50000.0], dtype=oasis_float)
+    with TemporaryDirectory() as d:
+        tivs.tofile(Path(d, "coverages.bin"))
+        actual = read_coverages(d, ignore_file_type={"csv"})
+    np.testing.assert_allclose(actual, tivs)
+    assert actual.dtype == oasis_float

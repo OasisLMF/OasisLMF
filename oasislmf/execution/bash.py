@@ -1702,6 +1702,41 @@ def get_main_cmd_gul_stream(
     return main_cmd
 
 
+def resolve_custom_gulcalc_cmd(custom_gulcalc_cmd, analysis_settings):
+    """The custom GUL binary this run will use, or None for the built-in pipeline.
+
+    Factored out so a caller can ask *whether* a run is a complex model without building the
+    command for it. The answer is frequently not what was configured: a model that sets none of
+    gulmc/gulpy/modelpy is picked up by probing PATH for ``<supplier>_<model>_gulcalc``, so a
+    check of ``model_custom_gulcalc`` alone misses the common case.
+
+    Args:
+        custom_gulcalc_cmd (str or None): explicit custom GUL binary name, or None to infer.
+        analysis_settings (dict): used to infer the name from model_supplier_id / model_name_id.
+
+    Returns:
+        str or None: the binary name, or None when the built-in pipeline will run.
+
+    Raises:
+        OasisException: if ``custom_gulcalc_cmd`` is explicitly set but not found on PATH.
+    """
+    # If `given_gulcalc_cmd` is set then always run as a complex model
+    # and raise an exception when not found in PATH
+    if custom_gulcalc_cmd:
+        if not shutil.which(custom_gulcalc_cmd):
+            raise OasisException(
+                'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
+            )
+        return custom_gulcalc_cmd
+
+    # when not set then fallback to previous behaviour:
+    # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
+    inferred_gulcalc_cmd = "{}_{}_gulcalc".format(
+        analysis_settings.get('model_supplier_id'),
+        analysis_settings.get('model_name_id'))
+    return inferred_gulcalc_cmd if shutil.which(inferred_gulcalc_cmd) else None
+
+
 def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
     """Return a custom GUL command function for complex (third-party) models.
 
@@ -1725,21 +1760,7 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
         OasisException: If ``custom_gulcalc_cmd`` is explicitly set but
             cannot be found on ``PATH``.
     """
-    # If `given_gulcalc_cmd` is set then always run as a complex model
-    # and raise an exception when not found in PATH
-    if custom_gulcalc_cmd:
-        if not shutil.which(custom_gulcalc_cmd):
-            raise OasisException(
-                'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
-            )
-    # when not set then fallback to previous behaviour:
-    # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
-    else:
-        inferred_gulcalc_cmd = "{}_{}_gulcalc".format(
-            analysis_settings.get('model_supplier_id'),
-            analysis_settings.get('model_name_id'))
-        if shutil.which(inferred_gulcalc_cmd):
-            custom_gulcalc_cmd = inferred_gulcalc_cmd
+    custom_gulcalc_cmd = resolve_custom_gulcalc_cmd(custom_gulcalc_cmd, analysis_settings)
 
     if custom_gulcalc_cmd:
         def custom_get_getmodel_cmd(

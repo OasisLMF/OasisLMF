@@ -5,7 +5,7 @@ import numpy as np
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, def_to_type_and_size, oasis_int, loss_pair_dtype, loss_pair_size,
                                           write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (
-    GUL_STREAM_ID, LOSS_STREAM_ID, EventReader, init_streams_in, mv_read
+    GUL_STREAM_ID, LOSS_STREAM_ID, LOSS_STREAM_AGG_TYPES, EventReader, init_streams_in, mv_read
 )
 from oasislmf.pytools.converters.data import TOOL_INFO
 
@@ -115,6 +115,11 @@ def gul_tocsv(stack, file_in, file_out, file_type, noheader):
     streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(file_in, stack)
     if stream_source_type not in [GUL_STREAM_ID, LOSS_STREAM_ID]:
         raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
+    # the csv is the sidx as written, packed or not, so both aggregation types convert the same
+    # way; anything else is a layout this converter has not been told about
+    if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
+        raise Exception(f"unsupported stream aggregation type {stream_agg_type}, expected one of "
+                        f"{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)")
 
     if not noheader:
         file_out.write(",".join(headers) + "\n")
