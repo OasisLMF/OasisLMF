@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from oasislmf.pytools.common.data import def_to_type_and_size
+from oasislmf.pytools.common.event_stream import mv_read
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_headers
 from oasislmf.pytools.summary.cli import parser, manager
 
@@ -15,10 +16,10 @@ from oasislmf.pytools.summary.cli import parser, manager
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_summarypy")
 
 IDX_DTYPE = np.dtype([('summary_id', '<i4'), ('offset', '<i8')])  # fix dtype to reproduce test setup
-EVENT_ID_DTYPE, _ = def_to_type_and_size('event_id')
-SUMMARY_ID_DTYPE, _ = def_to_type_and_size('summary_id')
-SIDX_DTYPE, _ = def_to_type_and_size('sidx')
-LOSS_DTYPE, _ = def_to_type_and_size('loss')
+EVENT_ID_DTYPE, EVENT_ID_SIZE = def_to_type_and_size('event_id')
+SUMMARY_ID_DTYPE, SUMMARY_ID_SIZE = def_to_type_and_size('summary_id')
+SIDX_DTYPE, SIDX_SIZE = def_to_type_and_size('sidx')
+LOSS_DTYPE, LOSS_SIZE = def_to_type_and_size('loss')
 
 
 def case_runner(test_name, test_case):
@@ -87,19 +88,15 @@ def test_multiple_summary_set():
 def read_summary_bin_as_rows(file_path):
     """Decode a binary summary stream into (EventId, SummaryId, SampleId, Loss, ImpactedExposure) rows."""
     buf = np.fromfile(file_path, dtype=np.uint8)
-
-    def read(dtype, cursor):
-        return np.frombuffer(buf, dtype, count=1, offset=cursor)[0], cursor + dtype.itemsize
-
     cursor = manager.SUMMARY_META_SIZE
     rows = []
     while cursor < buf.shape[0]:
-        event_id, cursor = read(EVENT_ID_DTYPE, cursor)
-        summary_id, cursor = read(SUMMARY_ID_DTYPE, cursor)
-        impacted_exposure, cursor = read(LOSS_DTYPE, cursor)
+        event_id, cursor = mv_read(buf, cursor, EVENT_ID_DTYPE, EVENT_ID_SIZE)
+        summary_id, cursor = mv_read(buf, cursor, SUMMARY_ID_DTYPE, SUMMARY_ID_SIZE)
+        impacted_exposure, cursor = mv_read(buf, cursor, LOSS_DTYPE, LOSS_SIZE)
         while True:
-            sidx, cursor = read(SIDX_DTYPE, cursor)
-            loss, cursor = read(LOSS_DTYPE, cursor)
+            sidx, cursor = mv_read(buf, cursor, SIDX_DTYPE, SIDX_SIZE)
+            loss, cursor = mv_read(buf, cursor, LOSS_DTYPE, LOSS_SIZE)
             if sidx == 0:
                 break
             rows.append((event_id, summary_id, sidx, loss, impacted_exposure))
