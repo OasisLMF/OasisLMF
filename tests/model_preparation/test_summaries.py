@@ -11,6 +11,7 @@ from hypothesis.strategies import integers, just
 from ods_tools.oed import OedExposure
 
 from oasislmf.preparation.gul_inputs import get_gul_input_items
+from oasislmf.utils.defaults import DISAGGREGATION_ITEMS
 from oasislmf.preparation.summaries import (_default_csv_chunksize, convert_col_name,
                                             get_exposure_summary, group_by_oed,
                                             write_exposure_summary, write_gul_errors_map)
@@ -152,7 +153,8 @@ class TestSummaries(TestCase):
         )
 
         # Run Gul Proccessing
-        gul_inputs = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'])
+        gul_inputs = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'],
+                                         disaggregation=DISAGGREGATION_ITEMS)
         gul_inputs = gul_inputs[gul_inputs['status'].isin(OASIS_KEYS_STATUS_MODELLED)]
 
         # Fetch expected TIVS
@@ -238,7 +240,8 @@ class TestSummaries(TestCase):
         # Run Summary output check
         self.assertSummaryIsValid(
             loc_df,
-            get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id']),
+            get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'],
+                                disaggregation=DISAGGREGATION_ITEMS),
             get_exposure_summary(exposure_df=loc_df, keys_df=keys_df),
             perils_returned
         )
@@ -285,7 +288,8 @@ class TestSummaries(TestCase):
 
         # Run Summary output check
         exp_summary = get_exposure_summary(exposure_df=loc_df, keys_df=keys_df)
-        gul_inputs = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'])
+        gul_inputs = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'],
+                                         disaggregation=DISAGGREGATION_ITEMS)
         self.assertSummaryIsValid(
             loc_df,
             gul_inputs,
@@ -352,7 +356,8 @@ class TestSummaries(TestCase):
         loc_df = exposure.location.dataframe
 
         # Run Summary output check
-        gul_inputs = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'])
+        gul_inputs = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'],
+                                         disaggregation=DISAGGREGATION_ITEMS)
         # Add additional fields to gul inputs
         gul_inputs = gul_inputs.merge(loc_df[['loc_id', 'CountryCode', 'LocCurrency']], on='loc_id')
         self.assertSummaryIsValid(
