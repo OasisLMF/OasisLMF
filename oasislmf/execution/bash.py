@@ -558,12 +558,11 @@ def do_post_wait_processing(
                 altmeanonly_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_altmeanonly"
 
                 outfile_ext = 'csv'
-                aal_csv_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["csv_flag"]
                 if summary.get('ord_output', {}).get('parquet_format'):
-                    cmd = f"{cmd} -E parquet {aal_csv_flag} {altmeanonly_outfile_stem}.cparquetsv"
                     outfile_ext = 'parquet'
-                else:
-                    cmd = f"{cmd} {aal_csv_flag} {altmeanonly_outfile_stem}.csv"
+
+                aal_csv_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["csv_flag"]
+                cmd = f"{cmd} {'-E parquet ' if outfile_ext == 'parquet' else ''}{aal_csv_flag} {altmeanonly_outfile_stem}.{outfile_ext}"
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
