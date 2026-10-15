@@ -181,7 +181,7 @@ class ComputationStep:
 
         arg_type_to_json_type = {
             str: "string",
-            int: "number",
+            int: "integer",
             float: "number",
             str2bool: "boolean",
         }
