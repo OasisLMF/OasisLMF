@@ -32,15 +32,20 @@ from contextlib import ExitStack
 import logging
 import os
 from itertools import zip_longest
+from pathlib import Path
+
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (def_to_type_and_size, load_as_ndarray, oasis_int, nb_oasis_int, oasis_float,
                                           null_index, fm_summary_xref_dtype, gul_summary_xref_dtype,
-                                          loss_pair_dtype, loss_pair_size, summary_stream_index_dtype)
+                                          loss_pair_dtype, loss_pair_size, summary_stream_index_dtype, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
+from oasislmf.pytools.elt.data import SELT_dtype, SELT_fmt, SELT_headers, VALID_EXT
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -65,6 +70,8 @@ risk_key_type = nb.types.UniTuple(nb_oasis_int, 2)
 summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 
 SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
+
+OUTPUT_ROWS_BUFFER_SIZE = 100_000
 
 
 def create_summary_object_file(static_path, run_type):
@@ -314,6 +321,104 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
     return cursor, -1, 0, summary_index_cursor
 
 
+@nb.njit(cache=True)
+def write_selt_row(rows, row_i, event_id, summary_id, sidx, loss, impacted_exposure):
+    row = rows[row_i]
+    row['EventId'] = event_id
+    row['SummaryId'] = summary_id
+    row['SampleId'] = sidx
+    row['Loss'] = loss
+    row['ImpactedExposure'] = impacted_exposure
+    return row_i + 1
+
+
+@nb.njit(cache=True)
+def fill_event_rows(rows, row_i, event_id, len_sample, last_loss_summary_index, last_sidx,
+                    output_zeros, has_affected_risk,
+                    summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id,
+                    loss_summary):
+    """Load event summary loss into a table of SELT rows, in the same order as the binary stream.
+
+    Each record of the binary summary stream becomes one (EventId, SummaryId, SampleId, Loss, ImpactedExposure)
+    row, the special sidx (max loss, number of affected risks, mean) included, and zero losses are skipped
+    under the same rules as mv_write_event.
+
+    Args:
+        rows: SELT_dtype array to fill
+        row_i: index of the next free row in rows
+        event_id: event id
+        len_sample: max sample id
+        last_loss_summary_index: summary index to resume from when rows was full on the previous call
+        last_sidx: sidx to resume from when rows was full on the previous call
+        output_zeros: if False, summaries and samples with a zero loss are skipped
+        has_affected_risk: None when the number of affected risks is not tracked, otherwise the affected risk data
+        summary_set_index: index of the summary set being written
+        summary_set_index_to_loss_ptr: start offset of each summary set in loss_summary
+        summary_set_index_to_present_loss_ptr_end: end offset of each summary set in present_summary_id
+        present_summary_id: summary ids present in this event, per summary set
+        loss_summary: the loss values to write, indexed by summary set offset and summary id
+
+    Returns:
+        the next free row in rows, the summary index to resume from (-1 when the event is complete)
+        and the sidx to resume from
+    """
+    n_header_rows = 3 if has_affected_risk is not None else 2
+    for loss_summary_index in range(max(summary_set_index_to_loss_ptr[summary_set_index], last_loss_summary_index),
+                                    summary_set_index_to_present_loss_ptr_end[summary_set_index]):
+        summary_id = present_summary_id[loss_summary_index]
+        losses = loss_summary[summary_set_index_to_loss_ptr[summary_set_index] + summary_id - 1]
+        tiv = losses[TIV_IDX]
+
+        if not output_zeros and tiv == 0 and losses[MEAN_IDX] == 0:
+            continue
+
+        if last_sidx == 0:
+            if row_i + n_header_rows > rows.shape[0]:
+                return row_i, loss_summary_index, last_sidx
+            row_i = write_selt_row(rows, row_i, event_id, summary_id, MAX_LOSS_IDX, losses[MAX_LOSS_IDX], tiv)
+            if has_affected_risk is not None:
+                row_i = write_selt_row(rows, row_i, event_id, summary_id, NUMBER_OF_AFFECTED_RISK_IDX,
+                                       losses[NUMBER_OF_AFFECTED_RISK_IDX], tiv)
+            row_i = write_selt_row(rows, row_i, event_id, summary_id, MEAN_IDX, losses[MEAN_IDX], tiv)
+            last_sidx = 1
+
+        for sidx in range(last_sidx, len_sample + 1):
+            if not output_zeros and losses[sidx] == 0:
+                continue
+            if row_i >= rows.shape[0]:
+                return row_i, loss_summary_index, sidx
+            row_i = write_selt_row(rows, row_i, event_id, summary_id, sidx, losses[sidx], tiv)
+
+        last_sidx = 0
+    return row_i, -1, 0
+
+
+class SummaryRowWriter:
+    """Buffer the SELT rows of one summary set and write them to a csv or parquet file in large batches."""
+
+    def __init__(self, stack, file_path, output_format):
+        self.rows = np.empty(OUTPUT_ROWS_BUFFER_SIZE, dtype=SELT_dtype)
+        self.row_i = 0
+        self.output_format = output_format
+        if output_format == 'parquet':
+            self.schema = pa.schema([(name, pa.from_numpy_dtype(SELT_dtype[name])) for name in SELT_dtype.names])
+            self.file = stack.enter_context(pq.ParquetWriter(file_path, self.schema))
+        else:
+            self.file = stack.enter_context(open(file_path, 'w'))
+            self.file.write(','.join(SELT_headers) + '\n')
+
+    def flush(self):
+        """Write the buffered rows and empty the buffer."""
+        if not self.row_i:
+            return
+        data = self.rows[:self.row_i]
+        if self.output_format == 'parquet':
+            self.file.write_table(pa.Table.from_arrays([pa.array(data[name]) for name in data.dtype.names], schema=self.schema))
+        else:
+            write_ndarray_to_fmt_csv(self.file, data, SELT_headers, SELT_fmt)
+        self.row_i = 0
+
+
 class SummaryReader(EventReader):
     """Read an event loss stream and aggregate it into the relevant summary loss streams."""
 
@@ -383,15 +488,20 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
     return summary_set_index_to_loss_ptr, item_id_to_summary_id
 
 
-def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
-    """Run the summary calculation, writing a summary output stream for each summary set.
+def run(files_in, static_path, run_type, low_memory, output_zeros, output_format='bin', **kwargs):
+    """Run the summary calculation, writing a summary output for each summary set.
+
+    With the default ``bin`` format each summary set is written as a binary summary stream. With ``csv``
+    or ``parquet`` it is written as a table in the SELT layout (EventId, SummaryId, SampleId, Loss,
+    ImpactedExposure), one row per sidx of the stream, special sidx included.
 
     Args:
         files_in: list of file path to read event from
         run_type: type of the source that is sending the stream
         static_path: path to the static files
-        low_memory: if true output summary index file
+        low_memory: if true output summary index file (bin output only)
         output_zeros: if true output 0 loss
+        output_format: one of ``bin``, ``csv`` or ``parquet``
         **kwargs: additional options, including ``summary_sets_output``, a list of
             ``-summary_set_id summary_set_path`` pairs
     """
@@ -407,12 +517,25 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
             raise Exception(error_msg)
     summary_sets_id = np.array(list(summary_sets_path.keys()))
 
-    with ExitStack() as stack:
-        summary_sets_pipe = {i: stack.enter_context(open(summary_set_path, 'wb')) for i, summary_set_path in summary_sets_path.items()}
+    if output_format not in VALID_EXT:
+        raise ValueError(f"unsupported output format {output_format}, expected one of {VALID_EXT}")
+    output_binary = output_format == 'bin'
+    if low_memory and not output_binary:
+        raise ValueError(f"low memory index files are only available for bin output, not {output_format}")
+    for summary_set_path in summary_sets_path.values():
+        suffix = Path(summary_set_path).suffix
+        if suffix and suffix != '.' + output_format:
+            raise ValueError(f"Invalid file extension for {output_format}, got {summary_set_path}")
 
-        if low_memory:
-            summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'wb'))
-                                       for summary_set_id, setpath in summary_sets_path.items()}
+    with ExitStack() as stack:
+        if output_binary:
+            summary_sets_pipe = {i: stack.enter_context(open(summary_set_path, 'wb')) for i, summary_set_path in summary_sets_path.items()}
+            if low_memory:
+                summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'wb'))
+                                           for summary_set_id, setpath in summary_sets_path.items()}
+        else:
+            summary_row_writers = {i: SummaryRowWriter(stack, summary_set_path, output_format)
+                                   for i, summary_set_path in summary_sets_path.items()}
 
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
 
@@ -452,15 +575,32 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         summary_sets_cursor = np.zeros(summary_sets_id.shape[0], dtype=np.int64)
         summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=summary_stream_index_dtype)
 
-        for summary_set_index, summary_set_id in enumerate(summary_sets_id):
-            summary_pipe = summary_sets_pipe[summary_set_id]
-            summary_sets_cursor[summary_set_index] += summary_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
-            summary_sets_cursor[summary_set_index] += summary_pipe.write(len_sample.tobytes())
-            summary_sets_cursor[summary_set_index] += summary_pipe.write(summaryset_id_dtype.type(summary_set_id).tobytes())
+        if output_binary:
+            for summary_set_index, summary_set_id in enumerate(summary_sets_id):
+                summary_pipe = summary_sets_pipe[summary_set_id]
+                summary_sets_cursor[summary_set_index] += summary_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
+                summary_sets_cursor[summary_set_index] += summary_pipe.write(len_sample.tobytes())
+                summary_sets_cursor[summary_set_index] += summary_pipe.write(summaryset_id_dtype.type(summary_set_id).tobytes())
 
         try:
             for event_id in summary_reader.read_streams(streams_in):
                 for summary_set_index, summary_set_id in enumerate(summary_sets_id):
+                    if not output_binary:
+                        writer = summary_row_writers[summary_set_id]
+                        last_loss_summary_index = 0
+                        last_sidx = 0
+                        while True:
+                            writer.row_i, last_loss_summary_index, last_sidx = fill_event_rows(
+                                writer.rows, writer.row_i, event_id, len_sample, last_loss_summary_index, last_sidx,
+                                output_zeros, has_affected_risk,
+                                summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id,
+                                loss_summary
+                            )
+                            if last_loss_summary_index == -1:
+                                break
+                            writer.flush()
+                        continue
+
                     summary_pipe = summary_sets_pipe[summary_set_id]
                     summary_index_cursor = 0
                     last_loss_summary_index = 0
@@ -487,6 +627,10 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                 summary_set_index_to_present_loss_ptr_end[:] = summary_set_index_to_loss_ptr
                 is_risk_affected.fill(0)
 
+            if not output_binary:
+                for writer in summary_row_writers.values():
+                    writer.flush()
+
         except Exception:
             data = {
                 "event_id": event_id
@@ -499,8 +643,8 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
 
 @redirect_logging(exec_name='summarypy')
-def main(create_summarypy_files, static_path, run_type, **kwargs):
+def main(create_summarypy_files, static_path, run_type, ext='bin', **kwargs):
     if create_summarypy_files:
         create_summary_object_file(static_path, run_type)
     else:
-        run(static_path=static_path, run_type=run_type, **kwargs)
+        run(static_path=static_path, run_type=run_type, output_format=ext, **kwargs)
