@@ -508,12 +508,16 @@ class FootprintParquetDynamic(Footprint):
 
     Either file may be partitioned by section_id (i.e. be a directory of section_id=N/
     subdirectories) or be a single unpartitioned parquet file, independently of the other.
-    Both layouts are read the same way, by pushing a section_id filter down to the reader.
+    When the portfolio needs only a small share of a partitioned file's sections, the file is
+    read by opening those section_id=N/ directories one by one, as discovering the whole
+    dataset costs time in the number of sections the model has. Otherwise, and for an
+    unpartitioned file, it is read in one go with a section_id filter pushed down to the reader.
 
-    The hazard case is bulk-loaded at __enter__ for this portfolio's sections and areaperils,
-    which is all get_event ever needs of it. The event definition is bulk-loaded too when it
-    is partitioned, giving indexed per-event lookups; when it is unpartitioned it is instead
-    filtered to the event per get_event call.
+    __enter__ reads only the metadata, so opening the footprint just for num_intensity_bins
+    is cheap. The first get_event call bulk-loads the hazard case for this portfolio's
+    sections and areaperils, which is all get_event ever needs of it. The event definition
+    is bulk-loaded too when it is partitioned, giving indexed per-event lookups; when it is
+    unpartitioned it is instead filtered to the event per get_event call.
 
     Both files may also be sparse: a section that is absent from the event definition has no
     events affecting it, and a section absent from the hazard case is unaffected by the
@@ -527,8 +531,13 @@ class FootprintParquetDynamic(Footprint):
     """
     footprint_filenames: List[str] = [event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename]
 
-    def _is_partitioned_by_section(self, filename):
-        """Check whether a parquet file is a dataset partitioned by section_id.
+    # opening one partition costs several times what one section costs in a whole-dataset read
+    # (about 8x on local disk, more on remote storage), so partitions are only opened one by one
+    # when the portfolio needs at most this share of them
+    partition_read_max_share = 1 / 8
+
+    def _section_partitions(self, filename):
+        """List the section_ids a parquet file is partitioned into.
 
         This is a property of the model data alone: it must not depend on which sections the
         portfolio happens to use, as a partitioned file is allowed to hold none of them.
@@ -536,15 +545,18 @@ class FootprintParquetDynamic(Footprint):
         Args:
             filename (str): the parquet file or dataset directory to inspect
 
-        Returns: (bool) True if the file is a directory of section_id=N/ partitions
+        Returns: (set[int] | None) the section_ids of its section_id=N/ partitions, or None if
+            the file is not partitioned by section_id
         """
         if not self.storage.exists(filename) or self.storage.isfile(filename):
-            return False
+            return None
 
-        return any(
-            os.path.basename(str(entry).rstrip('/')).startswith('section_id=')
-            for entry in self.storage.listdir(filename)
-        )
+        partitions = set()
+        for entry in self.storage.listdir(filename):
+            name = os.path.basename(str(entry).rstrip('/'))
+            if name.startswith('section_id='):
+                partitions.add(int(name[len('section_id='):]))
+        return partitions or None
 
     def __enter__(self):
         with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
@@ -558,8 +570,6 @@ class FootprintParquetDynamic(Footprint):
         if self.areaperil_ids is None:
             self.areaperil_ids = pd.read_csv('input/keys.csv', usecols=['AreaPerilID']).AreaPerilID.unique()
 
-        self.event_definition_partitioned = self._is_partitioned_by_section(event_defintion_filename)
-
         self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
         self.absent_sections_reported = {}
 
@@ -567,15 +577,27 @@ class FootprintParquetDynamic(Footprint):
         self.df_hazard_case = None
         self.event_set = set()
 
-        if self.event_definition_partitioned:
-            self.get_event = self._get_event_partitioned
-            if not self._load_event_definitions():
-                return self
-        else:
-            self.get_event = self._get_event_flat
-
-        self._load_hazard_case()
+        self.get_event = self._load_and_get_event
         return self
+
+    def _load_and_get_event(self, event_id):
+        """First get_event call: load the portfolio's sections, then hand get_event to the layout's path.
+
+        get_event is only handed over once every load has succeeded, so a load that raises is
+        retried by the next call rather than leaving every later event silently empty.
+        """
+        event_definition_partitions = self._section_partitions(event_defintion_filename)
+        if event_definition_partitions is None:
+            get_event = self._get_event_flat
+        else:
+            get_event = self._get_event_partitioned
+            if not self._load_event_definitions(event_definition_partitions):
+                self.get_event = get_event
+                return None
+
+        self._load_hazard_case(self._section_partitions(hazard_case_filename))
+        self.get_event = get_event
+        return get_event(event_id)
 
     def _report_absent_sections(self, filename, absent):
         reported = self.absent_sections_reported.setdefault(filename, set())
@@ -587,12 +609,14 @@ class FootprintParquetDynamic(Footprint):
         logger.info(f"sections {newly_absent} have no data in {filename} for this portfolio, "
                     f"so their locations are treated as not at risk")
 
-    def _read_sections(self, filename, sections, filters=None):
+    def _read_sections(self, filename, sections, partitions, filters=None):
         """Read the requested sections of a parquet file, treating absent sections as empty.
 
         Args:
             filename (str): the parquet file or dataset directory to read
             sections (iterable): the section_ids to read
+            partitions (set[int] | None): the section_ids the file is partitioned into, or None
+                if it is not partitioned
             filters (list): optional pyarrow filters pushed down to the reader
 
         Returns: (pd.DataFrame) the concatenated sections with a section_id column, or an
@@ -602,21 +626,47 @@ class FootprintParquetDynamic(Footprint):
         if not sections:
             return pd.DataFrame()
 
-        section_filters = (filters or []) + [("section_id", "in", sections)]
-        df_sections = self.get_df_reader(filename, filters=section_filters).as_pandas()
-        # a hive partition key is read back as a category, which does not survive the
-        # fillna and merge in _build_footprint the way the flat file's integer column does
+        if partitions is not None and len(sections) <= len(partitions) * self.partition_read_max_share:
+            df_sections = self._read_partitions(filename, sorted(partitions.intersection(sections)), filters)
+        else:
+            section_filters = (filters or []) + [("section_id", "in", sections)]
+            df_sections = self.get_df_reader(filename, filters=section_filters).as_pandas()
+        # one integer type whichever layout the file has, so the fillna and merge in
+        # _build_footprint behave the same for partitioned and flat files
         df_sections['section_id'] = df_sections['section_id'].astype('int64')
         present = set() if df_sections.empty else set(df_sections['section_id'])
         self._report_absent_sections(filename, set(sections) - present)
         return df_sections
 
-    def _load_event_definitions(self):
+    def _read_partitions(self, filename, sections, filters=None):
+        """Read the section_id=N/ directories of a partitioned file.
+
+        Args:
+            filename (str): the partitioned dataset directory
+            sections (list[int]): the section_ids to read, all of which have a partition
+            filters (list): optional pyarrow filters pushed down to the reader
+
+        Returns: (pd.DataFrame) the concatenated sections with a section_id column
+        """
+        reader_kwargs = {'filters': filters} if filters else {}
+        df_partitions = []
+        for section in sections:
+            df_partition = self.get_df_reader(f'{filename}/section_id={section}', **reader_kwargs).as_pandas()
+            df_partitions.append(df_partition.assign(section_id=section))
+
+        if not df_partitions:
+            return pd.DataFrame({'section_id': pd.Series(dtype='int64')})
+        return pd.concat(df_partitions, ignore_index=True)
+
+    def _load_event_definitions(self, partitions):
         """Bulk-load the event definitions of this portfolio's sections.
+
+        Args:
+            partitions (set[int]): the section_ids the event definition is partitioned into
 
         Returns: (bool) False if no event in the model data affects the portfolio at all
         """
-        df_event_definition = self._read_sections(event_defintion_filename, self.location_sections)
+        df_event_definition = self._read_sections(event_defintion_filename, self.location_sections, partitions)
         if df_event_definition.empty:
             logger.warning(f"no section of this portfolio is in {event_defintion_filename}, "
                            f"so no event affects it and every loss will be zero")
@@ -628,14 +678,18 @@ class FootprintParquetDynamic(Footprint):
         self.event_set = set(df_event_definition['event_id'].unique())
         return True
 
-    def _load_hazard_case(self):
+    def _load_hazard_case(self, partitions):
         """Bulk-load the hazard of this portfolio's sections and areaperils.
 
         The hazard case does not depend on the event, so it is read once here for both
         get_event paths rather than per call.
+
+        Args:
+            partitions (set[int] | None): the section_ids the hazard case is partitioned into,
+                or None if it is not partitioned
         """
         df_hazard_case = self._read_sections(
-            hazard_case_filename, self.location_sections, filters=self.areaperil_ids_filter)
+            hazard_case_filename, self.location_sections, partitions, filters=self.areaperil_ids_filter)
         if df_hazard_case.empty:
             # the modelled perils leave every section of this portfolio unaffected
             logger.warning(f"no section of this portfolio has hazard in {hazard_case_filename}, "
