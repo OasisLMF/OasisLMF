@@ -12,12 +12,18 @@ import os
 import numpy as np
 import pandas as pd
 
+try:
+    import geopandas as gpd
+except ImportError:
+    gpd = None
+
 from ...pytools.common.data import areaperil_int, vulnerability_dtype
 from ...pytools.common.input_files import read_amplifications, read_coverages
 from ...pytools.gulmc.items import read_items
 from .report import WARNING
 
 ID_COLUMN_CHECKS = ('vulnerability_id', 'area_peril_id', 'areaperil_id', 'amplification_id')
+LOOKUP_FILE_PARAMS = ('file_path', 'file_type', 'id_columns')
 
 
 def _read_keys_file(input_dir, name):
@@ -201,7 +207,22 @@ def _lookup_dict_files(lookup_config, config_dir):
         path = params['file_path'].replace('%%KEYS_DATA_PATH%%', keys_data_path)
         if not os.path.isabs(path):
             path = os.path.join(config_dir, path)
-        yield step_name, os.path.normpath(path), params.get('file_type', os.path.splitext(path)[1].lstrip('.')), id_columns
+        yield step_name, step.get('type'), params, os.path.normpath(path), id_columns
+
+
+def _read_lookup_file(step_type, params, path):
+    """Read a lookup step's file with the reader and options the step itself uses.
+
+    ``rtree`` reads with ``geopandas.read_<file_type>`` and ``file_read_params``; other steps (``merge``) read with
+    ``pandas.read_<file_type>`` and their remaining parameters, falling back to ``read_csv``.
+    """
+    file_type = params.get('file_type', os.path.splitext(path)[1].lstrip('.'))
+    if step_type == 'rtree' and gpd is not None and hasattr(gpd, f'read_{file_type}'):
+        read_params = params.get('file_read_params') or params.get('area_peril_read_params') or {}
+        return getattr(gpd, f'read_{file_type}')(path, **read_params)
+    read_params = {} if step_type == 'rtree' else {k: v for k, v in params.items() if k not in LOOKUP_FILE_PARAMS}
+    reader = getattr(pd, f'read_{file_type}', None)
+    return (reader if callable(reader) else pd.read_csv)(path, **read_params)
 
 
 def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, lossfactor_amp_ids, cond_ids=()):
@@ -213,6 +234,7 @@ def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, 
     Reports:
         ``lookup.dicts``: no built-in lookup config, so nothing is checked (info).
         ``lookup.<step>.exists``: the step's file is missing (error).
+        ``lookup.<step>.read``: the step's file cannot be read with the step's reader and options (error).
         ``lookup.<step>.<column>``: the file lacks a declared id column (error).
         ``lookup.<step>.vulnerability_id``: vulnerability ids missing from the model (warning).
         ``lookup.<step>.areaperil_range``: area peril ids outside the ``OASIS_AREAPERIL_TYPE`` range (error).
@@ -232,12 +254,17 @@ def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, 
     with open(lookup_config_json) as f:
         lookup_config = json.load(f)
 
-    for step_name, path, file_type, id_columns in _lookup_dict_files(lookup_config, os.path.dirname(os.path.abspath(lookup_config_json))):
+    config_dir = os.path.dirname(os.path.abspath(lookup_config_json))
+    for step_name, step_type, params, path, id_columns in _lookup_dict_files(lookup_config, config_dir):
         check = f'lookup.{step_name}'
         if not os.path.exists(path):
             report.error(f'{check}.exists', f'lookup file not found: {path}')
             continue
-        df = pd.read_parquet(path) if file_type == 'parquet' else pd.read_csv(path)
+        try:
+            df = _read_lookup_file(step_type, params, path)
+        except Exception as e:
+            report.error(f'{check}.read', f'{os.path.basename(path)} could not be read as the {step_type} step reads it: {type(e).__name__}: {e}')
+            continue
         df.columns = df.columns.str.lower()
         for col in id_columns:
             if col not in df.columns:

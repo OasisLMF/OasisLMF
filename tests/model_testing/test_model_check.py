@@ -2,11 +2,13 @@ import json
 import os
 import shutil
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pytest
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from ods_tools.oed.settings import Settings
+from shapely.geometry import box
 
 import oasislmf.computation.run.model as model_run
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
@@ -690,6 +692,31 @@ def test_lookup_dict_problems(tmp_path):
     assert {'lookup.peril.areaperil_range', 'lookup.vulnerability.vulnerability_id', 'lookup.missing.exists'} <= checks(report, 'ERROR')
     assert next(f for f in report.warnings if f.check == 'lookup.amplification.amplification_id').examples == [7]
     assert not any(f.check.startswith(('lookup.class', 'lookup.split')) for f in report.findings)
+
+
+def run_lookup_check(tmp_path, step_definition, model=None, model_settings=None):
+    keys_dir = tmp_path / 'keys_data'
+    with open(keys_dir / 'lookup.json', 'w') as f:
+        json.dump({'keys_data_path': './', 'step_definition': step_definition}, f)
+    run_dir = tmp_path / 'run'
+    run_dir.mkdir()
+    return run_check(run_dir, model, model_settings=model_settings, lookup_config_json=str(keys_dir / 'lookup.json'))
+
+
+def test_lookup_files_read_like_their_step(tmp_path):
+    keys_dir = tmp_path / 'keys_data'
+    keys_dir.mkdir()
+    gpd.GeoDataFrame({'area_peril_id': [1, 0]}, geometry=[box(0, 0, 1, 1), box(1, 0, 2, 1)], crs='EPSG:4326').to_file(keys_dir / 'ap.gpkg')
+    (keys_dir / 'vuln.csv').write_text('peril_id;vulnerability_id\nWTC;1\nWTC;7\n')
+    (keys_dir / 'not_parquet.parquet').write_text('a,b\n1,2\n')
+    report = run_lookup_check(tmp_path, {
+        'peril': {'type': 'rtree', 'parameters': {'file_path': 'ap.gpkg', 'file_type': 'file', 'id_columns': ['area_peril_id']}},
+        'vulnerability': {'type': 'merge', 'parameters': {'file_path': 'vuln.csv', 'id_columns': ['vulnerability_id'], 'sep': ';'}},
+        'broken': {'type': 'merge', 'parameters': {'file_path': 'not_parquet.parquet', 'file_type': 'parquet',
+                                                   'id_columns': ['vulnerability_id']}},
+    })
+    assert {'lookup.peril.areaperil_range', 'lookup.broken.read'} <= checks(report, 'ERROR')
+    assert next(f for f in report.warnings if f.check == 'lookup.vulnerability.vulnerability_id').examples == [7]
 
 
 def test_no_analysis_settings(tmp_path):
