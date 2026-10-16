@@ -457,6 +457,15 @@ def test_damage_bin_dict_mixed_damage_types(tmp_path):
     report = run_check(tmp_path, model)
     overlap = [f for f in report.findings if f.check == 'damage_bin_dict.overlap']
     assert len(overlap) == 1 and overlap[0].examples == [9], report.format()
+    assert 'damage_bin_dict.zero_bin_per_type' not in checks(report)
+
+
+def test_damage_bin_dict_type_block_without_zero_bin(tmp_path):
+    model = default_model()
+    model['damage_bins'] = model['damage_bins'] + [(4, 0., 1000., 500., 2), (5, 1000., 2000., 1500., 2)]
+    report = run_check(tmp_path, model)
+    assert 'damage_bin_dict.zero_bin_per_type' in checks(report, 'INFO')
+    assert 'damage_bin_dict.zero_bin' not in checks(report)
 
 
 @pytest.mark.parametrize('dynamic', [False, True])

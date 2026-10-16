@@ -101,6 +101,13 @@ def check_damage_bins(report, storage):
                        'first damage bin is not the point bin [0, 0]; an all-zero vulnerability column then gives inf/nan instead of zero loss')
     else:
         report.ok('damage_bin_dict.zero_bin')
+    _, first_of_type = np.unique(bins['damage_type'], return_index=True)
+    first_of_type = first_of_type[first_of_type > 0]
+    not_point = (bins['bin_from'][first_of_type] != 0) | (bins['bin_to'][first_of_type] != 0)
+    report.missing('damage_bin_dict.zero_bin_per_type',
+                   'first bin of a damage_type block is not the point bin [0, 0]; functions on that block cannot give exactly zero loss',
+                   [f'damage_type {t}: bin {b}' for t, b in zip(bins['damage_type'][first_of_type][not_point],
+                                                                bins['bin_index'][first_of_type][not_point])], level=INFO)
     return bins
 
 
