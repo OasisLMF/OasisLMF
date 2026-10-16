@@ -27,6 +27,8 @@ from .common import (
     SECTION_MERGE_OPTIONS, SECTION_MERGE_DEFAULT,
 )
 from oasislmf.pytools.common.data import footprint_event_dtype, areaperil_int
+from oasislmf.pytools.getmodel.dynamic_footprint import (
+    MERGE_MAX, MERGE_MAX_INDEPENDENT, MERGE_SUM, interpolate_brackets, merge_sections)
 
 logger = logging.getLogger(__name__)
 
@@ -730,64 +732,62 @@ class FootprintParquetDynamic(Footprint):
                 and optionally probability (float) for stochastic hazard. When probability is absent, all rows are
                 treated as deterministic (probability=1). Several rows per (section_id, areaperil_id, return_period)
                 form a discrete distribution of intensity; the rp_from and rp_to brackets may hold different
-                numbers of them, with different probabilities (see pair_by_level).
+                numbers of them, with different probabilities (see dynamic_footprint.interpolate_brackets).
             df_event_definition: (pd.DataFrame) event definition with section_id, rp_from, rp_to, interpolation
 
         A return period bracket that the hazard case does not cover for an areaperil is read as
         intensity 0, so the intensity interpolates from or toward zero rather than being dropped.
 
         An areaperil lying in several sections of the event is then merged into one distribution
-        by the section_merge option (see merge_sections).
+        by the section_merge option (see dynamic_footprint.merge_sections).
 
         Returns: (np.array[EventDynamic]) the interpolated footprint, or None if empty
         """
         if 'probability' not in df_hazard_case.columns:
             df_hazard_case = df_hazard_case.assign(probability=1.0)
 
-        # one row per section for the event being built
-        df_event_sections = df_event_definition.drop_duplicates('section_id')
-        atom_cols = ['group', 'member', 'intensity', 'probability']
-
-        # member 0 is the rp_from bracket, member 1 the rp_to bracket; a (section, areaperil)
-        # pair is packed into one integer group key, areaperil_id being 32 bits
-        brackets = []
-        for member, rp_col in enumerate(['rp_from', 'rp_to']):
-            bracket = df_hazard_case.merge(df_event_sections[['section_id', rp_col]],
-                                           left_on=['section_id', 'return_period'], right_on=['section_id', rp_col])
-            bracket['group'] = (bracket['section_id'].to_numpy(np.int64) << 32) | bracket['areaperil_id'].to_numpy(np.int64)
-            brackets.append(bracket.assign(member=member)[atom_cols])
-        # an areaperil missing from one bracket reads it as intensity 0, a single atom
-        groups = np.union1d(brackets[0]['group'].unique(), brackets[1]['group'].unique())
-        for member, bracket in enumerate(brackets):
-            missing = np.setdiff1d(groups, bracket['group'].unique(), assume_unique=True)
-            if len(missing):
-                brackets[member] = pd.concat([bracket, pd.DataFrame(
-                    {'group': missing, 'member': member, 'intensity': 0, 'probability': 1.0})])
-
-        atoms = pd.concat(brackets, ignore_index=True)
-        if len(atoms) == 0:
+        # one row per section for the event being built, in section order
+        df_event_sections = df_event_definition.drop_duplicates('section_id').sort_values('section_id')
+        event_section = df_event_sections['section_id'].to_numpy(np.int64)
+        if len(event_section) == 0 or len(df_hazard_case) == 0:
             return None
-        paired = pair_by_level(atoms['group'].to_numpy(), atoms['member'].to_numpy(),
-                               atoms['intensity'].to_numpy(), atoms['probability'].to_numpy())
 
-        # both members are present at every level, member 0 first
-        group = paired['group'][0::2]
+        # each hazard row's section in the event, then the rows at its rp_from (member 0) and rp_to (member 1)
+        hazard_section = df_hazard_case['section_id'].to_numpy(np.int64)
+        index = np.minimum(np.searchsorted(event_section, hazard_section), len(event_section) - 1)
+        in_event = event_section[index] == hazard_section
+        return_period = df_hazard_case['return_period'].to_numpy(np.int64)
+        brackets = [np.flatnonzero(in_event & (return_period == df_event_sections[rp_col].to_numpy(np.int64)[index]))
+                    for rp_col in ('rp_from', 'rp_to')]
+        rows = np.concatenate(brackets)
+        if len(rows) == 0:
+            return None
+
+        section_id = hazard_section[rows]
+        areaperil_id = df_hazard_case['areaperil_id'].to_numpy(np.uint64)[rows]
+        member = np.repeat(np.array([0, 1], np.int64), [len(brackets[0]), len(brackets[1])])
+        intensity = df_hazard_case['intensity'].to_numpy(np.float64)[rows]
+        probability = df_hazard_case['probability'].to_numpy(np.float64)[rows]
+        interpolation = df_event_sections['interpolation'].to_numpy(np.float64)[index[rows]]
+        order = np.lexsort((intensity, member, areaperil_id, section_id))
+        section_id, areaperil_id, intensity, probability = interpolate_brackets(
+            section_id[order], areaperil_id[order], member[order], intensity[order], probability[order],
+            interpolation[order])
+
+        # each section's rp_to; intensities stay unfloored until the sections are merged, as a sum
+        # of floors would lose up to a unit per section
+        return_period = df_event_sections['rp_to'].to_numpy(np.int64)[np.searchsorted(event_section, section_id)]
+        order = np.lexsort((intensity, section_id, areaperil_id))
+        areaperil_id, intensity, probability, return_period = merge_sections(
+            areaperil_id[order], section_id[order], intensity[order], probability[order], return_period[order],
+            SECTION_MERGE_MODES[self.section_merge])
+
         df_footprint = pd.DataFrame({
-            'section_id': group >> 32,
-            'areaperil_id': group & 0xFFFFFFFF,
-            'probability': paired['probability'][0::2],
-            'from_intensity': paired['intensity'][0::2],
-            'to_intensity': paired['intensity'][1::2],
+            'areaperil_id': areaperil_id,
+            'intensity': np.floor(intensity).astype('int'),
+            'probability': probability,
+            'return_period': return_period,
         })
-        df_event_sections = df_event_sections.set_index('section_id')
-        interpolation = df_footprint['section_id'].map(df_event_sections['interpolation'])
-        df_footprint['return_period'] = df_footprint['section_id'].map(df_event_sections['rp_to'])
-        # left unfloored until the sections are merged: a sum of floors loses up to a unit per section
-        df_footprint['intensity'] = df_footprint.from_intensity + (
-            (df_footprint.to_intensity - df_footprint.from_intensity) * interpolation)
-
-        df_footprint = merge_sections(df_footprint, self.section_merge)
-        df_footprint['intensity'] = np.floor(df_footprint['intensity']).astype('int')
 
         # Collapse realisations that produce the same intensity after interpolation,
         # summing their probabilities, then normalise per areaperil to absorb float drift.
@@ -802,208 +802,11 @@ class FootprintParquetDynamic(Footprint):
         return df_to_numpy(df_footprint, EventDynamic)
 
 
-# cumulative probabilities are matched across distributions as integers in units of
-# 10**-LEVEL_DECIMALS: 1/3 + 1/3 and 2/3 must meet, not leave a sliver of probability between them
-LEVEL_DECIMALS = 12
-LEVEL_SCALE = 10 ** LEVEL_DECIMALS
-
-
-def pair_by_level(group, member, intensity, probability):
-    """Pair several discrete distributions of intensity by cumulative probability level.
-
-    Within each group, every member is a discrete distribution given as (intensity, probability)
-    atoms. The members' cumulative probability breakpoints are merged into one sorted set of
-    levels; each interval between consecutive levels becomes one output row per member, carrying
-    that member's atom at the level and the interval's width as its probability. Combining the
-    members row by row (interpolating, taking the larger, ...) then couples them comonotonically:
-    the j-th quantile of one meets the j-th quantile of the other, whatever the number of atoms
-    or their probabilities.
-
-    With the same number of atoms at the same probabilities in every member this is exactly
-    pairing by rank. Each member's probabilities are normalised to sum to 1.
-
-    Args:
-        group (np.ndarray[int]): group of each atom.
-        member (np.ndarray[int]): member of each atom, a distribution within its group.
-        intensity (np.ndarray): intensity of each atom.
-        probability (np.ndarray[float]): probability of each atom within its member.
-
-    Returns:
-        dict[str, np.ndarray]: one entry per (group, level interval, member) of the group, sorted
-            by group, level and member: group, level (the interval's upper bound, in units of
-            1 / LEVEL_SCALE), member, probability (the interval width), intensity, and atom, the
-            position in the input arrays of the atom it carries.
-    """
-    order = np.lexsort((intensity, member, group))
-    group, member, probability = group[order], member[order], probability[order]
-
-    # one segment per (group, member), atoms ascending in intensity
-    segment_start = _segments(group, member)
-    segment = np.repeat(np.arange(len(segment_start)), np.diff(np.r_[segment_start, len(group)]))
-
-    # cumulative probability per segment, normalised, as an integer level; per segment so the
-    # running sum never accumulates the float error of the whole event
-    cumulative = pd.Series(probability).groupby(segment).cumsum().to_numpy()
-    total = np.add.reduceat(probability, segment_start)
-    level = np.rint(cumulative / total[segment] * LEVEL_SCALE).astype(np.int64)
-    level[np.r_[segment_start[1:] - 1, len(level) - 1]] = LEVEL_SCALE  # each segment ends at exactly 1
-
-    # the union of the members' levels, per group
-    level_order = np.lexsort((level, group))
-    level_group, level_value = group[level_order], level[level_order]
-    distinct = np.empty(len(level_order), dtype=bool)
-    distinct[:1] = True
-    distinct[1:] = (level_group[1:] != level_group[:-1]) | (level_value[1:] != level_value[:-1])
-    level_group, level_value = level_group[distinct], level_value[distinct]
-    first_of_group = np.r_[True, level_group[1:] != level_group[:-1]]
-    width = np.diff(level_value, prepend=0)
-    width[first_of_group] = level_value[first_of_group]
-
-    grid_level, grid_segment = _cross_with_segments(level_group, group[segment_start])
-
-    # each member's atom at each level: the first in its segment whose level reaches it. Levels
-    # are ranked so (segment, level) packs into one sortable int64 key without overflow
-    ranks, level_rank = np.unique(np.r_[level, level_value], return_inverse=True)
-    atom_key = segment * (len(ranks) + 1) + level_rank[:len(level)]
-    grid_key = grid_segment * (len(ranks) + 1) + level_rank[len(level):][grid_level]
-    atom = np.searchsorted(atom_key, grid_key, side='left')
-
-    return {
-        'group': level_group[grid_level],
-        'level': level_value[grid_level],
-        'member': member[atom],
-        'probability': width[grid_level] / LEVEL_SCALE,
-        'intensity': intensity[order][atom],
-        'atom': order[atom],
-    }
-
-
-def _segments(group, member):
-    """Start of each run of equal (group, member) in arrays sorted by group then member."""
-    new_segment = np.empty(len(group), dtype=bool)
-    new_segment[:1] = True
-    new_segment[1:] = (group[1:] != group[:-1]) | (member[1:] != member[:-1])
-    return np.flatnonzero(new_segment)
-
-
-def _cross_with_segments(point_group, segment_group):
-    """Cross every point with every segment of the same group.
-
-    Both inputs must be sorted by group. Returns the point index and the segment index of each
-    pair, ordered by point then segment.
-    """
-    first_segment = np.searchsorted(segment_group, point_group, side='left')
-    segment_count = np.searchsorted(segment_group, point_group, side='right') - first_segment
-    pair_point = np.repeat(np.arange(len(point_group)), segment_count)
-    offset = np.arange(len(pair_point)) - np.repeat(np.cumsum(segment_count) - segment_count, segment_count)
-    return pair_point, first_segment[pair_point] + offset
-
-
-def _merge_comonotone(df, combine_sum):
-    """Pair the sections' distributions by cumulative level, then take the largest, or the sum.
-
-    The return period kept at each level is the section giving the largest intensity there,
-    the larger return period on a tie.
-    """
-    return_period = df['return_period'].to_numpy()
-    paired = pair_by_level(df['areaperil_id'].to_numpy(np.int64), df['section_id'].to_numpy(np.int64),
-                           df['intensity'].to_numpy(np.float64), df['probability'].to_numpy(np.float64))
-    group, level, intensity = paired['group'], paired['level'], paired['intensity']
-    rp = return_period[paired['atom']]
-
-    block_start = _segments(group, level)
-    block_end = np.r_[block_start[1:], len(group)] - 1
-    block = np.repeat(np.arange(len(block_start)), np.diff(np.r_[block_start, len(group)]))
-    winner = np.lexsort((rp, intensity, block))[block_end]
-
-    return pd.DataFrame({
-        'areaperil_id': group[block_start],
-        'intensity': np.add.reduceat(intensity, block_start) if combine_sum else intensity[winner],
-        'probability': paired['probability'][block_start],
-        'return_period': rp[winner],
-    })
-
-
-def merge_sections_max(df):
-    """Largest intensity, the sections' uncertainties moving together (comonotone)."""
-    return _merge_comonotone(df, combine_sum=False)
-
-
-def merge_sections_sum(df):
-    """Sum of the sections' intensities, their uncertainties moving together (comonotone)."""
-    return _merge_comonotone(df, combine_sum=True)
-
-
-def merge_sections_max_independent(df):
-    """Largest intensity, the sections' uncertainties independent.
-
-    P(max <= x) is the product of the sections' P(D <= x), evaluated at every intensity any of
-    them can take: at most as many atoms as the sections have together, no cartesian product.
-    The return period of an atom is that of the section it comes from, the larger on a tie.
-    """
-    df = df.sort_values(['areaperil_id', 'section_id', 'intensity'], kind='stable')
-    group = df['areaperil_id'].to_numpy(np.int64)
-    intensity = df['intensity'].to_numpy(np.float64)
-    segment_start = _segments(group, df['section_id'].to_numpy(np.int64))
-    segment = np.repeat(np.arange(len(segment_start)), np.diff(np.r_[segment_start, len(group)]))
-    probability = df['probability'].to_numpy(np.float64)
-    cdf = pd.Series(probability).groupby(segment).cumsum().to_numpy() / np.add.reduceat(probability, segment_start)[segment]
-
-    # the intensities any section can take, per areaperil, with the largest return period giving each
-    values = df.groupby(['areaperil_id', 'intensity'], sort=True)['return_period'].max().reset_index()
-    value_group, value = values['areaperil_id'].to_numpy(np.int64), values['intensity'].to_numpy(np.float64)
-
-    # each section's P(D <= v): its last atom at or below v, packed into one sortable key per segment
-    ranks, rank = np.unique(np.r_[intensity, value], return_inverse=True)
-    atom_key = segment * (len(ranks) + 1) + rank[:len(intensity)]
-    pair_value, pair_segment = _cross_with_segments(value_group, group[segment_start])
-    below = np.searchsorted(atom_key, pair_segment * (len(ranks) + 1) + rank[len(intensity):][pair_value], side='right') - 1
-    section_cdf = np.where(below >= segment_start[pair_segment], cdf[np.maximum(below, 0)], 0.0)
-
-    value_start = np.flatnonzero(np.r_[True, pair_value[1:] != pair_value[:-1]])
-    merged_cdf = np.multiply.reduceat(section_cdf, value_start)
-    first_of_group = np.r_[True, value_group[1:] != value_group[:-1]]
-    merged_probability = np.diff(merged_cdf, prepend=0.0)
-    merged_probability[first_of_group] = merged_cdf[first_of_group]
-
-    keep = merged_probability > 1e-15
-    return pd.DataFrame({
-        'areaperil_id': value_group[keep],
-        'intensity': value[keep],
-        'probability': merged_probability[keep],
-        'return_period': values['return_period'].to_numpy()[keep],
-    })
-
-
-SECTION_MERGES = {
-    'max': merge_sections_max,
-    'max_independent': merge_sections_max_independent,
-    'sum': merge_sections_sum,
+SECTION_MERGE_MODES = {
+    'max': MERGE_MAX,
+    'max_independent': MERGE_MAX_INDEPENDENT,
+    'sum': MERGE_SUM,
 }
-
-
-def merge_sections(df_footprint, section_merge):
-    """Merge, per areaperil, the distributions of the sections of one event it lies in.
-
-    An areaperil in a single section passes through unchanged, whatever the option.
-
-    Args:
-        df_footprint (pd.DataFrame): section_id, areaperil_id, intensity, probability and
-            return_period, a distribution per (section_id, areaperil_id).
-        section_merge (str): one of SECTION_MERGE_OPTIONS.
-
-    Returns:
-        pd.DataFrame: areaperil_id, intensity, probability and return_period, a distribution
-            per areaperil_id.
-    """
-    columns = ['areaperil_id', 'intensity', 'probability', 'return_period']
-    n_sections = df_footprint.groupby('areaperil_id')['section_id'].transform('nunique')
-    multi = n_sections.to_numpy() > 1
-    if not multi.any():
-        return df_footprint[columns]
-    return pd.concat([df_footprint.loc[~multi, columns], SECTION_MERGES[section_merge](df_footprint.loc[multi])],
-                     ignore_index=True)
-
 
 if __name__ == "__main__":
     import doctest

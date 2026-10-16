@@ -349,3 +349,15 @@ def test_an_areaperil_in_one_section_is_the_same_under_every_merge(section_merge
     result = build_merged(haz, [(1, 10, 100, 0.25), (2, 10, 100, 0.5)], section_merge)
     # 4->12 and 8->20 a quarter of the way: 6 and 11
     assert atoms(result, 300) == [(11, 0.5, 100), (6, 0.5, 100)]
+
+
+def test_64_bit_areaperil_ids_are_kept_apart():
+    """areaperil_id may be 64 bits (OASIS_AREAPERIL_TYPE=u8). Section 1 / areaperil 5 and section 0 /
+    areaperil 2**32 + 5 are different places, which packing the pair into one 64-bit key confused."""
+    import numpy as np
+    from oasislmf.pytools.getmodel.dynamic_footprint import interpolate_brackets
+
+    section_id, areaperil_id, intensity, probability = interpolate_brackets(
+        np.array([0, 0, 1, 1], np.int64), np.array([2**32 + 5, 2**32 + 5, 5, 5], np.uint64),
+        np.array([0, 1, 0, 1], np.int64), np.array([2.0, 4.0, 10.0, 20.0]), np.ones(4), np.full(4, 0.5))
+    assert list(zip(section_id, areaperil_id, intensity, probability)) == [(0, 2**32 + 5, 3.0, 1.0), (1, 5, 15.0, 1.0)]
