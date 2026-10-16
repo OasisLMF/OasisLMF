@@ -36,48 +36,86 @@ def _fill_levels(probability, start, end, level):
 
 
 @nb.njit(cache=True)
-def interpolate_brackets(section_id, areaperil_id, member, intensity, probability, interpolation):
+def is_sorted(section_id, areaperil_id, return_period, intensity):
+    """True if the rows are sorted by section_id, areaperil_id, return_period, intensity."""
+    for i in range(1, len(section_id)):
+        if section_id[i] != section_id[i - 1]:
+            if section_id[i] < section_id[i - 1]:
+                return False
+        elif areaperil_id[i] != areaperil_id[i - 1]:
+            if areaperil_id[i] < areaperil_id[i - 1]:
+                return False
+        elif return_period[i] != return_period[i - 1]:
+            if return_period[i] < return_period[i - 1]:
+                return False
+        elif intensity[i] < intensity[i - 1]:
+            return False
+    return True
+
+
+@nb.njit(cache=True)
+def _key_before(section_a, areaperil_a, section_b, areaperil_b):
+    return section_a < section_b or (section_a == section_b and areaperil_a < areaperil_b)
+
+
+@nb.njit(cache=True)
+def _group_end(section_id, areaperil_id, start):
+    end = start
+    while end < len(section_id) and section_id[end] == section_id[start] and areaperil_id[end] == areaperil_id[start]:
+        end += 1
+    return end
+
+
+@nb.njit(cache=True)
+def interpolate_brackets(from_section, from_areaperil, from_intensity, from_probability, from_interpolation,
+                         to_section, to_areaperil, to_intensity, to_probability, to_interpolation):
     """Interpolate each (section, areaperil) from its rp_from distribution to its rp_to one.
 
-    Rows must be sorted by section_id, areaperil_id, member, intensity. member 0 is the rp_from
-    bracket, member 1 the rp_to bracket. A bracket with no row reads as intensity 0 at
-    probability 1. interpolation is the event's weight towards rp_to, read on the group's first row.
+    The two brackets come as two streams of rows, each sorted by section_id, areaperil_id,
+    intensity, and are walked together. A (section, areaperil) missing from one bracket reads it as
+    intensity 0 at probability 1. interpolation is the event's weight towards rp_to for the row's
+    section.
 
     Returns:
-        tuple: section_id, areaperil_id, intensity (unfloored), probability of each output row.
+        tuple: section_id, areaperil_id, intensity (unfloored), probability of each output row,
+            sorted by section_id, areaperil_id, intensity.
     """
-    n = len(section_id)
-    level = np.empty(n, np.int64)
+    n_from, n_to = len(from_section), len(to_section)
+    from_level = np.empty(n_from, np.int64)
+    to_level = np.empty(n_to, np.int64)
     # a group gives at most one row per row of its two brackets
-    out_section = np.empty(n, section_id.dtype)
-    out_areaperil = np.empty(n, areaperil_id.dtype)
+    n = n_from + n_to
+    out_section = np.empty(n, from_section.dtype)
+    out_areaperil = np.empty(n, from_areaperil.dtype)
     out_intensity = np.empty(n, np.float64)
     out_probability = np.empty(n, np.float64)
     k = 0
 
-    start = 0
-    while start < n:
-        end = start
-        while end < n and section_id[end] == section_id[start] and areaperil_id[end] == areaperil_id[start]:
-            end += 1
-        split = start
-        while split < end and member[split] == 0:
-            split += 1
-        _fill_levels(probability, start, split, level)
-        _fill_levels(probability, split, end, level)
-        weight = interpolation[start]
+    f, t = 0, 0
+    while f < n_from or t < n_to:
+        # the next (section, areaperil) in either stream, and its rows in each
+        if t == n_to or (f < n_from and not _key_before(to_section[t], to_areaperil[t], from_section[f], from_areaperil[f])):
+            section, areaperil, weight = from_section[f], from_areaperil[f], from_interpolation[f]
+        else:
+            section, areaperil, weight = to_section[t], to_areaperil[t], to_interpolation[t]
+        f_end = _group_end(from_section, from_areaperil, f) if (
+            f < n_from and from_section[f] == section and from_areaperil[f] == areaperil) else f
+        t_end = _group_end(to_section, to_areaperil, t) if (
+            t < n_to and to_section[t] == section and to_areaperil[t] == areaperil) else t
+        _fill_levels(from_probability, f, f_end, from_level)
+        _fill_levels(to_probability, t, t_end, to_level)
 
-        # walk both brackets; i over rp_from rows start..split-1, j over rp_to rows split..end-1
-        i, j, previous = start, split, 0
+        # walk both brackets by cumulative level; i over rp_from rows, j over rp_to rows
+        i, j, previous = f, t, 0
         while True:
-            level_from = level[i] if split > start else LEVEL_SCALE
-            level_to = level[j] if end > split else LEVEL_SCALE
+            level_from = from_level[i] if f_end > f else LEVEL_SCALE
+            level_to = to_level[j] if t_end > t else LEVEL_SCALE
             current = min(level_from, level_to)
             if current > previous:
-                x_from = intensity[i] if split > start else 0.0
-                x_to = intensity[j] if end > split else 0.0
-                out_section[k] = section_id[start]
-                out_areaperil[k] = areaperil_id[start]
+                x_from = from_intensity[i] if f_end > f else 0.0
+                x_to = to_intensity[j] if t_end > t else 0.0
+                out_section[k] = section
+                out_areaperil[k] = areaperil
                 out_intensity[k] = x_from + (x_to - x_from) * weight
                 out_probability[k] = (current - previous) / LEVEL_SCALE
                 k += 1
@@ -88,9 +126,88 @@ def interpolate_brackets(section_id, areaperil_id, member, intensity, probabilit
                 i += 1
             if level_to == current:
                 j += 1
-        start = end
+        f, t = f_end, t_end
 
     return out_section[:k], out_areaperil[:k], out_intensity[:k], out_probability[:k]
+
+
+@nb.njit(cache=True)
+def collapse(areaperil_id, intensity, probability, return_period):
+    """Floor the intensities, merge equal ones, normalise, and order each areaperil for gulmc.
+
+    Each areaperil's rows must be together; they are expected in non-decreasing intensity, as both
+    kernels above write them, and sorted here if not. Rows of one areaperil with the same floored intensity and return period become
+    one; probabilities are normalised per areaperil; each areaperil is written from the largest
+    intensity down, the smaller return period first on a tie, as gulmc reads the event's return
+    period off an areaperil's first row.
+
+    Returns:
+        tuple: areaperil_id, intensity (int32), probability, return_period of each output row.
+    """
+    n = len(areaperil_id)
+    floored = np.floor(intensity).astype(np.int32)
+    return_period = return_period.copy()
+    probability = probability.copy()
+    out_areaperil = np.empty(n, areaperil_id.dtype)
+    out_intensity = np.empty(n, np.int32)
+    out_probability = np.empty(n, np.float64)
+    out_return_period = np.empty(n, return_period.dtype)
+    k = 0
+
+    start = 0
+    while start < n:
+        end = start
+        while end < n and areaperil_id[end] == areaperil_id[start]:
+            end += 1
+        # in non-decreasing intensity already unless an interpolation weight lies outside [0, 1]
+        for i in range(start + 1, end):
+            if floored[i] < floored[i - 1]:
+                order = start + np.argsort(floored[start:end], kind='mergesort')
+                floored[start:end] = floored[order]
+                probability[start:end] = probability[order]
+                return_period[start:end] = return_period[order]
+                break
+        total = 0.0
+        for i in range(start, end):
+            total += probability[i]
+        first = k
+        # runs of one floored intensity, merged per return period, written in reverse afterwards
+        i = start
+        while i < end:
+            j = i
+            while j < end and floored[j] == floored[i]:
+                j += 1
+            run_start = k
+            for r in range(i, j):
+                found = False
+                for q in range(run_start, k):
+                    if out_return_period[q] == return_period[r]:
+                        out_probability[q] += probability[r]
+                        found = True
+                        break
+                if not found:
+                    out_areaperil[k] = areaperil_id[r]
+                    out_intensity[k] = floored[r]
+                    out_probability[k] = probability[r]
+                    out_return_period[k] = return_period[r]
+                    k += 1
+            # within a run, the larger return period first, so that it ends up last once reversed
+            for a in range(run_start + 1, k):
+                b = a
+                while b > run_start and out_return_period[b - 1] < out_return_period[b]:
+                    out_return_period[b - 1], out_return_period[b] = out_return_period[b], out_return_period[b - 1]
+                    out_probability[b - 1], out_probability[b] = out_probability[b], out_probability[b - 1]
+                    b -= 1
+            i = j
+        for q in range(first, k):
+            out_probability[q] /= total
+        # largest intensity first
+        out_return_period[first:k] = out_return_period[first:k][::-1].copy()
+        out_probability[first:k] = out_probability[first:k][::-1].copy()
+        out_intensity[first:k] = out_intensity[first:k][::-1].copy()
+        start = end
+
+    return out_areaperil[:k], out_intensity[:k], out_probability[:k], out_return_period[:k]
 
 
 @nb.njit(cache=True)

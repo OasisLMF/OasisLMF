@@ -357,7 +357,10 @@ def test_64_bit_areaperil_ids_are_kept_apart():
     import numpy as np
     from oasislmf.pytools.getmodel.dynamic_footprint import interpolate_brackets
 
+    section_id = np.array([0, 1], np.int64)
+    areaperil_id = np.array([2**32 + 5, 5], np.uint64)
+    half = np.full(2, 0.5)
     section_id, areaperil_id, intensity, probability = interpolate_brackets(
-        np.array([0, 0, 1, 1], np.int64), np.array([2**32 + 5, 2**32 + 5, 5, 5], np.uint64),
-        np.array([0, 1, 0, 1], np.int64), np.array([2.0, 4.0, 10.0, 20.0]), np.ones(4), np.full(4, 0.5))
+        section_id, areaperil_id, np.array([2.0, 10.0]), np.ones(2), half,   # rp_from bracket
+        section_id, areaperil_id, np.array([4.0, 20.0]), np.ones(2), half)   # rp_to bracket
     assert list(zip(section_id, areaperil_id, intensity, probability)) == [(0, 2**32 + 5, 3.0, 1.0), (1, 5, 15.0, 1.0)]
