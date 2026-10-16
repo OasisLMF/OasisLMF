@@ -171,18 +171,12 @@ class TestFindIncompletePytoolLogs(TestCase):
             lost = runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc started', 'gulcalc finished')
             self.assertEqual(lost, {'gulcalc': [os.path.join(tmp_dir, 'gul_stderror.err')]})
 
-    def test_markers_match_as_grep_basic_regex(self):
+    def test_markers_match_as_plain_substrings(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             with open(os.path.join(tmp_dir, 'gul_stderror.err'), 'w') as f:
-                f.write('Start (gulcalc) 1\nStart (gulcalc) 2\nfinished after 12 events\nfinished after 7 events\n')
-            self.assertEqual(runner._find_incomplete_pytool_logs(tmp_dir, 'Start (gulcalc)', 'finished.*[0-9]\\+ events'), {})
-
-    def test_invalid_marker_raises(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            with open(os.path.join(tmp_dir, 'gul_stderror.err'), 'w') as f:
-                f.write('gulcalc started\n')
-            with self.assertRaisesRegex(OasisException, 'Invalid custom gulcalc log marker'):
-                runner._find_incomplete_pytool_logs(tmp_dir, 'gulcalc [started', 'gulcalc finished')
+                f.write('*** gulcalc [start] *** 1\n*** gulcalc [start] *** 2\nfinished.* 1\ngulcalc finished 2\n')
+            lost = runner._find_incomplete_pytool_logs(tmp_dir, '*** gulcalc [start] ***', 'finished.*')
+            self.assertEqual(lost, {'gulcalc': [os.path.join(tmp_dir, 'gul_stderror.err')]})
 
 
 class TestRunChecksLogsComplete(TestCase):
@@ -214,6 +208,20 @@ class TestRunChecksLogsComplete(TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             mock_ensure = self._run(tmp_dir, 1)
         mock_ensure.assert_not_called()
+
+    def test_incomplete_logs_raise_called_process_error(self):
+        proc = mock.Mock(pid=1, returncode=0)
+        proc.communicate.return_value = (b'script output', None)
+        with tempfile.TemporaryDirectory() as tmp_dir, \
+                mock.patch('oasislmf.execution.runner.genbash'), \
+                mock.patch('oasislmf.execution.runner.ResourceMonitor'), \
+                mock.patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc), \
+                mock.patch('oasislmf.execution.runner._ensure_pytool_logs_complete',
+                           side_effect=OasisException('fmpy (1 lost)')):
+            with self.assertRaises(subprocess.CalledProcessError) as ctx:
+                runner.run({}, filename=os.path.join(tmp_dir, 'run_kernel.sh'))
+        self.assertIn(b'script output', ctx.exception.output)
+        self.assertIn(b'fmpy (1 lost)', ctx.exception.output)
 
 
 GUL_OUTPUT = {'gul_output': True, 'gul_summaries': [{'id': 1}]}

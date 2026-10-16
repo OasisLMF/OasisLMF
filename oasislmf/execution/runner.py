@@ -81,56 +81,26 @@ def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_seconds
     )
 
 
-def _compile_grep_pattern(pattern):
-    """Compile a grep basic regular expression (BRE) into a Python regex.
-
-    The custom gulcalc markers were matched with `grep` before this check moved
-    into Python, so models may rely on BRE semantics: `+ ? | ( ) { }` are
-    literal characters, and only their backslashed forms are special.
-
-    Raises:
-        OasisException: if the marker is not a valid pattern.
-    """
-    bre_specials = '+?|(){}'
-    translated = []
-    i = 0
-    while i < len(pattern):
-        char = pattern[i]
-        if char == '\\' and i + 1 < len(pattern):
-            escaped = pattern[i + 1]
-            translated.append(escaped if escaped in bre_specials else char + escaped)
-            i += 2
-        else:
-            translated.append('\\' + char if char in bre_specials else char)
-            i += 1
-    try:
-        return re.compile(''.join(translated))
-    except re.error as e:
-        raise OasisException(f'Invalid custom gulcalc log marker {pattern!r}: {e}') from e
-
-
 def _find_incomplete_custom_gulcalc(log_dir, log_start, log_finish):
     """Return how many custom gulcalc processes logged `log_start` but not `log_finish`.
 
     Custom gulcalc binaries write to `gul_stderror.err` in log_dir rather than
     to a pytool log, so they are counted by line markers instead, matched as
-    grep basic regular expressions. The file holds raw stderr from a third-party
+    plain substrings. The file holds raw stderr from a third-party
     binary, so bytes that are not valid UTF-8 are replaced rather than failing
     the check. Returns 0 when either marker is unset or the file does not exist.
     """
     path = os.path.join(log_dir, 'gul_stderror.err')
     if not (log_start and log_finish and os.path.isfile(path)):
         return 0
-    start_pattern = _compile_grep_pattern(log_start)
-    finish_pattern = _compile_grep_pattern(log_finish)
     try:
         with open(path, encoding='utf-8', errors='replace') as f:
             lines = f.readlines()
     except OSError:
         logging.warning("Could not read %s to count custom gulcalc processes", path)
         return 0
-    started = sum(bool(start_pattern.search(line)) for line in lines)
-    finished = sum(bool(finish_pattern.search(line)) for line in lines)
+    started = sum(log_start in line for line in lines)
+    finished = sum(log_finish in line for line in lines)
     return max(started - finished, 0)
 
 
@@ -306,11 +276,17 @@ def run(analysis_settings,
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', filename], output=stdout)
     logging.info(stdout.decode('utf-8'))
-    _ensure_pytool_logs_complete(
-        os.path.join(os.path.dirname(os.path.abspath(filename)), 'log'),
-        custom_gulcalc_log_start or analysis_settings.get('model_custom_gulcalc_log_start'),
-        custom_gulcalc_log_finish or analysis_settings.get('model_custom_gulcalc_log_finish'),
-    )
+    try:
+        _ensure_pytool_logs_complete(
+            os.path.join(os.path.dirname(os.path.abspath(filename)), 'log'),
+            custom_gulcalc_log_start or analysis_settings.get('model_custom_gulcalc_log_start'),
+            custom_gulcalc_log_finish or analysis_settings.get('model_custom_gulcalc_log_finish'),
+        )
+    except OasisException as e:
+        # Callers such as GenerateLosses dump the run logs and call rerun() on CalledProcessError.
+        raise subprocess.CalledProcessError(
+            1, ['bash', filename], output=stdout + f'\n[ERROR] {e}\n'.encode('utf-8')
+        ) from e
 
 
 # matches a trailing output redirect (e.g. `> /path/to/fifo` or `2>> log/err`)
