@@ -418,10 +418,33 @@ def get_ri_inuring_priority_output_levels(run_dir):
         run_dir (str): Directory containing ``ri_inuring_priority_output_levels.json``
 
     Returns:
-        dict: mapping ``{inuring_priority: output_level}`` with integer keys/values
+        dict: mapping ``{output_level: inuring_priority}`` with integer keys/values
     """
     raw = get_json(src_fp=os.path.join(run_dir, 'ri_inuring_priority_output_levels.json'))
     return {int(k): int(v) for k, v in raw.items()}
+
+
+def prepare_reins_output_map_summary(run_dir):
+    """Prepare a summary json representing the mapping between the RI output level and the OED Inuring Priority and risk level.
+
+    Args:
+        run_dir (str): Directory containing ``ri_inuring_priority_output_levels.json`` and `ri_layers.json`.
+
+    Returns:
+        dict: mapping ``{ IP{output_level}: {'inuring_priority': {inuring_priority}, 'risk_level': {risk_level} } }
+    """
+    reins_layers = get_ri_settings(run_dir)
+    reins_output_map = get_ri_inuring_priority_output_levels(run_dir)
+
+    output_keys = ['inuring_priority', 'risk_level']
+
+    reins_map_summary = {f'IP{level}': {} for level in reins_output_map.values()}
+
+    for ip, level in reins_output_map.items():
+        for k in output_keys:
+            reins_map_summary[f'IP{level}'][k] = reins_layers[str(level)][k]
+
+    return reins_map_summary
 
 
 def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
@@ -801,10 +824,12 @@ def generate_summaryxref_files(
         # Copy the inuring-priority-to-output-level mapping into the output directory so it is
         # available alongside the results for downstream consumers.
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(
-            os.path.join(model_run_fp, 'input', 'ri_inuring_priority_output_levels.json'),
-            os.path.join(output_dir, 'ri_inuring_priority_output_levels.json'),
-        )
+
+        reins_map_summary = prepare_reins_output_map_summary(os.path.join(model_run_fp, 'input'))
+        with open(os.path.join(output_dir, 'reins_output_levels_summary.json'), 'w', encoding='utf-8') as f:
+            f.write(json.dumps(reins_map_summary, ensure_ascii=False, indent=4))
+
+        breakpoint()
 
 def code_column(name):
     """Name of the coded column for the exposure summary field `name`.
