@@ -263,10 +263,12 @@ def _check_split_loc_perils_covered(report, step_name, params, model_settings):
 
 
 def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, lossfactor_amp_ids, cond_ids=(), model_settings=None):
-    """Check the files that built-in lookup steps read ids from against the model data.
+    """Check the built-in lookup steps against the model data.
 
-    Only steps with a ``file_path`` and an ``id_columns`` entry the model data can be checked against are covered
-    (in practice ``merge``, ``rtree`` and ``h3``); computed ids are covered by ``check_keys``.
+    Id files are checked for steps with a ``file_path`` and an ``id_columns`` entry the model data can be checked
+    against, which in practice means ``merge`` and ``rtree``. ``h3`` has no ``id_columns`` and the grid steps compute
+    their ids, so their output is covered only by ``check_keys``. ``interval_to_index`` and ``split_loc_perils_covered``
+    steps have their parameters checked.
 
     Reports:
         ``lookup.dicts``: no built-in lookup config, so nothing is checked (info).
