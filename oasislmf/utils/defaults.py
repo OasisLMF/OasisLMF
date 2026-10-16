@@ -102,6 +102,7 @@ SUMMARY_MAPPING = OrderedDict({
 SUMMARY_OUTPUT = {
     'gul': 'gulsummaryxref',
     'il': 'fmsummaryxref',
+    'ri': 'risummaryxref',
     'rl': 'rlsummaryxref'
 }
 
