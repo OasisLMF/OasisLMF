@@ -26,7 +26,7 @@ def run(create_financial_structure_files, **kwargs):
 
 
 @redirect_logging(exec_name='fmpy')
-def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_method, **kwargs):
+def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_method, ceded_xref, **kwargs):
     if allocation_rule == 3:
         allocation_rule = 2
     elif allocation_rule == 0 and net_loss is not None:
@@ -42,15 +42,21 @@ def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_meth
             raise Exception(f'unsupported stream_type {stream_source_type} (most probable cause is that the up stream data are incorrect)')
 
         if storage_method == "sparse":
-            run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out=files_out, net_loss=net_loss, stack=stack,
+            run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out=files_out, net_loss=net_loss, stack=stack, ceded_xref=ceded_xref
                                    **kwargs)
         else:
             raise ValueError(f"storage_method {storage_method} is not supported for this version")
 
 
-def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_in, files_out, low_memory, net_loss, sort_output, stack, **kwargs):
-    compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile = load_financial_structure(
+def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_in, files_out, low_memory, net_loss, ceded_xref, sort_output, stack, **kwargs):
+    compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, ceded_output_array, fm_profile = load_financial_structure(
         allocation_rule, static_path)
+
+    gross_output_array = output_array
+    if ceded_xref:
+        if ceded_output_array is None:
+            raise ValueError('--ceded-xref given but the financial structure in {static_path} was built without fm_xref_ceded')
+        gross_output_array = ceded_output_array
 
     compute_info = compute_info[0]
     stepped = True if compute_info['stepped'] else None  # https://github.com/numba/numba/issues/4108
@@ -76,7 +82,7 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
         if net_loss is None:  # stream out need to provide gross loss
             gross_writer = stack.enter_context(
                 event_writer_cls(
-                    files_out, nodes_array, output_array, sidx_indexes,
+                    files_out, nodes_array, gross_output_array, sidx_indexes,
                     sidx_indptr, sidx_val, loss_indptr, loss_val,
                     pass_through_out, max_sidx_val, computes
                 )
@@ -97,7 +103,7 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
             if files_out is not None:  # gross loss written out only if files_out path given
                 gross_writer = stack.enter_context(
                     event_writer_cls(
-                        files_out, nodes_array, output_array, sidx_indexes,
+                        files_out, nodes_array, gross_output_array, sidx_indexes,
                         sidx_indptr, sidx_val, loss_indptr, loss_val,
                         pass_through_out, max_sidx_val, computes
                     )
@@ -113,7 +119,7 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
         else:  # double stream out, net_loss is the extra path to write the net to
             gross_writer = stack.enter_context(
                 event_writer_cls(
-                    files_out, nodes_array, output_array, sidx_indexes,
+                    files_out, nodes_array, gross_output_array, sidx_indexes,
                     sidx_indptr, sidx_val, loss_indptr, loss_val,
                     pass_through_out, max_sidx_val, computes
                 )
