@@ -72,6 +72,25 @@ class FootprintSummary:
 
 
 def check_damage_bins(report, storage):
+    """Check the damage bin dictionary against what the kernels assume.
+
+    Reports:
+        ``damage_bin_dict.exists``: no damage_bin_dict file (error).
+        ``damage_bin_dict.contiguous``: ``bin_index`` is not 1..N in row order; the runtime indexes by row (error).
+        ``damage_bin_dict.from_to``: ``bin_from`` > ``bin_to`` (error).
+        ``damage_bin_dict.interpolation``: interpolation outside ``[bin_from, bin_to]`` (error).
+        ``damage_bin_dict.overlap``: a bin starts below the previous bin of the same ``damage_type`` (warning).
+        ``damage_bin_dict.damage_type``: unknown ``damage_type`` (warning).
+        ``damage_bin_dict.zero_bin``: bin 1 is not the point bin ``[0, 0]``, so undefined vulnerability columns give inf/nan (warning).
+        ``damage_bin_dict.zero_bin_per_type``: a later ``damage_type`` block does not start with ``[0, 0]`` (info).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        storage (BaseStorage): storage for the model data.
+
+    Returns:
+        np.ndarray | None: the damage bins, or None if the file is missing.
+    """
     try:
         bins = get_damage_bins(storage)
     except FileNotFoundError as e:
@@ -144,7 +163,23 @@ def _rows_from_parquet(df, num_damage_bins, num_intensity_bins):
 
 
 def load_vulnerability(report, model_storage, vuln_ids=None):
-    """Load vulnerability rows for ``vuln_ids`` (all rows if None) from whichever format a run would pick."""
+    """Load vulnerability rows for ``vuln_ids`` (all rows if None) from whichever format a run would pick.
+
+    Formats are tried in run order: parquet dataset, ``vulnerability.bin`` with or without ``vulnerability.idx``, then csv.
+
+    Reports:
+        ``vulnerability.exists``: no vulnerability file in any format (error).
+        ``vulnerability.format``: compressed idx rows, or a bin size that is not a whole number of rows (error).
+        ``vulnerability.idx_range``: idx entries pointing outside ``vulnerability.bin``, e.g. a stale idx (error).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        model_storage (BaseStorage): storage for the model data.
+        vuln_ids (array-like, optional): vulnerability ids to load rows for; None loads every row.
+
+    Returns:
+        VulnerabilityData | None: the available ids and loaded rows, or None if nothing could be read.
+    """
     header_size = vulnerability_bin_header_type.itemsize
     files = set(model_storage.listdir())
     wanted = None if vuln_ids is None else np.unique(np.asarray(vuln_ids, dtype=vulnerability_dtype['vulnerability_id']))
@@ -205,6 +240,26 @@ def load_vulnerability(report, model_storage, vuln_ids=None):
 
 
 def check_vulnerability(report, vuln, damage_bins, num_intensity_bins, zero_bin_is_point=True):
+    """Check vulnerability rows against the damage bins and the footprint intensity bins.
+
+    Reports:
+        ``vulnerability.damage_bin_min`` / ``vulnerability.intensity_bin_min``: ids below 1, which wrap to the last bin (error).
+        ``vulnerability.damage_bin_header``: ``damage_bin_id`` above the count in the vulnerability header (error).
+        ``vulnerability.damage_bin_dict``: ``damage_bin_id`` beyond the damage_bin_dict rows (error).
+        ``vulnerability.intensity_bin_max``: ``intensity_bin_id`` above the footprint's intensity bins; ignored at run time (warning).
+        ``vulnerability.probability_range``: probability outside ``[0, 1]`` (error).
+        ``vulnerability.duplicates``: repeated ``(vulnerability_id, intensity_bin_id, damage_bin_id)`` rows (error).
+        ``vulnerability.probability_sum``: probabilities per ``(vulnerability_id, intensity_bin_id)`` do not sum to 1 (error).
+        ``vulnerability.intensity_coverage``: functions that leave some intensity bins undefined; info when damage bin 1 is
+        ``[0, 0]`` (zero loss), error otherwise (inf/nan loss).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        vuln (VulnerabilityData): the loaded vulnerability data.
+        damage_bins (np.ndarray | None): the damage bin dictionary.
+        num_intensity_bins (int | None): intensity bins in the footprint.
+        zero_bin_is_point (bool): whether damage bin 1 is the point bin ``[0, 0]``.
+    """
     rows = vuln.rows
     if rows is None or len(rows) == 0:
         return
@@ -268,6 +323,32 @@ def _check_footprint_index(report, model_storage):
 
 
 def scan_footprint(report, model_storage, run_dir, event_ids, portfolio_areaperils=None, dynamic=False, max_events=None):
+    """Read the footprint for each selected event and check its rows, as the run would read them.
+
+    Reports:
+        ``footprint.index_sorted`` / ``footprint.index_unique``: ``footprint.idx`` unsorted or with duplicate events (error).
+        ``footprint.events``: no events file resolved, so contents are not checked (warning).
+        ``footprint.sample``: only ``max_events`` evenly spaced events were checked (info).
+        ``footprint.load``: the footprint could not be opened or read (error).
+        ``footprint.areaperil_contiguous``: an areaperil's rows are split within an event (error).
+        ``footprint.areaperil_zero``: events contain areaperil 0, which the kernels skip (warning).
+        ``footprint.intensity_range``: ``intensity_bin_id`` outside the footprint's bins; skipped for dynamic footprints (error).
+        ``footprint.probability_sum``: probabilities per ``(event, areaperil)`` do not sum to 1 (error).
+        ``footprint.duplicates``: repeated ``(areaperil_id, intensity_bin_id)`` rows within an event (error).
+        ``footprint.events_present``: selected events with no footprint (warning).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        model_storage (BaseStorage): storage for the model data.
+        run_dir (str): run directory; the dynamic footprint reads ``input/`` files relative to it.
+        event_ids (np.ndarray | None): events in the selected event set.
+        portfolio_areaperils (np.ndarray, optional): areaperils used by the items, to record which are hit.
+        dynamic (bool): whether the footprint is dynamic.
+        max_events (int, optional): check at most this many events.
+
+    Returns:
+        FootprintSummary: intensity bin count, events checked and hit areaperils.
+    """
     summary = FootprintSummary()
     _check_footprint_index(report, model_storage)
 
@@ -338,6 +419,26 @@ def scan_footprint(report, model_storage, run_dir, event_ids, portfolio_areaperi
 
 
 def check_event_files(report, run_files):
+    """Check the resolved events, occurrence, periods and return periods files.
+
+    Reports:
+        ``events.duplicates``: repeated event ids, so losses are counted twice (error).
+        ``events.positive``: event ids <= 0 (error).
+        ``events.empty``: the events file is empty (error).
+        ``occurrence.format``: the occurrence file cannot be read (error).
+        ``occurrence.period_range``: ``period_no`` outside 1..no_of_periods (error).
+        ``occurrence.events_covered``: events with no occurrence rows, absent from ALT/PLT/EPT outputs (warning).
+        ``occurrence.events_in_event_set``: occurrence rows for events not in the events file (info).
+        ``periods.format`` / ``periods.weights_sum``: periods file unreadable (error) or weights not summing to 1 (warning).
+        ``returnperiods.format``: the return periods file cannot be read (error).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        run_files (dict): resolved file paths from ``resolve_run_files``.
+
+    Returns:
+        np.ndarray | None: the event ids, or None if there is no events file.
+    """
     event_ids = None
     input_dir = os.path.dirname(next(iter(run_files.values()))) if run_files else None
     if 'events' in run_files:
@@ -383,7 +484,22 @@ def check_event_files(report, run_files):
 
 
 def check_aggregate_vulnerability(report, model_storage, vuln_available_ids, used_vuln_ids=None):
-    """Return the aggregate id -> sub-vulnerability ids map (empty if the model has none)."""
+    """Check aggregate vulnerabilities and their weights.
+
+    Reports:
+        ``aggregate_vulnerability.weights``: aggregates exist but there is no weights file (error).
+        ``aggregate_vulnerability.id_collision``: aggregate ids that are also vulnerability ids (warning).
+        ``aggregate_vulnerability.sub_ids``: sub-vulnerability ids used by the portfolio missing from the vulnerability file (error).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        model_storage (BaseStorage): storage for the model data.
+        vuln_available_ids (np.ndarray): ids present in the vulnerability file.
+        used_vuln_ids (array-like, optional): vulnerability ids used by the items; None checks every aggregate.
+
+    Returns:
+        dict: aggregate id -> sub-vulnerability ids (empty if the model has none).
+    """
     agg = read_aggregate_vulnerability(model_storage)
     weights = read_vulnerability_weights(model_storage)
     if agg is None:

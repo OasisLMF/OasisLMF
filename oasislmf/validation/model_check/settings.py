@@ -17,7 +17,21 @@ def _declared_options(model_settings, key):
 
 
 def check_settings(report, analysis_settings, model_settings, merged_settings):
-    """Check the analysis settings choices against the options the model settings declare."""
+    """Check the analysis settings choices against the options the model settings declare.
+
+    Reports:
+        ``settings.analysis``: no analysis settings were given, so model defaults apply (warning).
+        ``settings.declared_options``: a ``model_settings`` value is not one of the options the model declares (error).
+        ``settings.declared_options_case``: a value only matches a declared option ignoring case (warning).
+        ``settings.event_occurrence_pair``: ``event_occurrence_id`` is not in the chosen event set's ``valid_occurrence_ids`` (error).
+        ``settings.peril_filter``: ``peril_filter`` names perils the model does not support (error).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        analysis_settings (dict): the user's analysis settings, or None.
+        model_settings (dict): the model settings file contents.
+        merged_settings (dict): analysis settings merged over the model defaults, as a run sees them.
+    """
     if not analysis_settings:
         report.warning('settings.analysis', 'no analysis settings provided, model defaults will be used')
 
@@ -54,7 +68,22 @@ def check_settings(report, analysis_settings, model_settings, merged_settings):
 
 
 def resolve_run_files(report, merged_settings, run_dir, model_storage):
-    """Select event/occurrence/period files and optional model sets exactly as a loss run would."""
+    """Select event/occurrence/period files and optional model sets exactly as a loss run would.
+
+    Reports:
+        ``settings.run_inputs``: ``prepare_run_inputs`` could not resolve the event set / occurrence files (error).
+        ``settings.<set>``: an optional model set (``footprint_set``, ``vulnerability_set``, ``pla_loss_factors_set``,
+        ``hazard_case_set``) could not be applied (error).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        merged_settings (dict): analysis settings merged over the model defaults.
+        run_dir (str): run directory laid out like a loss run.
+        model_storage (BaseStorage): storage for the model data.
+
+    Returns:
+        dict: ``events``, ``occurrence``, ``periods`` and ``returnperiods`` mapped to the resolved ``input/*.bin`` paths that exist.
+    """
     try:
         prepare_run_inputs(merged_settings, run_dir, model_storage)
         report.ok('settings.run_inputs')

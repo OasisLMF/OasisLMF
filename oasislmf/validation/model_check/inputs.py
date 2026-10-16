@@ -29,6 +29,18 @@ def _read_keys_file(input_dir, name):
 
 
 def load_portfolio(report, input_dir):
+    """Load the generated keys, keys errors, items and coverages from ``input_dir``.
+
+    Reports:
+        ``inputs.exists``: items or coverages are missing or unreadable (error).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        input_dir (str): the run's ``input/`` directory.
+
+    Returns:
+        dict: ``keys``, ``keys_errors``, ``items`` and ``coverages``; each is None if not available.
+    """
     portfolio = {
         'keys': _read_keys_file(input_dir, 'keys'),
         'keys_errors': _read_keys_file(input_dir, 'keys-errors'),
@@ -45,6 +57,21 @@ def load_portfolio(report, input_dir):
 
 
 def check_keys(report, keys, keys_errors, model_settings):
+    """Check the generated keys and keys errors.
+
+    Reports:
+        ``keys.lookup_failures``: rows that failed the lookup and are excluded from the run, grouped by peril and status (warning).
+        ``keys.areaperil_range``: ``AreaPerilID`` outside the ``OASIS_AREAPERIL_TYPE`` range (error).
+        ``keys.vulnerability_range``: ``VulnerabilityID`` < 1 (error).
+        ``keys.supported_perils``: perils not in ``lookup_settings.supported_perils``; error with correlation settings
+        (items are dropped), warning otherwise.
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        keys (pd.DataFrame | None): the generated keys.
+        keys_errors (pd.DataFrame | None): the generated keys errors.
+        model_settings (dict): the model settings file contents.
+    """
     if keys_errors is not None and len(keys_errors):
         status = keys_errors.groupby(['PerilID', 'Status']).size()
         top_messages = keys_errors['Message'].value_counts().head(5)
@@ -73,6 +100,24 @@ def check_keys(report, keys, keys_errors, model_settings):
 
 
 def check_items(report, items, coverages, vuln, agg_map, footprint, cond_ids=()):
+    """Check items and coverages against the model data.
+
+    Reports:
+        ``items.coverage_range``: ``coverage_id`` outside the coverages file (error).
+        ``items.areaperil_zero``: items with areaperil 0, which give zero loss (error).
+        ``coverages.tiv``: coverages with TIV <= 0 (warning).
+        ``items.vulnerability_exists``: item vulnerability ids in no vulnerability, aggregate or conditional file (error).
+        ``items.hit_by_events``: items whose areaperil no checked event hits; error if none are hit, warning otherwise.
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        items (np.ndarray | None): the items.
+        coverages (np.ndarray | None): TIV per coverage.
+        vuln (VulnerabilityData | None): the loaded vulnerability data.
+        agg_map (dict): aggregate id -> sub-vulnerability ids.
+        footprint (FootprintSummary | None): result of ``scan_footprint``.
+        cond_ids (array-like): conditional vulnerability ids.
+    """
     if items is None or not len(items):
         return
 
@@ -109,6 +154,20 @@ def check_items(report, items, coverages, vuln, agg_map, footprint, cond_ids=())
 
 
 def check_amplifications(report, input_dir, lossfactor_amp_ids, pla_enabled):
+    """Check the amplifications file against the model's loss factors when post loss amplification is on.
+
+    Reports:
+        ``amplifications.exists``: pla is enabled but no ``amplifications.bin`` was generated (error).
+        ``amplifications.format``: ``amplifications.bin`` cannot be read (error).
+        ``amplifications.lossfactors``: pla is enabled but the model has no ``lossfactors.bin`` (error), or amplification
+        ids are missing from it, so a factor of 1.0 is applied (warning).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        input_dir (str): the run's ``input/`` directory.
+        lossfactor_amp_ids (np.ndarray | None): amplification ids in ``lossfactors.bin``.
+        pla_enabled (bool): whether post loss amplification is enabled.
+    """
     amp_fp = os.path.join(input_dir, 'amplifications.bin')
     if not os.path.exists(amp_fp):
         if pla_enabled:
@@ -146,6 +205,27 @@ def _lookup_dict_files(lookup_config, config_dir):
 
 
 def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, lossfactor_amp_ids, cond_ids=()):
+    """Check the files that built-in lookup steps read ids from against the model data.
+
+    Only steps with a ``file_path`` and an ``id_columns`` entry the model data can be checked against are covered
+    (in practice ``merge``, ``rtree`` and ``h3``); computed ids are covered by ``check_keys``.
+
+    Reports:
+        ``lookup.dicts``: no built-in lookup config, so nothing is checked (info).
+        ``lookup.<step>.exists``: the step's file is missing (error).
+        ``lookup.<step>.<column>``: the file lacks a declared id column (error).
+        ``lookup.<step>.vulnerability_id``: vulnerability ids missing from the model (warning).
+        ``lookup.<step>.areaperil_range``: area peril ids outside the ``OASIS_AREAPERIL_TYPE`` range (error).
+        ``lookup.<step>.amplification_id``: amplification ids missing from ``lossfactors.bin`` (warning).
+
+    Args:
+        report (CheckReport): report the findings are added to.
+        lookup_config_json (str | None): path to the built-in lookup config.
+        vuln_available_ids (np.ndarray | None): ids present in the vulnerability file.
+        agg_ids (iterable): aggregate vulnerability ids.
+        lossfactor_amp_ids (np.ndarray | None): amplification ids in ``lossfactors.bin``.
+        cond_ids (array-like): conditional vulnerability ids.
+    """
     if not lookup_config_json or not os.path.exists(lookup_config_json):
         report.info('lookup.dicts', 'no built-in lookup config; lookup dictionaries not checked (generated keys are still checked)')
         return
