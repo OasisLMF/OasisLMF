@@ -260,6 +260,54 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         return keys_df
 
 
+def join_rows(df, columns, by=None, separator=';'):
+    """Collapse the rows of `df` that are equal on `by` into one, joining the values of `columns`.
+
+    Each group keeps its first row; in it, every column of `columns` becomes the group's unique
+    values, sorted (numerically where they are numbers, so 2 comes before 10) and joined with
+    `separator`. Those columns become strings throughout, single values included, so they have
+    one type. Missing values are left out of a join, and a group with nothing but missing values
+    keeps a missing value.
+
+    Args:
+        df (pd.DataFrame): the rows.
+        columns (str or list(str)): the columns to join.
+        by (list(str) or None): the columns identifying a group; every other column by default.
+        separator (str): placed between joined values.
+
+    Returns:
+        pd.DataFrame: one row per group, in order of first appearance.
+    """
+    columns = [columns] if isinstance(columns, str) else list(columns)
+    by = [col for col in df.columns if col not in columns] if by is None else list(by)
+    group = df.groupby(by, dropna=False, sort=False).ngroup().to_numpy()
+    first = ~pd.Series(group).duplicated().to_numpy()
+    result = df.loc[first].copy()
+    result_group = group[first]
+    for col in columns:
+        values = df[col]
+        present = values.notna().to_numpy()
+        texts = values.astype(str).where(values.notna())
+        as_number = pd.to_numeric(values, errors='coerce')
+        # numbers first in numeric order, then any text in text order
+        order = np.lexsort((texts.fillna('').to_numpy(), as_number.fillna(0).to_numpy(),
+                            as_number.isna().to_numpy(), group))
+        ordered = pd.DataFrame({'group': group[order], 'text': texts.to_numpy()[order]})[present[order]]
+        ordered = ordered.drop_duplicates()
+        # joined one rank at a time: groups are small (a few matches each), so this is a handful
+        # of vectorised passes instead of a Python call per group
+        ordered_group, ordered_text = ordered['group'].to_numpy(), ordered['text'].to_numpy(dtype=object)
+        rank = ordered.groupby('group', sort=False).cumcount().to_numpy()
+        joined = np.full(group.max() + 1 if len(group) else 0, None, dtype=object)
+        first_value = rank == 0
+        joined[ordered_group[first_value]] = ordered_text[first_value]
+        for r in range(1, rank.max() + 1 if len(rank) else 0):
+            at_rank = rank == r
+            joined[ordered_group[at_rank]] = joined[ordered_group[at_rank]] + separator + ordered_text[at_rank]
+        result[col] = pd.Series(joined[result_group], index=result.index).where(lambda v: v.notna(), np.nan)
+    return result
+
+
 class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     """Built-in Lookup class that implements the OasisLookupInterface.
 
@@ -758,6 +806,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
+
+        A location falling in several overlapping geometries gets one row per geometry; the
+        join_rows step folds them back into one row.
         """
         if nearest_neighbor_min_distance > 0:
             warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
@@ -1230,6 +1281,42 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             locations[output_column] = resolved
             return locations
         return geog_lookup
+
+    @staticmethod
+    def build_join_rows(columns, separator=';', by=None):
+        """Collapse rows that differ only in `columns` into one, joining the values of `columns`.
+
+        A step that can match a location several times (an rtree on overlapping geometries, a
+        merge on a one-to-many table) gives it one row per match. This step folds those rows back
+        into one, which is the form a column such as section_id must take in the keys file, where
+        each item has a single row::
+
+            "join_sections": {"type": "join_rows", "columns": ["section_id"],
+                              "parameters": {"columns": ["section_id"]}}
+
+        turns::
+
+            loc_id  peril_id  section_id
+            1       OSF       2
+            1       OSF       1
+            2       OSF       10
+
+        into::
+
+            loc_id  peril_id  section_id
+            1       OSF       1;2
+            2       OSF       10
+
+        Args:
+            columns (str or list(str)): the columns whose values are joined.
+            separator (str): placed between the joined values. section_id must use ';'.
+            by (list(str) or None): the columns identifying rows to collapse. By default every
+                other column; set it when another column holds unhashable values (model_data).
+        """
+        def join_rows_step(locations):
+            return join_rows(locations, columns, by=by, separator=separator)
+
+        return join_rows_step
 
     @staticmethod
     def build_simple_pivot(pivots, remove_pivoted_col=True):

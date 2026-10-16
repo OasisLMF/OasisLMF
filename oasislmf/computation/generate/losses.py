@@ -40,6 +40,7 @@ from ...execution.bin import (move_bin, prepare_run_directory,
 from ...preparation.summaries import generate_summaryxref_files, get_ri_summaryxref_dirs
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...pytools.fm.manager import run as fmpy_run
+from ...pytools.getmodel.common import SECTION_MERGE_DEFAULT, SECTION_MERGE_OPTIONS
 from oasislmf.pytools.summary.manager import create_summary_object_file
 from ...utils.data import (get_dataframe, get_exposure_data, get_json,
                            get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes,
@@ -437,6 +438,9 @@ class GenerateLossesPartial(GenerateLossesDir):
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
          'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
+        {'name': 'dynamic_footprint_section_merge', 'default': SECTION_MERGE_DEFAULT, 'choices': list(SECTION_MERGE_OPTIONS),
+         'help': 'How a dynamic footprint merges the intensities of an areaperil lying in several sections of one '
+                 f'event (gulmc only). Default: {SECTION_MERGE_DEFAULT}'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
@@ -493,6 +497,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             gul_random_generator=self.gul_random_generator,
             gulmc_effective_damageability=self.gulmc_effective_damageability,
             gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
+            section_merge=self.dynamic_footprint_section_merge,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
             summarypy_low_memory=self.summarypy_low_memory,
@@ -645,6 +650,9 @@ class GenerateLosses(GenerateLossesDir):
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
          'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
+        {'name': 'dynamic_footprint_section_merge', 'default': SECTION_MERGE_DEFAULT, 'choices': list(SECTION_MERGE_OPTIONS),
+         'help': 'How a dynamic footprint merges the intensities of an areaperil lying in several sections of one '
+                 f'event (gulmc only). Default: {SECTION_MERGE_DEFAULT}'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
@@ -714,6 +722,7 @@ class GenerateLosses(GenerateLossesDir):
                         gul_random_generator=self.gul_random_generator,
                         gulmc_effective_damageability=self.gulmc_effective_damageability,
                         gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
+                        section_merge=self.dynamic_footprint_section_merge,
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
                         summarypy_low_memory=self.summarypy_low_memory,
