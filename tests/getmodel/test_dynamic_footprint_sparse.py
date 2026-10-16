@@ -21,8 +21,9 @@ import pytest
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from oasislmf.pytools.getmodel.common import (
+    SECTION_MERGE_OPTIONS,
     event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename)
-from oasislmf.pytools.getmodel.footprint import FootprintParquetDynamic
+from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic, OasisFootPrintError
 from oasislmf.utils.path import setcwd
 
 # the sections a flat file holds are found by pushing a section_id filter down to the reader,
@@ -433,3 +434,34 @@ def test_complete_model_data_is_quiet(tmp_path, caplog):
 
     assert records_matching(caplog, logging.INFO, 'not at risk') == []
     assert records_matching(caplog, logging.WARNING, 'every loss will be zero') == []
+
+
+# ---------------------------------------------------------------------------
+# section_merge: how an areaperil lying in several sections of one event is
+# merged. An unknown value is refused when the footprint is loaded.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('section_merge', [None, *SECTION_MERGE_OPTIONS])
+def test_every_section_merge_option_loads(tmp_path, section_merge):
+    storage, run_dir = build_model(tmp_path)
+    with setcwd(run_dir), Footprint.load(storage, section_merge=section_merge) as footprint:
+        assert intensity_by_areaperil(footprint.get_event(1)) == {100: 6, 101: 8, 200: 4}
+
+
+def test_unknown_section_merge_is_refused_at_load(tmp_path):
+    storage, run_dir = build_model(tmp_path)
+    with setcwd(run_dir), pytest.raises(OasisFootPrintError, match="unknown section_merge 'maximum'.*max_independent"):
+        Footprint.load(storage, section_merge='maximum')
+
+
+def test_modelpy_refuses_a_dynamic_footprint(tmp_path):
+    """modelpy cannot map a dynamic footprint's intensities to bins; it must say so, not report zero loss."""
+    from oasislmf.pytools.getmodel.structure import build_structures
+    from oasislmf.utils.exceptions import OasisException
+
+    storage, run_dir = build_model(tmp_path)
+    (run_dir / 'static').symlink_to(tmp_path / 'static')  # where a run directory holds the model data
+    pd.DataFrame({'item_id': [1, 2], 'coverage_id': [1, 2], 'areaperil_id': [100, 200], 'vulnerability_id': 1,
+                  'group_id': 1}).to_csv(run_dir / 'input' / 'items.csv', index=False)
+    with pytest.raises(OasisException, match='dynamic footprint.*gulmc'):
+        build_structures(str(run_dir), ignore_file_type=set(), peril_filter=[])

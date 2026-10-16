@@ -143,6 +143,7 @@ def run(run_dir,
         max_cached_vuln_cdf_size_MB=200,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         dynamic_footprint=False,
+        section_merge=None,
         **kwargs):
     """Execute the main gulmc workflow.
 
@@ -167,6 +168,8 @@ def run(run_dir,
         model_df_engine (str, optional): The engine to use when loading model dataframes. Defaults to OasisPandasReader.
         dynamic_footprint (bool, optional): if True, load the dynamic footprint data and adjust hazard intensities at
           runtime. Defaults to False.
+        section_merge (str, optional): how a dynamic footprint merges an areaperil's intensities across the sections of
+          one event (see Footprint.load). Defaults to None, the footprint's default.
         **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
           the port to override; analysis_pk is reported with each ping.
 
@@ -293,7 +296,8 @@ def run(run_dir,
             footprint_obj = None
         else:
             footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
-                                                df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids))
+                                                df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids,
+                                                section_merge=section_merge))
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         # set up streams

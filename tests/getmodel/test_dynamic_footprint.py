@@ -4,6 +4,7 @@ Tests for FootprintParquetDynamic._build_footprint().
 import pandas as pd
 import pytest
 
+from oasislmf.pytools.getmodel.common import SECTION_MERGE_DEFAULT
 from oasislmf.pytools.getmodel.footprint import FootprintParquetDynamic
 
 
@@ -13,7 +14,9 @@ from oasislmf.pytools.getmodel.footprint import FootprintParquetDynamic
 
 def make_fp():
     """Return a bare FootprintParquetDynamic instance (no file system needed)."""
-    return FootprintParquetDynamic.__new__(FootprintParquetDynamic)
+    fp = FootprintParquetDynamic.__new__(FootprintParquetDynamic)
+    fp.section_merge = SECTION_MERGE_DEFAULT
+    return fp
 
 
 def make_event_def(section_id=1, rp_from=10, rp_to=20, interpolation=0.5):
@@ -191,3 +194,158 @@ def test_stochastic_missing_rp_from_uses_zero():
     assert result is not None
     assert len(result) == 1
     assert result[0]['intensity'] == 4
+
+
+# ---------------------------------------------------------------------------
+# _build_footprint — brackets holding different numbers of realisations.
+# They are paired by cumulative probability level: the j-th quantile at rp_from
+# meets the j-th quantile at rp_to. Expected values are worked by hand.
+# ---------------------------------------------------------------------------
+
+def distribution(result, areaperil_id=100):
+    return {int(r['intensity']): pytest.approx(float(r['probability']))
+            for r in result[result['areaperil_id'] == areaperil_id]}
+
+
+def test_one_realisation_against_three_interpolates_each_quantile():
+    # rp_from: 10 @ 1; rp_to: 16/20/24 @ .25/.5/.25; halfway -> 13/15/17 keeping rp_to's weights
+    haz = pd.DataFrame({
+        'section_id': 1, 'areaperil_id': 100,
+        'return_period': [10, 20, 20, 20],
+        'intensity': [10, 16, 20, 24],
+        'probability': [1.0, 0.25, 0.5, 0.25],
+    })
+    assert distribution(build(haz)) == {13: 0.25, 15: 0.5, 17: 0.25}
+
+
+def test_three_realisations_against_five_with_different_probabilities():
+    # rp_from: 14/18/22 @ .25/.5/.25 (levels .25 .75 1); rp_to: 34/37/40/43/46 @ .1/.2/.4/.2/.1
+    # (levels .1 .3 .7 .9 1). Union of levels .1 .25 .3 .7 .75 .9 1, and at interpolation .25:
+    #   (0,.1]   14->34 = 19     (.1,.25]  14->37 = 19.75 -> 19   (.25,.3] 18->37 = 22.75 -> 22
+    #   (.3,.7]  18->40 = 23.5   (.7,.75]  18->43 = 24.25 -> 24   (.75,.9] 22->43 = 27.25 -> 27
+    #   (.9,1]   22->46 = 28
+    haz = pd.DataFrame({
+        'section_id': 1, 'areaperil_id': 100,
+        'return_period': [10] * 3 + [20] * 5,
+        'intensity': [14, 18, 22, 34, 37, 40, 43, 46],
+        'probability': [0.25, 0.5, 0.25, 0.1, 0.2, 0.4, 0.2, 0.1],
+    })
+    result = build(haz, make_event_def(interpolation=0.25))
+    assert distribution(result) == {19: 0.25, 22: 0.05, 23: 0.4, 24: 0.05, 27: 0.15, 28: 0.1}
+
+
+def test_unweighted_duplicate_rows_in_unequal_numbers_keep_their_bracket_shares():
+    # No probability column, rows repeated a different number of times per return period, as
+    # some model data has it: rp_from 0/1, rp_to 8 four times. At interpolation 0 the footprint
+    # is rp_from's, 0 and 1 at one half each. Pairing by rank used to interpolate the two
+    # unmatched rp_to rows from 0 instead, giving 0 at 0.75.
+    haz = pd.DataFrame({
+        'section_id': 1, 'areaperil_id': 100,
+        'return_period': [10, 10, 20, 20, 20, 20],
+        'intensity': [0, 1, 8, 8, 8, 8],
+    })
+    assert distribution(build(haz, make_event_def(interpolation=0.0))) == {0: 0.5, 1: 0.5}
+
+
+def test_missing_bracket_is_one_atom_at_zero_against_any_number_of_realisations():
+    haz = pd.DataFrame({
+        'section_id': 1, 'areaperil_id': 100,
+        'return_period': [20, 20, 20],
+        'intensity': [4, 8, 12],
+        'probability': [0.25, 0.5, 0.25],
+    })
+    assert distribution(build(haz)) == {2: 0.25, 4: 0.5, 6: 0.25}
+
+
+# ---------------------------------------------------------------------------
+# _build_footprint — an areaperil lying in several sections of the event (a
+# confluence) is merged by the section_merge option. Expected values by hand.
+# ---------------------------------------------------------------------------
+
+def build_merged(haz, sections, section_merge):
+    """sections: (section_id, rp_from, rp_to, interpolation) of the one event."""
+    event_def = pd.DataFrame(sections, columns=['section_id', 'rp_from', 'rp_to', 'interpolation']).assign(event_id=1)
+    fp = make_fp()
+    fp.section_merge = section_merge
+    return fp._build_footprint(haz, event_def)
+
+
+def atoms(result, areaperil_id=100):
+    """(intensity, probability, return_period) of an areaperil, largest intensity first."""
+    rows = result[result['areaperil_id'] == areaperil_id]
+    return [(int(r['intensity']), pytest.approx(float(r['probability'])), int(r['return_period'])) for r in rows]
+
+
+def flat(section_id, areaperil_id, values, probabilities=None, return_periods=(10, 100)):
+    """A section whose distribution is the same at both brackets, so interpolation leaves it as is."""
+    probabilities = probabilities or [1.0 / len(values)] * len(values)
+    return pd.DataFrame([(section_id, areaperil_id, rp, v, p)
+                         for rp in return_periods for v, p in zip(values, probabilities)],
+                        columns=['section_id', 'areaperil_id', 'return_period', 'intensity', 'probability'])
+
+
+def test_confluence_takes_the_deeper_section():
+    # the confluence regression: section 1 interpolates to 158, section 2 to 36. The deeper governs,
+    # deterministically, carrying its own return period (section 1's rp_to, 100)
+    haz = pd.DataFrame({'section_id': [1, 1, 2, 2], 'areaperil_id': 100, 'return_period': [10, 100, 10, 50],
+                        'intensity': [80, 200, 30, 90]})
+    for section_merge in ('max', 'max_independent'):
+        result = build_merged(haz, [(1, 10, 100, 0.65), (2, 10, 50, 0.10)], section_merge)
+        assert atoms(result) == [(158, 1.0, 100)]
+
+
+def test_confluence_sum_floors_after_adding():
+    # 158.5 + 36.5 = 195; flooring each section first would give 158 + 36 = 194
+    haz = pd.DataFrame({'section_id': [1, 1, 2, 2], 'areaperil_id': 100, 'return_period': [10, 100, 10, 100],
+                        'intensity': [80, 237, 30, 103]})
+    result = build_merged(haz, [(1, 10, 100, 0.5), (2, 10, 100, 0.0890411)], 'sum')
+    assert atoms(result) == [(195, 1.0, 100)]
+
+
+@pytest.mark.parametrize('section_merge, expected', [
+    # section 1: 140/160/180, section 2: 120/150/190, each at .25/.5/.25
+    ('max', [(190, 0.25, 100), (160, 0.5, 100), (140, 0.25, 100)]),                     # mean 162.50
+    ('max_independent', [(190, 0.25, 100), (180, 0.1875, 100), (160, 0.375, 100),
+                         (150, 0.125, 100), (140, 0.0625, 100)]),                        # mean 168.75
+    ('sum', [(370, 0.25, 100), (310, 0.5, 100), (260, 0.25, 100)]),
+])
+def test_two_uncertain_sections(section_merge, expected):
+    haz = pd.concat([flat(1, 100, [140, 160, 180], [.25, .5, .25]), flat(2, 100, [120, 150, 190], [.25, .5, .25])])
+    result = build_merged(haz, [(1, 10, 100, 0.5), (2, 10, 100, 0.5)], section_merge)
+    assert atoms(result) == expected
+
+
+@pytest.mark.parametrize('section_merge, expected', [
+    # section 1: 10; section 2: 4/16 at .5 each; section 3: 6/8/12/20 at .25 each.
+    # comonotone, by level .25 .5 .75 1:  max (10,10,16,20)   sum (20,22,38,46)
+    ('max', [(20, 0.25, 100), (16, 0.25, 100), (10, 0.5, 100)]),
+    ('sum', [(46, 0.25, 100), (38, 0.25, 100), (22, 0.25, 100), (20, 0.25, 100)]),
+    # independent: P(max <= x) = F1 F2 F3 = .25 at 10, .375 at 12, .75 at 16, 1 at 20
+    ('max_independent', [(20, 0.25, 100), (16, 0.375, 100), (12, 0.125, 100), (10, 0.25, 100)]),
+])
+def test_three_sections_with_different_numbers_of_realisations(section_merge, expected):
+    haz = pd.concat([flat(1, 100, [10]), flat(2, 100, [4, 16]), flat(3, 100, [6, 8, 12, 20])])
+    result = build_merged(haz, [(s, 10, 100, 0.5) for s in (1, 2, 3)], section_merge)
+    assert atoms(result) == expected
+
+
+def test_each_level_keeps_the_return_period_of_the_section_that_wins_it():
+    # section 1 (rp_to 50) wins the two lower levels, section 2 (rp_to 100) the top one;
+    # on a tie the larger return period is kept
+    haz = pd.concat([flat(1, 100, [140, 160, 180], [.25, .5, .25], return_periods=(10, 50)),
+                     flat(2, 100, [120, 150, 190], [.25, .5, .25]),
+                     flat(1, 200, [30], return_periods=(10, 50)), flat(2, 200, [30])])
+    result = build_merged(haz, [(1, 10, 50, 0.5), (2, 10, 100, 0.5)], 'max')
+    assert atoms(result) == [(190, 0.25, 100), (160, 0.5, 50), (140, 0.25, 50)]
+    assert atoms(result, 200) == [(30, 1.0, 100)]
+
+
+@pytest.mark.parametrize('section_merge', ['max', 'max_independent', 'sum'])
+def test_an_areaperil_in_one_section_is_the_same_under_every_merge(section_merge):
+    # areaperil 300 lies in section 1 only, next to a confluence areaperil 100
+    haz = pd.concat([flat(1, 100, [140, 160, 180], [.25, .5, .25]), flat(2, 100, [120, 150, 190], [.25, .5, .25]),
+                     pd.DataFrame({'section_id': 1, 'areaperil_id': 300, 'return_period': [10, 10, 100, 100],
+                                   'intensity': [4, 8, 12, 20], 'probability': .5})])
+    result = build_merged(haz, [(1, 10, 100, 0.25), (2, 10, 100, 0.5)], section_merge)
+    # 4->12 and 8->20 a quarter of the way: 6 and 11
+    assert atoms(result, 300) == [(11, 0.5, 100), (6, 0.5, 100)]
