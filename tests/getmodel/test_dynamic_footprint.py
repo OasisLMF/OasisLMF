@@ -360,7 +360,28 @@ def test_64_bit_areaperil_ids_are_kept_apart():
     section_id = np.array([0, 1], np.int64)
     areaperil_id = np.array([2**32 + 5, 5], np.uint64)
     half = np.full(2, 0.5)
-    section_id, areaperil_id, intensity, probability = interpolate_brackets(
+    section_id, areaperil_id, intensity, width = interpolate_brackets(
         section_id, areaperil_id, np.array([2.0, 10.0]), np.ones(2), half,   # rp_from bracket
         section_id, areaperil_id, np.array([4.0, 20.0]), np.ones(2), half)   # rp_to bracket
-    assert list(zip(section_id, areaperil_id, intensity, probability)) == [(0, 2**32 + 5, 3.0, 1.0), (1, 5, 15.0, 1.0)]
+    # width is the probability in units of 1e-12: one interval covering the whole distribution
+    assert list(zip(section_id, areaperil_id, intensity, width)) == [(0, 2**32 + 5, 3.0, 10**12), (1, 5, 15.0, 10**12)]
+
+
+def test_sections_reversed_by_an_extrapolating_weight_merge_without_a_sliver():
+    # interpolation weights outside [0, 1] reverse a section's interpolated order; once re-sorted,
+    # its levels (thirds, not exact in 1e-12 units) round the other way from the other section's,
+    # and must still meet rather than leave a 1e-12 interval
+    haz = pd.DataFrame([(1, 1, 10, 8, 2), (3, 1, 50, 6, 1), (3, 1, 50, 2, 1), (1, 1, 10, 18, 1), (3, 1, 10, 5, 2),
+                        (1, 1, 20, 3, 1), (1, 1, 20, 14, 1), (3, 1, 50, 12, 1), (1, 1, 20, 11, 1), (1, 1, 10, 18, 0)],
+                       columns=['section_id', 'areaperil_id', 'return_period', 'intensity', 'probability'])
+    result = build_merged(haz, [(1, 10, 20, 1.5), (3, 20, 50, 2.25)], 'sum')
+    assert atoms(result, 1) == [(39, 1 / 3, 50), (25, 1 / 3, 50), (5, 1 / 3, 50)]
+
+
+def test_a_section_given_twice_with_different_brackets_is_refused():
+    from oasislmf.pytools.getmodel.footprint import OasisFootPrintError
+    haz = flat(1, 100, [10])
+    with pytest.raises(OasisFootPrintError, match=r"section\(s\) \[1\] more than once"):
+        build_merged(haz, [(1, 10, 100, 0.5), (1, 10, 100, 0.25)], 'max')
+    # the same row twice is harmless
+    assert atoms(build_merged(haz, [(1, 10, 100, 0.5), (1, 10, 100, 0.5)], 'max')) == [(10, 1.0, 100)]

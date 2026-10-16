@@ -14,6 +14,10 @@ import numba as nb
 import numpy as np
 
 LEVEL_SCALE = 10 ** 12
+# levels of different sections this close are the same level: probabilities such as 1/3 are not
+# exact in units of 1 / LEVEL_SCALE, and a section's rows re-ordered by intensity (an interpolation
+# weight outside [0, 1] reverses them) accumulate the rounding the other way round
+LEVEL_TOLERANCE = 1000
 
 # section merge options, as passed to merge_sections
 MERGE_MAX = 0
@@ -23,7 +27,11 @@ MERGE_MAX_INDEPENDENT = 2
 
 @nb.njit(cache=True)
 def _fill_levels(probability, start, end, level):
-    """Cumulative probability of rows start..end-1, normalised, as integer levels ending at LEVEL_SCALE."""
+    """Cumulative probability of rows start..end-1, normalised, as integer levels ending at LEVEL_SCALE.
+
+    probability may be float probabilities or integer level widths; for widths, which already add up
+    to LEVEL_SCALE, the levels are exact.
+    """
     total = 0.0
     for i in range(start, end):
         total += probability[i]
@@ -77,8 +85,9 @@ def interpolate_brackets(from_section, from_areaperil, from_intensity, from_prob
     section.
 
     Returns:
-        tuple: section_id, areaperil_id, intensity (unfloored), probability of each output row,
-            sorted by section_id, areaperil_id, intensity.
+        tuple: section_id, areaperil_id, intensity (unfloored), and the width of each output row's
+            level interval in units of 1 / LEVEL_SCALE (its probability, as an exact integer, so that
+            merge_sections re-derives the same levels); sorted by section_id, areaperil_id, intensity.
     """
     n_from, n_to = len(from_section), len(to_section)
     from_level = np.empty(n_from, np.int64)
@@ -88,7 +97,7 @@ def interpolate_brackets(from_section, from_areaperil, from_intensity, from_prob
     out_section = np.empty(n, from_section.dtype)
     out_areaperil = np.empty(n, from_areaperil.dtype)
     out_intensity = np.empty(n, np.float64)
-    out_probability = np.empty(n, np.float64)
+    out_width = np.empty(n, np.int64)
     k = 0
 
     f, t = 0, 0
@@ -117,7 +126,7 @@ def interpolate_brackets(from_section, from_areaperil, from_intensity, from_prob
                 out_section[k] = section
                 out_areaperil[k] = areaperil
                 out_intensity[k] = x_from + (x_to - x_from) * weight
-                out_probability[k] = (current - previous) / LEVEL_SCALE
+                out_width[k] = current - previous
                 k += 1
                 previous = current
             if current == LEVEL_SCALE:
@@ -128,7 +137,7 @@ def interpolate_brackets(from_section, from_areaperil, from_intensity, from_prob
                 j += 1
         f, t = f_end, t_end
 
-    return out_section[:k], out_areaperil[:k], out_intensity[:k], out_probability[:k]
+    return out_section[:k], out_areaperil[:k], out_intensity[:k], out_width[:k]
 
 
 @nb.njit(cache=True)
@@ -211,11 +220,12 @@ def collapse(areaperil_id, intensity, probability, return_period):
 
 
 @nb.njit(cache=True)
-def merge_sections(areaperil_id, section_id, intensity, probability, return_period, mode):
+def merge_sections(areaperil_id, section_id, intensity, width, return_period, mode):
     """Merge, per areaperil, the distributions of the sections of one event it lies in.
 
-    Rows must be sorted by areaperil_id, section_id, intensity. An areaperil in a single section
-    passes through unchanged. Otherwise, by mode:
+    Rows must be sorted by areaperil_id, section_id, intensity, and carry their probability as the
+    integer level width interpolate_brackets writes. An areaperil in a single section passes
+    through unchanged. Otherwise, by mode:
 
     - MERGE_MAX: walk the sections by cumulative level, keep the largest intensity at each level
       (the sections' uncertainties move together);
@@ -261,7 +271,7 @@ def merge_sections(areaperil_id, section_id, intensity, probability, return_peri
             seg_start[n_sections] = i
             seg_end[n_sections] = j
             cursor[n_sections] = i
-            _fill_levels(probability, i, j, level)
+            _fill_levels(width, i, j, level)
             n_sections += 1
             i = j
 
@@ -269,7 +279,7 @@ def merge_sections(areaperil_id, section_id, intensity, probability, return_peri
             for i in range(start, end):
                 out_areaperil[k] = areaperil_id[i]
                 out_intensity[k] = intensity[i]
-                out_probability[k] = probability[i]
+                out_probability[k] = width[i] / LEVEL_SCALE
                 out_return_period[k] = return_period[i]
                 k += 1
 
@@ -326,8 +336,9 @@ def merge_sections(areaperil_id, section_id, intensity, probability, return_peri
                     previous = current
                 if current == LEVEL_SCALE:
                     break
+                # a section's last level is exactly LEVEL_SCALE, so its cursor never passes its last row
                 for s in range(n_sections):
-                    if level[cursor[s]] == current:
+                    if level[cursor[s]] != LEVEL_SCALE and level[cursor[s]] - current <= LEVEL_TOLERANCE:
                         cursor[s] += 1
         start = end
 

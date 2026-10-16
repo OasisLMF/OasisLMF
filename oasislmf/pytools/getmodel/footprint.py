@@ -28,7 +28,7 @@ from .common import (
 )
 from oasislmf.pytools.common.data import footprint_event_dtype, areaperil_int
 from oasislmf.pytools.getmodel.dynamic_footprint import (
-    MERGE_MAX, MERGE_MAX_INDEPENDENT, MERGE_SUM, collapse, interpolate_brackets, is_sorted, merge_sections)
+    LEVEL_SCALE, MERGE_MAX, MERGE_MAX_INDEPENDENT, MERGE_SUM, collapse, interpolate_brackets, is_sorted, merge_sections)
 
 logger = logging.getLogger(__name__)
 
@@ -684,6 +684,7 @@ class FootprintParquetDynamic(Footprint):
                            f"so every loss will be zero")
             return
 
+        validate_hazard_case(df_hazard_case)
         # in the order the footprint build walks it, so that no event has to sort it again
         df_hazard_case = df_hazard_case.sort_values(['section_id', 'areaperil_id', 'return_period', 'intensity'],
                                                     kind='stable')
@@ -756,8 +757,16 @@ class FootprintParquetDynamic(Footprint):
         if 'probability' not in df_hazard_case.columns:
             df_hazard_case = df_hazard_case.assign(probability=1.0)
 
-        # one row per section for the event being built, in section order
-        df_event_sections = df_event_definition.drop_duplicates('section_id').sort_values('section_id')
+        # one row per section for the event being built, in section order; a section given twice with
+        # different brackets has no single meaning
+        df_event_sections = df_event_definition.drop_duplicates(
+            ['section_id', 'rp_from', 'rp_to', 'interpolation']).sort_values('section_id')
+        repeated = df_event_sections['section_id'].duplicated()
+        if repeated.any():
+            raise OasisFootPrintError(
+                f"event {df_event_sections['event_id'].iloc[0] if 'event_id' in df_event_sections else ''} defines "
+                f"section(s) {sorted(df_event_sections.loc[repeated, 'section_id'].unique().tolist())} more than once, "
+                f"with different rp_from, rp_to or interpolation")
         event_section = df_event_sections['section_id'].to_numpy(np.int64)
         if len(event_section) == 0 or len(df_hazard_case) == 0:
             return None
@@ -784,7 +793,8 @@ class FootprintParquetDynamic(Footprint):
                         hazard_probability[rows], interpolation[rows]]
         if len(streams[0]) == 0 and len(streams[5]) == 0:
             return None
-        section_id, areaperil_id, intensity, probability = interpolate_brackets(*streams)
+        section_id, areaperil_id, intensity, width = interpolate_brackets(*streams)
+        probability = width / LEVEL_SCALE
         return_period = df_event_sections['rp_to'].to_numpy(np.int64)[np.searchsorted(event_section, section_id)]
 
         # areaperils lying in several sections are merged; intensities stay unfloored until then, as a
@@ -797,7 +807,8 @@ class FootprintParquetDynamic(Footprint):
             if merged.any():
                 order = np.flatnonzero(merged)
                 order = order[np.lexsort((intensity[order], section_id[order], areaperil_id[order]))]
-                merged_rows = merge_sections(areaperil_id[order], section_id[order], intensity[order], probability[order],
+                # the merge re-derives each section's levels from the exact integer widths
+                merged_rows = merge_sections(areaperil_id[order], section_id[order], intensity[order], width[order],
                                              return_period[order], SECTION_MERGE_MODES[self.section_merge])
                 kept = ~merged
                 areaperil_id, intensity, probability, return_period = (
@@ -819,6 +830,34 @@ SECTION_MERGE_MODES = {
     'max_independent': MERGE_MAX_INDEPENDENT,
     'sum': MERGE_SUM,
 }
+
+
+def validate_hazard_case(df_hazard_case):
+    """Refuse hazard case values the footprint build cannot represent, once, at load.
+
+    Intensities are written as int32 after flooring, so they must be finite and in range; each
+    (section, areaperil, return period) distribution needs non-negative probabilities with a
+    positive total, as they are normalised per distribution.
+    """
+    def refuse(reason, bad):
+        example = df_hazard_case.loc[bad].iloc[0].to_dict()
+        raise OasisFootPrintError(f"{hazard_case_filename}: {int(bad.sum())} row(s) with {reason}, e.g. {example}")
+
+    intensity = df_hazard_case['intensity'].to_numpy(np.float64)
+    int32 = np.iinfo(np.int32)
+    bad = ~np.isfinite(intensity) | (intensity < int32.min) | (intensity > int32.max)
+    if bad.any():
+        refuse("an intensity that is not finite or outside the int32 range", bad)
+    if 'probability' in df_hazard_case.columns:
+        probability = df_hazard_case['probability'].to_numpy(np.float64)
+        bad = ~np.isfinite(probability) | (probability < 0)
+        if bad.any():
+            refuse("a probability that is not finite or negative", bad)
+        total = df_hazard_case.groupby(['section_id', 'areaperil_id', 'return_period'], observed=True)[
+            'probability'].transform('sum').to_numpy(np.float64)
+        bad = total <= 0
+        if bad.any():
+            refuse("probabilities adding up to 0 for their (section_id, areaperil_id, return_period)", bad)
 
 
 def confluence_areaperils(df_hazard_case):

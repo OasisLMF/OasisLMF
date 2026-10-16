@@ -16,7 +16,6 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import Keys
 from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.utils.path import setcwd
 from oasislmf.pytools.getmodel.manager import (
     get_items, get_vulns, get_mean_damage_bins, convert_vuln_id_to_index, get_conditional_vuln_ids,
 )
@@ -92,21 +91,21 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
             valid_area_peril_id if peril_filter else None)
 
     # --- footprint (temporary open to get num_intensity_bins) ------------------
-    # FootprintParquetDynamic.__enter__ reads input/sections.csv and input/keys.csv
-    # via relative paths, so cwd must be the run directory.
     logger.debug('import footprint (header only)')
-    with setcwd(run_dir), Footprint.load(model_storage, ignore_file_type,
-                                         df_engine=model_df_engine,
-                                         areaperil_ids=list(unique_areaperil_ids)) as footprint_obj:
+    footprint_obj = Footprint.load(model_storage, ignore_file_type,
+                                   df_engine=model_df_engine,
+                                   areaperil_ids=list(unique_areaperil_ids))
+    # A dynamic footprint carries intensities, not intensity bins: mapping them to bins, with the
+    # intensity adjustments and return period protection, is done by gulmc alone. modelpy and gulpy
+    # would read every event at bin 0 and report no loss at all rather than fail. Checked on the
+    # class Footprint.load picked, before entering it, so the hazard case is not loaded to refuse it.
+    if isinstance(footprint_obj, FootprintParquetDynamic):
+        raise OasisException(
+            "the model has a dynamic footprint, which modelpy and gulpy cannot run: its intensities are "
+            "mapped to intensity bins only by gulmc. Run this analysis with the gulmc engine."
+        )
+    with footprint_obj:
         num_intensity_bins = footprint_obj.num_intensity_bins
-        # A dynamic footprint carries intensities, not intensity bins: mapping them to bins, with the
-        # intensity adjustments and return period protection, is done by gulmc alone. modelpy would
-        # read every event at bin 0 and report no loss at all rather than fail.
-        if isinstance(footprint_obj, FootprintParquetDynamic):
-            raise OasisException(
-                "the model has a dynamic footprint, which modelpy cannot run: its intensities are mapped "
-                "to intensity bins only by gulmc. Run this analysis with the gulmc engine."
-            )
 
     # --- vulnerabilities -------------------------------------------------------
     # A conditional vulnerability is indexed by a source's damage bin, so this engine cannot

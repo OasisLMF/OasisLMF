@@ -465,3 +465,40 @@ def test_modelpy_refuses_a_dynamic_footprint(tmp_path):
                   'group_id': 1}).to_csv(run_dir / 'input' / 'items.csv', index=False)
     with pytest.raises(OasisException, match='dynamic footprint.*gulmc'):
         build_structures(str(run_dir), ignore_file_type=set(), peril_filter=[])
+
+
+def test_modelpy_refusal_holds_for_a_relative_run_directory(tmp_path, monkeypatch):
+    """The run directory given relative to the working directory must still find the model's footprint."""
+    from oasislmf.pytools.getmodel.structure import build_structures
+    from oasislmf.utils.exceptions import OasisException
+
+    storage, run_dir = build_model(tmp_path)
+    (run_dir / 'static').symlink_to(tmp_path / 'static')
+    pd.DataFrame({'item_id': [1], 'coverage_id': [1], 'areaperil_id': [100], 'vulnerability_id': 1,
+                  'group_id': 1}).to_csv(run_dir / 'input' / 'items.csv', index=False)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(OasisException, match='modelpy and gulpy cannot run'):
+        build_structures('run', ignore_file_type=set(), peril_filter=[])
+
+
+@pytest.mark.parametrize('column, value, reason', [
+    ('intensity', np.nan, 'intensity that is not finite'),
+    ('intensity', 2.0**40, 'outside the int32 range'),
+    ('probability', -0.5, 'probability that is not finite or negative'),
+])
+def test_unusable_hazard_values_are_refused_at_load(tmp_path, column, value, reason):
+    hazard_case = make_hazard_case().astype({'intensity': 'float64'}).assign(probability=1.0)
+    hazard_case.loc[0, column] = value
+    storage, run_dir = build_model(tmp_path, hazard_case=hazard_case)
+    with pytest.raises(OasisFootPrintError, match=reason):
+        with open_footprint(storage, run_dir):
+            pass
+
+
+def test_a_distribution_with_no_probability_is_refused_at_load(tmp_path):
+    hazard_case = make_hazard_case().assign(probability=1.0)
+    hazard_case.loc[hazard_case['areaperil_id'] == 200, 'probability'] = 0.0
+    storage, run_dir = build_model(tmp_path, hazard_case=hazard_case)
+    with pytest.raises(OasisFootPrintError, match='adding up to 0'):
+        with open_footprint(storage, run_dir):
+            pass
