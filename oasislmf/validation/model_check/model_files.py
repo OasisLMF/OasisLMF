@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pyarrow.parquet as pq
 
-from ...pytools.common.data import areaperil_int, oasis_int, vulnerability_dtype
+from ...pytools.common.data import areaperil_int, oasis_int, vulnerability_bin_header_type, vulnerability_dtype
 from ...pytools.common.input_files import read_occurrence_bin, read_periods, read_returnperiods
 from ...pytools.getmodel.common import EventIndexBin_dtype, footprint_index_filename
 from ...pytools.getmodel.footprint import Footprint
@@ -145,7 +145,7 @@ def _rows_from_parquet(df, num_damage_bins, num_intensity_bins):
 
 def load_vulnerability(report, model_storage, vuln_ids=None):
     """Load vulnerability rows for ``vuln_ids`` (all rows if None) from whichever format a run would pick."""
-    header_size = 4
+    header_size = vulnerability_bin_header_type.itemsize
     files = set(model_storage.listdir())
     wanted = None if vuln_ids is None else np.unique(np.asarray(vuln_ids, dtype=vulnerability_dtype['vulnerability_id']))
 
@@ -163,7 +163,7 @@ def load_vulnerability(report, model_storage, vuln_ids=None):
     if 'vulnerability.bin' in files:
         bin_size = model_storage.fs.size('vulnerability.bin')
         with model_storage.open('vulnerability.bin', 'rb') as f:
-            num_damage_bins = int(np.frombuffer(f.read(header_size), dtype=np.int32)[0])
+            num_damage_bins = int(np.frombuffer(f.read(header_size), dtype=vulnerability_bin_header_type)['max_damage_bin_idx'][0])
         if 'vulnerability.idx' in files:
             with model_storage.open('vulnerability.idx', 'rb') as f:
                 vulns_idx = np.frombuffer(f.read(), dtype=VulnerabilityIndex_dtype)
