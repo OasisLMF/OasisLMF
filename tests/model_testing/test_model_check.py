@@ -211,6 +211,14 @@ def test_occurrence_period_out_of_range(tmp_path):
     assert 'occurrence.period_range' in checks(run_check(tmp_path, model), 'ERROR')
 
 
+def test_occurrence_event_not_in_event_set(tmp_path):
+    model = default_model()
+    model['occurrence_lt'] = model['occurrence_lt'] + [(99, 1, 0)]
+    report = run_check(tmp_path, model)
+    found = [f for f in report.findings if f.check == 'occurrence.events_in_event_set']
+    assert len(found) == 1 and found[0].level == 'INFO' and found[0].examples == [99], report.format()
+
+
 def test_event_set_file_missing(tmp_path):
     settings = {**ANALYSIS_SETTINGS, 'model_settings': {'event_set': 'h', 'event_occurrence_id': 'lt'}}
     errors = checks(run_check(tmp_path, analysis_settings=settings), 'ERROR')

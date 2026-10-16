@@ -361,6 +361,9 @@ def check_event_files(report, run_files):
         if event_ids is not None:
             report.missing('occurrence.events_covered', 'events with no occurrence rows are absent from ALT/PLT/EPT outputs',
                            np.setdiff1d(event_ids, occ['event_id']).tolist(), level=WARNING)
+            report.missing('occurrence.events_in_event_set',
+                           'occurrence rows reference events not in the events file (they never produce loss; is the occurrence file '
+                           'paired with the right event set?)', np.setdiff1d(occ['event_id'], event_ids).tolist(), level=INFO)
         try:
             weights = read_periods(no_of_periods, input_dir)
             report.ok('periods.format')
