@@ -2044,7 +2044,8 @@ class APIClientTests(unittest.TestCase):
             result = self.client.run_generate_and_analysis(analysis_id=ID, poll_interval=0.01)
 
             self.assertFalse(result)
-            self.logger.error.assert_called_with(f"Input Generation: Failed (id={ID})\n\nServer logs:\n{trace_error_msg}")
+            self.logger.info.assert_any_call(f'Input Generation: Failed (id={ID})')
+            self.logger.error.assert_called_with(trace_error_msg)
 
     def test_run_generate_and_analysis__run_error(self):
         ID = 1

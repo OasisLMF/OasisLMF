@@ -682,13 +682,16 @@ class APIClient(object):
         """Polls an in-progress or already-complete input generation to completion,
         without triggering it. `analysis` is the last known analysis dict/status,
         as returned by `self.analyses.get(analysis_id).json()`.
+
+        A `RUN_*` status is also treated as inputs complete, since with `generate_and_run`
+        the loss run follows on server side and `READY` may never be observed.
         """
         try:
             logged_queued = None
             logged_running = None
 
             while True:
-                if analysis['status'] in ['READY']:
+                if analysis['status'] == 'READY' or analysis['status'].startswith('RUN_'):
                     self.logger.info('Inputs Generation: Complete (id={})'.format(analysis_id))
                     return True
 
@@ -730,7 +733,7 @@ class APIClient(object):
                                 # Exit conditions
                                 if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
                                     break
-                                elif 'READY' in analysis['status']:
+                                elif analysis['status'] == 'READY' or analysis['status'].startswith('RUN_'):
                                     pbar.update(pbar.total - pbar.n)
                                     break
 
@@ -778,34 +781,12 @@ class APIClient(object):
             if analysis_settings_fp:
                 self.upload_settings(analysis_id, analysis_settings_fp)
 
-            self.analyses.generate_and_run(analysis_id)
+            analysis = self.analyses.generate_and_run(analysis_id).json()
             self.logger.info(f'Generate and Run: Starting (id={analysis_id})')
-
-            logged_queued = False
-            logged_running = False
-            while True:
-                analysis = self.analyses.get(analysis_id).json()
-                status = analysis['status']
-                if status == 'INPUTS_GENERATION_QUEUED':
-                    if not logged_queued:
-                        self.logger.info(f'Input Generation: Queued (id={analysis_id})')
-                        logged_queued = True
-                elif status == 'INPUTS_GENERATION_STARTED':
-                    if not logged_running:
-                        self.logger.info(f'Input Generation: Executing (id={analysis_id})')
-                        logged_running = True
-                elif status == 'INPUTS_GENERATION_CANCELLED':
-                    self.logger.info(f'Input Generation: Cancelled (id={analysis_id})')
-                    return False
-                elif status == 'INPUTS_GENERATION_ERROR':
-                    error_trace = self.analyses.input_generation_traceback_file.get(analysis_id).text
-                    self.logger.error(f'Input Generation: Failed (id={analysis_id})\n\nServer logs:\n{error_trace}')
-                    return False
-                else:
-                    # Inputs done, the loss chain follows on (status passes through READY)
-                    self.logger.info(f'Inputs Generation: Complete (id={analysis_id})')
-                    return self._poll_analysis_until_complete(analysis_id, poll_interval, wait_on_ready=True)
-                time.sleep(poll_interval)
+            if not self._poll_generate_until_complete(analysis_id, analysis, poll_interval):
+                return False
+            # Inputs done, the loss chain follows on (status may pass through READY)
+            return self._poll_analysis_until_complete(analysis_id, poll_interval, wait_on_ready=True)
 
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_generate_and_analysis: failed')
