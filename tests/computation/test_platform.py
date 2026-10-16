@@ -824,11 +824,12 @@ class TestPlatformRun(ComputationChecker):
 
     @patch('oasislmf.computation.run.platform.APIClient.download_output')
     @patch('oasislmf.computation.run.platform.APIClient.run_generate_and_analysis', return_value=False)
-    def test_run__generate_and_run_fails__output_not_downloaded(self, mock_generate_and_run, mock_download):
+    def test_run__generate_and_run_fails__raises_without_download(self, mock_generate_and_run, mock_download):
         ID = 4
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_run_responses(rsps, ID, {'model': 1, 'settings_file': 'http://settings'}, {'id': 1, 'run_mode': 'V2'})
-            self.manager.platform_run(analysis_id=ID)
+            with self.assertRaisesRegex(OasisException, f'Generate and run did not complete \\(analysis_id={ID}\\)'):
+                self.manager.platform_run(analysis_id=ID)
 
         mock_generate_and_run.assert_called_once_with(ID, None)
         mock_download.assert_not_called()

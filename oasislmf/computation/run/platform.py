@@ -522,8 +522,10 @@ class PlatformRun(PlatformBase):
 
         if self.supports_generate_and_run(self.kwargs['analysis_id']):
             losses.set_chunking()
-            if self.server.run_generate_and_analysis(self.kwargs['analysis_id'], self.analysis_settings_json):
-                self.server.download_output(self.kwargs['analysis_id'], self.output_dir)
+            if not self.server.run_generate_and_analysis(self.kwargs['analysis_id'], self.analysis_settings_json):
+                # The reason (failed / cancelled / no keys) has already been logged by the client
+                raise OasisException(f"Generate and run did not complete (analysis_id={self.kwargs['analysis_id']})")
+            self.server.download_output(self.kwargs['analysis_id'], self.output_dir)
         else:
             self.server.run_generate(self.kwargs['analysis_id'])
             losses.run()
