@@ -237,6 +237,84 @@ def test_build_rtree_reprojects_non_4326_geometries(target_crs, rtree_locations_
     )
 
 
+@pytest.fixture
+def overlapping_sections_path(tmp_path):
+    """Three overlapping squares; id 10 checks the ids are sorted as numbers, not as strings."""
+    gpd = pytest.importorskip("geopandas")
+    from shapely.geometry import box
+    gdf = gpd.GeoDataFrame(
+        {"section_id": [2, 1, 10]},
+        geometry=[box(1, 0, 3, 2), box(0, 0, 2, 2), box(1, 1, 3, 3)],
+        crs="EPSG:4326",
+    )
+    path = tmp_path / "sections.parquet"
+    gdf.to_parquet(path)
+    return path.as_posix()
+
+
+@pytest.fixture
+def overlapping_sections_locations():
+    return pd.DataFrame(columns=["longitude", "latitude", "locname"], data=[
+        [0.5, 0.5, "one"],
+        [1.5, 0.5, "two"],
+        [1.5, 1.5, "three"],
+        [5.0, 5.0, "none"],
+        [None, None, "no_coordinates"],
+    ])
+
+
+def test_build_rtree_keeps_one_row_per_match(overlapping_sections_path, overlapping_sections_locations):
+    rtree = Lookup(config={}).build_rtree(
+        file_path=overlapping_sections_path, file_type="parquet", id_columns="section_id",
+    )
+    output = rtree(overlapping_sections_locations)
+    assert sorted(output.loc[output["locname"] == "three", "section_id"]) == [1, 2, 10]
+    assert len(output) == 1 + 2 + 3 + 1 + 1
+
+
+def test_join_rows_collapses_rows_that_differ_only_in_the_joined_column():
+    locations = pd.DataFrame({
+        'loc_id': [1, 1, 1, 2, 2, 3],
+        'peril_id': ['OSF', 'OSF', 'OSF', 'OSF', 'WTC', 'OSF'],
+        'section_id': [10, 2, 1, 5, 7, 4],
+    })
+    output = Lookup(config={}).build_join_rows(columns=['section_id'])(locations)
+    # one row per (loc_id, peril_id): numeric order, and a single value is a string too
+    assert output.values.tolist() == [[1, 'OSF', '1;2;10'], [2, 'OSF', '5'], [2, 'WTC', '7'], [3, 'OSF', '4']]
+
+
+def test_join_rows_groups_on_by_when_another_column_cannot_be_compared():
+    locations = pd.DataFrame({
+        'loc_id': [1, 1, 2],
+        'model_data': [{'a': 1}, {'a': 1}, {'a': 2}],  # unhashable, so it cannot be a grouping column
+        'section_id': [2, 1, 3],
+    })
+    output = Lookup(config={}).build_join_rows(columns='section_id', by=['loc_id'], separator='|')(locations)
+    assert output[['loc_id', 'section_id']].values.tolist() == [[1, '1|2'], [2, '3']]
+
+
+def test_join_rows_step_from_a_lookup_config(overlapping_sections_path, overlapping_sections_locations):
+    """join_rows declared as a step of a data-driven lookup config, after an rtree returning one row per match."""
+    config = {
+        "step_definition": {
+            "ids": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "OSF", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]}},
+            "section": {"type": "rtree", "columns": ["latitude", "longitude"],
+                        "parameters": {"file_path": overlapping_sections_path, "file_type": "parquet",
+                                       "id_columns": ["section_id"]}},
+            "join_sections": {"type": "join_rows", "columns": ["section_id"],
+                              "parameters": {"columns": ["section_id"]}},
+        },
+        "strategy": ["ids", "section", "join_sections"],
+    }
+    locations = overlapping_sections_locations.rename(columns={"locname": "loc_id"})
+    keys = Lookup(config=config).process_locations(locations)
+    assert keys.set_index("loc_id")["section_id"].to_dict() == {
+        "one": "1", "two": "1;2", "three": "1;2;10",
+        "none": str(OASIS_UNKNOWN_ID), "no_coordinates": str(OASIS_UNKNOWN_ID),
+    }
+
+
 @pytest.mark.parametrize("preparations, values, expected", [
     ({"min": 5}, [1, 5, 7], [5, 5, 7]),           # values below min are raised to min
     ({"max": 10}, [7, 10, 20], [7, 10, 10]),      # values above max are lowered to max
