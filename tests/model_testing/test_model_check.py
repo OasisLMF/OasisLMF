@@ -730,6 +730,36 @@ def test_lookup_relative_file_path_uses_keys_data_path(tmp_path):
     assert 'lookup.vulnerability.vulnerability_id' in checks(report, 'WARNING')
 
 
+@pytest.mark.parametrize('sorted_array, in_file, examples', [
+    ([0., 10., 5., 20.], False, ['position 2: 10.0 > 5.0']),
+    ([0., 10., 5., 20.], True, ['position 2: 10.0 > 5.0']),
+    ([0., 5., 5., 20.], True, None),
+])
+def test_lookup_interval_to_index_sorted(tmp_path, sorted_array, in_file, examples):
+    keys_dir = tmp_path / 'keys_data'
+    keys_dir.mkdir()
+    if in_file:
+        (keys_dir / 'intervals.csv').write_text('\n'.join(str(v) for v in sorted_array) + '\n')
+    report = run_lookup_check(tmp_path, {'interval': {'type': 'interval_to_index', 'parameters': {
+        'value_column_name': 'height', 'sorted_array': 'intervals.csv' if in_file else sorted_array}}})
+    found = [f for f in report.findings if f.check == 'lookup.interval.sorted_array']
+    if examples is None:
+        assert not found and 'lookup.interval.sorted_array' in report.passed
+    else:
+        assert len(found) == 1 and found[0].level == 'ERROR' and found[0].examples == examples
+
+
+def test_lookup_split_loc_perils_covered_vs_supported_perils(tmp_path):
+    (tmp_path / 'keys_data').mkdir()
+    model_settings = {**MODEL_SETTINGS, 'lookup_settings': {'supported_perils': [{'id': 'WTC'}, {'id': 'WSS'}]}}
+    report = run_lookup_check(tmp_path, {'split': {'type': 'split_loc_perils_covered',
+                                                   'parameters': {'model_perils_covered': ['WTC', 'ORF']}}},
+                              model_settings=model_settings)
+    found = {f.check: f.examples for f in report.warnings}
+    assert found['lookup.split.supported_perils'] == ['ORF']
+    assert found['lookup.split.perils_covered'] == ['WSS']
+
+
 def test_no_analysis_settings(tmp_path):
     report = run_check(tmp_path, analysis_settings={})
     assert 'settings.analysis' in checks(report, 'WARNING')

@@ -65,5 +65,6 @@ def run_model_check(report, run_dir, model_storage, analysis_settings, model_set
     if check_portfolio:
         check_items(report, items, portfolio['coverages'], vuln, agg_map, footprint, cond_ids)
         check_amplifications(report, input_dir, amp_ids, bool(merged_settings.get('pla')))
-    check_lookup_dicts(report, lookup_config_json, None if vuln is None else vuln.available_ids, agg_map, amp_ids, cond_ids)
+    check_lookup_dicts(report, lookup_config_json, None if vuln is None else vuln.available_ids, agg_map, amp_ids, cond_ids,
+                       model_settings=merged_settings)
     return report

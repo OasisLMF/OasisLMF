@@ -228,7 +228,41 @@ def _read_lookup_file(step_type, params, path):
     return (reader if callable(reader) else pd.read_csv)(path, **read_params)
 
 
-def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, lossfactor_amp_ids, cond_ids=()):
+def _check_interval_to_index(report, step_name, params, lookup_config, config_dir):
+    sorted_array = params.get('sorted_array')
+    if isinstance(sorted_array, str):
+        path = _resolve_lookup_path(lookup_config, config_dir, sorted_array)
+        if not os.path.exists(path):
+            report.error(f'lookup.{step_name}.exists', f'sorted_array file not found: {path}')
+            return
+        try:
+            with open(path) as f:
+                values = np.array([float(v) for v in f if v.strip()])
+        except ValueError as e:
+            report.error(f'lookup.{step_name}.read', f'{os.path.basename(path)} is not one number per line: {e}')
+            return
+    elif isinstance(sorted_array, list):
+        values = np.asarray(sorted_array, dtype=float)
+    else:
+        return
+    descending = np.flatnonzero(np.diff(values) < 0)
+    report.missing(f'lookup.{step_name}.sorted_array',
+                   'sorted_array is not in ascending order; np.searchsorted then silently maps values to the wrong interval index',
+                   [f'position {i + 1}: {values[i]} > {values[i + 1]}' for i in descending])
+
+
+def _check_split_loc_perils_covered(report, step_name, params, model_settings):
+    covered = params.get('model_perils_covered')
+    supported = {p['id'] for p in (model_settings or {}).get('lookup_settings', {}).get('supported_perils', [])}
+    if not covered or not supported:
+        return
+    report.missing(f'lookup.{step_name}.supported_perils',
+                   'model_perils_covered keeps perils that are not in lookup_settings.supported_perils', set(covered) - supported, level=WARNING)
+    report.missing(f'lookup.{step_name}.perils_covered',
+                   'supported_perils that model_perils_covered drops; locations never get keys for them', supported - set(covered), level=WARNING)
+
+
+def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, lossfactor_amp_ids, cond_ids=(), model_settings=None):
     """Check the files that built-in lookup steps read ids from against the model data.
 
     Only steps with a ``file_path`` and an ``id_columns`` entry the model data can be checked against are covered
@@ -242,6 +276,9 @@ def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, 
         ``lookup.<step>.vulnerability_id``: vulnerability ids missing from the model (warning).
         ``lookup.<step>.areaperil_range``: area peril ids outside the ``OASIS_AREAPERIL_TYPE`` range (error).
         ``lookup.<step>.amplification_id``: amplification ids missing from ``lossfactors.bin`` (warning).
+        ``lookup.<step>.sorted_array``: an ``interval_to_index`` ``sorted_array`` is not ascending (error).
+        ``lookup.<step>.supported_perils``: ``split_loc_perils_covered`` keeps perils the model does not support (warning).
+        ``lookup.<step>.perils_covered``: ``split_loc_perils_covered`` drops supported perils (warning).
 
     Args:
         report (CheckReport): report the findings are added to.
@@ -250,6 +287,7 @@ def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, 
         agg_ids (iterable): aggregate vulnerability ids.
         lossfactor_amp_ids (np.ndarray | None): amplification ids in ``lossfactors.bin``.
         cond_ids (array-like): conditional vulnerability ids.
+        model_settings (dict, optional): settings holding ``lookup_settings.supported_perils``.
     """
     if not lookup_config_json or not os.path.exists(lookup_config_json):
         report.info('lookup.dicts', 'no built-in lookup config; lookup dictionaries not checked (generated keys are still checked)')
@@ -288,3 +326,10 @@ def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, 
                 report.missing(f'{check}.amplification_id',
                                f'{os.path.basename(path)} has amplification ids that never appear in lossfactors.bin (factor 1.0)',
                                np.setdiff1d(ids.unique(), lossfactor_amp_ids).tolist(), level=WARNING)
+
+    for step_name, step in lookup_config.get('step_definition', {}).items():
+        params = step.get('parameters', {})
+        if step.get('type') == 'interval_to_index':
+            _check_interval_to_index(report, step_name, params, lookup_config, config_dir)
+        elif step.get('type') == 'split_loc_perils_covered':
+            _check_split_loc_perils_covered(report, step_name, params, model_settings)
