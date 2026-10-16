@@ -89,8 +89,11 @@ def check_damage_bins(report, storage):
     outside = (bins['interpolation'] < bins['bin_from'] - PROB_TOLERANCE) | (bins['interpolation'] > bins['bin_to'] + PROB_TOLERANCE)
     report.missing('damage_bin_dict.interpolation', 'interpolation lies outside [bin_from, bin_to]',
                    bins['bin_index'][outside].tolist())
-    report.missing('damage_bin_dict.overlap', 'bin_from is below the previous bin_to (bins overlap)',
-                   bins['bin_index'][1:][bins['bin_from'][1:] < bins['bin_to'][:-1] - PROB_TOLERANCE].tolist(), level=WARNING)
+    by_type = bins[np.argsort(bins['damage_type'], kind='stable')]
+    same_type = by_type['damage_type'][1:] == by_type['damage_type'][:-1]
+    overlap = same_type & (by_type['bin_from'][1:] < by_type['bin_to'][:-1] - PROB_TOLERANCE)
+    report.missing('damage_bin_dict.overlap', 'bin_from is below the previous bin_to of the same damage_type (bins overlap)',
+                   by_type['bin_index'][1:][overlap].tolist(), level=WARNING)
     report.missing('damage_bin_dict.damage_type', f'damage_type is not one of {sorted(VALID_DAMAGE_TYPE)}',
                    bins['bin_index'][~np.isin(bins['damage_type'], list(VALID_DAMAGE_TYPE))].tolist(), level=WARNING)
     if n and not (bins['bin_from'][0] == 0 and bins['bin_to'][0] == 0):

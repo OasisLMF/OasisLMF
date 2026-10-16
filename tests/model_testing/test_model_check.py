@@ -438,13 +438,25 @@ def test_damage_bin_dict_missing(tmp_path):
 
 @pytest.mark.parametrize('damage_bins, errors, warnings', [
     ([(1, 0., 0., 0., 1), (2, .6, .5, .55, 1), (3, .6, 1., .8, 1)], {'damage_bin_dict.from_to', 'damage_bin_dict.interpolation'}, set()),
-    ([(1, 0., 0., 0., 1), (2, 0., .6, .3, 1), (3, .5, 1., .75, 9)], set(), {'damage_bin_dict.overlap', 'damage_bin_dict.damage_type'}),
+    ([(1, 0., 0., 0., 1), (2, 0., .6, .3, 1), (3, .5, 1., .75, 1), (4, 1., 1., 1., 9)], set(),
+     {'damage_bin_dict.overlap', 'damage_bin_dict.damage_type'}),
 ])
 def test_damage_bin_dict_values(tmp_path, damage_bins, errors, warnings):
     model = default_model()
     model['damage_bins'] = damage_bins
     report = run_check(tmp_path, model)
     assert errors <= checks(report, 'ERROR') and warnings <= checks(report, 'WARNING')
+
+
+def test_damage_bin_dict_mixed_damage_types(tmp_path):
+    """Each damage_type block restarting at 0 (as in PiWindBI) is not an overlap."""
+    model = default_model()
+    model['damage_bins'] = [(1, 0., 0., 0., 1), (2, 0., .5, .25, 1), (3, .5, 1., .75, 1),
+                            (4, 0., 0., 0., 2), (5, 0., 1000., 500., 2), (6, 1000., 2000., 1500., 2),
+                            (7, 0., 0., 0., 3), (8, 0., 73., 36.5, 3), (9, 50., 146., 98., 3)]
+    report = run_check(tmp_path, model)
+    overlap = [f for f in report.findings if f.check == 'damage_bin_dict.overlap']
+    assert len(overlap) == 1 and overlap[0].examples == [9], report.format()
 
 
 @pytest.mark.parametrize('dynamic', [False, True])
