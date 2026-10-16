@@ -447,3 +447,43 @@ def test_get_dynamic_footprint_adjustments_without_item_adjustments_bin_only():
         assert adjustments[0]["item_id"] == 1
         assert np.all(adjustments["intensity_adjustment"] == 0)
         assert np.all(adjustments["return_period"] == 0)
+
+
+def test_dynamic_footprint_structures_build_from_a_relative_run_directory(tmp_path, monkeypatch):
+    """A run directory given relative to the working directory must still find the model data.
+
+    The footprint is loaded with the run directory as working directory (a dynamic footprint reads
+    input/sections.csv from there), so a model storage root left relative would be resolved a
+    second time below it, run_dir/run_dir/static, and the hazard case would not be found.
+    """
+    from oasislmf.pytools.getmodel.common import FootprintHeader
+    from oasislmf.pytools.gulmc.structure import build_structures
+
+    # test_model_1, its binary footprint replaced by a dynamic one over the same areaperils
+    run_dir = tmp_path / 'run'
+    shutil.copytree(TESTS_ASSETS_DIR / 'test_model_1', run_dir, ignore=shutil.ignore_patterns('log', 'expected', '*.log'))
+    static = run_dir / 'static'
+    num_intensity_bins = int(np.fromfile(static / 'footprint.bin', dtype=FootprintHeader, count=1)['num_intensity_bins'][0])
+    for footprint_file in static.glob('footprint.*'):
+        footprint_file.unlink()
+    areaperils = np.unique(pd.read_csv(run_dir / 'input' / 'items.csv')['areaperil_id'])
+    pd.DataFrame({'section_id': 1, 'areaperil_id': np.repeat(areaperils, 2), 'return_period': np.tile([10, 20], len(areaperils)),
+                  'intensity': np.tile([1, 2], len(areaperils))}).to_parquet(static / 'hazard_case.parquet', index=False)
+    pd.DataFrame({'event_id': pd.read_csv(run_dir / 'input' / 'events.csv')['event_id'], 'section_id': 1,
+                  'rp_from': 10, 'rp_to': 20, 'interpolation': 0.5}).to_parquet(static / 'event_definition.parquet', index=False)
+    # a dynamic footprint maps intensities to bins per peril; here intensity n is bin n
+    pd.DataFrame({'peril_id': 'WTC', 'intensity_bin': np.arange(num_intensity_bins + 1),
+                  'intensity': np.arange(num_intensity_bins + 1)}).to_csv(static / 'intensity_bin_dict.csv', index=False)
+    (static / 'footprint_parquet_meta.json').write_text(
+        f'{{"num_intensity_bins": {num_intensity_bins}, "has_intensity_uncertainty": 0}}')
+    pd.DataFrame({'section_id': [1]}).to_csv(run_dir / 'input' / 'sections.csv', index=False)
+    items = pd.read_csv(run_dir / 'input' / 'items.csv')
+    pd.DataFrame({'LocID': np.arange(1, len(items) + 1), 'PerilID': 'WTC', 'CoverageTypeID': 1,
+                  'AreaPerilID': items['areaperil_id'], 'VulnerabilityID': items['vulnerability_id']}).to_csv(
+        run_dir / 'input' / 'keys.csv', index=False)
+    summary_map = pd.read_csv(run_dir / 'input' / 'gul_summary_map.csv')
+    summary_map.assign(peril_id='WTC').to_csv(run_dir / 'input' / 'gul_summary_map.csv', index=False)
+
+    monkeypatch.chdir(tmp_path)
+    structures = build_structures('run', set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
+    assert len(structures['vuln_array'])
