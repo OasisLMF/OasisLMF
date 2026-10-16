@@ -12,7 +12,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from ...pytools.common.data import areaperil_int
+from ...pytools.common.data import areaperil_int, vulnerability_dtype
 from ...pytools.common.input_files import read_amplifications, read_coverages
 from ...pytools.gulmc.items import read_items
 from .report import WARNING
@@ -84,7 +84,7 @@ def check_items(report, items, coverages, vuln, agg_map, footprint, cond_ids=())
 
     if vuln is not None:
         item_vulns = np.unique(items['vulnerability_id'])
-        known = np.union1d(np.union1d(vuln.available_ids, np.array(sorted(agg_map), dtype=np.int64)), cond_ids)
+        known = np.union1d(np.union1d(vuln.available_ids, np.array(sorted(agg_map), dtype=vulnerability_dtype['vulnerability_id'])), cond_ids)
         report.missing('items.vulnerability_exists', f'item vulnerability ids missing from {vuln.source} (the run raises)',
                        np.setdiff1d(item_vulns, known).tolist())
 
@@ -165,7 +165,8 @@ def check_lookup_dicts(report, lookup_config_json, vuln_available_ids, agg_ids, 
                 continue
             ids = df[col].dropna()
             if col == 'vulnerability_id' and vuln_available_ids is not None:
-                known = np.union1d(np.union1d(vuln_available_ids, np.asarray(sorted(agg_ids), dtype=np.int64)), cond_ids)
+                agg_id_array = np.asarray(sorted(agg_ids), dtype=vulnerability_dtype['vulnerability_id'])
+                known = np.union1d(np.union1d(vuln_available_ids, agg_id_array), cond_ids)
                 report.missing(f'{check}.vulnerability_id',
                                f'{os.path.basename(path)} maps to vulnerability ids missing from the vulnerability file; '
                                'any location that hits them fails the loss run', np.setdiff1d(ids.unique(), known).tolist(), level=WARNING)

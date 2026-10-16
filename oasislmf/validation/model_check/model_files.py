@@ -147,7 +147,7 @@ def load_vulnerability(report, model_storage, vuln_ids=None):
     """Load vulnerability rows for ``vuln_ids`` (all rows if None) from whichever format a run would pick."""
     header_size = 4
     files = set(model_storage.listdir())
-    wanted = None if vuln_ids is None else np.unique(np.asarray(vuln_ids, dtype=np.int64))
+    wanted = None if vuln_ids is None else np.unique(np.asarray(vuln_ids, dtype=vulnerability_dtype['vulnerability_id']))
 
     if vulnerability_dataset in files:
         with model_storage.open(parquetvulnerability_meta_filename, 'r') as f:
