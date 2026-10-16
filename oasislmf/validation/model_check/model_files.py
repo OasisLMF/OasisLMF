@@ -24,11 +24,11 @@ from ...pytools.getmodel.footprint import Footprint
 from ...pytools.getmodel.manager import VulnerabilityIndex_dtype, VulnerabilityRow_dtype, get_damage_bins
 from ...pytools.getmodel.vulnerability import parquetvulnerability_meta_filename, vulnerability_dataset
 from ...pytools.gulmc.aggregate import read_aggregate_vulnerability, read_vulnerability_weights
+from ...pytools.gulmc.common import VALID_DAMAGE_TYPE
 from ...pytools.pla.structure import read_lossfactors
 from .report import ERROR, INFO, WARNING
 
 PROB_TOLERANCE = 1e-4
-VALID_DAMAGE_TYPES = {0, 1, 2, 3}
 
 
 class _Collector:
@@ -91,8 +91,8 @@ def check_damage_bins(report, storage):
                    bins['bin_index'][outside].tolist())
     report.missing('damage_bin_dict.overlap', 'bin_from is below the previous bin_to (bins overlap)',
                    bins['bin_index'][1:][bins['bin_from'][1:] < bins['bin_to'][:-1] - PROB_TOLERANCE].tolist(), level=WARNING)
-    report.missing('damage_bin_dict.damage_type', f'damage_type is not one of {sorted(VALID_DAMAGE_TYPES)}',
-                   bins['bin_index'][~np.isin(bins['damage_type'], list(VALID_DAMAGE_TYPES))].tolist(), level=WARNING)
+    report.missing('damage_bin_dict.damage_type', f'damage_type is not one of {sorted(VALID_DAMAGE_TYPE)}',
+                   bins['bin_index'][~np.isin(bins['damage_type'], list(VALID_DAMAGE_TYPE))].tolist(), level=WARNING)
     if n and not (bins['bin_from'][0] == 0 and bins['bin_to'][0] == 0):
         report.warning('damage_bin_dict.zero_bin',
                        'first damage bin is not the point bin [0, 0]; an all-zero vulnerability column then gives inf/nan instead of zero loss')
