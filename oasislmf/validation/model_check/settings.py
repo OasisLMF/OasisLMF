@@ -5,16 +5,8 @@ __all__ = [
 
 import os
 
-from ...execution.bin import (prepare_run_inputs, set_footprint_set, set_hazard_case_set,
-                              set_loss_factors_set, set_vulnerability_set)
+from ...execution.bin import OPTIONAL_MODEL_SETS, prepare_run_inputs
 from ...utils.exceptions import OasisException
-
-OPTIONAL_MODEL_SETS = {
-    'footprint_set': set_footprint_set,
-    'vulnerability_set': set_vulnerability_set,
-    'pla_loss_factors_set': set_loss_factors_set,
-    'hazard_case_set': set_hazard_case_set,
-}
 
 
 def _declared_options(model_settings, key):
