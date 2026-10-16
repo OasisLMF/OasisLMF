@@ -694,10 +694,10 @@ def test_lookup_dict_problems(tmp_path):
     assert not any(f.check.startswith(('lookup.class', 'lookup.split')) for f in report.findings)
 
 
-def run_lookup_check(tmp_path, step_definition, model=None, model_settings=None):
+def run_lookup_check(tmp_path, step_definition, model=None, model_settings=None, keys_data_path='./'):
     keys_dir = tmp_path / 'keys_data'
     with open(keys_dir / 'lookup.json', 'w') as f:
-        json.dump({'keys_data_path': './', 'step_definition': step_definition}, f)
+        json.dump({'keys_data_path': keys_data_path, 'step_definition': step_definition}, f)
     run_dir = tmp_path / 'run'
     run_dir.mkdir()
     return run_check(run_dir, model, model_settings=model_settings, lookup_config_json=str(keys_dir / 'lookup.json'))
@@ -717,6 +717,17 @@ def test_lookup_files_read_like_their_step(tmp_path):
     })
     assert {'lookup.peril.areaperil_range', 'lookup.broken.read'} <= checks(report, 'ERROR')
     assert next(f for f in report.warnings if f.check == 'lookup.vulnerability.vulnerability_id').examples == [7]
+
+
+def test_lookup_relative_file_path_uses_keys_data_path(tmp_path):
+    data_dir = tmp_path / 'keys_data' / 'data'
+    data_dir.mkdir(parents=True)
+    (data_dir / 'vuln.csv').write_text('peril_id,vulnerability_id\nWTC,7\n')
+    report = run_lookup_check(tmp_path, {
+        'vulnerability': {'type': 'merge', 'parameters': {'file_path': 'vuln.csv', 'id_columns': ['vulnerability_id']}},
+    }, keys_data_path='data')
+    assert 'lookup.vulnerability.exists' not in checks(report)
+    assert 'lookup.vulnerability.vulnerability_id' in checks(report, 'WARNING')
 
 
 def test_no_analysis_settings(tmp_path):

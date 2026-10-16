@@ -195,8 +195,14 @@ def check_amplifications(report, input_dir, lossfactor_amp_ids, pla_enabled):
                    np.setdiff1d(used, lossfactor_amp_ids).tolist(), level=WARNING)
 
 
-def _lookup_dict_files(lookup_config, config_dir):
+def _resolve_lookup_path(lookup_config, config_dir, file_path):
+    """Resolve a lookup step file path as the built-in lookup does: placeholders and relative paths use ``keys_data_path``."""
     keys_data_path = os.path.join(config_dir, lookup_config.get('keys_data_path', ''))
+    path = file_path.replace('%%KEYS_DATA_PATH%%', keys_data_path)
+    return os.path.normpath(path if os.path.isabs(path) else os.path.join(keys_data_path, path))
+
+
+def _lookup_dict_files(lookup_config, config_dir):
     for step_name, step in lookup_config.get('step_definition', {}).items():
         params = step.get('parameters', {})
         if 'file_path' not in params:
@@ -204,10 +210,7 @@ def _lookup_dict_files(lookup_config, config_dir):
         id_columns = [c.lower() for c in params.get('id_columns', [])]
         if not any(c in ID_COLUMN_CHECKS for c in id_columns):
             continue
-        path = params['file_path'].replace('%%KEYS_DATA_PATH%%', keys_data_path)
-        if not os.path.isabs(path):
-            path = os.path.join(config_dir, path)
-        yield step_name, step.get('type'), params, os.path.normpath(path), id_columns
+        yield step_name, step.get('type'), params, _resolve_lookup_path(lookup_config, config_dir, params['file_path']), id_columns
 
 
 def _read_lookup_file(step_type, params, path):
