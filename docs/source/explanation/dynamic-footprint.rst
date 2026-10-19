@@ -163,6 +163,12 @@ and another at 120 / 150 / 190, each at probabilities 0.25 / 0.5 / 0.25:
 
    ``max`` pairs the sections by cumulative probability, as the brackets above, and keeps the higher intensity at each level: the merged curve (dashed) is the upper envelope of the sections' curves. Section 1 governs the lower levels, section 2 the top one.
 
+The independent maximum is defined at a given intensity rather than at a given level: it multiplies
+the sections' probabilities of staying at or below that intensity. The next figure therefore shows
+the same curves with the axes swapped, as cumulative distributions, so that this product reads
+along a vertical line, as the pairing by level does above; in that view ``max`` is the lower of the
+two section curves, the same envelope as in the previous figure seen sideways.
+
 .. figure:: ../_static/images/dynamic_footprint/max_options_light.svg
    :figclass: only-light
    :alt: Cumulative distribution curves of two sections, of their maximum when their uncertainties move together, and of their independent maximum
