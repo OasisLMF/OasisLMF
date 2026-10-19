@@ -90,14 +90,14 @@ rank. A bracket the hazard case does not cover for an areaperil reads as intensi
 
 Drawn as curves, the pairing is easiest to see on an example where both brackets are uncertain:
 
-.. figure:: /_static/images/dynamic_footprint/interpolation_light.svg
+.. figure:: ../_static/images/dynamic_footprint/interpolation_light.svg
    :figclass: only-light
    :alt: Step curves of intensity against cumulative probability for the rp_from bracket, the rp_to bracket and the interpolated result
    :width: 100%
 
    Each bracket drawn as its intensity at every cumulative probability level (its quantile curve). ``rp_from`` has two values at 0.5 each, ``rp_to`` three at 0.25 / 0.5 / 0.25. Their breakpoints, 0.25, 0.5 and 0.75 (dotted), cut the levels into four intervals; in each, the two curves' values are interpolated, here half-way, giving 13, 15, 20 and 22 at 0.25 each.
 
-.. figure:: /_static/images/dynamic_footprint/interpolation_dark.svg
+.. figure:: ../_static/images/dynamic_footprint/interpolation_dark.svg
    :figclass: only-dark
    :alt: Step curves of intensity against cumulative probability for the rp_from bracket, the rp_to bracket and the interpolated result
    :width: 100%
@@ -149,28 +149,28 @@ and another at 120 / 150 / 190, each at probabilities 0.25 / 0.5 / 0.25:
      - 168.75
      - 0.4375
 
-.. figure:: /_static/images/dynamic_footprint/max_together_light.svg
+.. figure:: ../_static/images/dynamic_footprint/max_together_light.svg
    :figclass: only-light
    :alt: Step curves of intensity against cumulative probability for two sections and their maximum, which follows the higher curve
    :width: 100%
 
    ``max`` pairs the sections by cumulative probability, as the brackets above, and keeps the higher intensity at each level: the merged curve (dashed) is the upper envelope of the sections' curves. Section 1 governs the lower levels, section 2 the top one.
 
-.. figure:: /_static/images/dynamic_footprint/max_together_dark.svg
+.. figure:: ../_static/images/dynamic_footprint/max_together_dark.svg
    :figclass: only-dark
    :alt: Step curves of intensity against cumulative probability for two sections and their maximum, which follows the higher curve
    :width: 100%
 
    ``max`` pairs the sections by cumulative probability, as the brackets above, and keeps the higher intensity at each level: the merged curve (dashed) is the upper envelope of the sections' curves. Section 1 governs the lower levels, section 2 the top one.
 
-.. figure:: /_static/images/dynamic_footprint/max_options_light.svg
+.. figure:: ../_static/images/dynamic_footprint/max_options_light.svg
    :figclass: only-light
    :alt: Cumulative distribution curves of two sections, of their maximum when their uncertainties move together, and of their independent maximum
    :width: 100%
 
    The same two sections as cumulative distributions, ``P(intensity <= x)``. The maximum is at most x only if both sections are: moving together, that is the lower of the two curves (``max``); independent, it is their product (``max_independent``), which is lower again. Lower curves put more probability on high intensities: just below 180, ``max`` has reached 0.75 but ``max_independent`` only 0.5625, so the chance of at least 180 is 0.25 against 0.4375.
 
-.. figure:: /_static/images/dynamic_footprint/max_options_dark.svg
+.. figure:: ../_static/images/dynamic_footprint/max_options_dark.svg
    :figclass: only-dark
    :alt: Cumulative distribution curves of two sections, of their maximum when their uncertainties move together, and of their independent maximum
    :width: 100%
