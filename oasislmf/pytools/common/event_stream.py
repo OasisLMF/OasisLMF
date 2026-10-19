@@ -3,6 +3,8 @@
 from oasislmf.utils.exceptions import OasisStreamException
 import selectors
 from select import select
+import os
+import stat
 import sys
 
 import numpy as np
@@ -12,6 +14,7 @@ from .data import def_to_type_and_size
 
 # streams
 PIPE_CAPACITY = 65536  # bytes
+FIFO_EOF_NUDGE_INTERVAL = 1.0  # seconds a macOS FIFO read may idle before EOF is re-armed
 
 # stream source type
 CDF_STREAM_ID = 0
@@ -40,6 +43,59 @@ item_id_type, item_id_size = def_to_type_and_size("item_id")
 summary_id_dtype, summary_id_size = def_to_type_and_size("summary_id")
 sidx_type, sidx_size = def_to_type_and_size("sidx")
 loss_type, loss_size = def_to_type_and_size("loss")
+
+
+def _is_regular_file(stream):
+    """True if stream is backed by a regular file.
+
+    On Linux, epoll rejects regular files with EPERM and select() never flags
+    them as exceptional, so the surrounding code handles them by accident. On
+    macOS, kqueue accepts regular files (so the PermissionError fallback never
+    fires and reads block forever) and select() reports them in exceptfds (so
+    writes raise). Both call sites below need to know explicitly.
+    """
+    try:
+        return stat.S_ISREG(os.fstat(stream.fileno()).st_mode)
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def _nudge_fifo_eof(stream):
+    """Re-deliver a lost EOF on a macOS FIFO.
+
+    Under load, XNU can lose the EOF of a FIFO whose writer opens, writes
+    everything and closes before the blocked reader's open() has returned: the
+    reader then sees neither data nor EOF, and select() and read() block
+    forever. Opening and closing a write end re-runs the kernel's
+    last-writer-closed path. If a real writer is still attached the writer
+    count never reaches zero and nothing changes, so this can only deliver an
+    EOF that Linux would already have delivered.
+    """
+    import fcntl  # POSIX-only; this path runs on darwin only
+
+    try:
+        fd = stream.fileno()
+        if not stat.S_ISFIFO(os.fstat(fd).st_mode):
+            return
+        path = fcntl.fcntl(fd, fcntl.F_GETPATH, bytes(1024)).rstrip(b'\0')
+        os.close(os.open(path, os.O_WRONLY | os.O_NONBLOCK))
+    except (OSError, ValueError, AttributeError):
+        pass
+
+
+def _select(selector):
+    """selector.select() that survives lost FIFO EOFs on macOS."""
+    if sys.platform != 'darwin':
+        return selector.select()
+    while True:
+        ready = selector.select(timeout=FIFO_EOF_NUDGE_INTERVAL)
+        if ready:
+            return ready
+        streams = [key.fileobj for key in (selector.get_map() or {}).values()]
+        if not streams:
+            return ready
+        for stream in streams:
+            _nudge_fifo_eof(stream)
 
 
 def stream_info_to_bytes(stream_source_type, stream_agg_type):
@@ -354,15 +410,23 @@ class EventReader:
         Yields:
             int: each event id read from the streams
         """
-        try:
-            main_selector, stream_data = self.register_streams_in(selectors.DefaultSelector, streams_in)
-            self.logger.debug("Streams read with DefaultSelector")
-        except PermissionError:  # Fall back option if stream_in contain regular files
+        if sys.platform == 'darwin' or any(_is_regular_file(stream_in) for stream_in in streams_in):
+            # kqueue (macOS DefaultSelector) accepts regular files instead of
+            # raising PermissionError like epoll and never reports them ready,
+            # and it also misses EOF on a FIFO once the writer closes, so the
+            # reader blocks forever. select() handles both correctly.
             main_selector, stream_data = self.register_streams_in(selectors.SelectSelector, streams_in)
             self.logger.debug("Streams read with SelectSelector")
+        else:
+            try:
+                main_selector, stream_data = self.register_streams_in(selectors.DefaultSelector, streams_in)
+                self.logger.debug("Streams read with DefaultSelector")
+            except PermissionError:  # Fall back option if stream_in contain regular files
+                main_selector, stream_data = self.register_streams_in(selectors.SelectSelector, streams_in)
+                self.logger.debug("Streams read with SelectSelector")
         try:
             while main_selector.get_map():
-                for sKey, _ in main_selector.select():
+                for sKey, _ in _select(main_selector):
                     event = self.read_event(sKey.fileobj, main_selector, **sKey.data)
 
                     if event:
@@ -415,7 +479,7 @@ class EventReader:
         try:
             while True:
                 if valid_buff < PIPE_CAPACITY:
-                    stream_selector.select()
+                    _select(stream_selector)
                     len_read = stream_in.readinto1(mv[valid_buff:])
                     valid_buff += len_read
 
@@ -512,8 +576,12 @@ def write_mv_to_stream(stream, byte_mv, cursor):
         cursor: ammount of byte to write
     """
     written = 0
+    regular_file = _is_regular_file(stream)
     while written < cursor:
-        _, writable, exceptional = select([], [stream], [stream])
-        if exceptional:
-            raise IOError(f'error with input stream, {exceptional}')
+        if not regular_file:
+            # Regular files are always writable; macOS additionally reports
+            # them in exceptfds, which would raise below on a healthy stream.
+            _, writable, exceptional = select([], [stream], [stream])
+            if exceptional:
+                raise IOError(f'error with input stream, {exceptional}')
         written += stream.write(byte_mv[written:cursor].tobytes())
