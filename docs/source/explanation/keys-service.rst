@@ -450,6 +450,10 @@ Function Factory to associate a location to a geometry (e.g. ``area_peril``) bas
    * We use: https://automating-gis-processes.github.io/site/notebooks/L3/nearest-neighbor-faster.html
    * But alternatives can be found here: https://gis.stackexchange.com/questions/222315/geopandas-find-nearest-point-in-other-dataframe
 
+A location falling in several overlapping geometries gets one row per geometry. To have one row per location with
+its ids joined (``1;2``), as the sections of a dynamic footprint need, follow the step with ``join_rows`` (see
+:doc:`dynamic-footprint`).
+
 .. note::
    ``nearest_neighbor_min_distance`` and ``area_peril_read_params`` are deprecated aliases for
    ``nearest_neighbor_max_distance`` and ``file_read_params`` respectively, and may be removed in a future version.
@@ -592,6 +596,39 @@ becomes::
    2       18          4           18                  1
    1       3           2           2                   3
    2       18          4           4                   3
+
+|
+
+* **join_rows**
+
+Collapse rows that differ only in some columns into one row, joining those columns' values. A step that can match a
+location several times (an ``rtree`` on overlapping geometries, a ``merge`` on a one-to-many table) gives it one row per
+match; ``join_rows`` folds them back into one, which is the form a column such as ``section_id`` must take in the keys,
+where each item has a single row.
+
+``columns``: the column(s) whose values are joined.
+
+``separator``: placed between the joined values, ``;`` by default. ``section_id`` must use ``;``.
+
+``by``: the columns identifying the rows to collapse. By default every other column; set it when another column holds
+values that cannot be compared, such as ``model_data``.
+
+The unique values of each group are sorted, numerically where they are numbers (``1;2;10``), and joined. The joined
+columns become strings throughout, a single value included, so they keep one type. Missing values are left out of a
+join.
+
+For example, with ``"columns": ["section_id"]`` the input::
+
+   loc_id  peril_id  section_id
+   1       OSF       2
+   1       OSF       1
+   2       OSF       10
+
+becomes::
+
+   loc_id  peril_id  section_id
+   1       OSF       1;2
+   2       OSF       10
 
 |
 

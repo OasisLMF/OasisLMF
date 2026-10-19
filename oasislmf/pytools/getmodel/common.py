@@ -24,6 +24,12 @@ parquetfootprint_meta_filename = 'footprint_parquet_meta.json'
 event_defintion_filename = 'event_definition.parquet'
 hazard_case_filename = 'hazard_case.parquet'
 
+# How a dynamic footprint merges the intensities of an areaperil that lies in several sections
+# hit by one event (the dynamic_footprint_section_merge run option).
+SECTION_MERGE_OPTIONS = ('max', 'max_independent', 'sum')
+# the largest intensity, the rule confluences were introduced with (#1708)
+SECTION_MERGE_DEFAULT = 'max'
+
 
 FootprintHeader = np.dtype([('num_intensity_bins', np.int32),
                             ('has_intensity_uncertainty',
