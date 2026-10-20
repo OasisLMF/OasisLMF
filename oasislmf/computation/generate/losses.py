@@ -391,15 +391,20 @@ class GenerateLossesDir(GenerateLossesBase):
                 summaries = self.settings.get('{}_summaries'.format(runtype), [])
                 summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                 if summary_sets_id.shape[0]:
-                    if runtype == RUNTYPE_REINSURANCE_LOSS or runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
-                        # Intermediate RI layers are computed but never summarised, so only the
-                        # output levels hold an fmsummaryxref - unless gross RL output is also
-                        # requested, which writes one into every layer. Mirrors the argument
-                        # generate_summaryxref_files passes, so both resolve the same set.
+                    # Intermediate RI layers are computed but never summarised, so only the
+                    # output levels hold an risummaryxref - unless gross RL output is
+                    # requested, which writes one into every layer. Mirrors the argument
+                    # generate_summaryxref_files passes, so both resolve the same set.
+                    if runtype == RUNTYPE_REINSURANCE_LOSS:
+                        summary_dirs = get_ri_summaryxref_dirs(
+                            os.path.join(self.model_run_dir, 'input'),
+                            self.settings
+                        )
+                    elif runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
                         summary_dirs = get_ri_summaryxref_dirs(
                             os.path.join(self.model_run_dir, 'input'),
                             self.settings,
-                            all_layers=bool(rl and self.settings.get('rl_summaries')),
+                            all_layers=True
                         )
                     else:
                         summary_dirs = [os.path.join(self.model_run_dir, 'input')]

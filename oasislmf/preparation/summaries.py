@@ -448,13 +448,15 @@ def prepare_reins_output_map_summary(run_dir):
 
 
 def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
-    """Resolve the RI layer directories that receive an ``fmsummaryxref`` file.
+    """Resolve the RI layer directories that receive an ``risummaryxref`` or
+    ``rlsummaryxref`` file.
 
-    ``analysis_settings['ri_inuring_priorities']`` holds OED InuringPriority
-    values; the mapping written during input generation converts each to its RI
-    output level (the last RI layer index for that priority). The final priority
-    always receives output. Gross RL output is written for every RI layer, so
-    pass ``all_layers=True`` for that case.
+    For `rl` set `all_layers=True` as all the sub directories get a summarxref.
+
+    For `ri` ``analysis_settings['ri_inuring_priorities']`` holds OED
+    InuringPriority values; the mapping written during input generation
+    converts each to its RI output level (the last RI layer index for that
+    priority). The final priority always receives output.
 
     This is the single definition of which RI directories are summarised - both
     :func:`generate_summaryxref_files` and loss generation resolve it here so
@@ -474,6 +476,14 @@ def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
         OasisException: If a requested inuring priority is not in the structure
     """
     ri_settings = get_ri_settings(input_dir)
+
+    if all_layers:
+        ri_output_levels = {int(x) for x in ri_settings}
+        return [
+            os.path.join(input_dir, os.path.basename(ri_settings[str(output_level)]['directory']))
+            for output_level in sorted(ri_output_levels)
+        ]
+
     inuring_priority_to_output_level = get_ri_inuring_priority_output_levels(input_dir)
     valid_oed_priorities = set(inuring_priority_to_output_level.keys())
 
@@ -488,10 +498,7 @@ def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
         missing_str = ('priority ' if len(ri_missing) == 1 else 'priorities ') + missing_str
         raise OasisException(f'Requested outputs for inuring {missing_str} lie outside of scope.')
 
-    if all_layers:
-        ri_output_levels = {int(x) for x in ri_settings}
-    else:
-        ri_output_levels = {inuring_priority_to_output_level[p] for p in ri_inuring_priorities_oed}
+    ri_output_levels = {int(x) for x in ri_settings}
 
     return [
         os.path.join(input_dir, os.path.basename(ri_settings[str(output_level)]['directory']))
