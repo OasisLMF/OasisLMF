@@ -323,9 +323,9 @@ class PlatformServerInfo(PlatformBase):
 class PlatformList(PlatformBase):
     """Return status and details from an Oasis Platform API server"""
     step_params = PlatformBase.step_params + [
-        {'name': 'models', 'flag': '-m', 'type': int, 'nargs': '+', 'help': 'List of model ids to print in detail'},
-        {'name': 'portfolios', 'flag': '-p', 'type': int, 'nargs': '+', 'help': 'List of portfolio ids to print in detail'},
-        {'name': 'analyses', 'flag': '-a', 'type': int, 'nargs': '+', 'help': 'List of analyses ids to print in detail'},
+        {'name': 'models', 'flag': '-M', 'type': int, 'nargs': '+', 'help': 'List of model ids to print in detail'},
+        {'name': 'portfolios', 'flag': '-P', 'type': int, 'nargs': '+', 'help': 'List of portfolio ids to print in detail'},
+        {'name': 'analyses', 'flag': '-A', 'type': int, 'nargs': '+', 'help': 'List of analyses ids to print in detail'},
         {'name': 'subtask', 'flag': '-t', 'type': int, 'nargs': '+', 'help': 'List of task status ids to print in detail'},
     ]
 
@@ -345,6 +345,8 @@ class PlatformList(PlatformBase):
                     self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
                 except HTTPError as e:
                     self.logger.info(msg + e.response.text)
+                    continue
+                self.print_chunking('Model', self.server.models, Id)
 
         if self.portfolios:
             for Id in self.portfolios:
@@ -354,6 +356,8 @@ class PlatformList(PlatformBase):
                     self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
                 except HTTPError as e:
                     self.logger.info(msg + e.response.text)
+                    continue
+                self.print_storage_links('Portfolio', self.server.portfolios, Id)
 
         if self.subtask:
             for Id in self.subtask:
@@ -372,14 +376,32 @@ class PlatformList(PlatformBase):
                     self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
                 except HTTPError as e:
                     self.logger.info(msg + e.response.text)
+                    continue
+                self.print_chunking('Analysis', self.server.analyses, Id)
+
+    def print_chunking(self, label, endpoint, Id):
+        msg = f'{label} chunking configuration (id={Id}): \n'
+        try:
+            rsp = endpoint.chunking_configuration.get(Id)
+            self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
+        except HTTPError as e:
+            self.logger.info(msg + e.response.text)
+
+    def print_storage_links(self, label, endpoint, Id):
+        msg = f'{label} storage links (id={Id}): \n'
+        try:
+            rsp = endpoint.storage_links.get(Id)
+            self.logger.info(msg + json.dumps(rsp.json(), indent=4, sort_keys=True))
+        except HTTPError as e:
+            self.logger.info(msg + e.response.text)
 
 
 class PlatformRunInputs(PlatformBase):
     """run generate inputs via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'model_id', 'type': int, 'help': 'API `id` of a model to run an analysis with'},
-        {'name': 'portfolio_id', 'type': int, 'help': 'API `id` of a portfolio to run an analysis with'},
-        {'name': 'analysis_id', 'type': int, 'help': 'API `id` of an analysis to run'},
+        {'name': 'model_id', 'flag': '-M', 'type': int, 'help': 'API `id` of a model to run an analysis with'},
+        {'name': 'portfolio_id', 'flag': '-P', 'type': int, 'help': 'API `id` of a portfolio to run an analysis with'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'help': 'API `id` of an analysis to run'},
 
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
@@ -392,7 +414,14 @@ class PlatformRunInputs(PlatformBase):
     ]
 
     def run(self):
-        # Run Input geneneration from ID
+        self.prepare_analysis()
+        self.server.run_generate(self.analysis_id)
+        return self.analysis_id
+
+    def prepare_analysis(self):
+        """Select or create the analysis to generate inputs for, cancelling any
+        in-progress execution of it, and return its `id`.
+        """
         if self.analysis_id:
             try:
                 status = self.server.analyses.status(self.analysis_id)
@@ -400,7 +429,6 @@ class PlatformRunInputs(PlatformBase):
                     self.server.cancel_analysis(self.analysis_id)
                 elif status in ['INPUTS_GENERATION_QUEUED', 'INPUTS_GENERATION_STARTED']:
                     self.server.cancel_generate(self.analysis_id)
-                self.server.run_generate(self.analysis_id)
                 return self.analysis_id
             except HTTPError as e:
                 raise OasisException(f'Error running analysis ({self.analysis_id}) - {e}')
@@ -452,16 +480,13 @@ class PlatformRunInputs(PlatformBase):
                 "lookup_strategy": "FIXED_CHUNKS",
                 "fixed_lookup_chunks": self.lookup_chunks
             })
-
-        # Execure run
-        self.server.run_generate(self.analysis_id)
         return self.analysis_id
 
 
 class PlatformRunLosses(PlatformBase):
     """run generate losses via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
             'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
@@ -469,22 +494,51 @@ class PlatformRunLosses(PlatformBase):
     ]
 
     def run(self):
+        self.set_chunking()
+        self.server.run_analysis(self.analysis_id, self.analysis_settings_json)
+        self.server.download_output(self.analysis_id, self.output_dir)
+
+    def set_chunking(self):
         if self.analysis_chunks:
             self.server.analyses.chunking_configuration.post(self.analysis_id, {
                 "loss_strategy": "FIXED_CHUNKS",
                 "fixed_analysis_chunks": self.analysis_chunks
             })
-        self.server.run_analysis(self.analysis_id, self.analysis_settings_json)
-        self.server.download_output(self.analysis_id, self.output_dir)
 
 
 class PlatformRun(PlatformBase):
-    """End to End - run model via the Oasis Platform API"""
+    """End to End - run model via the Oasis Platform API
+
+    On the v2 API with a V2 (distributed) model this uses the `generate_and_run`
+    endpoint, so input generation and the loss run are executed as a single
+    server side task chain. Otherwise inputs and losses are run as two separate calls.
+    """
     chained_commands = [PlatformRunInputs, PlatformRunLosses]
 
     def run(self):
-        self.kwargs['analysis_id'] = PlatformRunInputs(**self.kwargs).run()
-        PlatformRunLosses(**self.kwargs).run()
+        inputs = PlatformRunInputs(**self.kwargs)
+        self.kwargs['analysis_id'] = inputs.prepare_analysis()
+        losses = PlatformRunLosses(**self.kwargs)
+
+        if self.supports_generate_and_run(self.kwargs['analysis_id']):
+            losses.set_chunking()
+            if not self.server.run_generate_and_analysis(self.kwargs['analysis_id'], self.analysis_settings_json):
+                # The reason (failed / cancelled / no keys) has already been logged by the client
+                raise OasisException(f"Generate and run did not complete (analysis_id={self.kwargs['analysis_id']})")
+            self.server.download_output(self.kwargs['analysis_id'], self.output_dir)
+        else:
+            self.server.run_generate(self.kwargs['analysis_id'])
+            losses.run()
+
+    def supports_generate_and_run(self, analysis_id):
+        """`generate_and_run` needs the v2 API, a V2 model and analysis settings"""
+        if self.server_version.lower() == 'v1':
+            return False
+        analysis = self.server.analyses.get(analysis_id).json()
+        if not (self.analysis_settings_json or analysis.get('settings_file')):
+            return False
+        model = self.server.models.get(analysis['model']).json()
+        return model.get('run_mode') == 'V2'
 
 
 class PlatformReconnect(PlatformBase):
@@ -492,7 +546,7 @@ class PlatformReconnect(PlatformBase):
     without re-triggering input generation or the run itself.
     """
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to reconnect to'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to reconnect to'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
             'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
     ]
@@ -504,9 +558,9 @@ class PlatformReconnect(PlatformBase):
 class PlatformDelete(PlatformBase):
     """Delete either a 'model', 'portfolio' or an 'analysis' from the API's Database"""
     step_params = PlatformBase.step_params + [
-        {'name': 'models', 'flag': '-m', 'type': int, 'nargs': '+', 'help': 'List of model ids to Delete.'},
-        {'name': 'portfolios', 'flag': '-p', 'type': int, 'nargs': '+', 'help': 'List of Portfolio ids to Delete'},
-        {'name': 'analyses', 'flag': '-a', 'type': int, 'nargs': '+', 'help': 'List of Analyses ids to Detele'},
+        {'name': 'models', 'flag': '-M', 'type': int, 'nargs': '+', 'help': 'List of model ids to Delete.'},
+        {'name': 'portfolios', 'flag': '-P', 'type': int, 'nargs': '+', 'help': 'List of Portfolio ids to Delete'},
+        {'name': 'analyses', 'flag': '-A', 'type': int, 'nargs': '+', 'help': 'List of Analyses ids to Detele'},
     ]
 
     def delete_list(self, attr, id_list):
@@ -622,7 +676,7 @@ class PlatformPost(PlatformBase):
     """
     step_params = PlatformBase.step_params + [
         # Portfolio
-        {'name': 'portfolio_id', 'type': int, 'help': 'API `id` of an existing portfolio to update. Omit to create a new portfolio'},
+        {'name': 'portfolio_id', 'flag': '-P', 'type': int, 'help': 'API `id` of an existing portfolio to update. Omit to create a new portfolio'},
         {'name': 'portfolio_name', 'help': 'Name for a newly created portfolio (ignored if --portfolio-id is given)'},
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
         {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
@@ -631,11 +685,11 @@ class PlatformPost(PlatformBase):
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'type': str, 'help': 'currency to use in the results reported'},
         # Analyses
-        {'name': 'analyses_id', 'type': int, 'help': 'API `id` of an analysis to upload settings to'},
+        {'name': 'analyses_id', 'flag': '-A', 'type': int, 'help': 'API `id` of an analysis to upload settings to'},
         {'name': 'analyses_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True,
             'help': 'Analyses settings JSON file path to upload (requires --analyses-id)'},
         # Models
-        {'name': 'model_id', 'type': int, 'help': 'API `id` of a model to upload settings to'},
+        {'name': 'model_id', 'flag': '-M', 'type': int, 'help': 'API `id` of a model to upload settings to'},
         {'name': 'model_settings_json', 'is_path': True, 'pre_exist': True,
             'help': 'Model settings JSON file path to upload (requires --model-id)'},
     ]
@@ -685,7 +739,7 @@ class PlatformPost(PlatformBase):
 class PlatformValidate(PlatformBase):
     """Validate a portfolio's OED exposure files via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to validate'},
+        {'name': 'portfolio_id', 'flag': '-P', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to validate'},
         {'name': 'get_status', 'action': 'store_true',
             'help': 'Fetch the current validation status instead of triggering a new OED validation run'},
         {'name': 'poll_interval', 'type': int, 'default': 5, 'help': 'Polling interval in seconds while waiting for validation to complete'},
@@ -712,7 +766,7 @@ class PlatformValidate(PlatformBase):
 class PlatformExposureRun(PlatformBase):
     """Run `oasislmf exposure run` on the server against a portfolio's exposure files"""
     step_params = PlatformBase.step_params + [
-        {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to run exposure calculations against'},
+        {'name': 'portfolio_id', 'flag': '-P', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to run exposure calculations against'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True, 'default': './',
             'help': 'Output data directory to download the resulting report to'},
         {'name': 'download', 'action': 'store_true', 'help': 'Download the resulting report after the exposure run completes'},
@@ -770,7 +824,7 @@ class PlatformExposureRun(PlatformBase):
 class PlatformExposureTransform(PlatformBase):
     """Convert a portfolio's exposure data between OED and AIR via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'portfolio_id', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to transform'},
+        {'name': 'portfolio_id', 'flag': '-P', 'type': int, 'required': True, 'help': 'API `id` of a portfolio to transform'},
         {'name': 'file_type', 'choices': ['location', 'accounts', 'ri_info', 'ri_scope'], 'required': True,
             'help': 'OED file type to transform'},
         {'name': 'mapping_file', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Path to the mapping file'},
@@ -792,7 +846,7 @@ class PlatformExposureTransform(PlatformBase):
 class PlatformCombine(PlatformBase):
     """Combine the ORD output of multiple RUN_COMPLETED analyses via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_ids', 'type': int, 'nargs': '+', 'required': True, 'help': 'List of RUN_COMPLETED analyses ids to combine'},
+        {'name': 'analysis_ids', 'flag': '-A', 'type': int, 'nargs': '+', 'required': True, 'help': 'List of RUN_COMPLETED analyses ids to combine'},
         {'name': 'combine_settings_json', 'is_path': True, 'pre_exist': True, 'required': True,
             'help': 'Path to a JSON file containing the combine ORD config (e.g. group_number_of_periods)'},
         {'name': 'combine_name', 'default': 'combine-analysis', 'help': 'Name for the combined analysis result'},
@@ -812,7 +866,7 @@ class PlatformCombine(PlatformBase):
 class PlatformCancel(PlatformBase):
     """Cancel a running analysis (input generation or execution) via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to cancel'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to cancel'},
     ]
 
     def run(self):
@@ -823,7 +877,7 @@ class PlatformCancel(PlatformBase):
 class PlatformSubTasks(PlatformBase):
     """List the sub-tasks of an analysis run via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to list sub-tasks for'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to list sub-tasks for'},
     ]
 
     def run(self):
@@ -836,7 +890,7 @@ class PlatformSubTasks(PlatformBase):
 class PlatformPlot(PlatformBase):
     """Plot a Gantt chart of an analysis's sub-tasks, with a status summary, via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to plot'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to plot'},
         {'name': 'output_file', 'flag': '-o', 'is_path': True, 'pre_exist': False,
             'help': 'Path to write the plot PNG to, default is "./analysis-<id>-gantt.png"'},
     ]

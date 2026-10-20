@@ -16,17 +16,76 @@ import tarfile
 import time
 import pathlib
 
+from dataclasses import dataclass, field
 from posixpath import join as urljoin
 
 import pandas as pd
 
 from tqdm import tqdm
+from typing import Callable
 from requests_toolbelt import MultipartEncoder
 from requests.exceptions import (
     HTTPError,
 )
 from .session import APISession
 from ..utils.exceptions import OasisException
+
+
+@dataclass(frozen=True)
+class _ExecutionPhase:
+    """Statuses and progress reporting for one phase of an analysis execution,
+    used by `APIClient._poll_until_complete`.
+    """
+    name: str
+    status_prefix: str
+    traceback_endpoint: str
+    unit: str
+    is_complete: Callable[[str], bool]
+    progress: Callable[[dict], tuple]  # -> (completed, total), total is 0 until reported
+    other_failures: dict = field(default_factory=dict)  # status -> reason, for failures that don't fetch a traceback
+
+    @property
+    def queued(self):
+        return f'{self.status_prefix}QUEUED'
+
+    @property
+    def started(self):
+        return f'{self.status_prefix}STARTED'
+
+    @property
+    def cancelled(self):
+        return f'{self.status_prefix}CANCELLED'
+
+    @property
+    def error(self):
+        return f'{self.status_prefix}ERROR'
+
+
+INPUTS_PHASE = _ExecutionPhase(
+    name='Input Generation',
+    status_prefix='INPUTS_GENERATION_',
+    traceback_endpoint='input_generation_traceback_file',
+    unit=' sub_task',
+    # With `generate_and_run` the loss run follows on server side, so READY may never be observed
+    is_complete=lambda status: status == 'READY' or status.startswith('RUN_'),
+    # Only V2 runs report sub task progress
+    progress=lambda analysis: (
+        (analysis['status_count']['COMPLETED'], analysis['status_count']['TOTAL'])
+        if analysis.get('run_mode') == 'V2' else (0, 0)
+    ),
+    # Set by the worker before the traceback file is stored, so don't wait on it here
+    other_failures={'INPUTS_GENERATION_NO_KEYS': 'lookup returned no keys, see the lookup_errors_file'},
+)
+
+RUN_PHASE = _ExecutionPhase(
+    name='Analysis Run',
+    status_prefix='RUN_',
+    traceback_endpoint='run_traceback_file',
+    unit=' gul stages',
+    is_complete=lambda status: status == 'RUN_COMPLETED',
+    # num_events_total can stay at 0 if no env vars are given to the worker
+    progress=lambda analysis: (analysis.get('num_events_complete', 0), analysis.get('num_events_total', 0)),
+)
 
 
 class ApiEndpoint(object):
@@ -676,78 +735,8 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'run_generate: failed')
             return
         self.logger.info('Inputs Generation: Starting (id={})'.format(analysis_id))
-        return self._poll_generate_until_complete(analysis_id, analysis, poll_interval)
-
-    def _poll_generate_until_complete(self, analysis_id, analysis, poll_interval):
-        """Polls an in-progress or already-complete input generation to completion,
-        without triggering it. `analysis` is the last known analysis dict/status,
-        as returned by `self.analyses.get(analysis_id).json()`.
-        """
         try:
-            logged_queued = None
-            logged_running = None
-
-            while True:
-                if analysis['status'] in ['READY']:
-                    self.logger.info('Inputs Generation: Complete (id={})'.format(analysis_id))
-                    return True
-
-                elif analysis['status'] in ['INPUTS_GENERATION_CANCELLED']:
-                    self.logger.info('Input Generation: Cancelled (id={})'.format(analysis_id))
-                    return False
-
-                elif analysis['status'] in ['INPUTS_GENERATION_ERROR']:
-                    self.logger.info('Input Generation: Failed (id={})'.format(analysis_id))
-                    error_trace = self.analyses.input_generation_traceback_file.get(analysis_id).text
-                    self.logger.error("\nServer logs:")
-                    self.logger.error(error_trace)
-                    return False
-
-                elif analysis['status'] in ['INPUTS_GENERATION_QUEUED']:
-                    if not logged_queued:
-                        logged_queued = True
-                        self.logger.info('Input Generation: Queued (id={})'.format(analysis_id))
-
-                    time.sleep(poll_interval)
-                    r = self.analyses.get(analysis_id)
-                    analysis = r.json()
-                    continue
-
-                elif analysis['status'] in ['INPUTS_GENERATION_STARTED']:
-                    if not logged_running:
-                        logged_running = True
-                        self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
-
-                    if analysis.get('run_mode', '') == 'V2':
-                        sub_task_total = analysis['status_count']['TOTAL']
-                        with tqdm(total=sub_task_total,
-                                  unit=' sub_task',
-                                  desc='Input Generation') as pbar:
-
-                            completed = analysis['status_count']['COMPLETED']
-                            while completed < sub_task_total:
-                                analysis = self.analyses.get(analysis_id).json()
-                                # Exit conditions
-                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
-                                    break
-                                elif 'READY' in analysis['status']:
-                                    pbar.update(pbar.total - pbar.n)
-                                    break
-
-                                # continue polling
-                                completed = analysis['status_count']['COMPLETED']
-                                pbar.update(completed - pbar.n)
-                                time.sleep(poll_interval)
-
-                    else:
-                        time.sleep(poll_interval)
-                        analysis = self.analyses.get(analysis_id).json()
-
-                    continue
-
-                else:
-                    err_msg = "Input Generation: Unknown State'{}'".format(analysis['status'])
-                    raise OasisException(err_msg)
+            return self._poll_until_complete(analysis_id, INPUTS_PHASE, poll_interval, analysis)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_generate: failed')
 
@@ -762,60 +751,99 @@ class APIClient(object):
 
             self.analyses.run(analysis_id)
             self.logger.info(f'Analysis Run: Starting (id={analysis_id})')
-            return self._poll_analysis_until_complete(analysis_id, poll_interval)
+            return self._poll_until_complete(analysis_id, RUN_PHASE, poll_interval)
 
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_analysis: failed')
 
-    def _poll_analysis_until_complete(self, analysis_id, poll_interval):
-        logged_queued = False
+    def run_generate_and_analysis(self, analysis_id, analysis_settings_fp=None, poll_interval=5):
+        """Generates the inputs and runs the analysis as a single server side task chain,
+        using the `generate_and_run` endpoint (v2 API with a V2 model only). The analysis
+        must have a settings file and one of the following statuses, `NEW`,
+        `INPUTS_GENERATION_ERROR`, `INPUTS_GENERATION_CANCELLED`, `READY`, `RUN_COMPLETED`,
+        `RUN_CANCELLED` or `RUN_ERROR`.
+        """
+        try:
+            if analysis_settings_fp:
+                self.upload_settings(analysis_id, analysis_settings_fp)
+
+            analysis = self.analyses.generate_and_run(analysis_id).json()
+            self.logger.info(f'Generate and Run: Starting (id={analysis_id})')
+            if not self._poll_until_complete(analysis_id, INPUTS_PHASE, poll_interval, analysis):
+                return False
+            # Inputs done, the loss chain follows on (status may pass through READY)
+            return self._poll_until_complete(analysis_id, RUN_PHASE, poll_interval, ignore=('READY',))
+
+        except HTTPError as e:
+            self.api.unrecoverable_error(e, 'run_generate_and_analysis: failed')
+
+    def _poll_until_complete(self, analysis_id, phase, poll_interval, analysis=None, ignore=()):
+        """Polls one phase of an execution (input generation or a run) until it finishes,
+        without triggering it. Returns True if the phase completed, False if it was
+        cancelled or failed.
+
+        Args:
+            analysis_id: id of the analysis to poll
+            phase: `INPUTS_PHASE` or `RUN_PHASE`
+            poll_interval: seconds between status requests
+            analysis: last known analysis dict, as returned by `self.analyses.get(analysis_id).json()`,
+                fetched if not given
+            ignore: statuses to keep polling through rather than treat as unknown
+        """
+        logged = set()
         while True:
-            analysis = self.analyses.get(analysis_id).json()
+            if analysis is None:
+                analysis = self.analyses.get(analysis_id).json()
             status = analysis['status']
-            if status == 'RUN_COMPLETED':
-                self.logger.info(f'Analysis Run: Complete (id={analysis_id})')
+
+            if phase.is_complete(status):
+                self.logger.info(f'{phase.name}: Complete (id={analysis_id})')
                 return True
-            elif status == 'RUN_CANCELLED':
-                self.logger.info(f'Analysis Run: Cancelled (id={analysis_id})')
+            elif status == phase.cancelled:
+                self.logger.info(f'{phase.name}: Cancelled (id={analysis_id})')
                 return False
-            elif status == 'RUN_ERROR':
-                error_trace = self.analyses.run_traceback_file.get(analysis_id).text
-                self.logger.error(f'Analysis Run: Failed (id={analysis_id})\n\nServer logs:\n{error_trace}')
+            elif status == phase.error:
+                error_trace = getattr(self.analyses, phase.traceback_endpoint).get(analysis_id).text
+                self.logger.error(f'{phase.name}: Failed (id={analysis_id})\n\nServer logs:\n{error_trace}')
                 return False
-            elif status == 'RUN_QUEUED':
-                if not logged_queued:
-                    self.logger.info(f'Analysis Run: Queued (id={analysis_id})')
-                    logged_queued = True
-            elif status == 'RUN_STARTED':
-                self.logger.info(f'Analysis Run: Executing (id={analysis_id})')
-                self._run_until_complete(analysis_id, poll_interval)
-                poll_interval = 0
-            else:
-                err_msg = f"Execution status in Unknown State: '{analysis['status']}'"
+            elif status in phase.other_failures:
+                self.logger.error(f'{phase.name}: Failed, {phase.other_failures[status]} (id={analysis_id}, status={status})')
+                return False
+            elif status in (phase.queued, phase.started):
+                if status not in logged:
+                    logged.add(status)
+                    state = 'Queued' if status == phase.queued else 'Executing'
+                    self.logger.info(f'{phase.name}: {state} (id={analysis_id})')
+                if status == phase.started:
+                    # returns with the status having moved on, so check it straight away
+                    analysis = self._track_progress(analysis_id, phase, poll_interval, analysis)
+                    continue
+            elif status not in ignore:
+                err_msg = f"{phase.name}: Unknown State '{status}'"
                 self.logger.error(err_msg)
                 raise OasisException(err_msg)
-            time.sleep(poll_interval)
 
-    def _run_until_complete(self, analysis_id, poll_interval):
-        analysis = self.analyses.get(analysis_id).json()
-        while analysis.get('num_events_total', 0) == 0:
-            # Possible to stay here if no env vars given to worker
-            if any(status in analysis['status'] for status in ['_CANCELLED', '_ERROR', 'COMPLETED']):
-                return
+            time.sleep(poll_interval)
+            analysis = None
+
+    def _track_progress(self, analysis_id, phase, poll_interval, analysis):
+        """Polls while `phase` is executing, showing a progress bar once the server
+        reports a total. Returns the first analysis dict with a different status.
+        """
+        while not phase.progress(analysis)[1]:
+            if analysis['status'] != phase.started:
+                return analysis
             time.sleep(poll_interval)
             analysis = self.analyses.get(analysis_id).json()
 
-        with tqdm(total=analysis['num_events_total'], unit=' gul stages', desc='Analysis Run') as pbar:
-            while "COMPLETED" not in analysis['status']:
-                pbar.update(analysis['num_events_complete'] - pbar.n)
+        with tqdm(total=phase.progress(analysis)[1], unit=phase.unit, desc=phase.name) as pbar:
+            while analysis['status'] == phase.started:
+                pbar.update(phase.progress(analysis)[0] - pbar.n)
                 time.sleep(poll_interval)
-
                 analysis = self.analyses.get(analysis_id).json()
-                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
-                    break
-                elif 'COMPLETED' in analysis['status']:
-                    pbar.update(pbar.total - pbar.n)
-                    break
+            if phase.is_complete(analysis['status']):
+                pbar.update(pbar.total - pbar.n)
+        return analysis
 
     def reconnect(self, analysis_id, output_dir=None, poll_interval=5):
         """Reconnects to an analysis that is still generating inputs or running,
@@ -828,13 +856,13 @@ class APIClient(object):
 
         if status in ['INPUTS_GENERATION_QUEUED', 'INPUTS_GENERATION_STARTED']:
             self.logger.info(f'Reconnecting: Inputs Generation in progress (id={analysis_id})')
-            if not self._poll_generate_until_complete(analysis_id, analysis, poll_interval):
+            if not self._poll_until_complete(analysis_id, INPUTS_PHASE, poll_interval, analysis):
                 return False
             status = self.analyses.status(analysis_id)
 
         if status in ['RUN_QUEUED', 'RUN_STARTED']:
             self.logger.info(f'Reconnecting: Analysis Run in progress (id={analysis_id})')
-            if not self._poll_analysis_until_complete(analysis_id, poll_interval):
+            if not self._poll_until_complete(analysis_id, RUN_PHASE, poll_interval):
                 return False
             status = self.analyses.status(analysis_id)
 
