@@ -331,10 +331,12 @@ def _leccalc_selected(analysis_settings):
     is_in_gul = False
     is_in_il = False
     is_in_ri = False
+    is_in_rl = False
 
     gul_section = analysis_settings.get('gul_summaries')
     il_section = analysis_settings.get('il_summaries')
     ri_section = analysis_settings.get('ri_summaries')
+    rl_section = analysis_settings.get('rl_summaries')
 
     if gul_section:
         is_in_gul = any(ord_enabled(gul_summary, ORD_LECCALC) for gul_summary in gul_section)
@@ -342,8 +344,10 @@ def _leccalc_selected(analysis_settings):
         is_in_il = any(ord_enabled(il_summary, ORD_LECCALC) for il_summary in il_section)
     if ri_section:
         is_in_ri = any(ord_enabled(ri_summary, ORD_LECCALC) for ri_summary in ri_section)
+    if rl_section:
+        is_in_rl = any(ord_enabled(rl_summary, ORD_LECCALC) for rl_summary in rl_section)
 
-    return any([is_in_gul, is_in_il, is_in_ri])
+    return any([is_in_gul, is_in_il, is_in_ri, is_in_rl])
 
 
 def get_event_range(event_range):
