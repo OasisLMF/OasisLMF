@@ -829,7 +829,6 @@ def generate_summaryxref_files(
         with open(os.path.join(output_dir, 'reins_output_levels_summary.json'), 'w', encoding='utf-8') as f:
             f.write(json.dumps(reins_map_summary, ensure_ascii=False, indent=4))
 
-        breakpoint()
 
 def code_column(name):
     """Name of the coded column for the exposure summary field `name`.

@@ -81,7 +81,6 @@ def load_static(static_path):
             - profile: policy profile can be profile_step or profile
             - stepped: True when fm_profile_step was loaded, None when falling back to fm_profile
             - xref: node to output_id
-            - ceded_xref: optional secondary xref for ceded
             - items: items (item_id and coverage_id mapping), empty when items and coverages
               disagree on the number of coverages
             - coverages: Tiv value for each coverage id, empty when items and coverages disagree
@@ -100,7 +99,6 @@ def load_static(static_path):
         stepped = True
     profile = profile.copy()  # profile is a memmap but we may update some value so we copy it into its own array.
     xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype)
-    ceded_xref = load_as_ndarray(static_path, 'fm_xref_ceded', fm_xref_dtype, must_exist=False)
 
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
     coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
@@ -109,7 +107,7 @@ def load_static(static_path):
         items = np.empty(0, dtype=items_dtype)
         coverages = np.empty(0, dtype=oasis_float)
 
-    return programme, policytc, profile, stepped, xref, ceded_xref, items, coverages
+    return programme, policytc, profile, stepped, xref, items, coverages
 
 
 @njit(cache=True)
@@ -372,9 +370,7 @@ def prepare_profile_stepped(profile, tiv):
 
 
 @njit(cache=True)
-def extract_financial_structure(allocation_rule, fm_programme, fm_policytc,
-                                fm_profile, stepped, fm_xref, ceded_fm_xref, items,
-                                coverages):
+def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages):
     """Build the in-memory financial structure arrays from the raw fm input files.
 
     Args:
@@ -384,18 +380,16 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc,
         fm_profile (np.ndarray): definition of the policy_id, of fm_profile_dtype or fm_profile_step_dtype
         stepped (Optional[bool]): True when fm_profile holds step policies, None otherwise
         fm_xref (np.ndarray[fm_xref_dtype]): mapping between the output of the allocation and output item_id
-        ceded_fm_xref (np.ndarray[fm_xref_dtype]):  optional second mapping, empty when not used, between the output of the allocation and output item_id for secondary ceded fm_xref
         items (np.ndarray[items_dtype]): item_id and coverage_id mapping, empty when unavailable
         coverages (np.ndarray[oasis_float]): Tiv value for each coverage id, empty when unavailable
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             - compute_infos: array describing the steps of the computation to perform
             - nodes_array: array of the nodes of the financial structure
             - node_parents_array: array mapping each node to its parent nodes
             - node_profiles_array: array mapping each node to its profiles
             - output_array: array mapping each output to its node
-            - ceded_output_array: same as output_array but holding the output_ids for ceded_fm_xref
             - fm_profile: the fm_profile array used by the computation
 
     Raises:
@@ -555,19 +549,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc,
 
         output_id_arr[xref['agg_id'], xref['layer_id']] = xref['output']
 
-    if ceded_fm_xref.shape[0] > 0:
-        max_ceded_layer_id = np.max(ceded_fm_xref['layer_id'])
-    else:
-        max_ceded_layer_id = 1
-
-    ceded_output_id_arr = np.zeros((max_agg_id_out + 1, max_ceded_layer_id + 1), dtype=oasis_int)
-
-    for i in range(ceded_fm_xref.shape[0]):
-        xref = ceded_fm_xref[i]
-        ceded_output_id_arr[xref['agg_id'], xref['layer_id']] = xref['output']
-    ceded_named = np.count_nonzero(ceded_output_id_arr)
-    ceded_placed = 0
-
     ##### programme ####
     # node_layers will contain the number of layers for each node
     # Using array indexed by node_level_start[level] + agg_id (0 = not set)
@@ -697,7 +678,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc,
     node_parents_array = np.empty(parents_len, dtype=oasis_int)
     node_profiles_array = np.zeros(fm_policytc.shape[0] + 1, dtype=profile_index_dtype)
     output_array = np.zeros(output_array_size, dtype=oasis_int)
-    ceded_output_array = np.zeros(output_array_size, dtype=oasis_int)
 
     node_i = 1
     children_i = 1
@@ -833,14 +813,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc,
                         layer_id = profiles_data[src_prof_start + i]['layer_id']
                         if output_id_arr[agg_id, layer_id] != 0:
                             output_array[node['output_ids'] + i] = output_id_arr[agg_id, layer_id]
-                        if ceded_output_id_arr[agg_id, layer_id] != 0:
-                            ceded_output_array[node['output_ids'] + 1] = ceded_output_id_arr[agg_id, layer_id]
-                            ceded_placed += 1
                 else:
                     raise KeyError("Some output nodes are missing output_ids")
-
-    if ceded_placed != ceded_named:
-        raise ValueError("fm_xref_ceded names (agg_id, layer_id) pairs that are not layers of an output level node")
 
     compute_infos = np.empty(1, dtype=compute_info_dtype)
     compute_info = compute_infos[0]
@@ -859,14 +833,14 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc,
     compute_info['stepped'] = stepped is not None
     compute_info['max_layer'] = max(nodes_array['layer_len'][1:])
 
-    return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, ceded_output_array, fm_profile
+    return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
 
 
 def create_financial_structure(allocation_rule, static_path):
     """Compute the financial structure and save it as .npy files in ``static_path``.
 
     The extracted structure (``compute_info``, ``nodes_array``, ``node_parents_array``,
-    ``node_profiles_array``, ``output_array``, ``ceded_output_array`` and ``fm_profile``) is written to ``static_path``;
+    ``node_profiles_array``, ``output_array`` and ``fm_profile``) is written to ``static_path``;
     nothing is returned.
 
     Args:
@@ -881,10 +855,10 @@ def create_financial_structure(allocation_rule, static_path):
     if allocation_rule == 3:
         allocation_rule = 2
 
-    fm_programme, fm_policytc, fm_profile, stepped, fm_xref, ceded_fm_xref, items, coverages = load_static(static_path)
+    fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages = load_static(static_path)
     financial_structure = extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile,
-                                                      stepped, fm_xref, ceded_fm_xref, items, coverages)
-    compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, ceded_output_array, fm_profile = financial_structure
+                                                      stepped, fm_xref, items, coverages)
+    compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile = financial_structure
     logger.info(f'nodes_array has {len(nodes_array)} elements')
     logger.info(f'compute_info : {dict(zip(compute_info.dtype.names, compute_info[0]))}')
 
@@ -895,8 +869,6 @@ def create_financial_structure(allocation_rule, static_path):
     np.save(os.path.join(static_path, f'output_array_{allocation_rule}'), output_array)
     np.save(os.path.join(static_path, 'fm_profile'), fm_profile)
 
-    if ceded_fm_xref.shape[0] > 0:
-        np.save(os.path.join(static_path, f'ceded_output_array_{allocation_rule}'), ceded_output_array)
 
 def load_financial_structure(allocation_rule, static_path):
     compute_info = np.load(os.path.join(static_path, f'compute_info_{allocation_rule}.npy'), mmap_mode='r')
