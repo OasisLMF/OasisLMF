@@ -401,7 +401,7 @@ class PlatformRunInputs(PlatformBase):
     step_params = PlatformBase.step_params + [
         {'name': 'model_id', 'type': int, 'help': 'API `id` of a model to run an analysis with'},
         {'name': 'portfolio_id', 'type': int, 'help': 'API `id` of a portfolio to run an analysis with'},
-        {'name': 'analysis_id', 'type': int, 'help': 'API `id` of an analysis to run'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'help': 'API `id` of an analysis to run'},
 
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
@@ -486,7 +486,7 @@ class PlatformRunInputs(PlatformBase):
 class PlatformRunLosses(PlatformBase):
     """run generate losses via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
             'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
@@ -546,7 +546,7 @@ class PlatformReconnect(PlatformBase):
     without re-triggering input generation or the run itself.
     """
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to reconnect to'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to reconnect to'},
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
             'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
     ]
@@ -866,7 +866,7 @@ class PlatformCombine(PlatformBase):
 class PlatformCancel(PlatformBase):
     """Cancel a running analysis (input generation or execution) via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to cancel'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to cancel'},
     ]
 
     def run(self):
@@ -877,7 +877,7 @@ class PlatformCancel(PlatformBase):
 class PlatformSubTasks(PlatformBase):
     """List the sub-tasks of an analysis run via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to list sub-tasks for'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to list sub-tasks for'},
     ]
 
     def run(self):
@@ -890,7 +890,7 @@ class PlatformSubTasks(PlatformBase):
 class PlatformPlot(PlatformBase):
     """Plot a Gantt chart of an analysis's sub-tasks, with a status summary, via the Oasis Platform API"""
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to plot'},
+        {'name': 'analysis_id', 'flag': '-A', 'type': int, 'required': True, 'help': 'API `id` of an analysis to plot'},
         {'name': 'output_file', 'flag': '-o', 'is_path': True, 'pre_exist': False,
             'help': 'Path to write the plot PNG to, default is "./analysis-<id>-gantt.png"'},
     ]
