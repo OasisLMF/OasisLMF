@@ -299,12 +299,13 @@ def _calc_selected(analysis_settings, calc_type_list):
     """Return True, if any options in "calc_type_list" are set in the analysis settings file
 
     Args:
-        analysis_settings (dict): model analysis settings dict, whose gul/il/ri summaries sections are searched
+        analysis_settings (dict): model analysis settings dict, whose gul/il/ri/rl summaries sections are searched
         calc_type_list (list): List of string values or kernel outputs, e.g. `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
     """
     gul_section = analysis_settings.get('gul_summaries')
     il_section = analysis_settings.get('il_summaries')
     ri_section = analysis_settings.get('ri_summaries')
+    rl_section = analysis_settings.get('rl_summaries')
 
     for calc_type in calc_type_list:
 
@@ -317,6 +318,11 @@ def _calc_selected(analysis_settings, calc_type_list):
         if ri_section:
             if any(ri_summary.get(calc_type, None) or ri_summary.get('ord_output', {}).get(calc_type) for ri_summary in ri_section):
                 return True
+
+        if rl_section:
+            if any(rl_summary.get(calc_type, None) or rl_summary.get('ord_output', {}).get(calc_type) for rl_summary in rl_section):
+                return True
+
     return False
 
 
