@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 import numpy as np
 import pyarrow.parquet as pq
 
-from ...pytools.common.data import areaperil_int, oasis_int, vulnerability_bin_header_type, vulnerability_dtype
+from ...pytools.aal.manager import event_id_dtype
+from ...pytools.common.data import areaperil_int, vulnerability_bin_header_type, vulnerability_dtype
 from ...pytools.common.input_files import read_occurrence_bin, read_periods, read_returnperiods
 from ...pytools.getmodel.common import EventIndexBin_dtype, footprint_index_filename
 from ...pytools.getmodel.footprint import Footprint
@@ -442,7 +443,7 @@ def check_event_files(report, run_files):
     event_ids = None
     input_dir = os.path.dirname(next(iter(run_files.values()))) if run_files else None
     if 'events' in run_files:
-        event_ids = np.fromfile(run_files['events'], dtype=oasis_int)
+        event_ids = np.fromfile(run_files['events'], dtype=event_id_dtype)
         sorted_ids = np.sort(event_ids)
         report.missing('events.duplicates', 'duplicate event ids in the events file (losses counted twice)',
                        np.unique(sorted_ids[1:][sorted_ids[1:] == sorted_ids[:-1]]).tolist())
