@@ -188,6 +188,12 @@ class RunExposure(ComputationStep):
 
         # Read in the summary map
         summaries_df = get_dataframe(src_fp=get_summary_map_fp(run_dir, SUMMARY_MAPPING['fm_map_fn']), lowercase_cols=False)
+        # parquet keeps OED ids such as LocNumber as str, convert numeric ones as pandas does when reading csv,
+        # so the summaries below keep the same row order (numeric rather than lexicographic)
+        for col in summaries_df.select_dtypes(include='object').columns:
+            numeric_col = pd.to_numeric(summaries_df[col], errors='coerce')
+            if numeric_col.notna().all():
+                summaries_df[col] = numeric_col
 
         guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
         guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True)
