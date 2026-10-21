@@ -6,6 +6,7 @@ from unittest import TestCase
 
 import hypothesis.strategies as st
 import pandas as pd
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis.strategies import integers, just
 from ods_tools.oed import OedExposure
@@ -13,7 +14,8 @@ from ods_tools.oed import OedExposure
 from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.preparation.summaries import (_default_csv_chunksize, convert_col_name,
                                             get_exposure_summary, group_by_oed,
-                                            write_exposure_summary, write_gul_errors_map)
+                                            write_exposure_summary, write_gul_errors_map,
+                                            write_mapping_file, get_summary_map_fp)
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import prepare_oed_exposure
 from oasislmf.utils.defaults import get_default_exposure_profile
@@ -533,6 +535,66 @@ def test_write_gul_errors_map__column_order_is_stable():
     with TemporaryDirectory() as tmp:
         for _ in range(3):
             write_gul_errors_map(tmp, exposure_df, keys_errors_df.copy(), exposure_profile)
-            with open(os.path.join(tmp, 'gul_errors_map.csv')) as f:
-                header = f.readline().strip()
-            assert header == 'loc_id,PortNumber,AccNumber,LocNumber,peril_id,coverage_type_id,tiv,status,message'
+            header = list(pd.read_parquet(os.path.join(tmp, 'gul_errors_map.parquet')).columns)
+            assert header == ['loc_id', 'PortNumber', 'AccNumber', 'LocNumber', 'peril_id', 'coverage_type_id', 'tiv', 'status', 'message']
+
+
+def test_write_gul_errors_map__csv_only_written_with_intermediary_csv():
+    exposure_df = pd.DataFrame({
+        'loc_id': [1, 2],
+        'PortNumber': [1, 'P2'],  # mixed types must still write to parquet
+        'AccNumber': ['Test', 'Test'],
+        'LocNumber': ['100', '200'],
+        'BuildingTIV': [1000.0, 2000.0],
+    })
+    keys_errors_df = pd.DataFrame({
+        'LocID': [1, 2],
+        'PerilID': ['WTC', 'WTC'],
+        'CoverageTypeID': [1, 1],
+        'Status': ['fail', 'fail'],
+        'Message': ['normal message', 'another message'],
+    })
+    exposure_profile = {
+        'buildingtiv': {'FMTermType': 'TIV', 'ProfileElementName': 'BuildingTIV', 'CoverageTypeID': 1, 'FMLevel': 2},
+    }
+
+    with TemporaryDirectory() as tmp:
+        write_gul_errors_map(tmp, exposure_df, keys_errors_df.copy(), exposure_profile)
+        assert os.path.exists(os.path.join(tmp, 'gul_errors_map.parquet'))
+        assert not os.path.exists(os.path.join(tmp, 'gul_errors_map.csv'))
+
+    with TemporaryDirectory() as tmp:
+        write_gul_errors_map(tmp, exposure_df, keys_errors_df.copy(), exposure_profile, intermediary_csv=True)
+        pd.testing.assert_frame_equal(
+            pd.read_parquet(os.path.join(tmp, 'gul_errors_map.parquet')),
+            pd.read_csv(os.path.join(tmp, 'gul_errors_map.csv'), dtype={'PortNumber': str, 'LocNumber': str}),
+        )
+
+
+@pytest.mark.parametrize('is_fm_summary, map_name', [(False, 'gul_summary_map'), (True, 'fm_summary_map')])
+def test_write_mapping_file__is_parquet(is_fm_summary, map_name):
+    df = pd.DataFrame({'loc_id': [1, 2], 'agg_id': [1, 2], 'output_id': [1, 2], 'peril_id': ['WTC', 'WSS']})
+
+    with TemporaryDirectory() as tmp:
+        fp = write_mapping_file(df, tmp, is_fm_summary=is_fm_summary)
+        assert fp == os.path.join(tmp, f'{map_name}.parquet')
+        pd.testing.assert_frame_equal(pd.read_parquet(fp), df)
+        assert not os.path.exists(os.path.join(tmp, f'{map_name}.csv'))
+
+    with TemporaryDirectory() as tmp:
+        write_mapping_file(df, tmp, is_fm_summary=is_fm_summary, intermediary_csv=True)
+        assert os.path.exists(os.path.join(tmp, f'{map_name}.parquet'))
+        assert os.path.exists(os.path.join(tmp, f'{map_name}.csv'))
+
+
+def test_get_summary_map_fp__falls_back_to_other_format():
+    with TemporaryDirectory() as tmp:
+        # nothing present: return the requested path so readers raise a clear error
+        assert get_summary_map_fp(tmp, 'fm_summary_map.parquet') == os.path.join(tmp, 'fm_summary_map.parquet')
+
+        # inputs from older versions only have the csv
+        pd.DataFrame({'agg_id': [1]}).to_csv(os.path.join(tmp, 'fm_summary_map.csv'), index=False)
+        assert get_summary_map_fp(tmp, 'fm_summary_map.parquet') == os.path.join(tmp, 'fm_summary_map.csv')
+
+        pd.DataFrame({'agg_id': [1]}).to_parquet(os.path.join(tmp, 'fm_summary_map.parquet'))
+        assert get_summary_map_fp(tmp, 'fm_summary_map.parquet') == os.path.join(tmp, 'fm_summary_map.parquet')
