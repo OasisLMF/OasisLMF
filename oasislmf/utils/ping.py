@@ -74,16 +74,21 @@ def oasis_ping_async(data):
     can never block the caller.
 
     Only one ping is ever in flight at a time per process: if a previous call
-    is still pending when this is invoked, the new update is dropped (a
-    subsequent ping will carry a more up to date `events_complete`) rather than
-    letting a persistently broken target pile up threads.
+    is still pending when this is invoked, the new update is not sent rather
+    than letting a persistently broken target pile up threads. Progress counts
+    such as `events_complete` are increments, so callers must keep any count
+    that was not sent and include it in their next ping.
 
     Args:
         data (dict): dictionary of data: JSON serialisable
+
+    Returns:
+        Boolean: True if the ping was dispatched, False if it was dropped because
+            a previous ping is still in flight
     """
     if not _ping_lock.acquire(blocking=False):
         logger.debug(f"Skipping ping, previous ping still in flight: {data}")
-        return
+        return False
 
     def _send():
         try:
@@ -92,6 +97,7 @@ def oasis_ping_async(data):
             _ping_lock.release()
 
     threading.Thread(target=_send, daemon=True).start()
+    return True
 
 
 def oasis_ping_socket(target, data):

@@ -202,12 +202,12 @@ def test_oasis_ping_async_drops_update_when_previous_still_in_flight():
         release.wait(timeout=2)
 
     with patch("oasislmf.utils.ping.oasis_ping", side_effect=slow_oasis_ping) as mock_ping:
-        oasis_ping_async({"events_complete": 1})
+        assert oasis_ping_async({"events_complete": 1}) is True
         assert started.wait(timeout=2), "first ping never started"
 
         # A second update arriving while the first is still in flight is dropped,
-        # not queued behind it.
-        oasis_ping_async({"events_complete": 2})
+        # not queued behind it, and the caller is told so.
+        assert oasis_ping_async({"events_complete": 2}) is False
 
         release.set()
         for _ in range(200):

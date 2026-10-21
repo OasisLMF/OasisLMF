@@ -581,8 +581,8 @@ def run(run_dir,
                 ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
                 if ping_port is not None:
                     ping_data['port_override'] = ping_port
-                oasis_ping_async(ping_data)
-                counter = 0
+                if oasis_ping_async(ping_data):
+                    counter = 0
 
     return 0
 

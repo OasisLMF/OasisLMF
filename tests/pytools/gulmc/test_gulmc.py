@@ -427,6 +427,44 @@ def test_gulmc_socket_server_periodic_ping():
                 file_out.unlink()
 
 
+def test_gulmc_dropped_periodic_ping_keeps_count():
+    """Events from a periodic ping that `oasis_ping_async` dropped are carried into the next ping.
+
+    Every periodic ping is dropped, so each one must carry the running total and the
+    end-of-run ping must report every event; none are lost from the progress count.
+    """
+    test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
+    with (TemporaryDirectory() as tmp_result_dir_str,
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping,
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping_async', return_value=False) as mock_ping_async,
+          patch('oasislmf.pytools.gulmc.manager.SERVER_UPDATE_TIME', -1)):
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        file_out = tmp_result_dir.joinpath('tmp.bin')
+        try:
+            run_gulmc(
+                run_dir=tmp_result_dir,
+                ignore_file_type=set(),
+                file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                file_out=file_out,
+                sample_size=10,
+                loss_threshold=0.,
+                alloc_rule=1,
+                debug=0,
+                random_generator=1,
+                ignore_correlation=False,
+                effective_damageability=False,
+                socket_server='True',
+            )
+            periodic = [c.args[0]['events_complete'] for c in mock_ping_async.call_args_list
+                        if 'events_complete' in c.args[0]]
+            assert periodic == list(range(1, len(periodic) + 1))
+            assert mock_ping.call_args.args[0]['events_complete'] == len(periodic)
+        finally:
+            if file_out.exists():
+                file_out.unlink()
+
+
 def test_get_dynamic_footprint_adjustments_without_item_adjustments_bin_only():
     """Regression test for issue #2015.
 
