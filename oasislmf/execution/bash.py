@@ -2568,6 +2568,8 @@ def create_bash_analysis(
 
     if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
         port_arg = f" {kwargs['socket_server_port']}" if kwargs.get("socket_server_port") is not None else ""
+        if gulmc and _get_getmodel_cmd is None:
+            port_arg += f" --gul-processes {len(process_range(num_gul_output, process_number))}"
         print_command(filename, f"socket-server {kwargs['socket_server_size']}{port_arg} > /dev/null & spid=$!")
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)

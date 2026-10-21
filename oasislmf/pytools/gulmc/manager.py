@@ -167,8 +167,9 @@ def run(run_dir,
         model_df_engine (str, optional): The engine to use when loading model dataframes. Defaults to OasisPandasReader.
         dynamic_footprint (bool, optional): if True, load the dynamic footprint data and adjust hazard intensities at
           runtime. Defaults to False.
-        **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
-          the port to override; analysis_pk is reported with each ping.
+        **kwargs: additional keyword arguments. socket_server (str) enables the progress pings (a `gul_ready` ping once
+          the model is loaded, then `events_complete` counts) and, when numeric, gives the port to override; analysis_pk
+          is reported with each ping.
 
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
@@ -437,6 +438,11 @@ def run(run_dir,
         socket_server_val = kwargs.get('socket_server', 'False')
         ping = socket_server_val != 'False'
         ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
+        if ping:
+            ping_data = {"gul_ready": 1, "analysis_pk": kwargs.get("analysis_pk", None)}
+            if ping_port is not None:
+                ping_data['port_override'] = ping_port
+            oasis_ping_async(ping_data)
         while True:
             if not streams_in.readinto(event_id_mv):
                 if ping:

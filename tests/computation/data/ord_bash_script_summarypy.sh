@@ -198,7 +198,7 @@ tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summary_palt/P2.idx work/gul_S1_sum
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 ) 2>> $LOG_DIR/stderror.err  &
 
-socket-server 2 10006 > /dev/null & spid=$!
+socket-server 2 10006 --gul-processes 2 > /dev/null & spid=$!
 
 # --- Verify FIFO pipes ---
 check_fifos \

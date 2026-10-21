@@ -356,7 +356,8 @@ def test_gulmc_socket_server_ping(socket_server, ping_expected, port_expected):
     """
     test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
     with (TemporaryDirectory() as tmp_result_dir_str,
-          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping):
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping,
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping_async') as mock_ping_async):
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
         os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
         file_out = tmp_result_dir.joinpath('tmp.bin')
@@ -377,12 +378,14 @@ def test_gulmc_socket_server_ping(socket_server, ping_expected, port_expected):
             )
             if ping_expected:
                 mock_ping.assert_called()
-                ping_payloads = [c.args[0] for c in mock_ping.call_args_list]
+                ping_payloads = [c.args[0] for c in mock_ping.call_args_list + mock_ping_async.call_args_list]
                 assert all(('port_override' in p) == (port_expected is not None) for p in ping_payloads)
                 if port_expected is not None:
                     assert all(p['port_override'] == port_expected for p in ping_payloads)
+                assert mock_ping_async.call_args_list[0].args[0]['gul_ready'] == 1
             else:
                 mock_ping.assert_not_called()
+                mock_ping_async.assert_not_called()
         finally:
             if file_out.exists():
                 file_out.unlink()

@@ -1,27 +1,31 @@
+import argparse
 import socket
 import threading
 import json
 import os
 import time
-import sys
 from oasislmf.utils.rounded_tqdm import rounded_tqdm
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME, SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
 import logging
 
 
 class GulProgressServer:
-    def __init__(self, total, host=None, port=None):
+    def __init__(self, total, host=None, port=None, gul_processes=0):
         """Initialise the progress server.
 
         Args:
             total (int): How many events the server has
             host (str, optional): Non-default host to use. Defaults to `OASIS_SOCKET_SERVER_IP` or SERVER_DEFAULT_IP if unset.
             port (int, optional): Non-default port to use. Defaults to `OASIS_SOCKET_SERVER_PORT` or SERVER_DEFAULT_PORT if unset.
+            gul_processes (int, optional): How many GUL processes will report `gul_ready` once they have
+                loaded the model and are about to process events. Defaults to 0 (none report).
         """
         self.host = os.environ.get('OASIS_SOCKET_SERVER_IP', SERVER_DEFAULT_IP) if host is None else host
         self.port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', SERVER_DEFAULT_PORT)) if port is None else port
         self.total = total
         self.counter = 0
+        self.gul_processes = gul_processes
+        self.gul_ready = 0
         self.counter_lock = threading.Lock()
         self.running = False
         self._accept_thread = False
@@ -65,6 +69,8 @@ class GulProgressServer:
                 self.stop()
             elif "events_complete" in payload:
                 self.counter += int(payload.get("events_complete", 0))
+            elif "gul_ready" in payload:
+                self.gul_ready += int(payload.get("gul_ready", 0))
             else:
                 logging.warning(f"Json received with no valid fields {payload}")
 
@@ -91,20 +97,30 @@ class GulProgressServer:
         self.stop()
 
 
+def gul_description(server):
+    """Progress bar label: GUL processes still starting up, or events being completed."""
+    if server.counter or server.gul_ready >= server.gul_processes:
+        return "Gul events completed"
+    return f"Gul starting ({server.gul_ready}/{server.gul_processes} ready)"
+
+
 def main():
-    if len(sys.argv) < 2:
-        raise ValueError("Socket server must be called with an argument for pbar length")
-    try:
-        total = int(sys.argv[1])
-    except Exception:
-        raise TypeError("Socket server argument must be an integer")
-    port = int(sys.argv[2]) if len(sys.argv) > 2 else None
-    with (GulProgressServer(total, port=port) as server,
-          rounded_tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar):
+    parser = argparse.ArgumentParser(description="Show progress updates sent by a local loss run")
+    parser.add_argument('total', type=int, help='Number of events in the run')
+    parser.add_argument('port', type=int, nargs='?', default=None, help='Port to listen on')
+    parser.add_argument('--gul-processes', type=int, default=0,
+                        help='Number of GUL processes that report when they are ready to process events')
+    args = parser.parse_args()
+
+    with (GulProgressServer(args.total, port=args.port, gul_processes=args.gul_processes) as server,
+          rounded_tqdm(total=args.total, unit="events", desc=gul_description(server), leave=True) as pbar):
         counter = 0
-        while counter < total:
+        while counter < args.total:
             with server.counter_lock:
+                pbar.set_description_str(gul_description(server), refresh=False)
                 if counter != server.counter:
                     pbar.update(server.counter - counter)
                     counter = server.counter
+                else:
+                    pbar.refresh()
             time.sleep(SERVER_UPDATE_TIME)

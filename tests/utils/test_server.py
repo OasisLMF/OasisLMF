@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from oasislmf.utils.ping import oasis_ping_socket
-from oasislmf.utils.socket_server import GulProgressServer
+from oasislmf.utils.socket_server import GulProgressServer, gul_description
 from oasislmf.utils.socket_server import main as server_main
 
 
@@ -111,15 +111,10 @@ def test_server_can_stop_and_not_accept():
     assert False
 
 
-def test_main_invalid_call():
-    sys.argv = []
-    with pytest.raises(ValueError):
-        server_main()
-    sys.argv = ['a']
-    with pytest.raises(ValueError):
-        server_main()
-    sys.argv = ['a', 'b']
-    with pytest.raises(TypeError):
+@pytest.mark.parametrize("argv", [['a'], ['a', 'b'], ['a', '10', 'c']])
+def test_main_invalid_call(argv):
+    sys.argv = argv
+    with pytest.raises(SystemExit):
         server_main()
 
 
@@ -129,7 +124,7 @@ def test_main_finishes_valid_call():
         mock_server = MagicMock()
         fake_server_class.return_value.__enter__.return_value = mock_server
         mock_server.counter = 10
-        sys.argv = ['a', 10]
+        sys.argv = ['a', '10']
         server_main()
 
 
@@ -154,4 +149,43 @@ def test_main_with_explicit_port():
         sys.argv = ['a', '5', str(port)]
         server_main()
 
-    fake_server_class.assert_called_once_with(5, port=port)
+    fake_server_class.assert_called_once_with(5, port=port, gul_processes=0)
+
+
+def test_main_passes_gul_processes():
+    with (patch('time.sleep', side_effect=[None, StopIteration]),
+          patch('oasislmf.utils.socket_server.GulProgressServer') as fake_server_class):
+        mock_server = MagicMock()
+        fake_server_class.return_value.__enter__.return_value = mock_server
+        mock_server.counter = 5
+        sys.argv = ['a', '5', '--gul-processes', '4']
+        server_main()
+
+    fake_server_class.assert_called_once_with(5, port=None, gul_processes=4)
+
+
+def test_server_counts_gul_ready():
+    port = get_free_port()
+    server = GulProgressServer(10, host="127.0.0.1", port=port, gul_processes=2)
+    server.start()
+    target = (server.host, server.port)
+    assert oasis_ping_socket(target, json.dumps({"gul_ready": 1})) is True
+    time.sleep(0.1)
+    assert server.gul_ready == 1
+    assert server.counter == 0
+
+    server.stop()
+
+
+@pytest.mark.parametrize("counter,gul_ready,gul_processes,expected", [
+    (0, 0, 4, "Gul starting (0/4 ready)"),
+    (0, 3, 4, "Gul starting (3/4 ready)"),
+    (0, 4, 4, "Gul events completed"),
+    (2, 1, 4, "Gul events completed"),   # events arriving means GUL is past start-up
+    (0, 0, 0, "Gul events completed"),   # no GUL process reports gul_ready
+])
+def test_gul_description(counter, gul_ready, gul_processes, expected):
+    server = GulProgressServer(10, host="127.0.0.1", port=0, gul_processes=gul_processes)
+    server.counter = counter
+    server.gul_ready = gul_ready
+    assert gul_description(server) == expected
