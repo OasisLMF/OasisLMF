@@ -3119,8 +3119,8 @@ def add_server_call(call, analysis_pk=None, socket_server_port=None):
     If ``analysis_pk`` is provided and either the environment variables
     ``OASIS_WEBSOCKET_URL``/``OASIS_WEBSOCKET_PORT`` (websocket mode) or
     ``OASIS_ANALYSIS_STATUS_URL`` (HTTP mode) are set, the ``gulmc``/``gulpy``
-    invocation within *call* is augmented with ``--socket-server`` and
-    ``--analysis-pk`` flags.  Otherwise, the ``--socket-server`` flag is set
+    invocation within *call*, and any ``modelpy`` feeding ``gulpy``, is
+    augmented with ``--socket-server`` and ``--analysis-pk`` flags.  Otherwise, the ``--socket-server`` flag is set
     to ``IP:port`` when a port is known.
 
     Args:
@@ -3136,7 +3136,7 @@ def add_server_call(call, analysis_pk=None, socket_server_port=None):
     has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
     has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
     if (has_websocket or has_http) and analysis_pk is not None:
-        return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='True' --analysis-pk='{analysis_pk}'", call)
+        return re.sub(r'(\bgulmc\b|\bgulpy\b|\bmodelpy\b)', rf"\1 --socket-server='True' --analysis-pk='{analysis_pk}'", call)
     if socket_server_port is not None:
-        return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='{socket_server_port}'", call)
+        return re.sub(r'(\bgulmc\b|\bgulpy\b|\bmodelpy\b)', rf"\1 --socket-server='{socket_server_port}'", call)
     return call

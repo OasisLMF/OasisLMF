@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-from oasislmf.model_execution.bash import (bash_params, bash_wrapper,
+from oasislmf.model_execution.bash import (add_server_call, bash_params, bash_wrapper,
                                            create_bash_analysis,
                                            create_bash_outputs, genbash)
 from oasislmf.utils import diff
@@ -392,3 +392,19 @@ class Genbash_summarypy_default(GenbashBase):
     def test_gul_summarycalc_no_low_memory_flag(self):
         self.genbash("gul_summarycalc_1_output", 1)
         self.check("gul_summarycalc_1_output_1_partition")
+
+
+def test_add_server_call_flags_modelpy_feeding_gulpy():
+    """modelpy reports the empty events it drops, so it needs the same server flags as gulpy."""
+    call = '( ( evepy 1 2 | modelpy | gulpy --random-generator=1 -S1 -L0 -a0 | tee fifo/gul_P1 ) ) & pid1=$!'
+    flagged = add_server_call(call, socket_server_port=9999)
+    assert "modelpy --socket-server='9999' |" in flagged
+    assert "gulpy --socket-server='9999' --random-generator=1" in flagged
+
+
+def test_add_server_call_flags_modelpy_for_platform(monkeypatch):
+    monkeypatch.setenv('OASIS_ANALYSIS_STATUS_URL', 'http://server/analysis-status/')
+    call = '( ( evepy 1 2 | modelpy | gulpy -S1 -L0 -a0 | tee fifo/gul_P1 ) ) & pid1=$!'
+    flagged = add_server_call(call, analysis_pk=7)
+    assert "modelpy --socket-server='True' --analysis-pk='7' |" in flagged
+    assert "gulpy --socket-server='True' --analysis-pk='7' -S1" in flagged
