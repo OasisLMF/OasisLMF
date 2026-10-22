@@ -2817,7 +2817,8 @@ def create_bash_outputs(
         num_fm_per_lb = 0
 
     server_flags = get_server_flags(kwargs.get("analysis_pk", None), kwargs.get("socket_server_port"))
-    processes_before = count_reporting_outputs(process_counter)
+    processes_before = process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count']
+    joins_before = process_counter['jpid_monitor_count']
     section_start = os.path.getsize(filename) if os.path.exists(filename) else 0
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
@@ -2923,6 +2924,7 @@ def create_bash_outputs(
     for cmd in post_wait_cmds:
         print_command(filename, cmd)
     do_jwaits(filename, process_counter)
+    kat_joins = process_counter['jpid_monitor_count'] - joins_before
     process_counter['jpid_monitor_count'] = 0
     post_wait_cmds = []
 
@@ -2990,7 +2992,8 @@ def create_bash_outputs(
         else:
             print_command(filename, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
 
-    outputs_total = count_reporting_outputs(process_counter) - processes_before
+    outputs_total = (process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count'] - processes_before
+                     + kat_joins + process_counter['jpid_monitor_count'])
     if has_local_progress_server(kwargs):
         port = kwargs.get("socket_server_port")
         insert_command(filename, section_start, progress_server_message({'outputs_total': outputs_total}, port))
@@ -3000,11 +3003,6 @@ def create_bash_outputs(
         print_command(filename, 'kill -9 "$spid" 2>/dev/null || true')
 
     return outputs_total
-
-
-def count_reporting_outputs(process_counter):
-    """Number of ``katpy``, ``aalpy``, ``lecpy`` and ``join-summary-info`` processes written so far."""
-    return sum(process_counter[key] for key in ('kpid_monitor_count', 'lpid_monitor_count', 'jpid_monitor_count'))
 
 
 def insert_command(command_file, offset, cmd):

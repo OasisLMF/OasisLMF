@@ -10,6 +10,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
+import pytest
+
 from oasislmf.model_execution.bash import (add_server_call, bash_params, bash_wrapper, print_command, progress_server_message,
                                            create_bash_analysis,
                                            create_bash_outputs, genbash)
@@ -428,8 +430,15 @@ def _palt_settings():
 REPORTING_OUTPUT = r'^[( ]*(?:katpy|aalpy|lecpy|join-summary-info)\b'
 
 
-def test_create_bash_outputs_returns_reporting_processes(tmp_path):
-    settings = {**_palt_settings(), 'join_summary_info': True}
+def _all_outputs_settings():
+    with open(os.path.join(TEST_DIRECTORY, 'input_json_settings', 'all_outputs_1_csv.json')) as f:
+        return json.load(f)['analysis_settings']
+
+
+@pytest.mark.parametrize("settings_fn", [_palt_settings, _all_outputs_settings], ids=["palt", "all-outputs"])
+def test_create_bash_outputs_returns_reporting_processes(tmp_path, settings_fn):
+    """The count covers every reporting command, including the joins after the kats (their pid counter is reset)."""
+    settings = {**settings_fn(), 'join_summary_info': True}
     params = bash_params(settings, max_process_id=2, gulmc=True, filename=str(tmp_path / 'run.sh'))
     count = create_bash_outputs(**params)
     with open(params['filename']) as f:
