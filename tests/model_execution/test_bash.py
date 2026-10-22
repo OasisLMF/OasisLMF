@@ -467,7 +467,26 @@ def test_genbash_reports_gul_and_outputs_to_local_server(tmp_path):
                          "> /dev/tcp/${OASIS_SOCKET_SERVER_IP:-127.0.0.1}/9999; } 2>/dev/null || true")
     first_output = re.search(REPORTING_OUTPUT, script, re.MULTILINE).start()
     assert script.rindex('exec_wait $pid1') < script.index(total_msg) < first_output
-    assert script.rindex('join-summary-info') < script.index(done_msg) < script.rindex('kill -9 "$spid"')
+    assert script.rindex('join-summary-info') < script.index(done_msg) < script.rindex('kill -9 "${spid:-}"')
+
+
+def test_create_bash_outputs_with_local_server_keeps_script_and_runs_without_spid(tmp_path):
+    """An outputs-only script keeps what was already written and does not need the server's pid to be set."""
+    filename = str(tmp_path / 'run_outputs.sh')
+    print_command(filename, '# existing line')
+    settings = {**_palt_settings(), 'join_summary_info': True}
+    params = bash_params(settings, max_process_id=2, gulmc=True, filename=filename)
+    count = create_bash_outputs(**params, socket_server_size=10, socket_server_port=9999)
+    with open(filename) as f:
+        script = f.read()
+
+    total_msg = progress_server_message({'outputs_total': count}, 9999)
+    assert script.startswith('# existing line\n' + total_msg + '\n')
+    assert len(re.findall(REPORTING_OUTPUT, script, re.MULTILINE)) == count
+
+    shutdown = script[script.index(progress_server_message({'outputs_done': 1}, 9999)):]
+    result = subprocess.run(['bash', '-c', 'set -euET\n' + shutdown], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 def test_local_server_messages_reach_server(tmp_path):

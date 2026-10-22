@@ -2820,7 +2820,12 @@ def create_bash_outputs(
     server_flags = get_server_flags(kwargs.get("analysis_pk", None), kwargs.get("socket_server_port"))
     processes_before = process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count']
     joins_before = process_counter['jpid_monitor_count']
-    section_start = os.path.getsize(filename) if os.path.exists(filename) else 0
+    local_progress = has_local_progress_server(kwargs)
+    if local_progress:
+        section_fd, section_file = tempfile.mkstemp(suffix=".sh")
+        os.close(section_fd)
+    else:
+        section_file = filename
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
     if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output):
@@ -2837,122 +2842,122 @@ def create_bash_outputs(
 
     # Output Kats
     if rl_output:
-        print_command(filename, '')
-        print_command(filename, '# --- Do reinsurance gross loss kats ---')
-        print_command(filename, '')
+        print_command(section_file, '')
+        print_command(section_file, '# --- Do reinsurance gross loss kats ---')
+        print_command(section_file, '')
         for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
-                num_fm_output, filename, process_counter, work_kat_dir,
+                num_fm_output, section_file, process_counter, work_kat_dir,
                 output_dir, kat_sort_by_event,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
     if ri_output:
-        print_command(filename, '')
-        print_command(filename, '# --- Do reinsurance loss kats ---')
-        print_command(filename, '')
+        print_command(section_file, '')
+        print_command(section_file, '# --- Do reinsurance loss kats ---')
+        print_command(section_file, '')
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
-                filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+                section_file, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
         if full_correlation:
-            print_command(filename, '')
+            print_command(section_file, '')
             print_command(
-                filename,
+                section_file,
                 '# --- Do reinsurance loss kats for fully correlated output ---'
             )
-            print_command(filename, '')
+            print_command(section_file, '')
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
-                filename, process_counter, work_full_correlation_kat_dir,
+                section_file, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
     if il_output:
-        print_command(filename, '')
-        print_command(filename, '# --- Do insured loss kats ---')
-        print_command(filename, '')
+        print_command(section_file, '')
+        print_command(section_file, '# --- Do insured loss kats ---')
+        print_command(section_file, '')
         _, cmds = do_kats(
-            RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
+            RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, section_file,
             process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
         )
         post_wait_cmds.extend(cmds)
         if full_correlation:
-            print_command(filename, '')
+            print_command(section_file, '')
             print_command(
-                filename,
+                section_file,
                 '# --- Do insured loss kats for fully correlated output ---'
             )
-            print_command(filename, '')
+            print_command(section_file, '')
             _, cmds = do_kats(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
-                filename, process_counter, work_full_correlation_kat_dir,
+                section_file, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
     if gul_output:
-        print_command(filename, '')
-        print_command(filename, '# --- Do ground up loss kats ---')
-        print_command(filename, '')
+        print_command(section_file, '')
+        print_command(section_file, '# --- Do ground up loss kats ---')
+        print_command(section_file, '')
         _, cmds = do_kats(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
+            RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, section_file,
             process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
         )
         post_wait_cmds.extend(cmds)
         if full_correlation:
-            print_command(filename, '')
+            print_command(section_file, '')
             print_command(
-                filename,
+                section_file,
                 '# --- Do ground up loss kats for fully correlated output ---'
             )
-            print_command(filename, '')
+            print_command(section_file, '')
             _, cmds = do_kats(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
-                filename, process_counter, work_full_correlation_kat_dir,
+                section_file, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
-    do_kwaits(filename, process_counter)
+    do_kwaits(section_file, process_counter)
 
     for cmd in post_wait_cmds:
-        print_command(filename, cmd)
-    do_jwaits(filename, process_counter)
+        print_command(section_file, cmd)
+    do_jwaits(section_file, process_counter)
     kat_joins = process_counter['jpid_monitor_count'] - joins_before
     process_counter['jpid_monitor_count'] = 0
     post_wait_cmds = []
 
     # Output calcs
-    print_command(filename, '')
+    print_command(section_file, '')
     if rl_output:
         for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
+                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, section_file,
                 process_counter, '', output_dir, stderr_guard,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags,
             ))
     if ri_output:
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings, section_file,
                 process_counter, '', output_dir, stderr_guard,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags,
             ))
     if il_output:
         post_wait_cmds.extend(do_post_wait_processing(
-            RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
+            RUNTYPE_INSURED_LOSS, analysis_settings, section_file, process_counter, '',
             output_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags
         ))
     if gul_output:
         post_wait_cmds.extend(do_post_wait_processing(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
+            RUNTYPE_GROUNDUP_LOSS, analysis_settings, section_file, process_counter, '',
             output_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags
         ))
 
@@ -2960,64 +2965,53 @@ def create_bash_outputs(
         work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
         if ri_output:
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings, section_file, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags,
             ))
         if il_output:
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
+                RUNTYPE_INSURED_LOSS, analysis_settings, section_file, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags,
             ))
         if gul_output:
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
+                RUNTYPE_GROUNDUP_LOSS, analysis_settings, section_file, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags,
             ))
 
-    do_awaits(filename, process_counter)  # waits for aalcalc
-    do_lwaits(filename, process_counter)  # waits for leccalc
+    do_awaits(section_file, process_counter)  # waits for aalcalc
+    do_lwaits(section_file, process_counter)  # waits for leccalc
 
     for cmd in post_wait_cmds:
-        print_command(filename, cmd)
-    do_jwaits(filename, process_counter)
+        print_command(section_file, cmd)
+    do_jwaits(section_file, process_counter)
 
     if remove_working_files:
-        print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
+        print_command(section_file, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
 
         if fifo_tmp_dir:
             # workaround to match bash tests
             if fifo_queue_dir.endswith('fifo/'):
-                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
+                print_command(section_file, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
             else:
-                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
+                print_command(section_file, 'rm -R -f {}'.format(fifo_queue_dir))
         else:
-            print_command(filename, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
+            print_command(section_file, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
 
     outputs_total = (process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count'] - processes_before
                      + kat_joins + process_counter['jpid_monitor_count'])
-    if has_local_progress_server(kwargs):
+    if local_progress:
         port = kwargs.get("socket_server_port")
-        insert_command(filename, section_start, progress_server_message({'outputs_total': outputs_total}, port))
+        print_command(filename, progress_server_message({'outputs_total': outputs_total}, port))
+        with io.open(section_file, "r", encoding='utf-8') as section, io.open(filename, "a", encoding='utf-8') as script:
+            shutil.copyfileobj(section, script)
+        os.remove(section_file)
         print_command(filename, progress_server_message({'outputs_done': 1}, port))
         # Give the server time to draw the final counts before it is killed
-        print_command(filename, 'for _ in $(seq 30); do kill -0 "$spid" 2>/dev/null || break; sleep 0.1; done')
-        print_command(filename, 'kill -9 "$spid" 2>/dev/null || true')
+        print_command(filename, 'for _ in $(seq 30); do kill -0 "${spid:-}" 2>/dev/null || break; sleep 0.1; done')
+        print_command(filename, 'kill -9 "${spid:-}" 2>/dev/null || true')
 
     return outputs_total
-
-
-def insert_command(command_file, offset, cmd):
-    """Inserts a command into the generated script at a byte offset.
-
-    Args:
-        command_file: File to insert the command into.
-        offset (int): Byte offset to insert at, e.g. the file size before a section was written.
-        cmd: The command to insert
-    """
-    with io.open(command_file, "rb") as f:
-        content = f.read()
-    with io.open(command_file, "wb") as f:
-        f.write(content[:offset] + (cmd + "\n").encode('utf-8') + content[offset:])
 
 
 def has_local_progress_server(params):

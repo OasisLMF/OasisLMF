@@ -289,7 +289,7 @@ exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7 $lpid8 $lpid9
 rm -R -f work/*
 rm -R -f fifo/*
 { printf '%s\n' '{"outputs_done": 1}' > /dev/tcp/${OASIS_SOCKET_SERVER_IP:-127.0.0.1}/10006; } 2>/dev/null || true
-for _ in $(seq 30); do kill -0 "$spid" 2>/dev/null || break; sleep 0.1; done
-kill -9 "$spid" 2>/dev/null || true
+for _ in $(seq 30); do kill -0 "${spid:-}" 2>/dev/null || break; sleep 0.1; done
+kill -9 "${spid:-}" 2>/dev/null || true
 
 check_complete
