@@ -31,7 +31,7 @@ def test_modelpy_empty_event_ping(socket_server, ping_expected, port_expected):
         with open(events_stream, 'wb') as fout:
             subprocess.run("evepy 1 1", cwd=run_dir, shell=True, check=True, stdout=fout)
 
-        with patch('oasislmf.pytools.getmodel.manager.oasis_ping') as mock_ping:
+        with patch('oasislmf.utils.ping.oasis_ping') as mock_ping:
             modelpy_run(run_dir=str(run_dir), file_in=str(events_stream), file_out=str(run_dir.joinpath('out.bin')),
                         ignore_file_type=set(), data_server=False, peril_filter=None,
                         analysis_pk=None, socket_server=socket_server)

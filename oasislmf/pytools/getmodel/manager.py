@@ -43,7 +43,7 @@ from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import Index_type
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping
+from oasislmf.utils.ping import oasis_ping_progress
 
 from .vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from ..common.data import null_index
@@ -1043,8 +1043,4 @@ def run(
                         break
             else:
                 empty_events += 1
-        if socket_server != 'False':
-            ping_data = {"events_complete": empty_events, 'analysis_pk': analysis_pk}
-            if str(socket_server).isdigit():
-                ping_data['port_override'] = int(socket_server)
-            oasis_ping(ping_data)
+        oasis_ping_progress(socket_server, analysis_pk, events_complete=empty_events)

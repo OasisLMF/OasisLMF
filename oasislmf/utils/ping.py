@@ -62,23 +62,40 @@ def oasis_ping(data):
     return oasis_ping_socket(target, msg)
 
 
+def progress_ping_data(socket_server, analysis_pk=None, **progress):
+    """Builds the payload of a progress update for a pytool run with a ``--socket-server`` flag.
+
+    Args:
+        socket_server (str): value of the tool's ``--socket-server`` flag. 'False' or None disables updates, a numeric
+            value is the port of the local socket server, any other value uses the default target.
+        analysis_pk (int, optional): platform analysis the update belongs to.
+        **progress: progress fields to send, e.g. ``outputs_complete=1``.
+
+    Returns:
+        dict or None: the payload for `oasis_ping` or `oasis_ping_async`, or None if updates are disabled
+    """
+    if socket_server in (None, 'False'):
+        return None
+    data = {**progress, "analysis_pk": analysis_pk}
+    if str(socket_server).isdigit():
+        data['port_override'] = int(socket_server)
+    return data
+
+
 def oasis_ping_progress(socket_server, analysis_pk=None, **progress):
     """Sends a progress update for a pytool run with a ``--socket-server`` flag.
 
     Args:
-        socket_server (str): value of the tool's ``--socket-server`` flag. 'False' disables updates, a numeric
-            value is the port of the local socket server, any other value uses the default target.
+        socket_server (str): value of the tool's ``--socket-server`` flag, see `progress_ping_data`.
         analysis_pk (int, optional): platform analysis the update belongs to.
         **progress: progress fields to send, e.g. ``outputs_complete=1``.
 
     Returns:
         Boolean: whether an update was sent and got through
     """
-    if socket_server in (None, 'False'):
+    data = progress_ping_data(socket_server, analysis_pk, **progress)
+    if data is None:
         return False
-    data = {**progress, "analysis_pk": analysis_pk}
-    if str(socket_server).isdigit():
-        data['port_override'] = int(socket_server)
     return oasis_ping(data)
 
 

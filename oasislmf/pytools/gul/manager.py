@@ -8,7 +8,7 @@ from select import select
 import numpy as np
 from numba import njit
 import time
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async
+from oasislmf.utils.ping import oasis_ping, oasis_ping_async, progress_ping_data
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss,
@@ -276,9 +276,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         counter = 0
         timer = time.time()
-        socket_server_val = kwargs.get('socket_server', 'False')
-        ping = socket_server_val != 'False'
-        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
+        socket_server = kwargs.get('socket_server', 'False')
+        analysis_pk = kwargs.get("analysis_pk", None)
+        ping = progress_ping_data(socket_server) is not None
         for event_data in read_getmodel_stream(streams_in, items,
                                                item_map_hm, item_map_hm_keys,
                                                item_map_ja_offsets,
@@ -324,18 +324,12 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             counter += 1
 
             if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                if ping_port is not None:
-                    ping_data['port_override'] = ping_port
-                if oasis_ping_async(ping_data):
+                if oasis_ping_async(progress_ping_data(socket_server, analysis_pk, events_complete=counter)):
                     counter = 0
                 timer = time.time()
 
         if ping:
-            ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-            if ping_port is not None:
-                ping_data['port_override'] = ping_port
-            oasis_ping(ping_data)
+            oasis_ping(progress_ping_data(socket_server, analysis_pk, events_complete=counter))
     return 0
 
 

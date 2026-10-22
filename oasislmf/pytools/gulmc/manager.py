@@ -47,7 +47,7 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async
+from oasislmf.utils.ping import oasis_ping, oasis_ping_async, progress_ping_data
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 from oasislmf.utils.exceptions import OasisException
 
@@ -435,21 +435,15 @@ def run(run_dir,
 
         counter = 0
         timer = time.time()
-        socket_server_val = kwargs.get('socket_server', 'False')
-        ping = socket_server_val != 'False'
-        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
+        socket_server = kwargs.get('socket_server', 'False')
+        analysis_pk = kwargs.get("analysis_pk", None)
+        ping = progress_ping_data(socket_server) is not None
         if ping:
-            ping_data = {"gul_ready": 1, "analysis_pk": kwargs.get("analysis_pk", None)}
-            if ping_port is not None:
-                ping_data['port_override'] = ping_port
-            oasis_ping_async(ping_data)
+            oasis_ping_async(progress_ping_data(socket_server, analysis_pk, gul_ready=1))
         while True:
             if not streams_in.readinto(event_id_mv):
                 if ping:
-                    ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                    if ping_port is not None:
-                        ping_data['port_override'] = ping_port
-                    oasis_ping(ping_data)
+                    oasis_ping(progress_ping_data(socket_server, analysis_pk, events_complete=counter))
                 break
 
             # get the next event_id from the input stream
@@ -584,10 +578,7 @@ def run(run_dir,
             counter += 1
             if ping and time.time() - timer > SERVER_UPDATE_TIME:
                 timer = time.time()
-                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                if ping_port is not None:
-                    ping_data['port_override'] = ping_port
-                if oasis_ping_async(ping_data):
+                if oasis_ping_async(progress_ping_data(socket_server, analysis_pk, events_complete=counter)):
                     counter = 0
 
     return 0
