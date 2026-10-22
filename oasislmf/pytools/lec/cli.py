@@ -3,7 +3,7 @@
 import argparse
 import logging
 
-from oasislmf.utils.ping import oasis_ping_progress
+from oasislmf.utils.ping import add_progress_args, oasis_ping_progress, pop_progress_args
 
 from . import manager, logger
 from .data import VALID_EXT
@@ -29,9 +29,7 @@ def main():
     parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
     parser.add_argument('-E', '--ext', type=str, default='csv', choices=VALID_EXT, help='Output data format')
 
-    parser.add_argument('--socket-server', default='False',
-                        help='Report completion to a progress server: a port for the local socket server, or True for the default target')
-    parser.add_argument('--analysis-pk', default=None, help='Only used by platform to link run to an analysis')
+    add_progress_args(parser)
 
     args = parser.parse_args()
     kwargs = vars(args)
@@ -43,8 +41,7 @@ def main():
     logger.addHandler(ch)
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
-    socket_server = kwargs.pop('socket_server')
-    analysis_pk = kwargs.pop('analysis_pk')
+    socket_server, analysis_pk = pop_progress_args(kwargs)
 
     manager.main(**kwargs)
     oasis_ping_progress(socket_server, analysis_pk, outputs_complete=1)

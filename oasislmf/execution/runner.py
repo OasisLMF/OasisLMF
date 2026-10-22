@@ -11,7 +11,7 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.ping import oasis_ping
 from .bash import (bash_wrapper, create_bash_analysis,
-                   create_bash_outputs, genbash, get_server_flags)
+                   create_bash_outputs, genbash, has_platform_progress)
 from .resource_monitor import MONITORED_TOOLS, ResourceMonitor
 
 
@@ -231,7 +231,7 @@ def run(analysis_settings,
         log_level=log_level,
         **kwargs,
     )
-    if get_server_flags(kwargs.get('analysis_pk')):
+    if has_platform_progress(kwargs.get('analysis_pk')):
         oasis_ping({'analysis_pk': kwargs['analysis_pk'], 'outputs_total': outputs_total})
     monitor = ResourceMonitor(
         output_dir='log',
@@ -345,7 +345,7 @@ def run_outputs(**params):
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'],
                       log_sub_dir='out', run_check_complete=False):
         outputs_total = create_bash_outputs(**params)
-    if get_server_flags(params.get('analysis_pk')):
+    if has_platform_progress(params.get('analysis_pk')):
         oasis_ping({'analysis_pk': params['analysis_pk'], 'outputs_total': outputs_total})
 
     run_dir = os.path.dirname(params['filename'])

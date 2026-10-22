@@ -71,6 +71,7 @@ from ..utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES,
                               KERNEL_ALLOC_IL_DEFAULT, KERNEL_ALLOC_RI_DEFAULT,
                               SERVER_DEFAULT_IP, SERVER_DEFAULT_PORT)
 from ..utils.exceptions import OasisException
+from ..utils.ping import platform_progress_configured
 
 logger = logging.getLogger(__name__)
 
@@ -3213,6 +3214,18 @@ def add_server_call(call, analysis_pk=None, socket_server_port=None):
     return re.sub(r'(\bgulmc\b|\bgulpy\b|\bmodelpy\b)', lambda m: f"{m.group(1)}{server_flags}", call)
 
 
+def has_platform_progress(analysis_pk):
+    """Whether progress updates for this run go to the platform: it has an ``analysis_pk`` and a platform target is set.
+
+    Args:
+        analysis_pk (int or None): Analysis primary key for platform runs.
+
+    Returns:
+        bool: True if updates go to the platform.
+    """
+    return analysis_pk is not None and platform_progress_configured()
+
+
 def get_server_flags(analysis_pk=None, socket_server_port=None):
     """Progress-update flags for a pytool command, with a leading space, or '' if there is nowhere to report to.
 
@@ -3227,9 +3240,7 @@ def get_server_flags(analysis_pk=None, socket_server_port=None):
     Returns:
         str: The flags to insert after the tool name.
     """
-    has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
-    has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
-    if (has_websocket or has_http) and analysis_pk is not None:
+    if has_platform_progress(analysis_pk):
         return f" --socket-server='True' --analysis-pk='{analysis_pk}'"
     if socket_server_port is not None:
         return f" --socket-server='{socket_server_port}'"

@@ -18,6 +18,17 @@ _ping_lock = threading.Lock()
 ASYNC_PING_EXIT_WAIT = 3
 
 
+def platform_progress_configured():
+    """Whether the environment names a platform target for progress updates.
+
+    Returns:
+        Boolean: True if ``OASIS_ANALYSIS_STATUS_URL`` or both ``OASIS_WEBSOCKET_URL`` and
+            ``OASIS_WEBSOCKET_PORT`` are set
+    """
+    has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
+    return has_websocket or 'OASIS_ANALYSIS_STATUS_URL' in os.environ
+
+
 def progress_enabled(socket_server):
     """Whether a pytool's ``--socket-server`` flag turns progress updates on.
 
@@ -28,6 +39,29 @@ def progress_enabled(socket_server):
         Boolean: False if the flag is 'False' or None, True otherwise
     """
     return socket_server not in (None, 'False')
+
+
+def add_progress_args(parser):
+    """Adds the ``--socket-server`` and ``--analysis-pk`` flags a pytool uses to report progress.
+
+    Args:
+        parser (argparse.ArgumentParser): the tool's argument parser.
+    """
+    parser.add_argument('--socket-server', default='False',
+                        help='Report completion to a progress server: a port for the local socket server, or True for the default target')
+    parser.add_argument('--analysis-pk', default=None, help='Only used by platform to link run to an analysis')
+
+
+def pop_progress_args(kwargs):
+    """Removes the flags added by `add_progress_args` from a tool's parsed arguments.
+
+    Args:
+        kwargs (dict): the parsed arguments, e.g. ``vars(parser.parse_args())``.
+
+    Returns:
+        (str, str): the ``--socket-server`` and ``--analysis-pk`` values
+    """
+    return kwargs.pop('socket_server'), kwargs.pop('analysis_pk')
 
 
 def oasis_ping(data):
