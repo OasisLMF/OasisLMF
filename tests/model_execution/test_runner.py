@@ -247,3 +247,28 @@ class RerunTestCase(TestCase):
         self.assertNotIn("/tmp/il_P1", fm_pipe)
         self.assertIn("-o 1_fm1.bin", fm_pipe)
         self.assertTrue(fm_pipe.startswith("fmcalc"))
+
+
+def _run_with_mocked_script(**kwargs):
+    with (patch.object(runner, 'genbash', return_value=7),
+          patch.object(runner, 'ResourceMonitor'),
+          patch.object(runner.subprocess, 'Popen') as mock_popen,
+          patch.object(runner, 'oasis_ping') as mock_ping):
+        mock_popen.return_value.communicate.return_value = (b'', None)
+        mock_popen.return_value.returncode = 0
+        runner.run({}, **kwargs)
+    return mock_ping
+
+
+def test_run_reports_outputs_total_to_platform(monkeypatch):
+    """A single-script platform run reports how many output processes will report completion."""
+    monkeypatch.setenv('OASIS_ANALYSIS_STATUS_URL', 'http://server/analysis-status/')
+    mock_ping = _run_with_mocked_script(analysis_pk=5)
+    mock_ping.assert_called_once_with({'analysis_pk': 5, 'outputs_total': 7})
+
+
+def test_run_local_does_not_ping_outputs_total(monkeypatch):
+    monkeypatch.delenv('OASIS_ANALYSIS_STATUS_URL', raising=False)
+    monkeypatch.delenv('OASIS_WEBSOCKET_URL', raising=False)
+    mock_ping = _run_with_mocked_script(socket_server_size=10, socket_server_port=9999)
+    mock_ping.assert_not_called()

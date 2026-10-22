@@ -3,15 +3,19 @@ import socket
 import threading
 import json
 import os
-import time
 from oasislmf.utils.rounded_tqdm import rounded_tqdm
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME, SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
 import logging
 
 
 class GulProgressServer:
-    def __init__(self, total, host=None, port=None, gul_processes=0, outputs_total=0):
+    def __init__(self, total, host=None, port=None, gul_processes=0):
         """Initialise the progress server.
+
+        The run reports in two stages. GUL processes send `gul_ready` once they have loaded the model and
+        `events_complete` counts as they go. Once the GUL pipeline has finished, the script sends `outputs_total`
+        (the number of output processes), each output process sends `outputs_complete` when it finishes, and the
+        script sends `outputs_done` at the end of the run.
 
         Args:
             total (int): How many events the server has
@@ -19,8 +23,6 @@ class GulProgressServer:
             port (int, optional): Non-default port to use. Defaults to `OASIS_SOCKET_SERVER_PORT` or SERVER_DEFAULT_PORT if unset.
             gul_processes (int, optional): How many GUL processes will report `gul_ready` once they have
                 loaded the model and are about to process events. Defaults to 0 (none report).
-            outputs_total (int, optional): How many output processes (katpy, aalpy, lecpy) will report
-                `outputs_complete` once the GUL events are done. Defaults to 0.
         """
         self.host = os.environ.get('OASIS_SOCKET_SERVER_IP', SERVER_DEFAULT_IP) if host is None else host
         self.port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', SERVER_DEFAULT_PORT)) if port is None else port
@@ -28,9 +30,11 @@ class GulProgressServer:
         self.counter = 0
         self.gul_processes = gul_processes
         self.gul_ready = 0
-        self.outputs_total = outputs_total
+        self.outputs_total = None
         self.outputs_complete = 0
+        self.finished = False
         self.counter_lock = threading.Lock()
+        self.updated = threading.Event()
         self.running = False
         self._accept_thread = False
 
@@ -70,16 +74,23 @@ class GulProgressServer:
         with self.counter_lock:
             if 'terminate' in payload:
                 self.counter = self.total
-                self.outputs_complete = self.outputs_total
+                if self.outputs_total is not None:
+                    self.outputs_complete = self.outputs_total
+                self.finished = True
                 self.stop()
             elif "events_complete" in payload:
                 self.counter += int(payload.get("events_complete", 0))
             elif "gul_ready" in payload:
                 self.gul_ready += int(payload.get("gul_ready", 0))
+            elif "outputs_total" in payload:
+                self.outputs_total = int(payload["outputs_total"])
             elif "outputs_complete" in payload:
                 self.outputs_complete += int(payload.get("outputs_complete", 0))
+            elif "outputs_done" in payload:
+                self.finished = True
             else:
                 logging.warning(f"Json received with no valid fields {payload}")
+        self.updated.set()
 
     def _read_all(self, client_socket):
         buffer = b""
@@ -89,6 +100,15 @@ class GulProgressServer:
                 break
             buffer += chunk
         return buffer.decode("utf-8").strip()
+
+    def wait_for_update(self):
+        """Block until a message arrives or SERVER_UPDATE_TIME seconds pass."""
+        self.updated.wait(SERVER_UPDATE_TIME)
+        self.updated.clear()
+
+    def gul_done(self):
+        """Whether the GUL stage is over: every event counted, or the script has moved on to the outputs."""
+        return self.counter >= self.total or self.outputs_total is not None or self.finished
 
     def stop(self):
         self.running = False
@@ -111,36 +131,62 @@ def gul_description(server):
     return f"Gul starting ({server.gul_ready}/{server.gul_processes} ready)"
 
 
+def show_gul_progress(server):
+    """Draw the GUL bar until the GUL stage is over.
+
+    The bar is filled once the script reports the outputs stage has started, so events whose
+    `events_complete` count was lost do not hold up the run's progress display.
+    """
+    with rounded_tqdm(total=server.total, unit="events", desc=gul_description(server), leave=True) as pbar:
+        shown = 0
+        while True:
+            with server.counter_lock:
+                done = server.gul_done()
+                count = server.total if done else server.counter
+                pbar.set_description_str(gul_description(server), refresh=False)
+            if count != shown:
+                pbar.update(count - shown)
+                shown = count
+            else:
+                pbar.refresh()
+            if done:
+                return
+            server.wait_for_update()
+
+
+def show_outputs_progress(server):
+    """Draw the outputs bar once the script has sent `outputs_total`, until every output reports or the run ends."""
+    while True:
+        with server.counter_lock:
+            outputs_total, finished = server.outputs_total, server.finished
+        if outputs_total is not None or finished:
+            break
+        server.wait_for_update()
+    if not outputs_total:
+        return
+
+    with rounded_tqdm(total=outputs_total, unit="outputs", desc="Outputs completed", leave=True) as pbar:
+        shown = 0
+        while True:
+            with server.counter_lock:
+                count = min(server.outputs_complete, outputs_total)
+                done = count >= outputs_total or server.finished
+            if count != shown:
+                pbar.update(count - shown)
+                shown = count
+            if done:
+                return
+            server.wait_for_update()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Show progress updates sent by a local loss run")
     parser.add_argument('total', type=int, help='Number of events in the run')
     parser.add_argument('port', type=int, nargs='?', default=None, help='Port to listen on')
     parser.add_argument('--gul-processes', type=int, default=0,
                         help='Number of GUL processes that report when they are ready to process events')
-    parser.add_argument('--outputs', type=int, default=0,
-                        help='Number of output processes (katpy, aalpy, lecpy) that report when they finish')
     args = parser.parse_args()
 
-    with GulProgressServer(args.total, port=args.port, gul_processes=args.gul_processes,
-                           outputs_total=args.outputs) as server:
-        with rounded_tqdm(total=args.total, unit="events", desc=gul_description(server), leave=True) as pbar:
-            counter = 0
-            while counter < args.total:
-                with server.counter_lock:
-                    pbar.set_description_str(gul_description(server), refresh=False)
-                    if counter != server.counter:
-                        pbar.update(server.counter - counter)
-                        counter = server.counter
-                    else:
-                        pbar.refresh()
-                time.sleep(SERVER_UPDATE_TIME)
-
-        if args.outputs:
-            with rounded_tqdm(total=args.outputs, unit="outputs", desc="Outputs completed", leave=True) as pbar:
-                counter = 0
-                while counter < args.outputs:
-                    with server.counter_lock:
-                        if counter != server.outputs_complete:
-                            pbar.update(server.outputs_complete - counter)
-                            counter = server.outputs_complete
-                    time.sleep(SERVER_UPDATE_TIME)
+    with GulProgressServer(args.total, port=args.port, gul_processes=args.gul_processes) as server:
+        show_gul_progress(server)
+        show_outputs_progress(server)

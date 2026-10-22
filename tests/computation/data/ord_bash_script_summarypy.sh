@@ -198,7 +198,7 @@ tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summary_palt/P2.idx work/gul_S1_sum
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 ) 2>> $LOG_DIR/stderror.err  &
 
-socket-server 2 10006 --gul-processes 2 --outputs 27 > /dev/null & spid=$!
+socket-server 2 10006 --gul-processes 2 > /dev/null & spid=$!
 
 # --- Verify FIFO pipes ---
 check_fifos \
@@ -244,6 +244,7 @@ check_fifos \
 
 exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
 
+{ printf '%s\n' '{"outputs_total": 27}' > /dev/tcp/${OASIS_SOCKET_SERVER_IP:-127.0.0.1}/10006; } 2>/dev/null || true
 
 # --- Do reinsurance loss kats ---
 
@@ -287,6 +288,8 @@ exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7 $lpid8 $lpid9
 
 rm -R -f work/*
 rm -R -f fifo/*
-kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>/dev/null
+{ printf '%s\n' '{"outputs_done": 1}' > /dev/tcp/${OASIS_SOCKET_SERVER_IP:-127.0.0.1}/10006; } 2>/dev/null || true
+for _ in $(seq 30); do kill -0 "$spid" 2>/dev/null || break; sleep 0.1; done
+kill -9 "$spid" 2>/dev/null || true
 
 check_complete

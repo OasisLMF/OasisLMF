@@ -1,10 +1,11 @@
-"""Tests that katpy, aalpy and lecpy report completion to the progress server."""
+"""Tests that katpy, aalpy, lecpy and join-summary-info report completion to the progress server."""
 import sys
 from unittest.mock import patch
 
 import pytest
 
 from oasislmf.pytools.aal import cli as aal_cli
+from oasislmf.pytools.join_summary_info import cli as join_cli
 from oasislmf.pytools.kat import cli as kat_cli
 from oasislmf.pytools.lec import cli as lec_cli
 
@@ -12,6 +13,7 @@ TOOLS = [
     (kat_cli, ['katpy', '-S', '-i', 'in.bin', '-o', 'out.csv']),
     (aal_cli, ['aalpy', '-a', 'out.csv']),
     (lec_cli, ['lecpy', '-O', 'out.csv']),
+    (join_cli, ['join-summary-info', '-s', 'info.csv', '-d', 'out.csv', '-o', 'out.csv']),
 ]
 
 

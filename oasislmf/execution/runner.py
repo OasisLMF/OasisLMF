@@ -215,7 +215,7 @@ def run(analysis_settings,
     ###########################################################
 
     # Calls run_analysis + run_outputs in a single script
-    genbash(
+    outputs_total = genbash(
         number_of_processes,
         analysis_settings,
         gul_alloc_rule=set_alloc_rule_gul,
@@ -231,6 +231,8 @@ def run(analysis_settings,
         log_level=log_level,
         **kwargs,
     )
+    if get_server_flags(kwargs.get('analysis_pk')):
+        oasis_ping({'analysis_pk': kwargs['analysis_pk'], 'outputs_total': outputs_total})
     monitor = ResourceMonitor(
         output_dir='log',
         poll_interval=resource_monitor_interval,

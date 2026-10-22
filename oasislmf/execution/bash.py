@@ -60,7 +60,6 @@ import shutil
 import string
 import tempfile
 from collections import Counter
-from copy import deepcopy
 from functools import partial
 
 import pandas as pd
@@ -69,7 +68,8 @@ from ..utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES,
                               EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE,
                               KERNEL_N_FM_PER_LB, KERNEL_N_GUL_PER_LB,
                               KERNEL_ALLOC_GUL_DEFAULT,
-                              KERNEL_ALLOC_IL_DEFAULT, KERNEL_ALLOC_RI_DEFAULT)
+                              KERNEL_ALLOC_IL_DEFAULT, KERNEL_ALLOC_RI_DEFAULT,
+                              SERVER_DEFAULT_IP, SERVER_DEFAULT_PORT)
 from ..utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
@@ -498,7 +498,7 @@ def do_post_wait_processing(
         join_summary_info (bool): If True, append ``join-summary-info``
             commands to enrich outputs with summary metadata.
         server_flags (str): Progress-update flags from :func:`get_server_flags`
-            added to each ``aalpy`` and ``lecpy`` command.
+            added to each ``aalpy``, ``lecpy`` and ``join-summary-info`` command.
     """
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return []
@@ -548,11 +548,11 @@ def do_post_wait_processing(
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                     process_counter['jpid_monitor_count'] += 1
                     post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {palt_outfile_stem}.{outfile_ext} -o {palt_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                        f'join-summary-info{server_flags} -s {summary_info_filename} -d {palt_outfile_stem}.{outfile_ext} -o {palt_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
                     if summary.get('ord_output', {}).get('alct_convergence'):
                         process_counter['jpid_monitor_count'] += 1
                         post_wait_cmds.append(
-                            f'join-summary-info -s {summary_info_filename} -d {alct_outfile_stem}.{outfile_ext} -o {alct_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                            f'join-summary-info{server_flags} -s {summary_info_filename} -d {alct_outfile_stem}.{outfile_ext} -o {alct_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
             # ORD - aalcalcmeanonly
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
@@ -580,7 +580,7 @@ def do_post_wait_processing(
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                     process_counter['jpid_monitor_count'] += 1
                     post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {altmeanonly_outfile_stem}.{outfile_ext} -o {altmeanonly_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                        f'join-summary-info{server_flags} -s {summary_info_filename} -d {altmeanonly_outfile_stem}.{outfile_ext} -o {altmeanonly_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
             # ORD - PSEPT,EPT
             if ord_enabled(summary, ORD_LECCALC):
@@ -646,11 +646,11 @@ def do_post_wait_processing(
                     if ept_output:
                         process_counter['jpid_monitor_count'] += 1
                         post_wait_cmds.append(
-                            f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                            f'join-summary-info{server_flags} -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
                     if psept_output:
                         process_counter['jpid_monitor_count'] += 1
                         post_wait_cmds.append(
-                            f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                            f'join-summary-info{server_flags} -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
     return post_wait_cmds
 
@@ -864,7 +864,7 @@ def do_kats(
         join_summary_info (bool): If True, append ``join-summary-info``
             commands after each concatenation.
         server_flags (str): Progress-update flags from :func:`get_server_flags`
-            added to each ``katpy`` command.
+            added to each ``katpy`` and ``join-summary-info`` command.
 
     Returns:
         bool: True if any ``katpy`` commands were emitted, False otherwise.
@@ -909,7 +909,7 @@ def do_kats(
                             summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                             process_counter['jpid_monitor_count'] += 1
                             post_wait_cmds.append(
-                                f'join-summary-info -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                                f'join-summary-info{server_flags} -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile} & jpid{process_counter["jpid_monitor_count"]}=$!')
     return anykats, post_wait_cmds
 
 
@@ -2574,12 +2574,10 @@ def create_bash_analysis(
     # to read from (when a load balancer is used).
     get_gul_stream_cmds = {}
 
-    if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
+    if has_local_progress_server(kwargs):
         port_arg = f" {kwargs['socket_server_port']}" if kwargs.get("socket_server_port") is not None else ""
         if gulmc and _get_getmodel_cmd is None:
             port_arg += f" --gul-processes {len(process_range(num_gul_output, process_number))}"
-        if kwargs.get("socket_server_outputs"):
-            port_arg += f" --outputs {kwargs['socket_server_outputs']}"
         print_command(filename, f"socket-server {kwargs['socket_server_size']}{port_arg} > /dev/null & spid=$!")
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
@@ -2803,21 +2801,24 @@ def create_bash_outputs(
        (EPT/PSEPT) run over collected work-folder data.
     3. **Cleanup** -- removes working directories and temporary FIFOs.
 
-    Each ``katpy``, ``aalpy`` and ``lecpy`` reports to the progress server
-    when it finishes (see :func:`get_server_flags`).
+    Each ``katpy``, ``aalpy``, ``lecpy`` and ``join-summary-info`` reports to the
+    progress server when it finishes (see :func:`get_server_flags`). With a local
+    progress server, the section starts by sending it the number of these
+    processes and ends by telling it the run is done.
 
     All parameters are typically supplied by unpacking the dict returned from
     :func:`bash_params`.
 
     Returns:
-        int: The number of ``katpy``, ``aalpy`` and ``lecpy`` processes written.
+        int: The number of ``katpy``, ``aalpy``, ``lecpy`` and ``join-summary-info`` processes written.
     """
     if max_process_id is not None:
         num_gul_per_lb = 0
         num_fm_per_lb = 0
 
     server_flags = get_server_flags(kwargs.get("analysis_pk", None), kwargs.get("socket_server_port"))
-    processes_before = process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count']
+    processes_before = count_reporting_outputs(process_counter)
+    section_start = os.path.getsize(filename) if os.path.exists(filename) else 0
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
     if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output):
@@ -2989,27 +2990,59 @@ def create_bash_outputs(
         else:
             print_command(filename, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
 
-    if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
-        # Ensure killed if server doesnt end
-        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>/dev/null')
+    outputs_total = count_reporting_outputs(process_counter) - processes_before
+    if has_local_progress_server(kwargs):
+        port = kwargs.get("socket_server_port")
+        insert_command(filename, section_start, progress_server_message({'outputs_total': outputs_total}, port))
+        print_command(filename, progress_server_message({'outputs_done': 1}, port))
+        # Give the server time to draw the final counts before it is killed
+        print_command(filename, 'for _ in $(seq 30); do kill -0 "$spid" 2>/dev/null || break; sleep 0.1; done')
+        print_command(filename, 'kill -9 "$spid" 2>/dev/null || true')
 
-    return process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count'] - processes_before
+    return outputs_total
 
 
-def count_output_processes(params):
-    """Count the ``katpy``, ``aalpy`` and ``lecpy`` processes :func:`create_bash_outputs` will write.
+def count_reporting_outputs(process_counter):
+    """Number of ``katpy``, ``aalpy``, ``lecpy`` and ``join-summary-info`` processes written so far."""
+    return sum(process_counter[key] for key in ('kpid_monitor_count', 'lpid_monitor_count', 'jpid_monitor_count'))
 
-    The local socket server is started before the GUL pipeline, so it needs this
-    total before the outputs section is written. The section is written to
-    ``os.devnull`` with a copy of the process counter, leaving ``params`` unchanged.
+
+def insert_command(command_file, offset, cmd):
+    """Inserts a command into the generated script at a byte offset.
 
     Args:
-        params (dict): Parameters from :func:`bash_params`.
+        command_file: File to insert the command into.
+        offset (int): Byte offset to insert at, e.g. the file size before a section was written.
+        cmd: The command to insert
+    """
+    with io.open(command_file, "rb") as f:
+        content = f.read()
+    with io.open(command_file, "wb") as f:
+        f.write(content[:offset] + (cmd + "\n").encode('utf-8') + content[offset:])
+
+
+def has_local_progress_server(params):
+    """Whether the script runs a local progress server: progress updates are on and this is not a platform run."""
+    return bool(params.get("socket_server_size")) and params.get("analysis_pk") is None
+
+
+def progress_server_message(payload, socket_server_port=None):
+    """Bash command that sends a JSON message to the local progress server.
+
+    It uses bash's ``/dev/tcp`` so no process is started, and never fails the script
+    if the server cannot be reached.
+
+    Args:
+        payload (dict): The message to send.
+        socket_server_port (int or None): Port of the local progress server. Defaults to
+            ``OASIS_SOCKET_SERVER_PORT`` or SERVER_DEFAULT_PORT at run time.
 
     Returns:
-        int: The number of output processes.
+        str: The command.
     """
-    return create_bash_outputs(**{**params, 'filename': os.devnull, 'process_counter': deepcopy(params['process_counter'])})
+    host = f"${{OASIS_SOCKET_SERVER_IP:-{SERVER_DEFAULT_IP}}}"
+    port = socket_server_port if socket_server_port is not None else f"${{OASIS_SOCKET_SERVER_PORT:-{SERVER_DEFAULT_PORT}}}"
+    return f"{{ printf '%s\\n' '{json.dumps(payload)}' > /dev/tcp/{host}/{port}; }} 2>/dev/null || true"
 
 
 # ========================================================================== #
@@ -3098,6 +3131,9 @@ def genbash(
             socket-server that reports run progress.
         socket_server_port (int or None): port the local socket-server listens on.
         log_level (int or None): Enable logging of pytools subprocesses.
+
+    Returns:
+        int: The number of output processes that report progress, from :func:`create_bash_outputs`.
     """
     model_df_engine = model_df_engine or base_df_engine
 
@@ -3141,8 +3177,6 @@ def genbash(
     params['analysis_pk'] = analysis_pk
     params['socket_server_size'] = socket_server_size
     params['socket_server_port'] = socket_server_port
-    if socket_server_size and analysis_pk is None:
-        params['socket_server_outputs'] = count_output_processes(params)
 
     with bash_wrapper(
         filename,
@@ -3152,7 +3186,7 @@ def genbash(
         custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
     ):
         create_bash_analysis(**params)
-        create_bash_outputs(**params)
+        return create_bash_outputs(**params)
 
 
 def add_server_call(call, analysis_pk=None, socket_server_port=None):
