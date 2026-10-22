@@ -152,7 +152,7 @@ def oasis_ping_socket(target, data):
             oasis_socket.connect(target)
             oasis_socket.sendall(data.encode('utf-8'))
         return True
-    except (ConnectionError, TimeoutError, socket.gaierror) as e:
+    except OSError as e:
         logger.error(f"oasis_ping_socket could not connect: {e}")
         return False
 

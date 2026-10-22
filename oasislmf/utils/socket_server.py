@@ -51,7 +51,7 @@ class GulProgressServer:
             logging.info(f"Port for socket server changed to {self.port}")
             os.environ['OASIS_SOCKET_SERVER_PORT'] = str(self.port)
 
-        self.server_socket.listen(5)
+        self.server_socket.listen(socket.SOMAXCONN)
 
         self._accept_thread = threading.Thread(target=self._accept_loop, daemon=True)
         self._accept_thread.start()
@@ -65,7 +65,8 @@ class GulProgressServer:
                 break  # socket was closed
 
     def _handle_client(self, client_socket):
-        data = self._read_all(client_socket)
+        with client_socket:
+            data = self._read_all(client_socket)
         try:
             payload = json.loads(data)
         except json.JSONDecodeError:

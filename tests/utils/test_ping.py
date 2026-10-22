@@ -110,6 +110,17 @@ def test_oasis_ping_socket_connection_refused():
     fake_sock.sendall.assert_not_called()
 
 
+def test_oasis_ping_socket_unreachable_host():
+    fake_sock = MagicMock()
+    fake_sock.__enter__.return_value = fake_sock
+    fake_sock.connect.side_effect = OSError(113, "No route to host")
+
+    with patch("socket.socket", return_value=fake_sock):
+        result = oasis_ping_socket(("127.0.0.1", 9999), '{"hello": "world"}')
+
+    assert result is False
+
+
 def test_oasis_ping_websocket_success():
     fake_ws = MagicMock()
     with patch("websocket.WebSocket", return_value=fake_ws):

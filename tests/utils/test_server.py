@@ -279,3 +279,28 @@ def test_main_draws_final_outputs_count_promptly(capsys):
         server_thread.join(timeout=5)
     assert not server_thread.is_alive()
     assert "2/2" in capsys.readouterr().err
+
+
+def test_server_counts_burst_of_clients():
+    """Many tools reporting at the same moment are all counted, and the server closes each connection."""
+    port = get_free_port()
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
+    server.start()
+    target = (server.host, server.port)
+    n_clients = 50
+
+    threads = [threading.Thread(target=oasis_ping_socket, args=(target, json.dumps({"outputs_complete": 1})))
+               for _ in range(n_clients)]
+    start = time.time()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    for _ in range(100):
+        if server.outputs_complete == n_clients:
+            break
+        time.sleep(0.01)
+
+    assert server.outputs_complete == n_clients
+    assert time.time() - start < 1
+    server.stop()
