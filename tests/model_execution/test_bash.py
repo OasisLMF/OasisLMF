@@ -2,12 +2,13 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-from oasislmf.model_execution.bash import (add_server_call, bash_params, bash_wrapper, count_output_processes,
+from oasislmf.model_execution.bash import (add_server_call, bash_params, bash_wrapper, count_output_processes, print_command,
                                            create_bash_analysis,
                                            create_bash_outputs, genbash)
 from oasislmf.utils import diff
@@ -450,3 +451,39 @@ def test_output_commands_unflagged_without_progress_server(tmp_path):
         script = f.read()
     assert 'socket-server' not in script
     assert '--socket-server' not in script
+
+
+def _pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_exit_handler_cleans_up_when_exec_monitor_already_gone(tmp_path):
+    """A failing kernel still kills the progress server and its other processes after the exec monitor has exited.
+
+    The monitor (pid0) is gone when oasis_exec_monitor.sh is not on PATH or has already stopped. The handler
+    used to abort under `set -e` when it failed to kill it, skipping the rest of the clean-up.
+    """
+    filename = str(tmp_path / 'run_kernel.sh')
+    with bash_wrapper(filename, False, True, run_check_complete=False):
+        print_command(filename, 'kill -9 $pid0 2>/dev/null; wait $pid0 2>/dev/null || true')
+        print_command(filename, 'sleep 300 & spid=$!')
+        print_command(filename, 'sleep 300 & pid1=$!')
+        print_command(filename, 'echo "$spid $pid1" > pids.txt')
+        print_command(filename, 'false')
+
+    proc = subprocess.run(['bash', filename], cwd=tmp_path, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                          start_new_session=True, timeout=60)
+    server_pid, other_pid = (int(pid) for pid in (tmp_path / 'pids.txt').read_text().split())
+    try:
+        assert proc.returncode != 0
+        assert not _pid_alive(server_pid)
+        assert not _pid_alive(other_pid)
+        assert (tmp_path / 'log' / 'killout.txt').exists()
+    finally:
+        for pid in (server_pid, other_pid):
+            if _pid_alive(pid):
+                os.kill(pid, 9)
