@@ -17,7 +17,6 @@ import sys
 import json
 from contextlib import ExitStack
 from select import select
-import time
 
 import numpy as np
 import numba as nb
@@ -47,8 +46,7 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async, progress_ping_data
-from oasislmf.utils.defaults import SERVER_UPDATE_TIME
+from oasislmf.utils.ping import EventProgress
 from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
@@ -433,17 +431,11 @@ def run(run_dir,
         cdf_cache_tag = np.full(n_cdf_groups, CDF_CACHE_EMPTY, dtype=np.int64)
         cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
 
-        counter = 0
-        timer = time.time()
-        socket_server = kwargs.get('socket_server', 'False')
-        analysis_pk = kwargs.get("analysis_pk", None)
-        ping = progress_ping_data(socket_server) is not None
-        if ping:
-            oasis_ping_async(progress_ping_data(socket_server, analysis_pk, gul_ready=1))
+        progress = EventProgress(kwargs.get('socket_server', 'False'), kwargs.get("analysis_pk", None))
+        progress.ready()
         while True:
             if not streams_in.readinto(event_id_mv):
-                if ping:
-                    oasis_ping(progress_ping_data(socket_server, analysis_pk, events_complete=counter))
+                progress.finish()
                 break
 
             # get the next event_id from the input stream
@@ -462,7 +454,7 @@ def run(run_dir,
                     fp_haz_arr_ptr)
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
-                    counter += 1
+                    progress.event_done()
                     logger.info(f"event {event_ids[0]} SKIPPED - no items")
                     continue
 
@@ -575,11 +567,7 @@ def run(run_dir,
 
                 logger.info(f"event {event_ids[0]} DONE")
 
-            counter += 1
-            if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                timer = time.time()
-                if oasis_ping_async(progress_ping_data(socket_server, analysis_pk, events_complete=counter)):
-                    counter = 0
+            progress.event_done()
 
     return 0
 

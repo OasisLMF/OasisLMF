@@ -7,8 +7,7 @@ from select import select
 
 import numpy as np
 from numba import njit
-import time
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async, progress_ping_data
+from oasislmf.utils.ping import EventProgress
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss,
@@ -34,7 +33,6 @@ from oasislmf.pytools.gul.random import (cdf_min, generate_correlated_hash_vecto
                                          inv_factor, norm_factor, x_min)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
 logger = logging.getLogger(__name__)
 
@@ -274,11 +272,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # maximum bytes to be written in the output stream for 1 item
         max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
 
-        counter = 0
-        timer = time.time()
-        socket_server = kwargs.get('socket_server', 'False')
-        analysis_pk = kwargs.get("analysis_pk", None)
-        ping = progress_ping_data(socket_server) is not None
+        progress = EventProgress(kwargs.get('socket_server', 'False'), kwargs.get("analysis_pk", None))
         for event_data in read_getmodel_stream(streams_in, items,
                                                item_map_hm, item_map_hm_keys,
                                                item_map_ja_offsets,
@@ -321,15 +315,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 cursor = 0
 
             logger.info(f"event {event_id} DONE")
-            counter += 1
+            progress.event_done()
 
-            if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                if oasis_ping_async(progress_ping_data(socket_server, analysis_pk, events_complete=counter)):
-                    counter = 0
-                timer = time.time()
-
-        if ping:
-            oasis_ping(progress_ping_data(socket_server, analysis_pk, events_complete=counter))
+        progress.finish()
     return 0
 
 
