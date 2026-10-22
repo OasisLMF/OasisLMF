@@ -152,7 +152,7 @@ def merge_item_key_rows(gul_inputs_df):
         sections = sections.drop_duplicates().sort_values(['item_id', 'section_id'], kind='stable')
         combined = (sections['section_id'].astype(str)
                     .groupby(sections['item_id'], sort=False).agg(';'.join))
-        section_ids = gul_inputs_df['section_id'].astype(object)
+        section_ids = gul_inputs_df['section_id'].astype(str)
         section_ids.loc[dup_mask] = dups['item_id'].map(combined).to_numpy()
         gul_inputs_df = gul_inputs_df.assign(section_id=section_ids)
 

@@ -51,7 +51,7 @@ def test_rows_differing_only_in_section_are_combined(caplog):
         gul_inputs = get_gul_input_items(make_exposure(), keys)
 
     assert len(gul_inputs) == 3
-    assert gul_inputs['section_id'].astype(str).tolist() == ['2;5', '2;7;9', '4']
+    assert gul_inputs['section_id'].tolist() == ['2;5', '2;7;9', '4']
     assert sections_of(gul_inputs) == [2, 4, 5, 7, 9]
     assert not caplog.records
 
@@ -62,7 +62,7 @@ def test_rows_differing_in_areaperil_warn_and_keep_the_first(caplog):
         gul_inputs = get_gul_input_items(make_exposure(), keys)
 
     assert gul_inputs['areaperil_id'].tolist() == [10, 11]
-    assert gul_inputs['section_id'].astype(str).tolist() == ['1;4', '3']
+    assert gul_inputs['section_id'].tolist() == ['1;4', '3']
     assert sections_of(gul_inputs) == [1, 3, 4]
     assert len(caplog.records) == 1
     message = caplog.records[0].getMessage()
