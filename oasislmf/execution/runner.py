@@ -9,8 +9,9 @@ import time
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
+from ..utils.ping import oasis_ping
 from .bash import (bash_wrapper, create_bash_analysis,
-                   create_bash_outputs, genbash)
+                   create_bash_outputs, genbash, get_server_flags)
 from .resource_monitor import MONITORED_TOOLS, ResourceMonitor
 
 
@@ -341,7 +342,9 @@ def run_outputs(**params):
 
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'],
                       log_sub_dir='out', run_check_complete=False):
-        create_bash_outputs(**params)
+        outputs_total = create_bash_outputs(**params)
+    if get_server_flags(params.get('analysis_pk')):
+        oasis_ping({'analysis_pk': params['analysis_pk'], 'outputs_total': outputs_total})
 
     run_dir = os.path.dirname(params['filename'])
     log_root = os.path.join(run_dir, 'log')

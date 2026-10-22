@@ -60,6 +60,7 @@ import shutil
 import string
 import tempfile
 from collections import Counter
+from copy import deepcopy
 from functools import partial
 
 import pandas as pd
@@ -468,6 +469,7 @@ def do_post_wait_processing(
     stderr_guard=True,
     inuring_priority=None,
     join_summary_info=False,
+    server_flags='',
 ):
     """Write post-wait aggregation commands (aalpy, lecpy) to the bash script.
 
@@ -495,6 +497,8 @@ def do_post_wait_processing(
             file names, or None / empty for the final priority.
         join_summary_info (bool): If True, append ``join-summary-info``
             commands to enrich outputs with summary metadata.
+        server_flags (str): Progress-update flags from :func:`get_server_flags`
+            added to each ``aalpy`` and ``lecpy`` command.
     """
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return []
@@ -511,7 +515,7 @@ def do_post_wait_processing(
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 aal_executable = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["executable"]
                 aal_subfolder_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["subfolder_flag"]
-                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt"
+                cmd = f"{aal_executable}{server_flags} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt"
 
                 palt_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_palt"
                 alct_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_alct"
@@ -554,7 +558,8 @@ def do_post_wait_processing(
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
                 aal_executable = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["executable"]
                 aal_subfolder_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["subfolder_flag"]
-                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly"
+                aal_subfolder = f"{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly"
+                cmd = f"{aal_executable}{server_flags} {aal_subfolder_flag}{aal_subfolder}"
                 altmeanonly_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_altmeanonly"
 
                 outfile_ext = 'csv'
@@ -585,7 +590,7 @@ def do_post_wait_processing(
                 psept_output = False
                 lec_executable = "lecpy"
 
-                cmd = f"{lec_executable} {'-r' if ord_outputs.get('return_period_file') else ''}"
+                cmd = f"{lec_executable}{server_flags} {'-r' if ord_outputs.get('return_period_file') else ''}"
                 cmd = f"{cmd} -K{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summaryleccalc"
 
                 process_counter['lpid_monitor_count'] += 1
@@ -835,6 +840,7 @@ def do_kats(
     process_number=None,
     inuring_priority=None,
     join_summary_info=False,
+    server_flags='',
 ):
     """Write ``katpy`` concatenation commands to merge per-process ORD files.
 
@@ -857,6 +863,8 @@ def do_kats(
         inuring_priority (str or None): Inuring priority label for file names.
         join_summary_info (bool): If True, append ``join-summary-info``
             commands after each concatenation.
+        server_flags (str): Progress-update flags from :func:`get_server_flags`
+            added to each ``katpy`` command.
 
     Returns:
         bool: True if any ``katpy`` commands were emitted, False otherwise.
@@ -879,7 +887,7 @@ def do_kats(
 
                         anykats = True
 
-                        cmd = f'katpy {v["kat_flag"]}' if sort_by_event else f'katpy -u {v["kat_flag"]}'
+                        cmd = f'katpy{server_flags} {v["kat_flag"]}' if sort_by_event else f'katpy{server_flags} -u {v["kat_flag"]}'
                         outfile_flag = '-o'
                         outfile_ext = 'csv'
 
@@ -2570,6 +2578,8 @@ def create_bash_analysis(
         port_arg = f" {kwargs['socket_server_port']}" if kwargs.get("socket_server_port") is not None else ""
         if gulmc and _get_getmodel_cmd is None:
             port_arg += f" --gul-processes {len(process_range(num_gul_output, process_number))}"
+        if kwargs.get("socket_server_outputs"):
+            port_arg += f" --outputs {kwargs['socket_server_outputs']}"
         print_command(filename, f"socket-server {kwargs['socket_server_size']}{port_arg} > /dev/null & spid=$!")
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
@@ -2754,9 +2764,6 @@ def create_bash_analysis(
     # --- Wait for all background pipeline processes ---
     print_command(filename, '')
     do_pwaits(filename, process_counter)
-    if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
-        # Ensure killed if server doesnt end
-        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>/dev/null')
 
 
 def create_bash_outputs(
@@ -2796,12 +2803,21 @@ def create_bash_outputs(
        (EPT/PSEPT) run over collected work-folder data.
     3. **Cleanup** -- removes working directories and temporary FIFOs.
 
+    Each ``katpy``, ``aalpy`` and ``lecpy`` reports to the progress server
+    when it finishes (see :func:`get_server_flags`).
+
     All parameters are typically supplied by unpacking the dict returned from
     :func:`bash_params`.
+
+    Returns:
+        int: The number of ``katpy``, ``aalpy`` and ``lecpy`` processes written.
     """
     if max_process_id is not None:
         num_gul_per_lb = 0
         num_fm_per_lb = 0
+
+    server_flags = get_server_flags(kwargs.get("analysis_pk", None), kwargs.get("socket_server_port"))
+    processes_before = process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count']
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
     if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output):
@@ -2826,7 +2842,7 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                 num_fm_output, filename, process_counter, work_kat_dir,
                 output_dir, kat_sort_by_event,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
@@ -2838,7 +2854,7 @@ def create_bash_outputs(
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
         if full_correlation:
@@ -2851,7 +2867,7 @@ def create_bash_outputs(
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
@@ -2861,7 +2877,7 @@ def create_bash_outputs(
         print_command(filename, '')
         _, cmds = do_kats(
             RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
         )
         post_wait_cmds.extend(cmds)
         if full_correlation:
@@ -2874,7 +2890,7 @@ def create_bash_outputs(
             _, cmds = do_kats(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
@@ -2884,7 +2900,7 @@ def create_bash_outputs(
         print_command(filename, '')
         _, cmds = do_kats(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
         )
         post_wait_cmds.extend(cmds)
         if full_correlation:
@@ -2897,7 +2913,7 @@ def create_bash_outputs(
             _, cmds = do_kats(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
@@ -2916,24 +2932,24 @@ def create_bash_outputs(
             post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags,
             ))
     if ri_output:
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags,
             ))
     if il_output:
         post_wait_cmds.extend(do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, join_summary_info=join_summary_info
+            output_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags
         ))
     if gul_output:
         post_wait_cmds.extend(do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, join_summary_info=join_summary_info
+            output_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags
         ))
 
     if full_correlation:
@@ -2941,17 +2957,17 @@ def create_bash_outputs(
         if ri_output:
             post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags,
             ))
         if il_output:
             post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags,
             ))
         if gul_output:
             post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags,
             ))
 
     do_awaits(filename, process_counter)  # waits for aalcalc
@@ -2972,6 +2988,28 @@ def create_bash_outputs(
                 print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
         else:
             print_command(filename, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
+
+    if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
+        # Ensure killed if server doesnt end
+        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>/dev/null')
+
+    return process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count'] - processes_before
+
+
+def count_output_processes(params):
+    """Count the ``katpy``, ``aalpy`` and ``lecpy`` processes :func:`create_bash_outputs` will write.
+
+    The local socket server is started before the GUL pipeline, so it needs this
+    total before the outputs section is written. The section is written to
+    ``os.devnull`` with a copy of the process counter, leaving ``params`` unchanged.
+
+    Args:
+        params (dict): Parameters from :func:`bash_params`.
+
+    Returns:
+        int: The number of output processes.
+    """
+    return create_bash_outputs(**{**params, 'filename': os.devnull, 'process_counter': deepcopy(params['process_counter'])})
 
 
 # ========================================================================== #
@@ -3103,6 +3141,8 @@ def genbash(
     params['analysis_pk'] = analysis_pk
     params['socket_server_size'] = socket_server_size
     params['socket_server_port'] = socket_server_port
+    if socket_server_size and analysis_pk is None:
+        params['socket_server_outputs'] = count_output_processes(params)
 
     with bash_wrapper(
         filename,
@@ -3135,10 +3175,30 @@ def add_server_call(call, analysis_pk=None, socket_server_port=None):
     """
     if '| gul' not in call:
         return call
+    server_flags = get_server_flags(analysis_pk, socket_server_port)
+    if not server_flags:
+        return call
+    return re.sub(r'(\bgulmc\b|\bgulpy\b|\bmodelpy\b)', lambda m: f"{m.group(1)}{server_flags}", call)
+
+
+def get_server_flags(analysis_pk=None, socket_server_port=None):
+    """Progress-update flags for a pytool command, with a leading space, or '' if there is nowhere to report to.
+
+    With an ``analysis_pk`` and either ``OASIS_WEBSOCKET_URL``/``OASIS_WEBSOCKET_PORT`` or
+    ``OASIS_ANALYSIS_STATUS_URL`` set, updates go to the platform. Otherwise, with a
+    ``socket_server_port``, they go to the local socket server on that port.
+
+    Args:
+        analysis_pk (int or None): Analysis primary key for platform runs.
+        socket_server_port (int or None): Port of the local socket server.
+
+    Returns:
+        str: The flags to insert after the tool name.
+    """
     has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
     has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
     if (has_websocket or has_http) and analysis_pk is not None:
-        return re.sub(r'(\bgulmc\b|\bgulpy\b|\bmodelpy\b)', rf"\1 --socket-server='True' --analysis-pk='{analysis_pk}'", call)
+        return f" --socket-server='True' --analysis-pk='{analysis_pk}'"
     if socket_server_port is not None:
-        return re.sub(r'(\bgulmc\b|\bgulpy\b|\bmodelpy\b)', rf"\1 --socket-server='{socket_server_port}'", call)
-    return call
+        return f" --socket-server='{socket_server_port}'"
+    return ""

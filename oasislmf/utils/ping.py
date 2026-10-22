@@ -62,6 +62,26 @@ def oasis_ping(data):
     return oasis_ping_socket(target, msg)
 
 
+def oasis_ping_progress(socket_server, analysis_pk=None, **progress):
+    """Sends a progress update for a pytool run with a ``--socket-server`` flag.
+
+    Args:
+        socket_server (str): value of the tool's ``--socket-server`` flag. 'False' disables updates, a numeric
+            value is the port of the local socket server, any other value uses the default target.
+        analysis_pk (int, optional): platform analysis the update belongs to.
+        **progress: progress fields to send, e.g. ``outputs_complete=1``.
+
+    Returns:
+        Boolean: whether an update was sent and got through
+    """
+    if socket_server in (None, 'False'):
+        return False
+    data = {**progress, "analysis_pk": analysis_pk}
+    if str(socket_server).isdigit():
+        data['port_override'] = int(socket_server)
+    return oasis_ping(data)
+
+
 def oasis_ping_async(data):
     """Sends a ping without blocking the caller.
 

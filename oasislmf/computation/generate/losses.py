@@ -579,6 +579,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             model_run_dir=model_run_fp,
         )
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
+        bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
         with setcwd(model_run_fp):
             try:
                 self.logger.info('Generating Loss outputs in {}'.format(model_run_fp))

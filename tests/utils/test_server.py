@@ -1,5 +1,6 @@
 import json
 import socket
+import threading
 import time
 import sys
 import pytest
@@ -149,7 +150,7 @@ def test_main_with_explicit_port():
         sys.argv = ['a', '5', str(port)]
         server_main()
 
-    fake_server_class.assert_called_once_with(5, port=port, gul_processes=0)
+    fake_server_class.assert_called_once_with(5, port=port, gul_processes=0, outputs_total=0)
 
 
 def test_main_passes_gul_processes():
@@ -161,7 +162,7 @@ def test_main_passes_gul_processes():
         sys.argv = ['a', '5', '--gul-processes', '4']
         server_main()
 
-    fake_server_class.assert_called_once_with(5, port=None, gul_processes=4)
+    fake_server_class.assert_called_once_with(5, port=None, gul_processes=4, outputs_total=0)
 
 
 def test_server_counts_gul_ready():
@@ -189,3 +190,37 @@ def test_gul_description(counter, gul_ready, gul_processes, expected):
     server.counter = counter
     server.gul_ready = gul_ready
     assert gul_description(server) == expected
+
+
+def test_server_counts_outputs_complete():
+    port = get_free_port()
+    server = GulProgressServer(10, host="127.0.0.1", port=port, outputs_total=3)
+    server.start()
+    target = (server.host, server.port)
+    for _ in range(2):
+        assert oasis_ping_socket(target, json.dumps({"outputs_complete": 1})) is True
+    time.sleep(0.1)
+    assert server.outputs_complete == 2
+    assert server.counter == 0
+
+    server.stop()
+
+
+def test_main_waits_for_outputs_after_events():
+    """With --outputs, main keeps running after the GUL events until every output process reports."""
+    port = get_free_port()
+    sys.argv = ['a', '2', str(port), '--outputs', '2']
+    server_thread = threading.Thread(target=server_main, daemon=True)
+    server_thread.start()
+    target = ("127.0.0.1", port)
+    for _ in range(50):
+        if oasis_ping_socket(target, json.dumps({"events_complete": 2})):
+            break
+        time.sleep(0.1)
+
+    time.sleep(2)
+    assert server_thread.is_alive()
+    for _ in range(2):
+        assert oasis_ping_socket(target, json.dumps({"outputs_complete": 1})) is True
+    server_thread.join(timeout=5)
+    assert not server_thread.is_alive()

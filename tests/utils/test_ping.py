@@ -3,9 +3,11 @@ import os
 import threading
 import time
 from unittest.mock import patch, MagicMock
+import pytest
 import requests
 import oasislmf.utils.ping as ping_module
-from oasislmf.utils.ping import oasis_ping, oasis_ping_socket, oasis_ping_websocket, oasis_ping_http, oasis_ping_async
+from oasislmf.utils.ping import (oasis_ping, oasis_ping_socket, oasis_ping_websocket, oasis_ping_http, oasis_ping_async,
+                                 oasis_ping_progress)
 
 
 def test_oasis_ping_websocket_path():
@@ -216,3 +218,21 @@ def test_oasis_ping_async_drops_update_when_previous_still_in_flight():
             time.sleep(0.01)
 
     mock_ping.assert_called_once_with({"events_complete": 1})
+
+
+@pytest.mark.parametrize("socket_server,expected", [
+    ('8888', {"outputs_complete": 1, "analysis_pk": None, "port_override": 8888}),
+    ('True', {"outputs_complete": 1, "analysis_pk": 3}),
+])
+def test_oasis_ping_progress_sends(socket_server, expected):
+    analysis_pk = expected["analysis_pk"]
+    with patch("oasislmf.utils.ping.oasis_ping", return_value=True) as mock_ping:
+        assert oasis_ping_progress(socket_server, analysis_pk, outputs_complete=1) is True
+    mock_ping.assert_called_once_with(expected)
+
+
+@pytest.mark.parametrize("socket_server", ['False', None])
+def test_oasis_ping_progress_disabled(socket_server):
+    with patch("oasislmf.utils.ping.oasis_ping") as mock_ping:
+        assert oasis_ping_progress(socket_server, None, outputs_complete=1) is False
+    mock_ping.assert_not_called()

@@ -198,7 +198,7 @@ tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summary_palt/P2.idx work/gul_S1_sum
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 ( summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 ) 2>> $LOG_DIR/stderror.err  &
 
-socket-server 2 10006 --gul-processes 2 > /dev/null & spid=$!
+socket-server 2 10006 --gul-processes 2 --outputs 27 > /dev/null & spid=$!
 
 # --- Verify FIFO pipes ---
 check_fifos \
@@ -244,49 +244,49 @@ check_fifos \
 
 exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
 
-kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>/dev/null
 
 # --- Do reinsurance loss kats ---
 
-katpy -S -f bin -i work/kat/ri_S1_plt_sample_P1 work/kat/ri_S1_plt_sample_P2 -o output/ri_S1_splt.parquet & kpid1=$!
-katpy -Q -f bin -i work/kat/ri_S1_plt_quantile_P1 work/kat/ri_S1_plt_quantile_P2 -o output/ri_S1_qplt.parquet & kpid2=$!
-katpy -M -f bin -i work/kat/ri_S1_plt_moment_P1 work/kat/ri_S1_plt_moment_P2 -o output/ri_S1_mplt.parquet & kpid3=$!
-katpy -q -f bin -i work/kat/ri_S1_elt_quantile_P1 work/kat/ri_S1_elt_quantile_P2 -o output/ri_S1_qelt.parquet & kpid4=$!
-katpy -m -f bin -i work/kat/ri_S1_elt_moment_P1 work/kat/ri_S1_elt_moment_P2 -o output/ri_S1_melt.parquet & kpid5=$!
-katpy -s -f bin -i work/kat/ri_S1_elt_sample_P1 work/kat/ri_S1_elt_sample_P2 -o output/ri_S1_selt.parquet & kpid6=$!
+katpy --socket-server='10006' -S -f bin -i work/kat/ri_S1_plt_sample_P1 work/kat/ri_S1_plt_sample_P2 -o output/ri_S1_splt.parquet & kpid1=$!
+katpy --socket-server='10006' -Q -f bin -i work/kat/ri_S1_plt_quantile_P1 work/kat/ri_S1_plt_quantile_P2 -o output/ri_S1_qplt.parquet & kpid2=$!
+katpy --socket-server='10006' -M -f bin -i work/kat/ri_S1_plt_moment_P1 work/kat/ri_S1_plt_moment_P2 -o output/ri_S1_mplt.parquet & kpid3=$!
+katpy --socket-server='10006' -q -f bin -i work/kat/ri_S1_elt_quantile_P1 work/kat/ri_S1_elt_quantile_P2 -o output/ri_S1_qelt.parquet & kpid4=$!
+katpy --socket-server='10006' -m -f bin -i work/kat/ri_S1_elt_moment_P1 work/kat/ri_S1_elt_moment_P2 -o output/ri_S1_melt.parquet & kpid5=$!
+katpy --socket-server='10006' -s -f bin -i work/kat/ri_S1_elt_sample_P1 work/kat/ri_S1_elt_sample_P2 -o output/ri_S1_selt.parquet & kpid6=$!
 
 # --- Do insured loss kats ---
 
-katpy -S -f bin -i work/kat/il_S1_plt_sample_P1 work/kat/il_S1_plt_sample_P2 -o output/il_S1_splt.parquet & kpid7=$!
-katpy -Q -f bin -i work/kat/il_S1_plt_quantile_P1 work/kat/il_S1_plt_quantile_P2 -o output/il_S1_qplt.parquet & kpid8=$!
-katpy -M -f bin -i work/kat/il_S1_plt_moment_P1 work/kat/il_S1_plt_moment_P2 -o output/il_S1_mplt.parquet & kpid9=$!
-katpy -q -f bin -i work/kat/il_S1_elt_quantile_P1 work/kat/il_S1_elt_quantile_P2 -o output/il_S1_qelt.parquet & kpid10=$!
-katpy -m -f bin -i work/kat/il_S1_elt_moment_P1 work/kat/il_S1_elt_moment_P2 -o output/il_S1_melt.parquet & kpid11=$!
-katpy -s -f bin -i work/kat/il_S1_elt_sample_P1 work/kat/il_S1_elt_sample_P2 -o output/il_S1_selt.parquet & kpid12=$!
+katpy --socket-server='10006' -S -f bin -i work/kat/il_S1_plt_sample_P1 work/kat/il_S1_plt_sample_P2 -o output/il_S1_splt.parquet & kpid7=$!
+katpy --socket-server='10006' -Q -f bin -i work/kat/il_S1_plt_quantile_P1 work/kat/il_S1_plt_quantile_P2 -o output/il_S1_qplt.parquet & kpid8=$!
+katpy --socket-server='10006' -M -f bin -i work/kat/il_S1_plt_moment_P1 work/kat/il_S1_plt_moment_P2 -o output/il_S1_mplt.parquet & kpid9=$!
+katpy --socket-server='10006' -q -f bin -i work/kat/il_S1_elt_quantile_P1 work/kat/il_S1_elt_quantile_P2 -o output/il_S1_qelt.parquet & kpid10=$!
+katpy --socket-server='10006' -m -f bin -i work/kat/il_S1_elt_moment_P1 work/kat/il_S1_elt_moment_P2 -o output/il_S1_melt.parquet & kpid11=$!
+katpy --socket-server='10006' -s -f bin -i work/kat/il_S1_elt_sample_P1 work/kat/il_S1_elt_sample_P2 -o output/il_S1_selt.parquet & kpid12=$!
 
 # --- Do ground up loss kats ---
 
-katpy -S -f bin -i work/kat/gul_S1_plt_sample_P1 work/kat/gul_S1_plt_sample_P2 -o output/gul_S1_splt.parquet & kpid13=$!
-katpy -Q -f bin -i work/kat/gul_S1_plt_quantile_P1 work/kat/gul_S1_plt_quantile_P2 -o output/gul_S1_qplt.parquet & kpid14=$!
-katpy -M -f bin -i work/kat/gul_S1_plt_moment_P1 work/kat/gul_S1_plt_moment_P2 -o output/gul_S1_mplt.parquet & kpid15=$!
-katpy -q -f bin -i work/kat/gul_S1_elt_quantile_P1 work/kat/gul_S1_elt_quantile_P2 -o output/gul_S1_qelt.parquet & kpid16=$!
-katpy -m -f bin -i work/kat/gul_S1_elt_moment_P1 work/kat/gul_S1_elt_moment_P2 -o output/gul_S1_melt.parquet & kpid17=$!
-katpy -s -f bin -i work/kat/gul_S1_elt_sample_P1 work/kat/gul_S1_elt_sample_P2 -o output/gul_S1_selt.parquet & kpid18=$!
+katpy --socket-server='10006' -S -f bin -i work/kat/gul_S1_plt_sample_P1 work/kat/gul_S1_plt_sample_P2 -o output/gul_S1_splt.parquet & kpid13=$!
+katpy --socket-server='10006' -Q -f bin -i work/kat/gul_S1_plt_quantile_P1 work/kat/gul_S1_plt_quantile_P2 -o output/gul_S1_qplt.parquet & kpid14=$!
+katpy --socket-server='10006' -M -f bin -i work/kat/gul_S1_plt_moment_P1 work/kat/gul_S1_plt_moment_P2 -o output/gul_S1_mplt.parquet & kpid15=$!
+katpy --socket-server='10006' -q -f bin -i work/kat/gul_S1_elt_quantile_P1 work/kat/gul_S1_elt_quantile_P2 -o output/gul_S1_qelt.parquet & kpid16=$!
+katpy --socket-server='10006' -m -f bin -i work/kat/gul_S1_elt_moment_P1 work/kat/gul_S1_elt_moment_P2 -o output/gul_S1_melt.parquet & kpid17=$!
+katpy --socket-server='10006' -s -f bin -i work/kat/gul_S1_elt_sample_P1 work/kat/gul_S1_elt_sample_P2 -o output/gul_S1_selt.parquet & kpid18=$!
 exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12 $kpid13 $kpid14 $kpid15 $kpid16 $kpid17 $kpid18
 
 
-( aalpy -Kri_S1_summary_palt -E parquet -a output/ri_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid1=$!
-( aalpy -Kri_S1_summary_altmeanonly -E parquet -a output/ri_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid2=$!
-( lecpy  -Kri_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/ri_S1_ept.parquet -o output/ri_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid3=$!
-( aalpy -Kil_S1_summary_palt -E parquet -a output/il_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid4=$!
-( aalpy -Kil_S1_summary_altmeanonly -E parquet -a output/il_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid5=$!
-( lecpy  -Kil_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/il_S1_ept.parquet -o output/il_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid6=$!
-( aalpy -Kgul_S1_summary_palt -E parquet -a output/gul_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid7=$!
-( aalpy -Kgul_S1_summary_altmeanonly -E parquet -a output/gul_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid8=$!
-( lecpy  -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/gul_S1_ept.parquet -o output/gul_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid9=$!
+( aalpy --socket-server='10006' -Kri_S1_summary_palt -E parquet -a output/ri_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid1=$!
+( aalpy --socket-server='10006' -Kri_S1_summary_altmeanonly -E parquet -a output/ri_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid2=$!
+( lecpy --socket-server='10006'  -Kri_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/ri_S1_ept.parquet -o output/ri_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid3=$!
+( aalpy --socket-server='10006' -Kil_S1_summary_palt -E parquet -a output/il_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid4=$!
+( aalpy --socket-server='10006' -Kil_S1_summary_altmeanonly -E parquet -a output/il_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid5=$!
+( lecpy --socket-server='10006'  -Kil_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/il_S1_ept.parquet -o output/il_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid6=$!
+( aalpy --socket-server='10006' -Kgul_S1_summary_palt -E parquet -a output/gul_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid7=$!
+( aalpy --socket-server='10006' -Kgul_S1_summary_altmeanonly -E parquet -a output/gul_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid8=$!
+( lecpy --socket-server='10006'  -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/gul_S1_ept.parquet -o output/gul_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid9=$!
 exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7 $lpid8 $lpid9
 
 rm -R -f work/*
 rm -R -f fifo/*
+kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>/dev/null
 
 check_complete
