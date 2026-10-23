@@ -2305,6 +2305,10 @@ def create_bash_analysis(
 
     All parameters are typically supplied by unpacking the dict returned from
     :func:`bash_params`.
+
+    Returns:
+        int: The number of ``gulmc`` processes written, each of which reports ``gul_ready``
+            once it has loaded the model.
     """
     process_counter = process_counter or Counter()
     custom_args = custom_args or {}
@@ -2575,10 +2579,11 @@ def create_bash_analysis(
     # to read from (when a load balancer is used).
     get_gul_stream_cmds = {}
 
+    gul_processes = len(process_range(num_gul_output, process_number)) if gulmc and _get_getmodel_cmd is None else 0
     if has_local_progress_server(kwargs):
         port_arg = f" {kwargs['socket_server_port']}" if kwargs.get("socket_server_port") is not None else ""
-        if gulmc and _get_getmodel_cmd is None:
-            port_arg += f" --gul-processes {len(process_range(num_gul_output, process_number))}"
+        if gul_processes:
+            port_arg += f" --gul-processes {gul_processes}"
         print_command(filename, f"socket-server {kwargs['socket_server_size']}{port_arg} > /dev/null & spid=$!")
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
@@ -2763,6 +2768,7 @@ def create_bash_analysis(
     # --- Wait for all background pipeline processes ---
     print_command(filename, '')
     do_pwaits(filename, process_counter)
+    return gul_processes
 
 
 def create_bash_outputs(
@@ -3126,7 +3132,9 @@ def genbash(
         log_level (int or None): Enable logging of pytools subprocesses.
 
     Returns:
-        int: The number of output processes that report progress, from :func:`create_bash_outputs`.
+        dict: The run's progress totals: ``gul_processes``, the number of GUL processes that report
+            ``gul_ready`` (from :func:`create_bash_analysis`), and ``outputs_total``, the number of
+            output processes that report completion (from :func:`create_bash_outputs`).
     """
     model_df_engine = model_df_engine or base_df_engine
 
@@ -3178,8 +3186,9 @@ def genbash(
         custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
         custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
     ):
-        create_bash_analysis(**params)
-        return create_bash_outputs(**params)
+        gul_processes = create_bash_analysis(**params)
+        outputs_total = create_bash_outputs(**params)
+    return {'gul_processes': gul_processes, 'outputs_total': outputs_total}
 
 
 def add_server_call(call, analysis_pk=None, socket_server_port=None):

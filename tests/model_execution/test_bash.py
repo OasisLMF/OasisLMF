@@ -452,10 +452,12 @@ def test_create_bash_outputs_returns_reporting_processes(tmp_path, settings_fn):
 def test_genbash_reports_gul_and_outputs_to_local_server(tmp_path):
     filename = str(tmp_path / 'run_kernel.sh')
     settings = {**_palt_settings(), 'join_summary_info': True}
-    count = genbash(2, settings, filename=filename, gulmc=True, socket_server_size=10, socket_server_port=9999)
+    totals = genbash(2, settings, filename=filename, gulmc=True, socket_server_size=10, socket_server_port=9999)
+    count = totals['outputs_total']
     with open(filename) as f:
         script = f.read()
 
+    assert totals['gul_processes'] == 2
     assert "socket-server 10 9999 --gul-processes 2 > /dev/null & spid=$!" in script
     flagged_outputs = re.findall(r"\b(?:katpy|aalpy|lecpy|join-summary-info) --socket-server='9999'", script)
     assert len(flagged_outputs) == count
@@ -510,12 +512,20 @@ def test_local_server_messages_reach_server(tmp_path):
 def test_genbash_platform_run_has_no_local_server(tmp_path, monkeypatch):
     monkeypatch.setenv('OASIS_ANALYSIS_STATUS_URL', 'http://server/analysis-status/')
     filename = str(tmp_path / 'run_kernel.sh')
-    count = genbash(2, _palt_settings(), filename=filename, gulmc=True, socket_server_size=10, analysis_pk=3)
+    totals = genbash(2, _palt_settings(), filename=filename, gulmc=True, socket_server_size=10, analysis_pk=3)
     with open(filename) as f:
         script = f.read()
     assert 'socket-server ' not in script
     assert '/dev/tcp' not in script
-    assert len(re.findall(r"\b(?:katpy|aalpy|lecpy) --socket-server='True' --analysis-pk='3'", script)) == count
+    assert len(re.findall(r"\b(?:katpy|aalpy|lecpy) --socket-server='True' --analysis-pk='3'", script)) == totals['outputs_total']
+    assert totals['gul_processes'] == len(re.findall(r"\bgulmc --socket-server='True' --analysis-pk='3'", script)) == 2
+
+
+@pytest.mark.parametrize('gulmc, process_number, expected', [(True, None, 3), (True, 2, 1), (False, None, 0)])
+def test_create_bash_analysis_returns_gulmc_process_count(tmp_path, gulmc, process_number, expected):
+    """Only gulmc reports `gul_ready`, so the count is its processes in this script: all of them, or one per chunk."""
+    params = bash_params(_palt_settings(), max_process_id=3, gulmc=gulmc, filename=str(tmp_path / 'run.sh'), process_number=process_number)
+    assert create_bash_analysis(**params) == expected
 
 
 def test_output_commands_unflagged_without_progress_server(tmp_path):
