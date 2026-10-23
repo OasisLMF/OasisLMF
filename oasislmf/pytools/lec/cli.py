@@ -3,6 +3,8 @@
 import argparse
 import logging
 
+from oasislmf.utils.ping import add_progress_args, oasis_ping_progress, pop_progress_args
+
 from . import manager, logger
 from .data import VALID_EXT
 
@@ -27,6 +29,8 @@ def main():
     parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
     parser.add_argument('-E', '--ext', type=str, default='csv', choices=VALID_EXT, help='Output data format')
 
+    add_progress_args(parser)
+
     args = parser.parse_args()
     kwargs = vars(args)
 
@@ -37,8 +41,10 @@ def main():
     logger.addHandler(ch)
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
+    socket_server, analysis_pk = pop_progress_args(kwargs)
 
     manager.main(**kwargs)
+    oasis_ping_progress(socket_server, analysis_pk, outputs_complete=1)
 
 
 if __name__ == '__main__':

@@ -2,15 +2,21 @@ import json
 import os
 import re
 import shutil
+import socket
+import subprocess
 import tempfile
+import time
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-from oasislmf.model_execution.bash import (bash_params, bash_wrapper,
+import pytest
+
+from oasislmf.model_execution.bash import (add_server_call, bash_params, bash_wrapper, print_command, progress_server_message,
                                            create_bash_analysis,
                                            create_bash_outputs, genbash)
 from oasislmf.utils import diff
+from oasislmf.utils.socket_server import GulProgressServer
 
 TEST_DIRECTORY = os.path.dirname(__file__)
 UPDATE_BASH_TESTS = os.environ.get('UPDATE_BASH_TESTS', '').lower() in ('1', 'true', 'yes')
@@ -392,3 +398,176 @@ class Genbash_summarypy_default(GenbashBase):
     def test_gul_summarycalc_no_low_memory_flag(self):
         self.genbash("gul_summarycalc_1_output", 1)
         self.check("gul_summarycalc_1_output_1_partition")
+
+
+def test_add_server_call_flags_modelpy_feeding_gulpy():
+    """modelpy reports the empty events it drops, so it needs the same server flags as gulpy."""
+    call = '( ( evepy 1 2 | modelpy | gulpy --random-generator=1 -S1 -L0 -a0 | tee fifo/gul_P1 ) ) & pid1=$!'
+    flagged = add_server_call(call, socket_server_port=9999)
+    assert "modelpy --socket-server='9999' |" in flagged
+    assert "gulpy --socket-server='9999' --random-generator=1" in flagged
+
+
+def test_add_server_call_flags_modelpy_for_platform(monkeypatch):
+    monkeypatch.setenv('OASIS_ANALYSIS_STATUS_URL', 'http://server/analysis-status/')
+    call = '( ( evepy 1 2 | modelpy | gulpy -S1 -L0 -a0 | tee fifo/gul_P1 ) ) & pid1=$!'
+    flagged = add_server_call(call, analysis_pk=7)
+    assert "modelpy --socket-server='True' --analysis-pk='7' |" in flagged
+    assert "gulpy --socket-server='True' --analysis-pk='7' -S1" in flagged
+
+
+def get_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _palt_settings():
+    with open(os.path.join(TEST_DIRECTORY, 'input_json_settings', 'gul_il_ord_palt_output.json')) as f:
+        return json.load(f)['analysis_settings']
+
+
+REPORTING_OUTPUT = r'^[( ]*(?:katpy|aalpy|lecpy|join-summary-info)\b'
+
+
+def _all_outputs_settings():
+    with open(os.path.join(TEST_DIRECTORY, 'input_json_settings', 'all_outputs_1_csv.json')) as f:
+        return json.load(f)['analysis_settings']
+
+
+@pytest.mark.parametrize("settings_fn", [_palt_settings, _all_outputs_settings], ids=["palt", "all-outputs"])
+def test_create_bash_outputs_returns_reporting_processes(tmp_path, settings_fn):
+    """The count covers every reporting command, including the joins after the kats (their pid counter is reset)."""
+    settings = {**settings_fn(), 'join_summary_info': True}
+    params = bash_params(settings, max_process_id=2, gulmc=True, filename=str(tmp_path / 'run.sh'))
+    count = create_bash_outputs(**params)
+    with open(params['filename']) as f:
+        script = f.read()
+    assert count > 0
+    assert len(re.findall(REPORTING_OUTPUT, script, re.MULTILINE)) == count
+    assert re.search(r'^join-summary-info\b', script, re.MULTILINE)
+    assert '/dev/tcp' not in script
+
+
+def test_genbash_reports_gul_and_outputs_to_local_server(tmp_path):
+    filename = str(tmp_path / 'run_kernel.sh')
+    settings = {**_palt_settings(), 'join_summary_info': True}
+    totals = genbash(2, settings, filename=filename, gulmc=True, socket_server_size=10, socket_server_port=9999)
+    count = totals['outputs_total']
+    with open(filename) as f:
+        script = f.read()
+
+    assert totals['gul_processes'] == 2
+    assert "socket-server 10 9999 --gul-processes 2 > /dev/null & spid=$!" in script
+    flagged_outputs = re.findall(r"\b(?:katpy|aalpy|lecpy|join-summary-info) --socket-server='9999'", script)
+    assert len(flagged_outputs) == count
+    assert len(flagged_outputs) == len(re.findall(REPORTING_OUTPUT, script, re.MULTILINE))
+
+    total_msg = progress_server_message({'outputs_total': count}, 9999)
+    done_msg = progress_server_message({'outputs_done': 1}, 9999)
+    assert total_msg == ("{ printf '%s\\n' '{\"outputs_total\": " + str(count) + "}' "
+                         "> /dev/tcp/${OASIS_SOCKET_SERVER_IP:-127.0.0.1}/9999; } 2>/dev/null || true")
+    first_output = re.search(REPORTING_OUTPUT, script, re.MULTILINE).start()
+    assert script.rindex('exec_wait $pid1') < script.index(total_msg) < first_output
+    assert script.rindex('join-summary-info') < script.index(done_msg) < script.rindex('kill -9 "${spid:-}"')
+
+
+def test_create_bash_outputs_with_local_server_keeps_script_and_runs_without_spid(tmp_path):
+    """An outputs-only script keeps what was already written and does not need the server's pid to be set."""
+    filename = str(tmp_path / 'run_outputs.sh')
+    print_command(filename, '# existing line')
+    settings = {**_palt_settings(), 'join_summary_info': True}
+    params = bash_params(settings, max_process_id=2, gulmc=True, filename=filename)
+    count = create_bash_outputs(**params, socket_server_size=10, socket_server_port=9999)
+    with open(filename) as f:
+        script = f.read()
+
+    total_msg = progress_server_message({'outputs_total': count}, 9999)
+    assert script.startswith('# existing line\n' + total_msg + '\n')
+    assert len(re.findall(REPORTING_OUTPUT, script, re.MULTILINE)) == count
+
+    shutdown = script[script.index(progress_server_message({'outputs_done': 1}, 9999)):]
+    result = subprocess.run(['bash', '-c', 'set -euET\n' + shutdown], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_local_server_messages_reach_server(tmp_path):
+    """The script's /dev/tcp messages are read by the progress server, and a missing server does not fail the script."""
+    port = get_free_port()
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
+    server.start()
+    try:
+        script = tmp_path / 'send.sh'
+        script.write_text('set -euET -o pipefail\n'
+                          + progress_server_message({'outputs_total': 4}, port) + '\n'
+                          + progress_server_message({'outputs_done': 1}, get_free_port()) + '\n')
+        subprocess.run(['bash', str(script)], check=True, timeout=30)
+        time.sleep(0.1)
+        assert server.outputs_total == 4
+        assert not server.finished
+    finally:
+        server.stop()
+
+
+def test_genbash_platform_run_has_no_local_server(tmp_path, monkeypatch):
+    monkeypatch.setenv('OASIS_ANALYSIS_STATUS_URL', 'http://server/analysis-status/')
+    filename = str(tmp_path / 'run_kernel.sh')
+    totals = genbash(2, _palt_settings(), filename=filename, gulmc=True, socket_server_size=10, analysis_pk=3)
+    with open(filename) as f:
+        script = f.read()
+    assert 'socket-server ' not in script
+    assert '/dev/tcp' not in script
+    assert len(re.findall(r"\b(?:katpy|aalpy|lecpy) --socket-server='True' --analysis-pk='3'", script)) == totals['outputs_total']
+    assert totals['gul_processes'] == len(re.findall(r"\bgulmc --socket-server='True' --analysis-pk='3'", script)) == 2
+
+
+@pytest.mark.parametrize('gulmc, process_number, expected', [(True, None, 3), (True, 2, 1), (False, None, 0)])
+def test_create_bash_analysis_returns_gulmc_process_count(tmp_path, gulmc, process_number, expected):
+    """Only gulmc reports `gul_ready`, so the count is its processes in this script: all of them, or one per chunk."""
+    params = bash_params(_palt_settings(), max_process_id=3, gulmc=gulmc, filename=str(tmp_path / 'run.sh'), process_number=process_number)
+    assert create_bash_analysis(**params) == expected
+
+
+def test_output_commands_unflagged_without_progress_server(tmp_path):
+    filename = str(tmp_path / 'run_kernel.sh')
+    genbash(2, _palt_settings(), filename=filename, gulmc=True)
+    with open(filename) as f:
+        script = f.read()
+    assert 'socket-server' not in script
+    assert '--socket-server' not in script
+
+
+def _pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_exit_handler_cleans_up_when_exec_monitor_already_gone(tmp_path):
+    """A failing kernel still kills the progress server and its other processes after the exec monitor has exited.
+
+    The monitor (pid0) is gone when oasis_exec_monitor.sh is not on PATH or has already stopped. The handler
+    used to abort under `set -e` when it failed to kill it, skipping the rest of the clean-up.
+    """
+    filename = str(tmp_path / 'run_kernel.sh')
+    with bash_wrapper(filename, False, True, run_check_complete=False):
+        print_command(filename, 'kill -9 $pid0 2>/dev/null; wait $pid0 2>/dev/null || true')
+        print_command(filename, 'sleep 300 & spid=$!')
+        print_command(filename, 'sleep 300 & pid1=$!')
+        print_command(filename, 'echo "$spid $pid1" > pids.txt')
+        print_command(filename, 'false')
+
+    proc = subprocess.run(['bash', filename], cwd=tmp_path, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                          start_new_session=True, timeout=60)
+    server_pid, other_pid = (int(pid) for pid in (tmp_path / 'pids.txt').read_text().split())
+    try:
+        assert proc.returncode != 0
+        assert not _pid_alive(server_pid)
+        assert not _pid_alive(other_pid)
+        assert (tmp_path / 'log' / 'killout.txt').exists()
+    finally:
+        for pid in (server_pid, other_pid):
+            if _pid_alive(pid):
+                os.kill(pid, 9)

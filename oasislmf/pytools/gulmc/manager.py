@@ -17,7 +17,6 @@ import sys
 import json
 from contextlib import ExitStack
 from select import select
-import time
 
 import numpy as np
 import numba as nb
@@ -47,8 +46,7 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async
-from oasislmf.utils.defaults import SERVER_UPDATE_TIME
+from oasislmf.utils.ping import EventProgress
 from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
@@ -167,8 +165,9 @@ def run(run_dir,
         model_df_engine (str, optional): The engine to use when loading model dataframes. Defaults to OasisPandasReader.
         dynamic_footprint (bool, optional): if True, load the dynamic footprint data and adjust hazard intensities at
           runtime. Defaults to False.
-        **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
-          the port to override; analysis_pk is reported with each ping.
+        **kwargs: additional keyword arguments. socket_server (str) enables the progress pings (a `gul_ready` ping once
+          the model is loaded, then `events_complete` counts) and, when numeric, gives the port to override; analysis_pk
+          is reported with each ping.
 
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
@@ -432,18 +431,11 @@ def run(run_dir,
         cdf_cache_tag = np.full(n_cdf_groups, CDF_CACHE_EMPTY, dtype=np.int64)
         cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
 
-        counter = 0
-        timer = time.time()
-        socket_server_val = kwargs.get('socket_server', 'False')
-        ping = socket_server_val != 'False'
-        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
+        progress = EventProgress(kwargs.get('socket_server', 'False'), kwargs.get("analysis_pk", None))
+        progress.ready()
         while True:
             if not streams_in.readinto(event_id_mv):
-                if ping:
-                    ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                    if ping_port is not None:
-                        ping_data['port_override'] = ping_port
-                    oasis_ping(ping_data)
+                progress.finish()
                 break
 
             # get the next event_id from the input stream
@@ -462,7 +454,7 @@ def run(run_dir,
                     fp_haz_arr_ptr)
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
-                    counter += 1
+                    progress.event_done()
                     logger.info(f"event {event_ids[0]} SKIPPED - no items")
                     continue
 
@@ -575,14 +567,7 @@ def run(run_dir,
 
                 logger.info(f"event {event_ids[0]} DONE")
 
-            counter += 1
-            if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                timer = time.time()
-                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                if ping_port is not None:
-                    ping_data['port_override'] = ping_port
-                oasis_ping_async(ping_data)
-                counter = 0
+            progress.event_done()
 
     return 0
 

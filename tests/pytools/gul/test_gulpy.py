@@ -121,7 +121,7 @@ def test_gulpy_ping(socket_server, ping_expected, port_expected):
     end-of-run ping fires (the periodic in-loop ping is covered separately).
     """
     test_model_dir = Path(test_models_dirs[0][1])
-    with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
+    with (patch('oasislmf.utils.ping.oasis_ping') as mock_ping,
           patch('oasislmf.pytools.gul.manager.read_getmodel_stream', return_value=[]),
           TemporaryDirectory() as tmp_result_dir_str):
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
@@ -156,15 +156,46 @@ def test_gulpy_periodic_ping():
             # capture a real getmodel stream (evepy | modelpy) so gulpy processes events
             with open(stream, 'wb') as fout:
                 subprocess.run("evepy 1 1 | modelpy", cwd=test_model_dir, shell=True, check=True, stdout=fout)
-            with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
-                  patch('oasislmf.pytools.gul.manager.oasis_ping_async') as mock_ping_async,
-                  patch('oasislmf.pytools.gul.manager.SERVER_UPDATE_TIME', -1)):
+            with (patch('oasislmf.utils.ping.oasis_ping') as mock_ping,
+                  patch('oasislmf.utils.ping.oasis_ping_async') as mock_ping_async,
+                  patch('oasislmf.utils.ping.SERVER_UPDATE_TIME', -1)):
                 gulpy_run(run_dir=tmp_result_dir, ignore_file_type=set(), sample_size=10, loss_threshold=0.,
                           alloc_rule=1, debug=False, random_generator=1,
                           file_in=str(stream), file_out=str(out_bin),
                           socket_server='True')
             assert mock_ping_async.call_count > 1
             mock_ping.assert_called_once()
+        finally:
+            for scratch in (stream, out_bin):
+                if scratch.exists():
+                    scratch.unlink()
+
+
+def test_gulpy_dropped_periodic_ping_keeps_count():
+    """Events from a periodic ping that `oasis_ping_async` dropped are carried into the next ping.
+
+    Every periodic ping is dropped, so each one must carry the running total and the
+    end-of-run ping must report every event; none are lost from the progress count.
+    """
+    test_model_dir = Path(test_models_dirs[0][1])
+    with TemporaryDirectory() as tmp_result_dir_str:
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        stream = tmp_result_dir.joinpath("getmodel_stream.bin")
+        out_bin = tmp_result_dir.joinpath("out.bin")
+        try:
+            with open(stream, 'wb') as fout:
+                subprocess.run("evepy 1 1 | modelpy", cwd=test_model_dir, shell=True, check=True, stdout=fout)
+            with (patch('oasislmf.utils.ping.oasis_ping') as mock_ping,
+                  patch('oasislmf.utils.ping.oasis_ping_async', return_value=False) as mock_ping_async,
+                  patch('oasislmf.utils.ping.SERVER_UPDATE_TIME', -1)):
+                gulpy_run(run_dir=tmp_result_dir, ignore_file_type=set(), sample_size=10, loss_threshold=0.,
+                          alloc_rule=1, debug=False, random_generator=1,
+                          file_in=str(stream), file_out=str(out_bin),
+                          socket_server='True')
+            periodic = [c.args[0]['events_complete'] for c in mock_ping_async.call_args_list]
+            assert periodic == list(range(1, len(periodic) + 1))
+            assert mock_ping.call_args.args[0]['events_complete'] == len(periodic)
         finally:
             for scratch in (stream, out_bin):
                 if scratch.exists():
