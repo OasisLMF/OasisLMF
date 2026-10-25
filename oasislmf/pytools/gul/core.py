@@ -63,9 +63,8 @@ def apply_alloc_rule(item_losses, alloc_rule, tiv):
     """Apply the back-allocation cap to one cross-item vector, in place.
 
     ``item_losses`` is the losses of every item on a coverage at ONE (sample, building) -- the
-    axis the rules reduce over. The fused path passes a length-1 slice, the whole-coverage path
-    passes the full vector; that difference is the only thing separating them, so both call this
-    rather than each spelling the rules out.
+    axis the rules reduce over. ``write_losses`` calls it once per special and once per
+    (sample, building).
 
     Order matters and is the one write_losses established: setmaxloss first, then the tiv split.
 

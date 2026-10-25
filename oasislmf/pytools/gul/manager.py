@@ -307,9 +307,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # coverage's every building has to be resident before any of it can be written.
         building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buildings),
                                    dtype=oasis_float)
-        # Accumulates a summed-at-source item's buildings when it is emitted as it is computed.
-        # float64, not oasis_float: write_losses sums into a `loss = 0.` local, which numba types
-        # as float64, so accumulating in float32 here would round differently.
         # per item of the current coverage, the correlation between two of its buildings'
         # LOSSES -- 0 unless the item is summed and correlated, the only case that reads it
         loss_correlation_by_item = np.zeros(max_items_per_coverage, dtype=oasis_float)
@@ -385,7 +382,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     seeds, lazy_draws, draw_scratch, perm_scratch,
                     loss_correlation_by_item, hermite_coeffs,
                     n_buildings_by_item_id, damage_correlation_by_item_id,
-                    max_bytes_per_item, max_bytes_per_block, byte_mv, cursor
+                    max_bytes_per_item, byte_mv, cursor
                 )
 
                 # A call that stops short must have advanced the resume point. It only stops
@@ -439,7 +436,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          seeds, lazy_draws, draw_scratch, perm_scratch,
                          loss_correlation_by_item, hermite_coeffs,
                          n_buildings_by_item_id, damage_correlation_by_item_id,
-                         max_bytes_per_item, max_bytes_per_block, byte_mv, cursor):
+                         max_bytes_per_item, byte_mv, cursor):
     """Compute losses for an event.
 
     Args:
@@ -492,8 +489,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
           report the spread of a sum.
         hermite_coeffs (numpy.array[float64]): length HERMITE_TERMS scratch for that.
         max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.
-        max_bytes_per_block (int): the same for ONE building's block, which is the unit a fused
-          coverage is flushed at.
         byte_mv (numpy.array): byte view of where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
 
@@ -779,8 +774,8 @@ def write_losses(event_id, sample_size, loss_threshold, losses, building_losses,
                 for sample_idx in range(sample_size):
                     building_losses[sample_idx, item_j, b] = 0
 
-    # The same cap the fused path applies per item as it computes -- here over the whole
-    # cross-item vector, which is the only difference between the two.
+    # The cap runs across the items at one (sample, building), which is why every building of the
+    # coverage has to be resident before any of it is written.
     if alloc_rule != 0:
         for special in (TIV_IDX, MAX_LOSS_IDX, MEAN_IDX):
             apply_alloc_rule(losses[special], alloc_rule, tiv)

@@ -367,6 +367,20 @@ the kernel carries that cost.
 carries ``N × S`` samples, laid out as building 1's ``S`` samples, then building 2's, and so on.
 Each building draws its own random numbers, so the buildings are independent by construction.
 
+That covers **hazard as well as damage**. Under full Monte Carlo sampling with an uncertain hazard
+intensity, each building samples its own intensity from the location's hazard distribution, as
+well as its own damage. This differs from ``items`` with the default group fields, where a
+location's buildings share one hazard draw and one damage draw. Packing therefore gives the
+widest spread of the three modes for a location whose footprint carries intensity uncertainty.
+
+The only thing that correlates a location's buildings under ``samples`` is the correlation factor
+of their peril correlation group, ``hazard_correlation_value`` and ``damage_correlation_value``.
+Those factors also apply between locations, so buildings cannot share a hazard draw while their
+locations stay independent: a ``hazard_correlation_value`` of 1 makes the buildings move together,
+but it makes every location in the group move together as well. See
+:doc:`Correlation <correlation>`. A model that needs buildings to share the site's intensity and
+locations to stay independent should run ``items`` with the default hazard group fields.
+
 The building count travels in its own ``coverage_buildings`` file, one signed record per
 coverage: buildings belong to the location, so the coverage is the granularity at which the value
 is true, and every item of a coverage inherits it.
@@ -531,14 +545,19 @@ There is also a difference between the two IsAggregate cases in how disaggregate
 
 The model provider can control this through the model settings json.
 
-In case it is not specified, the default setting in Oasis is to fully correlate the subrisks for campus sites in case 3 (same correlation group id is assigned) and to make the subrisks for aggregate data independent in case 2 (different correlation group_id per subrisk).
+Under ``--disaggregation items`` each building is its own item and therefore its own row to group
+on. The default group fields are ``PortNumber, AccNumber, LocNumber`` for both hazard and damage,
+so by default the subrisks are **fully correlated in both cases**: a location's buildings share
+one group id whether it is a campus (case 3) or aggregate data (case 2). Adding ``risk_id`` to the
+group fields separates the aggregate subrisks and keeps a campus's buildings together. Adding
+``building_id`` separates both.
 
-This applies to ``--disaggregation items``, where each building is its own item and therefore its
-own row to group on. Under ``--disaggregation samples`` there is one item per location, so
-``group_id`` is necessarily location level and listing a building-level field such as
-``building_id`` in the group columns has nothing to differentiate — it is a no-op rather than an
-error. Nothing is lost by this: packing separates the buildings at sampling time instead, giving
-each its own draws, and buildings that should be perfectly correlated need no building dimension
-at all, which is what ``--disaggregation none`` provides.
+Under ``--disaggregation samples`` there is one item per location, so ``group_id`` is necessarily
+location level and listing a building-level field such as ``building_id`` in the group columns has
+nothing to differentiate — it is a no-op rather than an error. Packing separates the buildings at
+sampling time instead: every building draws its own **hazard intensity and damage**, in both
+cases, and the peril's correlation factors are what couple them (see
+:ref:`disaggregation_samples`). Buildings that should be perfectly correlated need no building
+dimension at all, which is what ``--disaggregation none`` provides.
 
 For more details on model provider controls for correlation, please see :doc:`Correlation <correlation>`

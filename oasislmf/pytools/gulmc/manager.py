@@ -466,7 +466,6 @@ def run(run_dir,
         compute_info = np.zeros(1, dtype=gulmc_compute_info_type)[0]
 
         compute_info['max_bytes_per_item'] = max_bytes_per_item
-        compute_info['max_bytes_per_block'] = max_bytes_per_block
         compute_info['sample_size'] = sample_size
         compute_info['Ndamage_bins_max'] = Ndamage_bins_max
         compute_info['loss_threshold'] = loss_threshold
@@ -1299,10 +1298,9 @@ def compute_event_losses(compute_info,
           cdfs, the effective-damageability counterpart of the sampled bins.
         source_eff_damage_cdf_len_stack (np.array[int64]): valid length of each entry of
           ``source_eff_damage_cdf_stack``.
-        building_losses (numpy.array[oasis_float]): 3d (S, max_items, W) reusable buffer for the
-          per-building sample losses. W is max_buildings only for the coverages that must hold
-          every building at once to apply a cross-item alloc-rule cap; a coverage emitted as it
-          is computed uses column 0 alone, so W is 1 whenever no coverage buffers.
+        building_losses (numpy.array[oasis_float]): 3d (S, max_items, max_buildings) reusable
+          buffer for the per-building sample losses. Every coverage holds all of its buildings
+          here before write_losses emits it, so it is sized by the portfolio's largest location.
         loss_correlation_by_item (numpy.array[oasis_float]): per item of the current coverage,
           the correlation between two of its buildings' losses, written where the analytic
           moments are and read when its summed specials are emitted. 0 for everything that
@@ -1928,10 +1926,8 @@ def reconstruct_coverages(compute_info,
     compute_info['coverage_i'] = 0
     compute_info['coverage_n'] = compute_i
 
-    # The buffer no longer has to hold a whole dependency subtree. A fused coverage is flushed
-    # between buildings, so one block is enough for it; only a coverage that still goes through
-    # write_losses is emitted whole and has to fit entire. The whole-subtree estimate this
-    # replaced was a 2 GB allocation at 630,510 buildings, on every run.
+    # The buffer has to hold one whole coverage, since a coverage is emitted whole, but not a
+    # whole dependency subtree: a flush may fall between the coverages of a subtree.
     # the extra header is what an item's first block is reserved WITH, so a buffer sized to
     # exactly one block would reject that reservation on an empty buffer, forever
     required_bytes = compute_info['max_bytes_per_item']

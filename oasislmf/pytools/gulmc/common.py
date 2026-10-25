@@ -127,9 +127,6 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     ('building_b', oasis_int),
     ('cdf_cache_ctr', np.int64),
     ('max_bytes_per_item', np.int64),
-    # bytes one building's block can take: its specials, its samples, and -- counted whether or
-    # not this block carries them -- the item header and delimiter
-    ('max_bytes_per_block', np.int64),
     ('Ndamage_bins_max', oasis_int),
     ('sample_size', oasis_int),
     ('loss_threshold', oasis_float),

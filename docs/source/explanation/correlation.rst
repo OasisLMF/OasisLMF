@@ -319,9 +319,14 @@ therefore correlated at the configured factor, the **same** factor that applies 
 * a factor of 1 makes them move together;
 * anything between gives the same partial correlation within a location as across the portfolio.
 
+The same holds for ``hazard_correlation_value``: each building samples its own hazard intensity,
+mixing in the group's one shared hazard value at that factor.
+
 Intra-location and inter-location correlation cannot be set separately in this mode. Under
 ``--disaggregation items`` they were separate controls — the group fields decided within a
-location, the factor decided across them.
+location, the factor decided across them. In particular, with the default group fields ``items``
+gives a location's buildings one shared hazard draw, which ``samples`` cannot express without also
+correlating the hazard of every location in the peril group.
 
 .. note::
 
@@ -549,7 +554,9 @@ Oasis disaggregates exposure locations when the **NumberOfBuildings** value is g
 
     Under ``--disaggregation samples``, now the default, a location keeps a single item and its
     buildings are separated in the **sample dimension**: each one draws from its own independent
-    random block. They are therefore **independent of each other by construction**, and no group
+    random blocks, one for hazard intensity and one for damage. They are therefore **independent
+    of each other in both hazard and damage by construction**, apart from the peril correlation
+    factors described above, and no group
     setting changes that — ``building_id`` and ``risk_id`` have nothing to differentiate, because
     the buildings are already apart. A location whose buildings should instead move together
     needs no building dimension at all, which is what ``--disaggregation none`` gives.
