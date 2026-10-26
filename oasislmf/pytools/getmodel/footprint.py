@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import numba as nb
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
@@ -486,7 +487,7 @@ class FootprintParquet(Footprint):
 
         Returns: (np.array[Event]) the event's rows with one of self.areaperil_ids
         """
-        tables = []
+        parts = []
         for file_path in sorted(self.storage.listdir(dir_path)):
             if os.path.basename(file_path).startswith(('.', '_')):  # not data files, as for pyarrow datasets
                 continue
@@ -494,11 +495,17 @@ class FootprintParquet(Footprint):
                 parquet_file = pq.ParquetFile(f)
                 row_groups = select_row_groups(parquet_file.metadata, self.sorted_areaperil_ids)
                 if row_groups:
-                    tables.append(parquet_file.read_row_groups(row_groups))
-        if not tables:
+                    # filter in arrow before converting, so only the kept rows are ever copied to numpy
+                    table = parquet_file.read_row_groups(row_groups, columns=list(Event.fields))
+                    value_set = pa.array(self.sorted_areaperil_ids, type=table.schema.field('areaperil_id').type)
+                    table = table.filter(pc.is_in(table['areaperil_id'], value_set=value_set))
+                    part = np.empty(table.num_rows, dtype=Event)
+                    for column in Event.fields:
+                        part[column] = table[column].to_numpy()
+                    parts.append(part)
+        if not parts:
             return np.empty(0, dtype=Event)
-        event = self.prepare_df_data(data_frame=pa.concat_tables(tables).to_pandas())
-        return event[np.isin(event['areaperil_id'], self.sorted_areaperil_ids)]
+        return np.concatenate(parts) if len(parts) > 1 else parts[0]
 
 
 class FootprintParquetChunk(Footprint):
