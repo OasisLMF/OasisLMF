@@ -18,7 +18,7 @@ from unittest import TestCase
 import numpy as np
 
 from oasislmf.pytools.common.data import oasis_int, loss_pair_dtype
-from oasislmf.pytools.common.event_stream import decode_local_sidx, encode_sidx
+from oasislmf.pytools.common.event_stream import NUM_SPECIAL_SIDX, decode_local_sidx, encode_sidx
 from oasislmf.pytools.fm.common import compute_idx_dtype
 from oasislmf.pytools.fm.financial_structure import nodes_array_dtype
 from oasislmf.pytools.fm.stream_sparse import read_buffer
@@ -61,16 +61,19 @@ def _fresh_state():
         pass_through=np.zeros(4, dtype=np.float64),
         computes=np.zeros(4, dtype=oasis_int),
         compute_idx=np.zeros(1, dtype=compute_idx_dtype)[0],
+        building_sum=np.zeros(S + NUM_SPECIAL_SIDX + 1, dtype=np.float64),
+        building_seen=np.zeros(S + NUM_SPECIAL_SIDX + 1, dtype=np.uint8),
     )
     return state
 
 
-def _read(state, byte_mv, collapse_on_read=False):
-    read_buffer(
-        byte_mv, 0, byte_mv.shape[0], 0, 0,
+def _read(state, byte_mv, collapse_on_read=False, event_id=0, item_id=0):
+    return read_buffer(
+        byte_mv, 0, byte_mv.shape[0], event_id, item_id,
         state['nodes_array'], state['sidx_indexes'], state['sidx_indptr'],
         state['sidx_val'], state['loss_indptr'], state['loss_val'], state['pass_through'],
         state['computes'], state['compute_idx'], S, True, collapse_on_read,
+        state['building_sum'], state['building_seen'],
     )
 
 
@@ -133,6 +136,25 @@ class TestFmDepacking(TestCase):
                         [(1, 1.), (1, 2.)]):     # the same sidx twice
             with self.assertRaises(ValueError):
                 _read(_fresh_state(), _build_item_buffer(1, 1, records, ascending=False))
+
+    def test_collapsed_on_read_the_buildings_are_summed(self):
+        """With no level applying terms per building, the item is stored as its location total.
+
+        The fixture's normal stream is the per-sidx sum of its two buildings. The second case
+        splits the item across two buffers partway through, as a pipe read can.
+        """
+        state = _fresh_state()
+        _read(state, _build_item_buffer(1, 1, self.packed_records), collapse_on_read=True)
+        stored, chance = _stored(state)
+        self.assertEqual(stored, self.normal_expected)
+        self.assertEqual(chance, 0.5)
+
+        state = _fresh_state()
+        byte_mv = _build_item_buffer(1, 1, self.packed_records)
+        split = 2 * np.dtype(oasis_int).itemsize + 10 * loss_pair_dtype.itemsize
+        _, event_id, item_id, _ = _read(state, byte_mv[:split], collapse_on_read=True)
+        _read(state, byte_mv[split:], collapse_on_read=True, event_id=event_id, item_id=item_id)
+        self.assertEqual(_stored(state)[0], self.normal_expected)
 
     def test_normal_stream_unchanged(self):
         """For building 1 the packed encoding is the identity, so a normal stream is verbatim."""

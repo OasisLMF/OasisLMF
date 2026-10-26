@@ -86,7 +86,7 @@ def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
 
 
 @nb.jit(cache=True, nopython=True)
-def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val, accumulate):
+def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
     """Append a (sidx, loss) pair to the node being read. Always O(1).
 
     Inserting in sorted position instead is quadratic on a packed item: each new building's
@@ -101,7 +101,6 @@ def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val, accumul
         sidx_indptr: CSR pointers into sidx_val.
         sidx_val: Sample index values.
         loss_val: Loss values.
-        accumulate: unused here; see ``check_item_order``, which runs when the item closes.
     """
     insert_i = sidx_indptr[compute_i]
     sidx_val[insert_i] = sidx
@@ -110,57 +109,41 @@ def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val, accumul
 
 
 @nb.njit(cache=True, fastmath=True)
-def check_item_order(compute_i, sidx_indptr, sidx_val, loss_val, accumulate):
-    """Check the item just read is in ascending sidx order, or merge it if it cannot be.
+def check_item_order(compute_i, sidx_indptr, sidx_val):
+    """Check the item just read is in ascending sidx order.
 
     The loss stream requires ascending sidx, and a packed item obeys it: every building's
     analytics are written before any samples, descending in building so their encoding ascends,
     then the samples ascend with the building. Ascending makes a repeat a comparison rather than
     a search, which is the only duplicate check there is.
 
-    ``accumulate`` is the exception. Collapsing on read decodes each index as it is stored, so
-    several buildings land on one local sidx by design -- that cannot ascend and the repeats are
-    legitimate, so those are sorted and summed instead.
-
     Args:
         compute_i: computation index of the node just completed.
         sidx_indptr: CSR pointers into sidx_val.
         sidx_val: Sample index values.
-        loss_val: Loss values, kept aligned with them.
-        accumulate: whether repeated indices are expected, which is collapse-on-read alone.
 
     Raises:
-        ValueError: if an item that should ascend does not, which is a repeated sidx or a
-            producer that did not order its output.
+        ValueError: if the item does not ascend, which is a repeated sidx or a producer that did
+            not order its output.
     """
-    start = sidx_indptr[compute_i - 1]
-    end = sidx_indptr[compute_i]
-    if end - start < 2:
-        return
+    for i in range(sidx_indptr[compute_i - 1] + 1, sidx_indptr[compute_i]):
+        if sidx_val[i] <= sidx_val[i - 1]:
+            raise ValueError("sidx out of order or repeated in input stream")
 
-    if not accumulate:
-        for i in range(start + 1, end):
-            if sidx_val[i] <= sidx_val[i - 1]:
-                raise ValueError("sidx out of order or repeated in input stream")
-        return
 
-    order = np.argsort(sidx_val[start:end])
-    n = end - start
-    sorted_sidx = np.empty(n, dtype=sidx_val.dtype)
-    sorted_loss = np.empty(n, dtype=loss_val.dtype)
-    for i in range(n):
-        sorted_sidx[i] = sidx_val[start + order[i]]
-        sorted_loss[i] = loss_val[start + order[i]]
+@nb.njit(cache=True)
+def flush_collapsed_item(compute_i, sidx_indptr, sidx_val, loss_val, building_sum, building_seen):
+    """Store the item summed over its buildings by collapse-on-read, then clear the sums.
 
-    write_i = start
-    for i in range(n):
-        if write_i > start and sidx_val[write_i - 1] == sorted_sidx[i]:
-            loss_val[write_i - 1] += sorted_loss[i]
-            continue
-        sidx_val[write_i] = sorted_sidx[i]
-        loss_val[write_i] = sorted_loss[i]
-        write_i += 1
-    sidx_indptr[compute_i] = write_i
+    The sums are indexed by ``local sidx + NUM_SPECIAL_SIDX``, so walking them in order stores
+    the item ascending, specials first. The item takes one sample row of the arena whatever its
+    building count, which is all the arena budgets for when the stream is collapsed on read.
+    """
+    for j in range(building_sum.shape[0]):
+        if building_seen[j]:
+            add_new_loss(j - NUM_SPECIAL_SIDX, building_sum[j], compute_i, sidx_indptr, sidx_val, loss_val)
+            building_sum[j] = 0
+            building_seen[j] = 0
 
 
 def event_log_msg(event_id, sidx_indptr, len_array, node_count):
@@ -170,8 +153,8 @@ def event_log_msg(event_id, sidx_indptr, len_array, node_count):
 @nb.njit(cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
-                computes, compute_idx, max_sidx_val, building_packing, collapse_on_read
-                ):
+                computes, compute_idx, max_sidx_val, building_packing, collapse_on_read,
+                building_sum, building_seen):
     """Parse a buffer of stream data, populating sparse loss arrays.
 
     This is the core stream parsing function. It handles the state machine for
@@ -212,6 +195,12 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
             at its decoded local sidx. Set when the structure declares packed buildings but no
             level applies terms per building (``site_collapse_level < start_level``), which is
             what a portfolio with no site-level terms produces.
+        building_sum: one sample row, indexed by local sidx + NUM_SPECIAL_SIDX, that a collapsed
+            item's buildings are summed into until its delimiter. Summing as they arrive rather
+            than storing every building keeps the item to the one row the arena budgets for it.
+            Held by the reader, so an item split across two buffers keeps its partial sums.
+        building_seen: marks the entries of building_sum the current item has written, so an
+            entry that sums to zero is still stored, as it would be unpacked.
         building_packing: whether the financial structure declares packed buildings. A packed
             sidx without it means the structure info is missing, which is an error rather than
             something to work around.
@@ -240,8 +229,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 if not sidx:
                     # sidx == 0: Item delimiter reached. The records were appended in arrival
                     # order; put them in sidx order now, once, rather than on every insert.
-                    check_item_order(compute_idx['next_compute_i'], sidx_indptr, sidx_val,
-                                     loss_val, collapse_on_read)
+                    if collapse_on_read:
+                        flush_collapsed_item(compute_idx['next_compute_i'], sidx_indptr, sidx_val, loss_val,
+                                             building_sum, building_seen)
+                    check_item_order(compute_idx['next_compute_i'], sidx_indptr, sidx_val)
                     reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes)
                     cursor += (k + 1) * loss_pair_size  # consume pairs incl. delimiter
                     item_id = 0  # Return to header-reading state
@@ -267,22 +258,20 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     else:
                         local_sidx = sidx
 
-                    # No level applies terms per building, so sum them away here and hand the financial module an
-                    # ordinary stream. Storing the packed index would leak it to the output uncollapsed.
-                    if collapse_on_read:
-                        store_sidx = local_sidx
-                    else:
-                        store_sidx = sidx
-
                     if local_sidx == -2:
                         pass  # Standard deviation - ignored in FM
                     elif local_sidx == -4:
                         # Chance of loss - store separately for pass-through
                         pass_through[compute_idx['next_compute_i']] = loss
+                    elif collapse_on_read:
+                        # No level applies terms per building, so sum them away here and hand the financial
+                        # module an ordinary stream; the item is stored at its delimiter.
+                        building_sum[local_sidx + NUM_SPECIAL_SIDX] += loss
+                        building_seen[local_sidx + NUM_SPECIAL_SIDX] = 1
                     else:
                         # Regular sample or special index, at its packed sidx where packed
-                        add_new_loss(store_sidx, loss, compute_idx['next_compute_i'],
-                                     sidx_indptr, sidx_val, loss_val, collapse_on_read)
+                        add_new_loss(sidx, loss, compute_idx['next_compute_i'],
+                                     sidx_indptr, sidx_val, loss_val)
             else:
                 cursor += n_pairs * loss_pair_size
         else:
@@ -344,6 +333,9 @@ class FMReader(EventReader):
         self.max_sidx_val = max_sidx_val
         self.building_packing = building_packing
         self.collapse_on_read = collapse_on_read
+        # see read_buffer; one row, so there is no cost worth avoiding when nothing is collapsed
+        self.building_sum = np.zeros(max_sidx_val + NUM_SPECIAL_SIDX + 1, dtype=loss_val.dtype)
+        self.building_seen = np.zeros(max_sidx_val + NUM_SPECIAL_SIDX + 1, dtype=np.uint8)
         self.logger = logger
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
@@ -352,7 +344,7 @@ class FMReader(EventReader):
             self.nodes_array, self.sidx_indexes, self.sidx_indptr,
             self.sidx_val, self.loss_indptr, self.loss_val, self.pass_through,
             self.computes, self.compute_idx, self.max_sidx_val, self.building_packing,
-            self.collapse_on_read
+            self.collapse_on_read, self.building_sum, self.building_seen
         )
 
     def item_exit(self):

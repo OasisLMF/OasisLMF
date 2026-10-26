@@ -216,3 +216,30 @@ def test_separate_buildings_give_the_same_item_losses_packed(case):
         )
 
     _assert_same_losses(items, samples, DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
+
+
+def test_separate_buildings_under_policy_terms_only_give_the_same_item_losses_packed():
+    # No location terms, so no level applies terms per building and fm sums the buildings as it
+    # reads them. One location holding many more buildings than the structure has nodes is where
+    # an item that kept every building until its end overran the arena sized for one per node.
+    location = pd.DataFrame({
+        'PortNumber': ['1'], 'AccNumber': ['1'], 'LocNumber': ['1'], 'CountryCode': ['US'],
+        'LocPerilsCovered': ['WTC'], 'BuildingTIV': ['5000000'], 'OtherTIV': ['0'],
+        'ContentsTIV': ['500000'], 'BITIV': ['0'], 'LocCurrency': ['USD'],
+        'NumberOfBuildings': ['50'], 'IsAggregate': ['1'],
+    })
+    account = pd.DataFrame({
+        'PortNumber': ['1'], 'AccNumber': ['1'], 'PolNumber': ['1'], 'PolPerilsCovered': ['WTC'],
+        'PolPeril': ['WTC'], 'PolDed6All': ['100000'], 'PolDedType6All': ['0'], 'AccCurrency': ['USD'],
+    })
+    with TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, 'src')
+        os.makedirs(src)
+        location.to_csv(os.path.join(src, 'location.csv'), index=False)
+        account.to_csv(os.path.join(src, 'account.csv'), index=False)
+        items, samples = (
+            _losses(src, os.path.join(tmp, mode), mode, 'item', DEFAULT_LOSS_FACTORS)
+            for mode in (DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
+        )
+
+    _assert_same_losses(items, samples, DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)

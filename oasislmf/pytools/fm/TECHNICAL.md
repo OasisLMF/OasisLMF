@@ -466,9 +466,11 @@ use the stored per-building TIV, and the blocks of a location summed at source a
 Two paths, chosen in `manager.py` from the structure info:
 
 **No level applies terms per building** — `site_collapse_level < max(1, start_level)`. The
-reader sums the buildings away as it reads (`collapse_on_read`), storing each record at its
-local sidx, and the computation sees an ordinary stream. `0` is the "no risk-keyed level"
-marker rather than a level number, hence `max(1, ...)`.
+reader sums the buildings away as it reads (`collapse_on_read`): each record is added into a
+one-row buffer at its local sidx, and the item is stored from it at its delimiter. The
+computation sees an ordinary stream, and an item takes one sample row of the arena however many
+buildings it carries -- the arena is sized for no more. `0` is the "no risk-keyed level" marker
+rather than a level number, hence `max(1, ...)`.
 
 **A site level does apply terms per building** — the building dimension is carried up to and
 including `site_collapse_level`. `collapses_buildings()` reports when aggregating a child into

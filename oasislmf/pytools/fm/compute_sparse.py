@@ -1339,7 +1339,7 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_l
     # which the arena cannot do; that copy is what the base allowance covers.
     #
     # Forced to 0 alongside max_buildings when the stream is collapsed on read, where no packed
-    # sidx can reach the arena at all.
+    # sidx can reach the arena at all: the reader sums an item's buildings before storing it.
     extra_slots = 0 if collapsed_on_read else int(compute_info['packable_building_slots']) * max_sidx_count
     # loss and extras owe a packed slice per LAYER where sidx owes one per node, and net_loss a
     # further one per node when it is in use at all.
