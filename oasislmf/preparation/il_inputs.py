@@ -1502,7 +1502,9 @@ def get_il_input_items(
         # How many buildings' TIV each node covers, for percentage-of-TIV terms. Under row
         # disaggregation every row is one building and both are 1. Under packing one row stands for N:
         # a node above the site levels covers all of them, a site node covers one only where the
-        # buildings are kept separate, since then each is its own risk.
+        # buildings are kept separate, since then each is its own risk. This turns %TIV deductibles
+        # and limits into amounts here; step policies keep theirs as fractions and fm applies the
+        # same rule to them at run time (get_tiv_csr), so a change to one belongs in both.
         n_buildings_col = (gul_inputs_df['number_of_buildings']
                            if 'number_of_buildings' in gul_inputs_df.columns else 1)
         keep_separate_col = (gul_inputs_df['keep_buildings_separate']

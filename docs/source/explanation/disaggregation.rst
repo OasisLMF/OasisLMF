@@ -390,6 +390,13 @@ input format -- third-party models parse it directly as a bare array of TIVs, an
 record would have them read alternate words as TIVs with no error. ``coverages.bin`` is therefore
 unchanged.
 
+The TIV it holds is **one building's share** under both ``items`` and ``samples``, as the table
+above says. A consumer that needs a location's TIV multiplies it by the building count; the
+financial module does so for every node except a site-level one whose buildings are kept
+separate, which holds a single building. That covers both the percentage-of-TIV deductibles and
+limits, converted to amounts during generation, and the step policies, whose triggers are
+scaled when the financial structure is built.
+
 The file is written **only when it says something**: a run where every location has one building
 -- including one with no ``NumberOfBuildings`` column at all -- produces no file, and the readers
 treat its absence as a count of one everywhere. So an ordinary portfolio gains nothing to carry.

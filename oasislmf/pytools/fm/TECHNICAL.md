@@ -441,6 +441,26 @@ risk-keyed one varies per portfolio, and the arena has to be sized before any it
 `load_fm_structure_info` returns `(0, 1, 0, 0)` when the file is absent, which is every structure
 generated without packing.
 
+### TIV
+
+The coverage TIV in `coverages.bin` is **one building's share**: generation divides a location's
+TIV by its building count in every mode except `none`, so `items` and `samples` write the same
+value. Whoever needs more than one building's worth multiplies by `|n_building|` itself. For a
+node in the financial structure the rule is:
+
+| Node | TIV it owes per coverage |
+|------|--------------------------|
+| at or below `site_collapse_level`, buildings kept separate (`n_building < 0`) | the stored TIV: the node holds one building |
+| anywhere else, including any node over a location summed at source (`n_building > 0`) | the stored TIV × `|n_building|` |
+
+Two places apply it, and they must agree. Generation turns %TIV deductibles and limits into
+amounts with it (`tiv_buildings_site`/`tiv_buildings_above` in `il_inputs.py`), so they reach fm
+already absolute. The step policies keep their triggers and payouts as fractions of TIV, and
+`get_tiv_csr` applies the same rule when `extract_financial_structure` scales them.
+
+The ground-up tools follow it too: each building block's loss and its `sidx -3` exposure value
+use the stored per-building TIV, and the blocks of a location summed at source are added up.
+
 ### Where the buildings collapse
 
 Two paths, chosen in `manager.py` from the structure info:

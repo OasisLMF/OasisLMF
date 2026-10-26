@@ -238,6 +238,10 @@ coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(cov
 # negative sign means they must reach the financial module as separate blocks, and 1 is the
 # unpacked identity. Never use it raw as a bound -- range() over a negative silently does
 # nothing.
+#
+# coverages.bin's tiv is ONE building's share in every mode but none; a location's TIV is
+# tiv * |n_building|. See "Building Packing > TIV" in pytools/fm/TECHNICAL.md for which nodes
+# owe which.
 COVERAGE_BUILDINGS_FILE = 'coverage_buildings'
 coverage_buildings_output = [
     coverage_id,

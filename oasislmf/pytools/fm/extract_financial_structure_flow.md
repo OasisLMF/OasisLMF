@@ -285,7 +285,8 @@ Final assembly iterating level-by-level, agg_id-by-agg_id:
 ```python
 if profile requires TIV:
     children = get_all_children_csr(node_idx, ...)
-    tiv = get_tiv_csr(children, items, coverages, ...)
+    # coverages hold one building's TIV; scaled by |n_building| unless the node is per building
+    tiv = get_tiv_csr(children, items, coverages, n_building, ..., level <= site_collapse_level)
     prepare_profile_simple/stepped(profile, tiv)
 ```
 

@@ -141,8 +141,10 @@ def load_static(static_path):
             - xref: node to output_id
             - items: items (item_id and coverage_id mapping), empty when items and coverages
               disagree on the number of coverages
-            - coverages: ``tiv`` and the signed ``n_building`` for each coverage id, empty when
-              items and coverages disagree on the number of coverages
+            - coverages: one building's ``tiv`` for each coverage id, empty when items and
+              coverages disagree on the number of coverages
+            - n_building: the signed building count for each coverage id, all ones when there is
+              no coverage_buildings file
             - site_collapse_level: last level whose aggregation key includes ``risk_id``, after
               which building-packed items collapse to the sample size. 0 when the input set has
               no packed buildings (which is every input set not generated with building-packing)
@@ -170,8 +172,10 @@ def load_static(static_path):
         coverages = np.empty(0, dtype=oasis_float)
 
     # The per-coverage building count, from its own file -- coverages.bin stays the published
-    # tiv-only format. Absent for every unpacked input set, and then the extras budget falls back
-    # to its bound. Scattered to a dense array indexed by coverage_id - 1, matching coverages.
+    # tiv-only format. It sizes the extras budget and scales the per-building tiv up to what a node
+    # covers (get_tiv_csr). Absent for every unpacked input set, where every count is 1: the budget
+    # falls back to its bound and the tiv is used as stored. Scattered to a dense array indexed by
+    # coverage_id - 1, matching coverages.
     buildings = read_coverage_buildings(static_path)
     n_building = np.ones(coverages.shape[0], dtype=np.int32)
     if buildings.shape[0] and coverages.shape[0]:
@@ -309,16 +313,28 @@ def get_all_parent_csr(start_nodes, start_len, parents_indptr, parents_data, tar
 
 
 @njit(cache=True)
-def get_tiv_csr(children_indices, children_len, items, coverages, node_level_start, start_level):
+def get_tiv_csr(children_indices, children_len, items, coverages, n_building, node_level_start, start_level,
+                per_building):
     """CSR-compatible version of get_tiv using node indices.
+
+    The stored coverage TIV is one building's share: generation divides a location's TIV by its
+    building count in every mode but ``none``. A node covering a coverage's ``|n_building|``
+    buildings therefore owes ``|n_building|`` times it, unless the node is a level at or below the
+    building collapse and the buildings are kept separate (``n_building < 0``), where the node
+    covers one building. Preparation applies the same rule to %TIV deductibles and limits
+    (``tiv_buildings_site``/``tiv_buildings_above`` in il_inputs.py); this is its run-time
+    counterpart for the step policies, whose triggers and payouts are scaled here.
 
     Args:
         children_indices (np.ndarray[oasis_int]): Array of child node indices (item level nodes)
         children_len (int): Number of valid entries in children_indices
         items (np.ndarray[items_dtype]): Items array mapping item_id to coverage_id
-        coverages (np.ndarray[oasis_float]): the tiv for each coverage
+        coverages (np.ndarray[oasis_float]): the per-building tiv for each coverage
+        n_building (np.ndarray[int32]): the signed per-coverage building count
         node_level_start (np.ndarray[oasis_int]): Array for converting index to level/agg_id
         start_level (int): The start level (item level)
+        per_building (bool): True when the node is at or below the building-collapse level, where
+            kept-separate buildings each get their own node
 
     Returns:
         float: Total insured value for the children, counting each coverage at most once
@@ -334,7 +350,11 @@ def get_tiv_csr(children_indices, children_len, items, coverages, node_level_sta
         coverage_i = items[agg_id - 1]['coverage_id'] - 1
         if not used_cov[coverage_i]:
             used_cov[coverage_i] = 1
-            tiv += coverages[coverage_i]
+            buildings = n_building[coverage_i]
+            if buildings < 0 and per_building:
+                tiv += coverages[coverage_i]
+            else:
+                tiv += coverages[coverage_i] * abs(buildings)
     return tiv
 
 
@@ -459,9 +479,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         stepped (Optional[bool]): True when fm_profile holds step policies, None otherwise
         fm_xref (np.ndarray[fm_xref_dtype]): mapping between the output of the allocation and output item_id
         items (np.ndarray[items_dtype]): item_id and coverage_id mapping, empty when unavailable
-        coverages (np.ndarray[oasis_float]): the tiv for each coverage, empty when unavailable
+        coverages (np.ndarray[oasis_float]): one building's tiv for each coverage, empty when
+            unavailable
         n_building (np.ndarray[int32]): the signed per-coverage building count, all ones when
-            there is no coverage_buildings file
+            there is no coverage_buildings file. Sizes the extras budget and scales the tiv of
+            %TIV step policies to the buildings a node covers
         site_collapse_level (int): the last level whose aggregation key includes ``risk_id``.
             Building-packed items keep their buildings apart until this level has applied its
             terms per building, then collapse to the sample size. 0 means nothing to collapse.
@@ -894,8 +916,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                         if fm_profile[profile_index]['calcrule_id'] in need_tiv_policy:
                             all_children_arr, all_children_len = get_all_children_csr(
                                 node_idx, children_indptr, children_data, True, total_nodes)
-                            tiv = get_tiv_csr(all_children_arr, all_children_len, items, coverages,
-                                              node_level_start, start_level)
+                            tiv = get_tiv_csr(all_children_arr, all_children_len, items, coverages, n_building,
+                                              node_level_start, start_level, level <= site_collapse_level)
                             break
                     else:
                         tiv = 0
