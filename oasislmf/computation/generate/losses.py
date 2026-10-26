@@ -141,7 +141,7 @@ class GenerateLossesBase(ComputationStep):
         Raises:
             OasisException: if the inputs are packed and the engine cannot read them.
         """
-        counts = read_coverage_buildings(os.path.join(self.oasis_files_dir, 'input'))
+        counts = read_coverage_buildings(self.oasis_files_dir)
         if counts.shape[0] == 0 or int(np.abs(counts['n_building']).max()) <= 1:
             return  # nothing packed; every engine is fine
 

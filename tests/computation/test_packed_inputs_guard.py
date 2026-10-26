@@ -19,12 +19,16 @@ from oasislmf.utils.exceptions import OasisException
 
 
 def _files_dir(tmp, n_building):
-    """An input dir whose coverage_buildings declares one coverage carrying n_building."""
-    inp = os.path.join(tmp, 'input')
-    os.makedirs(inp, exist_ok=True)
+    """An input dir whose coverage_buildings declares one coverage carrying n_building.
+
+    Flat, as the loss step sees it: ``oasis_files_dir`` is already ``<run>/input`` (RunModel sets
+    it so), not the run dir above it. A fixture nesting the file one level down once let a guard
+    that read ``<run>/input/input`` pass every test here while never firing in a real run.
+    """
+    os.makedirs(tmp, exist_ok=True)
     if n_building is not None:
         np.array([(1, n_building)], dtype=coverage_buildings_dtype).tofile(
-            os.path.join(inp, 'coverage_buildings.bin'))
+            os.path.join(tmp, 'coverage_buildings.bin'))
     return tmp
 
 
