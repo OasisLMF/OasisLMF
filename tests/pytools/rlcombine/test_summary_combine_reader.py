@@ -111,7 +111,11 @@ def test_pipes_with_lagging_input():
     ([summary_stream(IP1), summary_stream(IP2, len_sample=4)], OSError),  # header mismatch (init_streams_in)
     ([summary_stream(IP1), summary_stream(IP2, summary_set_id=2)], CombineStreamError),
     ([summary_stream([(1, [(11, 1, [])])])], OasisStreamException),  # summary_id above max_summary_id
-    ([summary_stream([(1, [(1, 1, [(1, 1.0)] * 7)])])], OasisStreamException),  # more pairs than samples + specials
+    ([summary_stream([(1, [(1, 1, [(1, 1.0)] * 6)])])], OasisStreamException),  # more pairs than samples + specials
+    ([summary_stream([(1, [(1, 1, [(-4, 1.0)])])])], OasisStreamException),  # -4 is not written for rl
+    ([summary_stream([(1, [(1, 1, [(-3, 1.0)])])])], OasisStreamException),  # TIV belongs in the header expval
+    ([summary_stream([(1, [(1, 1, [(-2, 1.0)])])])], OasisStreamException),  # std dev is never written
+    ([summary_stream([(1, [(1, 1, [(4, 1.0)])])])], OasisStreamException),  # sample sidx above len_sample (3)
 ])
 def test_invalid_inputs(tmp_path, blobs, error):
     with pytest.raises(error):
