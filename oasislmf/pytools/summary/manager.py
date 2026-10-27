@@ -425,7 +425,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         # check all summary_set_id required are defined in summaryxref
         invalid_summary_sets_id = []
         for summary_set_id in summary_sets_id:
-            if summary_set_id > summary_set_id_to_summary_set_index.shape[0] or summary_set_id_to_summary_set_index[summary_set_id] == null_index:
+            if summary_set_id >= summary_set_id_to_summary_set_index.shape[0] or summary_set_id_to_summary_set_index[summary_set_id] == null_index:
                 invalid_summary_sets_id.append(summary_set_id)
         if invalid_summary_sets_id:
             raise ValueError(
@@ -434,25 +434,31 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
         has_affected_risk = True if summary_info[0]['nb_risk'] > 0 else None
 
+        # losses are aggregated for every summary set in summaryxref, by its summary_set_index (sets in
+        # summary_set_id order); each requested set is then written from its own index, so the order and
+        # number of the -summary_set_id arguments don't change what is written for each set
+        xref_summary_sets_id = np.flatnonzero(summary_set_id_to_summary_set_index != null_index)
+
         # init temporary
         present_summary_id = np.zeros(summary_set_index_to_loss_ptr[-1], oasis_int)
-        loss_index = np.empty(summary_sets_id.shape[0], oasis_int)
+        loss_index = np.empty(xref_summary_sets_id.shape[0], oasis_int)
         summary_set_index_to_present_loss_ptr_end = np.array(summary_set_index_to_loss_ptr)
         loss_summary = np.zeros((summary_set_index_to_loss_ptr[-1], len_sample + SPECIAL_SIDX_COUNT), dtype=oasis_float)
         is_risk_affected = np.zeros(summary_info[0]['nb_risk'], dtype=oasis_int)
 
         summary_reader = SummaryReader(
-            summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
+            xref_summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
             loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
             item_id_to_risks_i, is_risk_affected, has_affected_risk)
 
         out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
 
         # data for index file (low_memory==True)
-        summary_sets_cursor = np.zeros(summary_sets_id.shape[0], dtype=np.int64)
+        summary_sets_cursor = np.zeros(xref_summary_sets_id.shape[0], dtype=np.int64)
         summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=summary_stream_index_dtype)
 
-        for summary_set_index, summary_set_id in enumerate(summary_sets_id):
+        for summary_set_id in summary_sets_id:
+            summary_set_index = summary_set_id_to_summary_set_index[summary_set_id]
             summary_pipe = summary_sets_pipe[summary_set_id]
             summary_sets_cursor[summary_set_index] += summary_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
             summary_sets_cursor[summary_set_index] += summary_pipe.write(len_sample.tobytes())
@@ -460,7 +466,8 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
         try:
             for event_id in summary_reader.read_streams(streams_in):
-                for summary_set_index, summary_set_id in enumerate(summary_sets_id):
+                for summary_set_id in summary_sets_id:
+                    summary_set_index = summary_set_id_to_summary_set_index[summary_set_id]
                     summary_pipe = summary_sets_pipe[summary_set_id]
                     summary_index_cursor = 0
                     last_loss_summary_index = 0

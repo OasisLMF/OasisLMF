@@ -4,6 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
+import pytest
 
 from oasislmf.pytools.summary.cli import parser, manager
 
@@ -74,3 +75,34 @@ def test_multiple_summary_set():
         manager.RUNTYPE_REINSURANCE_LOSS: [1, 2],
     }
     case_runner('multiple_summary_set', test_case)
+
+
+def test_summary_sets_out_of_order():
+    # each summary set's output must not depend on the order its -summary_set_id argument is given in
+    test_case = {
+        manager.RUNTYPE_GROUNDUP_LOSS: [2, 1],
+        manager.RUNTYPE_INSURED_LOSS: [3, 1, 2],
+        manager.RUNTYPE_REINSURANCE_LOSS: [2, 1],
+    }
+    case_runner('multiple_summary_set', test_case)
+
+
+def test_subset_of_summary_sets():
+    # summary sets requested without all of the ones before them in summaryxref
+    test_case = {
+        manager.RUNTYPE_GROUNDUP_LOSS: [2],
+        manager.RUNTYPE_INSURED_LOSS: [3, 2],
+        manager.RUNTYPE_REINSURANCE_LOSS: [2],
+    }
+    case_runner('multiple_summary_set', test_case)
+
+
+def test_unknown_summary_set_id():
+    # 3 is one past the last summary set in the ground up summaryxref (1 and 2)
+    with TemporaryDirectory() as tmp_result_dir_str:
+        cmd = (f"-t {manager.RUNTYPE_GROUNDUP_LOSS} -p {Path(TESTS_ASSETS_DIR, 'multiple_summary_set')}"
+               f" -i {Path(TESTS_ASSETS_DIR, manager.RUNTYPE_GROUNDUP_LOSS + '.bin')} -3 {Path(tmp_result_dir_str, 'S3.bin')}").split()
+        kwargs = vars(parser.parse_args(cmd))
+        kwargs.pop('logging_level')
+        with pytest.raises(ValueError, match=r'summary_set_ids \[np.int64\(3\)\]|summary_set_ids \[3\]'):
+            manager.main(**kwargs)
