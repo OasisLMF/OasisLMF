@@ -7,7 +7,8 @@ import numpy as np
 import pytest
 
 from oasislmf.pytools.common.event_stream import stream_info_to_bytes, SUMMARY_STREAM_ID, ITEM_STREAM
-from oasislmf.pytools.rlcombine.wip_reader import CombineStreamError, SummaryCombineReader, init_summary_streams_in
+from oasislmf.pytools.rlcombine.wip_reader import (CombineStreamError, SummaryCombineReader, get_max_summary_id,
+                                                   init_summary_streams_in)
 from oasislmf.utils.exceptions import OasisStreamException
 
 
@@ -38,11 +39,11 @@ def write_files(tmp_path, blobs):
     return paths
 
 
-def read_all(files_in):
+def read_all(files_in, max_summary_id=10):
     """Run the reader and return {file_idx: [(event_id, [(summary_id, expval, [(sidx, loss), ...]), ...]), ...]}."""
     with ExitStack() as stack:
         streams_in, len_sample, summary_set_id = init_summary_streams_in(files_in, stack)
-        reader = SummaryCombineReader(len(streams_in))
+        reader = SummaryCombineReader(len(streams_in), len_sample, max_summary_id)
         events = {i: [] for i in range(len(streams_in))}
         for file_idx, event_id, summary_ids, expval, offsets, sidx, loss in reader.read_events(streams_in):
             records = [(int(summary_ids[i]), float(expval[i]),
@@ -69,6 +70,14 @@ def test_record_larger_than_read_buffer(tmp_path):
     big = [(5, [(4, 1, [(i, 1.0) for i in range(1, 10001)])]), (6, [(1, 2, [(-5, 1)])])]  # first record ~80 KB
     events = read_all(write_files(tmp_path, [summary_stream(big, len_sample=10000)]))
     assert events == {0: big}
+
+
+def test_max_summary_id_from_summaryxref(tmp_path):
+    (tmp_path / 'fmsummaryxref.csv').write_text('output,summary_id,summaryset_id\n1,1,1\n2,3,1\n3,2,1\n1,1,2\n2,7,2\n')
+    assert get_max_summary_id(str(tmp_path), 1) == 3
+    assert get_max_summary_id(str(tmp_path), 2) == 7
+    with pytest.raises(CombineStreamError):
+        get_max_summary_id(str(tmp_path), 3)
 
 
 def test_pipes_with_lagging_input():
@@ -101,6 +110,8 @@ def test_pipes_with_lagging_input():
     ([summary_stream(IP1, sentinel=False), summary_stream(IP2)], OasisStreamException),  # no S0 sentinels
     ([summary_stream(IP1), summary_stream(IP2, len_sample=4)], OSError),  # header mismatch (init_streams_in)
     ([summary_stream(IP1), summary_stream(IP2, summary_set_id=2)], CombineStreamError),
+    ([summary_stream([(1, [(11, 1, [])])])], OasisStreamException),  # summary_id above max_summary_id
+    ([summary_stream([(1, [(1, 1, [(1, 1.0)] * 7)])])], OasisStreamException),  # more pairs than samples + specials
 ])
 def test_invalid_inputs(tmp_path, blobs, error):
     with pytest.raises(error):
