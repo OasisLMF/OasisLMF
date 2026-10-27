@@ -20,11 +20,11 @@ digraph building_collapse {
     above [label="levels above\naccount, policy, layer"];
     out   [label="output\nordinary sample indices", fillcolor="#f2f2f2", color="#888888"];
 
-    site -> above [label="  aggregating past site_collapse_level:\l  index the accumulator by the local sidx,\l  which merges the buildings\l",
+    site -> above [label="  collapse_site_node, after the site terms:\l  the node and its leaves are summed\l  onto the local sidx\l",
                    style=bold, color="#2f5596", fontcolor="#2f5596"];
     above -> out;
 
-    leaf [label="collapse_packed_leaves\nnothing aggregates a leaf, so it is given\ncollapsed storage before back allocation",
+    leaf [label="leaves are read again, by back allocation\nor a root_start link above, so they are\ncollapsed with their site node, under any rule",
           shape=note, fillcolor="#fffbe6", color="#b0a060", style=filled];
     leaf -> item [style=dotted, color="#b0a060", arrowhead=none];
 }

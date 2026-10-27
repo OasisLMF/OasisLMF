@@ -329,6 +329,64 @@ class TestTermsAboveTheCollapseSurviveBackAllocation(TestCase):
                         "no sample reaches the limit, so it never binds")
 
 
+class TestAnItemLinkedAboveTheCollapse(TestCase):
+    """An item linked straight to a level above the collapse must reach it collapsed.
+
+    Generation links an item past its site node (``root_start``, a negative from_agg_id) when a
+    level above splits a location more finely than the one below it -- a location deductible over
+    per-coverage policy deductibles. The item is then a leaf of its site node AND a child of the
+    node above, which reads it after the site node has run. Under allocation rule 0 the leaves
+    used to be left packed, on the premise that nothing reads a leaf again, so the deductibles
+    above applied per building.
+
+    The shape is the one generation writes for that account: two coverages of one location, a
+    site node over both, a deductible node per coverage above it, and a node summing those. The
+    site node is a pass-through, so the right answer is each coverage's deductible taken once
+    from that coverage's location total.
+
+    It needs the two items. A site node over a single item stores its loss in the item itself,
+    so collapsing the node collapses the item too and the defect does not show.
+    """
+
+    EXPECTED_PER_COVERAGE = [max(0.0, BUILDING_LOSSES[1][s] + BUILDING_LOSSES[2][s] - DEDUCTIBLE)
+                             for s in range(S)]
+
+    @staticmethod
+    def _linked_above(d):
+        _write(
+            d,
+            np.array([(1, 1, 1), (2, 1, 1), (-1, 2, 1), (-2, 2, 2), (1, 3, 1), (2, 3, 1)],
+                     dtype=fm_programme_dtype),
+            np.array([(1, 1, 1, 0), (2, 1, 1, 1), (2, 2, 1, 1), (3, 1, 1, 0)], dtype=fm_policytc_dtype),
+            np.array([(1, 1, 1)], dtype=fm_xref_dtype),
+            site_collapse_level=1, max_buildings=2,
+        )
+
+    @staticmethod
+    def _two_coverages():
+        """The same two buildings' losses on each coverage."""
+        return [(1, packed_stream_items()[0][1]), (2, packed_stream_items()[0][1])]
+
+    def _run(self, allocation_rule):
+        # under rule 0 the output is the top node, above it one per item
+        xref = (np.array([(1, 1, 1)], dtype=fm_xref_dtype) if allocation_rule == 0
+                else np.array([(1, 1, 1), (2, 2, 1)], dtype=fm_xref_dtype))
+        return _run(self._linked_above, self._two_coverages(), allocation_rule, xref)
+
+    def test_the_deductibles_above_apply_per_coverage_under_every_allocation_rule(self):
+        for allocation_rule in (0, 1, 2, 3):
+            with self.subTest(allocation_rule=allocation_rule):
+                totals = _total_per_sample(self._run(allocation_rule))
+                for s in range(1, S + 1):
+                    self.assertAlmostEqual(totals.get(s, 0.0), 2 * self.EXPECTED_PER_COVERAGE[s - 1], places=3)
+
+    def test_no_packed_sidx_reaches_the_output_under_rule_0(self):
+        for records in self._run(0).values():
+            for sidx in records:
+                self.assertLessEqual(sidx, S)
+                self.assertGreaterEqual(sidx, -5)
+
+
 class TestNoSiteLevelStillCollapses(TestCase):
     """A packed item with no site-level terms must still have its buildings merged.
 
@@ -612,7 +670,7 @@ class TestArenaHoldsTheNetLossSlice(TestCase):
 
     The sparse arrays are one arena filled by a bump allocator, and packing inflates it by an
     extra full-size slice per packable node -- room for the node's ``max_buildings`` blocks plus
-    the collapsed copy that :func:`collapse_packed_leaves` appends rather than shrinking in place.
+    the collapsed copy that :func:`collapse_site_node` appends rather than shrinking in place.
 
     ``net_loss`` is a further slice per node in that same arena, holding the leaf's pre-profile
     loss in the leaf's layout, so it is packed and collapsed with the rest. It is in use whenever

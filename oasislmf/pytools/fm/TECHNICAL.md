@@ -473,18 +473,23 @@ buildings it carries -- the arena is sized for no more. `0` is the "no risk-keye
 rather than a level number, hence `max(1, ...)`.
 
 **A site level does apply terms per building** — the building dimension is carried up to and
-including `site_collapse_level`. `collapses_buildings()` reports when aggregating a child into
-a node crosses that point; indexing the dense accumulator by the local sidx instead of the
-packed one is what performs the merge, and the parent's sidx array comes out unpacked.
+including `site_collapse_level`. Once a node at that level has applied its terms and
+back-allocated, `collapse_site_node()` sums its building blocks onto the local sidx they decode
+to, and its leaves' with them (see *Leaves*). Every node above therefore aggregates children
+whose sidx are already ordinary, and needs no decode of its own.
 
 ![Where a packed item's buildings collapse: the site levels carry a building dimension, the levels above see one collapsed loss](diagrams/fm_building_collapse.svg)
 
 ### Leaves
 
-Nothing aggregates a leaf, so a packed leaf keeps its packed storage. With an allocation rule
-above 0, back-allocation writes to the leaves and the output is read from them, so they would
-emit packed sample indices. `collapse_packed_leaves()` gives them collapsed storage once their
-terms have been applied.
+Nothing aggregates a leaf, so a packed leaf keeps its packed storage. Leaves are read again
+after their site node: with an allocation rule above 0, back-allocation writes to them and the
+output is read from them; under any rule, an item linked straight to a level above the collapse
+(`root_start`) is aggregated again there. Either way they would carry packed sample indices past
+the collapse -- to the output, or into terms that apply per building what should apply once per
+location. `collapse_site_node()` gives them collapsed storage once their terms have been applied,
+whatever the allocation rule. Rule 0 pays for it on items no level reads again, which costs one
+pass over them and nothing in memory: the arena budget for the copies does not depend on the rule.
 
 The storage cannot be collapsed where it lies: the arrays are one arena and a node's range is
 `[sidx_indptr[i], sidx_indptr[i + 1])`, whose end is the next node's start. Fresh storage is

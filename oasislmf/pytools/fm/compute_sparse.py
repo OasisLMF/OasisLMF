@@ -273,7 +273,7 @@ def _emit_collapsed(node, compute_idx, max_sidx_val, has_net_loss, has_extras, l
 
 @njit(cache=True, fastmath=True)
 def collapse_site_node(compute_node, storage_node, children, nodes_array, temp_children_queue,
-                       compute_idx, max_sidx_val, keep_input_loss, start_level, collapse_leaves,
+                       compute_idx, max_sidx_val, keep_input_loss, start_level,
                        sidx_indexes, sidx_indptr, sidx_val,
                        loss_indptr, loss_val, extras_indptr, extras_val,
                        collapse_loss, collapse_extras, collapse_net):
@@ -286,18 +286,20 @@ def collapse_site_node(compute_node, storage_node, children, nodes_array, temp_c
     a node collapsed ahead of its leaves would hand it packed indices and read building 1's for
     every building.
 
-    ``collapse_leaves`` is false only for allocation rule 0, where no leaf is read again.
+    The leaves are collapsed under allocation rule 0 too, which back-allocates nothing: an item
+    linked straight to a level above (``root_start``) is read again there, and would carry its
+    buildings into terms that must see the location whole.
+
     ``net_loss`` exists only on start_level nodes, and nodes_array is np.empty, so the field is
     garbage on anything above -- hence the level test on each call below.
     """
-    if collapse_leaves:
-        base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
-        for base_child_i in range(base_children_count):
-            leaf = nodes_array[temp_children_queue[base_child_i]]
-            collapse_packed_storage(leaf, compute_idx, max_sidx_val,
-                                    keep_input_loss and leaf['level_id'] == start_level,
-                                    sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
-                                    extras_indptr, extras_val, collapse_loss, collapse_extras, collapse_net)
+    base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
+    for base_child_i in range(base_children_count):
+        leaf = nodes_array[temp_children_queue[base_child_i]]
+        collapse_packed_storage(leaf, compute_idx, max_sidx_val,
+                                keep_input_loss and leaf['level_id'] == start_level,
+                                sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+                                extras_indptr, extras_val, collapse_loss, collapse_extras, collapse_net)
 
     collapse_packed_storage(storage_node, compute_idx, max_sidx_val,
                             keep_input_loss and storage_node['level_id'] == start_level,
@@ -1263,7 +1265,6 @@ def compute_event(compute_info,
                 collapse_site_node(
                     compute_node, storage_node, children, nodes_array, temp_children_queue,
                     compute_idx, max_sidx_val, keep_input_loss, compute_info['start_level'],
-                    not is_allocation_rule_a0,
                     sidx_indexes, sidx_indptr, sidx_val,
                     loss_indptr, loss_val, extras_indptr, extras_val,
                     collapse_loss, collapse_extras, collapse_net
@@ -1334,9 +1335,9 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory, keep_input_l
 
     # One packed slice per packable node, budgeted as the SUM of their building counts rather
     # than their count times the largest location in the portfolio -- see packable_building_slots.
-    # It is the whole count and not (count - 1) because under an allocation rule above 0
-    # collapse_site_node appends a collapsed copy rather than shrinking the original in place,
-    # which the arena cannot do; that copy is what the base allowance covers.
+    # It is the whole count and not (count - 1) because collapse_site_node appends a collapsed
+    # copy rather than shrinking the original in place, which the arena cannot do; that copy is
+    # what the base allowance covers.
     #
     # Forced to 0 alongside max_buildings when the stream is collapsed on read, where no packed
     # sidx can reach the arena at all: the reader sums an item's buildings before storing it.
