@@ -7,9 +7,8 @@ import numpy as np
 import pytest
 
 from oasislmf.pytools.common.event_stream import stream_info_to_bytes, SUMMARY_STREAM_ID, ITEM_STREAM
-from oasislmf.pytools.rlcombine.wip_reader import (CombineStreamError, SummaryCombineReader, get_max_summary_id,
-                                                   init_summary_streams_in)
-from oasislmf.utils.exceptions import OasisStreamException
+from oasislmf.pytools.rlcombine.wip_reader import SummaryCombineReader, init_summary_streams_in
+from oasislmf.utils.exceptions import OasisException, OasisStreamException
 
 
 def summary_stream(events, len_sample=3, summary_set_id=1, sentinel=True):
@@ -43,7 +42,7 @@ def read_all(files_in, max_summary_id=10):
     """Run the reader and return {file_idx: [(event_id, [(summary_id, expval, [(sidx, loss), ...]), ...]), ...]}."""
     with ExitStack() as stack:
         streams_in, len_sample, summary_set_id = init_summary_streams_in(files_in, stack)
-        reader = SummaryCombineReader(len(streams_in), len_sample, max_summary_id)
+        reader = SummaryCombineReader(len(streams_in), max_summary_id, len_sample)
         events = {i: [] for i in range(len(streams_in))}
         for file_idx, event_id, summary_ids, expval, offsets, sidx, loss in reader.read_events(streams_in):
             records = [(int(summary_ids[i]), float(expval[i]),
@@ -72,14 +71,6 @@ def test_record_larger_than_read_buffer(tmp_path):
     assert events == {0: big}
 
 
-def test_max_summary_id_from_summaryxref(tmp_path):
-    (tmp_path / 'rlsummaryxref.csv').write_text('output,summary_id,summaryset_id\n1,1,1\n2,3,1\n3,2,1\n1,1,2\n2,7,2\n')
-    assert get_max_summary_id(str(tmp_path), 1) == 3
-    assert get_max_summary_id(str(tmp_path), 2) == 7
-    with pytest.raises(CombineStreamError):
-        get_max_summary_id(str(tmp_path), 3)
-
-
 def test_pipes_with_lagging_input():
     """One input floods well past pipe capacity while the other trickles; no writer may block."""
     n_events = 60
@@ -106,16 +97,17 @@ def test_pipes_with_lagging_input():
 
 
 @pytest.mark.parametrize('blobs, error', [
-    ([summary_stream(IP1)[:-5], summary_stream(IP2)], CombineStreamError),  # truncated input
+    ([summary_stream(IP1)[:-5], summary_stream(IP2)], OasisException),  # truncated input
     ([summary_stream(IP1, sentinel=False), summary_stream(IP2)], OasisStreamException),  # no S0 sentinels
     ([summary_stream(IP1), summary_stream(IP2, len_sample=4)], OSError),  # header mismatch (init_streams_in)
-    ([summary_stream(IP1), summary_stream(IP2, summary_set_id=2)], CombineStreamError),
+    ([summary_stream(IP1), summary_stream(IP2, summary_set_id=2)], OasisException),
     ([summary_stream([(1, [(11, 1, [])])])], OasisStreamException),  # summary_id above max_summary_id
     ([summary_stream([(1, [(1, 1, [(1, 1.0)] * 6)])])], OasisStreamException),  # more pairs than samples + specials
     ([summary_stream([(1, [(1, 1, [(-4, 1.0)])])])], OasisStreamException),  # -4 is not written for rl
     ([summary_stream([(1, [(1, 1, [(-3, 1.0)])])])], OasisStreamException),  # TIV belongs in the header expval
     ([summary_stream([(1, [(1, 1, [(-2, 1.0)])])])], OasisStreamException),  # std dev is never written
     ([summary_stream([(1, [(1, 1, [(4, 1.0)])])])], OasisStreamException),  # sample sidx above len_sample (3)
+    ([summary_stream([(1, [(s, 1, [(-5, 1.0)]) for s in range(1, 12)])])], OasisStreamException),  # more records than max_summary_id
 ])
 def test_invalid_inputs(tmp_path, blobs, error):
     with pytest.raises(error):

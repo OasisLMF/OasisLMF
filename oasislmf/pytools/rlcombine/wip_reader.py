@@ -27,7 +27,7 @@ PAIR_SIZE = sidx_dtype_size + loss_dtype_size
 SENTINEL_SUMMARY_ID = 0
 # rl streams do not have CHANCE_OF_LOSS_IDX / NUMBER_OF_AFFECTED_RISK_IDX
 # the TIV_IDX is in record header, STD_DEV_IDX is never written by summarypy
-SPECIAL_IDX_PER_PAIR = [MAX_LOSS_IDX, MEAN_IDX]
+SPECIAL_IDX_PER_PAIR = (MAX_LOSS_IDX, MEAN_IDX)  # tuple: numba only accepts immutable globals
 
 read_state_dtype = np.dtype([
     ('event_id', event_id_dtype),      # event currently being read on this input (0 = between events)
@@ -66,6 +66,9 @@ class EventBuffer:
 
     Record i is summary_ids[i] with expval[i], and its pairs are
     sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]].
+
+    Sized for the largest possible event: one record per summary_id, each with every sample
+    plus the special sidx. read_buffer checks a stream stays within these bounds.
     """
 
     def __init__(self, max_summary_id, len_sample):
@@ -78,10 +81,11 @@ class EventBuffer:
 
 
 @nb.njit(cache=True)
-def read_buffer(byte_mv, cursor, valid_buff, state, summary_ids, expval, offsets, sidx, loss):
+def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, expval, offsets, sidx, loss):
     """Read the valid part of byte_mv for one input and store the records of the current event.
 
-    The caller guarantees the arrays have room for every record and pair left in the buffer.
+    The arrays are sized for the largest possible event (see EventBuffer). numba does not check
+    array bounds, so a stream that breaks those bounds is reported as an error before any write.
 
     Returns:
         cursor, event_id, summary_id (non zero if a record is only partly read), yield_event
@@ -99,6 +103,10 @@ def read_buffer(byte_mv, cursor, valid_buff, state, summary_ids, expval, offsets
                 continue
             if pair_sidx < 0 and pair_sidx not in SPECIAL_IDX_PER_PAIR:
                 raise ValueError(f'rlcombine: unexpected sidx {pair_sidx} found')
+            if pair_sidx > len_sample:
+                raise ValueError(f'rlcombine: sample sidx {pair_sidx} above len_sample')
+            if state['n_pairs'] - offsets[state['n_records'] - 1] == len_sample + len(SPECIAL_IDX_PER_PAIR):
+                raise ValueError('rlcombine: more (sidx, loss) pairs in a record than len_sample + special sidx allow')
             sidx[state['n_pairs']] = pair_sidx
             loss[state['n_pairs']] = pair_loss
             state['n_pairs'] += 1
@@ -125,6 +133,10 @@ def read_buffer(byte_mv, cursor, valid_buff, state, summary_ids, expval, offsets
                 state['event_id'] = 0
                 return cursor, event_id, 0, 1
 
+            if summary_id < 1 or summary_id > summary_ids.shape[0]:
+                raise ValueError(f'rlcombine: summary_id {summary_id} outside 1 .. max_summary_id')
+            if state['n_records'] == summary_ids.shape[0]:
+                raise ValueError('rlcombine: more records in an event than max_summary_id')
             summary_ids[state['n_records']] = summary_id
             expval[state['n_records']] = record_expval
             offsets[state['n_records']] = state['n_pairs']
@@ -143,13 +155,14 @@ class SummaryCombineReader(EventReader):
     def __init__(self, n_inputs, max_summary_id, len_samples):
         self.logger = logger
         self.state = np.zeros(n_inputs, dtype=read_state_dtype)  # one row per input (file_idx)
-        self.buffers = [EventBuffer(n_records=max_summary_id, n_pairs=len_samples) for _ in range(n_inputs)]
+        self.len_sample = len_samples
+        self.buffers = [EventBuffer(max_summary_id, len_samples) for _ in range(n_inputs)]
         self.file_idx = 0
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx=0, **kwargs):
         self.file_idx = file_idx
         buffer = self.buffers[file_idx]
-        return read_buffer(byte_mv, cursor, valid_buff, self.state[file_idx],
+        return read_buffer(byte_mv, cursor, valid_buff, self.state[file_idx], self.len_sample,
                            buffer.summary_ids, buffer.expval, buffer.offsets, buffer.sidx, buffer.loss)
 
     def event_read_log(self, event_id):
