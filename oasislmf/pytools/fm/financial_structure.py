@@ -63,6 +63,7 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', oasis_int),
                                           ('packable_building_slots', oasis_int),
                                           ('packable_layer_slots', oasis_int),
                                           ('packable_extra_slots', oasis_int),
+                                          ('back_alloc_level', oasis_int),
                                           ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', oasis_int),
                                            ('i_end', oasis_int),
@@ -1020,6 +1021,17 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     compute_info = compute_infos[0]
     compute_info['allocation_rule'] = allocation_rule
     compute_info['max_level'] = max_level
+    # The highest level that writes its result back into the items. Rule 2 does at every level.
+    # Rules 0 and 1 do not, which holds only while nothing reads an item before the top: a
+    # root_start link (negative from_agg_id) does, making the item a child of a node above its own
+    # chain. From there the item carries the loss of every level below that node, so those levels
+    # write back as under rule 2 -- every one of them, since back_alloc scales the children
+    # relative to the node's input and so needs them to sum to it. -1 when no level does.
+    root_start_level = 0
+    for i in range(fm_programme.shape[0]):
+        if fm_programme[i]['from_agg_id'] < 0 and fm_programme[i]['level_id'] > root_start_level:
+            root_start_level = fm_programme[i]['level_id']
+    compute_info['back_alloc_level'] = max_level if allocation_rule == 2 else root_start_level - 1
     compute_info['node_len'] = node_i
     compute_info['children_len'] = children_i
     compute_info['parents_len'] = parents_i

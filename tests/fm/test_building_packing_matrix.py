@@ -20,12 +20,10 @@ portfolio, and two small suites whole -- business interruption, which has loss f
 and a reinsurance one, which cannot be cut down without changing its expected net losses.
 
 Allocation rule 2, the default, throughout, and rules 0 and 1 on the insurance case, at account
-level: rule 0 reports one loss per policy layer. Those two must agree with each other in every
-mode. They need not agree with rule 2: where a level is linked past (``root_start``, which the
-per-coverage policy units produce), they share the loss reaching it among the items in proportion
-to what each holds, without writing back every level below, so the split depends on how the items
-are grouped -- and ``items`` groups them differently. Under ``none`` and ``samples`` the expected
-files still hold for these units, which is what catches a level whose terms are lost outright.
+level: rule 0 reports one loss per policy layer, and the expected files were made under rule 2,
+whose account totals the other rules must reproduce. That is where they risk going wrong -- a
+level linked past (``root_start``, which the per-coverage policy units produce) read the items'
+loss from before the terms below, and under rule 0 the items reached it still packed.
 
 Run with ``NUMBA_BOUNDSCHECK=1`` (CI does): an arena overrun is otherwise a segfault, or worse a
 silent wrong answer, rather than a failure.
@@ -213,16 +211,14 @@ def test_buildings_of_one_risk_give_the_original_location_losses(case, mode):
 
 
 @pytest.mark.parametrize('mode', [DISAGGREGATION_NONE, DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES])
-def test_buildings_of_one_risk_give_the_same_account_losses_under_rules_0_and_1(mode):
+@pytest.mark.parametrize('alloc_rule', [0, 1])
+def test_buildings_of_one_risk_give_the_original_account_losses_under_rules_0_and_1(alloc_rule, mode):
     with TemporaryDirectory() as tmp:
         src = os.path.join(tmp, 'src')
         expected, loss_factor = _write_case('insurance', src, _one_risk)
-        rule_0, rule_1 = (_losses(src, os.path.join(tmp, f'a{rule}'), mode, 'acc', loss_factor or [1.0], rule)
-                          for rule in (0, 1))
+        losses = _losses(src, os.path.join(tmp, 'run'), mode, 'acc', loss_factor or [1.0], alloc_rule)
 
-    _assert_same_losses(rule_1, rule_0, f'{mode} -a1', f'{mode} -a0')
-    if mode != DISAGGREGATION_ITEMS:
-        _assert_same_losses(_summed(expected, drop=['LocNumber']), rule_1, 'expected', f'{mode} -a1')
+    _assert_same_losses(_summed(expected, drop=['LocNumber']), losses, 'expected', f'{mode} -a{alloc_rule}')
 
 
 @pytest.mark.parametrize('case', CASES)

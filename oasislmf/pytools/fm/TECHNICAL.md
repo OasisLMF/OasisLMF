@@ -362,31 +362,26 @@ storage, which is only correct when that storage belongs to the single base chil
 `storage_is_base_child` says whether it does; a forced aggregation can give a node
 one base child whose storage is somewhere else.
 
-Rules 0 and 1 pass a count of `1` whatever the node really has, meaning "take the
-direct assignment". The flag is set alongside it so the pair agrees — the two
+A level that does not write back (see `back_alloc_level` below) passes a count of `1`
+whatever the node really has, meaning "take the direct assignment", without walking the
+node's subtree. The flag is set alongside it so the pair agrees — the two
 arguments must describe the same node, or the caller asks for a state that has no
 meaning.
 
 That holds only while nothing reads an item before the top, and a `root_start` link
 (a negative `from_agg_id`) does: generation writes one when a level splits a location
 more finely than the level below, linking each item straight to its node at that level.
-The node below that link has no direct parent and hands its items up one by one, so from
-there the items carry its loss. Rule 2 has already written it into them. Under rules 0 and
-1, `allocate_to_items()` shares it among them in proportion to what they hold -- rule 1's
-top-level allocation, weighted by the items' current loss rather than their input loss --
-whether or not the node's own terms did anything, since the levels below wrote nothing back
-either. Rules 0 and 1 therefore agree with each other; they can differ from rule 2 where
-terms between the items and that node treat the items differently, which is the accuracy
-rule 1 gives up for speed. The split can also depend on how the items are grouped: a node
-with a single child computes straight into it, so its terms reach the item anyway, while
-one aggregating several keeps them in its own storage. One building per item (`items`
-disaggregation) groups them differently from one item per location, so under rules 0 and 1
-the two can differ where terms sit below a `root_start` link.
+From there the item carries the loss of every level below the link, so under every rule
+those levels back-allocate as rule 2 does, extras included. It has to be every one of
+them, not only the node the link skips over: `back_alloc_a2` and `back_alloc_extra_a2`
+scale the children relative to the node's input, so the children must already sum to it.
+`compute_info['back_alloc_level']` is the highest level that writes back: `max_level`
+under rule 2, one below the highest `root_start` link under rules 0 and 1, and `-1` when
+there is none. Which levels back-allocate is the only difference in the computation
+between the rules; rules 0, 1 and 2 give the same totals at the top.
 
-The write-back runs before `collapse_site_node()` in the same node, and a packed item's
-positions resolve per building as they do for `back_alloc_a2`. A node below the collapse
-level writes each building's share into the packed item, which its site node then
-collapses; a node above it reads items their site node has already collapsed.
+Rule 1's last step is unaffected. It allocates the top node's loss by each item's input
+loss, kept in `net_loss`, which nothing writes after the item is read.
 
 ### Outputs under rule 0
 
