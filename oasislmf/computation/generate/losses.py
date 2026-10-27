@@ -64,6 +64,12 @@ from ...utils.ping import oasis_ping
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
+IL_RULE_0_UNDER_RI = (
+    "Allocation rule 0 for insured losses cannot feed reinsurance: it outputs one loss per policy "
+    "layer, and the reinsurance scopes need the insured loss of each item. Use an IL allocation rule "
+    "of 1, 2 or 3 with reinsurance.")
+
+
 class GenerateLossesBase(ComputationStep):
     """Base class for Loss generation functions
 
@@ -322,6 +328,8 @@ class GenerateLossesDir(GenerateLossesBase):
 
         ri = self.settings.get('ri_output', False) and ril
         rl = self.settings.get('rl_output', False) and ril
+        if (ri or rl) and self.kernel_alloc_rule_il == 0:
+            raise OasisException(IL_RULE_0_UNDER_RI)
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RI={}, RL={})'.format(il, ri, rl))
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri + ['rl'] * rl
@@ -932,6 +940,8 @@ class GenerateLossesDeterministic(ComputationStep):
 
         oasis_files = set(os.listdir(self.oasis_files_dir))
         ri = any(re.match(r'RI_\d+$', fn) for fn in oasis_files)
+        if ri and self.kernel_alloc_rule_il == 0:
+            raise OasisException(IL_RULE_0_UNDER_RI)
 
         # Move pre-built binary files to output directory
         move_bin(self.oasis_files_dir, output_dir)

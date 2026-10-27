@@ -212,6 +212,15 @@ def does_nothing(profile):
 
 
 @njit(cache=True)
+def output_id_of(output_id_arr, items, items_len, layer_id):
+    """The output_id the first of ``items`` has for ``layer_id``, 0 if none has one."""
+    for i in range(items_len):
+        if output_id_arr[items[i], layer_id]:
+            return output_id_arr[items[i], layer_id]
+    return 0
+
+
+@njit(cache=True)
 def get_all_children_csr(node_idx, children_indptr, children_data, items_only, max_nodes):
     """CSR version of get_all_children using NumPy arrays.
 
@@ -650,9 +659,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                         profiles_data[k + 1] = temp_profile[0]
 
     ##### xref #####
-    # Create 2D array mapping (agg_id, layer_id) => output_id for out_level nodes
+    # Create 2D array mapping (agg_id, layer_id) => output_id, keyed by the start_level nodes -- the
+    # items -- whatever the rule: that is the only fm_xref generation writes. Under rule 0 the
+    # output is a top-level node, labelled from its items (see the out_level nodes below).
     # output_id_arr[agg_id, layer_id] = output_id (0 = no output)
-    max_agg_id_out = level_node_len[out_level]
+    max_agg_id_out = level_node_len[start_level]
     max_layer_id = np.max(fm_xref['layer_id']) if fm_xref.shape[0] > 0 else 1
     output_id_arr = np.zeros((max_agg_id_out + 1, max_layer_id + 1), dtype=oasis_int)
 
@@ -661,6 +672,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         xref = fm_xref[i]
         if output_len < xref['output']:
             output_len = nb_oasis_int(xref['output'])
+        if xref['agg_id'] > max_agg_id_out:
+            raise ValueError("fm_xref names an agg_id beyond the items: it must list items and layers, whatever the "
+                             "allocation rule")
 
         output_id_arr[xref['agg_id'], xref['layer_id']] = xref['output']
 
@@ -847,6 +861,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                             buildings = child_buildings
                     node_buildings[node_idx] = buildings
 
+    single_item = np.empty(1, dtype=oasis_int)
     for level in range(start_level, max_level + 1):
         for agg_id in range(1, level_node_len[level] + 1):
             node = nodes_array[node_i]
@@ -968,23 +983,36 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 node['profiles'] = 0
 
             if level == out_level:
+                # The items whose fm_xref entries label this node. Under rule 0 it is a top-level
+                # node, and each of its layers takes the output_id of an item that carries that
+                # layer: they all share the node's account and policy, so only a per-location
+                # breakdown is lost, and rule 0 computes none. node_level_start[start_level] is 0,
+                # so an item's node index is its agg_id.
+                if level == start_level:
+                    xref_items, xref_items_len = single_item, 1
+                    single_item[0] = node_idx
+                else:
+                    xref_items, xref_items_len = get_all_children_csr(
+                        node_idx, children_indptr, children_data, True, total_nodes)
+
                 # Check if any layer for this agg_id has an output_id
                 has_output = False
                 for layer_idx in range(output_id_arr.shape[1]):
-                    if output_id_arr[agg_id, layer_idx] != 0:
+                    if output_id_of(output_id_arr, xref_items, xref_items_len, layer_idx) != 0:
                         has_output = True
                         break
                 if has_output:
                     node['output_ids'], output_i = output_i, output_i + node['layer_len']
-                    # Get the source node for layers (could be this node or an ancestor)
-                    source_idx = layer_source[node_idx]
+                    # Get the source node for layers (could be this node or an ancestor). Taken
+                    # from an item: a top-level node can be a cross-layer node, whose one profile
+                    # spans layers that only the levels below list.
+                    source_idx = layer_source[xref_items[0]]
                     # Use CSR format directly with source_idx
                     src_prof_start = profiles_indptr[source_idx]
                     src_prof_end = profiles_indptr[source_idx + 1]
                     for i in range(src_prof_end - src_prof_start):
                         layer_id = profiles_data[src_prof_start + i]['layer_id']
-                        if output_id_arr[agg_id, layer_id] != 0:
-                            output_array[node['output_ids'] + i] = output_id_arr[agg_id, layer_id]
+                        output_array[node['output_ids'] + i] = output_id_of(output_id_arr, xref_items, xref_items_len, layer_id)
                 else:
                     raise KeyError("Some output nodes are missing output_ids")
 

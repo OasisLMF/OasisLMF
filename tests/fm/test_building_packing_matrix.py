@@ -19,7 +19,13 @@ instead: the most involved units of each insurance suite plus a simple one, merg
 portfolio, and two small suites whole -- business interruption, which has loss factors of its own,
 and a reinsurance one, which cannot be cut down without changing its expected net losses.
 
-Allocation rule 2, the default, only: rules 0 and 1 are not part of the fm acceptance tests.
+Allocation rule 2, the default, throughout, and rules 0 and 1 on the insurance case, at account
+level: rule 0 reports one loss per policy layer. Those two must agree with each other in every
+mode. They need not agree with rule 2: where a level is linked past (``root_start``, which the
+per-coverage policy units produce), they share the loss reaching it among the items in proportion
+to what each holds, without writing back every level below, so the split depends on how the items
+are grouped -- and ``items`` groups them differently. Under ``none`` and ``samples`` the expected
+files still hold for these units, which is what catches a level whose terms are lost outright.
 
 Run with ``NUMBA_BOUNDSCHECK=1`` (CI does): an arena overrun is otherwise a segfault, or worse a
 silent wrong answer, rather than a failure.
@@ -129,7 +135,7 @@ def _write_case(case, dest, set_buildings):
     return _summed(expected), loss_factor
 
 
-def _losses(src_dir, run_dir, disaggregation, output_level, loss_factor):
+def _losses(src_dir, run_dir, disaggregation, output_level, loss_factor, alloc_rule_il=2):
     """Run the deterministic exposure step and return its losses at ``output_level``."""
     out = os.path.join(run_dir, 'summary.csv')
     RunExposure(
@@ -142,19 +148,20 @@ def _losses(src_dir, run_dir, disaggregation, output_level, loss_factor):
         model_perils_covered=PERILS,
         keys_format='oasis',
         disaggregation=disaggregation,
+        kernel_alloc_rule_il=alloc_rule_il,
         print_summary=False,
         portfolio_complexity=False,
     ).run()
     return _summed(pd.read_csv(out, dtype=str, keep_default_na=False))
 
 
-def _summed(df):
-    """Sum the losses over everything but the output id.
+def _summed(df, drop=()):
+    """Sum the losses over everything but the output id and ``drop``.
 
     At item level ``items`` reports a row per building where ``samples`` reports one per coverage.
     """
     loss_cols = [c for c in LOSS_COLS if c in df.columns]
-    keys = [c for c in df.columns if c not in loss_cols and c != 'output_id']
+    keys = [c for c in df.columns if c not in loss_cols and c != 'output_id' and c not in drop]
     df[loss_cols] = df[loss_cols].astype(float)
     return df.groupby(keys, as_index=False)[loss_cols].sum()
 
@@ -205,6 +212,19 @@ def test_buildings_of_one_risk_give_the_original_location_losses(case, mode):
     _assert_same_losses(expected, losses, 'expected', mode)
 
 
+@pytest.mark.parametrize('mode', [DISAGGREGATION_NONE, DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES])
+def test_buildings_of_one_risk_give_the_same_account_losses_under_rules_0_and_1(mode):
+    with TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, 'src')
+        expected, loss_factor = _write_case('insurance', src, _one_risk)
+        rule_0, rule_1 = (_losses(src, os.path.join(tmp, f'a{rule}'), mode, 'acc', loss_factor or [1.0], rule)
+                          for rule in (0, 1))
+
+    _assert_same_losses(rule_1, rule_0, f'{mode} -a1', f'{mode} -a0')
+    if mode != DISAGGREGATION_ITEMS:
+        _assert_same_losses(_summed(expected, drop=['LocNumber']), rule_1, 'expected', f'{mode} -a1')
+
+
 @pytest.mark.parametrize('case', CASES)
 def test_separate_buildings_give_the_same_item_losses_packed(case):
     with TemporaryDirectory() as tmp:
@@ -216,6 +236,20 @@ def test_separate_buildings_give_the_same_item_losses_packed(case):
         )
 
     _assert_same_losses(items, samples, DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
+
+
+def test_separate_buildings_give_the_same_account_losses_packed_under_rules_0_and_1():
+    # Rule 0 alone used to leave a location's items packed, which a level linked past then read
+    # building by building; rule 1 always merged them.
+    with TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, 'src')
+        _write_case('insurance', src, _separate_risks)
+        rule_0, rule_1 = (
+            _losses(src, os.path.join(tmp, f'a{rule}'), DISAGGREGATION_SAMPLES, 'acc', DEFAULT_LOSS_FACTORS, alloc_rule_il=rule)
+            for rule in (0, 1)
+        )
+
+    _assert_same_losses(rule_1, rule_0, '-a1', '-a0')
 
 
 def test_separate_buildings_under_policy_terms_only_give_the_same_item_losses_packed():

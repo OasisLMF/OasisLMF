@@ -311,6 +311,49 @@ def collapse_site_node(compute_node, storage_node, children, nodes_array, temp_c
             loss_indptr[compute_node['loss'] + layer_i] = loss_indptr[storage_node['loss'] + layer_i]
 
 
+@njit(cache=True, fastmath=True)
+def allocate_to_items(profile_len, storage_node, base_children_count, by_input_loss, temp_children_queue, nodes_array,
+                      node_sidx, node_val_count, max_sidx_val, child_pos, sidx_indptr, sidx_indexes, sidx_val,
+                      loss_indptr, loss_val, temp_node_loss):
+    """Share the node's loss among its base children in proportion to a per-item weight.
+
+    The weight is the item's input (ground-up) loss with ``by_input_loss`` -- rule 1's allocation
+    at the top -- and otherwise what the item holds now, which needs no input loss kept and so
+    serves rule 0 as well. Either way the items' losses then sum to the node's.
+
+    ``temp_node_loss`` is scratch indexed by position in the node; it is cleared here first, since
+    the aggregation may have left its sums in it.
+    """
+    temp_node_loss[:, :node_val_count] = 0
+    canonical = is_canonical_sidx(node_sidx, max_sidx_val)
+    for profile_i in range(profile_len):
+        for base_child_i in range(base_children_count):
+            child = nodes_array[temp_children_queue[base_child_i]]
+            child_sidx_start = sidx_indptr[sidx_indexes[child['node_id']]]
+            child_val_count = sidx_indptr[sidx_indexes[child['node_id']] + 1] - child_sidx_start
+            weight_ptr = loss_indptr[child['net_loss']] if by_input_loss else loss_indptr[child['loss'] + profile_i]
+            resolve_positions(node_sidx, sidx_val[child_sidx_start: child_sidx_start + child_val_count], canonical, child_pos)
+            for val_i in range(child_val_count):
+                temp_node_loss[profile_i, child_pos[val_i]] += loss_val[weight_ptr + val_i]
+
+        node_loss_ptr = loss_indptr[storage_node['loss'] + profile_i]
+        for val_i in range(node_val_count):
+            if loss_val[node_loss_ptr + val_i]:
+                temp_node_loss[profile_i, val_i] = loss_val[node_loss_ptr + val_i] / temp_node_loss[profile_i, val_i]
+            else:
+                temp_node_loss[profile_i, val_i] = 0
+
+        for base_child_i in range(base_children_count):
+            child = nodes_array[temp_children_queue[base_child_i]]
+            child_sidx_start = sidx_indptr[sidx_indexes[child['node_id']]]
+            child_val_count = sidx_indptr[sidx_indexes[child['node_id']] + 1] - child_sidx_start
+            weight_ptr = loss_indptr[child['net_loss']] if by_input_loss else loss_indptr[child['loss'] + profile_i]
+            child_loss_ptr = loss_indptr[child['loss'] + profile_i]
+            resolve_positions(node_sidx, sidx_val[child_sidx_start: child_sidx_start + child_val_count], canonical, child_pos)
+            for val_i in range(child_val_count):
+                loss_val[child_loss_ptr + val_i] = loss_val[weight_ptr + val_i] * temp_node_loss[profile_i, child_pos[val_i]]
+
+
 @njit(cache=True)
 def first_time_layer(profile_count, base_children_count, temp_children_queue, compute_idx, nodes_array,
                      sidx_indptr, sidx_indexes,
@@ -1194,6 +1237,16 @@ def compute_event(compute_info,
                     if not base_children_count:
                         base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
 
+                    # From here the items carry this node's loss (root_start), so it is written into
+                    # them. Rule 2 has just done so; rules 0 and 1 share it in proportion to what the
+                    # items hold, whether or not this node's own terms did anything, since the levels
+                    # below wrote nothing back either.
+                    if not is_allocation_rule_a2:
+                        allocate_to_items(compute_node['profile_len'], storage_node, base_children_count, False,
+                                          temp_children_queue, nodes_array, node_sidx, node_val_count, max_sidx_val,
+                                          child_pos, sidx_indptr, sidx_indexes, sidx_val, loss_indptr, loss_val,
+                                          temp_node_loss)
+
                     for base_child_i in range(base_children_count):
                         child = nodes_array[temp_children_queue[base_child_i]]
                         parent_id = node_parents_array[child['parent'] + item_parent_i[child['node_id']]]
@@ -1208,47 +1261,10 @@ def compute_event(compute_info,
                 if not base_children_count:
                     base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
                 if base_children_count > 1:
-                    # the aggregate's sums are still in temp_node_loss and the += below would
-                    # build on them. a2 assigns rather than accumulates.
-                    temp_node_loss[:, :node_val_count] = 0
-                    canonical = is_canonical_sidx(node_sidx, max_sidx_val)
-                    for base_child_i in range(base_children_count):
-                        child = nodes_array[temp_children_queue[base_child_i]]
-
-                        child_sidx_start = sidx_indptr[sidx_indexes[child['node_id']]]
-                        child_sidx_end = sidx_indptr[sidx_indexes[child['node_id']] + 1]
-                        child_val_count = child_sidx_end - child_sidx_start
-
-                        child_sidx = sidx_val[child_sidx_start: child_sidx_end]
-                        child_loss = loss_val[loss_indptr[child['net_loss']]: loss_indptr[child['net_loss']] + child_val_count]
-                        resolve_positions(node_sidx, child_sidx, canonical, child_pos)
-
-                        for val_i in range(child_val_count):
-                            temp_node_loss[:, child_pos[val_i]] += child_loss[val_i]
-
-                    for profile_i in range(compute_node['profile_len']):
-                        node_loss = loss_val[loss_indptr[storage_node['loss'] + profile_i]:
-                                             loss_indptr[storage_node['loss'] + profile_i] + node_val_count]
-                        for val_i in range(node_val_count):
-                            if node_loss[val_i]:
-                                temp_node_loss[profile_i, val_i] = node_loss[val_i] / temp_node_loss[profile_i, val_i]
-                            else:
-                                temp_node_loss[profile_i, val_i] = 0
-
-                        for base_child_i in range(base_children_count):
-                            child = nodes_array[temp_children_queue[base_child_i]]
-
-                            child_sidx_start = sidx_indptr[sidx_indexes[child['node_id']]]
-                            child_sidx_end = sidx_indptr[sidx_indexes[child['node_id']] + 1]
-                            child_val_count = child_sidx_end - child_sidx_start
-
-                            child_sidx = sidx_val[child_sidx_start: child_sidx_end]
-                            child_loss = loss_val[loss_indptr[child['loss'] + profile_i]: loss_indptr[child['loss'] + profile_i] + child_val_count]
-                            child_net = loss_val[loss_indptr[child['net_loss']]: loss_indptr[child['net_loss']] + child_val_count]
-                            resolve_positions(node_sidx, child_sidx, canonical, child_pos)
-
-                            for val_i in range(child_val_count):
-                                child_loss[val_i] = child_net[val_i] * temp_node_loss[profile_i, child_pos[val_i]]
+                    allocate_to_items(compute_node['profile_len'], storage_node, base_children_count, True,
+                                      temp_children_queue, nodes_array, node_sidx, node_val_count, max_sidx_val,
+                                      child_pos, sidx_indptr, sidx_indexes, sidx_val, loss_indptr, loss_val,
+                                      temp_node_loss)
             elif is_allocation_rule_a0:
                 # Allocation Rule 0: No back allocation - output at aggregate level only
                 # Just ensure compute_node points to the correct storage location

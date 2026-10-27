@@ -367,6 +367,40 @@ direct assignment". The flag is set alongside it so the pair agrees — the two
 arguments must describe the same node, or the caller asks for a state that has no
 meaning.
 
+That holds only while nothing reads an item before the top, and a `root_start` link
+(a negative `from_agg_id`) does: generation writes one when a level splits a location
+more finely than the level below, linking each item straight to its node at that level.
+The node below that link has no direct parent and hands its items up one by one, so from
+there the items carry its loss. Rule 2 has already written it into them. Under rules 0 and
+1, `allocate_to_items()` shares it among them in proportion to what they hold -- rule 1's
+top-level allocation, weighted by the items' current loss rather than their input loss --
+whether or not the node's own terms did anything, since the levels below wrote nothing back
+either. Rules 0 and 1 therefore agree with each other; they can differ from rule 2 where
+terms between the items and that node treat the items differently, which is the accuracy
+rule 1 gives up for speed. The split can also depend on how the items are grouped: a node
+with a single child computes straight into it, so its terms reach the item anyway, while
+one aggregating several keeps them in its own storage. One building per item (`items`
+disaggregation) groups them differently from one item per location, so under rules 0 and 1
+the two can differ where terms sit below a `root_start` link.
+
+The write-back runs before `collapse_site_node()` in the same node, and a packed item's
+positions resolve per building as they do for `back_alloc_a2`. A node below the collapse
+level writes each building's share into the packed item, which its site node then
+collapses; a node above it reads items their site node has already collapsed.
+
+### Outputs under rule 0
+
+`fm_xref` lists the items, whatever the rule. Under rule 0 the output is a top-level
+node, which is one policy layer of one account, so each of its layers is written under
+the `output_id` an item of that node has for that layer. Every such item shares the
+node's portfolio, account and policy, so summaries at those levels are exact; a
+per-location breakdown does not exist under rule 0. The layer ids are read from an item
+too: a top-level node can be a cross-layer node, whose one profile spans layers only the
+levels below list.
+
+Reinsurance needs the insured loss of each item, so a model run refuses insured-loss
+rule 0 when reinsurance is requested.
+
 ### Extras Back Allocation
 
 When tracking extras (deductible, overlimit, underlimit), allocation is more complex:
