@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from oasislmf.pytools.common.event_stream import stream_info_to_bytes, SUMMARY_STREAM_ID, ITEM_STREAM
-from oasislmf.pytools.rlcombine.manager import CombineStreamError, SummaryCombineReader, init_summary_streams_in
+from oasislmf.pytools.rlcombine.wip_reader import CombineStreamError, SummaryCombineReader, init_summary_streams_in
 from oasislmf.utils.exceptions import OasisStreamException
 
 
