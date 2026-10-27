@@ -73,7 +73,7 @@ def test_record_larger_than_read_buffer(tmp_path):
 
 
 def test_max_summary_id_from_summaryxref(tmp_path):
-    (tmp_path / 'fmsummaryxref.csv').write_text('output,summary_id,summaryset_id\n1,1,1\n2,3,1\n3,2,1\n1,1,2\n2,7,2\n')
+    (tmp_path / 'rlsummaryxref.csv').write_text('output,summary_id,summaryset_id\n1,1,1\n2,3,1\n3,2,1\n1,1,2\n2,7,2\n')
     assert get_max_summary_id(str(tmp_path), 1) == 3
     assert get_max_summary_id(str(tmp_path), 2) == 7
     with pytest.raises(CombineStreamError):

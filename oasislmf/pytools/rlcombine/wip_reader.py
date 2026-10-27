@@ -12,6 +12,7 @@ import numpy as np
 
 from oasislmf.pytools.common.data import def_to_type_and_size, fm_summary_xref_dtype, load_as_ndarray
 from oasislmf.pytools.common.event_stream import EventReader, init_streams_in, mv_read, ITEM_STREAM, SUMMARY_STREAM_ID
+from oasislmf.utils.defaults import SUMMARY_OUTPUT
 
 logger = logging.getLogger(__name__)
 
@@ -63,14 +64,15 @@ def init_summary_streams_in(files_in, stack):
 
 
 def get_max_summary_id(static_path, summary_set_id):
-    """Largest summary_id of summary_set_id in the fmsummaryxref file of static_path.
+    """Largest summary_id of summary_set_id in the rl summary xref file of static_path (e.g. input/RI_1).
 
     An event holds at most one record per summary_id, so this bounds the records per event.
+    The same rlsummaryxref is written to every RI_k directory, so any of them can be used.
     """
-    summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
+    summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['rl'], fm_summary_xref_dtype)
     summary_ids = summary_xref['summary_id'][summary_xref['summaryset_id'] == summary_set_id]
     if summary_ids.shape[0] == 0:
-        raise CombineStreamError(f"summary_set_id {summary_set_id} not found in fmsummaryxref in {static_path}")
+        raise CombineStreamError(f"summary_set_id {summary_set_id} not found in {SUMMARY_OUTPUT['rl']} in {static_path}")
     return int(summary_ids.max())
 
 
@@ -143,7 +145,7 @@ def read_buffer(byte_mv, cursor, valid_buff, state, summary_ids, expval, offsets
                 return cursor, event_id, 0, 1
 
             if summary_id < 1 or summary_id > summary_ids.shape[0]:
-                raise ValueError('rlcombine: summary_id not in the summary set (see fmsummaryxref)')
+                raise ValueError('rlcombine: summary_id not in the summary set (see rlsummaryxref)')
             if state['n_records'] == summary_ids.shape[0]:
                 raise ValueError('rlcombine: more records in an event than summary_ids in the summary set')
             summary_ids[state['n_records']] = summary_id
