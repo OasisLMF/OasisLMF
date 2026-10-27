@@ -1155,7 +1155,7 @@ def do_ord(
                     print_command(filename, cmd)
 
 
-def get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations, gross=False):
+def get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations, perspective='ri', all_layers=False):
     """Build the list of inuring priority dicts for reinsurance net and gross loss.
 
     Returns intermediate inuring priorities specified in the analysis settings
@@ -1173,8 +1173,10 @@ def get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterat
         list[dict]: Each dict has ``'text'`` (file-name prefix) and
         ``'level'`` (iteration number) keys.
     """
-    reinsurance_perspective = 'rl' if gross else 'ri'
-    intermediate_inuring_priorities = set(analysis_settings.get(f'{reinsurance_perspective}_inuring_priorities', []))
+    if all_layers:
+        intermediate_inuring_priorities = range(1, num_reinsurance_iterations)
+    else:
+        intermediate_inuring_priorities = set(analysis_settings.get(f'{perspective}_inuring_priorities', []))
     reins_inuring_priorities = [
         {
             'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
@@ -1218,7 +1220,7 @@ def rl(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-    for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations, gross=True):
+    for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations, perspective='rl'):
         for process_id in process_range(max_process_id, process_number):
             do_ord(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
@@ -1579,9 +1581,8 @@ def get_main_cmd_ri_stream(
 
     for i in range(1, num_reinsurance_iterations + 1):
         main_cmd += f" | {get_fmcmd(fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p {os.path.join('input', 'RI_' + str(i))}"
-        if i in rl_inuring_priorities.keys():
-            if rl_inuring_priorities:   # If rl output is requested then produce gross output at all inuring priorities
-                main_cmd += f" -o {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_GROSS_LOSS, process_id, consumer=rl_inuring_priorities[i].rstrip('_'))}"
+        if rl_inuring_priorities:   # If rl output is requested then produce gross output at all inuring priorities
+            main_cmd += f" -o {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_GROSS_LOSS, process_id, consumer=rl_inuring_priorities[i].rstrip('_'))}"
         if i < num_reinsurance_iterations:   # Net output required to process next inuring priority
             main_cmd += ' -n -'
         if i in ri_inuring_priorities.keys():
@@ -2376,7 +2377,7 @@ def create_bash_analysis(
             )
     if rl_output:
         for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
-                                                                   gross=True):
+                                                                   perspective='rl', all_layers=True): # todo: relabel to levels
             create_workfolders(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 work_dir, inuring_priority=inuring_priority['text']
@@ -2384,8 +2385,8 @@ def create_bash_analysis(
     print_command(filename, '')
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
-    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output):
-        block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output else 1))
+    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output or rl_output):
+        block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output or rl_output else 1))
         num_lb = (max_process_id - 1) // block_process_size + 1
         num_gul_output = num_lb * num_gul_per_lb
         num_fm_output = num_lb * num_fm_per_lb
@@ -2429,7 +2430,7 @@ def create_bash_analysis(
                 )
         if rl_output:
             for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
-                                                                       gross=True):
+                                                                       perspective='rl', all_layers=True):
                 fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
