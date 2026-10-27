@@ -631,3 +631,33 @@ def test_combine_skips_child_whose_own_columns_are_missing():
     result = PostcodeLookup(config=config).process_locations(locations)
     assert result["vulnerability_id"].tolist() == [7]
     assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()
+
+
+def test_combine_and_raises_when_child_columns_are_missing():
+    """Unlike 'or', every child of an 'and' combine is required, so a child whose columns
+    are absent must raise rather than be skipped and let the location succeed without it."""
+    class AutoLookup(Lookup):
+        def build_by_autocode(self):
+            return lambda locations: locations.assign(
+                coverage_ok=locations["autocode"].map({1: 1}).fillna(OASIS_UNKNOWN_ID).astype(int))
+
+    config = {
+        "strategy": ["areaperil", "vulnerability"],
+        "step_definition": {
+            "areaperil": {"type": "prepare", "parameters": {"area_peril_id": {"default": 1}}},
+            "vulnerability": {
+                "type": "combine",
+                "columns": ["peril_id", "coverage_type"],
+                "parameters": {
+                    "logical_type": "and",
+                    "id_columns": [["coverage_ok"], ["vulnerability_id"]],
+                    "strategy": ["by_autocode", "default_vuln"],
+                },
+            },
+            "by_autocode": {"type": "by_autocode", "columns": ["autocode"], "parameters": {}},
+            "default_vuln": {"type": "prepare", "columns": ["peril_id"], "parameters": {"vulnerability_id": {"default": 7}}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no AutoCode
+    with pytest.raises(OasisException, match="by_autocode"):
+        AutoLookup(config=config).process_locations(locations)

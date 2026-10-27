@@ -400,7 +400,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                         function_being_set=function_being_set)
                     if child_step_config.get('strict_columns', False):
                         child_fct = functools.partial(self._call_step, child_fct, child_step_config)
-                    functions.append({'function': child_fct, 'columns': set(child_step_config.get("columns", []))})
+                    functions.append({'name': child_step_name, 'function': child_fct,
+                                      'columns': set(child_step_config.get("columns", []))})
                 step_config['parameters']['strategy'] = functions
 
             step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
@@ -425,8 +426,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if not step_config.get('strict_columns', False):
             return step_function(locations)
 
-        visible_columns = (set(step_config.get("columns", [])) | {'loc_id', 'status', 'message'}
-                           | set(self._KEY_COLUMNS + self._ADDITIONAL_COLUMNS))
+        visible_columns = set(step_config.get("columns", [])) | set(self._KEY_COLUMNS + self._ADDITIONAL_COLUMNS)
         view_columns = [col for col in locations.columns if col in visible_columns]
         other_columns = [col for col in locations.columns if col not in visible_columns]
         if not other_columns:
@@ -599,7 +599,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             strategy (list): list of strategy to apply
             logical_type: if 'or' apply the next strategy only on invalid id_columns;
                 if 'and' apply the next strategy only on valid id_columns (id_columns needs to be
-                a list of list of columns so that each sublist is checked sequentially)
+                a list of list of columns so that each sublist is checked sequentially).
+                With 'or', a strategy whose own ``columns`` are missing is skipped; with 'and',
+                it raises an OasisException since every strategy is required.
 
         Returns:
             function: function combining all strategies
@@ -626,8 +628,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 initial_columns = locations.columns
                 result = []
                 for i, child_strategy in enumerate(strategy):
-                    if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
-                        continue
+                    # every strategy is required in 'and', so a missing column can't fall back to the next one
+                    if not child_strategy['columns'].issubset(locations.columns):
+                        raise OasisException(
+                            f"Key Server Issue: missing columns {child_strategy['columns'].difference(locations.columns)} "
+                            f"for step {child_strategy.get('name', i)} of 'and' combine")
                     locations = child_strategy['function'](locations)
                     locations = Lookup.set_id_columns(locations, id_columns[i])
                     is_valid = (locations[id_columns[i]] != OASIS_UNKNOWN_ID).any(axis=1)
