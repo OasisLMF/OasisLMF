@@ -119,11 +119,11 @@ jobs:
           RUN apt-get update && apt-get install -y --no-install-recommends gcc python3-dev && rm -rf /var/lib/apt/lists/*
           USER worker
           RUN pip uninstall oasislmf -y && \
-              pip install --user --no-warn-script-location "git+https://github.com/OasisLMF/OasisLMF.git@${OASISLMF_BRANCH}#egg=oasislmf[extra]"
+              pip install --user --no-warn-script-location "oasislmf[extra] @ git+https://github.com/OasisLMF/OasisLMF.git@${OASISLMF_BRANCH}"
           ARG ODS_BRANCH
           RUN if [ ! -z "$ODS_BRANCH" ]; then \
               pip uninstall ods-tools -y && \
-              pip install --user --no-warn-script-location "git+https://github.com/OasisLMF/ODS_Tools.git@${ODS_BRANCH}#egg=ods-tools"; \
+              pip install --user --no-warn-script-location "ods-tools @ git+https://github.com/OasisLMF/ODS_Tools.git@${ODS_BRANCH}"; \
             fi
           DOCKERFILE
           docker build \
@@ -160,7 +160,7 @@ jobs:
       - name: Reinstall oasislmf from branch
         run: |
           pip uninstall oasislmf -y
-          pip install -v "git+https://git@github.com/OasisLMF/OasisLMF.git@${{ github.ref }}#egg=oasislmf[extra]"
+          pip install -v "oasislmf[extra] @ git+https://git@github.com/OasisLMF/OasisLMF.git@${{ github.ref }}"
 
       - name: Run Checks
         run: pytest -v --use-running-containers --docker-compose=./docker/plat2-v2.docker-compose.yml -k all_outputs
