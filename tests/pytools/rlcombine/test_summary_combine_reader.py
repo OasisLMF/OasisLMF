@@ -38,12 +38,18 @@ def write_files(tmp_path, blobs):
     return paths
 
 
-def combine(files_in, max_summary_id=10, n_slots=64):
+def read_all(files_in):
+    """Run the reader and return {file_idx: [(event_id, [(summary_id, expval, [(sidx, loss), ...]), ...]), ...]}."""
     with ExitStack() as stack:
         streams_in, len_sample, summary_set_id = init_summary_streams_in(files_in, stack)
-        reader = SummaryCombineReader(len(streams_in), len_sample, max_summary_id, n_slots=n_slots)
-        return [(event_id, summary_ids.tolist(), expval.tolist(), losses.tolist())
-                for event_id, summary_ids, expval, losses in reader.read_combined_events(streams_in)]
+        reader = SummaryCombineReader(len(streams_in))
+        events = {i: [] for i in range(len(streams_in))}
+        for file_idx, event_id, summary_ids, expval, offsets, sidx, loss in reader.read_events(streams_in):
+            records = [(int(summary_ids[i]), float(expval[i]),
+                        list(zip(sidx[offsets[i]:offsets[i + 1]].tolist(), loss[offsets[i]:offsets[i + 1]].tolist())))
+                       for i in range(len(summary_ids))]
+            events[file_idx].append((int(event_id), records))
+    return events
 
 
 IP1 = [(10, [(1, 100, [(-5, 50), (-1, 5), (1, 4)]), (3, 100, [(-5, 9), (-1, 1)])]),
@@ -54,21 +60,15 @@ IP2 = [(10, [(3, 10, [(-5, 1), (-1, 1), (2, 7)])]),
        (12, [])]
 
 
-def test_sums_per_event_and_summary_id(tmp_path):
-    result = combine(write_files(tmp_path, [summary_stream(IP1), summary_stream(IP2)]))
-    # losses columns: max loss, mean, sample 1, sample 2, sample 3
-    assert result == [
-        (10, [1, 3], [100.0, 110.0], [[50, 5, 4, 0, 0], [10, 2, 0, 7, 0]]),
-        (7, [1], [5.0], [[2, 2, 0, 0, 0]]),
-        (12, [2], [30.0], [[30, 3, 0, 0, 2.5]]),
-    ]
+def test_yields_every_event_of_every_input(tmp_path):
+    events = read_all(write_files(tmp_path, [summary_stream(IP1), summary_stream(IP2)]))
+    assert events == {0: IP1, 1: IP2}
 
 
 def test_record_larger_than_read_buffer(tmp_path):
-    events = [(5, [(4, 1, [(i, 1.0) for i in range(1, 10001)])])]  # ~80 KB record
-    result = combine(write_files(tmp_path, [summary_stream(events, len_sample=10000)] * 2))
-    assert result[0][0] == 5
-    assert result[0][3][0][2:] == [2.0] * 10000
+    big = [(5, [(4, 1, [(i, 1.0) for i in range(1, 10001)])]), (6, [(1, 2, [(-5, 1)])])]  # first record ~80 KB
+    events = read_all(write_files(tmp_path, [summary_stream(big, len_sample=10000)]))
+    assert events == {0: big}
 
 
 def test_pipes_with_lagging_input():
@@ -89,15 +89,14 @@ def test_pipes_with_lagging_input():
                for (_, w), blob, delay in zip(pipes, blobs, (0, 0.01))]
     for thread in threads:
         thread.start()
-    result = combine([f'/dev/fd/{r}' for r, _ in pipes])
+    events = read_all([f'/dev/fd/{r}' for r, _ in pipes])
     for thread in threads:
         thread.join(timeout=10)
         assert not thread.is_alive()
-    assert [event_id for event_id, *_ in result] == list(range(1, n_events))
+    assert events == {0: flood, 1: trickle}
 
 
 @pytest.mark.parametrize('blobs, error', [
-    ([summary_stream(IP1), summary_stream([IP2[0], IP2[2]])], CombineStreamError),  # event 7 missing on IP2
     ([summary_stream(IP1)[:-5], summary_stream(IP2)], CombineStreamError),  # truncated input
     ([summary_stream(IP1, sentinel=False), summary_stream(IP2)], OasisStreamException),  # no S0 sentinels
     ([summary_stream(IP1), summary_stream(IP2, len_sample=4)], OSError),  # header mismatch (init_streams_in)
@@ -105,4 +104,4 @@ def test_pipes_with_lagging_input():
 ])
 def test_invalid_inputs(tmp_path, blobs, error):
     with pytest.raises(error):
-        combine(write_files(tmp_path, blobs))
+        read_all(write_files(tmp_path, blobs))
