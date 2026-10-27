@@ -10,10 +10,9 @@ import logging
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import def_to_type_and_size, fm_summary_xref_dtype, load_as_ndarray
-from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, mv_read, ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX,
-                                                  SUMMARY_STREAM_ID)
-from oasislmf.utils.defaults import SUMMARY_OUTPUT
+from oasislmf.pytools.common.data import def_to_type_and_size
+from oasislmf.pytools.common.event_stream import MEAN_IDX, MAX_LOSS_IDX, EventReader, init_streams_in, mv_read, ITEM_STREAM, SUMMARY_STREAM_ID
+from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +25,9 @@ loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
 RECORD_HEADER_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size
 PAIR_SIZE = sidx_dtype_size + loss_dtype_size
 SENTINEL_SUMMARY_ID = 0
-# special sidx summarypy writes in every rl record: -5 (max loss) and -1 (mean). -4 (affected risks) needs a
-# summary map, which rl does not have; -3 (TIV) is the record header's expval and -2 is never written.
-MAX_SPECIAL_SIDX = 2
+# rl streams do not have CHANCE_OF_LOSS_IDX / NUMBER_OF_AFFECTED_RISK_IDX
+# the TIV_IDX is in record header, STD_DEV_IDX is never written by summarypy
+SPECIAL_IDX_PER_PAIR = [MAX_LOSS_IDX, MEAN_IDX]
 
 read_state_dtype = np.dtype([
     ('event_id', event_id_dtype),      # event currently being read on this input (0 = between events)
@@ -36,10 +35,6 @@ read_state_dtype = np.dtype([
     ('n_records', np.int64),           # records of the current event stored so far
     ('n_pairs', np.int64),             # (sidx, loss) pairs of the current event stored so far
 ])
-
-
-class CombineStreamError(Exception):
-    pass
 
 
 def init_summary_streams_in(files_in, stack):
@@ -57,26 +52,13 @@ def init_summary_streams_in(files_in, stack):
     """
     streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
     if stream_source_type != SUMMARY_STREAM_ID or stream_agg_type != ITEM_STREAM:
-        raise CombineStreamError(f"unsupported stream type {stream_source_type}, {stream_agg_type}, expected summary stream")
+        raise OasisException(f"unsupported stream type {stream_source_type}, {stream_agg_type}, expected summary stream")
 
     summary_set_ids = [np.frombuffer(stream_in.read(summaryset_id_dtype_size), summaryset_id_dtype)[0] for stream_in in streams_in]
     if len(set(summary_set_ids)) > 1:
-        raise CombineStreamError(f"input streams have different summary_set_id {summary_set_ids}")
+        raise OasisException(f"input streams have different summary_set_id {summary_set_ids}")
 
     return streams_in, len_sample, summary_set_ids[0]
-
-
-def get_max_summary_id(static_path, summary_set_id):
-    """Largest summary_id of summary_set_id in the rl summary xref file of static_path (e.g. input/RI_1).
-
-    An event holds at most one record per summary_id, so this bounds the records per event.
-    The same rlsummaryxref is written to every RI_k directory, so any of them can be used.
-    """
-    summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['rl'], fm_summary_xref_dtype)
-    summary_ids = summary_xref['summary_id'][summary_xref['summaryset_id'] == summary_set_id]
-    if summary_ids.shape[0] == 0:
-        raise CombineStreamError(f"summary_set_id {summary_set_id} not found in {SUMMARY_OUTPUT['rl']} in {static_path}")
-    return int(summary_ids.max())
 
 
 class EventBuffer:
@@ -84,13 +66,10 @@ class EventBuffer:
 
     Record i is summary_ids[i] with expval[i], and its pairs are
     sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]].
-
-    Sized for the largest possible event: one record per summary_id, each with every sample
-    plus the special sidx.
     """
 
     def __init__(self, max_summary_id, len_sample):
-        max_pairs = max_summary_id * (len_sample + MAX_SPECIAL_SIDX)
+        max_pairs = max_summary_id * (len_sample + len(SPECIAL_IDX_PER_PAIR))
         self.summary_ids = np.empty(max_summary_id, dtype=summary_id_dtype)
         self.expval = np.empty(max_summary_id, dtype=loss_dtype)
         self.offsets = np.empty(max_summary_id + 1, dtype=np.int64)
@@ -99,11 +78,10 @@ class EventBuffer:
 
 
 @nb.njit(cache=True)
-def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, expval, offsets, sidx, loss):
+def read_buffer(byte_mv, cursor, valid_buff, state, summary_ids, expval, offsets, sidx, loss):
     """Read the valid part of byte_mv for one input and store the records of the current event.
 
-    The arrays are sized for the largest possible event (see EventBuffer), so running out of
-    room means the stream breaks that bound and is reported as an error.
+    The caller guarantees the arrays have room for every record and pair left in the buffer.
 
     Returns:
         cursor, event_id, summary_id (non zero if a record is only partly read), yield_event
@@ -119,13 +97,8 @@ def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, exp
             if pair_sidx == 0:
                 state['summary_id'] = 0
                 continue
-            if pair_sidx < 0:
-                if pair_sidx != MAX_LOSS_IDX and pair_sidx != MEAN_IDX:
-                    raise ValueError('rlcombine: invalid special sidx for an rl stream (only -5 and -1 are written)')
-            elif pair_sidx > len_sample:
-                raise ValueError('rlcombine: sample sidx above len_sample')
-            if state['n_pairs'] - offsets[state['n_records'] - 1] == len_sample + MAX_SPECIAL_SIDX:
-                raise ValueError('rlcombine: more (sidx, loss) pairs in a record than len_sample + special sidx allow')
+            if pair_sidx < 0 and pair_sidx not in SPECIAL_IDX_PER_PAIR:
+                raise ValueError(f'rlcombine: unexpected sidx {pair_sidx} found')
             sidx[state['n_pairs']] = pair_sidx
             loss[state['n_pairs']] = pair_loss
             state['n_pairs'] += 1
@@ -152,10 +125,6 @@ def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, exp
                 state['event_id'] = 0
                 return cursor, event_id, 0, 1
 
-            if summary_id < 1 or summary_id > summary_ids.shape[0]:
-                raise ValueError('rlcombine: summary_id not in the summary set (see rlsummaryxref)')
-            if state['n_records'] == summary_ids.shape[0]:
-                raise ValueError('rlcombine: more records in an event than summary_ids in the summary set')
             summary_ids[state['n_records']] = summary_id
             expval[state['n_records']] = record_expval
             offsets[state['n_records']] = state['n_pairs']
@@ -169,22 +138,18 @@ class SummaryCombineReader(EventReader):
     EventReader.read_streams reads one whole event from whichever input is ready, so events
     are yielded in the order they arrive, interleaved across inputs. Each input's stream is
     expected to close every event with an E:S0 sentinel record.
-
-    Each input gets one EventBuffer sized for the largest possible event, so memory is
-    n_inputs * max_summary_id * (len_sample + 2) * 8 bytes for the pairs.
     """
 
-    def __init__(self, n_inputs, len_sample, max_summary_id):
+    def __init__(self, n_inputs, max_summary_id, len_samples):
         self.logger = logger
         self.state = np.zeros(n_inputs, dtype=read_state_dtype)  # one row per input (file_idx)
-        self.len_sample = len_sample
-        self.buffers = [EventBuffer(max_summary_id, len_sample) for _ in range(n_inputs)]
+        self.buffers = [EventBuffer(n_records=max_summary_id, n_pairs=len_samples) for _ in range(n_inputs)]
         self.file_idx = 0
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx=0, **kwargs):
         self.file_idx = file_idx
         buffer = self.buffers[file_idx]
-        return read_buffer(byte_mv, cursor, valid_buff, self.state[file_idx], self.len_sample,
+        return read_buffer(byte_mv, cursor, valid_buff, self.state[file_idx],
                            buffer.summary_ids, buffer.expval, buffer.offsets, buffer.sidx, buffer.loss)
 
     def event_read_log(self, event_id):
@@ -203,7 +168,7 @@ class SummaryCombineReader(EventReader):
             file_idx = self.file_idx
             state = self.state[file_idx]
             if state['event_id'] != 0:  # read_streams also yields an event cut off by the end of the stream
-                raise CombineStreamError(f"input {file_idx} ended in the middle of event {event_id}")
+                raise OasisException(f"input {file_idx} ended in the middle of event {event_id}")
             buffer = self.buffers[file_idx]
             n_records, n_pairs = state['n_records'], state['n_pairs']
             yield (file_idx, event_id, buffer.summary_ids[:n_records], buffer.expval[:n_records],
@@ -212,4 +177,4 @@ class SummaryCombineReader(EventReader):
             state['n_pairs'] = 0
 
         if (self.state['summary_id'] != 0).any() or (self.state['event_id'] != 0).any():
-            raise CombineStreamError("an input ended in the middle of an event")
+            raise OasisException("an input ended in the middle of an event")
