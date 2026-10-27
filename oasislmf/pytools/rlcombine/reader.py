@@ -27,7 +27,7 @@ PAIR_SIZE = sidx_dtype_size + loss_dtype_size
 SENTINEL_SUMMARY_ID = 0
 # rl streams do not have CHANCE_OF_LOSS_IDX / NUMBER_OF_AFFECTED_RISK_IDX
 # the TIV_IDX is in record header, STD_DEV_IDX is never written by summarypy
-SPECIAL_IDX_PER_PAIR = (MAX_LOSS_IDX, MEAN_IDX)  # tuple: numba only accepts immutable globals
+SPECIAL_IDX_PER_PAIR = (MAX_LOSS_IDX, MEAN_IDX)
 
 read_state_dtype = np.dtype([
     ('event_id', event_id_dtype),      # event currently being read on this input (0 = between events)
