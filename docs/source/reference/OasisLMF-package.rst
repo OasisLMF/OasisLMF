@@ -343,27 +343,19 @@ To test the code style run:
 
 |
 
-To test against all supported python versions run:
+To run the unit tests (as CI does, on Python 3.10 - 3.14) run:
 
 .. code-block::
 
-    tox
+    pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation
 
 |
 
-To test against your currently installed version of python run:
+To run the docstring examples run:
 
 .. code-block::
 
-    py.test
-
-|
-
-To run the full test suite run:
-
-.. code-block::
-
-    ./runtests.sh
+    pytest -p no:flaky --doctest-modules --no-cov oasislmf/
 
 |
 
