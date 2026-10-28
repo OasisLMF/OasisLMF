@@ -1135,5 +1135,6 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         )
         bash_trace = subprocess.check_output(['bash', script_fp])
         self.logger.info(bash_trace.decode('utf-8'))
+        runner._ensure_pytool_logs_complete(os.path.join(self.target_dir, 'log'))
 
         self.logger.info(f'\nDummy Model run completed successfully in {self.target_dir}')
