@@ -32,8 +32,7 @@ from requests.exceptions import HTTPError
 from ...platform_api.client import APIClient
 from ...utils.exceptions import OasisException, OasisNoDownloadSelectedException
 from ...utils.data import resolve_disaggregation
-from ...utils.defaults import (API_EXAMPLE_AUTH, DISAGGREGATION_ITEMS, DISAGGREGATION_MODES,
-                               DISAGGREGATION_NONE, DISAGGREGATION_SAMPLES)
+from ...utils.defaults import API_EXAMPLE_AUTH, DISAGGREGATION_MODES, DISAGGREGATION_NONE
 from ...utils.inputs import str2bool
 
 from ..base import DISAGGREGATION_HELP, ComputationStep
@@ -731,33 +730,34 @@ class PlatformExposureRun(PlatformBase):
             'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'order fmpy output by item_id'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
-        # 'items' to match RunExposure, which this is the remote form of -- a deterministic run
-        # has no sample dimension, so 'samples' means nothing here.
-        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_ITEMS, 'choices': DISAGGREGATION_MODES,
-            'help': DISAGGREGATION_HELP + " 'samples' is not accepted on a platform exposure run."},
+        # 'none' to match RunExposure, which the platform runs. The other modes are refused until the
+        # endpoint can carry them -- see _do_disaggregation_for_platform.
+        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_NONE, 'choices': DISAGGREGATION_MODES,
+            'help': DISAGGREGATION_HELP + " Only 'none' is available on a platform exposure run for now."},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
             'help': "DEPRECATED and ignored. Use --disaggregation."},
         {'name': 'poll_interval', 'type': int, 'default': 5, 'help': 'Polling interval in seconds while waiting for the exposure run to complete'},
     ]
 
     def _do_disaggregation_for_platform(self):
-        """The boolean the platform's exposure-run endpoint accepts, from --disaggregation.
+        """The do_disaggregation value to post, after refusing what the platform cannot run.
 
-        Returns:
-            bool: True for one item per building, False for one item per location.
+        The endpoint takes only the boolean do_disaggregation, and the worker builds its other
+        parameters from RunExposure's defaults, so disaggregation is always 'none' there: a worker
+        on this version ignores the boolean, and an older one honours it, so it is sent as False
+        to give 'none' on both. Any other mode would be silently replaced, so it is refused.
 
         Raises:
-            OasisException: if 'samples' is asked for, which the endpoint cannot express.
+            OasisException: if a mode other than 'none' is asked for.
         """
         disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation)
-        if disaggregation == DISAGGREGATION_SAMPLES:
+        if disaggregation != DISAGGREGATION_NONE:
             raise OasisException(
-                "disaggregation='samples' is not available on a platform exposure run: the "
-                "endpoint takes a boolean (do_disaggregation) that cannot express it, and a "
-                "deterministic run has no sample dimension to multiplex buildings into. Use "
-                f"'{DISAGGREGATION_ITEMS}' or '{DISAGGREGATION_NONE}'."
+                f"disaggregation='{disaggregation}' is not available on a platform exposure run yet: "
+                "the platform runs every exposure run with disaggregation 'none'. Run "
+                "'oasislmf exposure run' locally to use the other modes."
             )
-        return disaggregation == DISAGGREGATION_ITEMS
+        return False
 
     def run(self):
         self.require_api_v2('oasislmf api exposure-run')
@@ -772,10 +772,8 @@ class PlatformExposureRun(PlatformBase):
             'fmpy_low_memory': self.fmpy_low_memory,
             'fmpy_sort_output': self.fmpy_sort_output,
             'check_oed': self.check_oed,
-            # The server's ExposureRunParamsSerializer takes the BOOLEAN only, and a DRF
-            # serializer drops a field it does not declare -- so sending 'disaggregation' would
-            # be silently ignored and the run would use the server's own default. Map it here
-            # instead, and refuse what the boolean cannot express rather than appear to honour it.
+            # Not 'disaggregation': the server's serializer does not declare it and DRF drops
+            # undeclared fields.
             'do_disaggregation': self._do_disaggregation_for_platform(),
         }
 

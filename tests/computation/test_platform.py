@@ -1182,6 +1182,37 @@ class TestPlatformExposureRun(ComputationChecker):
             self.assertTrue(filename.endswith('.csv'))
             self.assertEqual(self.read_file(filename), b'loc,acc\n1,2')
 
+    def test_exposure_run__posts_disaggregation_none_by_default(self):
+        """The platform runs every exposure run with disaggregation 'none', so that is the default.
+
+        do_disaggregation is posted as False because a worker on an older oasislmf still honours it,
+        and the server's own default for it is True.
+        """
+        portfolio_id = 3
+        url_run = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
+        url_portfolio = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            post = rsps.post(url_run, json={})
+            rsps.get(url_portfolio, json={'exposure_status': 'STARTED'})
+            rsps.get(url_portfolio, json={'exposure_status': 'RUN_COMPLETED'})
+
+            self.manager.platform_exposure_run(**self.min_args, portfolio_id=portfolio_id, poll_interval=0)
+
+            self.assertIs(json.loads(post.calls[0].request.body)['params']['do_disaggregation'], False)
+
+    def test_exposure_run__other_disaggregation_modes_are_refused_before_posting(self):
+        """The platform would run them as 'none', so asking for one is an error, not a silent swap."""
+        for mode in ('items', 'samples'):
+            with self.subTest(mode=mode):
+                with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+                    self.add_connection_startup(rsps)
+                    with self.assertRaises(OasisException) as caught:
+                        self.manager.platform_exposure_run(**self.min_args, portfolio_id=3, poll_interval=0,
+                                                           disaggregation=mode)
+                self.assertIn(mode, str(caught.exception))
+
     def test_exposure_run__unknown_content_type__falls_back_to_bin_extension(self):
         portfolio_id = 3
         url_run = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
