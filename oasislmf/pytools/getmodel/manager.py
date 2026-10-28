@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import sys
-import zlib
 from contextlib import ExitStack
 
 import numba as nb
@@ -33,7 +32,7 @@ from oasislmf.pytools.common.data import (
     oasis_float, oasis_float_size,
     oasis_int, oasis_int_size,
     damagebin_dtype, items_dtype,
-    vulnerability_dtype, vulnerability_bin_header_type,
+    vulnerability_dtype, vulnerability_bin_header_type, memmap_or_empty,
 )
 from oasislmf.pytools.common.id_index import (
     build as id_index_build,
@@ -43,7 +42,7 @@ from oasislmf.pytools.common.id_index import (
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (
     Index_type, zvulnerability_filename, zvulnerability_index_filename,
-    VulnerabilityIndex_dtype, VulnerabilityRow_dtype, vuln_offset,
+    VulnerabilityIndex_dtype, VulnerabilityRow_dtype, vuln_offset, decompress_vuln_block, incomplete_zvuln_pair_msg,
 )
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
@@ -527,13 +526,7 @@ def decompress_vulns_bin_idx(storage, bin_filename, vulns_idx_bin, vuln_ids_set)
     with storage.with_fileno(bin_filename) as f:
         bin_mmap = np.memmap(f, dtype=np.uint8, mode='r')
         for i in range(len(needed_idx)):
-            offset = int(needed_idx['offset'][i])
-            size = int(needed_idx['size'][i])
-            data = zlib.decompress(bin_mmap[offset:offset + size].tobytes())
-            if len(data) != needed_idx['original_size'][i]:
-                raise Exception(
-                    f"vulnerability_id {needed_idx['vulnerability_id'][i]} decompressed to {len(data)} bytes in "
-                    f"{bin_filename}, expected original_size {needed_idx['original_size'][i]} from the index file")
+            data = decompress_vuln_block(bin_mmap, needed_idx[i], bin_filename)
             vulns_bin_bytes[out_offset: out_offset + len(data)] = np.frombuffer(data, dtype=np.uint8)
             needed_idx['offset'][i] = vuln_offset + out_offset
             needed_idx['size'][i] = len(data)
@@ -622,6 +615,10 @@ def get_vulns(
         # zipped files use the ktools names (vulnerability.bin.z / vulnerability.idx.z) and take priority
         has_zvuln = (zvulnerability_filename in input_files and zvulnerability_index_filename in input_files
                      and 'bin' not in ignore_file_type and 'idx' not in ignore_file_type)
+        incomplete_zvuln = incomplete_zvuln_pair_msg(zvulnerability_filename in input_files,
+                                                     zvulnerability_index_filename in input_files)
+        if incomplete_zvuln:
+            logger.warning(f"{incomplete_zvuln}, ignoring the zipped vulnerability files")
         if has_zvuln or ("vulnerability.bin" in input_files and 'bin' not in ignore_file_type):
             bin_filename, idx_filename = ((zvulnerability_filename, zvulnerability_index_filename) if has_zvuln
                                           else ("vulnerability.bin", "vulnerability.idx"))
@@ -634,12 +631,15 @@ def get_vulns(
             if has_zvuln or (idx_filename in input_files and 'idx' not in ignore_file_type):
                 logger.debug(f"loading {storage.get_storage_url(idx_filename, encode_params=False)[1]}")
                 with storage.open(idx_filename) as f:
-                    vulns_idx_bin = np.memmap(f, dtype=VulnerabilityIndex, mode='r')
+                    vulns_idx_bin = memmap_or_empty(f, VulnerabilityIndex_dtype)
 
                 # original_size is only set (non-zero) on compressed entries, so a zipped pair is
                 # also read correctly when it was written under the uncompressed names
                 if len(vulns_idx_bin) and np.any(vulns_idx_bin['original_size'] > 0):
                     vulns_bin, vulns_idx_bin = decompress_vulns_bin_idx(storage, bin_filename, vulns_idx_bin, vuln_ids_set)
+                elif len(vulns_idx_bin) == 0:
+                    # an empty idx (csvtobin on a header-only csv) has a header-only bin, which np.memmap can't map
+                    vulns_bin = np.empty(0, dtype=VulnerabilityRow_dtype)
                 else:
                     with storage.open(bin_filename) as f:
                         vulns_bin = np.memmap(f, dtype=VulnerabilityRow, offset=vulnerability_bin_header_type.itemsize, mode='r')
@@ -670,7 +670,8 @@ def get_vulns(
             else:
                 vuln_array, valid_vuln_ids = load_vulns_bin(vuln_csv, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins)
         else:
-            raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', encode_params=False)[1]}")
+            raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', encode_params=False)[1]}"
+                                    + (f" ({incomplete_zvuln})" if incomplete_zvuln else ""))
         missing_vuln_ids = {v for v in vuln_ids_set.difference(valid_vuln_ids) if int(v) not in allowed_missing}
         if missing_vuln_ids:
             raise Exception(f"Vulnerability_ids {missing_vuln_ids} are missing"

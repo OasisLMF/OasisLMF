@@ -1,4 +1,6 @@
 """Defines the data types that are loaded from the data files."""
+import zlib
+
 import numba as nb
 import numpy as np
 
@@ -74,6 +76,48 @@ VulnerabilityRow_dtype = np.dtype([
     ('probability', oasis_float)
 ])
 vuln_offset = 4
+
+
+def incomplete_zvuln_pair_msg(has_zbin, has_zidx):
+    """Describe a zipped vulnerability pair with only one of its two files present, or return None."""
+    if has_zbin == has_zidx:
+        return None
+    present, missing = ((zvulnerability_filename, zvulnerability_index_filename) if has_zbin
+                        else (zvulnerability_index_filename, zvulnerability_filename))
+    return f"found {present} but not {missing}"
+
+
+def decompress_vuln_block(bin_data, entry, filename):
+    """Decompress the zlib block of one vulnerability.idx.z entry into raw VulnerabilityRow bytes.
+
+    Args:
+        bin_data (np.ndarray[uint8]): the whole zipped vulnerability bin file
+        entry (VulnerabilityIndex_dtype): the index entry pointing to the block
+        filename (str): the bin file name, for error messages
+
+    Returns:
+        bytes: the decompressed block, original_size bytes long
+    """
+    vuln_id = int(entry['vulnerability_id'])
+    offset = int(entry['offset'])
+    size = int(entry['size'])
+    original_size = int(entry['original_size'])
+    if original_size % VulnerabilityRow_dtype.itemsize:
+        raise Exception(
+            f"vulnerability_id {vuln_id} has original_size {original_size} in the index of {filename}, which is not a "
+            f"whole number of {VulnerabilityRow_dtype.itemsize}-byte vulnerability rows; the file may have been "
+            f"written with a different OASIS_FLOAT")
+    try:
+        data = zlib.decompress(bin_data[offset:offset + size].tobytes())
+    except zlib.error as e:
+        raise Exception(
+            f"vulnerability_id {vuln_id} failed to decompress ({size} bytes at offset {offset}) in {filename}: {e}") from e
+    if len(data) != original_size:
+        raise Exception(
+            f"vulnerability_id {vuln_id} decompressed to {len(data)} bytes in {filename}, "
+            f"expected original_size {original_size} from the index file")
+    return data
+
 
 Index_type = nb.from_dtype(np.dtype([('start', np.int64),
                                      ('end', np.int64)
