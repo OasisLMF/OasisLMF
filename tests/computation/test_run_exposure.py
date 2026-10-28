@@ -10,6 +10,7 @@ import pandas as pd
 
 from oasislmf.computation.generate import losses as losses_module
 from oasislmf.computation.run.exposure import RunExposure
+from oasislmf.manager import OasisManager
 from oasislmf.utils.defaults import KERNEL_ALLOC_FM_MAX
 from oasislmf.utils.exceptions import OasisException
 
@@ -364,14 +365,29 @@ class _RunExposureIntegrationBase(ComputationChecker):
         across buildings moves the numbers for reasons that have nothing to do with the terms the
         run exists to exercise.
         """
-        declared = {p['name']: p for p in RunExposure.step_params}['disaggregation']
-        self.assertEqual(declared['default'], 'none')
-
         location = self._multi_building_location(n_buildings=3, is_aggregate=1)
         default = self._losses_by_mode(location, None)
         self.assertEqual(default, self._losses_by_mode(location, 'none'))
         # and that the default is not simply the same number every mode gives
         self.assertNotEqual(default, self._losses_by_mode(location, 'items'))
+
+    def test_the_platform_worker_call_honours_do_disaggregation(self):
+        """The platform's worker takes every default, then sets only the deprecated boolean.
+
+        That is how a platform exposure run asks for its buildings to be split, so the boolean has
+        to win over a disaggregation that was filled in as a default rather than asked for.
+        """
+        location = self._multi_building_location(n_buildings=3, is_aggregate=1)
+        for do_disaggregation, mode in ((True, 'items'), (False, 'none')):
+            with self.subTest(do_disaggregation=do_disaggregation):
+                out = os.path.join(self.tmp.name, f'output_platform_{mode}.csv')
+                params = OasisManager()._params_run_exposure()
+                params.update(BASE_PARAMS, **self.extra_kwargs, output_file=out, oed_location_csv=location,
+                              oed_accounts_csv=ACCOUNTS, do_disaggregation=do_disaggregation)
+                with self.assertWarns(FutureWarning):
+                    OasisManager().run_exposure(**params)
+                df = pd.read_csv(out)
+                self.assertEqual((df['loss_gul'].sum(), df['loss_il'].sum()), self._losses_by_mode(location, mode))
 
     def test_invalid_location_file_raises(self):
         with self.assertRaises(Exception):

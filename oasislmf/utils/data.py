@@ -1080,7 +1080,7 @@ def structured_dtype_to_pandas(np_dtype):
     return {col: dtype for col, (dtype, _) in np_dtype.fields.items()}
 
 
-def resolve_disaggregation(disaggregation, do_disaggregation=None):
+def resolve_disaggregation(disaggregation, do_disaggregation=None, default=DISAGGREGATION_SAMPLES):
     """Resolve how a location's buildings are separated, accepting the deprecated booleans.
 
     ``disaggregation`` is one string -- :data:`DISAGGREGATION_NONE`, ``_ITEMS`` or ``_SAMPLES`` --
@@ -1088,9 +1088,13 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None):
     ``do_disaggregation``, which could only name two of the three.
 
     Args:
-        disaggregation (str | None): the mode, or None when not given, which resolves to
-            ``DISAGGREGATION_SAMPLES`` -- the same default the command line applies.
-        do_disaggregation (bool | None): deprecated. True means one item per building.
+        disaggregation (str | None): the mode, or None when not given.
+        do_disaggregation (bool | None): deprecated. True means one item per building. Honoured
+            only when ``disaggregation`` is None.
+        default (str): the mode when neither is given. ``DISAGGREGATION_SAMPLES`` matches the
+            command line's generation default; a step with another default passes its own here,
+            and leaves its ``disaggregation`` parameter defaulting to None so that a boolean
+            given on its own still reaches this function.
 
     Returns:
         str: one of :data:`DISAGGREGATION_MODES`.
@@ -1107,8 +1111,7 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None):
 
     if disaggregation is None:
         if not deprecated_given:
-            # matches the CLI default, so the Python API and the command line agree
-            return DISAGGREGATION_SAMPLES
+            return default
         disaggregation = DISAGGREGATION_ITEMS if do_disaggregation else DISAGGREGATION_NONE
         warn_deprecated(
             f"do_disaggregation is deprecated and may be removed in a future version. Use "

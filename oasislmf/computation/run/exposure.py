@@ -71,12 +71,15 @@ class RunExposure(ComputationStep):
         # show what the terms do to a known loss, and splitting a location's TIV across buildings
         # changes those numbers for reasons that have nothing to do with the policy under test.
         # All three modes work; the other two are opt-in.
-        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_NONE, 'choices': DISAGGREGATION_MODES,
+        # The default is applied in run(), not here: the platform worker fills every parameter
+        # with its default and then sets only do_disaggregation, so a 'none' here would beat it.
+        {'name': 'disaggregation', 'type': str, 'default': None, 'choices': DISAGGREGATION_MODES,
          'help': DISAGGREGATION_HELP + " Defaults to 'none' here rather than the 'samples' that "
                  "generation defaults to, so a deterministic run reports the location's own TIV "
                  "unless you ask for the buildings to be separated."},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
-         'help': "DEPRECATED and ignored. Use --disaggregation items if you explicitly want a location's buildings split into separate items."},
+         'help': "DEPRECATED, and ignored when --disaggregation is given. Use --disaggregation items to split a location's "
+                 "buildings into separate items."},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
@@ -131,7 +134,7 @@ class RunExposure(ComputationStep):
 
         include_loss_factor = not (len(self.loss_factor) == 1)
 
-        disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation)
+        disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation, default=DISAGGREGATION_NONE)
 
         self._check_alloc_rules()
 
