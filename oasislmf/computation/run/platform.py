@@ -415,7 +415,9 @@ class PlatformRunInputs(PlatformBase):
 
     def run(self):
         self.prepare_analysis()
-        self.server.run_generate(self.analysis_id)
+        if not self.server.run_generate(self.analysis_id):
+            # The reason (failed / cancelled) has already been logged by the client
+            raise OasisException(f'Input generation did not complete (analysis_id={self.analysis_id})')
         return self.analysis_id
 
     def prepare_analysis(self):
@@ -495,7 +497,9 @@ class PlatformRunLosses(PlatformBase):
 
     def run(self):
         self.set_chunking()
-        self.server.run_analysis(self.analysis_id, self.analysis_settings_json)
+        if not self.server.run_analysis(self.analysis_id, self.analysis_settings_json):
+            # The reason (failed / cancelled) has already been logged by the client
+            raise OasisException(f'Analysis run did not complete (analysis_id={self.analysis_id})')
         self.server.download_output(self.analysis_id, self.output_dir)
 
     def set_chunking(self):
@@ -527,7 +531,8 @@ class PlatformRun(PlatformBase):
                 raise OasisException(f"Generate and run did not complete (analysis_id={self.kwargs['analysis_id']})")
             self.server.download_output(self.kwargs['analysis_id'], self.output_dir)
         else:
-            self.server.run_generate(self.kwargs['analysis_id'])
+            if not self.server.run_generate(self.kwargs['analysis_id']):
+                raise OasisException(f"Input generation did not complete (analysis_id={self.kwargs['analysis_id']})")
             losses.run()
 
     def supports_generate_and_run(self, analysis_id):

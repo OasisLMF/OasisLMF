@@ -661,6 +661,16 @@ class TestPlatformRunLosses(ComputationChecker):
         mock_run_analysis.assert_called_once_with(analysis_id, setting_file)
         mock_download_output.assert_called_once_with(analysis_id, output_dir)
 
+    @patch('oasislmf.computation.run.platform.APIClient.run_analysis', return_value=False)
+    @patch('oasislmf.computation.run.platform.APIClient.download_output')
+    def test_run_analysis__run_fails__raises_without_download(self, mock_download_output, mock_run_analysis):
+        analysis_id = 4
+
+        with self.assertRaisesRegex(OasisException, f'Analysis run did not complete \\(analysis_id={analysis_id}\\)'):
+            self.manager.platform_run_losses(analysis_id=analysis_id)
+        mock_run_analysis.assert_called_once_with(analysis_id, None)
+        mock_download_output.assert_not_called()
+
 
 class TestPlatformRun(ComputationChecker):
 
@@ -848,6 +858,20 @@ class TestPlatformRun(ComputationChecker):
         mock_generate_and_run.assert_not_called()
         mock_run_generate.assert_called_once_with(ID)
         mock_run_analysis.assert_called_once_with(ID, settings_file)
+
+    @patch('oasislmf.computation.run.platform.APIClient.download_output')
+    @patch('oasislmf.computation.run.platform.APIClient.run_analysis')
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=False)
+    def test_run__v1_model__generate_fails__raises_without_running_losses(self, mock_run_generate, mock_run_analysis, mock_download):
+        ID = 4
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_run_responses(rsps, ID, {'model': 1, 'settings_file': None}, {'id': 1, 'run_mode': 'V1'})
+            with self.assertRaisesRegex(OasisException, f'Input generation did not complete \\(analysis_id={ID}\\)'):
+                self.manager.platform_run(analysis_id=ID, analysis_settings_json=self.tmp_files.get('analysis_settings_json').name)
+
+        mock_run_generate.assert_called_once_with(ID)
+        mock_run_analysis.assert_not_called()
+        mock_download.assert_not_called()
 
     @patch('oasislmf.computation.run.platform.APIClient.download_output')
     @patch('oasislmf.computation.run.platform.APIClient.run_analysis', return_value=True)
