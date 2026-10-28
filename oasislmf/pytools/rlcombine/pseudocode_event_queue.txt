@@ -1,0 +1,69 @@
+rlcombine pseudocode: event queues on top of SummaryCombineReader
+=================================================================
+
+Alternative to the record-pull pseudocode in manager.py, built on reader.py.
+
+SummaryCombineReader.read_events yields one complete event of one input at a time
+(k, E, records), in whatever order the inputs have data ready. Each input's
+EventBuffer only holds its latest event, so events are copied into a queue per input
+until every input has delivered the same event. The record-level merge inside an event
+is the same as in manager.py, run on cursors into the queued events instead of
+next_record(k).
+
+Differences from manager.py:
+
+- next_record(k) and the non-blocking fill are replaced by reader.read_events
+  (EventReader reads whichever input is ready, so it cannot deadlock).
+- head[k] is a cursor into input k's queued event, not a record pulled from a stream.
+- S0 is consumed by the reader: "S == ∞" becomes "every cursor is past its last record".
+- the event-not-closed-by-S0 and EOF checks live in the reader.
+
+open inputs; read the 12-byte header of each                 # init_summary_streams_in
+    all must have source type == SUMMARY (3), agg type == ITEM (1),
+    and equal len_sample and summary_set_id               → else error
+write output header (same three values); out_offset = 12
+
+max_summary_id = largest summary_id of the set in rlsummaryxref
+reader = SummaryCombineReader(n_inputs, max_summary_id, len_sample)
+queue[k] = empty FIFO for each input k
+
+for (k, E, records) in reader.read_events(inputs):            # records = summary_ids, expval, offsets, sidx, loss
+    append copy of (E, records) to queue[k]                    # reader's buffer is reused on the next iteration
+
+    while every queue[k] is non-empty:                         # every input has delivered its next event
+        event[k] = pop front of queue[k] for each k
+        E = event[0].event_id
+        if any event[k].event_id != E: error (event sequence mismatch)
+        merge_event(E, event)
+
+at end of read_events:                                         # reader has already checked every input ended between events
+    if any queue[k] is non-empty: error (inputs do not carry the same events)
+
+
+merge_event(E, event):
+    head[k] = 0 for each k                                     # cursor into event[k]'s records
+    loop:
+        S = min(event[k].summary_ids[head[k]], with a cursor past its last record = ∞)
+        if S == ∞: return                                      # every input has finished event E
+
+        acc = new summary record (E, S)
+        for each k with event[k].summary_ids[head[k]] == S:
+            combine record head[k] of event[k] into acc        # expval, sidx[offsets[i]:offsets[i+1]], loss[...]
+            prev[k] = S
+            head[k] += 1
+            if head[k] is not past the last record:
+                if event[k].summary_ids[head[k]] <= prev[k]: error (summary_id not strictly increasing)
+
+        if -z or acc.tiv != 0 or acc.mean != 0:
+            if -m: write (S, out_offset) to .idx
+            write acc to output buffer (flushing and splitting across 64 KB chunks)
+            out_offset += record size
+
+Notes:
+
+- Memory: the queues hold copies of the events the fastest input is ahead of the slowest by.
+  Each copy is that event's records only (at most max_summary_id records of up to
+  len_sample + 2 pairs).
+- merge_event only works on arrays, so it can be a numba function; the queue handling
+  stays in Python and runs once per event per input.
+- The combine rules from manager.py apply unchanged inside merge_event.
