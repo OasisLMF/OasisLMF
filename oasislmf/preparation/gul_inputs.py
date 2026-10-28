@@ -391,9 +391,9 @@ def get_gul_input_items(
         disaggregation (str, optional): where a location's NumberOfBuildings is separated.
             ``DISAGGREGATION_NONE`` keeps one item holding the whole location;
             ``DISAGGREGATION_ITEMS`` expands one item per building; ``DISAGGREGATION_SAMPLES``
-            keeps one item per (location, peril, coverage_type) and carries NumberOfBuildings per
-            item (on the correlations table) so the buildings can be multiplexed into the sample
-            dimension downstream. Default ``DISAGGREGATION_ITEMS``.
+            keeps one item per (location, peril, coverage_type) holding TIV / NumberOfBuildings,
+            with the count in a ``number_of_buildings`` column that write_coverage_buildings must
+            write, or the losses come out divided by it. Default ``DISAGGREGATION_SAMPLES``.
         coverage_dependency_settings (list[tuple[int, int]], optional): coverage dependency pairs
             as (source_coverage_type, dependent_coverage_type), from
             model_settings.coverage_dependency_settings. Each dependent item is linked to the
@@ -617,7 +617,7 @@ def get_gul_input_items(
     # Each building gets a unique building_id and its share of the TIV
     if disaggregation == DISAGGREGATION_SAMPLES:
         # One item per (loc, peril, coverage_type); the buildings ride in the sample dimension
-        # downstream and the per-item count rides on the correlations table. building_id stays 1,
+        # downstream and the per-item count goes to coverage_buildings. building_id stays 1,
         # so listing it in the group_id columns no longer separates a location's buildings.
         gul_inputs_df = gul_inputs_df.copy()
         gul_inputs_df['number_of_buildings'] = np.maximum(

@@ -1436,7 +1436,7 @@ def get_il_input_items(
         disaggregation (str, optional): where a location's buildings are separated; see
             :data:`DISAGGREGATION_MODES`. Both ``DISAGGREGATION_ITEMS`` and
             ``DISAGGREGATION_SAMPLES`` give a site level one node per building, so aggregate terms
-            are split by NumberOfRisks either way. Default ``DISAGGREGATION_ITEMS``.
+            are split by NumberOfRisks either way. Default ``DISAGGREGATION_SAMPLES``.
         oasis_files_prefixes (dict, optional): File name prefixes for output files.
         chunksize (int, optional): Rows per chunk when writing CSVs. Default 200,000.
         intermediary_csv (bool, optional): If True, also write CSV files alongside
