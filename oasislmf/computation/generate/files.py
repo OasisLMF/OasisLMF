@@ -384,21 +384,17 @@ class GenerateFiles(ComputationStep):
         except (KeyError, AttributeError, OasisException) as e:
             self.logger.warning(f'WARNING: Failed to load "hazard_group_fields", file: {self.model_settings_json}, error: {e}')
 
-        # load group columns from model_settings.json if not set in kwargs (CLI).
-        # The key is 'damage_group_id_cols', which is what the parameter is called -- it read
-        # 'group_id_cols' from the rename in #1181 until 2026-10, so the model settings always
-        # won and --damage-group-id-cols could not override them. The hazard branch below kept
-        # the right key, which is why only the damage hash was stuck.
-        if model_damage_group_fields and not self.kwargs.get('damage_group_id_cols'):
+        # The model settings' group columns apply unless the parameter was set to something other
+        # than its default. Compared against the default rather than checked for presence in
+        # self.kwargs, because the platform worker passes every parameter with its default filled
+        # in -- a presence check made the model settings unreachable there.
+        if model_damage_group_fields and list(self.damage_group_id_cols) == DAMAGE_GROUP_ID_COLS:
             damage_group_id_cols = model_damage_group_fields
-        # otherwise load group cols from args
         else:
             damage_group_id_cols = list(self.damage_group_id_cols)
 
-        # load hazard group columns from model_settings.json if not set in kwargs (CLI)
-        if model_hazard_group_fields and not self.kwargs.get('hazard_group_id_cols'):
+        if model_hazard_group_fields and list(self.hazard_group_id_cols) == HAZARD_GROUP_ID_COLS:
             hazard_group_id_cols = model_hazard_group_fields
-        # otherwise load group cols from args
         else:
             hazard_group_id_cols = list(self.hazard_group_id_cols)
 

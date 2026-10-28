@@ -11,6 +11,7 @@ from unittest.mock import patch
 from ods_tools.oed.common import OdsException, ClassOfBusiness
 from ods_tools.oed.exposure import OedExposure
 from oasislmf.utils.exceptions import OasisException, OasisExceptionNoKeys
+from oasislmf.utils.defaults import DAMAGE_GROUP_ID_COLS, HAZARD_GROUP_ID_COLS
 from oasislmf.utils.path import setcwd
 from oasislmf.manager import OasisManager
 from .data.common import (
@@ -246,49 +247,60 @@ class TestGenFiles(ComputationChecker):
             file_gen_return = self.manager.generate_files(**call_args)
 
     @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
-    def test_files__group_id_cols_override_the_model_settings(self, mock_output_dir):
-        """--damage-group-id-cols must beat data_settings.damage_group_fields, as the help says.
+    def test_files__group_id_cols_and_the_model_settings(self, mock_output_dir):
+        """The model settings' group fields apply unless the parameter is set to something else.
 
-        The guard that implements "unless set on the CLI" read self.kwargs['group_id_cols'],
-        which is not the name of any parameter -- so it was always falsy, the model settings
-        always won, and -G was silently ignored. Only the damage branch was affected; the hazard
-        one next to it already used the right key and is unaffected -- hazard_group_id lives on
-        correlations.bin rather than items.bin, so it is not asserted here.
+        Two ways this broke: a guard read self.kwargs['group_id_cols'], which is not a parameter,
+        so -G could never beat the model settings; and once fixed to test for the parameter's
+        presence, the model settings could never apply on the platform, whose worker passes
+        every parameter with its default filled in. Passing the default explicitly is that
+        platform call.
 
-        Asserted through the group_id values rather than the resolved column list, because that
-        is what a caller actually gets: adding building_id to the hash of a 3-building location
-        has to produce three distinct groups where the model settings' location-level fields
-        produce one.
+        Asserted through the group ids a run writes -- group_id on items.bin, hazard_group_id on
+        correlations.csv -- for a 3-building location under 'items', so each building is its own
+        item: building-level columns give three groups per peril correlation group, location-level
+        columns give one. The location's two perils sit in different correlation groups, which the
+        hash includes, so the counts are 6 and 2.
         """
-        import io
         import numpy as np
         from oasislmf.pytools.common.data import items_dtype
+
+        location_cols = ['PortNumber', 'AccNumber', 'LocNumber']
+        building_cols = location_cols + ['building_id']
 
         loc_df = pd.read_csv(io.StringIO(MIN_LOC))
         loc_df['NumberOfBuildings'] = 3
         self.write_str(self.tmp_files.get('oed_location_csv'), loc_df.to_csv(index=False))
         model_settings_file = self.tmp_files.get('model_settings_json')
-        self.write_json(model_settings_file, GROUP_FIELDS_MODEL_SETTINGS)
 
-        def damage_groups(extra_cols):
+        def groups(model_fields, **cols):
+            self.write_json(model_settings_file, {
+                **CORRELATIONS_MODEL_SETTINGS,
+                "model_settings": {"correlation_settings": [
+                    {"peril_correlation_group": 1, "damage_correlation_value": "0.7", "hazard_correlation_value": "0.4"},
+                    {"peril_correlation_group": 2, "damage_correlation_value": "0.5", "hazard_correlation_value": "0.2"}]},
+                "data_settings": {"damage_group_fields": model_fields, "hazard_group_fields": model_fields}})
             with self.tmp_dir() as t_dir:
                 run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
                 mock_output_dir.return_value = run_dir
                 self.manager.generate_files(**{
                     **self.min_args, 'oasis_files_dir': t_dir,
                     'model_settings_json': model_settings_file.name,
-                    # 'items' so each building is its own item and the hash has something to
-                    # separate; under the default 'samples' a location is a single item
-                    'disaggregation': 'items',
-                    **extra_cols})
+                    'disaggregation': 'items', **cols})
                 items = np.fromfile(os.path.join(run_dir, 'items.bin'), dtype=items_dtype)
-            return len(set(items['group_id'].tolist()))
+                correlations = pd.read_csv(os.path.join(run_dir, 'correlations.csv'))
+            return len(set(items['group_id'].tolist())), correlations['hazard_group_id'].nunique()
 
-        self.assertEqual(damage_groups({}), 1,
-                         'the model settings hash a location as a whole')
-        self.assertEqual(
-            damage_groups({'damage_group_id_cols': ['PortNumber', 'AccNumber', 'LocNumber', 'building_id']}), 3,
-            '-G must reach the hash and separate the buildings')
+        defaults = {'damage_group_id_cols': DAMAGE_GROUP_ID_COLS, 'hazard_group_id_cols': HAZARD_GROUP_ID_COLS}
+        overrides = {'damage_group_id_cols': building_cols, 'hazard_group_id_cols': building_cols}
+        for case, model_fields, cols, expected in (
+                ('location-level model settings', location_cols, {}, (2, 2)),
+                ('building-level model settings', building_cols, {}, (6, 6)),
+                ('the platform passes the defaults', building_cols, defaults, (6, 6)),
+                ('the parameters override the model', location_cols, overrides, (6, 6)),
+        ):
+            with self.subTest(case):
+                self.assertEqual(groups(model_fields, **cols), expected, '(damage groups, hazard groups)')
 
     def test_files__keys_csv__is_given(self):
 
