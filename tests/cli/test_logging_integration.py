@@ -246,7 +246,7 @@ class LoggingIntegrationTests(unittest.TestCase):
 
                 # Check that deprecation warning was issued
                 self.assertEqual(len(w), 1)
-                self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+                self.assertTrue(issubclass(w[0].category, FutureWarning))
                 self.assertIn("--verbose flag is deprecated", str(w[0].message))
 
                 # Check that logger level is still DEBUG

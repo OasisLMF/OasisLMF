@@ -13,7 +13,6 @@ import itertools
 import logging
 import os
 import time
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -51,7 +50,6 @@ from oasislmf.utils.profiles import (get_default_step_policies_profile,
                                      get_oed_hierarchy)
 
 pd.options.mode.chained_assignment = None
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 # convertion from np dtype to pandas dtype

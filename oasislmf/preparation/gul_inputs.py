@@ -34,7 +34,6 @@ from oasislmf.utils.path import as_path
 from oasislmf.utils.profiles import get_grouped_fm_profile_by_level_and_term_group, get_oed_hierarchy
 
 pd.options.mode.chained_assignment = None
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 logger = logging.getLogger(__name__)
 

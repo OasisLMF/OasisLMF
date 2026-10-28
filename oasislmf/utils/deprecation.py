@@ -3,13 +3,13 @@ import warnings
 
 
 def warn_deprecated(message, stacklevel=2):
-    """Raise a DeprecationWarning that Python's default filters cannot hide.
+    """Warn that something the user called is deprecated.
 
-    Python's default filter set shows a ``DeprecationWarning`` only when the warning is
-    *attributed to* ``__main__``. Attribution follows ``stacklevel``, not where ``warn()`` is
-    written, so a notice raised anywhere below the entry point -- the CLI, the computation
-    layer, a lookup -- is silently dropped. ``simplefilter`` inside a ``catch_warnings`` block
-    overrides that for this one call without disturbing the process-wide filters.
+    The category is ``FutureWarning``, not ``DeprecationWarning``. Python's default filters show
+    a ``DeprecationWarning`` only when it is attributed to ``__main__``, so a notice raised below
+    the entry point -- the CLI, the computation layer, a lookup -- would be silently dropped.
+    ``FutureWarning`` is the category the Python docs give to deprecations aimed at end users: it
+    is shown by default, and ``-W error`` or ``-W ignore`` still apply to it.
 
     Args:
         message (str): the notice.
@@ -17,6 +17,4 @@ def warn_deprecated(message, stacklevel=2):
             by the caller. The default of 2 blames the caller's caller, which is normally the
             code still using the deprecated thing.
     """
-    with warnings.catch_warnings():
-        warnings.simplefilter("always", DeprecationWarning)
-        warnings.warn(message, DeprecationWarning, stacklevel=stacklevel + 1)
+    warnings.warn(message, FutureWarning, stacklevel=stacklevel + 1)

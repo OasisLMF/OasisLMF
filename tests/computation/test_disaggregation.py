@@ -32,11 +32,11 @@ class TestResolveDisaggregation(TestCase):
     def test_the_deprecated_boolean_is_still_honoured(self):
         for do_disaggregation, expected in ((True, 'items'), (False, 'none')):
             with self.subTest(do_disaggregation=do_disaggregation):
-                with self.assertWarns(DeprecationWarning):
+                with self.assertWarns(FutureWarning):
                     self.assertEqual(resolve_disaggregation(None, do_disaggregation), expected)
 
     def test_the_new_parameter_wins_and_says_so(self):
-        with self.assertWarns(DeprecationWarning) as caught:
+        with self.assertWarns(FutureWarning) as caught:
             self.assertEqual(resolve_disaggregation('samples', True), 'samples')
         self.assertIn('ignored', str(caught.warning))
 
@@ -45,15 +45,6 @@ class TestResolveDisaggregation(TestCase):
             warnings.simplefilter("always")
             resolve_disaggregation('samples', None)
         self.assertEqual(raised, [])
-
-    def test_the_warning_survives_a_hostile_filter(self):
-        """DeprecationWarning is ignored by default outside __main__, and this fires from inside
-        the computation layer, so the notice has to force its own visibility."""
-        with warnings.catch_warnings(record=True) as raised:
-            warnings.simplefilter("ignore")
-            resolve_disaggregation(None, True)
-        self.assertEqual(len(raised), 1)
-        self.assertIs(raised[0].category, DeprecationWarning)
 
     def test_an_unknown_mode_is_rejected(self):
         with self.assertRaises(OasisException) as caught:

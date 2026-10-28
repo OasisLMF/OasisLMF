@@ -268,7 +268,7 @@ For example, to model each location as a single risk regardless of its NumberOfB
     oasislmf model run --disaggregation none -C oasislmf.json
 
 The older ``--do-disaggregation`` switch is **deprecated and ignored**, and emits a
-``DeprecationWarning``. It could only name two of the three modes, which is why it was replaced:
+``FutureWarning``. It could only name two of the three modes, which is why it was replaced:
 ``True`` meant ``--disaggregation items`` and ``False`` meant ``--disaggregation none``. Because
 ``--disaggregation`` now has a default of its own, it always wins.
 
