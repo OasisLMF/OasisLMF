@@ -37,30 +37,6 @@ read_state_dtype = np.dtype([
 ])
 
 
-def init_summary_streams_in(files_in, stack):
-    """Open the input summary streams and check that their headers agree.
-
-    init_streams_in only reads the first 8 bytes of the header (stream type, len_sample),
-    the summary stream header also carries the summary_set_id that is read here.
-
-    Args:
-        files_in: list of input summary stream paths
-        stack: contextlib ExitStack the streams are added to
-
-    Returns:
-        (streams_in, len_sample, summary_set_id)
-    """
-    streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
-    if stream_source_type != SUMMARY_STREAM_ID or stream_agg_type != ITEM_STREAM:
-        raise OasisException(f"unsupported stream type {stream_source_type}, {stream_agg_type}, expected summary stream")
-
-    summary_set_ids = [np.frombuffer(stream_in.read(summaryset_id_dtype_size), summaryset_id_dtype)[0] for stream_in in streams_in]
-    if len(set(summary_set_ids)) > 1:
-        raise OasisException(f"input streams have different summary_set_id {summary_set_ids}")
-
-    return streams_in, len_sample, summary_set_ids[0]
-
-
 class EventBuffer:
     """Records of the event being read on one input, in CSR form.
 
@@ -184,8 +160,16 @@ class SummaryCombineReader(EventReader):
                 raise OasisException(f"input {file_idx} ended in the middle of event {event_id}")
             buffer = self.buffers[file_idx]
             n_records, n_pairs = state['n_records'], state['n_pairs']
-            yield (file_idx, event_id, buffer.summary_ids[:n_records], buffer.expval[:n_records],
-                   buffer.offsets[:n_records + 1], buffer.sidx[:n_pairs], buffer.loss[:n_pairs])
+
+            output_buffer = {
+                    'summary_ids': buffer.summary_ids[:n_records].copy(),
+                    'expval': buffer.expval[:n_records].copy(),
+                    'offsets': buffer.offsets[:n_records + 1].copy(),
+                    'sidx': buffer.sidx[:n_pairs].copy(),
+                    'loss': buffer.loss[:n_pairs].copy()
+                    }
+
+            yield (file_idx, event_id, output_buffer)
             state['n_records'] = 0
             state['n_pairs'] = 0
 

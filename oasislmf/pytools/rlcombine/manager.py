@@ -92,3 +92,210 @@ Method of combining records depends on the type of the field:
 # TODO: check that tiv and max loss are actually calculated per term in the RI case and not just passed through.
     - what to do with these fields will depend on this output.
 """
+from contextlib import ExitStack
+import logging
+import numpy as np
+
+from oasislmf.pytools.common.event_stream import ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, SUMMARY_STREAM_ID, TIV_IDX, init_streams_in
+
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, def_to_type_and_size, null_index
+from oasislmf.pytools.summary.manager import load_summary_object
+from oasislmf.utils.exceptions import OasisException
+
+from oasislmf.pytools.rlcombine.reader import SummaryCombineReader
+
+logger = logging.getLogger(__name__)
+
+summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
+loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+sidx_dtype, sidx_dtype_size = def_to_type_and_size('sidx')
+loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+
+record_dtype = np.dtype([
+    ('event_id', event_id_dtype),
+    ('summary_id',  summary_id_dtype),
+    ('expval',  loss_dtype),
+])
+
+sidx_pair_dtype = np.dtype([
+    ('sidx', sidx_dtype),
+    ('loss', loss_dtype),
+])
+
+def init_summary_streams_in(files_in, stack):
+    """Open the input summary streams and check that their headers agree.
+
+    init_streams_in only reads the first 8 bytes of the header (stream type, len_sample),
+    the summary stream header also carries the summary_set_id that is read here.
+
+    Args:
+        files_in: list of input summary stream paths
+        stack: contextlib ExitStack the streams are added to
+
+    Returns:
+        (streams_in, len_sample, summary_set_id)
+    """
+    streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
+    if stream_source_type != SUMMARY_STREAM_ID or stream_agg_type != ITEM_STREAM:
+        raise OasisException(f"unsupported stream type {stream_source_type}, {stream_agg_type}, expected summary stream")
+
+    summary_set_ids = [np.frombuffer(stream_in.read(summaryset_id_dtype_size), summaryset_id_dtype)[0] for stream_in in streams_in]
+    if len(set(summary_set_ids)) > 1:
+        raise OasisException(f"input streams have different summary_set_id {summary_set_ids}")
+
+    return streams_in, len_sample, summary_set_ids[0]
+
+def get_max_summary_id__single_static_path(static_path, summary_set_id):
+    _, set_id_to_idx, set_idx_to_loss, _, _ = load_summary_object(static_path, 'rl')
+    set_idx = set_id_to_idx[summary_set_id]
+    if set_idx == null_index:
+        raise OasisException(f'summary_set_id {summary_set_id} not in {static_path} rlsummaryxref')
+    return set_idx_to_loss[set_idx + 1] - set_idx_to_loss[set_idx]
+
+def get_max_summary_id(static_paths, summary_set_id):
+    max_summary_id = -1
+    for static_path in static_paths:
+        summary_id = get_max_summary_id__single_static_path(static_path, summary_set_id)
+        if max_summary_id < summary_id:
+            max_summary_id = summary_id
+    return max_summary_id
+
+def merge_events(input_queues, n_inputs, output_buffer, len_sample):
+    if any([len(input_queues[k]) == 0 for k in range(n_inputs)]):
+        print('Waiting to fill all queues...')
+        return None
+
+    event_id = None
+    curr_events = [input_queues[k].pop() for k in range(n_inputs)]
+
+
+    event_id = curr_events[0][0]
+    if any([curr_events[k][0] != event_id for k in range(n_inputs)]):
+        raise OasisException('event sequence mismatch in the streams')
+
+    curr_event_buffers = [ce[1] for ce in curr_events]
+    curr_record_offset = [0 for _ in range(n_inputs)]
+
+    previous_summary_id = [0 for _ in range(n_inputs)]
+    remaining_inputs = list(range(n_inputs))
+    finished = [False for _ in range(n_inputs)]
+    while True:
+        # Check if all inputs are finished for current event
+        for i, k in enumerate(remaining_inputs):
+            if curr_record_offset[k] == curr_event_buffers[k]['summary_ids'].shape[0]:
+                finished[i] = True
+
+        if all(finished):
+            return output_buffer
+
+        curr_summary_id = min([curr_event_buffers[k]['summary_ids'][curr_record_offset[k]] for k in remaining_inputs])
+
+        # create a new record + loss array
+        new_record = np.empty(1, dtype=record_dtype)[0]
+        new_record['event_id'] = event_id
+        new_record['summary_id'] = curr_summary_id
+        new_record['expval'] = 0.
+
+        regular_loss_pairs = np.zeros(len_sample, dtype=sidx_pair_dtype)
+        regular_loss_pairs['sidx'] = np.arange(len_sample, dtype=sidx_dtype) + 1
+        special_loss_pairs = np.empty(2, dtype=sidx_pair_dtype)
+        special_loss_pairs[0]['sidx'] = MAX_LOSS_IDX
+        special_loss_pairs[1]['sidx'] = MEAN_IDX
+
+        regular_loss_mask = np.zeros(len_sample, dtype=bool)
+
+        print(f'New record... event_id: {event_id}, summary_id: {curr_summary_id}')
+        print('---')
+        print()
+
+        for k in remaining_inputs:
+            k_curr_record_offset = curr_record_offset[k]
+            k_curr_buffer = curr_event_buffers[k]
+            k_curr_summary_id = k_curr_buffer['summary_ids'][k_curr_record_offset]
+            if k_curr_summary_id != curr_summary_id:
+                continue
+            elif k_curr_summary_id < previous_summary_id[k]:
+                raise OasisException(f'summaryids are not strictly increasing for file idx {k}')
+
+            # sum expval
+            new_record['expval'] += k_curr_buffer['expval'][k_curr_record_offset]
+
+            start_offset = k_curr_buffer['offsets'][k_curr_record_offset]
+            end_offset = k_curr_buffer['offsets'][k_curr_record_offset+1]
+
+            print(f'Combining from input buffer {k}...')
+            print(f"expval: {k_curr_buffer['expval'][k_curr_record_offset]}")
+
+            print(f"sidx: {k_curr_buffer['sidx'][start_offset: end_offset]}")
+            print(f"loss: {k_curr_buffer['loss'][start_offset: end_offset]}")
+            for i in range(start_offset, end_offset):
+                _curr_sidx = k_curr_buffer['sidx'][i]
+                _curr_loss = k_curr_buffer['loss'][i]
+
+                if _curr_sidx < 0:
+                    if _curr_sidx == MAX_LOSS_IDX:
+                        special_loss_pairs[0]['loss'] += _curr_loss
+                    elif _curr_sidx == MEAN_IDX:
+                        special_loss_pairs[1]['loss'] += _curr_loss
+                    else:
+                        raise ValueError(f'unexpected special sidx{_curr_sidx} found')
+                    continue
+
+                regular_loss_pairs[_curr_sidx - 1]['loss'] += _curr_loss
+                regular_loss_mask[_curr_sidx - 1] = True
+
+            curr_record_offset[k] += 1
+            previous_summary_id[k] = curr_summary_id
+
+        regular_loss_pairs = regular_loss_pairs[regular_loss_mask]
+
+        print('---')
+        print()
+
+        print('Combined record: ')
+        print(f"expval: {new_record['expval']}")
+        print(f"regular loss pairs: {regular_loss_pairs}")
+        print(f"special loss pairs: {special_loss_pairs}")
+
+        print('---')
+        print()
+
+        print('Moving onto the next record...')
+
+        print('---')
+        print('\n\n')
+        # need to handle output properly
+        output_buffer.append((new_record, regular_loss_pairs, special_loss_pairs))
+
+
+def run(summary_files_in, static_paths, low_memory,  **kwargs):
+
+    if len(summary_files_in) != len(static_paths):
+        raise OasisException('each summary stream file needs a corresponding static path')
+
+    n_inputs = len(summary_files_in)
+    inuring_priority_info_dict = { i: {'summary_fp': summary_files_in[i],
+                                       'static_path': static_paths[i],
+                                       'stream_in': None,
+                                       'max_summary_id': None} for i in range(n_inputs)}
+
+    out_buffer = []
+
+
+    with ExitStack() as stack:
+        streams_in, len_sample, summary_set_id = init_summary_streams_in(summary_files_in, stack)
+        max_summary_id = get_max_summary_id(static_paths, summary_set_id)
+
+        summary_stream_reader = SummaryCombineReader(n_inputs, max_summary_id, len_sample)
+        input_queues = [[] for _ in range(n_inputs)]
+
+        file_idx_events = {i: [] for i in range(n_inputs)}
+        for file_idx, event_id, event_buffer in summary_stream_reader.read_events(streams_in):
+            file_idx_events[file_idx].append(event_id)
+            input_queues[file_idx].append((event_id, event_buffer))
+            merged = merge_events(input_queues, n_inputs, out_buffer, len_sample)
+            if merged is not None:
+                breakpoint()
+        breakpoint()
