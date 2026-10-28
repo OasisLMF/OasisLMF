@@ -1047,7 +1047,7 @@ class GenerateLossesDeterministic(ComputationStep):
 
         try:
             csvtobin(guls_fp, guls_bin_fp, "gul", stream_type=self.il_stream_type,
-                     max_sample_index=len(self.loss_factor), packed_buildings=packed_blocks)
+                     max_sample_index=len(self.loss_factor), packed=packed_blocks > 1)
             fmpy_run(
                 create_financial_structure_files=False,
                 allocation_rule=self.kernel_alloc_rule_il,
