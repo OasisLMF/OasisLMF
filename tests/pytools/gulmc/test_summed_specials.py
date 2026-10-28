@@ -105,3 +105,72 @@ def test_correlated_buildings_combine_variances(rho):
             f"{empirical:,.0f}")
         assert abs(std - empirical) < abs(copula - empirical), (
             f"N={n}, rho={rho}: no better than substituting the copula correlation")
+
+
+def _run_dependent(n_buildings, rho):
+    """Run coverage 2 summed and dependent on an uncorrelated coverage 1, and return item 3's
+    (reported std_dev, empirical std).
+
+    Coverage 2's conditional vulnerability spreads source damage bin k evenly over bins k..12, so
+    its loss depends on both the source's damage and its own draw. The source's buildings are
+    uncorrelated, which leaves the dependent's own copula as the only thing tying its buildings
+    together. Spreading over the wide bins keeps the loss mostly between bins, where the reported
+    sigma is exact; within a bin it treats the loss as the bin mean, while the samples interpolate.
+    """
+    with tempfile.TemporaryDirectory() as t:
+        run_dir = Path(t) / 'assets'
+        shutil.copytree(SRC_MODEL, run_dir)
+        shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
+
+        items = pd.read_csv(run_dir / 'input' / 'items.csv')
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 154), 'vulnerability_id'] = 101
+        items.loc[(items.coverage_id == 2) & (items.areaperil_id == 54), 'vulnerability_id'] = 102
+        items.to_csv(run_dir / 'input' / 'items.csv', index=False)
+        (run_dir / 'input' / 'items.bin').unlink()
+
+        n_damage_bins = len(pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv'))
+        with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
+            f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
+            for vid in (101, 102):
+                for k in range(1, n_damage_bins + 1):
+                    for d in range(k, n_damage_bins + 1):
+                        f.write(f'{vid},{k},{d},{1 / (n_damage_bins - k + 1)}\n')
+
+        corr = np.zeros(len(items), dtype=correlations_dtype)
+        corr['item_id'] = items['item_id'].to_numpy()
+        corr['peril_correlation_group'] = 1
+        corr['hazard_group_id'] = 1
+        dependent = (items['coverage_id'] == 2).to_numpy()
+        corr['damage_correlation_value'][dependent] = rho
+        corr['source_item_id'][dependent] = [1, 2]  # coverage 1's items, at the same areaperils
+        corr.tofile(run_dir / 'input' / 'correlations.bin')
+        pd.DataFrame({k: corr[k] for k in corr.dtype.names}).to_csv(
+            run_dir / 'input' / 'correlations.csv', index=False)
+        set_coverage_buildings(run_dir / 'input', n_buildings,
+                               item_to_coverage=items['coverage_id'].to_numpy())
+
+        run_gulmc(run_dir=run_dir, ignore_file_type=set(),
+                  file_in=run_dir / 'input' / 'events.bin', file_out=run_dir / 'o.bin',
+                  sample_size=SAMPLE_SIZE, loss_threshold=-1e30, alloc_rule=0, debug=0,
+                  random_generator=2, ignore_correlation=False, effective_damageability=False)
+        bintocsv(run_dir / 'o.bin', run_dir / 'o.csv', 'gul')
+        df = pd.read_csv(run_dir / 'o.csv')
+
+    event = df['event_id'].iloc[0]
+    d = df[(df['event_id'] == event) & (df['item_id'] == 3)]
+    return (float(d[d['sidx'] == STD_DEV_IDX]['loss'].iloc[0]),
+            float(d[d['sidx'] > 0]['loss'].std(ddof=0)))
+
+
+@pytest.mark.parametrize("rho", [0.3, 0.9])
+def test_a_correlated_dependent_combines_variances(rho):
+    """A dependent coverage has no hazard: its source's damage bin takes the hazard bin's place.
+    So the loss correlation must be weighted by the source's damage distribution. It used to read
+    the hazard cdf instead, which a dependent never fills: an IndexError under boundscheck, and
+    another item's leftover cdf without it.
+    """
+    for n in (16, 64):
+        std, empirical = _run_dependent(n, rho)
+        assert std == pytest.approx(empirical, rel=0.08), (
+            f"N={n}, rho={rho}: reported sigma {std:,.0f} disagrees with the samples' "
+            f"{empirical:,.0f}")

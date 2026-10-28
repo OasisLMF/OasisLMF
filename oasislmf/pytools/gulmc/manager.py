@@ -1475,10 +1475,11 @@ def compute_event_losses(compute_info,
                     # copula correlates is E[loss | damage uniform] -- the hazard-probability
                     # weighted mixture of the per-bin vulnerability curves. The hazard's own
                     # spread still counts in std_dev below, which is what dilutes the result.
-                    haz_prob_from = 0.
+                    # The weights are haz_pdf_prob, not haz_cdf_prob: a dependent has no hazard
+                    # cdf, and its pdf is the source's damage pmf. That treats the source's
+                    # buildings as independent, so a correlated source makes this an underestimate.
                     for haz_i in range(Nhaz_bins):
-                        haz_weight = haz_cdf_prob[haz_i] - haz_prob_from
-                        haz_prob_from = haz_cdf_prob[haz_i]
+                        haz_weight = haz_pdf_prob[haz_i]
                         if haz_weight <= 0.:
                             continue
                         accumulate_hermite_coeffs(
