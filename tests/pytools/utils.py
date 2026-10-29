@@ -114,3 +114,37 @@ def read_gul_stream(path):
         pos += 2
         header += 1
     return int(agg_type), sample_size, pd.DataFrame(rows, columns=['event_id', 'item_id', 'sidx', 'loss', 'header'])
+
+
+def packed_gul_stream(run_dir, n_building, sample_size=10):
+    """Run gulmc on a copy of test_model_1 whose every coverage has ``n_building`` buildings.
+
+    Returns the copy and the path of the gul stream it wrote: building-packed when ``n_building``
+    is negative, the form plapy and summarypy then read.
+    """
+    from oasislmf.pytools.gulmc.manager import run as run_gulmc
+
+    run_dir = copy_test_model(run_dir)
+    set_coverage_buildings(run_dir / 'input', n_building)
+    out = run_dir / 'gul.bin'
+    run_gulmc(run_dir=run_dir, ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin', file_out=out,
+              sample_size=sample_size, loss_threshold=0., alloc_rule=1, debug=0, random_generator=2,
+              ignore_correlation=False, effective_damageability=False)
+    return run_dir, out
+
+
+def read_summary_stream(path):
+    """Read a summarypy output stream into a frame of event_id, summary_id, exposure_value, sidx
+    and loss, one row per record."""
+    raw = Path(path).read_bytes()
+    ints = np.frombuffer(raw, dtype='<i4')
+    floats = np.frombuffer(raw, dtype=oasis_float)
+    rows, pos = [], 3   # stream type, sample size, summary set id
+    while pos < len(ints):
+        event_id, summary_id, exposure_value = int(ints[pos]), int(ints[pos + 1]), float(floats[pos + 2])
+        pos += 3
+        while ints[pos] != 0:
+            rows.append((event_id, summary_id, exposure_value, int(ints[pos]), float(floats[pos + 1])))
+            pos += 2
+        pos += 2
+    return pd.DataFrame(rows, columns=['event_id', 'summary_id', 'exposure_value', 'sidx', 'loss'])
