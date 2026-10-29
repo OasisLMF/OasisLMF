@@ -133,8 +133,6 @@ class GenbashBase(TestCase):
                 params['filename'],
                 bash_trace or self.bash_trace,
                 stderr_guard or self.stderr_guard,
-                custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
-                custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
             ):
                 create_bash_analysis(
                     **{**params, 'process_number': process_id + 1, 'fifo_tmp_dir': fifo_tmp_dir}
@@ -150,8 +148,6 @@ class GenbashBase(TestCase):
             params['filename'],
             bash_trace or self.bash_trace,
             stderr_guard or self.stderr_guard,
-            custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
-            custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
         ):
             create_bash_outputs(**params)
 

@@ -9,7 +9,7 @@ import numpy as np
 import json
 from unittest import TestCase
 
-from tests.pytools.converters.test_converters import compare_conversion_outputs, TESTS_ASSETS_DIR
+from tests.pytools.converters.helpers import compare_conversion_outputs, TESTS_ASSETS_DIR
 
 _DTYPE_EXT = "dtype.json"
 
@@ -269,3 +269,119 @@ class MultiConversionTest(TestCase):
 
     def test_fm(self):
         self._run_general_case(self.case_args, self.tmp_dir.name, file_type="fm", abnormal_dtype=True)
+
+
+def test_summarycalc_oasis_float_f8_round_trips_through_eltpy():
+    # Loss/ImpactedExposure were hardcoded to float32 regardless of OASIS_FLOAT, so building
+    # with OASIS_FLOAT=f8 made csvtobin write an 8-byte-per-sample stream that eltpy (which reads
+    # samples using the real oasis_float width) parses as a 4-byte stream -- misaligning every
+    # read after the first sample. Verified end-to-end through the real eltpy reader (elt.manager
+    # .run), not just a unit check, since the bug is specifically about the two sides of the
+    # stream disagreeing on record width.
+    value = 1234567.891234567  # loses precision as float32; distinguishes f4 from f8 handling
+    csv = f"EventId,SummaryId,SampleId,Loss,ImpactedExposure\n1,1,1,{value},{value}\n1,1,2,{value},{value}\n"
+
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "summarycalc.csv").write_text(csv)
+
+        script = dedent(f"""\
+                from pathlib import Path
+                from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+                from oasislmf.pytools.elt.manager import run as elt_run
+
+                work_dir = Path(r"{tmp}")
+                csvtobin(work_dir / "summarycalc.csv", work_dir / "summarycalc.bin", "summarycalc",
+                         summary_set_id=1, max_sample_index=10)
+                elt_run(str(work_dir), [str(work_dir / "summarycalc.bin")],
+                        selt_output_file=str(work_dir / "selt_out.csv"))
+                """)
+        script_path = Path(tmp, "script.py")
+        script_path.write_text(script)
+
+        env = {**os.environ, "OASIS_FLOAT": "f8"}
+        result = subprocess.run([sys.executable, str(script_path)], env=env,
+                                capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, (
+            f"subprocess failed ({result.returncode}):\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+
+        rows = Path(tmp, "selt_out.csv").read_text().strip().splitlines()[1:]
+
+    # SELT's CSV format is "%.2f", which still distinguishes correct f8 handling (1234567.89)
+    # from the old float32 corruption (which would round-trip to 1234567.90)
+    assert len(rows) == 2
+    for row in rows:
+        _, _, _, loss, impacted_exposure = row.split(",")
+        assert loss == "1234567.89"
+        assert impacted_exposure == "1234567.89"
+
+
+def test_eve_oasis_int_i8_round_trips_through_evepy():
+    # event_id in events.bin is a fixed 4-byte int regardless of OASIS_INT; read_events used
+    # oasis_int, so OASIS_INT=i8 read the file at double its real record width, corrupting ids.
+    csv = "event_id\n1\n2\n3\n4\n"
+
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "events.csv").write_text(csv)
+
+        script = dedent(f"""\
+                from pathlib import Path
+                from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+                from oasislmf.pytools.eve.manager import main as eve_main
+
+                work_dir = Path(r"{tmp}")
+                csvtobin(work_dir / "events.csv", work_dir / "events.bin", "eve")
+                eve_main(input_file=str(work_dir / "events.bin"), process_number=1, total_processes=1,
+                         no_shuffle=True, output_file=str(work_dir / "out.bin"))
+                """)
+        script_path = Path(tmp, "script.py")
+        script_path.write_text(script)
+
+        env = {**os.environ, "OASIS_INT": "i8"}
+        result = subprocess.run([sys.executable, str(script_path)], env=env,
+                                capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, (
+            f"subprocess failed ({result.returncode}):\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+
+        # evepy's own output stream is always a fixed int32, regardless of OASIS_INT
+        out_events = np.fromfile(Path(tmp, "out.bin"), dtype=np.int32)
+
+    assert list(out_events) == [1, 2, 3, 4]
+
+
+def test_generate_losses_events_total_matches_real_event_count_under_oasis_int_i8():
+    # GenerateLosses divided events.bin's byte size by oasis_int_size to estimate event count,
+    # which is wrong whenever OASIS_INT != i4; event_id_size is the fixed-width fix.
+    csv = "event_id\n1\n2\n3\n4\n"
+
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "events.csv").write_text(csv)
+
+        script = dedent(f"""\
+                from pathlib import Path
+                import os
+                from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+                from oasislmf.pytools.common.data import oasis_int_size
+                from oasislmf.computation.generate.losses import event_id_size
+
+                work_dir = Path(r"{tmp}")
+                csvtobin(work_dir / "events.csv", work_dir / "events.bin", "eve")
+                size = os.path.getsize(work_dir / "events.bin")
+
+                # the old formula: wrong under OASIS_INT=i8 (demonstrates the bug directly)
+                assert size // oasis_int_size != 4, "oasis_int_size-based count unexpectedly correct"
+
+                # the fixed formula: always matches the real (fixed-width) event count
+                events_total = size // event_id_size
+                assert events_total == 4, f"expected 4 events, got {{events_total}}"
+                """)
+        script_path = Path(tmp, "script.py")
+        script_path.write_text(script)
+
+        env = {**os.environ, "OASIS_INT": "i8"}
+        result = subprocess.run([sys.executable, str(script_path)], env=env,
+                                capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, (
+            f"subprocess failed ({result.returncode}):\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
