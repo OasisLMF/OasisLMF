@@ -69,10 +69,13 @@ class ResourceMonitor:
         log_root (str): Directory whose immediate sub-directories are scanned for
             resource_monitor.csv files, so several monitors can be combined into one report written
             to log_root/resource_report/. When None only this monitor's own CSV is reported on.
+        enabled (bool): When False, start() and stop() do nothing: no CSV is written and no report
+            is generated (default True).
     """
 
-    def __init__(self, output_dir, poll_interval=1.0, generate_report=True, log_root=None):
+    def __init__(self, output_dir, poll_interval=1.0, generate_report=True, log_root=None, enabled=True):
         self.output_dir = output_dir
+        self.enabled = enabled
         self.poll_interval = max(0.1, float(poll_interval))
         self.generate_report = generate_report
         self.log_root = log_root
@@ -87,6 +90,8 @@ class ResourceMonitor:
         Args:
             bash_pid (int): PID of the bash process running the kernel script.
         """
+        if not self.enabled:
+            return
         self._bash_pid = bash_pid
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
