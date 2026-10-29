@@ -426,6 +426,9 @@ def test_default_section_merge_is_left_to_the_kernels(tmp_path):
     assert '--section-merge' not in default_script
     assert _script(tmp_path, section_merge=SECTION_MERGE_DEFAULT, gulmc=True, model_py_server=True,
                    fifo_tmp_dir=False) == default_script
+    # None, from a direct caller of the bash functions, is the default too, not "--section-merge None"
+    assert _script(tmp_path, section_merge=None, gulmc=True, model_py_server=True,
+                   fifo_tmp_dir=False) == default_script
 
 
 def test_gulmc_accepts_the_section_merge_flag():

@@ -349,7 +349,7 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
         if dynamic_footprint:
             cmd += " --dynamic-footprint True"
 
-        if section_merge != SECTION_MERGE_DEFAULT:
+        if section_merge and section_merge != SECTION_MERGE_DEFAULT:
             cmd += f" --section-merge {section_merge}"
     else:
         cmd = f'gulpy --random-generator={gul_random_generator}'
@@ -2285,7 +2285,7 @@ def create_bash_analysis(
     if model_py_server:
         print_command(filename, '# --- run data server ---')
         servedata_cmd = f"servedata {kwargs['static_path']} {max_process_id}"
-        if section_merge != SECTION_MERGE_DEFAULT:
+        if section_merge and section_merge != SECTION_MERGE_DEFAULT:
             servedata_cmd += f" --section-merge {section_merge}"
         print_command(command_file=filename, cmd=f"{servedata_cmd} &")
         # print_command(command_file=filename, cmd="while ! nc -vz localhost 8080 < /dev/null > /dev/null 2>&1; do")
