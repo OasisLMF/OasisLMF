@@ -28,7 +28,9 @@ from .common import (
     parquetfootprint_chunked_dir,
     parquetfootprint_chunked_lookup, footprint_bin_lookup
 )
-from oasislmf.pytools.common.data import footprint_event_dtype, areaperil_int
+from oasislmf.pytools.common.data import (
+    footprint_event_dtype, areaperil_int, memmap_or_empty, is_first_entry_zlib_compressed
+)
 
 logger = logging.getLogger(__name__)
 
@@ -312,6 +314,7 @@ class FootprintBin(Footprint):
         num_intensity_bins (int): number of intensity bins in the data
         has_intensity_uncertainty (bool): if the data has uncertainty
         footprint_index (dict): map of footprint IDs with the index in the data
+        compressed (bool): if the events are zlib compressed despite the uncompressed file names
     """
     footprint_filenames = [footprint_filename, footprint_index_filename]
 
@@ -324,11 +327,16 @@ class FootprintBin(Footprint):
 
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'].item())
         self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'].item() & intensityMask)
+        # the idx entries carry the decompressed size when the header says so, even uncompressed
+        uncompressed_size = int((footprint_header['has_intensity_uncertainty'].item() & uncompressedMask) >> 1)
 
         f = self.stack.enter_context(self.storage.with_fileno(footprint_index_filename))
-        footprint_mmap = np.memmap(f, dtype=EventIndexBin, mode='r')
-
-        self.footprint_index = np.array(footprint_mmap)
+        idx_dtype = EventIndexBinZ if uncompressed_size else EventIndexBin
+        self.footprint_index = np.array(memmap_or_empty(f, idx_dtype))
+        self.compressed = self._is_compressed()
+        if self.compressed:
+            logger.warning(f"{footprint_filename} holds zlib compressed events, reading it as a compressed footprint. "
+                           f"Compressed footprints should be named {zfootprint_filename} and {zfootprint_index_filename}")
         try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
             with lookup_file as f:
@@ -343,6 +351,14 @@ class FootprintBin(Footprint):
             self.events_dict = None
 
         return self
+
+    def _is_compressed(self):
+        """Whether the events are zlib compressed, as csvtobin writes them when zipping under the
+        uncompressed file names.
+
+        Returns: (bool) True if the events are compressed
+        """
+        return is_first_entry_zlib_compressed(self.footprint, self.footprint_index)
 
     def get_event(self, event_id):
         """Gets the event from self.footprint based off the event ID passed in.
@@ -360,7 +376,10 @@ class FootprintBin(Footprint):
         if idx >= len(self.footprint_index) or self.footprint_index['event_id'][idx] != event_id:
             return None
         event_info = self.footprint_index[idx]
-        return np.frombuffer(self.footprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])], Event)
+        data = self.footprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])]
+        if self.compressed:
+            data = decompress(data)
+        return np.frombuffer(data, Event)
 
 
 class FootprintBinZ(Footprint):
@@ -392,9 +411,7 @@ class FootprintBinZ(Footprint):
             self.index_dtype = EventIndexBin
 
         f = self.stack.enter_context(self.storage.with_fileno(zfootprint_index_filename))
-
-        zfootprint_mmap = np.memmap(f, dtype=self.index_dtype, mode='r')
-        self.footprint_index = np.array(zfootprint_mmap)
+        self.footprint_index = np.array(memmap_or_empty(f, self.index_dtype))
 
         try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
