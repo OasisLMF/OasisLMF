@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import zlib
 import numba as nb
 import numpy as np
 
@@ -38,6 +39,47 @@ FM_STRUCTURE_INFO_FILE = 'fm_structure_info.bin'
 # Mean type numbers for outputs (SampleType)
 MEAN_TYPE_ANALYTICAL = 1
 MEAN_TYPE_SAMPLE = 2
+
+
+def is_first_entry_zlib_compressed(data, index):
+    """Whether the first entry decompresses cleanly with zlib, as csvtobin writes when zipping
+    data under uncompressed file names (footprint and vulnerability both use this to detect it).
+    Checked on the first entry only: a complete zlib stream (header, deflate data and adler32
+    checksum) cannot realistically occur in uncompressed data.
+
+    Args:
+        data: bytes-like object (mmap.mmap or an np.ndarray of bytes) holding the file's data
+        index (np.ndarray): index entries, each with 'offset' and 'size' fields
+
+    Returns: (bool) True if the first entry is zlib compressed
+    """
+    if len(index) == 0:
+        return False
+    first = index[0]
+    try:
+        zlib.decompress(bytes(data[int(first['offset']): int(first['offset']) + int(first['size'])]))
+    except zlib.error:
+        return False
+    return True
+
+
+def memmap_or_empty(file_obj, dtype):
+    """Memory-map an open file as `dtype`, or return a 0-length array of that dtype for a 0-byte
+    file -- np.memmap raises "cannot mmap an empty file" for one (e.g. an idx file written for
+    zero rows/events).
+    """
+    if os.fstat(file_obj.fileno()).st_size == 0:
+        return np.empty(0, dtype=dtype)
+    return np.memmap(file_obj, dtype=dtype, mode='r')
+
+
+def memmap_or_empty_path(path, dtype):
+    """Path-based variant of memmap_or_empty, for callers that memory-map a path directly
+    instead of an open file object.
+    """
+    if os.path.getsize(path) == 0:
+        return np.empty(0, dtype=dtype)
+    return np.memmap(path, dtype=dtype, mode='r')
 
 
 def generate_output_metadata(output):
@@ -96,7 +138,7 @@ deductible1 = ("deductible1", oasis_float, "%f")
 deductible2 = ("deductible2", oasis_float, "%f")
 deductible3 = ("deductible3", oasis_float, "%f")
 event_id = ("event_id", 'i4', "%d")
-factor = ("factor", 'f4', "%.2f")  # Amplification factor
+factor = ("factor", 'f4', "%f")  # Amplification factor
 from_agg_id = ("from_agg_id", 'i4', "%d")
 group_id = ("group_id", 'u4', "%u")
 hazard_correlation_value = ("hazard_correlation_value", oasis_float, "%f")
@@ -464,21 +506,34 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     useful for multi-columns files
 
     Args:
-        dir_path: path to the directory where the binary or csv file is stored
+        dir_path: path to the directory where the binary, parquet or csv file is stored
         name: name of the file
         _dtype: np.dtype
         must_exist: raise FileNotFoundError if no file is present
-        col_map: name re-mapping to change name of csv columns
+        col_map: name re-mapping to change name of csv or parquet columns
     Returns:
         numpy ndarray
     """
+    if col_map is None:
+        col_map = {}
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
         return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
+    elif os.path.isfile(os.path.join(dir_path, name + '.parquet')):
+        import pyarrow.parquet as pq
+        filepath = os.path.join(dir_path, name + '.parquet')
+        file_cols = set(pq.read_schema(filepath).names)
+        read_cols = {field_name: col_map.get(field_name, field_name) for field_name in _dtype.names}
+        missing = [col for col in read_cols.values() if col not in file_cols]
+        if missing:
+            raise OasisException(f"columns expected in {filepath} but not found: {missing}")
+        df = pq.read_table(filepath, columns=list(set(read_cols.values()))).to_pandas()
+        result = np.empty(len(df), dtype=_dtype)
+        for field_name, col in read_cols.items():
+            result[field_name] = df[col].to_numpy()
+        return result
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
         # in csv column can be out of order and have different name,
         # col_map maps {dtype_field_name: csv_header_name}
-        if col_map is None:
-            col_map = {}
         filepath = os.path.join(dir_path, name + '.csv')
         with open(filepath) as file_in:
             header = {h.strip(): i for i, h in enumerate(file_in.readline().split(','))}

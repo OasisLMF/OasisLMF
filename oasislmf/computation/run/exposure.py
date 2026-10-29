@@ -18,7 +18,7 @@ from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
 from oasislmf.computation.hooks.pre_analysis import ExposurePreAnalysis
 from oasislmf.preparation.il_inputs import get_oed_hierarchy
-from oasislmf.preparation.summaries import calculated_summary_cols
+from oasislmf.preparation.summaries import calculated_summary_cols, get_summary_map_fp
 from oasislmf.pytools.fm.portfolio_complexity import (
     compute_portfolio_complexity, format_complexity_report)
 from oasislmf.utils.data import (get_dataframe, get_exposure_data, resolve_disaggregation,
@@ -29,6 +29,7 @@ from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_MODES,
                                      KERNEL_ALLOC_IL_DEFAULT,
                                      KERNEL_ALLOC_RI_DEFAULT,
                                      OASIS_FILES_PREFIXES,
+                                     SUMMARY_MAPPING,
                                      find_exposure_fp)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
@@ -202,7 +203,13 @@ class RunExposure(ComputationStep):
         rils_df = losses['ri']
 
         # Read in the summary map
-        summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'), lowercase_cols=False)
+        summaries_df = get_dataframe(src_fp=get_summary_map_fp(run_dir, SUMMARY_MAPPING['fm_map_fn']), lowercase_cols=False)
+        # parquet keeps OED ids such as LocNumber as str, convert numeric ones as pandas does when reading csv,
+        # so the summaries below keep the same row order (numeric rather than lexicographic)
+        for col in summaries_df.select_dtypes(include='object').columns:
+            numeric_col = pd.to_numeric(summaries_df[col], errors='coerce')
+            if numeric_col.notna().all():
+                summaries_df[col] = numeric_col
 
         guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
         guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True)

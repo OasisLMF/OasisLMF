@@ -1,11 +1,12 @@
 import numba as nb
 import numpy as np
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE
-from oasislmf.pytools.common.event_stream import (ITEM_PACKED_STREAM, ITEM_STREAM,
+from oasislmf.pytools.common.event_stream import (FM_STREAM_ID, GUL_STREAM_ID, ITEM_PACKED_STREAM, ITEM_STREAM,
                                                   mv_write_item_header, mv_write_sidx_loss)
 from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.common.data import loss_pair_dtype, item_header_dtype, def_to_type_and_size
+from oasislmf.utils.exceptions import OasisException
 
 # Worst case: every input row opens a new group (2 header + 2 data + 2 termination)
 _CHUNK_OUT_SIZE = DEFAULT_BUFFER_SIZE * (item_header_dtype.itemsize + loss_pair_dtype.itemsize * 2)
@@ -46,6 +47,8 @@ def gul_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index
             their samples above S, so S is only the header's per-building sample size. False
             declares ITEM_STREAM and drops rows whose sidx exceeds S, as ktools' gultobin did.
     """
+    if stream_type not in (GUL_STREAM_ID, FM_STREAM_ID):
+        raise OasisException(f"Error: stream_type must be {GUL_STREAM_ID} or {FM_STREAM_ID}, got {stream_type}")
     dtype = TOOL_INFO[file_type]["dtype"]
 
     stream_agg_type = ITEM_PACKED_STREAM if packed else ITEM_STREAM

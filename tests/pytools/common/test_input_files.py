@@ -6,7 +6,7 @@ from pathlib import Path
 from oasislmf.pytools.common.data import (
     oasis_int, oasis_float, coverages_dtype, COVERAGE_BUILDINGS_FILE,
     coverage_buildings_dtype, coverage_buildings_headers,
-    correlations_dtype, correlations_fmt, correlations_headers,
+    correlations_dtype,
     periods_dtype, quantile_interval_dtype, returnperiods_dtype
 )
 from oasislmf.utils.exceptions import OasisException
@@ -183,19 +183,13 @@ def test_read_correlations_bin__a_file_of_another_layout_is_rejected(content):
             read_correlations(d)
 
 
-@pytest.mark.parametrize("csv, ignore_file_type, n_read", [(True, set(), 7), (False, set(), None), (True, {"csv"}, None)],
-                         ids=["falls_back_to_the_csv", "no_csv", "csv_excluded"])
-def test_read_correlations_bin__an_empty_file_is_absent(csv, ignore_file_type, n_read):
-    with TemporaryDirectory() as d:
-        Path(d, "correlations.bin").touch()
-        if csv:
-            np.savetxt(Path(d, "correlations.csv"), _correlations(range(1, 8)), delimiter=",",
-                       fmt=correlations_fmt, header=",".join(correlations_headers), comments="")
-        if n_read is None:
-            with pytest.raises(FileNotFoundError):
-                read_correlations(d, ignore_file_type=ignore_file_type)
-        else:
-            assert len(read_correlations(d, ignore_file_type=ignore_file_type)) == n_read
+def test_read_correlations__empty_bin():
+    """An empty correlations.bin (no correlations) must load without a correlations.csv"""
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "correlations.bin").touch()
+        correlations = read_correlations(tmp)
+        assert correlations.dtype == correlations_dtype
+        assert len(correlations) == 0
 
 
 def test_read_coverages():

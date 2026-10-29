@@ -257,13 +257,14 @@ class TestGenFiles(ComputationChecker):
         platform call.
 
         Asserted through the group ids a run writes -- group_id on items.bin, hazard_group_id on
-        correlations.csv -- for a 3-building location under 'items', so each building is its own
+        correlations.bin -- for a 3-building location under 'items', so each building is its own
         item: building-level columns give three groups per peril correlation group, location-level
         columns give one. The location's two perils sit in different correlation groups, which the
         hash includes, so the counts are 6 and 2.
         """
         import numpy as np
         from oasislmf.pytools.common.data import items_dtype
+        from oasislmf.pytools.common.input_files import read_correlations
 
         location_cols = ['PortNumber', 'AccNumber', 'LocNumber']
         building_cols = location_cols + ['building_id']
@@ -288,8 +289,8 @@ class TestGenFiles(ComputationChecker):
                     'model_settings_json': model_settings_file.name,
                     'disaggregation': 'items', **cols})
                 items = np.fromfile(os.path.join(run_dir, 'items.bin'), dtype=items_dtype)
-                correlations = pd.read_csv(os.path.join(run_dir, 'correlations.csv'))
-            return len(set(items['group_id'].tolist())), correlations['hazard_group_id'].nunique()
+                hazard_group_ids = set(read_correlations(run_dir)['hazard_group_id'].tolist())
+            return len(set(items['group_id'].tolist())), len(hazard_group_ids)
 
         defaults = {'damage_group_id_cols': DAMAGE_GROUP_ID_COLS, 'hazard_group_id_cols': HAZARD_GROUP_ID_COLS}
         overrides = {'damage_group_id_cols': building_cols, 'hazard_group_id_cols': building_cols}
@@ -329,7 +330,14 @@ class TestGenFiles(ComputationChecker):
             # must not raise ValueError: cannot convert NA to integer
             self.manager.generate_files(**call_args)
 
-            fm_summary_map = pd.read_csv(os.path.join(t_dir, 'fm_summary_map.csv'))
+            # intermediate files default to binary / parquet, without csv copies
+            self.assertFalse(os.path.exists(os.path.join(t_dir, 'correlations.csv')))
+            self.assertFalse(os.path.exists(os.path.join(t_dir, 'fm_summary_map.csv')))
+            self.assertFalse(os.path.exists(os.path.join(t_dir, 'gul_summary_map.csv')))
+            self.assertTrue(os.path.exists(os.path.join(t_dir, 'gul_summary_map.parquet')))
+            self.assertTrue(os.path.exists(os.path.join(t_dir, 'gul_errors_map.parquet')))
+
+            fm_summary_map = pd.read_parquet(os.path.join(t_dir, 'fm_summary_map.parquet'))
             # acc_idx must be fully populated (the single item maps to account index 0)
             self.assertFalse(fm_summary_map['acc_idx'].isna().any())
             self.assertEqual(fm_summary_map['acc_idx'].tolist(), [0])
@@ -416,7 +424,8 @@ class TestGenFiles(ComputationChecker):
             call_args = {
                 **self.ri_args,
                 'oasis_files_dir': t_dir,
-                'model_settings_json': model_settings_file.name
+                'model_settings_json': model_settings_file.name,
+                'intermediary_csv': True,
             }
             file_gen_return = self.manager.generate_files(**call_args)
 
@@ -464,7 +473,8 @@ class TestGenFiles(ComputationChecker):
             call_args = {
                 **self.ri_args,
                 'oasis_files_dir': t_dir,
-                'model_settings_json': model_settings_file.name
+                'model_settings_json': model_settings_file.name,
+                'intermediary_csv': True,
             }
             file_gen_return = self.manager.generate_files(**call_args)
 

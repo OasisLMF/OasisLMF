@@ -23,11 +23,14 @@ def add_custom_args(file_type, parser):
                                  'building-packed: every row is kept and -S is the per-building sample size in the header')
     if file_type == "footprint":
         parser.add_argument('-x', '--idx_file_out', required=True, type=str, help='Output index file path')
-        parser.add_argument('-z', '--zip_files', action='store_true', help='Zip input files flag')
+        parser.add_argument('-z', '--zip_files', action='store_true', help='Zip output files flag')
         parser.add_argument('-m', '--max_intensity_bin_idx', type=int, required=True, help='Maximum intensity bin index')
         parser.add_argument('-n', '--no_intensity_uncertainty', action='store_true', help='No intensity uncertainty')
-        parser.add_argument('-d', '--decompressed_size', action='store_true', help='If True, add the decompressed size to the index file')
-        parser.add_argument('-N', '--no_validation', action='store_true', help='No validation checks')
+        parser.add_argument('-d', '--decompressed_size', action='store_true',
+                            help='If True, add the decompressed size to the index file (only with -z, ignored otherwise)')
+        parser.add_argument('-N', '--no_validation', action='store_true',
+                            help='No validation checks; input must already be sorted by (event_id, areaperil_id), '
+                                 'or the index silently corrupts for files over OASIS_DEFAULT_BUFFER_SIZE rows')
     if file_type == "summarycalc":
         parser.add_argument('-t', '--summary_set_id', type=int, default=1, help='Summary Set Id. Default 1')
         parser.add_argument('-S', '--max_sample_index', type=int, required=True, help='Maximum sample index')
@@ -35,10 +38,12 @@ def add_custom_args(file_type, parser):
         parser.add_argument('-d', '--max_damage_bin_idx', type=int, required=True, help='Maximum damage bin index')
         parser.add_argument('-N', '--no_validation', action='store_true', help='No validation checks')
     if file_type == "vulnerability":
-        parser.add_argument('-z', '--zip_files', action='store_true', help='Zip input files flag')
+        parser.add_argument('-z', '--zip_files', action='store_true', help='Zip output files flag')
         parser.add_argument('-x', '--idx_file_out', default=None, type=str, help='Output index file path, if not set will not use idx file')
         parser.add_argument('-d', '--max_damage_bin_idx', type=int, required=True, help='Maximum damage bin index')
-        parser.add_argument('-N', '--no_validation', action='store_true', help='No validation checks')
+        parser.add_argument('-N', '--no_validation', action='store_true',
+                            help='No validation checks; with -x, input must already be sorted by vulnerability_id, '
+                                 'or the index silently corrupts for files over OASIS_DEFAULT_BUFFER_SIZE rows')
         parser.add_argument('-S', '--suppress_int_bin_checks', action='store_true',
                             help='Suppress all intensity bins present for each vulnerability ID validation checks (recommended for multiple peril models)')
 

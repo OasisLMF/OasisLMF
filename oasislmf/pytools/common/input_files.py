@@ -172,8 +172,8 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
             )
 
         if correlations_file.stat().st_size == 0:
-            logger.debug("binary correlations file is empty, falling back to the csv.")
-            continue
+            # numpy.memmap cannot map an empty file, and no csv is written beside it to fall back to
+            return np.empty(0, dtype=correlations_dtype)
         try:
             correlations = np.memmap(correlations_file, dtype=correlations_dtype, mode='r')
         except ValueError:  # not a whole number of records

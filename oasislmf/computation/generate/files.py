@@ -425,7 +425,8 @@ class GenerateFiles(ComputationStep):
                 keys_errors_fp=_keys_errors_fp,
                 exposure_profile=location_profile,
                 additional_fields=(model_settings.get('model_settings', {})
-                                   .get('summary_report_fields', []))
+                                   .get('summary_report_fields', [])),
+                intermediary_csv=self.intermediary_csv,
             )
 
         # If exposure summary set, write valid columns for summary levels to file
@@ -445,7 +446,7 @@ class GenerateFiles(ComputationStep):
             intermediary_csv=self.intermediary_csv
         )
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
-        write_mapping_file(gul_summary_mapping, target_dir)
+        write_mapping_file(gul_summary_mapping, target_dir, intermediary_csv=self.intermediary_csv)
         del gul_summary_mapping
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
@@ -470,7 +471,7 @@ class GenerateFiles(ComputationStep):
         )
 
         fm_summary_mapping = get_summary_mapping(il_inputs_df, oed_hierarchy, is_fm_summary=True)
-        write_mapping_file(fm_summary_mapping, target_dir, is_fm_summary=True)
+        write_mapping_file(fm_summary_mapping, target_dir, is_fm_summary=True, intermediary_csv=self.intermediary_csv)
 
         # Combine the GUL and IL input file paths into a single dict (for convenience)
         oasis_files = {**gul_input_files, **il_input_files}
