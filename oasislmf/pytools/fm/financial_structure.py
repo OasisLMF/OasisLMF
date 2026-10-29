@@ -188,7 +188,29 @@ def load_static(static_path):
             )
         n_building[buildings['coverage_id'] - 1] = buildings['n_building']
 
-    return (programme, policytc, profile, stepped, xref, items, coverages, n_building) + load_fm_structure_info(static_path)
+    # The two files size the arena between them -- fm_structure_info the dense temporaries,
+    # coverage_buildings the exact extras budget -- and generation writes them together. A folder
+    # where they disagree under-reserves, which numba does not bounds-check: it corrupts rather
+    # than raises. Only checked with coverages present; without them the budget falls back to
+    # its portfolio-wide bound and never reads the counts.
+    structure_info = load_fm_structure_info(static_path)
+    max_buildings = structure_info[1]
+    if coverages.shape[0]:
+        if max_buildings > 1 and not buildings.shape[0]:
+            raise OasisException(
+                f"fm_structure_info declares up to {max_buildings:,} buildings per packed item, but "
+                f"there is no coverage_buildings file; the two are written together. Regenerate the "
+                f"oasis files.")
+        # a negative count is one whose buildings stay separate, which is what max_buildings bounds;
+        # a positive one was summed at source and never reaches fm packed
+        most_separate = int(-n_building.min())
+        if most_separate > max_buildings:
+            raise OasisException(
+                f"coverage_buildings has a coverage keeping {most_separate:,} buildings separate, "
+                f"above the {max_buildings:,} fm_structure_info allows for; the two are written "
+                f"together. Regenerate the oasis files.")
+
+    return (programme, policytc, profile, stepped, xref, items, coverages, n_building) + structure_info
 
 
 @njit(cache=True)

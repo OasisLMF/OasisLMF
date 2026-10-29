@@ -236,6 +236,43 @@ class TestExtrasArenaPackedBudget(TestCase):
         self.assertGreater(int(info['packable_extra_slots']), 0)
 
 
+class TestTheTwoBuildingFilesMustAgree(TestCase):
+    """fm_structure_info and coverage_buildings size the arena between them, and are written together.
+
+    A folder where they disagree -- copied by hand, or partly regenerated -- under-reserves the
+    arena, which numba does not bounds-check, so it has to be refused at load rather than run.
+    """
+
+    def _build(self, n_buildings, max_buildings=None, drop_coverage_buildings=False):
+        with TemporaryDirectory() as d:
+            _write_extras_structure(d, {1}, n_buildings)
+            if max_buildings is not None:
+                write_fm_structure_info(d, 1, max_buildings, total_packed_buildings=sum(abs(b) for b in n_buildings))
+            if drop_coverage_buildings:
+                os.remove(os.path.join(d, f'{COVERAGE_BUILDINGS_FILE}.bin'))
+            create_financial_structure(0, d)
+
+    def test_packed_structure_info_without_the_counts_is_rejected(self):
+        """Read as all ones, the counts would size the extras arena for one building a node."""
+        with self.assertRaises(OasisException) as caught:
+            self._build([-4, -4, -1, -1], drop_coverage_buildings=True)
+        self.assertIn('coverage_buildings', str(caught.exception))
+
+    def test_a_separated_count_above_max_buildings_is_rejected(self):
+        """max_buildings sizes the dense temporaries, so a coverage above it overruns them."""
+        with self.assertRaises(OasisException) as caught:
+            self._build([-4, -2, -1, -1], max_buildings=2)
+        self.assertIn('4', str(caught.exception))
+
+    def test_a_summed_count_above_max_buildings_is_accepted(self):
+        """A positive count was summed at source and never reaches fm packed, so max_buildings,
+        which only bounds the separated ones, may well be below it."""
+        self._build([6, -2, -1, -1], max_buildings=2)
+
+    def test_matching_files_are_accepted(self):
+        self._build([-4, -2, -1, -1])
+
+
 # --- which nodes the extras closure marks --------------------------------------------------------
 
 def _write_shared_item_structure(d, extras_on_agg):
