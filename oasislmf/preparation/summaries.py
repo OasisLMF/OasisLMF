@@ -1170,10 +1170,12 @@ def write_gul_errors_map(
         )
     gul_inputs_errors_df['tiv'] = gul_inputs_errors_df['tiv'].fillna(0.0)
 
-    out_df = gul_inputs_errors_df[[c for c in cols if c in gul_inputs_errors_df.columns]]
-    # OED id columns can hold mixed types, which parquet cannot store in a single column
+    out_df = gul_inputs_errors_df[[c for c in cols if c in gul_inputs_errors_df.columns]].copy()
+    # OED id columns can hold mixed types, which parquet cannot store in a single column.
+    # Only cast non-null values: astype(str) turns NaN/None into 'nan'/'None' on pandas < 3
     str_cols = [c for c in ['PortNumber', 'AccNumber', 'LocNumber', 'peril_id', 'status', 'message'] if c in out_df.columns]
-    out_df = out_df.astype({c: str for c in str_cols})
+    for c in str_cols:
+        out_df[c] = out_df[c].where(out_df[c].isna(), out_df[c].astype(str))
     gul_error_map_fp = write_df_to_parquet_file(out_df, target_dir, 'gul_errors_map.parquet')
     if intermediary_csv:
         write_df_to_csv_file(out_df, target_dir, 'gul_errors_map.csv')

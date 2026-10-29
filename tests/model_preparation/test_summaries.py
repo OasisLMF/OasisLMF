@@ -571,6 +571,36 @@ def test_write_gul_errors_map__csv_only_written_with_intermediary_csv():
         )
 
 
+def test_write_gul_errors_map__missing_values_stay_empty():
+    exposure_df = pd.DataFrame({
+        'loc_id': [1, 2],
+        'PortNumber': [1, 'P2'],
+        'AccNumber': ['A1', None],
+        'LocNumber': ['100', '200'],
+        'BuildingTIV': [1000.0, 2000.0],
+    })
+    keys_errors_df = pd.DataFrame({
+        'LocID': [1, 2],
+        'PerilID': ['WTC', 'WTC'],
+        'CoverageTypeID': [1, 1],
+        'Status': ['fail', 'fail'],
+        'Message': ['normal message', None],
+    })
+    exposure_profile = {
+        'buildingtiv': {'FMTermType': 'TIV', 'ProfileElementName': 'BuildingTIV', 'CoverageTypeID': 1, 'FMLevel': 2},
+    }
+
+    with TemporaryDirectory() as tmp:
+        write_gul_errors_map(tmp, exposure_df, keys_errors_df.copy(), exposure_profile, intermediary_csv=True)
+        parquet_df = pd.read_parquet(os.path.join(tmp, 'gul_errors_map.parquet'))
+        csv_df = pd.read_csv(os.path.join(tmp, 'gul_errors_map.csv'))
+
+    for df in (parquet_df, csv_df):
+        assert df['message'].isna().tolist() == [False, True]
+        assert df['AccNumber'].isna().tolist() == [False, True]
+    assert parquet_df['PortNumber'].tolist() == ['1', 'P2']
+
+
 @pytest.mark.parametrize('is_fm_summary, map_name', [(False, 'gul_summary_map'), (True, 'fm_summary_map')])
 def test_write_mapping_file__is_parquet(is_fm_summary, map_name):
     df = pd.DataFrame({'loc_id': [1, 2], 'agg_id': [1, 2], 'output_id': [1, 2], 'peril_id': ['WTC', 'WSS']})
