@@ -780,8 +780,11 @@ def compute_haz_bin_id(haz_pdf_record, item, intensity_adjustment, dynamic_footp
         max_intensity = nb_int32(intensity_bins.shape[1] - 1)
         for haz_bin_idx in range(haz_bin_id.shape[0]):
             intensity_val = haz_intensity[haz_bin_idx]
-            if intensity_val < 0 or intensity_val > max_intensity:
+            if intensity_val < 0:
                 intensity_val = nb_int32(0)
+            elif intensity_val > max_intensity:
+                # past the table, its last intensity stands for that much or more
+                intensity_val = max_intensity
             haz_bin_id[haz_bin_idx] = intensity_bins[peril_idx, intensity_val]
     else:
         haz_bin_id = haz_pdf_record['intensity_bin_id']
