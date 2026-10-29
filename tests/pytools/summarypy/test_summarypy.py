@@ -40,9 +40,9 @@ def case_runner(test_name, test_case):
             for summary_set_id in summary_set_ids:
                 base_file_name = f"{run_type}_S{summary_set_id}_summary"
                 try:
-                    for file_extention in ['.bin', '.idx']:
-                        assert filecmp.cmp(Path(tmp_result_dir_str, base_file_name + file_extention),
-                                           Path(base_path, base_file_name + file_extention), shallow=True)
+                    for file_extension in ['.bin', '.idx']:
+                        assert filecmp.cmp(Path(tmp_result_dir_str, base_file_name + file_extension),
+                                           Path(base_path, base_file_name + file_extension), shallow=True)
                     idx_path = Path(tmp_result_dir_str, base_file_name + '.idx')
                     assert idx_path.stat().st_size % IDX_DTYPE.itemsize == 0, \
                         f"{idx_path} size is not a multiple of IDX_DTYPE.itemsize ({IDX_DTYPE.itemsize})"
@@ -55,9 +55,9 @@ def case_runner(test_name, test_case):
                 except Exception as e:
                     error_path = base_path.joinpath('error_files')
                     error_path.mkdir(exist_ok=True)
-                    for file_extention in ['.bin', '.idx']:
-                        shutil.copyfile(Path(tmp_result_dir_str, base_file_name + file_extention),
-                                        Path(error_path, base_file_name + file_extention))
+                    for file_extension in ['.bin', '.idx']:
+                        shutil.copyfile(Path(tmp_result_dir_str, base_file_name + file_extension),
+                                        Path(error_path, base_file_name + file_extension))
                     raise Exception(f"running 'summarypy {' '.join(cmd)}' led to diff, see files at {error_path}") from e
 
 
@@ -130,8 +130,8 @@ def test_unrequested_summary_set_is_not_read():
         run_type = manager.RUNTYPE_INSURED_LOSS
         run_summarypy(run_type, static_path, {i: Path(tmp_dir_str, f'{run_type}_S{i}_summary.bin') for i in (1, 2)})
         for summary_set_id in (1, 2):
-            for file_extention in ['.bin', '.idx']:
-                file_name = f'{run_type}_S{summary_set_id}_summary{file_extention}'
+            for file_extension in ['.bin', '.idx']:
+                file_name = f'{run_type}_S{summary_set_id}_summary{file_extension}'
                 assert filecmp.cmp(Path(tmp_dir_str, file_name), Path(base_path, file_name), shallow=False)
 
 
