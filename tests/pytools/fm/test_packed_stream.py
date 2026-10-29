@@ -18,6 +18,7 @@ from oasislmf.pytools.common.data import (fm_policytc_dtype, fm_profile_dtype,
 from oasislmf.pytools.common.event_stream import (ITEM_STREAM, LOSS_STREAM_ID, PIPE_CAPACITY,
                                                   encode_sidx, stream_info_to_bytes)
 from oasislmf.pytools.fm.manager import run as run_fm
+from oasislmf.utils.exceptions import OasisStreamException
 
 S = 4
 DEDUCTIBLE = 100.0
@@ -128,13 +129,15 @@ class TestWhatFmpyRefuses(TestCase):
 
     def test_an_item_must_ascend_in_sidx(self):
         """The stream's ordering rule, which is also its only duplicate check: a descent is
-        refused where a repeat is equal."""
+        refused where a repeat is equal. Whether the buildings are kept apart for site terms or
+        summed as they are read, which loses the order they arrived in."""
         item_id, ascending = _packed_item(1, TWO_BUILDINGS)
         last_building_first = ascending[S:] + ascending[:S]
-        for records in (last_building_first, [(1, 1.), (1, 2.)]):
-            with self.subTest(records=records[:3]):
-                with self.assertRaises(Exception):
-                    _run(_site_terms_structure, [(item_id, records)])
+        for structure in (_site_terms_structure, _no_site_terms_structure):
+            for records in (last_building_first, [(1, 1.), (1, 2.)]):
+                with self.subTest(structure=structure.__name__, records=records[:3]):
+                    with self.assertRaisesRegex(OasisStreamException, "out of order or repeated"):
+                        _run(structure, [(item_id, records)], allocation_rule=0)
 
 
 class TestTheOutput(TestCase):
