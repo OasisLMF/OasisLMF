@@ -518,18 +518,20 @@ def _plot_cpu_time(rows, out_dir, plt, ticker):
     """
     t0 = min(r["ts"] for r in rows)
 
-    # Collect all unique timestamps and sort them
-    all_ts = sorted(set(r["ts"] for r in rows))
-
     # Group rows by (tool, ts, pid) and keep max cpu_time per pid
     # Build: tool -> {pid -> best_cpu_time} updated over time
     tool_ts_map = defaultdict(list)  # tool -> [(t_rel, total_cpu_time)]
     tool_pid_hwm = defaultdict(dict)  # tool -> {pid -> max(user+sys)}
 
-    for ts in all_ts:
+    # Group rows by timestamp once up front; filtering the full row list per
+    # timestamp is O(T*N) and dominates report generation on long runs.
+    rows_by_ts = defaultdict(list)
+    for r in rows:
+        rows_by_ts[r["ts"]].append(r)
+
+    for ts in sorted(rows_by_ts):
         # Update high-water marks from rows at this timestamp
-        ts_rows = [r for r in rows if r["ts"] == ts]
-        for r in ts_rows:
+        for r in rows_by_ts[ts]:
             cpu_total = r["cpu_user"] + r["cpu_sys"]
             tool = r["tool"]
             pid = r["pid"]
