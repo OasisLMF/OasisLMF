@@ -1,9 +1,15 @@
+import shutil
 from pathlib import Path
 
 import numpy as np
-from oasislmf.pytools.common.data import (COVERAGE_BUILDINGS_FILE, coverage_buildings_dtype,
-                                          summary_stream_index_dtype)
+import pandas as pd
+
+from oasislmf.pytools.common.data import (COVERAGE_BUILDINGS_FILE, correlations_dtype, coverage_buildings_dtype,
+                                          oasis_float, summary_stream_index_dtype)
+from oasislmf.pytools.common.event_stream import bytes_to_stream_types
 from oasislmf.pytools.common.input_files import read_coverages
+
+TEST_MODEL_1 = Path(__file__).parents[1].joinpath("assets", "test_model_1")
 
 
 def make_idx_from_bin(bin_path: Path, idx_path: Path) -> None:
@@ -55,3 +61,56 @@ def set_coverage_buildings(input_dir, n_building, item_to_coverage=None):
 
     out.tofile(input_dir / f'{COVERAGE_BUILDINGS_FILE}.bin')
     return out['n_building']
+
+
+def copy_test_model(dst, src=TEST_MODEL_1):
+    """Copy a test model to ``dst`` without its cached gulmc/gulpy structures.
+
+    A cached structure is loaded in preference to the input files, so a fixture that edits the
+    inputs of a copy that kept one would run on the original inputs.
+    """
+    dst = Path(dst)
+    shutil.copytree(src, dst)
+    for cache in ('gulmc_structure', 'gulpy_structure'):
+        shutil.rmtree(dst / 'input' / cache, ignore_errors=True)
+    return dst
+
+
+def write_correlations(input_dir, item_ids, damage_correlation_value, peril_correlation_group=1,
+                       source_item_id=0):
+    """Write correlations.bin and .csv for ``item_ids``, every other field at its default.
+
+    The scalar arguments may also be arrays parallel to ``item_ids``.
+    """
+    corr = np.zeros(len(item_ids), dtype=correlations_dtype)
+    corr['item_id'] = item_ids
+    corr['peril_correlation_group'] = peril_correlation_group
+    corr['damage_correlation_value'] = damage_correlation_value
+    corr['hazard_group_id'] = 1
+    corr['source_item_id'] = source_item_id
+    corr.tofile(Path(input_dir) / 'correlations.bin')
+    pd.DataFrame({k: corr[k] for k in corr.dtype.names}).to_csv(Path(input_dir) / 'correlations.csv', index=False)
+
+
+def read_gul_stream(path):
+    """Read a gul loss stream into its aggregation type and a frame of its records, in order.
+
+    Returns ``(agg_type, sample_size, df)`` with ``df`` holding event_id, item_id, sidx and loss,
+    one row per record and no delimiters, and ``header``: which item header the record follows,
+    counted from 0, so that an item written in two pieces shows as two headers.
+    """
+    raw = Path(path).read_bytes()
+    _, agg_type = bytes_to_stream_types(raw[:4])
+    sample_size = int(np.frombuffer(raw[4:8], dtype='<i4')[0])
+    ints = np.frombuffer(raw[8:], dtype='<i4')
+    losses = np.frombuffer(raw[8:], dtype=oasis_float)
+    rows, pos, header = [], 0, 0
+    while pos < len(ints):
+        event_id, item_id = int(ints[pos]), int(ints[pos + 1])
+        pos += 2
+        while ints[pos] != 0:
+            rows.append((event_id, item_id, int(ints[pos]), float(losses[pos + 1]), header))
+            pos += 2
+        pos += 2
+        header += 1
+    return int(agg_type), sample_size, pd.DataFrame(rows, columns=['event_id', 'item_id', 'sidx', 'loss', 'header'])

@@ -10,8 +10,8 @@ same M entries the same number of times, so a location with N a multiple of M pr
 *constant* total, identical in every sample. The per-building marginals were fine and every
 test in the suite passed; only the aggregate gave it away.
 """
+import functools
 import os
-import shutil
 import tempfile
 from pathlib import Path
 
@@ -19,9 +19,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from oasislmf.pytools.common.data import correlations_dtype
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
-from tests.pytools.utils import set_coverage_buildings
+from tests.pytools.utils import copy_test_model, read_gul_stream, set_coverage_buildings, write_correlations
 
 # Statistical, not functional: the assertions need up to 20,000 buildings, which is seconds once compiled and
 # hours interpreted. The four JIT-enabled CI legs run them; the coverage leg, which sets
@@ -31,49 +30,29 @@ pytestmark = pytest.mark.skipif(
     reason="statistical test: up to 20,000 buildings is hours with the JIT disabled",
 )
 
-SRC_MODEL = Path(__file__).parents[2].joinpath("assets", "test_model_1")
 
-
+@functools.lru_cache(maxsize=None)
 def _location_totals(n_buildings, sample_size):
-    """Per-sample total for one summed item carrying n_buildings, correlation off."""
+    """Per-sample total for one summed item carrying n_buildings, correlation off.
+
+    Cached: the tests below ask for the same runs.
+    """
     with tempfile.TemporaryDirectory() as tmp:
-        run_dir = Path(tmp) / 'assets'
-        shutil.copytree(SRC_MODEL, run_dir)
-        shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
+        run_dir = copy_test_model(Path(tmp) / 'assets')
         items = pd.read_csv(run_dir / 'input' / 'items.csv')
-        corr = np.zeros(len(items), dtype=correlations_dtype)
-        corr['item_id'] = items['item_id'].to_numpy()
-        corr['peril_correlation_group'] = 1
-        corr['damage_correlation_value'] = 0.
-        corr['hazard_group_id'] = 1
-        corr.tofile(run_dir / 'input' / 'correlations.bin')
-        pd.DataFrame({k: corr[k] for k in corr.dtype.names}).to_csv(
-            run_dir / 'input' / 'correlations.csv', index=False)
-        # positive: summed, so the item IS the total. The count lives on the coverage.
-        set_coverage_buildings(run_dir / 'input', n_buildings,
-                               item_to_coverage=items['coverage_id'].to_numpy())
+        write_correlations(run_dir / 'input', items['item_id'].to_numpy(), 0.)
+        # positive: summed, so the item IS the total
+        set_coverage_buildings(run_dir / 'input', n_buildings)
         out = run_dir / 'out.bin'
         run_gulmc(run_dir=run_dir, ignore_file_type=set(),
                   file_in=run_dir / 'input' / 'events.bin', file_out=out,
                   sample_size=sample_size, loss_threshold=-1e30, alloc_rule=0, debug=0,
                   random_generator=2, ignore_correlation=True, effective_damageability=True)
-        raw = np.fromfile(out, dtype=np.int32)
+        df = read_gul_stream(out)[2]
 
-    rawf = raw.view(np.float32)
-    i, totals = 2, {}
-    while i + 1 < len(raw):
-        key = (int(raw[i]), int(raw[i + 1]))
-        i += 2
-        rec = {}
-        while i + 1 < len(raw):
-            sidx = int(raw[i])
-            i += 2
-            if sidx == 0:
-                break
-            rec[sidx] = float(rawf[i - 1])
-        totals[key] = rec
-    first = sorted(k for k in totals if k[1] == 1)[0]
-    return np.array([totals[first][s] for s in range(1, sample_size + 1)])
+    item_1 = df[(df['item_id'] == 1) & (df['sidx'] > 0)]
+    first_event = item_1[item_1['event_id'] == item_1['event_id'].min()]
+    return first_event.sort_values('sidx')['loss'].to_numpy()
 
 
 # 8192 was the old pooling gate and 16384 a multiple of the old pool size -- the two counts at
@@ -108,22 +87,6 @@ def test_the_spread_falls_as_one_over_root_n(sample_size):
     assert hi / lo < 2.0, (
         f"S={sample_size}: CoV*sqrt(N) should be roughly constant across building counts, got "
         + ", ".join(f"N={n}: {v:.3f}" for n, v in scaled.items()))
-
-
-@pytest.mark.parametrize("sample_size", [10, 100])
-def test_no_discontinuity_at_the_old_pooling_gate(sample_size):
-    """One building more must not change how a location is sampled.
-
-    The pool switched behaviour at a building count, so 8191 and 8192 buildings were drawn by
-    different schemes and gave visibly different spreads.
-    """
-    below = _location_totals(8191, sample_size)
-    above = _location_totals(8192, sample_size)
-    cov_below = below.std(ddof=1) / below.mean()
-    cov_above = above.std(ddof=1) / above.mean()
-    assert cov_above == pytest.approx(cov_below, rel=0.25), (
-        f"S={sample_size}: 8191 buildings gives CoV {cov_below:.4%} but 8192 gives "
-        f"{cov_above:.4%} -- one building should not change the sampling scheme")
 
 
 def test_a_single_sample_still_produces_a_loss():

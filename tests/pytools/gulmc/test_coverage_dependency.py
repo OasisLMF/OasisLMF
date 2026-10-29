@@ -6,7 +6,6 @@ vulnerability directly, so the dependent's damage is conditioned on how badly th
 damaged. Dependency is opt-in via model_settings and carried per item on the correlations
 file, so with nothing configured behaviour is identical to before.
 """
-import os
 import logging
 import shutil
 import tempfile
@@ -26,7 +25,7 @@ from oasislmf.pytools.gulmc.structure import build_coverage_dependency_forest
 from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.utils.data import prepare_oed_exposure
 from oasislmf.utils.exceptions import OasisException
-from tests.pytools.utils import set_coverage_buildings
+from tests.pytools.utils import read_gul_stream, set_coverage_buildings
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets")
 SRC_MODEL = TESTS_ASSETS_DIR.joinpath("test_model_1")
@@ -1156,50 +1155,42 @@ def test_each_building_is_driven_by_its_own_source_building():
             f"src={src[b][:8]} dep={dep[b][:8]}")
 
 
-def test_narrow_bin_stack_is_not_overrun_by_an_unrelated_packed_item():
-    """The bin stack is sized to the buildings carried inside the dependency forest, so an item
-    outside it must never write or read there.
+def test_a_dependency_is_unaffected_by_an_unrelated_location_of_many_buildings():
+    """The buildings inside a dependency forest draw what they draw whatever the rest of the
+    portfolio holds.
 
     A portfolio can hold one location with orders of magnitude more buildings than the rest (a
-    single aggregated row), and sizing the stack on that would cost gigabytes. The stack is
-    therefore narrow, which makes the gate that keeps unrelated items off it load-bearing. numba
-    does not bounds-check, so getting this wrong is a silent out-of-bounds write, not a crash --
-    NUMBA_BOUNDSCHECK is what makes it observable, and it must be set before numba is imported.
+    single aggregated row). The stack that carries a source's damage bins to its dependents is sized
+    to the buildings inside the forest, not to that location, so an item outside the forest must
+    never write there -- and numba does not bounds-check, so one that did would silently corrupt
+    the forest's losses rather than fail (NUMBA_BOUNDSCHECK, set in CI, makes it fail instead).
     """
-    import subprocess
-    import sys
-    with tempfile.TemporaryDirectory() as t:
-        run_dir = Path(t) / 'assets'
-        shutil.copytree(SRC_MODEL, run_dir)
-        shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
-        items = pd.read_csv(run_dir / 'input' / 'items.csv')
-        items.loc[items.coverage_id == 2, 'vulnerability_id'] = 101
-        items.to_csv(run_dir / 'input' / 'items.csv', index=False)
-        (run_dir / 'input' / 'items.bin').unlink()
-        n_damage_bins = len(pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv'))
-        with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
-            f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
-            for k in range(1, n_damage_bins + 1):
-                f.write(f'101,{k},{k},1.0\n')
+    def forest_losses(unrelated_buildings):
+        with tempfile.TemporaryDirectory() as t:
+            run_dir = Path(t) / 'assets'
+            shutil.copytree(SRC_MODEL, run_dir)
+            shutil.rmtree(run_dir / 'input' / 'gulmc_structure', ignore_errors=True)
+            items = pd.read_csv(run_dir / 'input' / 'items.csv')
+            items.loc[items.coverage_id == 2, 'vulnerability_id'] = 101
+            items.to_csv(run_dir / 'input' / 'items.csv', index=False)
+            (run_dir / 'input' / 'items.bin').unlink()
+            n_damage_bins = len(pd.read_csv(run_dir / 'static' / 'damage_bin_dict.csv'))
+            with open(run_dir / 'static' / 'conditional_vulnerability.csv', 'w') as f:
+                f.write('vulnerability_id,source_damage_bin,damage_bin,probability\n')
+                for k in range(1, n_damage_bins + 1):
+                    f.write(f'101,{k},{k},1.0\n')
 
-        _write_correlations(run_dir, {2: 1})
-        in_forest = items['coverage_id'].isin([1, 2])
-        assert in_forest.any() and not in_forest.all(), "need items both in and out of the forest"
-        # two buildings inside the forest, far more on an unrelated coverage
-        set_coverage_buildings(run_dir / 'input',
-                               np.where(in_forest.to_numpy(), -2, -64),
-                               item_to_coverage=items['coverage_id'].to_numpy())
+            _write_correlations(run_dir, {2: 1})
+            in_forest = items['coverage_id'].isin([1, 2])
+            assert in_forest.any() and not in_forest.all(), "need items both in and out of the forest"
+            set_coverage_buildings(run_dir / 'input', np.where(in_forest.to_numpy(), -2, unrelated_buildings),
+                                   item_to_coverage=items['coverage_id'].to_numpy())
+            out = run_dir / 'o.bin'
+            run_gulmc(run_dir=run_dir, ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin',
+                      file_out=out, sample_size=16, loss_threshold=0., alloc_rule=1, debug=0,
+                      random_generator=2, ignore_correlation=False, effective_damageability=False)
+            df = read_gul_stream(out)[2]
+            forest_items = items.loc[in_forest, 'item_id']
+            return df[df['item_id'].isin(forest_items)].drop(columns='header').reset_index(drop=True)
 
-        script = (
-            "from pathlib import Path;"
-            "from oasislmf.pytools.gulmc.manager import run as run_gulmc;"
-            f"d = Path(r'{run_dir}');"
-            "run_gulmc(run_dir=d, ignore_file_type=set(), file_in=d/'input'/'events.bin',"
-            " file_out=d/'o.bin', sample_size=16, loss_threshold=0., alloc_rule=1, debug=0,"
-            " random_generator=2, ignore_correlation=False, effective_damageability=False)"
-        )
-        proc = subprocess.run([sys.executable, "-c", script],
-                              env={**os.environ, "NUMBA_BOUNDSCHECK": "1"},
-                              capture_output=True, text=True)
-    assert proc.returncode == 0, (
-        "coverage dependency read or wrote out of bounds under NUMBA_BOUNDSCHECK=1:\n" + proc.stderr[-3000:])
+    pd.testing.assert_frame_equal(forest_losses(-64), forest_losses(-2))
