@@ -104,9 +104,9 @@ def test_group_fields_choose_how_the_buildings_of_items_correlate(damage, hazard
     assert gul.groupby('loc_id')['hazard_group_id'].nunique().tolist() == hazard_groups
 
 
-@pytest.mark.parametrize('disaggregation, warns', [(DISAGGREGATION_NONE, False), (DISAGGREGATION_SAMPLES, True)])
+@pytest.mark.parametrize('disaggregation, n_notices', [(DISAGGREGATION_NONE, 0), (DISAGGREGATION_SAMPLES, 1)])
 @pytest.mark.parametrize('field', ['building_id', 'risk_id'])
-def test_a_building_level_group_field_does_nothing_without_items(disaggregation, warns, field):
+def test_a_building_level_group_field_does_nothing_without_items(disaggregation, n_notices, field):
     """Only ``items`` gives a building a row of its own, so elsewhere the field changes no group.
 
     Under ``samples`` that is worth saying: the buildings already draw independently, and a model
@@ -120,8 +120,8 @@ def test_a_building_level_group_field_does_nothing_without_items(disaggregation,
 
     assert with_field['group_id'].nunique() == without['group_id'].nunique() == len(locations)
     notices = [str(w.message) for w in caught if 'no effect under --disaggregation samples' in str(w.message)]
-    assert len(notices) == warns
-    if warns:
+    assert len(notices) == n_notices
+    if n_notices:
         assert field in notices[0] and '--disaggregation items' in notices[0]
 
 

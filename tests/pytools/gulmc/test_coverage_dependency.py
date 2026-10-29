@@ -1162,8 +1162,11 @@ def test_a_dependency_is_unaffected_by_an_unrelated_location_of_many_buildings()
     A portfolio can hold one location with orders of magnitude more buildings than the rest (a
     single aggregated row). The stack that carries a source's damage bins to its dependents is sized
     to the buildings inside the forest, not to that location, so an item outside the forest must
-    never write there -- and numba does not bounds-check, so one that did would silently corrupt
-    the forest's losses rather than fail (NUMBA_BOUNDSCHECK, set in CI, makes it fail instead).
+    never write there.
+
+    It is NUMBA_BOUNDSCHECK, set in CI, that catches such a write: past the end of the stack it
+    lands in memory the forest does not read back, so without the checks the losses compared
+    here come out the same.
     """
     def forest_losses(unrelated_buildings):
         with tempfile.TemporaryDirectory() as t:

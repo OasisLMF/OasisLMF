@@ -8,11 +8,17 @@ agree on it through these values alone:
     special  : sidx = local_sidx - (building - 1) * NUM_SPECIAL_SIDX  local_sidx in [-5, -1]
 
 and a header that says the stream is packed. Which runs write a packed stream is tested end to
-end, in tests/pytools/gulmc/test_building_packing.py.
+end, in tests/pytools/gulmc/test_building_packing.py. The limit on how many buildings an item can
+keep separate is tested here: reaching it end to end takes billions of samples.
 """
+import numpy as np
+import pytest
+
 from oasislmf.pytools.common.event_stream import (ITEM_PACKED_STREAM, ITEM_STREAM, LOSS_STREAM_ID, MAX_LOSS_IDX,
-                                                  MEAN_IDX, decode_building, decode_local_sidx, encode_sidx,
+                                                  MEAN_IDX, check_packed_item_fits, decode_building, decode_local_sidx,
+                                                  encode_sidx, max_emitted_blocks, max_packed_buildings,
                                                   stream_info_to_bytes)
+from oasislmf.utils.exceptions import OasisException
 
 SPECIALS = range(-5, 0)
 
@@ -45,3 +51,23 @@ def test_the_header_of_a_packed_stream():
     """An unpacked header is byte for byte what it was before packing existed."""
     assert stream_info_to_bytes(LOSS_STREAM_ID, ITEM_STREAM).hex() == '01000002'
     assert stream_info_to_bytes(LOSS_STREAM_ID, ITEM_PACKED_STREAM).hex() == '03000002'
+
+
+def test_an_item_keeps_separate_as_many_buildings_as_an_int32_sidx_can_index():
+    """The ceiling is the wire's int32 sidx, whatever OASIS_INT says."""
+    S = 1000
+    n = max_packed_buildings(S)
+    assert n * S <= np.iinfo(np.int32).max < (n + 1) * S
+    check_packed_item_fits(n, S)
+    with pytest.raises(OasisException, match='overflow'):
+        check_packed_item_fits(n + 1, S)
+
+
+def test_a_summed_item_is_not_subject_to_the_ceiling():
+    """A summed item writes one ordinary block at sidx 1..S however many buildings it carries, so
+    only the items that keep their buildings separate count towards the ceiling."""
+    S = 1000
+    past_the_ceiling = max_packed_buildings(S) + 1
+    check_packed_item_fits(max_emitted_blocks(np.array([past_the_ceiling, -2])), S)
+    with pytest.raises(OasisException, match='overflow'):
+        check_packed_item_fits(max_emitted_blocks(np.array([-past_the_ceiling, 2])), S)

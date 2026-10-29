@@ -259,6 +259,7 @@ def test_separate_buildings_give_the_same_account_losses_packed_under_rules_0_an
 
 
 EVERY_COVERAGE = {'BuildingTIV': '5000000', 'OtherTIV': '300000', 'ContentsTIV': '500000', 'BITIV': '200000'}
+MIN_DEDUCTIBLE_TERMS = {'LocPeril': 'WTC', 'LocDed6All': '10000', 'LocDedType6All': '0', 'LocMinDed6All': '20000'}
 
 # One location with many more buildings than the structure has nodes, which is what makes the
 # arena's packed allowance the part that matters: an under-reserved one runs off the end of an
@@ -273,9 +274,13 @@ ONE_LOCATION = {
     # Under location terms the buildings stay apart up to the location level. Every coverage
     # gives a multi-peril structure, whose item nodes sit below the levels generation counts.
     'location_terms/deductible': (EVERY_COVERAGE, {'LocPeril': 'WTC', 'LocDed6All': '20000', 'LocDedType6All': '0'}, 50),
-    # a minimum deductible needs the extras arena, which has a budget of its own
-    'location_terms/min_deductible': (EVERY_COVERAGE, {'LocPeril': 'WTC', 'LocDed6All': '20000', 'LocDedType6All': '0',
-                                                       'LocMinDed6All': '10000'}, 50),
+    # A minimum deductible needs the extras arena, which has a budget of its own. The minimum is
+    # above the deductible, so it is what applies.
+    'location_terms/min_deductible': (EVERY_COVERAGE, MIN_DEDUCTIBLE_TERMS, 50),
+    # The extras budget is an upper bound whose slack grows with the building count -- 500 slots
+    # at 50 buildings, so a budget a building short per node still fits. At 2 it is 20 slots, less
+    # than the one sample row per node that being a building short takes away.
+    'location_terms/min_deductible_two_buildings': (EVERY_COVERAGE, MIN_DEDUCTIBLE_TERMS, 2),
 }
 
 

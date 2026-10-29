@@ -144,7 +144,7 @@ def test_a_summed_item_is_the_sum_of_its_buildings(tmp_path, alloc_rule):
     expected = separate[separate['local_sidx'] > 0].groupby(keys)['loss'].sum()
     got = summed[summed['local_sidx'] > 0].set_index(keys)['loss']
     assert summed['building'].eq(1).all(), "a summed item carried a packed sidx"
-    np.testing.assert_allclose(got.sort_index(), expected.loc[got.index].sort_index(), rtol=1e-5)
+    pd.testing.assert_series_equal(got.sort_index(), expected.sort_index(), check_dtype=False, rtol=1e-5)
 
 
 def test_the_loss_threshold_drops_samples_but_keeps_every_buildings_specials(tmp_path):

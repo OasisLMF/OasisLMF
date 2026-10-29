@@ -211,6 +211,13 @@ class TestGenLosses(ComputationChecker):
                     info = pd.read_csv(os.path.join(model_run_dir, 'output', f'gul_S{summary_set}_summary-info.csv'))
                     self.assertAlmostEqual(info['tiv'].sum(), location_tiv, places=2, msg=f'summary set {summary_set}')
 
+    # the engines that cannot read packed inputs, and what refusing them says
+    PACKING_REFUSALS = [
+        ({'gul_random_generator': 0}, 'random generator 0'),
+        ({'gul_random_generator': 1}, 'random generator 1'),
+        ({'model_custom_gulcalc': 'gulmc'}, 'custom_gulcalc_supports_packing'),
+    ]
+
     @patch('oasislmf.execution.runner.run')
     def test_losses__packed_inputs__refused_by_an_engine_that_cannot_read_them(self, mock_run_func):
         """'samples' inputs need random generator 2 and a ground-up engine that knows packed streams.
@@ -221,11 +228,6 @@ class TestGenLosses(ComputationChecker):
 
         Summed buildings (IsAggregate=0) are packed inputs too: the TIV is divided all the same.
         """
-        refused = [
-            ({'gul_random_generator': 0}, 'random generator 0'),
-            ({'gul_random_generator': 1}, 'random generator 1'),
-            ({'model_custom_gulcalc': 'gulmc'}, 'custom_gulcalc_supports_packing'),
-        ]
         allowed = [{}, {'model_custom_gulcalc': 'gulmc', 'custom_gulcalc_supports_packing': True}]
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
 
@@ -234,7 +236,7 @@ class TestGenLosses(ComputationChecker):
             with self.tmp_dir() as files_dir:
                 self.manager.generate_files(**{**self.args_gen_files_gul, 'oasis_files_dir': files_dir,
                                                'disaggregation': 'samples'})
-                for params, message in refused:
+                for params, message in self.PACKING_REFUSALS:
                     with self.subTest(IsAggregate=is_aggregate, **params), self.tmp_dir() as model_run_dir:
                         with self.assertRaises(OasisException) as caught:
                             self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
@@ -242,6 +244,25 @@ class TestGenLosses(ComputationChecker):
                         self.assertIn(message, str(caught.exception))
                 for params in allowed:
                     with self.subTest(IsAggregate=is_aggregate, **params), self.tmp_dir() as model_run_dir:
+                        mock_run_func.reset_mock()
+                        self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
+                                                        'model_run_dir': model_run_dir, **params})
+                        mock_run_func.assert_called_once()
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__unpacked_inputs__run_by_every_engine(self, mock_run_func):
+        """Only packed inputs are refused: a location of many buildings disaggregated into items,
+        or a location of one building, runs on any random generator and any gulcalc."""
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+
+        for n_buildings, disaggregation in ((3, 'items'), (1, 'samples')):
+            self._write_location_of_buildings(n_buildings=n_buildings, is_aggregate=1)
+            with self.tmp_dir() as files_dir:
+                self.manager.generate_files(**{**self.args_gen_files_gul, 'oasis_files_dir': files_dir,
+                                               'disaggregation': disaggregation})
+                for params, _ in self.PACKING_REFUSALS:
+                    with self.subTest(NumberOfBuildings=n_buildings, disaggregation=disaggregation, **params), \
+                            self.tmp_dir() as model_run_dir:
                         mock_run_func.reset_mock()
                         self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
                                                         'model_run_dir': model_run_dir, **params})

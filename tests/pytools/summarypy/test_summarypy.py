@@ -87,7 +87,10 @@ def test_a_packed_items_buildings_add_into_its_summary(tmp_path, sample_size):
     """A summary is per item, and a packed item stands for all its buildings, so every building's
     samples, mean, maximum and TIV go into the item's summary, and each building of an affected
     location counts as an affected risk, as it would as an item of its own. A mean-only run
-    (number_of_samples defaults to 0) still carries a set of specials per building."""
+    (number_of_samples defaults to 0) still carries a set of specials per building.
+
+    The summary map is written here; that generation puts ``number_of_buildings`` on it is tested
+    by the summary-info TIV test in tests/computation/test_generate_losses.py."""
     n_buildings = 3
     run_dir, gul = packed_gul_stream(tmp_path / 'model', n_building=-n_buildings, sample_size=sample_size)
     # a location per coverage, and a summary per parity of the location
@@ -112,9 +115,13 @@ def test_a_packed_items_buildings_add_into_its_summary(tmp_path, sample_size):
 
     assert set(got['sidx']) == {MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MEAN_IDX, *range(1, sample_size + 1)}
     summed = got[got['sidx'] != NUMBER_OF_AFFECTED_RISK_IDX].set_index(['event_id', 'summary_id', 'sidx'])['loss']
-    np.testing.assert_allclose(summed, expected.loc[summed.index], rtol=1e-5)
+    summed_sidx = expected.index.get_level_values('sidx').isin([MAX_LOSS_IDX, MEAN_IDX, *range(1, sample_size + 1)])
+    expected_summed = expected[summed_sidx & (expected != 0)]  # summarypy writes no zero loss
+    assert summed.index.sort_values().equals(expected_summed.index.sort_values())
+    np.testing.assert_allclose(summed, expected_summed.loc[summed.index], rtol=1e-5)
     risks = got[got['sidx'] == NUMBER_OF_AFFECTED_RISK_IDX].set_index(['event_id', 'summary_id'])['loss']
-    affected_locations = stream.groupby(['event_id', 'summary_id'])['loc_id'].nunique()
-    np.testing.assert_array_equal(risks, n_buildings * affected_locations.loc[risks.index])
+    affected_locations = stream[stream['loss'] != 0].groupby(['event_id', 'summary_id'])['loc_id'].nunique()
+    pd.testing.assert_series_equal(risks.sort_index(), (n_buildings * affected_locations).sort_index(),
+                                   check_names=False, check_dtype=False)
     exposure = got.groupby(['event_id', 'summary_id'])['exposure_value'].first()
     np.testing.assert_allclose(exposure, expected.xs(TIV_IDX, level='sidx').loc[exposure.index], rtol=1e-5)

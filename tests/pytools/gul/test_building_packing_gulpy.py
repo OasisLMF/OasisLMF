@@ -40,13 +40,19 @@ def _model(tmp_path, name, n_building=None):
 
 
 def test_building_1_of_a_packed_run_is_the_unpacked_run(tmp_path):
+    """Building 1 is the draw an unpacked run makes, record for record; building 2 draws its own."""
     unpacked = _losses(_model(tmp_path, 'unpacked'), '--random-generator=2')
     packed = _losses(_model(tmp_path, 'packed', -2), '--random-generator=2')
 
     keys = ['event_id', 'item_id', 'local_sidx', 'loss']
-    pd.testing.assert_frame_equal(packed.loc[packed['building'] == 1, keys].reset_index(drop=True),
-                                  unpacked[keys].reset_index(drop=True))
-    assert (packed['building'] == 2).sum() == len(unpacked), "building 2 is incomplete"
+    building_1 = packed[packed['building'] == 1]
+    pd.testing.assert_frame_equal(building_1[keys].reset_index(drop=True), unpacked[keys].reset_index(drop=True))
+
+    building_2 = packed[packed['building'] == 2]
+    assert len(building_2) == len(unpacked), "building 2 is incomplete"
+    samples = building_2[building_2['local_sidx'] > 0].merge(
+        building_1[building_1['local_sidx'] > 0], on=['event_id', 'item_id', 'local_sidx'], suffixes=('_2', '_1'))
+    assert (samples['loss_2'] != samples['loss_1']).any(), "building 2 repeats building 1's samples"
 
 
 @pytest.mark.parametrize('flags, sample_size, message', [
