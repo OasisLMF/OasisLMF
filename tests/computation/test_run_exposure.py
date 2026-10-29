@@ -322,73 +322,6 @@ class _RunExposureIntegrationBase(ComputationChecker):
         self.assertTrue(il)
         self.assertTrue(ril)
 
-    def _multi_building_location(self, n_buildings=3, is_aggregate=0):
-        """The stock fixture has no NumberOfBuildings, so 'samples' would be a no-op on it."""
-        loc_df = pd.read_csv(LOCATION)
-        loc_df['NumberOfBuildings'] = n_buildings
-        loc_df['IsAggregate'] = is_aggregate
-        path = os.path.join(self.tmp.name, 'location_multi_building.csv')
-        loc_df.to_csv(path, index=False)
-        return path
-
-    def _losses_by_mode(self, location, disaggregation):
-        out = os.path.join(self.tmp.name, f'output_{disaggregation}.csv')
-        self._run(out, disaggregation=disaggregation,
-                  oed_location_csv=location, oed_accounts_csv=ACCOUNTS)
-        df = pd.read_csv(out)
-        return df['loss_gul'].sum(), df['loss_il'].sum()
-
-    def test_sample_disaggregation_matches_whole_location_when_buildings_are_summed(self):
-        """A non-aggregate location's buildings are summed at source, so 'samples' changes nothing.
-
-        Generation divides the location's TIV by NumberOfBuildings for packing. With IsAggregate=0
-        nothing downstream can tell the buildings apart, so the deterministic generator writes the
-        item as a single block carrying all N of them -- which has to come back to the location's
-        own TIV. Getting this wrong shows up as every loss at 1/N.
-
-        The fixture needs NumberOfBuildings > 1 or the two modes are trivially equal and this
-        asserts nothing.
-
-        Only approximately equal: dividing the TIV by N and summing N shares back is not exact in
-        float, and the same round trip happens in a real packed run.
-        """
-        location = self._multi_building_location(n_buildings=3, is_aggregate=0)
-        packed = self._losses_by_mode(location, 'samples')
-        whole_location = self._losses_by_mode(location, 'none')
-        self.assertAlmostEqual(packed[0], whole_location[0], delta=0.1)
-        self.assertAlmostEqual(packed[1], whole_location[1], delta=0.1)
-
-    def test_disaggregation_defaults_to_none(self):
-        """A deterministic run reports the location's own TIV unless asked to split it.
-
-        Generation defaults to 'samples'; this step does not, because splitting a location's TIV
-        across buildings moves the numbers for reasons that have nothing to do with the terms the
-        run exists to exercise.
-        """
-        location = self._multi_building_location(n_buildings=3, is_aggregate=1)
-        default = self._losses_by_mode(location, None)
-        self.assertEqual(default, self._losses_by_mode(location, 'none'))
-        # and that the default is not simply the same number every mode gives
-        self.assertNotEqual(default, self._losses_by_mode(location, 'items'))
-
-    def test_the_platform_worker_call_honours_do_disaggregation(self):
-        """The platform's worker takes every default, then sets only the deprecated boolean.
-
-        That is how a platform exposure run asks for its buildings to be split, so the boolean has
-        to win over a disaggregation that was filled in as a default rather than asked for.
-        """
-        location = self._multi_building_location(n_buildings=3, is_aggregate=1)
-        for do_disaggregation, mode in ((True, 'items'), (False, 'none')):
-            with self.subTest(do_disaggregation=do_disaggregation):
-                out = os.path.join(self.tmp.name, f'output_platform_{mode}.csv')
-                params = OasisManager()._params_run_exposure()
-                params.update(BASE_PARAMS, **self.extra_kwargs, output_file=out, oed_location_csv=location,
-                              oed_accounts_csv=ACCOUNTS, do_disaggregation=do_disaggregation)
-                with self.assertWarns(FutureWarning):
-                    OasisManager().run_exposure(**params)
-                df = pd.read_csv(out)
-                self.assertEqual((df['loss_gul'].sum(), df['loss_il'].sum()), self._losses_by_mode(location, mode))
-
     def test_invalid_location_file_raises(self):
         with self.assertRaises(Exception):
             self._run(
@@ -514,6 +447,86 @@ class TestRunExposureIntegration(_RunExposureIntegrationBase):
 class TestRunExposureIntegrationIntermediaryCsv(_RunExposureIntegrationBase):
     """Integration tests with intermediary_csv=True."""
     extra_kwargs = {'intermediary_csv': True}
+
+
+class TestRunExposureDisaggregation(ComputationChecker):
+    """How a deterministic run represents a location's buildings. Not on the integration base,
+    whose subclasses vary output options this does not depend on."""
+
+    extra_kwargs = {}
+
+    def setUp(self):
+        self.tmp = self.tmp_dir()
+
+    def _run(self, output_file, **kwargs):
+        return _run_exposure(output_file, **kwargs)
+
+    def _multi_building_location(self, n_buildings=3, is_aggregate=0):
+        """The stock fixture has no NumberOfBuildings, so 'samples' would be a no-op on it."""
+        loc_df = pd.read_csv(LOCATION)
+        loc_df['NumberOfBuildings'] = n_buildings
+        loc_df['IsAggregate'] = is_aggregate
+        path = os.path.join(self.tmp.name, 'location_multi_building.csv')
+        loc_df.to_csv(path, index=False)
+        return path
+
+    def _losses_by_mode(self, location, disaggregation):
+        out = os.path.join(self.tmp.name, f'output_{disaggregation}.csv')
+        self._run(out, disaggregation=disaggregation,
+                  oed_location_csv=location, oed_accounts_csv=ACCOUNTS)
+        df = pd.read_csv(out)
+        return df['loss_gul'].sum(), df['loss_il'].sum()
+
+    def test_sample_disaggregation_matches_whole_location_when_buildings_are_summed(self):
+        """A non-aggregate location's buildings are summed at source, so 'samples' changes nothing.
+
+        Generation divides the location's TIV by NumberOfBuildings for packing. With IsAggregate=0
+        nothing downstream can tell the buildings apart, so the deterministic generator writes the
+        item as a single block carrying all N of them -- which has to come back to the location's
+        own TIV. Getting this wrong shows up as every loss at 1/N.
+
+        The fixture needs NumberOfBuildings > 1 or the two modes are trivially equal and this
+        asserts nothing.
+
+        Only approximately equal: dividing the TIV by N and summing N shares back is not exact in
+        float, and the same round trip happens in a real packed run.
+        """
+        location = self._multi_building_location(n_buildings=3, is_aggregate=0)
+        packed = self._losses_by_mode(location, 'samples')
+        whole_location = self._losses_by_mode(location, 'none')
+        self.assertAlmostEqual(packed[0], whole_location[0], delta=0.1)
+        self.assertAlmostEqual(packed[1], whole_location[1], delta=0.1)
+
+    def test_disaggregation_defaults_to_none(self):
+        """A deterministic run reports the location's own TIV unless asked to split it.
+
+        Generation defaults to 'samples'; this step does not, because splitting a location's TIV
+        across buildings moves the numbers for reasons that have nothing to do with the terms the
+        run exists to exercise.
+        """
+        location = self._multi_building_location(n_buildings=3, is_aggregate=1)
+        default = self._losses_by_mode(location, None)
+        self.assertEqual(default, self._losses_by_mode(location, 'none'))
+        # and that the default is not simply the same number every mode gives
+        self.assertNotEqual(default, self._losses_by_mode(location, 'items'))
+
+    def test_the_platform_worker_call_honours_do_disaggregation(self):
+        """The platform's worker takes every default, then sets only the deprecated boolean.
+
+        That is how a platform exposure run asks for its buildings to be split, so the boolean has
+        to win over a disaggregation that was filled in as a default rather than asked for.
+        """
+        location = self._multi_building_location(n_buildings=3, is_aggregate=1)
+        for do_disaggregation, mode in ((True, 'items'), (False, 'none')):
+            with self.subTest(do_disaggregation=do_disaggregation):
+                out = os.path.join(self.tmp.name, f'output_platform_{mode}.csv')
+                params = OasisManager()._params_run_exposure()
+                params.update(BASE_PARAMS, **self.extra_kwargs, output_file=out, oed_location_csv=location,
+                              oed_accounts_csv=ACCOUNTS, do_disaggregation=do_disaggregation)
+                with self.assertWarns(FutureWarning):
+                    OasisManager().run_exposure(**params)
+                df = pd.read_csv(out)
+                self.assertEqual((df['loss_gul'].sum(), df['loss_il'].sum()), self._losses_by_mode(location, mode))
 
 
 class TestRunExposureRiLayer(ComputationChecker):

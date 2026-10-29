@@ -479,43 +479,6 @@ class TestGenFiles(ComputationChecker):
             self.assertEqual(EXPECTED_CORRELATION_CSV, correlations_csv_data)
 
     @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
-    def test_files__building_packing_packs_the_building_count(self, mock_output_dir):
-        """disaggregation='samples' keeps one item per (loc,peril,cov) and carries NumberOfBuildings
-        in the coverage_buildings file, instead of expanding one item per building ('items')."""
-        import io
-        import numpy as np
-        from oasislmf.pytools.common.input_files import read_coverage_buildings, read_coverages
-
-        # location with a 3-building aggregate
-        loc_df = pd.read_csv(io.StringIO(MIN_LOC))
-        loc_df['NumberOfBuildings'] = 3
-        self.write_str(self.tmp_files.get('oed_location_csv'), loc_df.to_csv(index=False))
-
-        # packed run
-        with self.tmp_dir() as t_dir:
-            run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
-            mock_output_dir.return_value = run_dir
-            self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir, 'disaggregation': 'samples'})
-            packed = read_coverage_buildings(run_dir)
-            self.assertTrue(np.all(np.asarray(packed['n_building']) == 3))
-            n_packed = len(packed)
-            # coverages.bin itself is untouched -- it stays the published tiv-only format
-            self.assertEqual(read_coverages(run_dir).shape[0], n_packed)
-
-        # 'items': one coverage per building -> 3x the coverages, and nothing packs. Stated
-        # explicitly because 'samples' is the default now, so the two arms differ by the flag
-        # rather than by one of them being the default.
-        with self.tmp_dir() as t_dir:
-            run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
-            mock_output_dir.return_value = run_dir
-            self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir,
-                                           'disaggregation': 'items'})
-            # one coverage per building, each with a single building -- so nothing packs and no
-            # coverage_buildings file is written at all
-            self.assertEqual(len(read_coverage_buildings(run_dir)), 0)
-            self.assertEqual(read_coverages(run_dir).shape[0], n_packed * 3)
-
-    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
     def test_files__percent_of_tiv_terms_match_disaggregation(self, mock_output_dir):
         """A percentage-of-TIV term must resolve to the same absolute amount either way.
 

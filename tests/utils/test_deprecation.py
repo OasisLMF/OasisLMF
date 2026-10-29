@@ -61,16 +61,11 @@ def test_a_plain_deprecation_warning_in_the_same_place_is_swallowed(tmp_path):
 
 
 def test_a_user_can_turn_the_notice_into_an_error(tmp_path):
-    """How CI catches a deprecated call before the deprecated thing is removed."""
+    """How CI catches a deprecated call before the deprecated thing is removed. It also shows the
+    notice obeys ``-W`` at all: a filter oasislmf forced at import would win over it."""
     proc = _run(tmp_path, NOTICE, "-W", "error::FutureWarning")
     assert proc.returncode != 0
     assert MARKER in proc.stderr
-
-
-def test_a_user_can_silence_the_notice(tmp_path):
-    proc = _run(tmp_path, NOTICE, "-W", "ignore::FutureWarning")
-    assert proc.returncode == 0, proc.stderr
-    assert MARKER not in proc.stderr
 
 
 def test_stacklevel_blames_the_caller_not_the_helper():

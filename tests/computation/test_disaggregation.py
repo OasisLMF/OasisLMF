@@ -14,11 +14,14 @@ from oasislmf.utils.exceptions import OasisException
 
 class TestResolveDisaggregation(TestCase):
 
-    def test_each_mode_passes_through_unchanged(self):
+    def test_each_mode_passes_through_unchanged_and_without_a_notice(self):
         """One string is threaded all the way through generation -- no re-encoding."""
         for mode in DISAGGREGATION_MODES:
             with self.subTest(mode=mode):
-                self.assertEqual(resolve_disaggregation(mode, None), mode)
+                with warnings.catch_warnings(record=True) as raised:
+                    warnings.simplefilter("always")
+                    self.assertEqual(resolve_disaggregation(mode, None), mode)
+                self.assertEqual(raised, [])
 
     def test_nothing_given_is_samples(self):
         """'samples' is the default, and the API agrees with the command line.
@@ -39,12 +42,6 @@ class TestResolveDisaggregation(TestCase):
         with self.assertWarns(FutureWarning) as caught:
             self.assertEqual(resolve_disaggregation('samples', True), 'samples')
         self.assertIn('ignored', str(caught.warning))
-
-    def test_the_new_parameter_alone_is_not_deprecated(self):
-        with warnings.catch_warnings(record=True) as raised:
-            warnings.simplefilter("always")
-            resolve_disaggregation('samples', None)
-        self.assertEqual(raised, [])
 
     def test_an_unknown_mode_is_rejected(self):
         with self.assertRaises(OasisException) as caught:

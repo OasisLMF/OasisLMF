@@ -1,4 +1,5 @@
 
+import io
 import pathlib
 import os
 import logging
@@ -6,6 +7,7 @@ import shutil
 
 from unittest.mock import patch, Mock
 
+import pandas as pd
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -176,6 +178,74 @@ class TestGenLosses(ComputationChecker):
         summary_info_csv = self.read_file(summary_info_fpath)
 
         assert summary_info_csv == EXPECTED_SUMMARY_INFO_CSV
+
+    def _write_location_of_buildings(self, n_buildings, is_aggregate):
+        loc_df = pd.read_csv(io.StringIO(MIN_LOC))
+        loc_df['NumberOfBuildings'] = n_buildings
+        loc_df['IsAggregate'] = is_aggregate
+        self.write_str(self.tmp_oasis_files.get('oed_location_csv'), loc_df.to_csv(index=False))
+        return float(loc_df['BuildingTIV'].sum())
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__summary_info__tiv_does_not_depend_on_disaggregation(self, mock_run_func):
+        """The summary-info files report the location's TIV however its buildings are represented.
+
+        Under 'samples' one item stands for all the buildings at one building's TIV, so the count
+        has to be carried to wherever the TIV is summed. Both summary paths are covered: a set
+        with no fields ('All-Risks') and a set grouped by an OED field.
+        """
+        location_tiv = self._write_location_of_buildings(n_buildings=3, is_aggregate=1)
+        settings = {**MIN_RUN_SETTINGS, 'gul_summaries': [
+            {**MIN_RUN_SETTINGS['gul_summaries'][0], 'id': 1},
+            {**MIN_RUN_SETTINGS['gul_summaries'][0], 'id': 2, 'oed_fields': ['LocNumber']}]}
+        self.write_json(self.tmp_files.get('analysis_settings_json'), settings)
+
+        for disaggregation in ('none', 'items', 'samples'):
+            with self.subTest(disaggregation=disaggregation), \
+                    self.tmp_dir() as files_dir, self.tmp_dir() as model_run_dir:
+                self.manager.generate_files(**{**self.args_gen_files_gul, 'oasis_files_dir': files_dir,
+                                               'disaggregation': disaggregation})
+                self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
+                                                'model_run_dir': model_run_dir})
+                for summary_set in (1, 2):
+                    info = pd.read_csv(os.path.join(model_run_dir, 'output', f'gul_S{summary_set}_summary-info.csv'))
+                    self.assertAlmostEqual(info['tiv'].sum(), location_tiv, places=2, msg=f'summary set {summary_set}')
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__packed_inputs__refused_by_an_engine_that_cannot_read_them(self, mock_run_func):
+        """'samples' inputs need random generator 2 and a ground-up engine that knows packed streams.
+
+        Generation cannot always tell: the custom gulcalc may only be known at the loss step, and
+        the random generator is a loss-step parameter. Either failure would otherwise be silent
+        or mid-run -- a gulcalc reading the per-building TIV understates every loss by the count.
+
+        Summed buildings (IsAggregate=0) are packed inputs too: the TIV is divided all the same.
+        """
+        refused = [
+            ({'gul_random_generator': 0}, 'random generator 0'),
+            ({'gul_random_generator': 1}, 'random generator 1'),
+            ({'model_custom_gulcalc': 'gulmc'}, 'custom_gulcalc_supports_packing'),
+        ]
+        allowed = [{}, {'model_custom_gulcalc': 'gulmc', 'custom_gulcalc_supports_packing': True}]
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+
+        for is_aggregate in (0, 1):
+            self._write_location_of_buildings(n_buildings=3, is_aggregate=is_aggregate)
+            with self.tmp_dir() as files_dir:
+                self.manager.generate_files(**{**self.args_gen_files_gul, 'oasis_files_dir': files_dir,
+                                               'disaggregation': 'samples'})
+                for params, message in refused:
+                    with self.subTest(IsAggregate=is_aggregate, **params), self.tmp_dir() as model_run_dir:
+                        with self.assertRaises(OasisException) as caught:
+                            self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
+                                                            'model_run_dir': model_run_dir, **params})
+                        self.assertIn(message, str(caught.exception))
+                for params in allowed:
+                    with self.subTest(IsAggregate=is_aggregate, **params), self.tmp_dir() as model_run_dir:
+                        mock_run_func.reset_mock()
+                        self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
+                                                        'model_run_dir': model_run_dir, **params})
+                        mock_run_func.assert_called_once()
 
     def test_losses__run_il(self):
         self.manager.generate_files(**self.args_gen_files_il)
