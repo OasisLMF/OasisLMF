@@ -1,6 +1,20 @@
 import numpy as np
 import pandas as pd
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, resolve_file
+from oasislmf.utils.exceptions import OasisException
+
+
+def _raise_clear_csv_error(e, csv_dtype):
+    """Re-raise a pandas 'Usecols do not match' ValueError naming the expected columns, or
+    re-raise the original exception unchanged. Must be called from within the `except ValueError
+    as e:` block that caught e, so the bare `raise` below re-raises the right exception.
+    """
+    if "Usecols do not match" in str(e):
+        raise OasisException(
+            f"Error: CSV header does not match the expected columns {list(csv_dtype.keys())} "
+            f"(check header name case/whitespace): {e}"
+        ) from e
+    raise
 
 
 def df_to_ndarray(df, dtype):
@@ -35,6 +49,8 @@ def iter_csv_as_ndarray(stack, file_in, dtype, chunksize=DEFAULT_BUFFER_SIZE):
             yield df_to_ndarray(df_chunk, dtype)
     except pd.errors.EmptyDataError:
         return
+    except ValueError as e:
+        _raise_clear_csv_error(e, csv_dtype)
 
 
 def read_csv_as_ndarray(stack, file_in, headers, dtype):
@@ -45,5 +61,7 @@ def read_csv_as_ndarray(stack, file_in, headers, dtype):
         df = pd.read_csv(file_in, delimiter=',', dtype=csv_dtype, usecols=list(csv_dtype.keys()))
     except pd.errors.EmptyDataError:
         return np.empty(0, dtype=dtype)
+    except ValueError as e:
+        _raise_clear_csv_error(e, csv_dtype)
 
     return df_to_ndarray(df, dtype)

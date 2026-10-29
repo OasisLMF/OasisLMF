@@ -307,6 +307,384 @@ class TestGetVulns(TestCase):
             idx_with_adj = np.where(vulns_id_idx_adj == vuln_id)[0][0]
             self.assertTrue(np.array_equal(vuln_array_idx[idx_no_adj], vuln_array_idx_adj[idx_with_adj]))
 
+    def test_get_vulns_zipped(self):
+        # zipped bin + idx, read under the ktools names (.z) and under the uncompressed names
+        zip_dir = os.path.join(self.temp_dir, 'zipped')
+        os.makedirs(zip_dir)
+        csvtobin(
+            file_in=os.path.join(self.temp_dir, 'vulnerability.csv'),
+            file_out=os.path.join(zip_dir, 'vulnerability.bin.z'),
+            idx_file_out=os.path.join(zip_dir, 'vulnerability.idx.z'),
+            file_type='vulnerability',
+            max_damage_bin_idx=3,
+            no_validation=False,
+            suppress_int_bin_checks=False,
+            zip_files=True
+        )
+        settings_patch = {'vulnerability_adjustments': {'replace_file': str(os.path.join(self.static_path, "vulnerability_adj.csv"))}}
+        for bin_name, idx_name in [('vulnerability.bin.z', 'vulnerability.idx.z'), ('vulnerability.bin', 'vulnerability.idx')]:
+            run_dir = os.path.join(self.temp_dir, f'run_{bin_name}')
+            os.makedirs(run_dir)
+            shutil.copy(os.path.join(zip_dir, 'vulnerability.bin.z'), os.path.join(run_dir, bin_name))
+            shutil.copy(os.path.join(zip_dir, 'vulnerability.idx.z'), os.path.join(run_dir, idx_name))
+            model_storage = LocalStorage(root_dir=run_dir, cache_dir=None)
+
+            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, run_dir, self.vuln_map, self.vuln_map_keys,
+                                                              self.num_intensity_bins)
+            self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+            for vuln_id in vulns_id:
+                actual_index = np.where(vulns_id == vuln_id)[0][0]
+                self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array'][self.vuln_dict_base[vuln_id]]))
+
+            with mock.patch('os.path.exists', return_value=True), \
+                    mock.patch('oasislmf.pytools.getmodel.manager.analysis_settings_loader', return_value=settings_patch), \
+                    mock.patch('oasislmf.utils.data.analysis_settings_loader', return_value=settings_patch):
+                vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, run_dir, self.vuln_map, self.vuln_map_keys,
+                                                                  self.num_intensity_bins)
+            for vuln_id in vulns_id:
+                actual_index = np.where(vulns_id == vuln_id)[0][0]
+                self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array_adj'][self.vuln_dict_base[vuln_id]]))
+
+    def test_get_vulns_parquet_handles_many_vulnerability_ids(self):
+        # get_vulns built one OR'd pyarrow filter clause per vulnerability_id, which segfaults
+        # pyarrow past ~9000 distinct ids. A single "in" filter avoids it.
+        n_vulns, n_int, n_dmg = 9500, 2, 2
+        rows = ["vulnerability_id,intensity_bin_id,damage_bin_id,probability"]
+        for v in range(1, n_vulns + 1):
+            rows += [f"{v},1,1,0.6", f"{v},1,2,0.4", f"{v},2,1,0.3", f"{v},2,2,0.7"]
+        run_dir = os.path.join(self.temp_dir, 'parquet_many_ids')
+        os.makedirs(run_dir)
+        csv_path = os.path.join(run_dir, 'vulnerability.csv')
+        with open(csv_path, 'w') as f:
+            f.write("\n".join(rows) + "\n")
+        csvtobin(
+            file_in=csv_path,
+            file_out=os.path.join(run_dir, 'vulnerability.bin'),
+            file_type='vulnerability',
+            idx_file_out=None,
+            max_damage_bin_idx=n_dmg,
+            no_validation=False,
+            suppress_int_bin_checks=False,
+            zip_files=False,
+        )
+        vulnerability_to_parquet(run_dir)
+
+        vuln_ids_sorted = np.arange(1, n_vulns + 1, dtype=np.int32)
+        vuln_key_table = np.empty(len(vuln_ids_sorted), dtype=np.int32)
+        vuln_table = hm_init_dict(len(vuln_ids_sorted))
+        hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
+        n_unique = hm_index_dtype(0)
+        for vid in vuln_ids_sorted:
+            vuln_key_table[n_unique] = vid
+            result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vid, n_unique)
+            while result == hm_i_add_key_fail:
+                vuln_table = hm_rehash(vuln_table, vuln_key_table)
+                hm_info, hm_lookup, hm_index = hm_unpack(vuln_table)
+                result = hm_try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vid, n_unique)
+            if result & hm_new_slot_bit:
+                n_unique += hm_index_dtype(1)
+        vuln_map = vuln_table
+        vuln_map_keys = vuln_key_table[:n_unique]
+
+        model_storage = LocalStorage(root_dir=run_dir, cache_dir=None)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(
+            model_storage, run_dir, vuln_map, vuln_map_keys, num_intensity_bins=n_int,
+            ignore_file_type={'bin', 'csv'},
+        )
+
+        self.assertEqual(vuln_array.shape, (n_vulns, n_dmg, n_int))
+        self.assertEqual(len(vulns_id), n_vulns)
+        for vuln_id in (1, n_vulns // 2, n_vulns):
+            actual_index = np.where(vulns_id == vuln_id)[0][0]
+            np.testing.assert_allclose(vuln_array[actual_index], [[0.6, 0.3], [0.4, 0.7]], atol=1e-6)
+
+    def test_get_vulns_parquet_matches_bin_path_dimensions(self):
+        # vulnerability_to_parquet derived its bin counts from the max id in the data, not the
+        # header (damage bins) or footprint (intensity bins), either of which a vulnerability
+        # function can legitimately fall short of. Data here only uses ids 1-2 for both; the
+        # header declares max_damage_bin_idx=3 and the (simulated) footprint num_intensity_bins=3.
+        csv = (
+            "vulnerability_id,intensity_bin_id,damage_bin_id,probability\n"
+            "1,1,1,0.6\n1,1,2,0.4\n1,2,1,0.3\n1,2,2,0.7\n"
+            "2,1,1,0.5\n2,1,2,0.5\n2,2,1,0.2\n2,2,2,0.8\n"
+            "3,1,1,0.9\n3,1,2,0.1\n3,2,1,0.1\n3,2,2,0.9\n"
+        )
+        run_dir = os.path.join(self.temp_dir, 'parquet_dims')
+        os.makedirs(run_dir)
+        csv_path = os.path.join(run_dir, 'vulnerability.csv')
+        with open(csv_path, 'w') as f:
+            f.write(csv)
+        csvtobin(
+            file_in=csv_path,
+            file_out=os.path.join(run_dir, 'vulnerability.bin'),
+            file_type='vulnerability',
+            idx_file_out=None,
+            max_damage_bin_idx=3,  # header declares 3; data only reaches damage_bin_id 2
+            no_validation=False,
+            suppress_int_bin_checks=False,
+            zip_files=False,
+        )
+        vulnerability_to_parquet(run_dir)
+
+        # num_intensity_bins=3 simulates a footprint with more intensity bins than any
+        # vulnerability function in this file actually populates (which only reaches 2)
+        model_storage = LocalStorage(root_dir=run_dir, cache_dir=None)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(
+            model_storage, run_dir, self.vuln_map, self.vuln_map_keys, num_intensity_bins=3,
+            ignore_file_type={'bin', 'csv'},
+        )
+
+        # num_damage_bins must match the header (what the bin path would also report), not the
+        # max damage_bin_id (2) actually present in the data
+        self.assertEqual(num_damage_bins, 3)
+        self.assertEqual(vuln_array.shape, (3, 3, 3))
+        expected = {
+            1: [[0.6, 0.3, 0.0], [0.4, 0.7, 0.0], [0.0, 0.0, 0.0]],
+            2: [[0.5, 0.2, 0.0], [0.5, 0.8, 0.0], [0.0, 0.0, 0.0]],
+            3: [[0.9, 0.1, 0.0], [0.1, 0.9, 0.0], [0.0, 0.0, 0.0]],
+        }
+        for vuln_id in vulns_id:
+            actual_index = np.where(vulns_id == vuln_id)[0][0]
+            np.testing.assert_allclose(vuln_array[actual_index], expected[int(vuln_id)], atol=1e-6)
+
+    def test_get_vulns_parquet_truncates_when_data_has_more_intensity_bins_than_footprint(self):
+        # the reverse of test_get_vulns_parquet_matches_bin_path_dimensions: the parquet file's
+        # own num_intensity_bins (derived from the data) is larger than this run's footprint-
+        # declared count. load_vulns_bin (the bin path) has no safe handling for this at all --
+        # its njit write is unchecked -- so the parquet path truncating instead of crashing is
+        # strictly safer, not required to match the bin path's (undefined) behaviour.
+        csv = (
+            "vulnerability_id,intensity_bin_id,damage_bin_id,probability\n"
+            "1,1,1,1.0\n1,2,1,1.0\n1,3,1,1.0\n"
+            "2,1,1,1.0\n2,2,1,1.0\n2,3,1,1.0\n"
+            "3,1,1,1.0\n3,2,1,1.0\n3,3,1,1.0\n"
+        )
+        run_dir = os.path.join(self.temp_dir, 'parquet_dims_reverse')
+        os.makedirs(run_dir)
+        csv_path = os.path.join(run_dir, 'vulnerability.csv')
+        with open(csv_path, 'w') as f:
+            f.write(csv)
+        csvtobin(
+            file_in=csv_path,
+            file_out=os.path.join(run_dir, 'vulnerability.bin'),
+            file_type='vulnerability',
+            idx_file_out=None,
+            max_damage_bin_idx=1,
+            no_validation=False,
+            suppress_int_bin_checks=False,
+            zip_files=False,
+        )
+        vulnerability_to_parquet(run_dir)  # meta num_intensity_bins = 3 (max in the data)
+
+        # num_intensity_bins=2 simulates a footprint declaring fewer intensity bins than the
+        # vulnerability data actually populates
+        model_storage = LocalStorage(root_dir=run_dir, cache_dir=None)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(
+            model_storage, run_dir, self.vuln_map, self.vuln_map_keys, num_intensity_bins=2,
+            ignore_file_type={'bin', 'csv'},
+        )
+
+        self.assertEqual(vuln_array.shape, (3, 1, 2))
+        for vuln_id in vulns_id:
+            actual_index = np.where(vulns_id == vuln_id)[0][0]
+            np.testing.assert_allclose(vuln_array[actual_index], [[1.0, 1.0]], atol=1e-6)
+
+    def test_get_vulns_rejects_bin_id_below_one(self):
+        # bin ids are 1-based; a 0 written without validation must not wrap to the last bin on load
+        bad_data = self.mock_vuln_data.copy()
+        bad_data['damage_bin_id'][0] = 0
+        csv_dir = os.path.join(self.temp_dir, 'bad_csv')
+        os.makedirs(csv_dir)
+        pd.DataFrame(bad_data).to_csv(os.path.join(csv_dir, 'vulnerability.csv'), index=False)
+        for idx_file in (None, 'vulnerability.idx'):
+            run_dir = os.path.join(self.temp_dir, f'bad_{idx_file}')
+            os.makedirs(run_dir)
+            csvtobin(
+                file_in=os.path.join(csv_dir, 'vulnerability.csv'),
+                file_out=os.path.join(run_dir, 'vulnerability.bin'),
+                idx_file_out=os.path.join(run_dir, idx_file) if idx_file else None,
+                file_type='vulnerability',
+                max_damage_bin_idx=3,
+                no_validation=True,
+                suppress_int_bin_checks=True,
+                zip_files=False
+            )
+            with self.assertRaisesRegex(Exception, "lower than 1"):
+                get_vulns(LocalStorage(root_dir=run_dir, cache_dir=None), run_dir, self.vuln_map, self.vuln_map_keys,
+                          self.num_intensity_bins)
+        with self.assertRaisesRegex(Exception, "lower than 1"):
+            get_vulns(LocalStorage(root_dir=csv_dir, cache_dir=None), csv_dir, self.vuln_map, self.vuln_map_keys,
+                      self.num_intensity_bins)
+        with self.assertRaisesRegex(Exception, "lower than 1"):
+            vulnerability_to_parquet(os.path.join(self.temp_dir, 'bad_None'))
+
+    def test_vulnerability_to_parquet_rejects_damage_bin_id_above_header_max(self):
+        """num_damage_bins is now read from the header (not the data's own max), so a row
+        exceeding it is no longer structurally impossible. get_array's upper-bound check must
+        catch it -- otherwise the out-of-bounds write lands in the *next* vulnerability_id's
+        slice, silently corrupting it (confirmed: without the check, vulnerability_id 2 here
+        comes out as [1.0, 0.5] instead of [1.0, 0.0]). csvtobin itself already rejects writing
+        such a file (both the idx and no-idx paths check this unconditionally), so the bin file
+        is hand-crafted here to represent an externally-generated or pre-existing file instead.
+        """
+        bad_data = np.array([
+            (1, 1, 1, 0.5),
+            (1, 1, 4, 0.5),  # damage_bin_id=4 exceeds the header's max_damage_bin_idx=2 below
+            (2, 1, 1, 1.0),
+        ], dtype=self.mock_vuln_data.dtype)
+        run_dir = os.path.join(self.temp_dir, 'bad_upper')
+        os.makedirs(run_dir)
+        with open(os.path.join(run_dir, 'vulnerability.bin'), 'wb') as f:
+            f.write(np.array([2], dtype='i4').tobytes())  # header: max_damage_bin_idx=2
+            f.write(bad_data.tobytes())
+        with self.assertRaisesRegex(Exception, "bigger that expected maximum"):
+            vulnerability_to_parquet(run_dir)
+
+    def test_vulnerability_to_parquet_reads_zipped_pair(self):
+        """vulnerability_to_parquet hardcoded vulnerability.bin and had no zlib/.z-detection
+        logic at all, unlike get_vulns (which get_vulns now reads per #2176) or the bintocsv
+        vulnerability reader. A model shipping only the zipped vulnerability.bin.z/.idx.z pair
+        couldn't be converted to parquet at all."""
+        import zlib
+        from oasislmf.pytools.getmodel.common import (
+            VulnerabilityIndex_dtype, VulnerabilityRow_dtype, zvulnerability_filename, zvulnerability_index_filename,
+        )
+
+        run_dir = os.path.join(self.temp_dir, 'zipped')
+        os.makedirs(run_dir)
+        with open(os.path.join(run_dir, zvulnerability_filename), 'wb') as f:
+            f.write(np.array([2], dtype='i4').tobytes())  # header: max_damage_bin_idx=2
+            offset = 4
+            idx_rows = []
+            for vid, rows in [(1, [(1, 1, 0.3), (1, 2, 0.7)]), (2, [(1, 1, 0.5), (1, 2, 0.5), (2, 1, 1.0)])]:
+                arr = np.array(rows, dtype=VulnerabilityRow_dtype)
+                comp = zlib.compress(arr.tobytes())
+                f.write(comp)
+                idx_rows.append((vid, offset, len(comp), arr.nbytes))
+                offset += len(comp)
+        np.array(idx_rows, dtype=VulnerabilityIndex_dtype).tofile(os.path.join(run_dir, zvulnerability_index_filename))
+
+        vulnerability_to_parquet(run_dir)
+
+        import pyarrow.parquet as pq
+        table = pq.read_table(os.path.join(run_dir, 'vulnerability_dataset.parquet', 'part_0.parquet')).to_pandas()
+        self.assertEqual(list(table['vulnerability_id']), [1, 2])
+        np.testing.assert_allclose(table['vuln_array'][0], [0.3, 0.0, 0.7, 0.0])
+        np.testing.assert_allclose(table['vuln_array'][1], [0.5, 1.0, 0.5, 0.0])
+
+    def _write_zvuln_pair(self, run_dir, blocks, max_damage_bin_idx=2, bin_name='vulnerability.bin.z',
+                          idx_name='vulnerability.idx.z'):
+        """Write a zipped vulnerability pair from {vuln_id: [(intensity_bin_id, damage_bin_id, prob), ...]}.
+        A block given as bytes is written as is, with original_size = len(block)."""
+        import zlib
+        from oasislmf.pytools.getmodel.common import VulnerabilityIndex_dtype, VulnerabilityRow_dtype
+
+        os.makedirs(run_dir, exist_ok=True)
+        idx_rows = []
+        with open(os.path.join(run_dir, bin_name), 'wb') as f:
+            f.write(np.array([max_damage_bin_idx], dtype='i4').tobytes())
+            offset = 4
+            for vid, rows in blocks.items():
+                if isinstance(rows, bytes):
+                    comp, original_size = rows, len(rows)
+                else:
+                    raw = np.array(rows, dtype=VulnerabilityRow_dtype).tobytes()
+                    comp, original_size = zlib.compress(raw), len(raw)
+                f.write(comp)
+                idx_rows.append((vid, offset, len(comp), original_size))
+                offset += len(comp)
+        np.array(idx_rows, dtype=VulnerabilityIndex_dtype).tofile(os.path.join(run_dir, idx_name))
+
+    def _read_parquet_vulns(self, run_dir):
+        import pyarrow.parquet as pq
+        return pq.read_table(os.path.join(run_dir, 'vulnerability_dataset.parquet', 'part_0.parquet')).to_pandas()
+
+    def test_vulnerability_to_parquet_prefers_zipped_pair(self):
+        """get_vulns reads the zipped pair over vulnerability.bin when both exist;
+        vulnerability_to_parquet must do the same, or the two paths read different data."""
+        run_dir = os.path.join(self.temp_dir, 'both')
+        self._write_zvuln_pair(run_dir, {1: [(1, 1, 0.3), (1, 2, 0.7)]})
+        with open(os.path.join(run_dir, 'vulnerability.bin'), 'wb') as f:
+            f.write(np.array([2], dtype='i4').tobytes())
+            f.write(np.array([(1, 1, 1, 1.0)], dtype=self.mock_vuln_data.dtype).tobytes())
+
+        vulnerability_to_parquet(run_dir)
+
+        table = self._read_parquet_vulns(run_dir)
+        np.testing.assert_allclose(table['vuln_array'][0], [0.3, 0.7])
+
+    def test_zipped_vuln_original_size_not_row_multiple(self):
+        """An original_size that isn't a whole number of VulnerabilityRow records (e.g. written with
+        a different OASIS_FLOAT) raises a clear error instead of a broadcast error or misaligned rows."""
+        run_dir = os.path.join(self.temp_dir, 'bad_size')
+        self._write_zvuln_pair(run_dir, {1: [(1, 1, 1.0)]})
+        idx_path = os.path.join(run_dir, 'vulnerability.idx.z')
+        from oasislmf.pytools.getmodel.common import VulnerabilityIndex_dtype
+        idx = np.fromfile(idx_path, dtype=VulnerabilityIndex_dtype)
+        idx['original_size'] += 4
+        idx.tofile(idx_path)
+
+        with self.assertRaisesRegex(Exception, "not a whole number of"):
+            get_vulns(LocalStorage(root_dir=run_dir, cache_dir=None), run_dir, self.vuln_map, self.vuln_map_keys,
+                      self.num_intensity_bins)
+        with self.assertRaisesRegex(Exception, "not a whole number of"):
+            vulnerability_to_parquet(run_dir)
+
+    def test_zipped_vuln_corrupt_block(self):
+        """A block that isn't valid zlib names the vulnerability_id and file instead of a bare zlib.error."""
+        run_dir = os.path.join(self.temp_dir, 'corrupt')
+        self._write_zvuln_pair(run_dir, {1: b'\x00' * 12})
+
+        with self.assertRaisesRegex(Exception, "vulnerability_id 1 failed to decompress .*vulnerability\\.bin\\.z"):
+            get_vulns(LocalStorage(root_dir=run_dir, cache_dir=None), run_dir, self.vuln_map, self.vuln_map_keys,
+                      self.num_intensity_bins)
+        with self.assertRaisesRegex(Exception, "vulnerability_id 1 failed to decompress .*vulnerability\\.bin\\.z"):
+            vulnerability_to_parquet(run_dir)
+
+    def test_empty_vulnerability_idx(self):
+        """csvtobin writes a 0-byte idx for a header-only csv; loading it reports the missing ids
+        (and parquet conversion reports there's nothing to convert) instead of np.memmap's
+        "cannot mmap an empty file"."""
+        csv_path = os.path.join(self.temp_dir, 'empty_vulnerability.csv')
+        with open(csv_path, 'w') as f:
+            f.write("vulnerability_id,intensity_bin_id,damage_bin_id,probability\n")
+        for zip_files, bin_name, idx_name in [(False, 'vulnerability.bin', 'vulnerability.idx'),
+                                              (True, 'vulnerability.bin.z', 'vulnerability.idx.z')]:
+            run_dir = os.path.join(self.temp_dir, f'empty_{zip_files}')
+            os.makedirs(run_dir)
+            csvtobin(
+                file_in=csv_path,
+                file_out=os.path.join(run_dir, bin_name),
+                idx_file_out=os.path.join(run_dir, idx_name),
+                file_type='vulnerability',
+                max_damage_bin_idx=3,
+                no_validation=False,
+                suppress_int_bin_checks=False,
+                zip_files=zip_files
+            )
+            self.assertEqual(os.path.getsize(os.path.join(run_dir, idx_name)), 0)
+            with self.assertRaisesRegex(Exception, "are missing"):
+                get_vulns(LocalStorage(root_dir=run_dir, cache_dir=None), run_dir, self.vuln_map, self.vuln_map_keys,
+                          self.num_intensity_bins)
+
+        with self.assertRaisesRegex(Exception, "no vulnerability rows found"):
+            vulnerability_to_parquet(os.path.join(self.temp_dir, 'empty_True'))
+
+    def test_incomplete_zipped_vuln_pair(self):
+        """Only one of vulnerability.bin.z / vulnerability.idx.z present names the missing file."""
+        for present, missing in [('vulnerability.bin.z', 'vulnerability.idx.z'),
+                                 ('vulnerability.idx.z', 'vulnerability.bin.z')]:
+            run_dir = os.path.join(self.temp_dir, f'only_{present}')
+            self._write_zvuln_pair(run_dir, {1: [(1, 1, 1.0)]})
+            os.remove(os.path.join(run_dir, missing))
+            msg = f"found {present} but not {missing}"
+
+            with self.assertRaisesRegex(FileNotFoundError, msg):
+                get_vulns(LocalStorage(root_dir=run_dir, cache_dir=None), run_dir, self.vuln_map, self.vuln_map_keys,
+                          self.num_intensity_bins)
+            with self.assertRaisesRegex(FileNotFoundError, msg):
+                vulnerability_to_parquet(run_dir)
+
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
 

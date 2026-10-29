@@ -7,6 +7,7 @@ import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, resolve_file
 from oasislmf.pytools.converters.data import TOOL_INFO
+from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,28 @@ def default_tobin(stack, file_in, file_out, file_type):
 
     file_in = resolve_file(file_in, "rb", stack)
 
-    for batch in pq.ParquetFile(file_in).iter_batches(batch_size=DEFAULT_BUFFER_SIZE):
+    try:
+        parquet_file = pq.ParquetFile(file_in)
+    except OSError as e:
+        if "Illegal seek" in str(e):
+            raise OasisException(
+                "Error: parquet input must be a seekable file, not a pipe or stdin "
+                "(the parquet footer is read by seeking to the end of the file)."
+            ) from e
+        raise
+
+    for batch in parquet_file.iter_batches(batch_size=DEFAULT_BUFFER_SIZE):
         data = np.empty(len(batch), dtype=dtype)
         for col in dtype.names:
-            data[col] = batch.column(col).to_numpy(zero_copy_only=False)
+            arrow_col = batch.column(col)
+            # A null in a non-float column casts through NaN into the target dtype's bit
+            # pattern (e.g. INT_MIN for an int column) instead of raising. A float column's
+            # null legitimately becomes NaN, so only non-float targets are rejected here.
+            if arrow_col.null_count and dtype[col].kind not in "fc":
+                raise OasisException(
+                    f"Error: column '{col}' has {arrow_col.null_count} null value(s); cannot convert to binary."
+                )
+            data[col] = arrow_col.to_numpy(zero_copy_only=False)
         file_out.write(data.tobytes())
 
 
