@@ -9,7 +9,7 @@ import pyarrow.parquet as pq
 import pytest
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
-from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_parquet_event
+from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_parquet_event, write_parquet_events
 from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype
 from oasislmf.pytools.getmodel.footprint import FootprintBin, FootprintParquet
 
@@ -109,3 +109,27 @@ def test_reconversion_replaces_previous_output(synthetic_footprint):
     event_dir = synthetic_footprint / 'footprint.parquet' / 'event_id=1'
     assert [p.name for p in event_dir.iterdir()] == ['part-0.parquet']
     assert pq.ParquetFile(event_dir / 'part-0.parquet').metadata.num_row_groups == 5
+
+
+def test_failed_reconversion_removes_previous_meta(synthetic_footprint, monkeypatch):
+    convert_bin_to_parquet_event(str(synthetic_footprint), row_group_size=64)
+
+    def fail(*args, **kwargs):
+        raise RuntimeError('conversion failed')
+    monkeypatch.setattr('oasislmf.pytools.data_layer.conversions.footprint.write_parquet_events', fail)
+    with pytest.raises(RuntimeError):
+        convert_bin_to_parquet_event(str(synthetic_footprint), row_group_size=64)
+    assert not (synthetic_footprint / 'footprint_parquet_meta.json').exists()
+
+
+def test_duplicate_index_event_ids_converted_once(synthetic_footprint, monkeypatch):
+    index = np.fromfile(synthetic_footprint / 'footprint.idx', dtype=EventIndexBin_dtype)
+    np.sort(np.concatenate([index, index[:2]]), order='event_id').tofile(synthetic_footprint / 'footprint.idx')
+    converted = []
+
+    def record(static_path, event_ids, row_group_size):
+        converted.extend(event_ids)
+        return write_parquet_events(static_path, event_ids, row_group_size)
+    monkeypatch.setattr('oasislmf.pytools.data_layer.conversions.footprint.write_parquet_events', record)
+    convert_bin_to_parquet_event(str(synthetic_footprint), row_group_size=64)
+    assert sorted(converted) == [1, 2, 3]

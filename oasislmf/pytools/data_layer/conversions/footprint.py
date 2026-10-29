@@ -64,12 +64,20 @@ def convert_bin_to_parquet_event(static_path: str, row_group_size=default_row_gr
     Returns: None
     """
     root_path = os.path.join(static_path, 'footprint.parquet')
+    meta_path = os.path.join(static_path, 'footprint_parquet_meta.json')
+    # the meta file is written last, so a failed conversion can't be loaded as a parquet footprint
+    # with the previous conversion's meta file (its missing events would read as empty)
+    try:
+        os.remove(meta_path)
+    except FileNotFoundError:
+        pass
     try:
         shutil.rmtree(root_path)
     except FileNotFoundError:
         pass
     with open_bin_footprint(static_path) as footprint_obj:
-        event_ids = footprint_obj.footprint_index['event_id'].copy()
+        # unique, so that no two batches write the same event's file
+        event_ids = np.unique(footprint_obj.footprint_index['event_id'])
         meta_data = {
             "num_intensity_bins": footprint_obj.num_intensity_bins,
             "has_intensity_uncertainty": True if footprint_obj.has_intensity_uncertainty == 1 else False
@@ -87,7 +95,7 @@ def convert_bin_to_parquet_event(static_path: str, row_group_size=default_row_gr
             for batch in batches:
                 progress.update(write_parquet_events(static_path, batch, row_group_size))
 
-    with open(os.path.join(static_path, 'footprint_parquet_meta.json'), 'w') as outfile:
+    with open(meta_path, 'w') as outfile:
         json.dump(meta_data, outfile)
 
 
