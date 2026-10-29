@@ -11,13 +11,16 @@ through a getmodel stream, which the end-to-end runs cover.
 """
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
+import pandas as pd
 import pytest
 
+from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype, oasis_int
 from oasislmf.pytools.common.event_stream import (SIDX_DTYPE, check_packed_item_fits, max_emitted_blocks,
                                                   max_packed_buildings)
@@ -282,3 +285,21 @@ class TestCorrelationIsLookedUpByItemId(TestCase):
         table = self._structures(item_ids, rhos, [1, 1, 1])["corr_data_by_item_id"]
         for item_id, rho in zip(item_ids, rhos):
             self.assertAlmostEqual(float(table[item_id]["damage_correlation_value"]), rho, places=6)
+
+
+def test_debug_writes_every_buildings_draw_of_a_summed_item(tmp_path):
+    """Under -d gulpy writes the random values it drew, one per building. Summing a summed
+    item's buildings would report a value in [0, N]; debug keeps them separate instead."""
+    sample_size, n_buildings = 10, 3
+    run_dir = tmp_path / 'assets'
+    _with_packing(run_dir, n_buildings, keep_separate=False)
+
+    subprocess.run(f'evepy 1 1 | modelpy | gulpy -a0 -S{sample_size} -L0 -d > o.bin',
+                   cwd=run_dir, shell=True, capture_output=True, check=True)
+    bintocsv(run_dir / 'o.bin', run_dir / 'o.csv', 'gul')
+    draws = pd.read_csv(run_dir / 'o.csv').query('sidx > 0')
+
+    assert not draws.empty
+    assert draws['loss'].between(0, 1).all(), f"debug values up to {draws['loss'].max():.3f}"
+    per_item = draws.groupby(['event_id', 'item_id']).size()
+    assert (per_item == n_buildings * sample_size).all(), "a building's draws are missing"

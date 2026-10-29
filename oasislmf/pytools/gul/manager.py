@@ -235,6 +235,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # Signed: magnitude is the building count, a negative sign means "keep the buildings
         # separate". Unpacked into locals wherever it is consumed -- never used raw as a bound.
         n_buildings_by_item_id = structures['n_buildings_by_item_id']
+        if debug:
+            # debug writes the random values drawn, one per building; summed at source they would
+            # add up to anywhere in [0, N] instead of [0, 1], so every item keeps its buildings separate
+            n_buildings_by_item_id = -np.abs(n_buildings_by_item_id)
         damage_correlation_by_item_id = structures['damage_correlation_by_item_id']
         max_buildings = int(np.abs(n_buildings_by_item_id).max())
         check_packing_supported(random_generator, n_buildings_by_item_id)

@@ -262,6 +262,12 @@ def run(run_dir,
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
+        if debug:
+            # debug writes the random values drawn, one per building; summed at source they would
+            # add up to anywhere in [0, N] instead of [0, 1], so every item keeps its buildings separate
+            # (a copy: the structure is memory-mapped read-only)
+            items = items.copy()
+            items['packed_buildings'] = -np.abs(items['packed_buildings'])
         # building-packing: a single stream item per (loc, peril, coverage_type) multiplexes its
         # N buildings into the sample dimension (see write_losses / encode_sidx). Packing is
         # enabled only when some item carries more than one building. alloc_rule caps a coverage's
