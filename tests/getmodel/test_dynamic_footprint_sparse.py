@@ -485,14 +485,34 @@ def test_modelpy_refusal_holds_for_a_relative_run_directory(tmp_path, monkeypatc
     ('intensity', np.nan, 'intensity that is not finite'),
     ('intensity', 2.0**40, 'outside the int32 range'),
     ('probability', -0.5, 'probability that is not finite or negative'),
+    # read as 10, it would join the rp 10 row of the same areaperil in one bracket
+    ('return_period', 10.5, 'return_period that is missing or not a whole number'),
+    ('return_period', np.nan, 'return_period that is missing or not a whole number'),
 ])
 def test_unusable_hazard_values_are_refused_at_load(tmp_path, column, value, reason):
-    hazard_case = make_hazard_case().astype({'intensity': 'float64'}).assign(probability=1.0)
+    hazard_case = make_hazard_case().astype({'intensity': 'float64', 'return_period': 'float64'}).assign(probability=1.0)
     hazard_case.loc[0, column] = value
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case)
     with pytest.raises(OasisFootPrintError, match=reason):
         with open_footprint(storage, run_dir):
             pass
+
+
+@pytest.mark.parametrize('partition_event_definition', [True, False], ids=['partitioned', 'flat'])
+@pytest.mark.parametrize('column, value, reason', [
+    ('interpolation', np.nan, 'interpolation that is missing or not finite'),
+    ('rp_from', np.nan, 'rp_from that is missing or not a whole number'),
+    ('rp_to', 20.5, 'rp_to that is missing or not a whole number'),
+])
+def test_unusable_event_definition_values_are_refused(tmp_path, partition_event_definition, column, value, reason):
+    """Refused at load when the event definition is read whole, when the event is read otherwise."""
+    event_definition = make_event_definition().astype({'rp_from': 'float64', 'rp_to': 'float64'})
+    event_definition.loc[0, column] = value
+    storage, run_dir = build_model(tmp_path, event_definition=event_definition,
+                                   partition_event_definition=partition_event_definition)
+    with pytest.raises(OasisFootPrintError, match=reason):
+        with open_footprint(storage, run_dir) as footprint:
+            footprint.get_event(1)
 
 
 def test_a_distribution_with_no_probability_is_refused_at_load(tmp_path):

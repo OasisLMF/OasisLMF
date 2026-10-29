@@ -35,12 +35,18 @@ The model data
 --------------
 
 ``event_definition`` holds, per event and section, the two return periods bracketing the event's
-severity, ``rp_from`` and ``rp_to``, and an ``interpolation`` weight between them.
+severity, ``rp_from`` and ``rp_to``, and an ``interpolation`` weight between them. A weight outside
+[0, 1] extrapolates beyond the brackets.
 
 ``hazard_case`` holds ``section_id``, ``areaperil_id``, ``return_period`` and ``intensity``. Several
 rows for one (section, areaperil, return period) form a discrete distribution of intensity: the
 hazard uncertainty at that place. An optional ``probability`` column weights them; without it the
 rows weigh equally, so a value repeated twice has twice the weight.
+
+Return periods, in both files, are whole numbers: they are matched exactly between the two files,
+and carried as integers into the footprint and the items' protection. A missing or fractional
+return period, a missing or non-finite ``interpolation``, and an intensity that is not finite are
+refused when the files are read.
 
 Either file may be partitioned by section (a directory of ``section_id=N`` partitions) or be a
 single file, and either may be sparse: a section absent from the event definition has no events, and
@@ -52,7 +58,13 @@ Building an event's footprint
 For each section the event affects, and each areaperil of that section, the intensity distribution
 at ``rp_from`` is interpolated towards the one at ``rp_to``. An areaperil lying in several of the
 event's sections then has one distribution per section, and those are merged into one. Intensities
-are floored to integers once, after the merge.
+are floored to integers once, after the merge; an event whose extrapolation or ``sum`` merge takes an
+intensity outside the 32-bit integer range is refused.
+
+gulmc maps each intensity to an intensity bin with the model's ``intensity_bin_dict.csv``, after
+subtracting the item's ``intensity_adjustment``. An intensity below 0 takes the bin of intensity 0;
+one above the largest intensity of the peril in the table takes that intensity's bin, the table's
+last row standing for that much or more.
 
 Interpolating between return periods
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

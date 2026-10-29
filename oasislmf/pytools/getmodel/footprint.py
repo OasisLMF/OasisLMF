@@ -681,6 +681,7 @@ class FootprintParquetDynamic(Footprint):
                            f"so no event affects it and every loss will be zero")
             return False
 
+        validate_event_definition(df_event_definition)
         # sorted so that the per-event .loc lookups in _get_event_partitioned are indexed;
         # a stable sort keeps the row order the model data was written in
         self.df_event_definition = df_event_definition.set_index('event_id').sort_index(kind='stable')
@@ -722,6 +723,7 @@ class FootprintParquetDynamic(Footprint):
         if df_event_definition.empty:
             return None
 
+        validate_event_definition(df_event_definition)
         return self._build_event(df_event_definition)
 
     def _build_event(self, df_event_definition):
@@ -778,10 +780,11 @@ class FootprintParquetDynamic(Footprint):
         # different brackets has no single meaning
         df_event_sections = df_event_definition.drop_duplicates(
             ['section_id', 'rp_from', 'rp_to', 'interpolation']).sort_values('section_id')
+        event_id = df_event_sections['event_id'].iloc[0] if 'event_id' in df_event_sections else ''
         repeated = df_event_sections['section_id'].duplicated()
         if repeated.any():
             raise OasisFootPrintError(
-                f"event {df_event_sections['event_id'].iloc[0] if 'event_id' in df_event_sections else ''} defines "
+                f"event {event_id} defines "
                 f"section(s) {sorted(df_event_sections.loc[repeated, 'section_id'].unique().tolist())} more than once, "
                 f"with different rp_from, rp_to or interpolation")
         event_section = df_event_sections['section_id'].to_numpy(np.int64)
@@ -832,6 +835,15 @@ class FootprintParquetDynamic(Footprint):
                     np.concatenate((column[kept], merged_column))
                     for column, merged_column in zip((areaperil_id, intensity, probability, return_period), merged_rows))
 
+        # the hazard case is in the int32 range, but an extrapolating weight or a sum of sections can
+        # leave it, and the cast in collapse would wrap silently
+        int32 = np.iinfo(np.int32)
+        out_of_range = ~np.isfinite(intensity) | (intensity < int32.min) | (intensity >= int32.max + 1.0)
+        if out_of_range.any():
+            raise OasisFootPrintError(
+                f"event {event_id}: {int(out_of_range.sum())} interpolated or merged intensity(ies) outside the int32 "
+                f"range, e.g. {intensity[out_of_range][0]} at areaperil_id {areaperil_id[out_of_range][0]}; check the "
+                f"event's interpolation weights and the section merge ({self.section_merge})")
         areaperil_id, intensity, probability, return_period = collapse(areaperil_id, intensity, probability, return_period)
         footprint = np.empty(len(areaperil_id), dtype=EventDynamic)
         footprint['areaperil_id'] = areaperil_id
@@ -849,17 +861,48 @@ SECTION_MERGE_MODES = {
 }
 
 
+def refuse_rows(filename, df, reason, bad):
+    """Raise an OasisFootPrintError counting the rows of `df` flagged by `bad`, with the first as an example."""
+    example = df.loc[bad].iloc[0].to_dict()
+    raise OasisFootPrintError(f"{filename}: {int(bad.sum())} row(s) with {reason}, e.g. {example}")
+
+
+def not_whole_numbers(values):
+    """Flag the values that are missing or not whole numbers; return periods are int32 from the footprint on."""
+    values = values.to_numpy(np.float64)
+    return ~np.isfinite(values) | (values != np.floor(values))
+
+
+def validate_event_definition(df_event_definition):
+    """Refuse event definition values the footprint build cannot use.
+
+    rp_from and rp_to are matched against the hazard case's return periods, so they must be whole
+    numbers; interpolation must be finite, as a NaN weight would make every intensity of the
+    section NaN. A weight outside [0, 1] extrapolates and is allowed.
+    """
+    for rp_col in ('rp_from', 'rp_to'):
+        bad = not_whole_numbers(df_event_definition[rp_col])
+        if bad.any():
+            refuse_rows(event_defintion_filename, df_event_definition, f"an {rp_col} that is missing or not a whole number", bad)
+    bad = ~np.isfinite(df_event_definition['interpolation'].to_numpy(np.float64))
+    if bad.any():
+        refuse_rows(event_defintion_filename, df_event_definition, "an interpolation that is missing or not finite", bad)
+
+
 def validate_hazard_case(df_hazard_case):
     """Refuse hazard case values the footprint build cannot represent, once, at load.
 
-    Intensities are written as int32 after flooring, so they must be finite and in range; each
-    (section, areaperil, return period) distribution needs non-negative probabilities with a
-    positive total, as they are normalised per distribution.
+    Return periods must be whole numbers, as they are int32 from the footprint on. Intensities are
+    written as int32 after flooring, so they must be finite and in range; each (section, areaperil,
+    return period) distribution needs non-negative probabilities with a positive total, as they are
+    normalised per distribution.
     """
     def refuse(reason, bad):
-        example = df_hazard_case.loc[bad].iloc[0].to_dict()
-        raise OasisFootPrintError(f"{hazard_case_filename}: {int(bad.sum())} row(s) with {reason}, e.g. {example}")
+        refuse_rows(hazard_case_filename, df_hazard_case, reason, bad)
 
+    bad = not_whole_numbers(df_hazard_case['return_period'])
+    if bad.any():
+        refuse("a return_period that is missing or not a whole number", bad)
     intensity = df_hazard_case['intensity'].to_numpy(np.float64)
     int32 = np.iinfo(np.int32)
     bad = ~np.isfinite(intensity) | (intensity < int32.min) | (intensity > int32.max)

@@ -378,6 +378,20 @@ def test_sections_reversed_by_an_extrapolating_weight_merge_without_a_sliver():
     assert atoms(result, 1) == [(39, 1 / 3, 50), (25, 1 / 3, 50), (5, 1 / 3, 50)]
 
 
+@pytest.mark.parametrize('haz, sections, section_merge', [
+    # a sum of two sections, each in range
+    (pd.concat([flat(1, 100, [2_000_000_000]), flat(2, 100, [2_000_000_000])]), [(1, 10, 100, 0.5), (2, 10, 100, 0.5)], 'sum'),
+    # a weight of 2 extrapolates 0 -> 1.5e9 to 3e9
+    (pd.DataFrame({'section_id': 1, 'areaperil_id': 100, 'return_period': [10, 100], 'intensity': [0, 1_500_000_000]}),
+     [(1, 10, 100, 2.0)], 'max'),
+])
+def test_an_intensity_pushed_past_int32_is_refused(haz, sections, section_merge):
+    """The cast to int32 would wrap it to a negative intensity, read by gulmc as no hazard."""
+    from oasislmf.pytools.getmodel.footprint import OasisFootPrintError
+    with pytest.raises(OasisFootPrintError, match='event 1: 1 interpolated or merged intensity.*outside the int32 range'):
+        build_merged(haz, sections, section_merge)
+
+
 def test_a_section_given_twice_with_different_brackets_is_refused():
     from oasislmf.pytools.getmodel.footprint import OasisFootPrintError
     haz = flat(1, 100, [10])
