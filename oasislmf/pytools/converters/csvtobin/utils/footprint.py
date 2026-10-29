@@ -16,12 +16,14 @@
 #      event (zip). Events that span a chunk boundary are buffered in partial_chunks and
 #      flushed once their final rows arrive in the next chunk.
 #
-#   4. Index: one (event_id, offset, size[, decompressed_size]) entry per event is
-#      accumulated and written to the .idx file after all chunks are processed.
+#   4. Index: one (event_id, offset, size[, decompressed_size]) entry per event is written to
+#      the .idx file as each event is flushed — never accumulated in memory for the whole file.
+#      The non-zip batch path builds one chunk's worth of entries as a single vectorised array.
 #
 # no_validation=True skips step 1 and writes events in whatever order they appear in the
 # CSV — the caller is responsible for ensuring the input is sorted by (event_id, areaperil_id).
 
+import logging
 import zlib
 import numba as nb
 import numpy as np
@@ -31,6 +33,10 @@ from oasislmf.pytools.converters.csvtobin.utils.common import iter_csv_as_ndarra
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.getmodel.common import Event_dtype, EventIndexBin_dtype, EventIndexBinZ_dtype
 from oasislmf.utils.exceptions import OasisException
+
+# Named explicitly (not __name__) to share csvtobin.manager's logger -- the one cli.py configures
+# -- without importing manager.py here, which would be circular (manager.py imports this module).
+logger = logging.getLogger("oasislmf.pytools.converters.csvtobin.manager")
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -49,13 +55,25 @@ def _check_sorted(event_ids, areaperil_ids, prev_event_id, prev_areaperil_id, fi
     return np.int64(-1), event_ids[-1], areaperil_ids[-1]
 
 
+_PROB_SUM_ATOL = 1e-6
+_PROB_SUM_RTOL = 1e-5
+
+
 @nb.njit(cache=True, error_model="numpy")
 def _check_prob_sums(event_ids, areaperil_ids, probs,
                      prev_event_id, prev_areaperil_id, running_sum, first_chunk,
-                     atol=1e-6):
+                     atol=_PROB_SUM_ATOL, rtol=_PROB_SUM_RTOL):
     """Incremental probability sum check assuming sorted data.
     Returns (bad_idx, last_event_id, last_areaperil_id, running_sum).
     bad_idx=-1 means valid; the final group is not finalised here — check after last chunk.
+    bad_idx=-2 means the bad group ended on the last row of the *previous* chunk (so the row
+    itself isn't in this chunk's arrays) — the caller reports it as row_offset - 1. Kept distinct
+    from -1 so this case can't collide with "valid": i - 1 would otherwise be -1 too when the new
+    group starts at i=0, silently passing a bad group whose last row fell on a chunk boundary.
+
+    atol/rtol match np.isclose's defaults (target is always 1.0, so the combined tolerance is
+    just atol + rtol): this is the tolerance #1693 used before #1947's streaming rewrite dropped
+    the rtol term, leaving a check over 10x stricter than vulnerability's equivalent check.
     """
     if len(event_ids) == 0:
         return np.int64(-1), prev_event_id, prev_areaperil_id, running_sum
@@ -68,8 +86,11 @@ def _check_prob_sums(event_ids, areaperil_ids, probs,
         i_start = 0
     for i in range(i_start, len(event_ids)):
         if event_ids[i] != prev_event_id or areaperil_ids[i] != prev_areaperil_id:
-            if abs(running_sum - 1.0) > atol:
-                return np.int64(i - 1), prev_event_id, prev_areaperil_id, running_sum
+            # NaN comparisons are always False, so "> atol" alone would silently accept a NaN
+            # probability (e.g. from a blank CSV field) instead of flagging it as unresolved.
+            if not (abs(running_sum - 1.0) <= atol + rtol):
+                bad_idx = np.int64(i - 1) if i > 0 else np.int64(-2)
+                return bad_idx, prev_event_id, prev_areaperil_id, running_sum
             running_sum = np.float64(probs[i])
             prev_event_id = event_ids[i]
             prev_areaperil_id = areaperil_ids[i]
@@ -98,15 +119,17 @@ def _check_duplicates(event_ids, areaperil_ids, intensity_bin_ids,
 
 
 @nb.njit(cache=True, error_model="numpy")
-def _exceeds_max_intensity(intensity_bin_ids, max_val):
-    """Early-exit check for any intensity_bin_id exceeding max_val."""
+def _intensity_out_of_range(intensity_bin_ids, max_val):
+    """Early-exit check for any intensity_bin_id outside [1, max_val]. 0 or below would wrap to
+    the last intensity column when gulmc indexes vuln_array with intensity_bin_id - 1.
+    """
     for v in intensity_bin_ids:
-        if v > max_val:
+        if v > max_val or v < 1:
             return True
     return False
 
 
-def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
+def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk, row_offset,
                     prev_sort_event, prev_sort_areaperil,
                     prev_prob_event, prev_prob_areaperil, running_sum,
                     prev_dup_event, prev_dup_areaperil, prev_dup_intensity):
@@ -118,7 +141,7 @@ def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
     )
     if bad_idx != -1:
         raise OasisException(
-            f"IDs not in ascending order at row {bad_idx}: {chunk[bad_idx]}"
+            f"IDs not in ascending order at row {row_offset + bad_idx}: {chunk[bad_idx]}"
         )
 
     # Check probability sums to 1 per (event_id, areaperil_id) group
@@ -126,9 +149,14 @@ def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
         event_ids, areaperil_ids, np.ascontiguousarray(chunk["probability"]),
         prev_prob_event, prev_prob_areaperil, running_sum, first_chunk,
     )
-    if bad_idx != -1:
+    if bad_idx == -2:
         raise OasisException(
-            f"Probabilities do not sum to 1 for group ending at row {bad_idx}: "
+            f"Probabilities do not sum to 1 for group ending at row {row_offset - 1}: "
+            f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"
+        )
+    elif bad_idx != -1:
+        raise OasisException(
+            f"Probabilities do not sum to 1 for group ending at row {row_offset + bad_idx}: "
             f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"
         )
 
@@ -139,7 +167,7 @@ def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
     )
     if bad_idx != -1:
         raise OasisException(
-            f"Duplicate intensity_bin_id at row {bad_idx}: "
+            f"Duplicate intensity_bin_id at row {row_offset + bad_idx}: "
             f"event_id={chunk['event_id'][bad_idx]}, areaperil_id={chunk['areaperil_id'][bad_idx]}, "
             f"intensity_bin_id={chunk['intensity_bin_id'][bad_idx]}"
         )
@@ -149,19 +177,20 @@ def _validate_chunk(chunk, event_ids, areaperil_ids, first_chunk,
             prev_dup_event, prev_dup_areaperil, prev_dup_intensity)
 
 
-def _flush_event(event_id, rows, file_out, idx_entries,
+def _flush_event(event_id, rows, file_out, idx_file_out, idx_dtype,
                  max_intensity_bin_idx, zip_files, decompressed_size, offset):
     """Convert, optionally compress, and write a single event. Used for partial events
     (spanning chunk boundaries) and for the zip path where per-event compression is required.
+    The index entry is written straight to idx_file_out, not accumulated in memory.
     """
     bin_data = np.empty(len(rows), dtype=Event_dtype)
     bin_data["areaperil_id"] = rows["areaperil_id"]
     bin_data["intensity_bin_id"] = rows["intensity_bin_id"]
     bin_data["probability"] = rows["probability"]
 
-    if _exceeds_max_intensity(bin_data["intensity_bin_id"], max_intensity_bin_idx):
+    if _intensity_out_of_range(bin_data["intensity_bin_id"], max_intensity_bin_idx):
         raise OasisException(
-            f"Error: Found intensity_bin_idx in data larger than max_intensity_bin_idx: {max_intensity_bin_idx}"
+            f"Error: Found intensity_bin_idx in data outside the valid range [1, {max_intensity_bin_idx}]"
         )
 
     bin_bytes = bin_data.tobytes()
@@ -171,10 +200,8 @@ def _flush_event(event_id, rows, file_out, idx_entries,
     file_out.write(bin_bytes)
     size = len(bin_bytes)
 
-    if decompressed_size:
-        idx_entries.append((event_id, offset, size, dsize))
-    else:
-        idx_entries.append((event_id, offset, size))
+    entry = (event_id, offset, size, dsize) if decompressed_size else (event_id, offset, size)
+    idx_file_out.write(np.array([entry], dtype=idx_dtype).tobytes())
 
     return offset + size
 
@@ -189,7 +216,19 @@ def footprint_tobin(
     no_validation
 ):
     dtype = TOOL_INFO[file_type]["dtype"]
+
+    # The runtime looks for zipped footprints as footprint.bin.z / footprint.idx.z
+    out_names = [str(idx_file_out), getattr(file_out, "name", None)]
+    if zip_files and any(isinstance(name, str) and name not in ("-", "<stdout>") and not name.endswith(".z")
+                         for name in out_names):
+        logger.warning("WARNING: zipped footprint files should be named with a .z extension (footprint.bin.z / footprint.idx.z)")
+
     idx_file_out = resolve_file(idx_file_out, "wb", stack)
+
+    # The decompressed size only applies to zipped footprints (as in ktools footprinttobin)
+    if decompressed_size and not zip_files:
+        logger.warning("WARNING: decompressed_size only applies to zipped footprints, ignoring it as zip_files is not set")
+        decompressed_size = False
 
     # Write bin file header
     file_out.write(np.array([max_intensity_bin_idx], dtype=np.int32).tobytes())
@@ -197,11 +236,11 @@ def footprint_tobin(
     file_out.write(np.array([zip_opts], dtype=np.int32).tobytes())
     offset = np.dtype(np.int32).itemsize * 2
 
-    idx_entries = []
     idx_dtype = EventIndexBinZ_dtype if decompressed_size else EventIndexBin_dtype
 
     first_chunk = True
     any_data = False
+    row_offset = 0
 
     # Validation carry state (dummy initial values; first_chunk=True prevents their use)
     prev_sort_event = np.int32(0)
@@ -228,7 +267,7 @@ def footprint_tobin(
             (prev_sort_event, prev_sort_areaperil,
              prev_prob_event, prev_prob_areaperil, running_sum,
              prev_dup_event, prev_dup_areaperil, prev_dup_intensity) = _validate_chunk(
-                chunk, event_ids, areaperil_ids, first_chunk,
+                chunk, event_ids, areaperil_ids, first_chunk, row_offset,
                 prev_sort_event, prev_sort_areaperil,
                 prev_prob_event, prev_prob_areaperil, running_sum,
                 prev_dup_event, prev_dup_areaperil, prev_dup_intensity,
@@ -236,6 +275,7 @@ def footprint_tobin(
 
         first_chunk = False
         any_data = True
+        row_offset += len(chunk)
 
         pos = 0
 
@@ -247,7 +287,7 @@ def footprint_tobin(
             if pos == len(chunk):
                 continue
             offset = _flush_event(
-                partial_event_id, np.concatenate(partial_chunks), file_out, idx_entries,
+                partial_event_id, np.concatenate(partial_chunks), file_out, idx_file_out, idx_dtype,
                 max_intensity_bin_idx, zip_files, decompressed_size, offset,
             )
             partial_event_id = None
@@ -271,7 +311,7 @@ def footprint_tobin(
                     s = pos + int(rel_starts[i])
                     e = pos + int(rel_ends[i])
                     offset = _flush_event(
-                        int(event_ids[s]), chunk[s:e], file_out, idx_entries,
+                        int(event_ids[s]), chunk[s:e], file_out, idx_file_out, idx_dtype,
                         max_intensity_bin_idx, zip_files, decompressed_size, offset,
                     )
             else:
@@ -283,22 +323,28 @@ def footprint_tobin(
                 bin_data["intensity_bin_id"] = complete_rows["intensity_bin_id"]
                 bin_data["probability"] = complete_rows["probability"]
 
-                if _exceeds_max_intensity(bin_data["intensity_bin_id"], max_intensity_bin_idx):
+                if _intensity_out_of_range(bin_data["intensity_bin_id"], max_intensity_bin_idx):
                     raise OasisException(
-                        f"Error: Found intensity_bin_idx in data larger than max_intensity_bin_idx: {max_intensity_bin_idx}"
+                        f"Error: Found intensity_bin_idx in data outside the valid range [1, {max_intensity_bin_idx}]"
                     )
 
                 file_out.write(bin_data.tobytes())
 
+                # Vectorised: build and write this chunk's idx entries in one shot, rather than
+                # accumulating every event's entry in memory for the whole file.
                 row_size = Event_dtype.itemsize
-                for i in range(n_complete):
-                    event_id = int(event_ids[pos + int(rel_starts[i])])
-                    size = int(rel_ends[i] - rel_starts[i]) * row_size
-                    if decompressed_size:
-                        idx_entries.append((event_id, offset, size, size))
-                    else:
-                        idx_entries.append((event_id, offset, size))
-                    offset += size
+                batch_event_ids = event_ids[pos + rel_starts[:n_complete]]
+                batch_sizes = (rel_ends[:n_complete] - rel_starts[:n_complete]).astype(np.int64) * row_size
+                batch_offsets = offset + np.concatenate(([0], np.cumsum(batch_sizes)[:-1]))
+                batch_idx = np.empty(n_complete, dtype=idx_dtype)
+                batch_idx["event_id"] = batch_event_ids
+                batch_idx["offset"] = batch_offsets
+                batch_idx["size"] = batch_sizes
+                # decompressed_size is always False here: it's forced off whenever zip_files is
+                # False (above), and this is the non-zip path -- so idx_dtype never has a d_size
+                # field to set in this branch.
+                idx_file_out.write(batch_idx.tobytes())
+                offset += int(batch_sizes.sum())
 
         # Buffer last group — unknown whether it's complete until next chunk arrives
         last_start = pos + int(rel_starts[-1])
@@ -308,15 +354,13 @@ def footprint_tobin(
     # Flush final event (held in partial buffer through the last chunk)
     if partial_event_id is not None:
         offset = _flush_event(
-            partial_event_id, np.concatenate(partial_chunks), file_out, idx_entries,
+            partial_event_id, np.concatenate(partial_chunks), file_out, idx_file_out, idx_dtype,
             max_intensity_bin_idx, zip_files, decompressed_size, offset,
         )
 
     # Finalise last probability group (not checked inside the loop)
-    if not no_validation and any_data and abs(running_sum - 1.0) > 1e-6:
+    if not no_validation and any_data and not (abs(running_sum - 1.0) <= _PROB_SUM_ATOL + _PROB_SUM_RTOL):
         raise OasisException(
             f"Probabilities do not sum to 1 for final group: "
             f"event_id={prev_prob_event}, areaperil_id={prev_prob_areaperil}"
         )
-
-    idx_file_out.write(np.array(idx_entries, dtype=idx_dtype).tobytes())

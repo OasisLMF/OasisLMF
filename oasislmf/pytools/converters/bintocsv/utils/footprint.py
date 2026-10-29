@@ -5,7 +5,11 @@
 # Processing proceeds as follows:
 #
 #   1. Index loading: the .idx file is memory-mapped as EventIndexBin_dtype or
-#      EventIndexBinZ_dtype (when the binary carries a decompressed-size field).
+#      EventIndexBinZ_dtype (when the binary carries a decompressed-size field). Every entry's
+#      byte range is checked against the footprint file's actual size before anything reads
+#      it: the batched njit loop below indexes without bounds checking, so a truncated or
+#      mismatched idx/bin pair would otherwise read past the mapped file — silently wrong
+#      data at best, a crash at worst.
 #      If the index is out of order it is sorted by event_id once upfront via argsort;
 #      the common case (already sorted) skips this entirely.
 #
@@ -23,17 +27,26 @@
 #      the index carries a d_size field (decompressed size), a single reusable buffer is
 #      pre-allocated at the maximum event size; otherwise a new buffer is allocated per event.
 
+import logging
 import zlib
 import numba as nb
 import numpy as np
 import re
 import sys
 
-from oasislmf.pytools.common.data import resolve_file, write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import (
+    resolve_file, write_ndarray_to_fmt_csv, memmap_or_empty, is_first_entry_zlib_compressed
+)
+from oasislmf.pytools.converters.bintocsv.utils.common import check_index_bounds
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.getmodel.common import (
     Event_dtype, EventIndexBin_dtype, EventIndexBinZ_dtype, FootprintHeader
 )
+from oasislmf.utils.exceptions import OasisException
+
+# Named explicitly (not __name__) to share bintocsv.manager's logger -- the one cli.py configures
+# -- without importing manager.py here, which would be circular (manager.py imports this module).
+logger = logging.getLogger("oasislmf.pytools.converters.bintocsv.manager")
 
 # Number of output rows to accumulate before flushing to write_ndarray_to_fmt_csv.
 _BATCH_ROWS = 1 << 13  # 8 K rows
@@ -91,42 +104,42 @@ def _check_event_from_to(event_from_to):
     return False, from_event, to_event
 
 
-def _read_footprint_zips(stack, file_in, idx_file_in):
+def _read_file_or_empty(file_obj, dtype):
+    """Read an already-resolved file as `dtype`: fully into memory for stdin (which has no
+    fileno to memory-map), or via memmap_or_empty otherwise.
+    """
+    if file_obj == sys.stdin.buffer:
+        return np.frombuffer(file_obj.read(), dtype=dtype)
+    return memmap_or_empty(file_obj, dtype)
+
+
+def _read_footprint_files(stack, file_in, idx_file_in):
+    """Read the footprint bin and idx files, zipped or not: the idx entry layout (and so how to
+    read the bin's bytes afterwards) only depends on the header bit, not on the caller's own
+    zip_files flag -- a zipped and non-zipped footprint are read identically at this stage.
+    """
     footprint_file = resolve_file(file_in, mode="rb", stack=stack)
+    footprint = _read_file_or_empty(footprint_file, "u1")
 
-    if footprint_file == sys.stdin.buffer:
-        footprint = np.frombuffer(footprint_file.read(), dtype="u1")
-    else:
-        footprint = np.memmap(footprint_file, dtype="u1", mode='r')
+    idx_dtype = _get_index_dtype(footprint)
+    footprint_index_file = resolve_file(idx_file_in, mode="rb", stack=stack)
+    footprint_index = _read_file_or_empty(footprint_index_file, idx_dtype)
 
+    return footprint, footprint_index
+
+
+def _get_index_dtype(footprint):
+    """Index entries carry the decompressed size when the footprint header says so"""
+    if len(footprint) < FootprintHeader.itemsize:
+        raise OasisException(
+            f"Error: footprint file is only {len(footprint)} bytes, too short to hold its "
+            f"{FootprintHeader.itemsize}-byte header; it is empty or truncated."
+        )
     footprint_header = np.frombuffer(footprint[:FootprintHeader.itemsize].tobytes(), dtype=FootprintHeader)
-
     uncompressedMask = 1 << 1
-    uncompressed_size = int(footprint_header['has_intensity_uncertainty'].item() & uncompressedMask)
-
-    if uncompressed_size:
-        index_dtype = EventIndexBinZ_dtype
-    else:
-        index_dtype = EventIndexBin_dtype
-
-    footprint_index_file = resolve_file(idx_file_in, mode="rb", stack=stack)
-    footprint_index = np.memmap(footprint_index_file, dtype=index_dtype, mode='r')
-
-    return footprint, footprint_index
-
-
-def _read_footprint_bins(stack, file_in, idx_file_in):
-    footprint_file = resolve_file(file_in, mode="rb", stack=stack)
-
-    if footprint_file == sys.stdin.buffer:
-        footprint = np.frombuffer(footprint_file.read(), dtype="u1")
-    else:
-        footprint = np.memmap(footprint_file, dtype="u1", mode='r')
-
-    footprint_index_file = resolve_file(idx_file_in, mode="rb", stack=stack)
-    footprint_index = np.memmap(footprint_index_file, dtype=EventIndexBin_dtype, mode='r')
-
-    return footprint, footprint_index
+    if footprint_header['has_intensity_uncertainty'].item() & uncompressedMask:
+        return EventIndexBinZ_dtype
+    return EventIndexBin_dtype
 
 
 def footprint_tocsv(stack, file_in, file_out, file_type, noheader, idx_file_in, zip_files, event_from_to):
@@ -135,10 +148,19 @@ def footprint_tocsv(stack, file_in, file_out, file_type, noheader, idx_file_in, 
     fmt = TOOL_INFO[file_type]["fmt"]
     no_event_range, from_event, to_event = _check_event_from_to(event_from_to)
 
-    if zip_files:
-        footprint, footprint_index = _read_footprint_zips(stack, file_in, idx_file_in)
-    else:
-        footprint, footprint_index = _read_footprint_bins(stack, file_in, idx_file_in)
+    footprint, footprint_index = _read_footprint_files(stack, file_in, idx_file_in)
+
+    if not zip_files and is_first_entry_zlib_compressed(footprint, footprint_index):
+        logger.warning(
+            "WARNING: footprint holds zlib compressed events despite zip_files=False (saved under "
+            "uncompressed names); reading it as a compressed footprint."
+        )
+        zip_files = True
+
+    # Compressed event blocks are arbitrary zlib byte lengths, so only the uncompressed path has
+    # a fixed per-record size to check entries' alignment against.
+    check_index_bounds(footprint, footprint_index, FootprintHeader.itemsize, 'event_id', 'footprint',
+                       record_size=(1 if zip_files else Event_dtype.itemsize))
 
     if not noheader:
         file_out.write(",".join(headers) + "\n")
@@ -229,10 +251,20 @@ def _footprint_tocsv_zip(footprint, sorted_index, file_out, dtype, headers, fmt)
         event_id = int(row['event_id'])
         offset = int(row['offset'])
         compressed_size = int(row['size'])
-        event_data = np.frombuffer(
-            zlib.decompress(footprint[offset:offset + compressed_size].tobytes()),
-            dtype=Event_dtype,
-        )
+        try:
+            decompressed = zlib.decompress(footprint[offset:offset + compressed_size].tobytes())
+        except zlib.error as e:
+            raise OasisException(
+                f"Error: failed to decompress event_id {event_id} with zip_files=True; "
+                f"the file may not actually be zipped: {e}"
+            ) from e
+        if event_csv_data is not None and len(decompressed) != int(row['d_size']):
+            raise OasisException(
+                f"Error: event_id {event_id} decompressed to {len(decompressed)} bytes, expected "
+                f"d_size {int(row['d_size'])} from the index file; the index and footprint files "
+                "do not match, or the footprint file is corrupt."
+            )
+        event_data = np.frombuffer(decompressed, dtype=Event_dtype)
         n = len(event_data)
         buf = event_csv_data[:n] if event_csv_data is not None else np.empty(n, dtype=dtype)
         buf['event_id'] = event_id
