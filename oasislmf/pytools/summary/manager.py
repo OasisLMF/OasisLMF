@@ -8,6 +8,7 @@ Static intermediary data structure::
 
     summary_pipes : dict summary_set_id to path then updated to stream when reading starts
     summary_sets_id : array of all summary_set_id that have a stream
+    summary_set_indices : array of the summary_set_index of each summary_set_id that has a stream
     summary_set_id_to_summary_set_index : array mapping summary_set_id => summary_set_index
     summary_set_index_to_loss_ptr : mapping array summary_set_index => starting index of summary_id loss (first dimension) in the loss_summary table
     item_id_to_summary_id : mapping array item_id => [summary_id for each summary set]
@@ -172,7 +173,7 @@ def extract_risk_info(len_item_id, summary_map):
 
 @nb.jit(nopython=True, cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
-                summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
+                summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                 loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
     """Read valid part of byte_mv and load relevant data for one event"""
@@ -198,7 +199,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 
                 ###### do loss read ######
                 if sidx > 0 or sidx in [-1, -3, -5]:
-                    for summary_set_index in range(summary_sets_id.shape[0]):
+                    for summary_set_index in summary_set_indices:
                         loss_summary[loss_index[summary_set_index], sidx] += loss
                 ##########
             if not terminated:
@@ -222,7 +223,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 else:
                     new_risk = is_risk_affected[risk_i] = 1
 
-            for summary_set_index in range(summary_sets_id.shape[0]):
+            for summary_set_index in summary_set_indices:
                 loss_index[summary_set_index] = nb_oasis_int(summary_set_index_to_loss_ptr[summary_set_index]
                                                              + item_id_to_summary_id[item_id, summary_set_index] - 1)
                 # print(summary_set_index_to_loss_ptr[summary_set_index], item_id_to_summary_id[item_id, summary_set_index])
@@ -317,10 +318,10 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
 class SummaryReader(EventReader):
     """Read an event loss stream and aggregate it into the relevant summary loss streams."""
 
-    def __init__(self, summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
+    def __init__(self, summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                  loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
                  item_id_to_risks_i, is_risk_affected, has_affected_risk):
-        self.summary_sets_id = summary_sets_id
+        self.summary_set_indices = summary_set_indices
         self.summary_set_index_to_loss_ptr = summary_set_index_to_loss_ptr
         self.item_id_to_summary_id = item_id_to_summary_id
         self.loss_index = loss_index
@@ -335,14 +336,14 @@ class SummaryReader(EventReader):
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
         return read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id,
-            self.summary_sets_id, self.summary_set_index_to_loss_ptr, self.item_id_to_summary_id,
+            self.summary_set_indices, self.summary_set_index_to_loss_ptr, self.item_id_to_summary_id,
             self.loss_index, self.loss_summary, self.present_summary_id, self.summary_set_index_to_present_loss_ptr_end,
             self.item_id_to_risks_i, self.is_risk_affected, self.has_affected_risk
         )
 
     def finalize_event(self, **kwargs):
         # Sort the slice of summary_ids seen this event so mv_write_event emits in summary_id order.
-        for summary_set_index in range(self.summary_sets_id.shape[0]):
+        for summary_set_index in self.summary_set_indices:
             start = self.summary_set_index_to_loss_ptr[summary_set_index]
             end = self.summary_set_index_to_present_loss_ptr_end[summary_set_index]
             self.present_summary_id[start:end] = np.sort(self.present_summary_id[start:end])
@@ -425,7 +426,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         # check all summary_set_id required are defined in summaryxref
         invalid_summary_sets_id = []
         for summary_set_id in summary_sets_id:
-            if summary_set_id >= summary_set_id_to_summary_set_index.shape[0] or summary_set_id_to_summary_set_index[summary_set_id] == null_index:
+            if summary_set_id < 1 or summary_set_id >= summary_set_id_to_summary_set_index.shape[0] or summary_set_id_to_summary_set_index[summary_set_id] == null_index:
                 invalid_summary_sets_id.append(summary_set_id)
         if invalid_summary_sets_id:
             raise ValueError(
@@ -434,31 +435,31 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
         has_affected_risk = True if summary_info[0]['nb_risk'] > 0 else None
 
-        # losses are aggregated for every summary set in summaryxref, by its summary_set_index (sets in
-        # summary_set_id order); each requested set is then written from its own index, so the order and
-        # number of the -summary_set_id arguments don't change what is written for each set
-        xref_summary_sets_id = np.flatnonzero(summary_set_id_to_summary_set_index != null_index)
+        # losses are read and written by each requested set's own summary_set_index (its position in
+        # summaryxref), so the order of the -summary_set_id arguments doesn't change what is written for
+        # each set, and sets that weren't requested are never touched
+        summary_set_indices = summary_set_id_to_summary_set_index[summary_sets_id]
+        nb_xref_summary_sets = summary_set_index_to_loss_ptr.shape[0] - 1
 
         # init temporary
         present_summary_id = np.zeros(summary_set_index_to_loss_ptr[-1], oasis_int)
-        loss_index = np.empty(xref_summary_sets_id.shape[0], oasis_int)
+        loss_index = np.empty(nb_xref_summary_sets, oasis_int)
         summary_set_index_to_present_loss_ptr_end = np.array(summary_set_index_to_loss_ptr)
         loss_summary = np.zeros((summary_set_index_to_loss_ptr[-1], len_sample + SPECIAL_SIDX_COUNT), dtype=oasis_float)
         is_risk_affected = np.zeros(summary_info[0]['nb_risk'], dtype=oasis_int)
 
         summary_reader = SummaryReader(
-            xref_summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
+            summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
             loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
             item_id_to_risks_i, is_risk_affected, has_affected_risk)
 
         out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
 
         # data for index file (low_memory==True)
-        summary_sets_cursor = np.zeros(xref_summary_sets_id.shape[0], dtype=np.int64)
+        summary_sets_cursor = np.zeros(nb_xref_summary_sets, dtype=np.int64)
         summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=summary_stream_index_dtype)
 
-        for summary_set_id in summary_sets_id:
-            summary_set_index = summary_set_id_to_summary_set_index[summary_set_id]
+        for summary_set_id, summary_set_index in zip(summary_sets_id, summary_set_indices):
             summary_pipe = summary_sets_pipe[summary_set_id]
             summary_sets_cursor[summary_set_index] += summary_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
             summary_sets_cursor[summary_set_index] += summary_pipe.write(len_sample.tobytes())
@@ -466,8 +467,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
         try:
             for event_id in summary_reader.read_streams(streams_in):
-                for summary_set_id in summary_sets_id:
-                    summary_set_index = summary_set_id_to_summary_set_index[summary_set_id]
+                for summary_set_id, summary_set_index in zip(summary_sets_id, summary_set_indices):
                     summary_pipe = summary_sets_pipe[summary_set_id]
                     summary_index_cursor = 0
                     last_loss_summary_index = 0

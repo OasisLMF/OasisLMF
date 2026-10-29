@@ -4,6 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from oasislmf.pytools.summary.cli import parser, manager
@@ -97,12 +98,37 @@ def test_subset_of_summary_sets():
     case_runner('multiple_summary_set', test_case)
 
 
-def test_unknown_summary_set_id():
-    # 3 is one past the last summary set in the ground up summaryxref (1 and 2)
+def run_summarypy(run_type, static_path, summary_sets_path):
+    # summary sets are passed to the manager directly, as argparse would reject a negative id ('--1')
+    cmd = f"-m -t {run_type} -p {static_path} -i {Path(TESTS_ASSETS_DIR, run_type + '.bin')}".split()
+    kwargs = vars(parser.parse_args(cmd))
+    kwargs.pop('logging_level')
+    kwargs['summary_sets_output'] = [arg for summary_set_id, path in summary_sets_path.items() for arg in (f"-{summary_set_id}", str(path))]
+    manager.main(**kwargs)
+
+
+@pytest.mark.parametrize('summary_set_id', [3, -1, 0])
+def test_unknown_summary_set_id(summary_set_id):
+    # the ground up summaryxref has sets 1 and 2; -1 must not be read as the last set
     with TemporaryDirectory() as tmp_result_dir_str:
-        cmd = (f"-t {manager.RUNTYPE_GROUNDUP_LOSS} -p {Path(TESTS_ASSETS_DIR, 'multiple_summary_set')}"
-               f" -i {Path(TESTS_ASSETS_DIR, manager.RUNTYPE_GROUNDUP_LOSS + '.bin')} -3 {Path(tmp_result_dir_str, 'S3.bin')}").split()
-        kwargs = vars(parser.parse_args(cmd))
-        kwargs.pop('logging_level')
-        with pytest.raises(ValueError, match=r'summary_set_ids \[np.int64\(3\)\]|summary_set_ids \[3\]'):
-            manager.main(**kwargs)
+        with pytest.raises(ValueError, match='not found in summaryxref'):
+            run_summarypy(manager.RUNTYPE_GROUNDUP_LOSS, Path(TESTS_ASSETS_DIR, 'multiple_summary_set'),
+                          {summary_set_id: Path(tmp_result_dir_str, 'S.bin')})
+
+
+def test_unrequested_summary_set_is_not_read():
+    # items missing from summary set 3, which isn't requested, must not change sets 1 and 2
+    base_path = Path(TESTS_ASSETS_DIR, 'multiple_summary_set')
+    with TemporaryDirectory() as tmp_dir_str:
+        static_path = Path(tmp_dir_str, 'static')
+        shutil.copytree(base_path, static_path, ignore=shutil.ignore_patterns('*.bin', '*.idx', 'error_files', 'RI_1'))
+        xref = pd.read_csv(static_path / 'fmsummaryxref.csv')
+        xref = xref[~((xref['summaryset_id'] == 3) & (xref['output'] <= 10))]
+        xref.to_csv(static_path / 'fmsummaryxref.csv', index=False)
+
+        run_type = manager.RUNTYPE_INSURED_LOSS
+        run_summarypy(run_type, static_path, {i: Path(tmp_dir_str, f'{run_type}_S{i}_summary.bin') for i in (1, 2)})
+        for summary_set_id in (1, 2):
+            for file_extention in ['.bin', '.idx']:
+                file_name = f'{run_type}_S{summary_set_id}_summary{file_extention}'
+                assert filecmp.cmp(Path(tmp_dir_str, file_name), Path(base_path, file_name), shallow=False)
