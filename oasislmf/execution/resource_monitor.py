@@ -28,7 +28,7 @@ import psutil
 
 logger = logging.getLogger(__name__)
 
-# Full list of pytools tool names to monitor (from check_complete in bash.py)
+# Full list of pytools tool names to monitor
 MONITORED_TOOLS = frozenset([
     'evepy', 'modelpy', 'gulpy', 'fmpy', 'gulmc',
     'summarypy', 'plapy', 'katpy', 'eltpy', 'pltpy', 'aalpy', 'lecpy',
