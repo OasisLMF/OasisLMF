@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from oasislmf.pytools.summary.cli import parser, manager
+from oasislmf.utils.exceptions import OasisStreamException
 
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_summarypy")
@@ -132,3 +133,19 @@ def test_unrequested_summary_set_is_not_read():
             for file_extention in ['.bin', '.idx']:
                 file_name = f'{run_type}_S{summary_set_id}_summary{file_extention}'
                 assert filecmp.cmp(Path(tmp_dir_str, file_name), Path(base_path, file_name), shallow=False)
+
+
+def test_requested_summary_set_missing_item(monkeypatch):
+    # an item in the loss stream with no summaryxref row for a requested set must fail, not add its loss elsewhere
+    base_path = Path(TESTS_ASSETS_DIR, 'multiple_summary_set')
+    with TemporaryDirectory() as tmp_dir_str:
+        monkeypatch.chdir(tmp_dir_str)  # summarypy writes event_error.json to the working directory on failure
+        static_path = Path(tmp_dir_str, 'static')
+        shutil.copytree(base_path, static_path, ignore=shutil.ignore_patterns('*.bin', '*.idx', 'error_files', 'RI_1'))
+        xref = pd.read_csv(static_path / 'fmsummaryxref.csv')
+        xref = xref[~((xref['summaryset_id'] == 2) & (xref['output'] <= 10))]
+        xref.to_csv(static_path / 'fmsummaryxref.csv', index=False)
+
+        with pytest.raises(OasisStreamException, match='has no summaryxref row'):
+            run_summarypy(manager.RUNTYPE_INSURED_LOSS, static_path,
+                          {i: Path(tmp_dir_str, f'S{i}_summary.bin') for i in (1, 2)})

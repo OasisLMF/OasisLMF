@@ -224,6 +224,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     new_risk = is_risk_affected[risk_i] = 1
 
             for summary_set_index in summary_set_indices:
+                if item_id >= item_id_to_summary_id.shape[0] or item_id_to_summary_id[item_id, summary_set_index] == null_index:
+                    raise ValueError('summarypy: item_id', item_id, 'has no summaryxref row for summary set index', summary_set_index)
                 loss_index[summary_set_index] = nb_oasis_int(summary_set_index_to_loss_ptr[summary_set_index]
                                                              + item_id_to_summary_id[item_id, summary_set_index] - 1)
                 # print(summary_set_index_to_loss_ptr[summary_set_index], item_id_to_summary_id[item_id, summary_set_index])
@@ -465,6 +467,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
             summary_sets_cursor[summary_set_index] += summary_pipe.write(len_sample.tobytes())
             summary_sets_cursor[summary_set_index] += summary_pipe.write(summaryset_id_dtype.type(summary_set_id).tobytes())
 
+        event_id = None  # so the error handler below works if the first event fails
         try:
             for event_id in summary_reader.read_streams(streams_in):
                 for summary_set_id, summary_set_index in zip(summary_sets_id, summary_set_indices):
