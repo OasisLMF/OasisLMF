@@ -562,7 +562,10 @@ This is an efficient way to map a combination of columns that have a finite scop
 column name the file and the locations have in common, including columns only declared by other steps. Set this to
 reuse a file that carries a column the locations also have but that must not be matched on, for example a
 vulnerability dict built for France (``CountryCode`` = ``FR``) on a German model. Any other column present in both
-keeps its locations value, except ``id_columns``, which take the file's value.
+keeps its locations value, except ``id_columns``, which take the file's value. The file must have at most one row
+per combination of ``join_columns``; otherwise each matching location is duplicated, once per row. For example, a
+dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupancy can't be joined without
+``CountryCode``.
 
 .. code-block:: JSON
 
