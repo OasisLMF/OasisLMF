@@ -1119,8 +1119,8 @@ def resolve_disaggregation(disaggregation, do_disaggregation=None, default=DISAG
             f"location's buildings can be represented.")
     elif deprecated_given:
         warn_deprecated(
-            f"both disaggregation and the deprecated do_disaggregation were given; "
-            f"disaggregation='{disaggregation}' wins and do_disaggregation is ignored.")
+            f"do_disaggregation is deprecated and ignored here: disaggregation='{disaggregation}' "
+            f"is used. Use disaggregation to choose how a location's buildings are represented.")
 
     return disaggregation
 
