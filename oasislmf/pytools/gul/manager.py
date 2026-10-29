@@ -472,7 +472,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         z_unif (np.array[float]): reusable buffer for correlated random values.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
-        building_losses (numpy.array[oasis_float]): 3d (sample_size, max_items, W)
+        building_losses (numpy.array[oasis_float]): 3d (sample_size, max_items, max_buildings)
           reusable buffer for the per-building samples.
         rndms_base (numpy.array[float64]): 2d (rng groups, sample_size) random values, one row
           per group. Empty when lazy_draws is set, where it is never read.
