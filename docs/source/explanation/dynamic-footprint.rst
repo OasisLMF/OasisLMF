@@ -201,14 +201,15 @@ areaperil in a single section is unchanged whatever the option.
 Declaring an areaperil's sections
 ---------------------------------
 
-The keys carry a location's sections in the ``section_id`` column, several of them separated by
-``;`` (``1;2``). Emitting one keys row per section does **not** work: the rows share an item, and
-all but the first are dropped (`issue 2203 <https://github.com/OasisLMF/OasisLMF/issues/2203>`_).
+The keys carry a location's sections in the ``section_id`` column. A location in several sections
+can be given either way:
 
-The built-in lookup produces that form with a ``join_rows`` step after any step that matches a
-location several times. Placed after an ``rtree`` step on overlapping section polygons, with
-``"columns": ["section_id"]`` as its parameter, it gives a location falling in several sections one
-row, its section ids joined in numeric order (see :doc:`keys-service`).
+- one keys row per section, as an ``rtree`` step on overlapping section polygons returns. The rows
+  of an item that differ only in ``section_id`` are combined when the GUL inputs are built, their
+  ids joined in numeric order (``1;2``). Rows of an item that also differ in another key field
+  (areaperil, vulnerability, ...) cannot be one item: a warning names them, and only the rows
+  matching the first row's key fields contribute sections;
+- one row, with the sections already joined by ``;`` (``1;2``).
 
 Choosing the merge
 ------------------

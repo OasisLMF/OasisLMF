@@ -272,49 +272,6 @@ def test_build_rtree_keeps_one_row_per_match(overlapping_sections_path, overlapp
     assert len(output) == 1 + 2 + 3 + 1 + 1
 
 
-def test_join_rows_collapses_rows_that_differ_only_in_the_joined_column():
-    locations = pd.DataFrame({
-        'loc_id': [1, 1, 1, 2, 2, 3],
-        'peril_id': ['OSF', 'OSF', 'OSF', 'OSF', 'WTC', 'OSF'],
-        'section_id': [10, 2, 1, 5, 7, 4],
-    })
-    output = Lookup(config={}).build_join_rows(columns=['section_id'])(locations)
-    # one row per (loc_id, peril_id): numeric order, and a single value is a string too
-    assert output.values.tolist() == [[1, 'OSF', '1;2;10'], [2, 'OSF', '5'], [2, 'WTC', '7'], [3, 'OSF', '4']]
-
-
-def test_join_rows_groups_on_by_when_another_column_cannot_be_compared():
-    locations = pd.DataFrame({
-        'loc_id': [1, 1, 2],
-        'model_data': [{'a': 1}, {'a': 1}, {'a': 2}],  # unhashable, so it cannot be a grouping column
-        'section_id': [2, 1, 3],
-    })
-    output = Lookup(config={}).build_join_rows(columns='section_id', by=['loc_id'], separator='|')(locations)
-    assert output[['loc_id', 'section_id']].values.tolist() == [[1, '1|2'], [2, '3']]
-
-
-def test_join_rows_step_from_a_lookup_config(overlapping_sections_path, overlapping_sections_locations):
-    """join_rows declared as a step of a data-driven lookup config, after an rtree returning one row per match."""
-    config = {
-        "step_definition": {
-            "ids": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
-                "peril_id": "OSF", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]}},
-            "section": {"type": "rtree", "columns": ["latitude", "longitude"],
-                        "parameters": {"file_path": overlapping_sections_path, "file_type": "parquet",
-                                       "id_columns": ["section_id"]}},
-            "join_sections": {"type": "join_rows", "columns": ["section_id"],
-                              "parameters": {"columns": ["section_id"]}},
-        },
-        "strategy": ["ids", "section", "join_sections"],
-    }
-    locations = overlapping_sections_locations.rename(columns={"locname": "loc_id"})
-    keys = Lookup(config=config).process_locations(locations)
-    assert keys.set_index("loc_id")["section_id"].to_dict() == {
-        "one": "1", "two": "1;2", "three": "1;2;10",
-        "none": str(OASIS_UNKNOWN_ID), "no_coordinates": str(OASIS_UNKNOWN_ID),
-    }
-
-
 @pytest.mark.parametrize("preparations, values, expected", [
     ({"min": 5}, [1, 5, 7], [5, 5, 7]),           # values below min are raised to min
     ({"max": 10}, [7, 10, 20], [7, 10, 10]),      # values above max are lowered to max
