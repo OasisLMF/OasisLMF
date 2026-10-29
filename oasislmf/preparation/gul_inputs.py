@@ -761,8 +761,9 @@ def write_gul_input_files(
     # write the correlations to a binary file
     if correlations_df is None:
         correlations_df = pd.DataFrame(columns=correlations_headers)
-    correlations_df.to_csv(f"{output_dir}/correlations.csv", index=False)
     df_to_ndarray(correlations_df, correlations_dtype).tofile(f"{output_dir}/correlations.bin")
+    if intermediary_csv:
+        correlations_df.to_csv(f"{output_dir}/correlations.csv", index=False)
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size

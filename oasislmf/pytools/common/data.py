@@ -451,21 +451,34 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     useful for multi-columns files
 
     Args:
-        dir_path: path to the directory where the binary or csv file is stored
+        dir_path: path to the directory where the binary, parquet or csv file is stored
         name: name of the file
         _dtype: np.dtype
         must_exist: raise FileNotFoundError if no file is present
-        col_map: name re-mapping to change name of csv columns
+        col_map: name re-mapping to change name of csv or parquet columns
     Returns:
         numpy ndarray
     """
+    if col_map is None:
+        col_map = {}
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
         return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
+    elif os.path.isfile(os.path.join(dir_path, name + '.parquet')):
+        import pyarrow.parquet as pq
+        filepath = os.path.join(dir_path, name + '.parquet')
+        file_cols = set(pq.read_schema(filepath).names)
+        read_cols = {field_name: col_map.get(field_name, field_name) for field_name in _dtype.names}
+        missing = [col for col in read_cols.values() if col not in file_cols]
+        if missing:
+            raise OasisException(f"columns expected in {filepath} but not found: {missing}")
+        df = pq.read_table(filepath, columns=list(set(read_cols.values()))).to_pandas()
+        result = np.empty(len(df), dtype=_dtype)
+        for field_name, col in read_cols.items():
+            result[field_name] = df[col].to_numpy()
+        return result
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
         # in csv column can be out of order and have different name,
         # col_map maps {dtype_field_name: csv_header_name}
-        if col_map is None:
-            col_map = {}
         filepath = os.path.join(dir_path, name + '.csv')
         with open(filepath) as file_in:
             header = {h.strip(): i for i, h in enumerate(file_in.readline().split(','))}
