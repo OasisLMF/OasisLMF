@@ -147,8 +147,9 @@ def collapse(areaperil_id, intensity, probability, return_period):
     Each areaperil's rows must be together; they are expected in non-decreasing intensity, as both
     kernels above write them, and sorted here if not. Rows of one areaperil with the same floored intensity and return period become
     one; probabilities are normalised per areaperil; each areaperil is written from the largest
-    intensity down, the smaller return period first on a tie, as gulmc reads the event's return
-    period off an areaperil's first row.
+    intensity down, the smaller return period first when rows of different return periods floor to
+    the same intensity, as the pandas build did. gulmc reads the event's return period off an
+    areaperil's first row, so on such a tie it is the smaller, whichever unfloored intensity was larger.
 
     Returns:
         tuple: areaperil_id, intensity (int32), probability, return_period of each output row.
@@ -233,8 +234,10 @@ def merge_sections(areaperil_id, section_id, intensity, width, return_period, mo
     - MERGE_MAX_INDEPENDENT: P(max <= x) is the product of the sections' P(intensity <= x),
       evaluated at every intensity any section can take.
 
-    An output row keeps the return period of the section giving its intensity, the larger on a
-    tie; for a sum, that of the largest contributor.
+    An output row keeps the return period of the section giving its intensity, the larger when
+    sections give the same unfloored intensity; for a sum, that of the largest contributor.
+    Intensities are not floored yet, so rows that floor to the same integer stay apart here;
+    collapse decides which comes first.
 
     Returns:
         tuple: areaperil_id, intensity, probability, return_period of each output row.
