@@ -521,9 +521,12 @@ def vulnerability_dict_path(tmp_path):
     return path
 
 
-def _strict_columns_config(vulnerability_dict_path, strict_columns, strategy=("areaperil", "vulnerability")):
+def _vulnerability_merge_config(vulnerability_dict_path, join_columns=None):
+    parameters = {"file_path": str(vulnerability_dict_path), "file_type": "csv", "id_columns": ["vulnerability_id"]}
+    if join_columns is not None:
+        parameters["join_columns"] = join_columns
     return {
-        "strategy": list(strategy),
+        "strategy": ["areaperil", "vulnerability"],
         "step_definition": {
             "areaperil": {
                 "type": "prepare",
@@ -533,12 +536,7 @@ def _strict_columns_config(vulnerability_dict_path, strict_columns, strategy=("a
             "vulnerability": {
                 "type": "merge",
                 "columns": ["peril_id", "coverage_type", "occupancycode"],
-                "strict_columns": strict_columns,
-                "parameters": {
-                    "file_path": str(vulnerability_dict_path),
-                    "file_type": "csv",
-                    "id_columns": ["vulnerability_id"],
-                },
+                "parameters": parameters,
             },
         },
     }
@@ -555,58 +553,55 @@ def german_locations():
     })
 
 
-def test_process_locations_without_strict_columns_leaks_columns_across_steps(vulnerability_dict_path, german_locations):
-    """Without strict_columns, the merge step also sees 'countrycode' (needed by the
-    'areaperil' step), so pandas.merge implicitly joins on it too and nothing matches."""
-    config = _strict_columns_config(vulnerability_dict_path, strict_columns=False)
+def test_process_locations_merge_without_join_columns_joins_on_every_shared_column(vulnerability_dict_path, german_locations):
+    """By default the merge also joins on 'countrycode' (needed by the 'areaperil' step),
+    so the FR dict matches none of the DE locations."""
+    config = _vulnerability_merge_config(vulnerability_dict_path)
     result = Lookup(config=config).process_locations(german_locations)
     assert (result["vulnerability_id"] == OASIS_UNKNOWN_ID).all()
 
 
-def test_process_locations_strict_columns_scopes_step_to_its_own_columns(vulnerability_dict_path, german_locations):
-    """With strict_columns, the merge step only sees the columns it declared, so the dict
-    file's leftover 'countrycode' is never used as an implicit join key and the merge succeeds."""
-    config = _strict_columns_config(vulnerability_dict_path, strict_columns=True)
+def test_process_locations_merge_join_columns_ignores_other_shared_columns(vulnerability_dict_path, german_locations):
+    """With join_columns, the dict file's leftover 'countrycode' is not a join key and the merge succeeds."""
+    config = _vulnerability_merge_config(vulnerability_dict_path, join_columns=["peril_id", "coverage_type", "occupancycode"])
     result = Lookup(config=config).process_locations(german_locations)
     assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, 30]
-    # the 'areaperil' step still had access to its own declared column
     assert (result["area_peril_id"] == 1).all()
     assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()
 
 
-def test_process_locations_strict_columns_restores_hidden_columns_for_later_steps(vulnerability_dict_path, german_locations):
-    """The dict file's own 'countrycode' (FR) must not clash with the hidden locations
-    'countrycode' (DE) when reassembling, so a later step can still use the original column."""
-    config = _strict_columns_config(vulnerability_dict_path, strict_columns=True, strategy=["vulnerability", "areaperil"])
-    lookup = Lookup(config=config)
-    seen = {}
-    areaperil = lookup.set_step_function("areaperil", config["step_definition"]["areaperil"])
-
-    def spy(locations):
-        seen["countrycode"] = locations["countrycode"].tolist()
-        return areaperil(locations)
-    lookup.areaperil = spy
-
-    result = lookup.process_locations(german_locations)
-    assert seen["countrycode"] == ["DE", "DE"]
-    assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, 30]
-    assert (result["area_peril_id"] == 1).all()
+def test_merge_join_columns_keeps_locations_value_for_other_shared_columns(vulnerability_dict_path, german_locations):
+    """A non-key column in both the file and the locations keeps its locations value (no _x/_y suffixes),
+    and join_columns are matched case-insensitively."""
+    merge = Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), id_columns=["vulnerability_id"],
+                                          join_columns=["Peril_ID", "Coverage_Type", "OccupancyCode"])
+    result = merge(german_locations.rename(columns={"countrycode": "CountryCode"}))
+    assert result["CountryCode"].tolist() == ["DE", "DE"]
+    assert "countrycode" not in result.columns
+    assert result["vulnerability_id"].tolist() == [10, 30]
 
 
-def test_process_locations_strict_columns_applies_to_combine_children(vulnerability_dict_path, german_locations):
-    config = _strict_columns_config(vulnerability_dict_path, strict_columns=True)
-    config["step_definition"]["vulnerability_fr_dict"] = config["step_definition"].pop("vulnerability")
-    config["step_definition"]["vulnerability"] = {
-        "type": "combine",
-        "columns": ["peril_id", "coverage_type", "occupancycode"],
-        "parameters": {"id_columns": ["vulnerability_id"], "strategy": ["vulnerability_fr_dict"]},
-    }
-    result = Lookup(config=config).process_locations(german_locations)
-    assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, 30]
-    assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()
+def test_merge_join_columns_takes_id_columns_from_file(vulnerability_dict_path, german_locations):
+    """An id column already in the locations (e.g. reset to -1 by an earlier step) is replaced by the file's value."""
+    merge = Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), id_columns=["vulnerability_id"],
+                                          join_columns=["peril_id", "coverage_type", "occupancycode"])
+    result = merge(german_locations.assign(vulnerability_id=OASIS_UNKNOWN_ID))
+    assert result["vulnerability_id"].tolist() == [10, 30]
+    assert not any(col.endswith(("_x", "_y")) for col in result.columns)
 
 
-def test_combine_skips_child_whose_own_columns_are_missing():
+def test_merge_join_columns_missing_from_file_raises(vulnerability_dict_path):
+    with pytest.raises(OasisException, match="not found in"):
+        Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), join_columns=["postalcode"])
+
+
+def test_merge_join_columns_missing_from_locations_raises(vulnerability_dict_path, german_locations):
+    merge = Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), join_columns=["peril_id", "countrycode"])
+    with pytest.raises(OasisException, match="not found in the locations"):
+        merge(german_locations.drop(columns="countrycode"))
+
+
+def test_combine_skips_child_whose_own_columns_are_missing(caplog):
     """A combine child is skipped when the columns *it* declares are absent from the
     exposure, so the next child can act as a fallback (rather than the child crashing)."""
     class PostcodeLookup(Lookup):
@@ -628,8 +623,10 @@ def test_combine_skips_child_whose_own_columns_are_missing():
         },
     }
     locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no PostalCode
-    result = PostcodeLookup(config=config).process_locations(locations)
+    with caplog.at_level("WARNING", logger="oasislmf.lookup.builtin"):
+        result = PostcodeLookup(config=config).process_locations(locations)
     assert result["vulnerability_id"].tolist() == [7]
+    assert "skipping step by_postcode" in caplog.text
     assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()
 
 

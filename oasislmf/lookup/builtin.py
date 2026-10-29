@@ -44,7 +44,6 @@ try:  # needed for h3 lookup
 except ImportError:
     h3 = h3_int = None
 
-import functools
 import logging
 import math
 import re
@@ -310,16 +309,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     - **columns**: the columns required to apply the step. These matter because any column
       (except ``loc_id``) from the original Locations DataFrame that is not used by any step is
       dropped to reduce memory consumption.
-    - **strict_columns** (optional, default ``False``): if ``True``, the step only sees its own
-      declared ``columns`` (plus a small set of pipeline columns such as ``loc_id``, ``status``,
-      ``message`` and any key columns already produced by earlier steps) instead of every column
-      requested across all steps. Use this to stop a step's implicit-merge-key behaviour (e.g.
-      ``pandas.merge`` joining on any column name shared with the lookup data file) from picking
-      up a column that another step needs but this one doesn't — for example reusing a
-      ``vulnerability_dict.parquet`` from one country on another model without also matching on
-      its leftover ``CountryCode`` column. Columns hidden from the step are restored afterwards
-      with their original values, even if the step itself produced a column of the same name.
-      This also applies to steps used as children of a ``combine`` step.
     - **parameters**: the parameters passed to the function factory.
 
     Once all the functions have been defined, the order in which they are applied is set in the
@@ -398,8 +387,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                         step_name=child_step_name,
                         step_config=child_step_config,
                         function_being_set=function_being_set)
-                    if child_step_config.get('strict_columns', False):
-                        child_fct = functools.partial(self._call_step, child_fct, child_step_config)
                     functions.append({'name': child_step_name, 'function': child_fct,
                                       'columns': set(child_step_config.get("columns", []))})
                 step_config['parameters']['strategy'] = functions
@@ -407,42 +394,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
             setattr(self, step_name, step_function)
         return step_function
-
-    # the fixed set of output columns process_locations produces; also doubles as the set of
-    # columns that must keep flowing to later steps even when a step is scoped down with
-    # "strict_columns", regardless of whether that step itself declared them
-    _KEY_COLUMNS = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
-    _ADDITIONAL_COLUMNS = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
-    # internal column used to reassemble the full locations DataFrame after a step has only
-    # been given a restricted view of it (see "strict_columns")
-    _STRICT_ROW_ID = '__strict_row_id__'
-
-    def _call_step(self, step_function, step_config, locations):
-        """Call a step function, optionally restricting the columns it can see to those it
-        declared in ``columns`` (plus a few pipeline columns that must always survive) when the
-        step config sets ``strict_columns``. This stops the step from being affected by columns
-        it never asked for that another step needs, e.g. an implicit ``pandas.merge`` join key.
-        """
-        if not step_config.get('strict_columns', False):
-            return step_function(locations)
-
-        visible_columns = set(step_config.get("columns", [])) | set(self._KEY_COLUMNS + self._ADDITIONAL_COLUMNS)
-        view_columns = [col for col in locations.columns if col in visible_columns]
-        other_columns = [col for col in locations.columns if col not in visible_columns]
-        if not other_columns:
-            return step_function(locations)
-
-        locations = locations.assign(**{self._STRICT_ROW_ID: np.arange(len(locations))})
-        result = step_function(locations[view_columns + [self._STRICT_ROW_ID]])
-        if self._STRICT_ROW_ID not in result.columns:
-            raise OasisException(
-                f"Key Server Issue: step with strict_columns dropped the internal column {self._STRICT_ROW_ID}, "
-                "so the columns hidden from it cannot be restored")
-        # hidden columns keep their original values: drop any same-named column the step produced
-        # (e.g. a leftover column pulled in from a merge file) so the merge back doesn't add suffixes
-        result = result.drop(columns=[col for col in other_columns if col in result.columns])
-        result = result.merge(locations[[self._STRICT_ROW_ID] + other_columns], on=self._STRICT_ROW_ID, how='left')
-        return result.drop(columns=self._STRICT_ROW_ID)
 
     def process_locations(self, locations):
         missing = [key for key in ('step_definition', 'strategy') if not self.config.get(key)]
@@ -474,10 +425,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 raise OasisException(
                     f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             step_function = self.set_step_function(step_name, step_config)
-            locations = self._call_step(step_function, step_config, locations)
+            locations = step_function(locations)
 
-        key_columns = list(self._KEY_COLUMNS)
-        for col in self._ADDITIONAL_COLUMNS:
+        key_columns = [
+            'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
+            'vulnerability_id', 'status', 'message'
+        ]
+        additional_columns = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
+        for col in additional_columns:
             if col in locations.columns:
                 key_columns += [col]
 
@@ -610,8 +565,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             def fct(locations):
                 initial_columns = locations.columns
                 result = []
-                for child_strategy in strategy:
+                for i, child_strategy in enumerate(strategy):
                     if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
+                        logger.warning("combine: skipping step %s, missing columns %s",
+                                       child_strategy.get('name', i),
+                                       sorted(child_strategy['columns'].difference(locations.columns)))
                         continue
                     locations = child_strategy['function'](locations)
                     locations = Lookup.set_id_columns(locations, id_columns)
@@ -1200,11 +1158,18 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         return h3_lookup
 
-    def build_merge(self, file_path, id_columns=[], file_type='csv', **kwargs):
+    def build_merge(self, file_path, id_columns=[], file_type='csv', join_columns=None, **kwargs):
         """Merges the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
 
         this is an efficient way to map a combination of column that have a finite scope to an idea.
+
+        By default the join is on every column name the file and the locations have in common
+        (matched case-insensitively). Set ``join_columns`` to join only on those columns instead,
+        e.g. to reuse a file that carries a column (such as ``CountryCode``) the locations also
+        have but that must not be matched on. With ``join_columns``, any other column in both
+        the file and the locations keeps its locations value, except ``id_columns``, which take
+        the file's value.
 
         If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
         """
@@ -1215,6 +1180,17 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
         df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
 
+        if isinstance(join_columns, str):
+            join_columns = [join_columns]
+        if join_columns is not None:
+            join_columns = [col.lower() for col in join_columns]
+            missing_in_file = [col for col in join_columns if col not in df_to_merge.columns]
+            if missing_in_file:
+                raise OasisException(
+                    f"merge step: join_columns {missing_in_file} not found in '{file_path}'. "
+                    f"Table columns: {sorted(df_to_merge.columns)}")
+            id_columns_lower = {col.lower() for col in id_columns}
+
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
             if not rename_map:
@@ -1223,8 +1199,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"name (matched case-insensitively). Table columns: {sorted(df_to_merge.columns)}. "
                     f"Location columns available to this step: {sorted(locations.columns)}. The join keys "
                     f"are the names the two have in common.")
-            logger.debug("merge step: joining on %s", sorted(rename_map.values()))
-            locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
+            if join_columns is None:
+                logger.debug("merge step: joining on %s", sorted(rename_map.values()))
+                locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
+                return self.set_id_columns(locations, id_columns)
+
+            missing_in_locations = [col for col in join_columns if col not in rename_map]
+            if missing_in_locations:
+                raise OasisException(
+                    f"merge step: join_columns {missing_in_locations} not found in the locations. "
+                    f"Location columns available to this step: {sorted(locations.columns)}")
+            # columns in both that aren't join keys: id_columns come from the file, the rest stay as in locations
+            shared = [col for col in rename_map if col not in join_columns]
+            from_file = [col for col in shared if col in id_columns_lower]
+            from_locations = [col for col in shared if col not in id_columns_lower]
+            on = [rename_map[col] for col in join_columns]
+            logger.debug("merge step: joining on %s", on)
+            locations = locations.drop(columns=[rename_map[col] for col in from_file]).merge(
+                df_to_merge.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
             return self.set_id_columns(locations, id_columns)
         return merge
 
