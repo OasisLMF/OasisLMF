@@ -25,8 +25,12 @@ whose account totals the other rules must reproduce. That is where they risk goi
 level linked past (``root_start``, which the per-coverage policy units produce) read the items'
 loss from before the terms below, and under rule 0 the items reached it still packed.
 
-Run with ``NUMBA_BOUNDSCHECK=1`` (CI does): an arena overrun is otherwise a segfault, or worse a
-silent wrong answer, rather than a failure.
+Allocation rule 3 is not run: fmpy runs it as rule 2.
+
+The one-location cases give a location many more buildings than the structure has nodes, which
+is what makes the arena's packed allowance the part that matters. Run with ``NUMBA_BOUNDSCHECK=1``
+(CI does): an arena overrun is otherwise a segfault, or worse a silent wrong answer, rather than a
+failure.
 """
 import os
 import shutil
@@ -40,7 +44,9 @@ from oasislmf.utils.defaults import DISAGGREGATION_ITEMS, DISAGGREGATION_NONE, D
 
 VALIDATION_DIR = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, 'validation')
 
-N_BUILDINGS = 3
+# Cycled over the locations rather than one count for all: the arena budget is worked out per
+# node from the counts beneath it, so only a mix of counts tests that it adds up.
+BUILDING_COUNTS = [1, 2, 5, 8]
 PERILS = ['WTC']
 
 # The units merged into the 'insurance' case, by FlexiLocUnit or, where a suite has none, by
@@ -185,16 +191,20 @@ def _assert_same_losses(ref, other, ref_name, other_name):
         )
 
 
+def _building_counts(n):
+    return [str(BUILDING_COUNTS[i % len(BUILDING_COUNTS)]) for i in range(n)]
+
+
 def _one_risk(loc):
     # Locations already marked IsAggregate=1 are left alone: their expected losses split the site
     # terms across buildings, which is not what this case is about.
     single_risk = loc['IsAggregate'] != '1'
-    loc.loc[single_risk, 'NumberOfBuildings'] = str(N_BUILDINGS)
+    loc.loc[single_risk, 'NumberOfBuildings'] = _building_counts(int(single_risk.sum()))
     loc.loc[single_risk, 'IsAggregate'] = '0'
 
 
 def _separate_risks(loc):
-    loc['NumberOfBuildings'] = str(N_BUILDINGS)
+    loc['NumberOfBuildings'] = _building_counts(len(loc))
     loc['IsAggregate'] = '1'
 
 
@@ -248,16 +258,39 @@ def test_separate_buildings_give_the_same_account_losses_packed_under_rules_0_an
     _assert_same_losses(rule_1, rule_0, '-a1', '-a0')
 
 
-def test_separate_buildings_under_policy_terms_only_give_the_same_item_losses_packed():
-    # No location terms, so no level applies terms per building and fm sums the buildings as it
-    # reads them. One location holding many more buildings than the structure has nodes is where
-    # an item that kept every building until its end overran the arena sized for one per node.
+EVERY_COVERAGE = {'BuildingTIV': '5000000', 'OtherTIV': '300000', 'ContentsTIV': '500000', 'BITIV': '200000'}
+
+# One location with many more buildings than the structure has nodes, which is what makes the
+# arena's packed allowance the part that matters: an under-reserved one runs off the end of an
+# array, which NUMBA_BOUNDSCHECK turns into a failure.
+ONE_LOCATION = {
+    # Under a policy deductible only, no level applies terms per building and fm sums a
+    # location's buildings as it reads them.
+    'policy_terms/building_and_contents': ({'BuildingTIV': '5000000', 'ContentsTIV': '500000'}, {}, 50),
+    # one item, so nothing above it merges anything
+    'policy_terms/building_only': ({'BuildingTIV': '5000000'}, {}, 50),
+    'policy_terms/every_coverage': (EVERY_COVERAGE, {}, 10),
+    # Under location terms the buildings stay apart up to the location level. Every coverage
+    # gives a multi-peril structure, whose item nodes sit below the levels generation counts.
+    'location_terms/deductible': (EVERY_COVERAGE, {'LocPeril': 'WTC', 'LocDed6All': '20000', 'LocDedType6All': '0'}, 50),
+    # a minimum deductible needs the extras arena, which has a budget of its own
+    'location_terms/min_deductible': (EVERY_COVERAGE, {'LocPeril': 'WTC', 'LocDed6All': '20000', 'LocDedType6All': '0',
+                                                       'LocMinDed6All': '10000'}, 50),
+}
+
+
+@pytest.mark.parametrize('alloc_rule', [0, 1, 2])
+@pytest.mark.parametrize('layout', ONE_LOCATION, ids=str)
+def test_one_location_of_many_separate_buildings_gives_the_same_item_losses_packed(layout, alloc_rule):
+    tivs, loc_terms, n_buildings = ONE_LOCATION[layout]
     location = pd.DataFrame({
         'PortNumber': ['1'], 'AccNumber': ['1'], 'LocNumber': ['1'], 'CountryCode': ['US'],
-        'LocPerilsCovered': ['WTC'], 'BuildingTIV': ['5000000'], 'OtherTIV': ['0'],
-        'ContentsTIV': ['500000'], 'BITIV': ['0'], 'LocCurrency': ['USD'],
-        'NumberOfBuildings': ['50'], 'IsAggregate': ['1'],
+        'LocPerilsCovered': ['WTC'], 'BuildingTIV': ['0'], 'OtherTIV': ['0'],
+        'ContentsTIV': ['0'], 'BITIV': ['0'], 'LocCurrency': ['USD'],
+        'NumberOfBuildings': [str(n_buildings)], 'IsAggregate': ['1'],
     })
+    for col, value in {**tivs, **loc_terms}.items():
+        location[col] = value
     account = pd.DataFrame({
         'PortNumber': ['1'], 'AccNumber': ['1'], 'PolNumber': ['1'], 'PolPerilsCovered': ['WTC'],
         'PolPeril': ['WTC'], 'PolDed6All': ['100000'], 'PolDedType6All': ['0'], 'AccCurrency': ['USD'],
@@ -268,8 +301,8 @@ def test_separate_buildings_under_policy_terms_only_give_the_same_item_losses_pa
         location.to_csv(os.path.join(src, 'location.csv'), index=False)
         account.to_csv(os.path.join(src, 'account.csv'), index=False)
         items, samples = (
-            _losses(src, os.path.join(tmp, mode), mode, 'item', DEFAULT_LOSS_FACTORS)
+            _losses(src, os.path.join(tmp, mode), mode, 'item', DEFAULT_LOSS_FACTORS, alloc_rule)
             for mode in (DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
         )
 
-    _assert_same_losses(items, samples, DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
+    _assert_same_losses(items, samples, DISAGGREGATION_ITEMS, f'{DISAGGREGATION_SAMPLES} -a{alloc_rule}')
