@@ -35,7 +35,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from ...execution import bash, runner
-from ...execution.bash import resolve_custom_gulcalc_cmd
+from ...execution.bash import check_custom_gulcalc_can_read_inputs, resolve_custom_gulcalc_cmd
 from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import OPTIONAL_MODEL_SETS, move_bin, prepare_run_directory, prepare_run_inputs
 from ...preparation.summaries import generate_summaryxref_files, get_ri_summaryxref_dirs
@@ -158,15 +158,9 @@ class GenerateLossesBase(ComputationStep):
                 f"--gul-random-generator 2."
             )
 
-        custom_gulcalc_cmd = resolve_custom_gulcalc_cmd(self.model_custom_gulcalc, analysis_settings)
-        if custom_gulcalc_cmd and not self.custom_gulcalc_supports_packing:
-            raise OasisException(
-                f"These inputs are building-packed, but this run uses the custom gulcalc "
-                f"'{custom_gulcalc_cmd}', which has not declared that it understands them. It "
-                f"would emit one block per item and understate every loss by NumberOfBuildings, "
-                f"with no error. Regenerate with --disaggregation items, or set "
-                f"custom_gulcalc_supports_packing if this gulcalc does handle packed streams."
-            )
+        check_custom_gulcalc_can_read_inputs(
+            self.oasis_files_dir, resolve_custom_gulcalc_cmd(self.model_custom_gulcalc, analysis_settings),
+            self.custom_gulcalc_supports_packing)
 
     def _store_run_settings(self, analysis_settings, target_dir):
         """Writes the analysis settings file to the `target_dir` path"""
@@ -775,6 +769,7 @@ class GenerateLosses(GenerateLossesDir):
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
                         custom_gulcalc_log_finish=self.model_custom_gulcalc_log_finish,
+                        custom_gulcalc_supports_packing=self.custom_gulcalc_supports_packing,
                         gulmc=(self.gulmc and not self.model_custom_gulcalc),
                         gul_random_generator=self.gul_random_generator,
                         gulmc_effective_damageability=self.gulmc_effective_damageability,

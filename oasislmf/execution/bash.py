@@ -74,6 +74,7 @@ from ..utils.exceptions import OasisException
 logger = logging.getLogger(__name__)
 
 
+from oasislmf.pytools.common.input_files import read_coverage_buildings
 from oasislmf.pytools.common.run_types import (
     RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS,
     RUNTYPE_REINSURANCE_GROSS_LOSS, RUNTYPE_FULL_CORRELATION, RUNTYPE_LOAD_BALANCED_LOSS,
@@ -1689,6 +1690,34 @@ def resolve_custom_gulcalc_cmd(custom_gulcalc_cmd, analysis_settings):
         analysis_settings.get('model_supplier_id'),
         analysis_settings.get('model_name_id'))
     return inferred_gulcalc_cmd if shutil.which(inferred_gulcalc_cmd) else None
+
+
+# where a complex model's maintainer finds what building packing asks of their gulcalc
+PACKING_SUPPORT_DOC_HINT = (
+    "See 'Models with their own ground-up binary', under 'samples: buildings in the sample dimension' "
+    "on the Disaggregation page of the OasisLMF documentation."
+)
+
+
+def check_custom_gulcalc_can_read_inputs(input_dir, custom_gulcalc_cmd, supports_packing):
+    """Refuse building-packed inputs for a custom gulcalc that has not declared it reads them.
+
+    It would emit one block per item and understate every loss by NumberOfBuildings, with no
+    error. Called where the gulcalc is finally chosen as well as before the loss step, because a
+    supplier_model_runner.py can pass its own, which no setting names.
+    """
+    if not custom_gulcalc_cmd or supports_packing:
+        return
+    counts = read_coverage_buildings(input_dir)
+    if counts.shape[0] and int(abs(counts['n_building']).max()) > 1:
+        raise OasisException(
+            f"These inputs are building-packed, but this run uses the custom gulcalc "
+            f"'{custom_gulcalc_cmd}', which has not declared that it understands them. It "
+            f"would emit one block per item and understate every loss by NumberOfBuildings, "
+            f"with no error. Regenerate with --disaggregation items, or set "
+            f"custom_gulcalc_supports_packing if this gulcalc does handle packed streams. "
+            f"{PACKING_SUPPORT_DOC_HINT}"
+        )
 
 
 def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):

@@ -429,7 +429,18 @@ Generation therefore falls back to ``items`` for such a model, and says so:
 
 The binary is often not configured at all -- a model that sets none of ``gulmc``/``gulpy``/
 ``modelpy`` is picked up by probing ``PATH`` for ``<supplier>_<model>_gulcalc`` -- so the check
-performs the same lookup rather than trusting ``model_custom_gulcalc`` alone.
+performs the same lookup rather than trusting ``model_custom_gulcalc`` alone. A model whose
+``model_package_dir`` holds a ``supplier_model_runner.py`` is treated the same way, because that
+runner can pass a binary of its own that no setting names.
+
+Generation cannot always see the model -- inputs may be generated without its configuration -- so
+the loss step checks again, once the runner has chosen the binary, and refuses packed inputs:
+
+.. code-block:: text
+
+    These inputs are building-packed, but this run uses the custom gulcalc
+    'Supplier_Model_gulcalc', which has not declared that it understands them. ...
+    Regenerate with --disaggregation items, or set custom_gulcalc_supports_packing ...
 
 A binary that *does* implement the packed encoding opts in with
 ``custom_gulcalc_supports_packing``, normally declared once by the model itself:

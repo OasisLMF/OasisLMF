@@ -9,7 +9,7 @@ import time
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from .bash import (bash_wrapper, create_bash_analysis,
+from .bash import (bash_wrapper, check_custom_gulcalc_can_read_inputs, create_bash_analysis,
                    create_bash_outputs, genbash)
 from .resource_monitor import MONITORED_TOOLS, ResourceMonitor
 
@@ -183,6 +183,7 @@ def run(analysis_settings,
         custom_gulcalc_log_start=None,
         custom_gulcalc_log_finish=None,
         custom_get_getmodel_cmd=None,
+        custom_gulcalc_supports_packing=False,
         filename='run_kernel.sh',
         df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         model_df_engine=None,
@@ -216,6 +217,10 @@ def run(analysis_settings,
             analysis_settings.get('model_name_id'))
         if shutil.which(inferred_gulcalc_cmd):
             custom_gulcalc_cmd = inferred_gulcalc_cmd
+
+    check_custom_gulcalc_can_read_inputs(
+        'input', custom_gulcalc_cmd or (custom_get_getmodel_cmd and 'custom_get_getmodel_cmd'),
+        custom_gulcalc_supports_packing)
 
     # TODO: should be integrated into bash.py
     if custom_gulcalc_cmd:

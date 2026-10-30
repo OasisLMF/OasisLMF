@@ -60,7 +60,7 @@ from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_MODES,
                                      get_default_exposure_profile,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException, OasisExceptionNoKeys
-from oasislmf.execution.bash import resolve_custom_gulcalc_cmd
+from oasislmf.execution.bash import PACKING_SUPPORT_DOC_HINT, resolve_custom_gulcalc_cmd
 from oasislmf.utils.inputs import str2bool
 
 
@@ -121,6 +121,9 @@ class GenerateFiles(ComputationStep):
         {'name': 'model_custom_gulcalc', 'default': None,
          'help': 'Custom gulcalc binary name. Declared here too so generation can tell a complex model from the '
                  'built-in pipeline when choosing how to represent buildings.'},
+        {'name': 'model_package_dir', 'is_path': True, 'pre_exist': False,
+         'help': 'Path containing model specific package. Declared here too because its supplier_model_runner.py '
+                 'can choose its own gulcalc, which generation must know about when choosing how to represent buildings.'},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
          'help': "DEPRECATED and ignored. Use --disaggregation items if you explicitly want a location's buildings split into separate items."},
 
@@ -214,6 +217,11 @@ class GenerateFiles(ComputationStep):
             # -- this IS a complex model -- and generation has no business failing over a binary
             # only the loss step runs, which a machine that merely prepares inputs need not have.
             custom_gulcalc_cmd = self.model_custom_gulcalc
+        # A supplier_model_runner.py can pass its own gulcalc to the runner, under a name no
+        # setting gives, so a model that ships one is taken to be a complex model.
+        if not custom_gulcalc_cmd and self.model_package_dir and os.path.isfile(
+                os.path.join(self.model_package_dir, 'supplier_model_runner.py')):
+            custom_gulcalc_cmd = f"chosen by {os.path.join(self.model_package_dir, 'supplier_model_runner.py')}"
         if not custom_gulcalc_cmd:
             return disaggregation
 
@@ -222,7 +230,7 @@ class GenerateFiles(ComputationStep):
             f"'{custom_gulcalc_cmd}', which has not declared that it understands building-packed streams. "
             f"Packing would leave it to put the buildings back, and a gulcalc that does not would understate "
             f"every loss by NumberOfBuildings. Generating with '{DISAGGREGATION_ITEMS}' instead. Set "
-            f"custom_gulcalc_supports_packing if this gulcalc does handle them."
+            f"custom_gulcalc_supports_packing if this gulcalc does handle them. {PACKING_SUPPORT_DOC_HINT}"
         )
         return DISAGGREGATION_ITEMS
 
