@@ -155,18 +155,15 @@ def first_time_layer_extra(profile_count, base_children_count, temp_children_que
 
     Same as first_time_layer but also handles the extras array (deductible, overlimit, underlimit).
 
-    Loss is COPIED to each new layer and extras are ZEROED, and the asymmetry is the point. Every
-    layer is offered the whole loss and then carves its own slice out of it through its attachment
-    and limit, so summing the layers afterwards gives the true total. Extras are not carved by
-    anything: they are a single accumulated quantity, and the invariant a cross-layer profile
-    relies on when it merges the layers (see STEP 2 in compute_event) is
+    With a single base child, that child is the node whose layers the profiles read, so its
+    extras are copied from layer 0: every layer of a node holds the node's whole accumulated
+    extras (see "Extras Across Layers" in TECHNICAL.md).
 
-        sum over layers of extras == the node's accumulated extras
-
-    Layer 0 already holds the whole amount at this point, so the other layers have to start at
-    zero; copying would make each of them hold it in full and the merge would count it N times.
-    This is what "allocate deductible underlimit overlimit to layer 1 on creation" meant in #1235,
-    and it is what the base-level path in compute_event does unconditionally.
+    With several base children, these are the items under the node, not the node. The node's
+    own layers are copied elsewhere (the single-child path in compute_event, or
+    aggregate_children_extras reading layers that still alias layer 0). The items' new layers
+    start at zero: they only receive the changes back-allocated to them, and items are never
+    aggregated again, so nothing reads them as accumulated extras.
 
     Args:
         profile_count: Number of profiles/layers to create
@@ -186,13 +183,19 @@ def first_time_layer_extra(profile_count, base_children_count, temp_children_que
         child_val_count = sidx_indptr[sidx_indexes[child['node_id']] + 1] - sidx_indptr[sidx_indexes[child['node_id']]]
         child_loss_val_layer_0 = loss_val[loss_indptr[child['loss']]:
                                           loss_indptr[child['loss']] + child_val_count]
+        child_extra_val_layer_0 = extras_val[extras_indptr[child['extra']]:
+                                             extras_indptr[child['extra']] + child_val_count]
+
         for profile_i in range(1, profile_count):
             loss_indptr[child['loss'] + profile_i] = compute_idx['loss_ptr_i']
             loss_val[compute_idx['loss_ptr_i']: compute_idx['loss_ptr_i'] + child_val_count] = child_loss_val_layer_0
             compute_idx['loss_ptr_i'] += child_val_count
 
             extras_indptr[child['extra'] + profile_i] = compute_idx['extras_ptr_i']
-            extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_count].fill(0)
+            if base_children_count == 1:  # the node itself: copy
+                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_count] = child_extra_val_layer_0
+            else:  # items under the node: start at zero
+                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_count].fill(0)
             compute_idx['extras_ptr_i'] += child_val_count
 
 
@@ -571,6 +574,7 @@ def compute_event(compute_info,
     # For cross-layer: merged extras before and after profile application
     temp_node_extras_layer_merge = np.zeros((len_array, 3), dtype=oasis_float)
     temp_node_extras_layer_merge_save = np.zeros((len_array, 3), dtype=oasis_float)
+    temp_node_extras_layer_sum = np.zeros((len_array, 3), dtype=oasis_float)
 
     # Working queue for BFS traversal to find base children
     temp_children_queue = np.empty(nodes_array.shape[0], dtype=oasis_int)
@@ -648,19 +652,12 @@ def compute_event(compute_info,
                             compute_idx['loss_ptr_i'] += node_val_count
 
                         if compute_node['extra'] != null_index:
-                            # Loss copies, extras zero -- the same rule first_time_layer_extra and
-                            # the base-level path below apply. Layer 0 holds the whole accumulated
-                            # extras and a cross-layer profile sums the layers to recover it, so
-                            # copying here would count it once per layer.
+                            node_extras = extras_val[extras_indptr[storage_node['extra']]:extras_indptr[storage_node['extra']] + node_val_count]
                             for profile_i in range(1, compute_node['profile_len']):
                                 extras_indptr[storage_node['extra'] + profile_i] = compute_idx['extras_ptr_i']
-                                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + node_val_count].fill(0)
+                                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + node_val_count] = node_extras
                                 compute_idx['extras_ptr_i'] += node_val_count
 
-                        # Whether anything BELOW storage_node still needs per-layer storage, not a
-                        # policy switch: with one base child that child is storage_node itself and
-                        # the loop above has already done it. Both branches apply the same rule --
-                        # loss copied, extras zeroed.
                         base_children_count = get_base_children(storage_node, children, nodes_array, temp_children_queue)
                         if base_children_count > 1:
                             if compute_node['extra'] != null_index:
@@ -746,17 +743,31 @@ def compute_event(compute_info,
                 if node_profile['i_start'] < node_profile['i_end']:
                     if compute_node['extra'] != null_index:
                         temp_node_loss_layer_merge.fill(0)
-                        temp_node_extras_layer_merge.fill(0)
-
+                        temp_node_extras_layer_sum.fill(0)
+                        # Loss is summed across layers, extras are not. Each layer is offered the
+                        # whole loss and carves its own slice, so the slices add up to the total.
+                        # Extras are the node's accumulated deductible/overlimit/underlimit, and
+                        # every layer holds all of it -- a per-layer profile (a PolMinDed, say)
+                        # needs the full amount already taken below. Summing would count it once
+                        # per layer (#2209), so the merged value is the per-layer maximum. The sum
+                        # is kept for back_alloc_layer_extra to share out a returned deductible.
+                        temp_node_extras_layer_merge[:node_val_count] = extras_val[
+                            extras_indptr[storage_node['extra']]:
+                            extras_indptr[storage_node['extra']] + node_val_count
+                        ]
                         for layer_i in range(compute_node['layer_len']):
                             temp_node_loss_layer_merge[:node_val_count] += loss_val[
                                 loss_indptr[storage_node['loss'] + layer_i]:
                                 loss_indptr[storage_node['loss'] + layer_i] + node_val_count
                             ]
-                            temp_node_extras_layer_merge[:node_val_count] += extras_val[
-                                extras_indptr[storage_node['extra'] + layer_i]:
-                                extras_indptr[storage_node['extra'] + layer_i] + node_val_count
-                            ]
+                            layer_extras = extras_val[extras_indptr[storage_node['extra'] + layer_i]:
+                                                      extras_indptr[storage_node['extra'] + layer_i] + node_val_count]
+                            temp_node_extras_layer_sum[:node_val_count] += layer_extras
+                            if layer_i:  # layer 0 is the seed; element-wise max without allocating
+                                for val_i in range(node_val_count):
+                                    for extra_i in range(3):
+                                        if layer_extras[val_i, extra_i] > temp_node_extras_layer_merge[val_i, extra_i]:
+                                            temp_node_extras_layer_merge[val_i, extra_i] = layer_extras[val_i, extra_i]
                         loss_in = temp_node_loss_layer_merge[:node_val_count]
                         loss_out = temp_node_loss_sparse[:node_val_count]
                         temp_node_extras_layer_merge_save[:node_val_count] = temp_node_extras_layer_merge[
@@ -779,7 +790,8 @@ def compute_event(compute_info,
                                                loss_in, loss_out, loss_indptr, loss_val,
                                                temp_node_loss_layer_ba,
                                                extras_indptr, extras_val,
-                                               temp_node_extras_layer_merge, temp_node_extras_layer_merge_save
+                                               temp_node_extras_layer_merge, temp_node_extras_layer_merge_save,
+                                               temp_node_extras_layer_sum
                                                )
 
                     else:
