@@ -1,6 +1,29 @@
 OasisLMF Changelog
 ==================
 
+`2.5.9`_
+ ---------
+* [#2175](https://github.com/OasisLMF/OasisLMF/pull/2175) - Add `oasislmf model check` to validate a portfolio against model data
+* [#2180](https://github.com/OasisLMF/OasisLMF/pull/2180) - feature/merge-join-columns
+* [#2183](https://github.com/OasisLMF/OasisLMF/pull/2183) - Fix integer computation settings schema type
+* [#2184](https://github.com/OasisLMF/OasisLMF/pull/2184) - Stop caching the merge_sorted_chunks generator; cache get_array (#1970)
+* [#2185](https://github.com/OasisLMF/OasisLMF/pull/2185) - Batch parquet row groups in eltpy, pltpy, lecpy and aalpy (#2186)
+* [#2188](https://github.com/OasisLMF/OasisLMF/pull/2188) - Fix O(T×N) row grouping in resource monitor _plot_cpu_time
+* [#2193](https://github.com/OasisLMF/OasisLMF/pull/2193) - fix/converter-runtime-compat
+* [#2195](https://github.com/OasisLMF/OasisLMF/pull/2195) - Add csv and parquet output to summarypy
+* [#2196](https://github.com/OasisLMF/OasisLMF/pull/2196) - Set the API client to use generate_and_run when available 
+* [#2198](https://github.com/OasisLMF/OasisLMF/pull/2198) - Remove bash check_complete; check pytool logs in Python on every run path
+* [#2200](https://github.com/OasisLMF/OasisLMF/pull/2200) - Fix altmeanonly parquet output file extension
+* [#2206](https://github.com/OasisLMF/OasisLMF/pull/2206) - Combine section_ids of an item's keys rows instead of dropping them
+* [#2210](https://github.com/OasisLMF/OasisLMF/pull/2210) - Added --disable-resource-report flag
+* [#2212](https://github.com/OasisLMF/OasisLMF/pull/2212) - fm: one rule for per-layer extras — loss copies, extras zero
+* [#2222](https://github.com/OasisLMF/OasisLMF/pull/2222) - Write summary maps and gul errors map as parquet, drop correlations.csv
+* [#2225](https://github.com/OasisLMF/OasisLMF/pull/2225) - feature/parquet-footprint-row-group-selection
+* [#2230](https://github.com/OasisLMF/OasisLMF/pull/2230) - fix/summary-order-swap
+* [#2231](https://github.com/OasisLMF/OasisLMF/pull/2231) - Fix platform image testing
+* [#2237](https://github.com/OasisLMF/OasisLMF/pull/2237) - fix/converter-zip-test-zlib-ng
+.. _`2.5.9`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.8...2.5.9
+
 `2.5.8`_
  ---------
 * [#2060](https://github.com/OasisLMF/OasisLMF/pull/2060) - fix(pre-analysis): preserve original exposure file format for snapshot saves

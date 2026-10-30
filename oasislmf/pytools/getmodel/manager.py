@@ -32,7 +32,7 @@ from oasislmf.pytools.common.data import (
     oasis_float, oasis_float_size,
     oasis_int, oasis_int_size,
     damagebin_dtype, items_dtype,
-    vulnerability_dtype, vulnerability_bin_header_type,
+    vulnerability_dtype, vulnerability_bin_header_type, memmap_or_empty,
 )
 from oasislmf.pytools.common.id_index import (
     build as id_index_build,
@@ -40,7 +40,10 @@ from oasislmf.pytools.common.id_index import (
     NOT_FOUND as ID_INDEX_NOT_FOUND,
 )
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.common import Index_type
+from oasislmf.pytools.getmodel.common import (
+    Index_type, zvulnerability_filename, zvulnerability_index_filename,
+    VulnerabilityIndex_dtype, VulnerabilityRow_dtype, vuln_offset, decompress_vuln_block, incomplete_zvuln_pair_msg,
+)
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.ping import oasis_ping
@@ -58,21 +61,8 @@ areaperil_int_relative_size = areaperil_int_size // oasis_int_size
 oasis_float_relative_size = oasis_float_size // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
-VulnerabilityIndex_dtype = np.dtype([
-    ('vulnerability_id', np.int32),
-    ('offset', np.int64),
-    ('size', np.int64),
-    ('original_size', np.int64)
-])
 VulnerabilityIndex = nb.from_dtype(VulnerabilityIndex_dtype)
-
-VulnerabilityRow_dtype = np.dtype([
-    ('intensity_bin_id', np.int32),
-    ('damage_bin_id', np.int32),
-    ('probability', oasis_float)
-])
 VulnerabilityRow = nb.from_dtype(VulnerabilityRow_dtype)
-vuln_offset = 4
 
 
 @nb.njit(cache=True)
@@ -278,6 +268,8 @@ def encode_peril_id(peril_id):
 def load_vuln_probability(vuln_array, vuln, vuln_id):
     if vuln_array.shape[0] < vuln['damage_bin_id']:
         raise Exception("vulnerability_id " + str(vuln_id) + " has damage_bin_id bigger that expected maximum")
+    if vuln['damage_bin_id'] < 1 or vuln['intensity_bin_id'] < 1:
+        raise Exception("vulnerability_id " + str(vuln_id) + " has a damage_bin_id or intensity_bin_id lower than 1")
     if vuln['intensity_bin_id'] <= vuln_array.shape[1]:  # intensity in vulnerability curve but not in the footprint, we can ignore
         vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
 
@@ -503,6 +495,45 @@ def update_vuln_array_with_adj_data(vuln_array, vuln_map, vuln_map_keys, adj_vul
     return vuln_array
 
 
+def decompress_vulns_bin_idx(storage, bin_filename, vulns_idx_bin, vuln_ids_set):
+    """Decompresses the vulnerabilities needed for the run from a zipped vulnerability file.
+
+    Each idx entry points to one zlib-compressed block of VulnerabilityRow, with `size` the
+    compressed length and `original_size` the uncompressed one. Only the blocks of vulnerabilities in
+    vuln_ids_set are decompressed, into one contiguous buffer laid out as an uncompressed
+    vulnerability file, so the result can be passed straight to load_vulns_bin_idx(_adjusted).
+
+    Args:
+        storage (BaseStorage): the storage manager for fetching model data
+        bin_filename (str): name of the zipped vulnerability bin file
+        vulns_idx_bin (np.ndarray[VulnerabilityIndex]): index data from the zipped idx file
+        vuln_ids_set (set): vulnerability ids needed for the run
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: decompressed vulnerability rows, and the index pointing into
+            them (offsets past a header of vuln_offset bytes, sizes uncompressed)
+    """
+    keep = np.isin(vulns_idx_bin['vulnerability_id'], np.fromiter(vuln_ids_set, dtype=np.int32, count=len(vuln_ids_set)))
+    needed_idx = np.array(vulns_idx_bin[keep], dtype=VulnerabilityIndex_dtype)
+    vulns_bin = np.empty(int(needed_idx['original_size'].sum()) // VulnerabilityRow_dtype.itemsize,
+                         dtype=VulnerabilityRow_dtype)
+    vulns_bin_bytes = vulns_bin.view(np.uint8)
+
+    out_offset = 0
+    # with_fileno downloads the file to local disk once up front (unlike storage.open, which on
+    # a remote backend issues a separate HTTP range request per seek+read below -- one per needed
+    # vulnerability), so every seek/read after this is local.
+    with storage.with_fileno(bin_filename) as f:
+        bin_mmap = np.memmap(f, dtype=np.uint8, mode='r')
+        for i in range(len(needed_idx)):
+            data = decompress_vuln_block(bin_mmap, needed_idx[i], bin_filename)
+            vulns_bin_bytes[out_offset: out_offset + len(data)] = np.frombuffer(data, dtype=np.uint8)
+            needed_idx['offset'][i] = vuln_offset + out_offset
+            needed_idx['size'][i] = len(data)
+            out_offset += len(data)
+    return vulns_bin, needed_idx
+
+
 def get_vulns(
         storage: BaseStorage, run_dir, vuln_map, vuln_map_keys, num_intensity_bins,
         ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -541,12 +572,27 @@ def get_vulns(
 
         df_reader_config = clean_config(InputReaderConfig(filepath=vulnerability_dataset, engine=df_engine))
         df_reader_config["engine"]["options"]["storage"] = storage
-        reader = get_df_reader(df_reader_config, filters=[[('vulnerability_id', '==', vuln_id)] for vuln_id in vuln_map_keys])
+        # A single "in" filter is one is_in call; a clause-per-id OR expression segfaults pyarrow
+        # past ~9000 vulnerability ids.
+        reader = get_df_reader(df_reader_config, filters=[('vulnerability_id', 'in', vuln_map_keys.tolist())])
         df = reader.as_pandas()
         num_damage_bins = meta_data['num_damage_bins']
-        vuln_array_parquet = np.vstack(df['vuln_array'].to_numpy()).reshape(len(df['vuln_array']),
-                                                                            num_damage_bins,
-                                                                            num_intensity_bins)
+        # Reshape into the dimensions the parquet file was actually written with -- its own
+        # num_intensity_bins can legitimately be smaller than this run's (footprint-derived) one.
+        meta_num_intensity_bins = meta_data['num_intensity_bins']
+        vuln_array_parquet_raw = np.vstack(df['vuln_array'].to_numpy()).reshape(len(df['vuln_array']),
+                                                                                num_damage_bins,
+                                                                                meta_num_intensity_bins)
+        if meta_num_intensity_bins == num_intensity_bins:
+            vuln_array_parquet = vuln_array_parquet_raw
+        else:
+            # meta_num_intensity_bins < num_intensity_bins: zero-pad, matching the bin path's own
+            # handling of a bin absent from the data. meta_num_intensity_bins > num_intensity_bins
+            # means the parquet file has intensity bins this run's footprint doesn't declare; drop
+            # them, matching load_vuln_probability, which skips intensity_bin_id > num_intensity_bins.
+            n_copy = min(meta_num_intensity_bins, num_intensity_bins)
+            vuln_array_parquet = np.zeros((len(df['vuln_array']), num_damage_bins, num_intensity_bins), dtype=oasis_float)
+            vuln_array_parquet[:, :, :n_copy] = vuln_array_parquet_raw[:, :, :n_copy]
         parquet_vuln_ids = df['vulnerability_id'].to_numpy()
         missing_vuln_ids = {v for v in vuln_ids_set.difference(parquet_vuln_ids) if int(v) not in allowed_missing}
         if missing_vuln_ids:
@@ -566,20 +612,37 @@ def get_vulns(
         vuln_ids = vuln_map_keys.copy()
 
     else:
-        if "vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
-            source_url = storage.get_storage_url('vulnerability.bin', encode_params=False)[1]
+        # zipped files use the ktools names (vulnerability.bin.z / vulnerability.idx.z) and take priority
+        has_zvuln = (zvulnerability_filename in input_files and zvulnerability_index_filename in input_files
+                     and 'bin' not in ignore_file_type and 'idx' not in ignore_file_type)
+        incomplete_zvuln = incomplete_zvuln_pair_msg(zvulnerability_filename in input_files,
+                                                     zvulnerability_index_filename in input_files)
+        if incomplete_zvuln:
+            logger.warning(f"{incomplete_zvuln}, ignoring the zipped vulnerability files")
+        if has_zvuln or ("vulnerability.bin" in input_files and 'bin' not in ignore_file_type):
+            bin_filename, idx_filename = ((zvulnerability_filename, zvulnerability_index_filename) if has_zvuln
+                                          else ("vulnerability.bin", "vulnerability.idx"))
+            source_url = storage.get_storage_url(bin_filename, encode_params=False)[1]
             logger.debug(f"loading {source_url}")
-            with storage.open("vulnerability.bin", 'rb') as f:
+            with storage.open(bin_filename, 'rb') as f:
                 header = np.frombuffer(f.read(8), 'i4')
                 num_damage_bins = header[0]
 
-            if "vulnerability.idx" in input_files and 'idx' not in ignore_file_type:
-                logger.debug(f"loading {storage.get_storage_url('vulnerability.idx', encode_params=False)[1]}")
-                with storage.open("vulnerability.bin") as f:
-                    vulns_bin = np.memmap(f, dtype=VulnerabilityRow, offset=vulnerability_bin_header_type.itemsize, mode='r')
+            if has_zvuln or (idx_filename in input_files and 'idx' not in ignore_file_type):
+                logger.debug(f"loading {storage.get_storage_url(idx_filename, encode_params=False)[1]}")
+                with storage.open(idx_filename) as f:
+                    vulns_idx_bin = memmap_or_empty(f, VulnerabilityIndex_dtype)
 
-                with storage.open("vulnerability.idx") as f:
-                    vulns_idx_bin = np.memmap(f, dtype=VulnerabilityIndex, mode='r')
+                # original_size is only set (non-zero) on compressed entries, so a zipped pair is
+                # also read correctly when it was written under the uncompressed names
+                if len(vulns_idx_bin) and np.any(vulns_idx_bin['original_size'] > 0):
+                    vulns_bin, vulns_idx_bin = decompress_vulns_bin_idx(storage, bin_filename, vulns_idx_bin, vuln_ids_set)
+                elif len(vulns_idx_bin) == 0:
+                    # an empty idx (csvtobin on a header-only csv) has a header-only bin, which np.memmap can't map
+                    vulns_bin = np.empty(0, dtype=VulnerabilityRow_dtype)
+                else:
+                    with storage.open(bin_filename) as f:
+                        vulns_bin = np.memmap(f, dtype=VulnerabilityRow, offset=vulnerability_bin_header_type.itemsize, mode='r')
 
                 if vuln_adj is not None and len(vuln_adj) > 0:
                     vuln_array, valid_vuln_ids = load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_map, vuln_map_keys,
@@ -607,7 +670,8 @@ def get_vulns(
             else:
                 vuln_array, valid_vuln_ids = load_vulns_bin(vuln_csv, vuln_map, vuln_map_keys, num_damage_bins, num_intensity_bins)
         else:
-            raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', encode_params=False)[1]}")
+            raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', encode_params=False)[1]}"
+                                    + (f" ({incomplete_zvuln})" if incomplete_zvuln else ""))
         missing_vuln_ids = {v for v in vuln_ids_set.difference(valid_vuln_ids) if int(v) not in allowed_missing}
         if missing_vuln_ids:
             raise Exception(f"Vulnerability_ids {missing_vuln_ids} are missing"
