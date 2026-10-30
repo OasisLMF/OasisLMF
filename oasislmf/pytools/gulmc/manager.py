@@ -817,31 +817,27 @@ def build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, Ndamage_bins_max,
         ptr = areaperil_agg_vuln_idx_ja_offsets[blk]
         n_sub = areaperil_agg_vuln_idx_ja_offsets[blk + 1] - ptr
         for j in range(n_sub):
-            entry = areaperil_agg_vuln_idx_ja_data[ptr + j]
-            vuln_i = entry['vuln_idx']
-            weight = np.float64(entry['weight'])
+            weight = np.float64(areaperil_agg_vuln_idx_ja_data[ptr + j]['weight'])
             if weight > 0:
                 tot_weights += weight
+
+        use_weights = tot_weights > 0
+        for j in range(n_sub):
+            entry = areaperil_agg_vuln_idx_ja_data[ptr + j]
+            vuln_i = entry['vuln_idx']
+            weight = np.float64(entry['weight']) if use_weights else 1.
+            if weight > 0:
                 for haz_i in range(Nhaz_bins):
                     has_prob = False
                     for damage_bin_i in range(Ndamage_bins_max):
-                        if vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1] > 0:
+                        probability = vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1]
+                        if probability > 0:
                             has_prob = True
-                            vuln_pdf[haz_i, damage_bin_i] += vuln_array[vuln_i, damage_bin_i, haz_bin_id[
-                                haz_i] - 1] * weight
+                            vuln_pdf[haz_i, damage_bin_i] += probability * weight
                     if not has_prob:
-                        # the pdf is all zeros, i.e. probability of no loss is 100%
-                        # store it as 100% * weight in the first damage bin
                         vuln_pdf[haz_i, 0] += weight
 
-        if tot_weights > 0:
-            vuln_pdf /= tot_weights
-        else:
-            for j in range(n_sub):
-                vuln_i = areaperil_agg_vuln_idx_ja_data[ptr + j]['vuln_idx']
-                for haz_i in range(Nhaz_bins):
-                    vuln_pdf[haz_i] += vuln_array[vuln_i, :, haz_bin_id[haz_i] - 1]
-            vuln_pdf /= n_sub
+        vuln_pdf /= tot_weights if use_weights else n_sub
     else:
         for haz_i in range(Nhaz_bins):
             vuln_pdf[haz_i] = vuln_array[item['vulnerability_idx'], :, haz_bin_id[haz_i] - 1]
