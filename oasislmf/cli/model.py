@@ -9,6 +9,7 @@ __all__ = [
     'GenerateOasisFilesCmd',
     'GenerateDocCmd',
     'ModelCmd',
+    'CheckCmd',
     'RunCmd'
 ]
 
@@ -91,6 +92,18 @@ class RunCmd(OasisComputationCommand):
     computation_name = 'RunModel'
 
 
+class CheckCmd(OasisComputationCommand):
+    """Check that a portfolio, the model data and the analysis settings work together, without running losses.
+
+    Generates the Oasis files, then checks that every key, item and coverage refers to model data that exists and
+    that the vulnerability, footprint, damage bin, event and occurrence files are consistent with each other.
+    The command line arguments can be supplied in the configuration file
+    (``oasislmf.json`` by default or specified with the ``--config`` flag).
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'CheckModel'
+
+
 class RunPostAnalysisCmd(OasisComputationCommand):
     """Run the output postprocessing step.
 
@@ -115,6 +128,7 @@ class ModelCmd(OasisBaseCommand):
     * generating losses from a preexisting set of Oasis input CSV files
     * generating deterministic losses (no model)
     * running a model end-to-end
+    * checking a portfolio and model data work together
     """
     sub_commands = {
         'generate-exposure-pre-analysis': GenerateExposurePreAnalysisCmd,
@@ -128,5 +142,6 @@ class ModelCmd(OasisBaseCommand):
         'generate-doc': GenerateDocumentationCmd,
         'generate-computation-settings-json-schema': GenerateComputationSettingsJsonSchema,
         'run': RunCmd,
+        'check': CheckCmd,
         'run-postanalysis': RunPostAnalysisCmd,
     }

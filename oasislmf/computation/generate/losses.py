@@ -37,9 +37,7 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from ...execution import bash, runner
 from ...execution.bash import resolve_custom_gulcalc_cmd
 from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
-from ...execution.bin import (move_bin, prepare_run_directory,
-                              prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set,
-                              set_hazard_case_set)
+from ...execution.bin import OPTIONAL_MODEL_SETS, move_bin, prepare_run_directory, prepare_run_inputs
 from ...preparation.summaries import generate_summaryxref_files, get_ri_summaryxref_dirs
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...pytools.fm.manager import run as fmpy_run
@@ -392,12 +390,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
         prepare_run_inputs(self.settings, model_run_fp, model_storage, ri=ri or rl)
 
-        optional_model_sets = {'footprint_set': set_footprint_set,
-                               'vulnerability_set': set_vulnerability_set,
-                               'pla_loss_factors_set': set_loss_factors_set,
-                               'hazard_case_set': set_hazard_case_set}
-
-        for model_set, model_setter in optional_model_sets.items():
+        for model_set, model_setter in OPTIONAL_MODEL_SETS.items():
             model_set_val = self.settings.get('model_settings', {}).get(model_set)
             if model_set_val:
                 model_setter(model_set_val, model_run_fp)
