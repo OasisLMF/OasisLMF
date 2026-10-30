@@ -70,6 +70,7 @@ from ..utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES,
                               KERNEL_ALLOC_GUL_DEFAULT,
                               KERNEL_ALLOC_IL_DEFAULT, KERNEL_ALLOC_RI_DEFAULT)
 from ..utils.exceptions import OasisException
+from ..pytools.getmodel.common import SECTION_MERGE_DEFAULT
 
 logger = logging.getLogger(__name__)
 
@@ -311,7 +312,9 @@ def get_modelcmd(server=False, peril_filter=[]) -> str:
     return py_cmd
 
 
-def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False):
+def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter,
+               model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False,
+               section_merge=SECTION_MERGE_DEFAULT):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -325,6 +328,8 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
         peril_filter (list): list of perils to include (all included if empty)
         model_df_engine (str): the dataframe reading engine to use when loading model files
         dynamic_footprint (bool): if True, enable dynamic footprint processing
+        section_merge (str): dynamic footprint section merge option, written only when it is not
+            the default gulmc already applies
 
     Returns:
         str: the ground-up loss calculation command
@@ -343,6 +348,9 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
 
         if dynamic_footprint:
             cmd += " --dynamic-footprint True"
+
+        if section_merge and section_merge != SECTION_MERGE_DEFAULT:
+            cmd += f" --section-merge {section_merge}"
     else:
         cmd = f'gulpy --random-generator={gul_random_generator}'
 
@@ -1439,6 +1447,7 @@ def get_getmodel_cmd(
         gulmc_vuln_cache_size=200,
         model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         dynamic_footprint=False,
+        section_merge=SECTION_MERGE_DEFAULT,
         **kwargs):
     """Gets the GUL pipeline command (gulpy/gulmc) for a single process
 
@@ -1463,6 +1472,8 @@ def get_getmodel_cmd(
         gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations
         model_df_engine (str): The engine to use when loading dataframes
         dynamic_footprint (bool): if True, enable dynamic footprint processing
+        section_merge (str): dynamic footprint section merge option, passed to gulmc (modelpy
+            cannot run a dynamic footprint)
         **kwargs: additional keyword arguments, accepted and ignored so that callers can forward
             the whole bash_params dict
 
@@ -1477,7 +1488,7 @@ def get_getmodel_cmd(
         gulcmd = get_gulcmd(
             gulmc, gul_random_generator, gulmc_effective_damageability,
             gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
-            dynamic_footprint=dynamic_footprint
+            dynamic_footprint=dynamic_footprint, section_merge=section_merge
         )
         cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
@@ -1853,6 +1864,7 @@ def bash_params(
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     dynamic_footprint=False,
+    section_merge=SECTION_MERGE_DEFAULT,
     log_level=None,
     **kwargs
 ):
@@ -1902,6 +1914,7 @@ def bash_params(
         peril_filter (list): Peril filter list.
         exposure_df_engine (str): DataFrame engine for exposure data.
         model_df_engine (str): DataFrame engine for model data.
+        section_merge (str): Dynamic footprint section merge option for ``gulmc``.
         dynamic_footprint (bool): Enable dynamic footprint mode.
         log_level (int or None): Enable logging of pytools subprocesses.
         **kwargs: additional keyword arguments, accepted and ignored so that callers can forward a
@@ -2061,6 +2074,7 @@ def bash_params(
     bash_params['exposure_df_engine'] = exposure_df_engine
     bash_params['model_df_engine'] = model_df_engine
     bash_params['dynamic_footprint'] = dynamic_footprint
+    bash_params['section_merge'] = section_merge
     bash_params['log_level'] = log_level
 
     return bash_params
@@ -2208,6 +2222,7 @@ def create_bash_analysis(
     peril_filter,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     dynamic_footprint=False,
+    section_merge=SECTION_MERGE_DEFAULT,
     log_level=None,
     **kwargs
 ):
@@ -2269,7 +2284,10 @@ def create_bash_analysis(
 
     if model_py_server:
         print_command(filename, '# --- run data server ---')
-        print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']} {max_process_id} &")
+        servedata_cmd = f"servedata {kwargs['static_path']} {max_process_id}"
+        if section_merge and section_merge != SECTION_MERGE_DEFAULT:
+            servedata_cmd += f" --section-merge {section_merge}"
+        print_command(command_file=filename, cmd=f"{servedata_cmd} &")
         # print_command(command_file=filename, cmd="while ! nc -vz localhost 8080 < /dev/null > /dev/null 2>&1; do")
         # print_command(command_file=filename, cmd="  printf '.'")
         # print_command(command_file=filename, cmd="  sleep 2")
@@ -2520,7 +2538,8 @@ def create_bash_analysis(
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
             "model_df_engine": model_df_engine,
-            'dynamic_footprint': dynamic_footprint
+            'dynamic_footprint': dynamic_footprint,
+            'section_merge': section_merge,
         }
 
         # Establish whether items to amplifications map file is present
@@ -2938,6 +2957,7 @@ def genbash(
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
     dynamic_footprint=False,
+    section_merge=SECTION_MERGE_DEFAULT,
     analysis_pk=None,
     socket_server_size=None,
     socket_server_port=None,
@@ -2983,6 +3003,7 @@ def genbash(
         base_df_engine (str): The engine to use when loading dataframes.
         model_df_engine (str): The engine to use when loading model dataframes.
         dynamic_footprint (bool): Enable dynamic footprint mode.
+        section_merge (str): Dynamic footprint section merge option for ``gulmc``.
         analysis_pk (int or None): analysis primary key reported with progress pings. When set,
             no local socket-server is started.
         socket_server_size (int or None): total number of events, passed to the local
@@ -3022,6 +3043,7 @@ def genbash(
         join_summary_info=join_summary_info,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint,
+        section_merge=section_merge,
         log_level=log_level
     )
 

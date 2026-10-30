@@ -323,6 +323,33 @@ class _silence:
         return False
 
 
+def _compile_dynamic_footprint():
+    """Dynamic footprint kernels, built through FootprintParquetDynamic on a two-section example.
+
+    The warmup model has a binary footprint, so its gulmc run never reaches the dynamic footprint
+    code. Building through _build_footprint compiles the kernels for the array types a run uses.
+    """
+    import pandas as pd
+    from oasislmf.pytools.getmodel.common import SECTION_MERGE_OPTIONS
+    from oasislmf.pytools.getmodel.footprint import FootprintParquetDynamic
+
+    # areaperil 100 lies in both sections, with two realisations at each return period
+    hazard_case = pd.DataFrame({
+        'section_id': [1, 1, 1, 1, 2, 2],
+        'areaperil_id': [100, 100, 100, 100, 100, 100],
+        'return_period': [10, 10, 50, 50, 10, 50],
+        'intensity': [4, 6, 8, 12, 5, 9],
+        'probability': [0.5, 0.5, 0.5, 0.5, 1.0, 1.0],
+    })
+    event_definition = pd.DataFrame({
+        'event_id': [1, 1], 'section_id': [1, 2], 'rp_from': [10, 10], 'rp_to': [50, 50], 'interpolation': [0.5, 0.5],
+    })
+    for section_merge in SECTION_MERGE_OPTIONS:
+        footprint = FootprintParquetDynamic.__new__(FootprintParquetDynamic)
+        footprint.section_merge = section_merge
+        footprint._build_footprint(hazard_case, event_definition)
+
+
 def _silence_func(func):
     """Silence decorator"""
     @functools.wraps(func)
@@ -349,6 +376,7 @@ _compile_pltpy_silent = _make_silent(_compile_pltpy, '_compile_pltpy_silent')
 _compile_katpy_silent = _make_silent(_compile_katpy, '_compile_katpy_silent')
 _compile_summarypy_silent = _make_silent(_compile_summarypy, '_compile_summarypy_silent')
 _compile_plapy_silent = _make_silent(_compile_plapy, '_compile_plapy_silent')
+_compile_dynamic_footprint_silent = _make_silent(_compile_dynamic_footprint, '_compile_dynamic_footprint_silent')
 
 
 # ---------------------------------------------------------------------------
@@ -364,6 +392,7 @@ ALL_SILENT_TASKS = {
     "katpy": _compile_katpy_silent,
     "summarypy": _compile_summarypy_silent,
     "plapy": _compile_plapy_silent,
+    "dynamic_footprint": _compile_dynamic_footprint_silent,
 }
 
 

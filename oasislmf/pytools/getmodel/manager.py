@@ -214,7 +214,8 @@ def get_intensity_bin_dict(input_path):
             unique encoded peril_ids (length n_perils), and intensity_bins, a 2-d array of shape
             (n_perils, max_intensity + 1) mapping [peril_idx, intensity_value] ->
             intensity_bin_id. Slots not present in the CSV are pre-filled with the fallback bin
-            for intensity=0 of that peril.
+            for intensity=0 of that peril, except those above the peril's largest intensity, which
+            take its bin: the last intensity of the table stands for that much or more.
     """
     input_files = set(os.listdir(input_path))
     if "intensity_bin_dict.csv" not in input_files:
@@ -242,12 +243,14 @@ def get_intensity_bin_dict(input_path):
         peril_idx = np.searchsorted(intensity_bin_peril_ids, peril_id)
         intensity_bins[peril_idx, intensity_val] = bin_id
 
-    # pre-fill missing slots with the fallback value (bin for intensity=0)
+    # pre-fill missing slots with the fallback value (bin for intensity=0), and those above a
+    # peril's largest intensity with its bin, as gulmc clamps any larger intensity to the last slot
     for pi in range(n_perils):
         fallback = intensity_bins[pi, 0]
+        peril_max = int(data[data[:, 0] == intensity_bin_peril_ids[pi], 1].max())
         for i in range(max_intensity + 1):
             if intensity_bins[pi, i] == 0 and i != 0:
-                intensity_bins[pi, i] = fallback
+                intensity_bins[pi, i] = fallback if i < peril_max else intensity_bins[pi, peril_max]
 
     return intensity_bin_peril_ids, intensity_bins
 

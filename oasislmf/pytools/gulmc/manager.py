@@ -143,6 +143,7 @@ def run(run_dir,
         max_cached_vuln_cdf_size_MB=200,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         dynamic_footprint=False,
+        section_merge=None,
         **kwargs):
     """Execute the main gulmc workflow.
 
@@ -167,6 +168,8 @@ def run(run_dir,
         model_df_engine (str, optional): The engine to use when loading model dataframes. Defaults to OasisPandasReader.
         dynamic_footprint (bool, optional): if True, load the dynamic footprint data and adjust hazard intensities at
           runtime. Defaults to False.
+        section_merge (str, optional): how a dynamic footprint merges an areaperil's intensities across the sections of
+          one event (see Footprint.load). Defaults to None, the footprint's default.
         **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
           the port to override; analysis_pk is reported with each ping.
 
@@ -293,7 +296,8 @@ def run(run_dir,
             footprint_obj = None
         else:
             footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
-                                                df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids))
+                                                df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids,
+                                                section_merge=section_merge))
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         # set up streams
@@ -776,8 +780,11 @@ def compute_haz_bin_id(haz_pdf_record, item, intensity_adjustment, dynamic_footp
         max_intensity = nb_int32(intensity_bins.shape[1] - 1)
         for haz_bin_idx in range(haz_bin_id.shape[0]):
             intensity_val = haz_intensity[haz_bin_idx]
-            if intensity_val < 0 or intensity_val > max_intensity:
+            if intensity_val < 0:
                 intensity_val = nb_int32(0)
+            elif intensity_val > max_intensity:
+                # past the table, its last intensity stands for that much or more
+                intensity_val = max_intensity
             haz_bin_id[haz_bin_idx] = intensity_bins[peril_idx, intensity_val]
     else:
         haz_bin_id = haz_pdf_record['intensity_bin_id']

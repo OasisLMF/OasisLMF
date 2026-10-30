@@ -450,6 +450,10 @@ Function Factory to associate a location to a geometry (e.g. ``area_peril``) bas
    * We use: https://automating-gis-processes.github.io/site/notebooks/L3/nearest-neighbor-faster.html
    * But alternatives can be found here: https://gis.stackexchange.com/questions/222315/geopandas-find-nearest-point-in-other-dataframe
 
+A location falling in several overlapping geometries gets one row per geometry. For the sections of a dynamic
+footprint that is the expected form: the keys rows of an item that differ only in ``section_id`` are combined when the
+GUL inputs are built (see :doc:`dynamic-footprint`).
+
 .. note::
    ``nearest_neighbor_min_distance`` and ``area_peril_read_params`` are deprecated aliases for
    ``nearest_neighbor_max_distance`` and ``file_read_params`` respectively, and may be removed in a future version.

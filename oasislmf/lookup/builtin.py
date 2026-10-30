@@ -768,6 +768,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
+
+        A location falling in several overlapping geometries gets one row per geometry. For
+        section_id that is the expected form: the keys rows of an item that differ only in
+        section_id are combined when the GUL inputs are built.
         """
         if nearest_neighbor_min_distance > 0:
             warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
