@@ -5,6 +5,7 @@ import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
+import zlib
 
 import oasislmf.pytools.converters.csvtobin.utils.footprint as footprint_utils
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
@@ -640,3 +641,28 @@ def test_footprint_still_rejects_bad_probability_sum_ending_exactly_at_chunk_bou
             csvtobin(Path(tmp, "bad.csv"), Path(tmp, "bad.bin"), "footprint", idx_file_out=Path(tmp, "bad.idx"),
                      max_intensity_bin_idx=3, no_intensity_uncertainty=True, decompressed_size=False,
                      no_validation=False, zip_files=False)
+
+
+@pytest.mark.parametrize("filename, decompressed_size", [("footprint_zip", False), ("footprint_zip_dsize", True)])
+def test_footprint_zip_tobin_independent_of_deflate_implementation(filename, decompressed_size):
+    """Deflate output differs between zlib builds (e.g. zlib-ng, #2236). Compressing at a different
+    level stands in for that: the bytes no longer match the fixture, but the zip comparison must pass."""
+    zlib_level_1 = mock.Mock(compress=lambda data: zlib.compress(data, 1))
+    with mock.patch.object(footprint_utils, "zlib", zlib_level_1):
+        with TemporaryDirectory() as d:
+            csvtobin(Path(TESTS_ASSETS_DIR, "static", f"{filename}.csv"), Path(d, "f.bin.z"), "footprint",
+                     idx_file_out=Path(d, "f.idx.z"), max_intensity_bin_idx=58, no_intensity_uncertainty=False,
+                     decompressed_size=decompressed_size, no_validation=False, zip_files=True)
+            assert Path(d, "f.bin.z").read_bytes() != Path(TESTS_ASSETS_DIR, "static", f"{filename}.bin.z").read_bytes()
+
+        case_runner_tobin_with_zip_and_idx(
+            file_type="footprint",
+            sub_dir="static",
+            filename=filename,
+            idx_file_out=Path(TESTS_ASSETS_DIR, "static", f"{filename}.idx.z"),
+            max_intensity_bin_idx=58,
+            no_intensity_uncertainty=False,
+            decompressed_size=decompressed_size,
+            no_validation=False,
+            zip_files=True
+        )
