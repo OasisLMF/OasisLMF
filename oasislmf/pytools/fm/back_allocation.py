@@ -213,9 +213,15 @@ def back_alloc_layer_extra(layer_len, node_val_len, node_loss_indptr, node_extra
                            loss_in, loss_out, loss_indptr, loss_val,
                            temp_node_loss_layer_ba,
                            extras_indptr, extras_val,
-                           temp_node_extras_layer_merge, temp_node_extras_layer_merge_save
+                           temp_node_extras_layer_merge, temp_node_extras_layer_merge_save,
+                           temp_node_extras_layer_sum
                            ):
     """
+    The merged extras are the per-layer MAXIMUM, not the sum (see the cross-layer merge in
+    compute_event): each layer holds the node's whole accumulated extras, so the maximum is the
+    node's value while the sum would count it once per layer. A share of a returned deductible
+    is still taken in proportion to each layer's own extras, which is why the denominator there
+    is the per-layer sum and not the merged value.
 
     Args:
         layer_len: number of layers in the node
@@ -231,6 +237,7 @@ def back_alloc_layer_extra(layer_len, node_val_len, node_loss_indptr, node_extra
         extras_val: extra values
         temp_node_extras_layer_merge: node extra after profile
         temp_node_extras_layer_merge_save: node extra before profile
+        temp_node_extras_layer_sum: sum over layers of the extra before profile
 
     """
     for i in range(node_val_len):
@@ -246,7 +253,7 @@ def back_alloc_layer_extra(layer_len, node_val_len, node_loss_indptr, node_extra
         else:
             realloc = deductible_delta
             realloc_numerator = UNDERLIMIT if temp_node_extras_layer_merge[i, UNDERLIMIT] > 0 else DEDUCTIBLE
-            ded_factor = realloc / temp_node_extras_layer_merge_save[i, realloc_numerator]
+            ded_factor = realloc / temp_node_extras_layer_sum[i, realloc_numerator]
             loss_factor = loss_out[i] / (loss_in[i] - realloc)
 
         overlimit_delta = (temp_node_extras_layer_merge[i, OVERLIMIT]

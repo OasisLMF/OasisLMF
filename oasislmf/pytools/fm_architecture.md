@@ -116,6 +116,141 @@ event_computer is a callable that takes event input from input queue, compute th
 put it in the output queue. 
 
 
+### Extras across layers
+
+Loss and extras behave differently across layers, and getting this wrong has produced real
+bugs in both directions (#2209, and the first attempt at fixing it in #2212).
+
+**The rule: every layer holds the whole accumulated extras.** In OED a layer is a policy
+(`PolNumber`), and policy terms apply to the whole loss *before* the layer terms carve out that
+policy's range. Each layer is therefore offered the whole loss. It applies its own policy terms,
+then its attachment, limit and participation, so the layers' results add up to no more than the
+input loss. The extras are the
+deductible already taken, the loss already cut off by limits, and the room still left under those
+limits, by everything *below* the node. That is one quantity, not something split between the
+layers, so each layer of the node gets a full copy. The copy is made by the single-child path in
+`compute_event`, by `first_time_layer_extra` when the node is its own single base child, and by
+`aggregate_children_extras`, whose children's new layers still point at layer 0.
+
+The items *under* a node are different. When `first_time_layer_extra` creates layers for several
+base children, those are the items, and their new layers start at zero. They only receive the
+changes allocated back to them. No profile reads them, and items are never aggregated again, so
+they never act as accumulated extras.
+
+**Why each layer needs a full copy: min and max deductibles act on the total.** A minimum or
+maximum deductible is not applied on top of what was taken below. It bounds the *total*
+deductible taken so far (`deductible_under_min` / `deductible_over_max` in `policy_extras.py`):
+
+- **minimum**: if the total is under the minimum, it is topped up to the minimum, first from the
+  over-limit pool (loss already cut off by a limit below), then from the loss;
+- **maximum**: if the total is over the maximum, the excess is given back to the loss, up to the
+  underlimit (the room left under the limits below); the rest goes to over-limit.
+
+A per-layer profile carrying one of these therefore reads its layer's extras. If those were zero,
+the full minimum would be taken again on top of the deductible already taken.
+
+Per-layer policy terms only exist when the layers' terms differ. Policy terms identical on every
+layer are prepared as a single profile, applied once before the layers are created.
+
+Each layer moves its own effective deductible. With 60k taken below and maximum deductibles of
+10k on layer 1 and 20k on layer 2, layer 1 gives back 50k and layer 2 gives back 40k. That is not
+90k returned out of 60k taken: each policy's deductible is now 10k and 20k respectively, and each
+applies to its own copy of the loss.
+
+```
+acc105: 1 location, GUL 1.7M, LocDed6All 100k
+        layer 2: PolMinDed6All 250k, attachment 200k, participation 0.5
+
+layer 2 enters with loss 1.6M and deductible 100k (a full copy)
+  min ded: total 100k < 250k  -> top up by 150k   -> 1.45M
+  layer:   (1.45M - 200k) * 0.5                     = 625,000   correct
+
+with the layer's extras zeroed instead (#2212):
+  min ded: total 0 < 250k     -> top up by 250k   -> 1.35M
+  layer:   (1.35M - 200k) * 0.5                     = 575,000   wrong
+```
+
+**The cross-layer merge: loss is summed, extras take the maximum.** A cross-layer profile (account
+terms over several layers) merges the layers, applies the profile once, and allocates the result
+back. Summing the loss is right because the slices add up. Summing the extras would count the
+same deductible once per layer. The merge takes the per-layer **maximum** instead, which is the
+node's value whether the layers hold copies or only layer 0 holds it (the base-level path, where
+everything is still zero).
+
+```
+acc49 (75% damage): 2 locations, LocDed6All 5k each; 2 layers; account deductible
+                    10% of loss, min 20k, max 60k
+
+layers after their terms: loss 150,000 + 462,000 = 612,000; each holds deductible 10,000
+  merged deductible (max)          10,000
+  account ded 10% of 612,000     + 61,200 = 71,200 > max 60k -> total 60,000
+  taken at this level              50,000 -> 562,000 -> 281,000 per location   correct
+
+summing the extras instead (#2209):
+  merged deductible (sum)          20,000
+  account ded                    + 61,200 = 81,200 > max 60k -> total 60,000
+  taken at this level              40,000 -> 572,000 -> 286,000 per location   wrong (+5,000)
+```
+
+**Back to the layers** (`back_alloc_layer_extra`). Account terms apply after the layer terms, to
+the sum of the layers' losses, so the change they make is shared back between the layers' losses.
+The layer terms are not re-applied.
+
+- When the profile reduces the loss (deductible taken, limit), the loss is scaled back to each
+  layer in proportion, and the added deductible or overlimit is shared in proportion to each
+  layer's loss.
+- When the profile returns deductible (a maximum deductible below the accumulated deductible), the
+  returned amount is shared in proportion to each layer's own deductible or underlimit. The
+  denominator is the sum over layers, so the shares add up to what was returned.
+- When the profile reduces the overlimit or underlimit, each layer's value is scaled by the ratio
+  `after / before`. When the layers hold the same values, that leaves each at the merged value.
+
+#### Which combinations are exact
+
+| Combination | What the FM computes | Status |
+|---|---|---|
+| Per-layer policy terms (different deductible, min/max deductible or limit per layer), no account terms | Each layer applies its own terms to the whole loss, starting from the full deductible carried forward, then its layer terms. | Exact (acc105, acc106) |
+| Account deductible, minimum deductible or limit over layers, with no per-layer terms in between | The layers hold the same extras, so the merged value is the deductible actually taken below. Account terms apply to the summed layer losses, and the change is shared back as above. A maximum deductible is included as long as it does not return deductible taken below. | Exact (acc49 and the `insurance_account` group) |
+| Account maximum deductible below the deductible taken below, over layers | The excess over the maximum is added to the summed layer losses and shared between the layers in proportion to their deductible. The exact result would re-run each layer's terms on the larger loss, which the FM cannot do because account terms apply after layer terms. See the example below. | Approximate |
+| Account terms over layers whose per-layer terms differ | See below. | Computed, but not defined by OED |
+
+**Account maximum deductible returning deductible over layers.** The exact result would push the
+returned deductible through each layer's terms again. The FM adds it to the layers' losses
+instead:
+
+```
+1 location, GUL 1.7M, LocDed6All 100k
+layer 1: attachment 0, unlimited, participation 1       -> 1,600,000
+layer 2: attachment 200k, unlimited, participation 0.5  -> 700,000
+account: AccMaxDed6All 50k -> 50k of the 100k is returned
+
+FM:    50k shared by deductible (equal)  -> 1,625,000 / 725,000   (+50k)
+exact: layers re-run on 1.65M            -> 1,650,000 / 725,000   (+75k)
+```
+
+**Account terms over layers whose per-layer terms differ.** After different per-layer terms, the
+layers carry different effective deductibles, for example 150k on one and 130k on the other. Each
+is that policy's own view of the deductible taken. OED does not define what "the deductible
+already taken" means for an account term that spans policies with different deductibles. The FM
+uses the **largest** of the layers' values and applies the account terms to the summed layer
+losses:
+
+```
+1 location, GUL 1M, LocDed6All 100k
+layer 1: PolDed6All 50k, attachment 0, limit 500k  -> deductible 150k, loss 500,000
+layer 2: PolDed6All 30k, attachment 500k, unlimited -> deductible 130k, loss 370,000
+account: AccMinDed6All 200k
+
+merged: loss 870,000, deductible max(150k, 130k) = 150k
+min ded tops up by 50k -> 820,000, shared back in proportion: 471,264 / 348,736
+```
+
+Other choices would give other results: the sum of the layers' deductibles (280k, which double
+counts the 100k taken below) gives 870,000, and the shared 100k plus each layer's own part (180k)
+gives 850,000. None of them follows from the OED definition. No error is raised, but results for
+this combination should be read with that in mind, and no validation unit covers it.
+
+
 ## Policies
 The policy module contains all the function associated to the supported policy
 they all take the same numpy array as input and act directly on them (inplace). 
