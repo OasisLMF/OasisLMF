@@ -304,13 +304,20 @@ def back_alloc_layer_extra(layer_count, node_val_count, node_loss_ptr_i, node_ex
                            loss_in, loss_out, loss_indptr, loss_val,
                            temp_node_loss_layer_ba,
                            extras_indptr, extras_val,
-                           temp_node_extras_layer_merge, temp_node_extras_layer_merge_save
+                           temp_node_extras_layer_merge, temp_node_extras_layer_merge_save,
+                           temp_node_extras_layer_sum
                            ):
     """Back-allocate cross-layer profile results to individual layers (loss AND extras).
 
     Similar to back_alloc_layer but also handles the extras (deductible, overlimit,
     underlimit) allocation. The extras allocation follows the same rules as
     back_alloc_extra_a2 but across layers instead of across children.
+
+    The merged extras are the per-layer MAXIMUM, not the sum (see the cross-layer merge in
+    compute_event): each layer holds the node's whole accumulated extras, so the maximum is the
+    node's value while the sum would count it once per layer. A share of a returned deductible
+    is still taken in proportion to each layer's own extras, which is why the denominator there
+    is the per-layer sum and not the merged value.
 
     For each sample, computes allocation factors based on how each extra changed:
     - deductible_delta = extra_after - extra_before
@@ -338,6 +345,7 @@ def back_alloc_layer_extra(layer_count, node_val_count, node_loss_ptr_i, node_ex
         extras_val: Extras values (modified in place)
         temp_node_extras_layer_merge: Merged extras AFTER profile
         temp_node_extras_layer_merge_save: Merged extras BEFORE profile
+        temp_node_extras_layer_sum: Sum over layers of the extras BEFORE profile
     """
     for val_i in range(node_val_count):
         deductible_delta = temp_node_extras_layer_merge[val_i, DEDUCTIBLE] - temp_node_extras_layer_merge_save[val_i, DEDUCTIBLE]
@@ -352,7 +360,7 @@ def back_alloc_layer_extra(layer_count, node_val_count, node_loss_ptr_i, node_ex
         else:
             realloc = deductible_delta
             realloc_numerator = UNDERLIMIT if temp_node_extras_layer_merge[val_i, UNDERLIMIT] > 0 else DEDUCTIBLE
-            ded_factor = realloc / temp_node_extras_layer_merge_save[val_i, realloc_numerator]
+            ded_factor = realloc / temp_node_extras_layer_sum[val_i, realloc_numerator]
             loss_factor = loss_out[val_i] / (loss_in[val_i] - realloc)
 
         overlimit_delta = (temp_node_extras_layer_merge[val_i, OVERLIMIT]

@@ -568,6 +568,7 @@ def compute_event(compute_info,
     # For cross-layer: merged extras before and after profile application
     temp_node_extras_layer_merge = np.zeros((len_array, 3), dtype=oasis_float)
     temp_node_extras_layer_merge_save = np.zeros((len_array, 3), dtype=oasis_float)
+    temp_node_extras_layer_sum = np.zeros((len_array, 3), dtype=oasis_float)
 
     # Working queue for BFS traversal to find base children
     temp_children_queue = np.empty(nodes_array.shape[0], dtype=oasis_int)
@@ -736,17 +737,28 @@ def compute_event(compute_info,
                 if node_profile['i_start'] < node_profile['i_end']:
                     if compute_node['extra'] != null_index:
                         temp_node_loss_layer_merge.fill(0)
-                        temp_node_extras_layer_merge.fill(0)
-
+                        temp_node_extras_layer_sum.fill(0)
+                        # Loss is summed across layers, extras are not. Each layer is offered the
+                        # whole loss and carves its own slice, so the slices add up to the total.
+                        # Extras are the node's accumulated deductible/overlimit/underlimit, and
+                        # every layer holds all of it -- a per-layer profile (a PolMinDed, say)
+                        # needs the full amount already taken below. Summing would count it once
+                        # per layer (#2209), so the merged value is the per-layer maximum. The sum
+                        # is kept for back_alloc_layer_extra to share out a returned deductible.
+                        temp_node_extras_layer_merge[:node_val_count] = extras_val[
+                            extras_indptr[storage_node['extra']]:
+                            extras_indptr[storage_node['extra']] + node_val_count
+                        ]
                         for layer_i in range(compute_node['layer_len']):
                             temp_node_loss_layer_merge[:node_val_count] += loss_val[
                                 loss_indptr[storage_node['loss'] + layer_i]:
                                 loss_indptr[storage_node['loss'] + layer_i] + node_val_count
                             ]
-                            temp_node_extras_layer_merge[:node_val_count] += extras_val[
-                                extras_indptr[storage_node['extra'] + layer_i]:
-                                extras_indptr[storage_node['extra'] + layer_i] + node_val_count
-                            ]
+                            layer_extras = extras_val[extras_indptr[storage_node['extra'] + layer_i]:
+                                                      extras_indptr[storage_node['extra'] + layer_i] + node_val_count]
+                            temp_node_extras_layer_sum[:node_val_count] += layer_extras
+                            temp_node_extras_layer_merge[:node_val_count] = np.maximum(
+                                temp_node_extras_layer_merge[:node_val_count], layer_extras)
                         loss_in = temp_node_loss_layer_merge[:node_val_count]
                         loss_out = temp_node_loss_sparse[:node_val_count]
                         temp_node_extras_layer_merge_save[:node_val_count] = temp_node_extras_layer_merge[
@@ -769,7 +781,8 @@ def compute_event(compute_info,
                                                loss_in, loss_out, loss_indptr, loss_val,
                                                temp_node_loss_layer_ba,
                                                extras_indptr, extras_val,
-                                               temp_node_extras_layer_merge, temp_node_extras_layer_merge_save
+                                               temp_node_extras_layer_merge, temp_node_extras_layer_merge_save,
+                                               temp_node_extras_layer_sum
                                                )
 
                     else:
