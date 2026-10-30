@@ -272,7 +272,14 @@ class TestGenFiles(ComputationChecker):
             # must not raise ValueError: cannot convert NA to integer
             self.manager.generate_files(**call_args)
 
-            fm_summary_map = pd.read_csv(os.path.join(t_dir, 'fm_summary_map.csv'))
+            # intermediate files default to binary / parquet, without csv copies
+            self.assertFalse(os.path.exists(os.path.join(t_dir, 'correlations.csv')))
+            self.assertFalse(os.path.exists(os.path.join(t_dir, 'fm_summary_map.csv')))
+            self.assertFalse(os.path.exists(os.path.join(t_dir, 'gul_summary_map.csv')))
+            self.assertTrue(os.path.exists(os.path.join(t_dir, 'gul_summary_map.parquet')))
+            self.assertTrue(os.path.exists(os.path.join(t_dir, 'gul_errors_map.parquet')))
+
+            fm_summary_map = pd.read_parquet(os.path.join(t_dir, 'fm_summary_map.parquet'))
             # acc_idx must be fully populated (the single item maps to account index 0)
             self.assertFalse(fm_summary_map['acc_idx'].isna().any())
             self.assertEqual(fm_summary_map['acc_idx'].tolist(), [0])
@@ -359,7 +366,8 @@ class TestGenFiles(ComputationChecker):
             call_args = {
                 **self.ri_args,
                 'oasis_files_dir': t_dir,
-                'model_settings_json': model_settings_file.name
+                'model_settings_json': model_settings_file.name,
+                'intermediary_csv': True,
             }
             file_gen_return = self.manager.generate_files(**call_args)
 
@@ -407,7 +415,8 @@ class TestGenFiles(ComputationChecker):
             call_args = {
                 **self.ri_args,
                 'oasis_files_dir': t_dir,
-                'model_settings_json': model_settings_file.name
+                'model_settings_json': model_settings_file.name,
+                'intermediary_csv': True,
             }
             file_gen_return = self.manager.generate_files(**call_args)
 

@@ -261,10 +261,10 @@ exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10
 
 
 aalpy -Kil_S1_summary_palt -c output/il_S1_alct.parquet -l 0.95 -E parquet -a output/il_S1_palt.parquet & lpid1=$!
-aalpy -Kil_S1_summary_altmeanonly -E parquet -a output/il_S1_altmeanonly.cparquetsv & lpid2=$!
+aalpy -Kil_S1_summary_altmeanonly -E parquet -a output/il_S1_altmeanonly.parquet & lpid2=$!
 lecpy -r -Kil_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/il_S1_ept.parquet -o output/il_S1_psept.parquet & lpid3=$!
 aalpy -Kgul_S1_summary_palt -c output/gul_S1_alct.parquet -l 0.95 -E parquet -a output/gul_S1_palt.parquet & lpid4=$!
-aalpy -Kgul_S1_summary_altmeanonly -E parquet -a output/gul_S1_altmeanonly.cparquetsv & lpid5=$!
+aalpy -Kgul_S1_summary_altmeanonly -E parquet -a output/gul_S1_altmeanonly.parquet & lpid5=$!
 lecpy -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/gul_S1_ept.parquet -o output/gul_S1_psept.parquet & lpid6=$!
 exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
 

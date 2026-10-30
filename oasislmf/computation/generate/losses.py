@@ -25,7 +25,7 @@ from subprocess import CalledProcessError
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
-from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, oasis_int_size
+from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, def_to_type_and_size
 import pandas as pd
 import numpy as np
 
@@ -34,9 +34,7 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from ...execution import bash, runner
 from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
-from ...execution.bin import (move_bin, prepare_run_directory,
-                              prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set,
-                              set_hazard_case_set)
+from ...execution.bin import OPTIONAL_MODEL_SETS, move_bin, prepare_run_directory, prepare_run_inputs
 from ...preparation.summaries import generate_summaryxref_files, get_ri_summaryxref_dirs
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...pytools.fm.manager import run as fmpy_run
@@ -59,6 +57,9 @@ from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
 from ...utils.ping import oasis_ping
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
+# event_id in events.bin is a fixed-width 4-byte int, regardless of OASIS_INT.
+_, event_id_size = def_to_type_and_size('event_id')
 
 
 class GenerateLossesBase(ComputationStep):
@@ -330,12 +331,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
         prepare_run_inputs(self.settings, model_run_fp, model_storage, ri=ri or rl)
 
-        optional_model_sets = {'footprint_set': set_footprint_set,
-                               'vulnerability_set': set_vulnerability_set,
-                               'pla_loss_factors_set': set_loss_factors_set,
-                               'hazard_case_set': set_hazard_case_set}
-
-        for model_set, model_setter in optional_model_sets.items():
+        for model_set, model_setter in OPTIONAL_MODEL_SETS.items():
             model_set_val = self.settings.get('model_settings', {}).get(model_set)
             if model_set_val:
                 model_setter(model_set_val, model_run_fp)
@@ -455,6 +451,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'kernel_fifo_queue_dir', 'default': None, 'is_path': True, 'help': 'Override the path used for fifo processing'},
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
          'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
+        {'name': 'disable_resource_report', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Disable the resource monitor: no resource_monitor.csv files are collected and no resource report is generated'},
     ]
 
     def run(self):
@@ -511,6 +509,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             bash_params['fifo_queue_dir'] = self.kernel_fifo_queue_dir
         bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
+        bash_params['disable_resource_report'] = self.disable_resource_report
 
         with setcwd(model_run_fp):
             try:
@@ -522,7 +521,7 @@ class GenerateLossesPartial(GenerateLossesDir):
                     ))
                 else:
                     self.logger.info('All {} Loss chunks generated in {}'.format(bash_params['max_process_id'], model_run_fp))
-                oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
+                oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") // event_id_size)})
                 return model_runner_module.run_analysis(**bash_params)
             except CalledProcessError as e:
                 log_fp = os.path.join(model_run_fp, 'log', str(bash_params.get('process_number', '')))
@@ -550,6 +549,8 @@ class GenerateLossesOutput(GenerateLossesDir):
         {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `kernel_num_processes` if not set'},
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
          'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
+        {'name': 'disable_resource_report', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Disable the resource monitor: no resource_monitor.csv files are collected and no resource report is generated'},
     ]
 
     def run(self):
@@ -579,6 +580,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             model_run_dir=model_run_fp,
         )
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
+        bash_params['disable_resource_report'] = self.disable_resource_report
         with setcwd(model_run_fp):
             try:
                 self.logger.info('Generating Loss outputs in {}'.format(model_run_fp))
@@ -661,6 +663,8 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'},
         {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
          'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
+        {'name': 'disable_resource_report', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Disable the resource monitor: no resource_monitor.csv files are collected and no resource report is generated'},
     ]
 
     def run(self):
@@ -687,9 +691,9 @@ class GenerateLosses(GenerateLossesDir):
                 self.logger.info("Set `OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT` or `OASIS_ANALYSIS_STATUS_URL` "
                                  "environment variables for run progress updates")
             elif 'analysis_pk' in self.kwargs:
-                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
+                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // event_id_size)})
             else:
-                socket_server_size = os.path.getsize("input/events.bin") // oasis_int_size
+                socket_server_size = os.path.getsize("input/events.bin") // event_id_size
                 socket_host = os.environ.get('OASIS_SOCKET_SERVER_IP', SERVER_DEFAULT_IP)
                 socket_preferred_port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', SERVER_DEFAULT_PORT))
                 socket_server_port = self._find_available_port(socket_host, socket_preferred_port)
@@ -727,6 +731,7 @@ class GenerateLosses(GenerateLossesDir):
                         socket_server_size=socket_server_size,
                         socket_server_port=socket_server_port,
                         resource_monitor_interval=self.resource_monitor_interval,
+                        disable_resource_report=self.disable_resource_report,
                         log_level=self.logger.getEffectiveLevel(),
                     )
                     model_runner_module.run(self.settings, **run_args)
@@ -1132,5 +1137,6 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         )
         bash_trace = subprocess.check_output(['bash', script_fp])
         self.logger.info(bash_trace.decode('utf-8'))
+        runner._ensure_pytool_logs_complete(os.path.join(self.target_dir, 'log'))
 
         self.logger.info(f'\nDummy Model run completed successfully in {self.target_dir}')
