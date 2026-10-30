@@ -1,0 +1,47 @@
+// How one item's N buildings reach the stream, and where they collapse.
+// Render: dot -Tsvg gulmc_packing.dot -o gulmc_packing.svg
+digraph gulmc_packing {
+    rankdir=TB;
+    bgcolor="transparent";
+    nodesep=0.4; ranksep=0.45;
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+          fillcolor="#eef3fb", color="#4a6fa5"];
+    edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+    item [label="one item: one location, one peril, one coverage type\lpacked_buildings = ±N   (magnitude N = buildings, sign = what the writer does)\l",
+          fillcolor="#fdf0e0", color="#c8863c"];
+
+    draw [label="for b in 1..N:  draw S values at offsets[g] + (b-1)*S\lsample_item_losses  ->  building_losses[:, item_j, b-1]\lthe buildings differ only in their draws; the CDF is the item's\l"];
+
+    cap [label="write_losses: alloc_rule caps across items at each building index\lthe coverage tiv is the PER-BUILDING share\l"];
+
+    item -> draw [label="  N = |packed_buildings|"];
+    draw -> cap;
+
+    sep  [label="packed_buildings < 0   —   KEEP SEPARATE\l(IsAggregate = 1)\l",
+          fillcolor="#fdf0e0", color="#c8863c"];
+    summ [label="packed_buildings > 0   —   SUMMED AT SOURCE\l(IsAggregate = 0)\l",
+          fillcolor="#e3ecfa", color="#2f5596"];
+
+    cap -> sep  [label="  sign < 0", color="#b06000", fontcolor="#b06000", style=bold];
+    cap -> summ [label="  sign > 0", color="#2f5596", fontcolor="#2f5596", style=bold];
+
+    sep_out [label="N blocks in ONE stream item\lsample  b,s  ->  sidx = (b-1)*S + s\lspecial local  ->  sidx = local - (b-1)*NUM_SPECIAL_SIDX\lspecials repeat per block: they come from the CDF, not the draw\l",
+             fillcolor="#fdf0e0", color="#c8863c"];
+    summ_out [label="ONE ordinary block, sidx = s\lsamples summed over b\lmean, tiv, max  x N     std_dev  x sqrt(N)\lchance_of_loss unchanged: a probability, not a loss\l",
+              fillcolor="#e3ecfa", color="#2f5596"];
+
+    sep -> sep_out;
+    summ -> summ_out;
+
+    fm_sep [label="fmpy: buildings stay distinct through the site levels,\lcollapse after site_collapse_level\l", fillcolor="#f2f2f2", color="#888888"];
+    fm_summ [label="fmpy: an ordinary item.\lThe building dimension is already gone\l", fillcolor="#f2f2f2", color="#888888"];
+
+    sep_out -> fm_sep [label="  N x the stream volume"];
+    summ_out -> fm_summ [label="  same volume as unpacked"];
+
+    note [shape=note, fillcolor="#fffbe6", color="#b0a060", fontsize=9,
+          label="N = 1 is not a special case:\lone building, one block, sidx = s —\lbyte-for-byte the legacy unpacked stream.\l"];
+    item -> note [style=invis];
+    {rank=same; item; note;}
+}

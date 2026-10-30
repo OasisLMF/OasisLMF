@@ -66,7 +66,7 @@ def _run_writer_via_pipe(write_fn):
 @pytest.mark.parametrize(
     "file_type, sub_dir, filename, kwargs",
     [
-        ("gul", "misc", "raw_guls", dict(stream_type=2, max_sample_index=1)),
+        ("gul", "misc", "raw_guls", dict(stream_type=2, max_sample_index=1, packed=False)),
         ("fm", "misc", "raw_ils", dict(stream_type=2, max_sample_index=1)),
         ("summarycalc", "misc", "summary", dict(summary_set_id=1, max_sample_index=100)),
         ("occurrence", "input", "occurrence", dict(no_of_periods=9)),

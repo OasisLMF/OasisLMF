@@ -1,0 +1,40 @@
+// The two back-allocation paths. Render: dot -Tsvg fm_back_allocation.dot -o fm_back_allocation.svg
+digraph back_allocation {
+    rankdir=TB;
+    bgcolor="transparent";
+    nodesep=0.35; ranksep=0.4;
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+          fillcolor="#eef3fb", color="#4a6fa5"];
+    edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+    subgraph cluster_direct {
+        label="one base child, and the node's storage is that child";
+        labelloc=t; fontname="Helvetica"; fontsize=10; color="#3a7d44"; style=dashed;
+
+        d_out [label="loss_out", fillcolor="#e3ecfa", color="#2f5596"];
+        d_in  [label="loss_in\nthis IS the child's array\n(storage was reused)",
+               fillcolor="#e8f5e9", color="#3a7d44"];
+        d_out -> d_in [label="  loss_in[:] = loss_out\l  direct assignment\l",
+                       color="#3a7d44", fontcolor="#3a7d44", style=bold];
+    }
+
+    subgraph cluster_rescale {
+        label="several base children"; labelloc=t;
+        fontname="Helvetica"; fontsize=10; color="#b06000"; style=dashed;
+
+        r_out [label="loss_out", fillcolor="#e3ecfa", color="#2f5596"];
+        r_in  [label="loss_in", fillcolor="#e3ecfa", color="#2f5596"];
+        fac   [label="factor[sidx] =\nloss_out[sidx] / loss_in[sidx]", fillcolor="#fdf0e0", color="#c8863c"];
+        b1 [label="base child 1"]; b2 [label="base child 2"]; b3 [label="base child 3"];
+
+        r_out -> fac; r_in -> fac;
+        fac -> b1 [label="  scaled", color="#b06000", fontcolor="#b06000"];
+        fac -> b2 [color="#b06000"];
+        fac -> b3 [color="#b06000"];
+        {rank=same; b1; b2; b3;}
+    }
+
+    note [label="Allocation rules 0 and 1 pass a count of 1 whatever the node really has,\nasking for the direct assignment; storage_is_base_child is set to match.",
+          shape=note, fillcolor="#fffbe6", color="#b0a060", style=filled, fontsize=10];
+    d_in -> note [style=invis];
+}

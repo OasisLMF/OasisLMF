@@ -26,6 +26,8 @@ from subprocess import CalledProcessError
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, def_to_type_and_size
+from oasislmf.pytools.common.event_stream import NUM_SPECIAL_SIDX, max_emitted_blocks
+from oasislmf.pytools.common.input_files import read_coverage_buildings
 import pandas as pd
 import numpy as np
 
@@ -33,6 +35,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from ...execution import bash, runner
+from ...execution.bash import check_custom_gulcalc_can_read_inputs, resolve_custom_gulcalc_cmd
 from ...pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import OPTIONAL_MODEL_SETS, move_bin, prepare_run_directory, prepare_run_inputs
 from ...preparation.summaries import generate_summaryxref_files, get_ri_summaryxref_dirs
@@ -56,7 +59,11 @@ from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
 from ...utils.ping import oasis_ping
 
-warnings.simplefilter(action='ignore', category=FutureWarning)
+
+IL_RULE_0_UNDER_RI = (
+    "Allocation rule 0 for insured losses cannot feed reinsurance: it outputs one loss per policy "
+    "layer, and the reinsurance scopes need the insured loss of each item. Use an IL allocation rule "
+    "of 1, 2 or 3 with reinsurance.")
 
 # event_id in events.bin is a fixed-width 4-byte int, regardless of OASIS_INT.
 _, event_id_size = def_to_type_and_size('event_id')
@@ -114,6 +121,46 @@ class GenerateLossesBase(ComputationStep):
             rule_val = int(getattr(self, rule))
             if (rule_val < 0) or (rule_val > rule_ranges[rule]):
                 raise OasisException(f'Error: {rule}={rule_val} - Not within valid ranges [0..{rule_ranges[rule]}]')
+
+    def _check_packed_inputs_can_be_run(self, analysis_settings):
+        """Refuse a packed input set the configured ground-up engine cannot put back together.
+
+        Generation divides a location's TIV by NumberOfBuildings and leaves the buildings to be
+        restored in the sample dimension. Two engines cannot do that, and both failures are
+        silent-by-default rather than loud:
+
+        * a third-party gulcalc reading items.bin emits one block per item, so every loss comes
+          out a factor of NumberOfBuildings too small with no error anywhere;
+        * random generators 0 and 1 cannot address a building, so ``check_packing_supported``
+          raises mid-run, after generation has already succeeded.
+
+        Generation tries to avoid both by downgrading to ``items``, but it cannot always see
+        them: ``_disaggregation_for_this_engine`` infers the binary from analysis settings that
+        ``generate-oasis-files`` is not required to be given, and the random generator is a
+        loss-step parameter it never sees at all. This is the check that does not depend on
+        generation and losses being configured the same way.
+
+        Args:
+            analysis_settings (dict): resolved analysis settings for this run.
+
+        Raises:
+            OasisException: if the inputs are packed and the engine cannot read them.
+        """
+        counts = read_coverage_buildings(self.oasis_files_dir)
+        if counts.shape[0] == 0 or int(np.abs(counts['n_building']).max()) <= 1:
+            return  # nothing packed; every engine is fine
+
+        if int(self.gul_random_generator) != 2:
+            raise OasisException(
+                f"These inputs are building-packed, which random generator "
+                f"{int(self.gul_random_generator)} cannot read: only generator 2 (Philox) can "
+                f"address a building. Regenerate with --disaggregation items, or run with "
+                f"--gul-random-generator 2."
+            )
+
+        check_custom_gulcalc_can_read_inputs(
+            self.oasis_files_dir, resolve_custom_gulcalc_cmd(self.model_custom_gulcalc, analysis_settings),
+            self.custom_gulcalc_supports_packing)
 
     def _store_run_settings(self, analysis_settings, target_dir):
         """Writes the analysis settings file to the `target_dir` path"""
@@ -214,6 +261,10 @@ class GenerateLossesDir(GenerateLossesBase):
         # going to run.
         {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
+        # Needed here as well as in generation: the loss step is where a packed input set meets
+        # the binary that has to read it, and the two steps can be configured separately.
+        {'name': 'custom_gulcalc_supports_packing', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Set when a custom gulcalc understands building-packed streams, so packed inputs are not refused'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'dynamic_footprint', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'Dynamic Footprint'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
@@ -270,6 +321,8 @@ class GenerateLossesDir(GenerateLossesBase):
 
         ri = self.settings.get('ri_output', False) and ril
         rl = self.settings.get('rl_output', False) and ril
+        if (ri or rl) and self.kernel_alloc_rule_il == 0:
+            raise OasisException(IL_RULE_0_UNDER_RI)
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RI={}, RL={})'.format(il, ri, rl))
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri + ['rl'] * rl
@@ -457,6 +510,7 @@ class GenerateLossesPartial(GenerateLossesDir):
 
     def run(self):
         GenerateLossesDir._check_ktool_rules(self)
+        GenerateLossesDir._check_packed_inputs_can_be_run(self, self.settings)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
 
         # distributed worker will pass in run settings as JSON, if not given load settings
@@ -670,6 +724,7 @@ class GenerateLosses(GenerateLossesDir):
     def run(self):
         # prep losses run dir / Setup
         GenerateLossesDir._check_ktool_rules(self)
+        GenerateLossesDir._check_packed_inputs_can_be_run(self, self.settings)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
         GenerateLossesDir.run(self)
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_kernel.sh')
@@ -714,6 +769,7 @@ class GenerateLosses(GenerateLossesDir):
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
                         custom_gulcalc_log_finish=self.model_custom_gulcalc_log_finish,
+                        custom_gulcalc_supports_packing=self.custom_gulcalc_supports_packing,
                         gulmc=(self.gulmc and not self.model_custom_gulcalc),
                         gul_random_generator=self.gul_random_generator,
                         gulmc_effective_damageability=self.gulmc_effective_damageability,
@@ -736,7 +792,6 @@ class GenerateLosses(GenerateLossesDir):
                     )
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:
-                    warnings.simplefilter("always")
                     warnings.warn(
                         f"{package_name}.supplier_model_runner doesn't accept new runner arguments, please add **kwargs to the run function signature")
                     run_args = dict(
@@ -795,6 +850,72 @@ class GenerateLosses(GenerateLossesDir):
                 return name
 
 
+def _item_packed_buildings(items, files_dir):
+    """The signed building count for each item, from ``coverage_buildings`` if the run has one.
+
+    Args:
+        items (pandas.DataFrame): the items frame, carrying ``coverage_id``.
+        files_dir (str): directory the coverage_buildings file lives in.
+
+    Returns:
+        numpy.array[int32]: per item, the signed count -- negative where the buildings are kept
+            separate and so emitted as their own blocks, 1 everywhere packing is not in use.
+    """
+    counts = read_coverage_buildings(files_dir)
+    if counts.shape[0] == 0:
+        return np.ones(len(items), dtype='i4')
+    # coverage_id is the dense 1..N that read_coverage_buildings validates, so index directly
+    by_coverage = np.ones(int(counts['coverage_id'].max()) + 1, dtype='i4')
+    by_coverage[counts['coverage_id']] = counts['n_building']
+    return by_coverage[items['coverage_id'].to_numpy()]
+
+
+def _expand_packed_items(items, gulcalc_sidxs, sample_size):
+    """Cross items with the sample indices, giving a kept-separate item one block per building.
+
+    The returned frame carries both ``local_sidx`` (what the loss factor is keyed on, the same for
+    every building) and ``sidx`` (what goes on the wire). Rows come out ordered by stream sidx
+    within an item, which is the order the loss stream requires and the order
+    ``pytools.gul.manager.write_losses`` produces by writing specials from the last building down
+    and samples from the first building up.
+
+    Args:
+        items (pandas.DataFrame): items with ``item_id``, ``tiv`` and signed ``packed_buildings``.
+        gulcalc_sidxs (list[int]): the per-building sample indices, specials first.
+        sample_size (int): the logical sample size S, the stride ``encode_sidx`` packs on.
+
+    Returns:
+        pandas.DataFrame: ``event_id``, ``item_id``, ``building``, ``local_sidx``, ``sidx``, ``tiv``.
+    """
+    n_signed = items['packed_buildings'].to_numpy()
+    # A positive count above 1 is summed at source: one block carrying the whole location, so its
+    # per-building tiv is scaled back up rather than replicated.
+    tiv = np.where(n_signed > 1, items['tiv'].to_numpy() * n_signed, items['tiv'].to_numpy())
+    blocks = np.where(n_signed < 0, -n_signed, 1)
+
+    rows = pd.DataFrame({'item_id': items['item_id'].to_numpy(), 'tiv': tiv, 'blocks': blocks})
+    rows = rows.loc[rows.index.repeat(rows['blocks'])]
+    rows['building'] = rows.groupby(level=0).cumcount() + 1
+    rows = rows.drop(columns=['blocks']).reset_index(drop=True)
+
+    guls = rows.join(pd.DataFrame({'local_sidx': gulcalc_sidxs}, dtype='int64'),
+                     how='cross').assign(event_id=1)
+    guls['sidx'] = _encode_sidx(guls['building'].to_numpy(), guls['local_sidx'].to_numpy(),
+                                sample_size)
+    if (blocks > 1).any():
+        # Only a packed item needs reordering; leaving an unpacked run's rows exactly as they were
+        # keeps raw_guls.csv byte-identical to what it has always been.
+        guls = guls.sort_values(['event_id', 'item_id', 'sidx'], kind='stable').reset_index(drop=True)
+    return guls
+
+
+def _encode_sidx(building, local_sidx, sample_size):
+    """Vectorised ``pytools.common.event_stream.encode_sidx``; see it for the encoding."""
+    return np.where(local_sidx > 0,
+                    (building - 1) * sample_size + local_sidx,
+                    local_sidx - (building - 1) * NUM_SPECIAL_SIDX)
+
+
 class GenerateLossesDeterministic(ComputationStep):
     step_params = [
         {'name': 'oasis_files_dir', 'is_path': True, 'pre_exist': True},
@@ -816,6 +937,8 @@ class GenerateLossesDeterministic(ComputationStep):
 
         oasis_files = set(os.listdir(self.oasis_files_dir))
         ri = any(re.match(r'RI_\d+$', fn) for fn in oasis_files)
+        if ri and self.kernel_alloc_rule_il == 0:
+            raise OasisException(IL_RULE_0_UNDER_RI)
 
         # Move pre-built binary files to output directory
         move_bin(self.oasis_files_dir, output_dir)
@@ -836,6 +959,15 @@ class GenerateLossesDeterministic(ComputationStep):
 
         items['tiv'] = items['tiv'] / items['count']
         items.drop(columns=['count'], inplace=True)
+
+        # Building packing: coverages.bin already holds the PER-BUILDING tiv (generation divides
+        # the location's by NumberOfBuildings), so the deterministic stream has to put the
+        # buildings back the way gulmc does -- see write_losses in pytools/gul/manager.py. A
+        # kept-separate coverage (negative count) emits one block per building at building-shifted
+        # sidx; one summed at source (positive count) stays a single block carrying them all.
+        # Without this a packed input set would understate every loss by the building count.
+        # Read from output_dir: move_bin above has already relocated the binaries there.
+        items['packed_buildings'] = _item_packed_buildings(items, output_dir)
         # Change order of stream depending on rule type
         #   Stream_type 1
         #     event_id, item_id, sidx, loss
@@ -872,16 +1004,36 @@ class GenerateLossesDeterministic(ComputationStep):
 
         loss_factor_map = {**special_loss_factors, **{i + 1: val for i, val in enumerate(self.loss_factor)}}
 
-        guls = items[['item_id', 'tiv']].join(pd.DataFrame({'sidx': gulcalc_sidxs}, dtype='int64'), how='cross').assign(event_id=1)
-        guls['loss'] = guls['sidx'].map(loss_factor_map) * guls['tiv']
-        guls = guls.astype({
+        packed_blocks = max_emitted_blocks(items['packed_buildings'].to_numpy())
+        if packed_blocks > 1 and self.il_stream_type != 2:
+            # Type 1 writes its specials descending, so a packed item's blocks would not come out
+            # ordered; gulmc only ever emits packed streams as type 2.
+            raise OasisException(
+                "building-packed inputs need il_stream_type 2, got {}".format(self.il_stream_type))
+
+        guls = _expand_packed_items(items, gulcalc_sidxs, len(self.loss_factor))
+        guls['loss'] = guls['local_sidx'].map(loss_factor_map) * guls['tiv']
+        guls_stream = guls.astype({
             'event_id': int,
             'item_id': int,
             'sidx': int,
             'loss': float})[['event_id', 'item_id', 'sidx', 'loss']]
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls_bin_fp = os.path.join(output_dir, "guls.bin")
-        guls.to_csv(guls_fp, index=False)
+        guls_stream.to_csv(guls_fp, index=False)
+
+        if packed_blocks > 1:
+            # Fold the building blocks back onto their item for everything downstream: reporting
+            # joins GUL rows to the summary map by item_id, and a packed item has one summary row
+            # however many buildings it carries, so leaving them expanded multiplies the losses it
+            # is joined to. raw_guls.csv above keeps the per-building detail.
+            guls = (guls.groupby(['event_id', 'item_id', 'local_sidx'], as_index=False)['loss'].sum()
+                        .rename(columns={'local_sidx': 'sidx'}))
+        guls = guls.astype({
+            'event_id': int,
+            'item_id': int,
+            'sidx': int,
+            'loss': float})[['event_id', 'item_id', 'sidx', 'loss']]
 
         # il_stream_type = 2 if self.fmpy else 1
         ils_bin_fp = os.path.join(output_dir, "ils.bin")
@@ -891,7 +1043,8 @@ class GenerateLossesDeterministic(ComputationStep):
         create_financial_structure(self.kernel_alloc_rule_il, output_dir)
 
         try:
-            csvtobin(guls_fp, guls_bin_fp, "gul", stream_type=self.il_stream_type, max_sample_index=len(self.loss_factor))
+            csvtobin(guls_fp, guls_bin_fp, "gul", stream_type=self.il_stream_type,
+                     max_sample_index=len(self.loss_factor), packed=packed_blocks > 1)
             fmpy_run(
                 create_financial_structure_files=False,
                 allocation_rule=self.kernel_alloc_rule_il,
@@ -1014,8 +1167,6 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
                 raise OasisException(f'Error: {rule}={alloc_val} - Not within valid range [0..{alloc_ranges[rule]}]')
 
     def _validate_analysis_settings(self):
-        warnings.simplefilter('always')
-
         # RI output is unsupported
         if self.settings.get('ri_output'):
             warnings.warn('Generating reinsurance losses with dummy model not currently supported. Ignoring ri_output in analysis settings JSON.')

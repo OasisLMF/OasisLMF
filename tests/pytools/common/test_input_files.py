@@ -4,12 +4,16 @@ import pytest
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (
-    oasis_int, oasis_float, coverages_dtype, correlations_dtype, periods_dtype,
-    quantile_interval_dtype, returnperiods_dtype
+    oasis_int, oasis_float, coverages_dtype, COVERAGE_BUILDINGS_FILE,
+    coverage_buildings_dtype, coverage_buildings_headers,
+    correlations_dtype,
+    periods_dtype, quantile_interval_dtype, returnperiods_dtype
 )
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as OCC_IDX_NOT_FOUND
 from oasislmf.pytools.common.input_files import (
     read_amplifications,
+    read_coverage_buildings,
     read_coverages,
     read_correlations,
     read_event_rates,
@@ -126,6 +130,57 @@ def test_read_correlations():
     np.testing.assert_array_almost_equal(damage_correlation_value_expected, damage_correlation_value_actual, decimal=3, verbose=True)
     np.testing.assert_array_almost_equal(hazard_group_id_expected, hazard_group_id_actual, decimal=3, verbose=True)
     np.testing.assert_array_almost_equal(hazard_correlation_value_expected, hazard_correlation_value_actual, decimal=3, verbose=True)
+
+
+def _correlations(item_ids, damage_correlation_value=0.5):
+    correlations = np.zeros(len(item_ids), dtype=correlations_dtype)
+    correlations["item_id"] = item_ids
+    correlations["peril_correlation_group"] = 1
+    correlations["damage_correlation_value"] = damage_correlation_value
+    correlations["hazard_group_id"] = 2
+    correlations["hazard_correlation_value"] = 0.25
+    return correlations
+
+
+@pytest.mark.parametrize("item_ids", [range(1, 11), [5, 6, 7], [1, 4, 9], [100, 200, 300]],
+                         ids=["dense", "offset", "gapped", "sparse"])
+def test_read_correlations_bin__any_item_ids_are_read(item_ids):
+    """Only the record layout is checked: a table is valid whatever ids its items carry."""
+    with TemporaryDirectory() as d:
+        _correlations(list(item_ids)).tofile(Path(d, "correlations.bin"))
+        actual = read_correlations(d)
+    np.testing.assert_array_equal(actual["item_id"], list(item_ids))
+    np.testing.assert_allclose(actual["damage_correlation_value"], 0.5)
+
+
+# the record layout before source_item_id was added: 20 bytes against today's 24
+PRE_SOURCE_ITEM_DTYPE = np.dtype([("item_id", "<i4"), ("peril_correlation_group", "<i4"),
+                                  ("damage_correlation_value", "<f4"), ("hazard_group_id", "<i4"),
+                                  ("hazard_correlation_value", "<f4")])
+
+
+def _older_layout(n):
+    old = np.zeros(n, dtype=PRE_SOURCE_ITEM_DTYPE)
+    old["item_id"] = np.arange(1, n + 1)
+    old["peril_correlation_group"] = 1
+    old["damage_correlation_value"] = 0.5
+    old["hazard_group_id"] = 2
+    old["hazard_correlation_value"] = 0.5
+    return old.tobytes()
+
+
+@pytest.mark.parametrize("content", [
+    b"\x01" * (correlations_dtype.itemsize + 5),
+    # 12 records of 20 bytes divide by 24 too, so the file maps cleanly and only the values betray it
+    _older_layout(12),
+    _correlations([1, 2, 3], damage_correlation_value=[0.5, 4.2, 0.1]).tobytes(),
+], ids=["partial_record", "older_layout_that_divides_evenly", "correlation_out_of_range"])
+def test_read_correlations_bin__a_file_of_another_layout_is_rejected(content):
+    """Rather than read other fields' bytes as the current ones."""
+    with TemporaryDirectory() as d:
+        Path(d, "correlations.bin").write_bytes(content)
+        with pytest.raises(OasisException, match="does not match the current correlations record layout"):
+            read_correlations(d)
 
 
 def test_read_correlations__empty_bin():
@@ -331,3 +386,49 @@ def test_read_return_periods_no_file():
 
     with pytest.raises(RuntimeError, match="ERROR: Return Periods file not found at"):
         read_returnperiods(use_return_periods, run_dir, filename)
+
+
+# --- the per-coverage building count, in its own file --------------------------------------------
+
+def test_read_coverage_buildings__absent_is_the_ordinary_case():
+    """Every input set generated before building packing has no such file, and so does every
+    unpacked run. The caller takes an empty result as all-ones rather than failing."""
+    with TemporaryDirectory() as d:
+        assert len(read_coverage_buildings(d)) == 0
+
+
+@pytest.mark.parametrize("file_type", ["bin", "csv", "csv_without_header"])
+def test_read_coverage_buildings__reads_a_signed_count(file_type):
+    """Negative keeps the buildings separate through the financial module."""
+    counts = [1, -630510, 12]
+    with TemporaryDirectory() as d:
+        if file_type == "bin":
+            np.array(list(enumerate(counts, start=1)), dtype=coverage_buildings_dtype).tofile(
+                Path(d, f"{COVERAGE_BUILDINGS_FILE}.bin"))
+        else:
+            lines = [f"{i},{n}" for i, n in enumerate(counts, start=1)]
+            if file_type == "csv":
+                lines.insert(0, ",".join(coverage_buildings_headers))
+            Path(d, f"{COVERAGE_BUILDINGS_FILE}.csv").write_text("\n".join(lines) + "\n")
+        actual = read_coverage_buildings(d, ignore_file_type={"csv", "bin"} - {file_type[:3]})
+    np.testing.assert_array_equal(actual["coverage_id"], [1, 2, 3])
+    np.testing.assert_array_equal(actual["n_building"], counts)
+
+
+def _coverage_buildings(ids):
+    return np.array([(i, 2) for i in ids], dtype=coverage_buildings_dtype).tobytes()
+
+
+@pytest.mark.parametrize("content, message", [
+    (b"\x01" * (coverage_buildings_dtype.itemsize + 3), "not a multiple of"),
+    # coverage_id is stored, unlike in coverages.bin, so a truncated or concatenated file shows
+    (_coverage_buildings([1, 2, 4]), "dense"),
+    (_coverage_buildings([2, 3, 4]), "dense"),
+    (_coverage_buildings([1, 1, 2]), "dense"),
+], ids=["partial_record", "gap", "offset", "repeat"])
+def test_read_coverage_buildings__a_damaged_file_is_rejected(content, message):
+    """Rather than shift every coverage after the damage onto another's count."""
+    with TemporaryDirectory() as d:
+        Path(d, f"{COVERAGE_BUILDINGS_FILE}.bin").write_bytes(content)
+        with pytest.raises(OasisException, match=message):
+            read_coverage_buildings(d, ignore_file_type={"csv"})

@@ -125,7 +125,10 @@ evepy 1 1 | modelpy | gulpy -S100 -a1 -o gul.bin
 ```
 
 **Internal data** — `static/damage_bin_dict.bin`, `input/items.bin`,
-`input/coverages.bin` (plus the model data read via `modelpy`/directly).
+`input/coverages.bin` (plus the model data read via `modelpy`/directly), and
+`input/coverage_buildings.bin` where a location's buildings are packed into the sample
+dimension — absent on an ordinary portfolio, and read as one building per coverage when
+it is.
 
 **Random sampling** — for each item CDF and each sample, a uniform random number is
 drawn and used to sample a damage factor by interpolation (linear, quadratic, or point-
@@ -181,7 +184,10 @@ fmpy -p ri1 -a2 -n -i gul.bin -o ri1_net.bin        # reinsurance, net losses
 **Internal data** — `input/items.bin`, `input/coverages.bin`, `input/fm_programme.bin`,
 `input/fm_policytc.bin`, `input/fm_profile.bin` (or `fm_profile_step.bin`),
 `input/fm_xref.bin`. For a loss-stream input only the four `fm_*` files are needed. Use
-`-p` to point at a different set (e.g. `-p ri1`).
+`-p` to point at a different set (e.g. `-p ri1`). A building-packed input set adds
+`input/fm_structure_info.bin` and `input/coverage_buildings.bin`, which say where the
+buildings collapse and how many each coverage carries; without them a packed stream is
+rejected rather than mis-read.
 
 **Calculation** — `fmpy` passes the loss samples (including the mean, sidx -1, and
 impacted exposure, sidx -3) through the financial calculation defined by the input

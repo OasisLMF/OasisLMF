@@ -26,6 +26,7 @@ from oasislmf.execution.bin import (
     check_inputs_directory,
     cleanup_bin_directory,
     create_binary_tar_file,
+    move_bin,
     prepare_run_directory,
     prepare_run_inputs,
     set_footprint_set,
@@ -37,8 +38,39 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from oasislmf.pytools.getmodel.common import hazard_case_filename
+from oasislmf.pytools.common.data import FM_STRUCTURE_INFO_FILE
 
 from tests.data import il_input_files, tar_file_targets
+
+
+class MoveBinStructureInfo(TestCase):
+    def test_structure_info_moves_with_the_binaries(self):
+        """move_bin stages what the kernel reads, and the financial module reads this too.
+
+        It is not a binary, so it is not in INPUT_FILES and was left behind -- which turns
+        building packing silently off on the deterministic path, since fmpy then reads the
+        staged folder and finds no structure info.
+        """
+        with TemporaryDirectory() as src, TemporaryDirectory() as dst:
+            for name in ('items.bin', FM_STRUCTURE_INFO_FILE):
+                with io.open(os.path.join(src, name), 'w', encoding='utf-8') as f:
+                    f.write('data')
+
+            move_bin(src, dst)
+
+            self.assertTrue(os.path.isfile(os.path.join(dst, 'items.bin')))
+            self.assertTrue(os.path.isfile(os.path.join(dst, FM_STRUCTURE_INFO_FILE)))
+
+    def test_absent_structure_info_is_not_an_error(self):
+        """Every input set generated before building packing has none."""
+        with TemporaryDirectory() as src, TemporaryDirectory() as dst:
+            with io.open(os.path.join(src, 'items.bin'), 'w', encoding='utf-8') as f:
+                f.write('data')
+
+            move_bin(src, dst)
+
+            self.assertTrue(os.path.isfile(os.path.join(dst, 'items.bin')))
+            self.assertFalse(os.path.exists(os.path.join(dst, FM_STRUCTURE_INFO_FILE)))
 
 
 class CreateBinaryTarFile(TestCase):
@@ -51,6 +83,30 @@ class CreateBinaryTarFile(TestCase):
 
             with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
                 self.assertEqual(0, len(tar.getnames()))
+
+    def test_building_packing_structure_info_is_included_at_every_depth(self):
+        """It is not a binary, but the financial module reads it from beside them and sizes its
+        arrays from it, so it has to travel in the tar.
+
+        Both depths matter and the top level matters most: the primary, non-reinsurance structure
+        info sits directly in the input directory, and a reinsurance layer gets its own one level
+        down. Losing the top-level one turns building packing silently off, or makes fmpy reject
+        a packed stream outright.
+        """
+        with TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, 'RI_1'))
+            for path in ('items.bin', FM_STRUCTURE_INFO_FILE,
+                         os.path.join('RI_1', 'items.bin'),
+                         os.path.join('RI_1', FM_STRUCTURE_INFO_FILE)):
+                with io.open(os.path.join(d, path), 'w', encoding='utf-8') as f:
+                    f.write('data')
+
+            create_binary_tar_file(d)
+
+            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
+                names = set(tar.getnames())
+            self.assertIn(FM_STRUCTURE_INFO_FILE, names)
+            self.assertIn(f'RI_1/{FM_STRUCTURE_INFO_FILE}', names)
 
     @given(tar_file_targets(min_size=1))
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])

@@ -13,6 +13,7 @@ Static intermediary data structure::
     summary_set_index_to_loss_ptr : mapping array summary_set_index => starting index of summary_id loss (first dimension) in the loss_summary table
     item_id_to_summary_id : mapping array item_id => [summary_id for each summary set]
     item_id_to_risks_i : mapping array item_id => risks_i (index of th corresponding risk)
+    risk_i_to_n_buildings : mapping array risks_i => number of buildings the risk stands for (1 unless packed)
 
 event based intermediary data structure::
 
@@ -26,6 +27,7 @@ event based intermediary data structure::
 """
 import numpy as np
 import numba as nb
+from numpy.lib.recfunctions import repack_fields
 from numba.typed import Dict as nb_dict
 import json
 
@@ -44,7 +46,9 @@ from oasislmf.pytools.common.data import (def_to_type_and_size, load_as_ndarray,
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
-                                                  MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
+                                                  LOSS_STREAM_AGG_TYPES,
+                                                  MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX,
+                                                  NUM_SPECIAL_SIDX, decode_local_sidx)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_fmt, SELT_headers, VALID_EXT
 from oasislmf.pytools.utils import redirect_logging
@@ -70,6 +74,9 @@ risk_key_type = nb.types.UniTuple(nb_oasis_int, 2)
 
 summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 
+summary_map_dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
+summary_map_with_buildings_dtype = np.dtype(summary_map_dtype.descr + [('number_of_buildings', oasis_int)])
+
 SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
 
 OUTPUT_ROWS_BUFFER_SIZE = 100_000
@@ -89,18 +96,41 @@ def load_summary_object(static_path, run_type):
         return get_summary_object(static_path, run_type)
 
 
+def load_summary_map(static_path, name, col_map=None):
+    """Load a summary map, with its ``number_of_buildings`` column when it carries one.
+
+    The column is written under building packing, where one row stands for that many buildings.
+    A map written before packing existed, or assembled by hand, does not have it.
+
+    The columns are looked up in the file ``load_as_ndarray`` reads, in its order of preference. A
+    ``.bin`` has no header to look in and is read without the column.
+    """
+    dtype = summary_map_dtype
+    path = os.path.join(static_path, name)
+    if not os.path.isfile(path + '.bin'):
+        columns = set()
+        if os.path.isfile(path + '.parquet'):
+            import pyarrow.parquet as pq
+            columns = set(pq.read_schema(path + '.parquet').names)
+        elif os.path.isfile(path + '.csv'):
+            with open(path + '.csv') as f:
+                columns = {h.strip() for h in f.readline().split(',')}
+        if 'number_of_buildings' in columns:
+            dtype = summary_map_with_buildings_dtype
+    return load_as_ndarray(static_path, name, dtype, col_map=col_map)
+
+
 def get_summary_object(static_path, run_type):
     """Read static files to get summary static data structure"""
     # extract item_id to index in the loss summary
-    summary_map_dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
     if run_type == RUNTYPE_GROUNDUP_LOSS:
         summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', gul_summary_xref_dtype)
-        summary_map = load_as_ndarray(static_path, 'gul_summary_map', summary_map_dtype)
+        summary_map = load_summary_map(static_path, 'gul_summary_map')
 
     elif run_type == RUNTYPE_INSURED_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
-        summary_map = load_as_ndarray(static_path, 'fm_summary_map', summary_map_dtype, col_map={'item_id': 'output_id'})
+        summary_map = load_summary_map(static_path, 'fm_summary_map', col_map={'item_id': 'output_id'})
 
     elif run_type == RUNTYPE_REINSURANCE_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
@@ -115,26 +145,29 @@ def get_summary_object(static_path, run_type):
     summary_set_index_to_loss_ptr, item_id_to_summary_id = get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summary_set_index)
 
     if summary_map is not None:
-        nb_risk, item_id_to_risks_i = extract_risk_info(item_id_to_summary_id.shape[0], summary_map)
+        nb_risk, item_id_to_risks_i, risk_i_to_n_buildings = extract_risk_info(item_id_to_summary_id.shape[0], summary_map)
     else:
         item_id_to_risks_i = np.zeros(0, dtype=oasis_int)
+        risk_i_to_n_buildings = np.zeros(0, dtype=oasis_int)
         nb_risk = 0
 
     summary_info = np.empty(1, dtype=summary_info_dtype)
     info = summary_info[0]
     info['nb_risk'] = nb_risk
 
-    return summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i
+    return (summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id,
+            item_id_to_risks_i, risk_i_to_n_buildings)
 
 
 def write_summary_objects(static_path, run_type, summary_info, summary_set_id_to_summary_set_index,
-                          summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i):
+                          summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i, risk_i_to_n_buildings):
     os.makedirs(os.path.join(static_path, run_type), exist_ok=True)
     np.save(os.path.join(static_path, run_type, 'summary_info'), summary_info)
     np.save(os.path.join(static_path, run_type, 'summary_set_id_to_summary_set_index'), summary_set_id_to_summary_set_index)
     np.save(os.path.join(static_path, run_type, 'summary_set_index_to_loss_ptr'), summary_set_index_to_loss_ptr)
     np.save(os.path.join(static_path, run_type, 'item_id_to_summary_id'), item_id_to_summary_id)
     np.save(os.path.join(static_path, run_type, 'item_id_to_risks_i'), item_id_to_risks_i)
+    np.save(os.path.join(static_path, run_type, 'risk_i_to_n_buildings'), risk_i_to_n_buildings)
 
 
 def read_summary_objects(static_path, run_type):
@@ -143,11 +176,17 @@ def read_summary_objects(static_path, run_type):
     summary_set_index_to_loss_ptr = np.load(os.path.join(static_path, run_type, 'summary_set_index_to_loss_ptr.npy'), mmap_mode='r')
     item_id_to_summary_id = np.load(os.path.join(static_path, run_type, 'item_id_to_summary_id.npy'), mmap_mode='r')
     item_id_to_risks_i = np.load(os.path.join(static_path, run_type, 'item_id_to_risks_i.npy'), mmap_mode='r')
-    return summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i
+    n_buildings_path = os.path.join(static_path, run_type, 'risk_i_to_n_buildings.npy')
+    if os.path.isfile(n_buildings_path):
+        risk_i_to_n_buildings = np.load(n_buildings_path, mmap_mode='r')
+    else:  # objects prepared before building packing: every risk is one building
+        risk_i_to_n_buildings = np.ones(summary_info[0]['nb_risk'], dtype=oasis_int)
+    return (summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id,
+            item_id_to_risks_i, risk_i_to_n_buildings)
 
 
 @nb.njit(cache=True)
-def nb_extract_risk_info(item_id_to_risks_i, summary_map):
+def nb_extract_risk_info(item_id_to_risks_i, risk_i_to_n_buildings, summary_map, row_n_buildings):
     loc_id_building_id_to_building_risk = nb_dict.empty(risk_key_type, nb_oasis_int)
     last_risk_i = 0
     for i in range(summary_map.shape[0]):
@@ -156,6 +195,8 @@ def nb_extract_risk_info(item_id_to_risks_i, summary_map):
             risk_i = loc_id_building_id_to_building_risk[loc_id_building_id]
         else:
             loc_id_building_id_to_building_risk[loc_id_building_id] = risk_i = nb_oasis_int(last_risk_i)
+            # the rows of one risk share its location, so they carry the same count
+            risk_i_to_n_buildings[risk_i] = row_n_buildings[i]
             last_risk_i += 1
         item_id_to_risks_i[summary_map["item_id"][i]] = nb_oasis_int(risk_i)
     return last_risk_i
@@ -169,22 +210,34 @@ def extract_risk_info(len_item_id, summary_map):
         summary_map: numpy ndarray view of the summary_map
 
     Returns:
-        (number of risk, mapping array item_id => risks_i)
+        (number of risk, mapping array item_id => risks_i, mapping array risks_i => number of buildings)
     """
     item_id_to_risks_i = np.zeros(len_item_id, oasis_int)
+    risk_i_to_n_buildings = np.ones(summary_map.shape[0], oasis_int)
+    if 'number_of_buildings' in summary_map.dtype.names:
+        row_n_buildings = np.maximum(np.asarray(summary_map['number_of_buildings'], dtype=oasis_int), 1)
+    else:
+        row_n_buildings = np.ones(summary_map.shape[0], oasis_int)
     nb_risk = nb_extract_risk_info(
         item_id_to_risks_i,
-        summary_map)
-    return nb_risk, item_id_to_risks_i
+        risk_i_to_n_buildings,
+        repack_fields(summary_map[['loc_id', 'item_id', 'building_id']]),
+        row_n_buildings)
+    return nb_risk, item_id_to_risks_i, risk_i_to_n_buildings[:nb_risk]
 
 
 @nb.jit(nopython=True, cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                 loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-                item_id_to_risks_i, is_risk_affected, has_affected_risk):
+                item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk):
     """Read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
+    # A summary is per item, so a packed item's buildings share a bucket: decode onto the sample the
+    # index represents and let the accumulation below add them. Identity for an ordinary stream.
+    # Its affected risks are counted by building too, as row disaggregation counts them: a packed
+    # risk stands for risk_i_to_n_buildings of them.
+    max_sidx_val = loss_summary.shape[1] - SPECIAL_SIDX_COUNT
     while True:
         if item_id:
             n_sidx_loss = (valid_buff - cursor) // loss_pair_size
@@ -205,6 +258,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
+                # Only the positive branch divides by the sample size, and a zero-sample stream carries no
+                # positive sidx -- but it does carry per-building specials, which must still be decoded.
+                if (max_sidx_val > 0 and sidx > max_sidx_val) or sidx < -NUM_SPECIAL_SIDX:
+                    sidx = decode_local_sidx(sidx, max_sidx_val)
                 if sidx > 0 or sidx in [-1, -3, -5]:
                     for summary_set_index in summary_set_indices:
                         loss_summary[loss_index[summary_set_index], sidx] += loss
@@ -225,10 +282,14 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
             ##### do new item setup #####
             if has_affected_risk is not None:
                 risk_i = item_id_to_risks_i[item_id]
+                risk_count = risk_i_to_n_buildings[risk_i]
                 if is_risk_affected[risk_i]:
                     new_risk = 0
                 else:
-                    new_risk = is_risk_affected[risk_i] = 1
+                    is_risk_affected[risk_i] = 1
+                    new_risk = risk_count
+            else:
+                risk_count = 1
 
             for summary_set_index in summary_set_indices:
                 if item_id >= item_id_to_summary_id.shape[0] or item_id_to_summary_id[item_id, summary_set_index] == null_index:
@@ -243,7 +304,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     present_summary_id[summary_set_index_to_present_loss_ptr_end[summary_set_index]
                                        ] = item_id_to_summary_id[item_id, summary_set_index]
                     summary_set_index_to_present_loss_ptr_end[summary_set_index] += 1
-                    loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] = 1
+                    loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] = risk_count
 
                 elif has_affected_risk is not None:
                     loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] += new_risk
@@ -429,7 +490,7 @@ class SummaryReader(EventReader):
 
     def __init__(self, summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                  loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
+                 item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk):
         self.summary_set_indices = summary_set_indices
         self.summary_set_index_to_loss_ptr = summary_set_index_to_loss_ptr
         self.item_id_to_summary_id = item_id_to_summary_id
@@ -438,6 +499,7 @@ class SummaryReader(EventReader):
         self.present_summary_id = present_summary_id
         self.summary_set_index_to_present_loss_ptr_end = summary_set_index_to_present_loss_ptr_end
         self.item_id_to_risks_i = item_id_to_risks_i
+        self.risk_i_to_n_buildings = risk_i_to_n_buildings
         self.is_risk_affected = is_risk_affected
         self.has_affected_risk = has_affected_risk
         self.logger = logger
@@ -447,7 +509,7 @@ class SummaryReader(EventReader):
             byte_mv, cursor, valid_buff, event_id, item_id,
             self.summary_set_indices, self.summary_set_index_to_loss_ptr, self.item_id_to_summary_id,
             self.loss_index, self.loss_summary, self.present_summary_id, self.summary_set_index_to_present_loss_ptr_end,
-            self.item_id_to_risks_i, self.is_risk_affected, self.has_affected_risk
+            self.item_id_to_risks_i, self.risk_i_to_n_buildings, self.is_risk_affected, self.has_affected_risk
         )
 
     def finalize_event(self, **kwargs):
@@ -547,9 +609,15 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
 
         if stream_source_type not in (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID):
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
+        # summarypy sums over the sidx it is given, so a packed stream needs no second path -- but
+        # an aggregation type we have not defined must be refused rather than silently summed.
+        if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
+            raise Exception(f"unsupported stream aggregation type {stream_agg_type}, expected one of "
+                            f"{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)")
 
         summary_object = load_summary_object(static_path, run_type)
-        summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i = summary_object
+        (summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id,
+         item_id_to_risks_i, risk_i_to_n_buildings) = summary_object
 
         # check all summary_set_id required are defined in summaryxref
         invalid_summary_sets_id = []
@@ -579,7 +647,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
         summary_reader = SummaryReader(
             summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
             loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-            item_id_to_risks_i, is_risk_affected, has_affected_risk)
+            item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk)
 
         out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
 

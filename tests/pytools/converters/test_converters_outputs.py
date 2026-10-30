@@ -1,4 +1,5 @@
 import os
+import struct
 import threading
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -8,7 +9,9 @@ import pyarrow.parquet as pq
 import pytest
 
 import numpy as np
+import pandas as pd
 
+from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.bintoparquet.manager import bintoparquet
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.converters.data import TOOL_INFO
@@ -92,7 +95,7 @@ def test_fm():
 
 def test_gul():
     case_runner("bintocsv", "gul", "misc", "raw_guls")
-    case_runner("csvtobin", "gul", "misc", "raw_guls", abnormal_dtype=True, stream_type=2, max_sample_index=1)
+    case_runner("csvtobin", "gul", "misc", "raw_guls", abnormal_dtype=True, stream_type=2, max_sample_index=1, packed=False)
 
 
 def test_gul_tobin_rejects_invalid_stream_type():
@@ -236,3 +239,42 @@ def test_parquettobin_allows_null_in_float_column():
         })
         pq.write_table(table, Path(tmp, "in.parquet"))
         parquettobin(Path(tmp, "in.parquet"), Path(tmp, "out.bin"), "lossfactors")
+
+
+def _packed_guls_csv(path):
+    """One item of 3 buildings x 2 samples, as bintocsv writes a packed stream: each building's
+    five specials in its own block below -5, then its samples in its own block above S."""
+    rows = [(1, 1, sidx, 100. - sidx) for sidx in range(-15, 0)]
+    rows += [(1, 1, sidx, 10. * sidx) for sidx in range(1, 7)]
+    pd.DataFrame(rows, columns=['event_id', 'item_id', 'sidx', 'loss']).to_csv(path, index=False)
+
+
+def test_a_packed_gul_csv_round_trips_without_loss(tmp_path):
+    """Buildings 2..N live above S, so a packed stream keeps every row and S only goes in the
+    header. It used to be dropped above S, silently losing building 2+ samples."""
+    _packed_guls_csv(tmp_path / 'in.csv')
+    csvtobin(tmp_path / 'in.csv', tmp_path / 'first.bin', 'gul', stream_type=2, max_sample_index=2)
+    bintocsv(tmp_path / 'first.bin', tmp_path / 'out.csv', 'gul')
+    csvtobin(tmp_path / 'out.csv', tmp_path / 'second.bin', 'gul', stream_type=2, max_sample_index=2)
+
+    out = pd.read_csv(tmp_path / 'out.csv')
+    assert sorted(out['sidx']) == [s for s in range(-15, 7) if s != 0]
+    assert (tmp_path / 'first.bin').read_bytes() == (tmp_path / 'second.bin').read_bytes()
+
+
+def test_the_command_line_writes_packed_by_default(tmp_path, monkeypatch):
+    """The header's aggregation type follows --no_packing, and an item stream still drops what
+    lies above -S."""
+    from oasislmf.pytools.common.event_stream import ITEM_PACKED_STREAM, ITEM_STREAM
+    from oasislmf.pytools.converters.csvtobin.cli import main
+
+    _packed_guls_csv(tmp_path / 'in.csv')
+    for flags, out, agg_type, max_sidx in (([], 'packed.bin', ITEM_PACKED_STREAM, 6),
+                                           (['--no_packing'], 'item.bin', ITEM_STREAM, 2)):
+        monkeypatch.setattr('sys.argv', ['csvtobin', 'gul', '-S', '2', '-i', str(tmp_path / 'in.csv'),
+                                         '-o', str(tmp_path / out)] + flags)
+        main()
+        stream_info = struct.unpack('i', (tmp_path / out).read_bytes()[:4])[0]
+        assert stream_info & 0xFFFFFF == agg_type
+        bintocsv(tmp_path / out, tmp_path / 'check.csv', 'gul')
+        assert pd.read_csv(tmp_path / 'check.csv')['sidx'].max() == max_sidx

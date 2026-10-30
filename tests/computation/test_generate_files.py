@@ -11,6 +11,7 @@ from unittest.mock import patch
 from ods_tools.oed.common import OdsException, ClassOfBusiness
 from ods_tools.oed.exposure import OedExposure
 from oasislmf.utils.exceptions import OasisException, OasisExceptionNoKeys
+from oasislmf.utils.defaults import DAMAGE_GROUP_ID_COLS, HAZARD_GROUP_ID_COLS
 from oasislmf.utils.path import setcwd
 from oasislmf.manager import OasisManager
 from .data.common import (
@@ -245,6 +246,63 @@ class TestGenFiles(ComputationChecker):
             call_args = {**self.ri_args, 'oasis_files_dir': t_dir, 'model_settings_json': model_settings_file.name}
             file_gen_return = self.manager.generate_files(**call_args)
 
+    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
+    def test_files__group_id_cols_and_the_model_settings(self, mock_output_dir):
+        """The model settings' group fields apply unless the parameter is set to something else.
+
+        Two ways this broke: a guard read self.kwargs['group_id_cols'], which is not a parameter,
+        so -G could never beat the model settings; and once fixed to test for the parameter's
+        presence, the model settings could never apply on the platform, whose worker passes
+        every parameter with its default filled in. Passing the default explicitly is that
+        platform call.
+
+        Asserted through the group ids a run writes -- group_id on items.bin, hazard_group_id on
+        correlations.bin -- for a 3-building location under 'items', so each building is its own
+        item: building-level columns give three groups per peril correlation group, location-level
+        columns give one. The location's two perils sit in different correlation groups, which the
+        hash includes, so the counts are 6 and 2.
+        """
+        import numpy as np
+        from oasislmf.pytools.common.data import items_dtype
+        from oasislmf.pytools.common.input_files import read_correlations
+
+        location_cols = ['PortNumber', 'AccNumber', 'LocNumber']
+        building_cols = location_cols + ['building_id']
+
+        loc_df = pd.read_csv(io.StringIO(MIN_LOC))
+        loc_df['NumberOfBuildings'] = 3
+        self.write_str(self.tmp_files.get('oed_location_csv'), loc_df.to_csv(index=False))
+        model_settings_file = self.tmp_files.get('model_settings_json')
+
+        def groups(model_fields, **cols):
+            self.write_json(model_settings_file, {
+                **CORRELATIONS_MODEL_SETTINGS,
+                "model_settings": {"correlation_settings": [
+                    {"peril_correlation_group": 1, "damage_correlation_value": "0.7", "hazard_correlation_value": "0.4"},
+                    {"peril_correlation_group": 2, "damage_correlation_value": "0.5", "hazard_correlation_value": "0.2"}]},
+                "data_settings": {"damage_group_fields": model_fields, "hazard_group_fields": model_fields}})
+            with self.tmp_dir() as t_dir:
+                run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
+                mock_output_dir.return_value = run_dir
+                self.manager.generate_files(**{
+                    **self.min_args, 'oasis_files_dir': t_dir,
+                    'model_settings_json': model_settings_file.name,
+                    'disaggregation': 'items', **cols})
+                items = np.fromfile(os.path.join(run_dir, 'items.bin'), dtype=items_dtype)
+                hazard_group_ids = set(read_correlations(run_dir)['hazard_group_id'].tolist())
+            return len(set(items['group_id'].tolist())), len(hazard_group_ids)
+
+        defaults = {'damage_group_id_cols': DAMAGE_GROUP_ID_COLS, 'hazard_group_id_cols': HAZARD_GROUP_ID_COLS}
+        overrides = {'damage_group_id_cols': building_cols, 'hazard_group_id_cols': building_cols}
+        for case, model_fields, cols, expected in (
+                ('location-level model settings', location_cols, {}, (2, 2)),
+                ('building-level model settings', building_cols, {}, (6, 6)),
+                ('the platform passes the defaults', building_cols, defaults, (6, 6)),
+                ('the parameters override the model', location_cols, overrides, (6, 6)),
+        ):
+            with self.subTest(case):
+                self.assertEqual(groups(model_fields, **cols), expected, '(damage groups, hazard groups)')
+
     def test_files__keys_csv__is_given(self):
 
         keys_file = self.tmp_files.get('keys_data_path').name
@@ -429,6 +487,71 @@ class TestGenFiles(ComputationChecker):
             # check correlations csv content
             correlations_csv_data = self.read_file(correlations_csv_path)
             self.assertEqual(EXPECTED_CORRELATION_CSV, correlations_csv_data)
+
+    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
+    def test_files__percent_of_tiv_terms_match_disaggregation(self, mock_output_dir):
+        """A percentage-of-TIV term must resolve to the same absolute amount either way.
+
+        coverages.bin holds the PER-BUILDING tiv under packing (generation divides by
+        NumberOfBuildings and does not expand rows), so a node's own tiv has to be reconstructed
+        by multiplying by however many buildings that node covers -- tiv_buildings_site for a
+        risk-keyed level, tiv_buildings_above for everything else. Get the factor wrong and the
+        term silently comes out N times too small, which is what happened before those two columns
+        existed. Nothing else in the suite exercises a percentage term under packing.
+
+        The two IsAggregate values pull the factors in opposite directions and are the point of
+        the test:
+          IsAggregate=1 -> one site node per building, so a site-level term sees ONE building's
+                           tiv (100), even though the location totals 300.
+          IsAggregate=0 -> every building shares risk_id 1, so the single site node sees ALL
+                           three buildings (300).
+
+        Both factors need exercising, so there are two percentage terms at different rates: a
+        location deductible (site level, risk-keyed -> tiv_buildings_site) at 10%, and a policy
+        deductible (above the site levels -> tiv_buildings_above) at 20%. The policy term always
+        covers the whole location, so it is 60 either way; different rates keep the two terms
+        distinguishable in the profile.
+        """
+        import io
+        import numpy as np
+        from oasislmf.pytools.common.data import fm_profile_dtype, oasis_float
+
+        acc_df = pd.read_csv(io.StringIO(MIN_ACC))
+        acc_df['PolDed6All'] = 0.2          # 20% ...
+        acc_df['PolDedType6All'] = 2        # ... of TIV, above the site levels
+        self.write_str(self.tmp_files.get('oed_accounts_csv'), acc_df.to_csv(index=False))
+
+        def _deductibles(is_aggregate, **mode):
+            loc_df = pd.read_csv(io.StringIO(MIN_LOC))
+            loc_df['BuildingTIV'] = 300.0
+            loc_df['NumberOfBuildings'] = 3
+            loc_df['IsAggregate'] = is_aggregate
+            loc_df['LocDed6All'] = 0.1          # 10% ...
+            loc_df['LocDedType6All'] = 2        # ... of TIV
+            loc_df['LocPeril'] = loc_df['LocPerilsCovered']   # required once a loc term is set
+            self.write_str(self.tmp_files.get('oed_location_csv'), loc_df.to_csv(index=False))
+            with self.tmp_dir() as t_dir:
+                run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
+                mock_output_dir.return_value = run_dir
+                written = self.manager.generate_files(**{**self.il_args, 'oasis_files_dir': t_dir, **mode})
+                profile = np.fromfile(written['fm_profile'], dtype=fm_profile_dtype)
+                tiv = np.fromfile(written['coverages'], dtype=oasis_float)
+                return sorted({round(float(d), 4) for d in profile['deductible1'] if d}), tiv
+
+        # (site term, policy term): the policy term covers all three buildings either way
+        for is_aggregate, expected in ((1, (10.0, 60.0)), (0, (30.0, 60.0))):
+            with self.subTest(IsAggregate=is_aggregate):
+                packed, packed_tiv = _deductibles(is_aggregate, disaggregation='samples')
+                disagg, disagg_tiv = _deductibles(is_aggregate, disaggregation='items')
+
+                # the premise: packing carries one coverage at the per-building tiv, row
+                # disaggregation carries one per building
+                self.assertEqual(len(packed_tiv), len(disagg_tiv) // 3)
+                self.assertAlmostEqual(float(packed_tiv.sum()) * 3, float(disagg_tiv.sum()), places=3)
+
+                self.assertEqual(packed, disagg)
+                for amount in expected:
+                    self.assertIn(amount, packed)
 
 
 class TestGenFilesEmptyKeys(ComputationChecker):
