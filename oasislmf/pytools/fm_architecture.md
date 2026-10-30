@@ -126,8 +126,14 @@ first acquires layers, each layer is offered the whole loss and carves its own s
 attachment, limit and participation, so the slices add up to the total. The extras are the
 deductible already taken, the loss already cut off by limits, and the room still left under those
 limits, by everything *below* the node. That is one quantity, not something split between the
-layers, so each layer gets a full copy (`first_time_layer_extra`, and the single-child path in
-`compute_event`).
+layers, so each layer of the node gets a full copy. The copy is made by the single-child path in
+`compute_event`, by `first_time_layer_extra` when the node is its own single base child, and by
+`aggregate_children_extras`, whose children's new layers still point at layer 0.
+
+The items *under* a node are different. When `first_time_layer_extra` creates layers for several
+base children, those are the items, and their new layers start at zero. They only receive the
+changes allocated back to them. No profile reads them, and items are never aggregated again, so
+they never act as accumulated extras.
 
 **Why each layer needs a full copy: min and max deductibles act on the total.** A minimum or
 maximum deductible is not applied on top of what was taken below. It bounds the *total*
@@ -175,6 +181,15 @@ summing the extras instead (#2209):
   account ded                    + 61,200 = 81,200 > max 60k -> total 60,000
   taken at this level              40,000 -> 572,000 -> 286,000 per location   wrong (+5,000)
 ```
+
+**Not supported yet: layers whose extras differ.** The maximum is exact when the layers hold the
+same extras, which is the case when no per-layer terms sit between layer creation and the
+cross-layer profile. When per-layer terms (policy deductibles, minimum or maximum deductibles, or
+limits that differ between layers) are applied first, each layer's extras become the shared part
+plus that layer's own part. The exact merged value would then be the shared part counted once
+plus each layer's own part summed. The maximum is only an approximation of it. Account-level
+terms over layers with different per-layer terms are therefore not supported yet, and no
+validation unit covers that combination.
 
 **Back to the layers** (`back_alloc_layer_extra`). The change the profile made to the merged
 extras is shared between the layers:

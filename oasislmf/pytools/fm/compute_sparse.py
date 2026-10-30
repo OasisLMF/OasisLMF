@@ -76,18 +76,24 @@ def first_time_layer_extra(profile_len, base_children_len, temp_children_queue, 
                            ):
     """
     first time there is a back allocation with multiple layer, we duplicate loss and extra from layer 1 to the other layers
+
+    With a single base child, that child is the node whose layers the profiles read, so its
+    extras are copied from layer 0: every layer of a node holds the node's whole accumulated
+    extras (see "Extras across layers" in fm_architecture.md).
+
+    With several base children, these are the items under the node, not the node. The node's
+    own layers are copied elsewhere (the single-child path in compute_event, or
+    aggregate_children_extras reading layers that still alias layer 0). The items' new layers
+    start at zero: they only receive the changes back-allocated to them, and items are never
+    aggregated again, so nothing reads them as accumulated extras.
     """
     for base_child_i in range(base_children_len):
         child = nodes_array[temp_children_queue[base_child_i]]
         child_val_len = sidx_indptr[sidx_indexes[child['node_id']] + 1] - sidx_indptr[sidx_indexes[child['node_id']]]
         child_loss_val_layer_0 = loss_val[loss_indptr[child['loss']]:
                                           loss_indptr[child['loss']] + child_val_len]
-        if base_children_len == 1:  # aggregation case
-            child_extra_val_layer_0 = extras_val[extras_indptr[child['extra']]:
-                                                 extras_indptr[child['extra']] + child_val_len]
-        else:  # back allocation case
-            child_extra_val_layer_0 = np.zeros_like(extras_val[extras_indptr[child['extra']]:
-                                                               extras_indptr[child['extra']] + child_val_len])
+        child_extra_val_layer_0 = extras_val[extras_indptr[child['extra']]:
+                                             extras_indptr[child['extra']] + child_val_len]
 
         for p in range(1, profile_len):
             loss_indptr[child['loss'] + p] = compute_idx['loss_ptr_i']
@@ -95,7 +101,10 @@ def first_time_layer_extra(profile_len, base_children_len, temp_children_queue, 
             compute_idx['loss_ptr_i'] += child_val_len
 
             extras_indptr[child['extra'] + p] = compute_idx['extras_ptr_i']
-            extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_len] = child_extra_val_layer_0
+            if base_children_len == 1:  # the node itself: copy
+                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_len] = child_extra_val_layer_0
+            else:  # items under the node: start at zero
+                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_len].fill(0)
             compute_idx['extras_ptr_i'] += child_val_len
 
 
@@ -555,8 +564,11 @@ def compute_event(compute_info,
                             layer_extras = extras_val[extras_indptr[storage_node['extra'] + l]:
                                                       extras_indptr[storage_node['extra'] + l] + node_val_len]
                             temp_node_extras_layer_sum[:node_val_len] += layer_extras
-                            temp_node_extras_layer_merge[:node_val_len] = np.maximum(
-                                temp_node_extras_layer_merge[:node_val_len], layer_extras)
+                            if l:  # layer 0 is the seed; element-wise max without allocating
+                                for i in range(node_val_len):
+                                    for extra_i in range(3):
+                                        if layer_extras[i, extra_i] > temp_node_extras_layer_merge[i, extra_i]:
+                                            temp_node_extras_layer_merge[i, extra_i] = layer_extras[i, extra_i]
                         loss_in = temp_node_loss_layer_merge[:node_val_len]
                         loss_out = temp_node_loss_sparse[:node_val_len]
                         temp_node_extras_layer_merge_save[:node_val_len] = temp_node_extras_layer_merge[
