@@ -228,6 +228,7 @@ Financial profiles define the calc rules (deductibles, limits, shares) applied a
 2. **Cross-Layer Profiles**: One profile applies to merged layers
    - `cross_layer_profile = True`
    - Losses summed across layers, profile applied, then back-allocated
+   - Extras are **not** summed: they are merged by maximum (see [Extras Across Layers](#extras-across-layers))
 
 3. **Step Policies**: Multiple profile steps for one layer
    - `node_profile['i_start'] < node_profile['i_end']`
@@ -330,6 +331,79 @@ factor = loss_out / loss_in
 for layer in layers:
     layer_loss_after = layer_loss_before * factor
 ```
+
+The extras are allocated back to the layers as well, see below.
+
+### Extras Across Layers
+
+Loss and extras behave differently across layers, and getting this wrong has produced real
+bugs in both directions (#2209, and the first attempt at fixing it in #2212).
+
+**The rule: every layer holds the whole accumulated extras.** Loss is different: when a branch
+first acquires layers, each layer is offered the whole loss and carves its own slice through its
+attachment, limit and participation, so the slices add up to the total. The extras are the
+deductible already taken, the loss already cut off by limits, and the room still left under those
+limits, by everything *below* the node. That is one quantity, not something split between the
+layers, so each layer gets a full copy (`first_time_layer_extra`, and the single-child path in
+`compute_event`).
+
+**Why each layer needs a full copy: min and max deductibles act on the total.** A minimum or
+maximum deductible is not applied on top of what was taken below. It bounds the *total*
+deductible taken so far (`deductible_under_min` / `deductible_over_max` in `policy_extras.py`):
+
+- **minimum**: if the total is under the minimum, it is topped up to the minimum, first from the
+  over-limit pool (loss already cut off by a limit below), then from the loss;
+- **maximum**: if the total is over the maximum, the excess is given back to the loss, up to the
+  underlimit (the room left under the limits below); the rest goes to over-limit.
+
+A per-layer profile carrying one of these therefore reads its layer's extras. If those were zero,
+the full minimum would be taken again on top of the deductible already taken.
+
+```
+acc105: 1 location, GUL 1.7M, LocDed6All 100k
+        layer 2: PolMinDed6All 250k, attachment 200k, participation 0.5
+
+layer 2 enters with loss 1.6M and deductible 100k (a full copy)
+  min ded: total 100k < 250k  -> top up by 150k   -> 1.45M
+  layer:   (1.45M - 200k) * 0.5                     = 625,000   correct
+
+with the layer's extras zeroed instead (#2212):
+  min ded: total 0 < 250k     -> top up by 250k   -> 1.35M
+  layer:   (1.35M - 200k) * 0.5                     = 575,000   wrong
+```
+
+**The cross-layer merge: loss is summed, extras take the maximum.** A cross-layer profile (account
+terms over several layers) merges the layers, applies the profile once, and allocates the result
+back. Summing the loss is right because the slices add up. Summing the extras would count the
+same deductible once per layer. The merge takes the per-layer **maximum** instead, which is the
+node's value whether the layers hold copies or only layer 0 holds it (the base-level path, where
+everything is still zero).
+
+```
+acc49 (75% damage): 2 locations, LocDed6All 5k each; 2 layers; account deductible
+                    10% of loss, min 20k, max 60k
+
+layers after their terms: loss 150,000 + 462,000 = 612,000; each holds deductible 10,000
+  merged deductible (max)          10,000
+  account ded 10% of 612,000     + 61,200 = 71,200 > max 60k -> total 60,000
+  taken at this level              50,000 -> 562,000 -> 281,000 per location   correct
+
+summing the extras instead (#2209):
+  merged deductible (sum)          20,000
+  account ded                    + 61,200 = 81,200 > max 60k -> total 60,000
+  taken at this level              40,000 -> 572,000 -> 286,000 per location   wrong (+5,000)
+```
+
+**Back to the layers** (`back_alloc_layer_extra`). The change the profile made to the merged
+extras is shared between the layers:
+
+- added deductible, overlimit or underlimit is shared **in proportion to each layer's loss**, as
+  the loss itself is;
+- a **returned** deductible (a maximum deductible giving some back) is shared in proportion to each
+  layer's own deductible (or underlimit). The denominator is the **sum** over layers, not the
+  merged maximum, so the shares add up to what was returned;
+- a reduced overlimit or underlimit is applied as a ratio (`after / before`), which leaves every
+  copy at the merged value after the profile.
 
 ---
 
