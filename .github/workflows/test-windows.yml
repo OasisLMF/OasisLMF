@@ -96,4 +96,8 @@ jobs:
         run: |
           python -c "import zlib; print(f'zlib runtime: {zlib.ZLIB_RUNTIME_VERSION}')"
           python -m pip install pytest
-          python -m pytest -q tests/pytools/converters/test_converters_footprint.py tests/pytools/converters/test_converters_vulnerability.py
+          python -m pytest -q \
+            tests/pytools/converters/test_converters_footprint.py::test_footprint \
+            tests/pytools/converters/test_converters_footprint.py::test_footprint_zip_tobin_independent_of_deflate_implementation \
+            tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability \
+            tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability_zip_tobin_independent_of_deflate_implementation
