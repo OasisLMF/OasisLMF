@@ -397,6 +397,8 @@ class SummaryRowWriter:
     """Buffer the SELT rows of one summary set and write them to a csv or parquet file in large batches."""
 
     def __init__(self, stack, file_path, output_format):
+        if OUTPUT_ROWS_BUFFER_SIZE < 3:  # fill_event_rows needs room for the special sidx rows of one summary
+            raise ValueError(f"OUTPUT_ROWS_BUFFER_SIZE must be at least 3, got {OUTPUT_ROWS_BUFFER_SIZE}")
         self.rows = np.empty(OUTPUT_ROWS_BUFFER_SIZE, dtype=SELT_dtype)
         self.row_i = 0
         self.output_format = output_format
@@ -522,10 +524,11 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
     output_binary = output_format == 'bin'
     if low_memory and not output_binary:
         raise ValueError(f"low memory index files are only available for bin output, not {output_format}")
-    for summary_set_path in summary_sets_path.values():
-        suffix = Path(summary_set_path).suffix
-        if suffix and suffix != '.' + output_format:
-            raise ValueError(f"Invalid file extension for {output_format}, got {summary_set_path}")
+    if not output_binary:
+        for summary_set_path in summary_sets_path.values():
+            suffix = Path(summary_set_path).suffix
+            if suffix and suffix != '.' + output_format:
+                raise ValueError(f"Invalid file extension for {output_format}, got {summary_set_path}")
 
     with ExitStack() as stack:
         if output_binary:
@@ -627,10 +630,6 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
                 summary_set_index_to_present_loss_ptr_end[:] = summary_set_index_to_loss_ptr
                 is_risk_affected.fill(0)
 
-            if not output_binary:
-                for writer in summary_row_writers.values():
-                    writer.flush()
-
         except Exception:
             data = {
                 "event_id": event_id
@@ -640,6 +639,10 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
 
             logger.error(f"event id={event_id} failed in summary")
             raise
+
+        if not output_binary:
+            for writer in summary_row_writers.values():
+                writer.flush()
 
 
 @redirect_logging(exec_name='summarypy')
