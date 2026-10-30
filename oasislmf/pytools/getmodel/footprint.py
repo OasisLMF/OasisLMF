@@ -11,6 +11,9 @@ from zlib import decompress
 import numpy as np
 import pandas as pd
 import numba as nb
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
 
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from oasis_data_manager.df_reader.reader import OasisReader
@@ -36,6 +39,33 @@ intensityMask = 1
 
 
 CURRENT_DIRECTORY = str(os.getcwd())
+
+
+def select_row_groups(metadata, sorted_areaperil_ids):
+    """Indices of the row groups in a parquet file that may hold one of sorted_areaperil_ids.
+
+    A row group is skipped only if its areaperil_id min/max statistics show it holds none of them.
+    Row groups without statistics are always kept.
+
+    Args:
+        metadata (pyarrow.parquet.FileMetaData): the parquet file's metadata
+        sorted_areaperil_ids (np.array): sorted, unique areaperil_ids being looked for
+
+    Returns: (list[int]) row group indices, in file order
+    """
+    if 'areaperil_id' not in metadata.schema.names:
+        return list(range(metadata.num_row_groups))
+    column = metadata.schema.names.index('areaperil_id')
+    keep = []
+    for i in range(metadata.num_row_groups):
+        stats = metadata.row_group(i).column(column).statistics
+        if stats is None or not stats.has_min_max:
+            keep.append(i)
+            continue
+        j = np.searchsorted(sorted_areaperil_ids, stats.min)
+        if j < len(sorted_areaperil_ids) and sorted_areaperil_ids[j] <= stats.max:
+            keep.append(i)
+    return keep
 
 
 @nb.njit(cache=True)
@@ -437,6 +467,7 @@ class FootprintParquet(Footprint):
 
         if self.areaperil_ids is not None:
             self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
+            self.sorted_areaperil_ids = np.unique(self.areaperil_ids)
         else:
             self.areaperil_ids_filter = None
 
@@ -451,12 +482,47 @@ class FootprintParquet(Footprint):
         Returns: (np.array[Event]) the event that was extracted
         """
         dir_path = f"footprint.parquet/event_id={event_id}/"
-        if self.storage.exists(dir_path):
-            reader = self.get_df_reader(dir_path, filters=self.areaperil_ids_filter)
-            numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
-            return numpy_data
-        else:
+        if not self.storage.exists(dir_path):
             return np.empty(0, dtype=Event)
+        if self.areaperil_ids is None:
+            reader = self.get_df_reader(dir_path)
+            return self.prepare_df_data(data_frame=reader.as_pandas())
+        return self.get_event_row_groups(dir_path)
+
+    def get_event_row_groups(self, dir_path):
+        """Reads only the row groups that may hold one of self.areaperil_ids, then keeps only the
+        rows with one of those areaperil_ids.
+
+        pyarrow doesn't use row group statistics to skip data for an "in" filter, so filtering
+        with one still decompresses every row of the event. Selecting row groups from their
+        areaperil_id min/max statistics first skips most of the event when its rows are sorted by
+        areaperil_id; if they aren't, every row group overlaps and the whole event is read, as
+        before. The rows returned are the same either way.
+
+        Args:
+            dir_path (str): the event's directory in footprint.parquet
+
+        Returns: (np.array[Event]) the event's rows with one of self.areaperil_ids
+        """
+        parts = []
+        for file_path in sorted(self.storage.listdir(dir_path)):
+            if os.path.basename(file_path).startswith(('.', '_')):  # not data files, as for pyarrow datasets
+                continue
+            with self.storage.open(file_path, 'rb') as f:
+                parquet_file = pq.ParquetFile(f)
+                row_groups = select_row_groups(parquet_file.metadata, self.sorted_areaperil_ids)
+                if row_groups:
+                    # filter in arrow before converting, so only the kept rows are ever copied to numpy
+                    table = parquet_file.read_row_groups(row_groups, columns=list(Event.fields))
+                    value_set = pa.array(self.sorted_areaperil_ids, type=table.schema.field('areaperil_id').type)
+                    table = table.filter(pc.is_in(table['areaperil_id'], value_set=value_set))
+                    part = np.empty(table.num_rows, dtype=Event)
+                    for column in Event.fields:
+                        part[column] = table[column].to_numpy()
+                    parts.append(part)
+        if not parts:
+            return np.empty(0, dtype=Event)
+        return np.concatenate(parts) if len(parts) > 1 else parts[0]
 
 
 class FootprintParquetChunk(Footprint):
