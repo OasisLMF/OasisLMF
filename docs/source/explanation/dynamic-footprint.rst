@@ -64,7 +64,9 @@ intensity outside the 32-bit integer range is refused.
 gulmc maps each intensity to an intensity bin with the model's ``intensity_bin_dict.csv``, after
 subtracting the item's ``intensity_adjustment``. An intensity below 0 takes the bin of intensity 0;
 one above the largest intensity of the peril in the table takes that intensity's bin, the table's
-last row standing for that much or more.
+last row standing for that much or more. An intensity missing between two of the table's rows also
+takes the bin of intensity 0, so the table should list every integer intensity from 0 to its
+largest (see `#2239 <https://github.com/OasisLMF/OasisLMF/issues/2239>`_).
 
 Interpolating between return periods
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -231,6 +233,11 @@ can be given either way:
   (areaperil, vulnerability, ...) cannot be one item: a warning names them, and only the rows
   matching the first row's key fields contribute sections;
 - one row, with the sections already joined by ``;`` (``1;2``).
+
+A location in no section is a keys error: the built-in lookup reports it in the keys errors
+(``section_id has an unknown id``), so it is not modelled, even where a loaded section has hazard
+at its areaperil. A blank or non-integer ``section_id`` in a keys file stops the GUL inputs with
+an error naming the location. A model without a ``section_id`` column is not affected.
 
 Choosing the merge
 ------------------
