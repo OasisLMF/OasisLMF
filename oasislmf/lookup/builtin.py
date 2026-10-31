@@ -442,6 +442,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         id_cols = ['coverage_type', 'area_peril_id', 'vulnerability_id']
         if 'amplification_id' in locations.columns:
             id_cols += ['amplification_id']
+        # a location with no section fails like one with no areaperil; a step that already joined
+        # sections into text ('3001;3002') is left as it is
+        if 'section_id' in locations.columns and pd.api.types.is_numeric_dtype(locations['section_id']):
+            id_cols += ['section_id']
         self.set_id_columns(locations, id_cols)
         # check all success location have all ids set correctly
         success_locations = locations.loc[locations['status'] == OASIS_KEYS_STATUS['success']['id']]

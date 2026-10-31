@@ -266,7 +266,10 @@ class GenerateFiles(ComputationStep):
             'coveragetypeid': 'uint8',
             'areaperilid': 'uint64',
             'vulnerabilityid': 'uint32',
-            'modeldata': 'str'
+            'modeldata': 'str',
+            # kept as written: a blank among ints would otherwise turn 3 into 3.0, and one
+            # value may list several sections ('3001;3002')
+            'section_id': 'str',
         }
         keys_error_fp = os.path.join(os.path.dirname(_keys_fp), 'keys-errors.csv') if _keys_fp else 'Missing'
         missing_keys_msg = 'No successful lookup results found in the keys file - '

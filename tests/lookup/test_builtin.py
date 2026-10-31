@@ -272,6 +272,35 @@ def test_build_rtree_keeps_one_row_per_match(overlapping_sections_path, overlapp
     assert len(output) == 1 + 2 + 3 + 1 + 1
 
 
+@pytest.mark.parametrize("id_columns", [["section_id"], []], ids=["section_id an id column", "not listed"])
+def test_process_locations_fails_a_location_in_no_section(overlapping_sections_path, overlapping_sections_locations, id_columns):
+    """A location the section step cannot place is a keys error, not a success with no section."""
+    config = {
+        "step_definition": {
+            "section": {
+                "type": "rtree",
+                "columns": ["latitude", "longitude"],
+                "parameters": {"file_path": overlapping_sections_path, "file_type": "parquet", "id_columns": id_columns},
+            },
+            "pivot": {
+                "type": "simple_pivot",
+                "parameters": {"pivots": [{"new_cols": {
+                    "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]},
+            },
+        },
+        "strategy": ["section", "pivot"],
+    }
+    locations = overlapping_sections_locations.assign(loc_id=range(1, 6))
+
+    keys = Lookup(config=config).process_locations(locations)
+
+    success = keys[keys["status"] == OASIS_KEYS_STATUS["success"]["id"]]
+    assert sorted(success["section_id"]) == [1, 1, 1, 2, 2, 10]
+    failed = keys[keys["status"] == OASIS_KEYS_STATUS["fail"]["id"]].set_index("loc_id")
+    assert sorted(failed.index) == [4, 5]
+    assert set(failed["message"]) == {"section_id has an unknown id"}
+
+
 @pytest.mark.parametrize("preparations, values, expected", [
     ({"min": 5}, [1, 5, 7], [5, 5, 7]),           # values below min are raised to min
     ({"max": 10}, [7, 10, 20], [7, 10, 10]),      # values above max are lowered to max
