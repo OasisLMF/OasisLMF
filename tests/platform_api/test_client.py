@@ -1754,7 +1754,7 @@ class APIClientTests(unittest.TestCase):
             self.logger.info.assert_any_call(f'Inputs Generation: Starting (id={ID})')
             self.logger.info.assert_any_call(f'Input Generation: Queued (id={ID})')
             self.logger.info.assert_any_call(f'Input Generation: Executing (id={ID})')
-            self.logger.info.assert_any_call(f'Inputs Generation: Complete (id={ID})')
+            self.logger.info.assert_any_call(f'Input Generation: Complete (id={ID})')
 
     def test_run_generate__cancelled(self):
         ID = 1
@@ -1785,7 +1785,7 @@ class APIClientTests(unittest.TestCase):
             result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
 
             self.assertFalse(result)
-            self.logger.error.assert_called_with(trace_error_msg)
+            self.logger.error.assert_called_with(f"Input Generation: Failed (id={ID})\n\nServer logs:\n{trace_error_msg}")
 
     def test_run_generate__http_error(self):
         ID = 1
@@ -1925,7 +1925,6 @@ class APIClientTests(unittest.TestCase):
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1, analysis_settings_fp=expected_settings)
 
             self.assertTrue(result)
@@ -1943,7 +1942,6 @@ class APIClientTests(unittest.TestCase):
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
 
             self.assertFalse(result)
@@ -1960,7 +1958,6 @@ class APIClientTests(unittest.TestCase):
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_ERROR"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_ERROR"})
             rsps.get(trace_url, body=trace_error_msg)
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
@@ -1992,6 +1989,125 @@ class APIClientTests(unittest.TestCase):
             with self.assertRaises(OasisException):
                 self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
 
+    def test_run_generate_and_analysis__success(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        expected_settings = {'model_settings': ".. settings here .."}
+        expected_settings_url = self.client.analyses.settings._build_url(ID)
+        exec_url = f'{expected_url}generate_and_run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(expected_settings_url)
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "READY"})
+            rsps.get(expected_url, json={"id": ID, "status": "READY"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
+            result = self.client.run_generate_and_analysis(analysis_id=ID, poll_interval=0.01, analysis_settings_fp=expected_settings)
+
+            self.assertTrue(result)
+            self.logger.info.assert_any_call(f'Generate and Run: Starting (id={ID})')
+            self.logger.info.assert_any_call(f'Input Generation: Queued (id={ID})')
+            self.logger.info.assert_any_call(f'Input Generation: Executing (id={ID})')
+            self.logger.info.assert_any_call(f'Input Generation: Complete (id={ID})')
+            self.logger.info.assert_any_call(f'Analysis Run: Complete (id={ID})')
+
+    def test_run_generate_and_analysis__inputs_cancelled(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_and_run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_CANCELLED"})
+            result = self.client.run_generate_and_analysis(analysis_id=ID, poll_interval=0.01)
+
+            self.assertFalse(result)
+            self.logger.info.assert_any_call(f'Input Generation: Cancelled (id={ID})')
+
+    def test_run_generate_and_analysis__inputs_error(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_and_run/'
+        trace_url = f'{expected_url}input_generation_traceback_file/'
+        trace_error_msg = 'input error logs'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_ERROR"})
+            rsps.get(trace_url, body=trace_error_msg)
+            result = self.client.run_generate_and_analysis(analysis_id=ID, poll_interval=0.01)
+
+            self.assertFalse(result)
+            self.logger.error.assert_called_with(f"Input Generation: Failed (id={ID})\n\nServer logs:\n{trace_error_msg}")
+
+    def test_run_generate__no_keys(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_NO_KEYS"})
+            result = self.client.run_generate(analysis_id=ID, poll_interval=0.01)
+
+            self.assertFalse(result)
+            self.logger.error.assert_called_with(
+                f'Input Generation: Failed, lookup returned no keys, see the lookup_errors_file (id={ID}, status=INPUTS_GENERATION_NO_KEYS)')
+
+    def test_run_generate_and_analysis__no_keys__run_not_polled(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_and_run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_NO_KEYS"})
+            result = self.client.run_generate_and_analysis(analysis_id=ID, poll_interval=0.01)
+
+            self.assertFalse(result)
+            self.assertFalse(any('Analysis Run' in str(c) for c in self.logger.info.call_args_list))
+
+    def test_run_generate_and_analysis__run_error(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_and_run/'
+        trace_url = f'{expected_url}run_traceback_file/'
+        trace_error_msg = 'run error logs'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_ERROR"})
+            rsps.get(trace_url, body=trace_error_msg)
+            result = self.client.run_generate_and_analysis(analysis_id=ID, poll_interval=0.01)
+
+            self.assertFalse(result)
+            self.logger.error.assert_called_with(f"Analysis Run: Failed (id={ID})\n\nServer logs:\n{trace_error_msg}")
+
+    def test_run_generate_and_analysis__http_error(self):
+        ID = 1
+        exec_url = f'{self.client.analyses.url_endpoint}{ID}/generate_and_run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"model": "Unsupported Operation"}, status=400)
+            with self.assertRaises(OasisException):
+                self.client.run_generate_and_analysis(analysis_id=ID, poll_interval=0.01)
+
+    def test_run_analysis__ready_status_is_unknown_without_wait_on_ready(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "READY"})
+            with self.assertRaises(OasisException):
+                self.client.run_analysis(analysis_id=ID, poll_interval=0.01)
+
     def test_run_analysis__with_subtasks_success(self):
         ID = 1
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
@@ -2001,7 +2117,6 @@ class APIClientTests(unittest.TestCase):
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
             self.assertTrue(result)
@@ -2014,7 +2129,6 @@ class APIClientTests(unittest.TestCase):
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
             self.assertFalse(result)
@@ -2266,7 +2380,6 @@ class APIClientTests(unittest.TestCase):
                 "id": ID, "status": "RUN_STARTED", "num_events_total": 100, "num_events_complete": 50})
             rsps.get(expected_url, json={
                 "id": ID, "status": "RUN_COMPLETED", "num_events_total": 100, "num_events_complete": 100})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.01)
             self.assertTrue(result)
 
@@ -2280,7 +2393,6 @@ class APIClientTests(unittest.TestCase):
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={
                 "id": ID, "status": "RUN_COMPLETED", "num_events_total": 100, "num_events_complete": 100})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.01)
             self.assertTrue(result)
 
@@ -2297,7 +2409,6 @@ class APIClientTests(unittest.TestCase):
                 "id": ID, "status": "RUN_STARTED", "num_events_total": 100, "num_events_complete": 20})
             rsps.get(expected_url, json={
                 "id": ID, "status": "RUN_STARTED", "num_events_total": 100, "num_events_complete": 40})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.01)
             self.assertFalse(result)

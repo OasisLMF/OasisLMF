@@ -95,8 +95,8 @@ SOURCE_IDX = OrderedDict({
 SAR_ID = 'loc_id'  # name of the column that serve as a subject at risk id, historically loc_id
 
 SUMMARY_MAPPING = OrderedDict({
-    'gul_map_fn': 'gul_summary_map.csv',
-    'fm_map_fn': 'fm_summary_map.csv'
+    'gul_map_fn': 'gul_summary_map.parquet',
+    'fm_map_fn': 'fm_summary_map.parquet'
 })
 
 SUMMARY_OUTPUT = {
