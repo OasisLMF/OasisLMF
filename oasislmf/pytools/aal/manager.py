@@ -51,7 +51,7 @@ _SUMMARIES_DTYPE = np.dtype([
     ("file_idx", np.int32),
     ("period_no", np.int32),
     ("file_offset", np.int64),
-], align=True)  # align=True: int64 at offset 12 is misaligned; Numba generators require isalignedstruct=True
+], align=True)  # pads file_offset to 8 bytes (24-byte rows); was needed by the old merge generator (#1957)
 _SUMMARIES_DTYPE_size = _SUMMARIES_DTYPE.itemsize
 
 
@@ -216,47 +216,6 @@ def _save_chunk(summaries_data, summaries_idx, path, chunk_index, temp_files, ma
     sort_and_save_chunk(chunk, temp_file_path)
     temp_files.append(temp_file_path)
     return chunk_index + 1, max(max_summary_id, int(np.max(chunk["summary_id"])))
-
-
-# Not cached: a disk-cached generator is never registered for lowering, so a jitted
-# consumer (run_aal) that recompiles against it raises KeyError (#1970).
-@nb.njit(error_model="numpy")
-def merge_sorted_chunks(memmaps):
-    """Merge sorted chunks using a k-way merge algorithm and yield next smallest row
-
-    Args:
-        memmaps (List[np.memmap]): List of temporary file memmaps
-
-    Yields:
-        smallest_row (ndarray[_SUMMARIES_DTYPE]): yields the next smallest row from sorted summaries partial files
-    """
-    min_heap = init_heap(num_compare=3)
-    size = 0
-    # Initialize the min_heap with the first row of each memmap
-    for i, mmap in enumerate(memmaps):
-        if len(mmap) > 0:
-            first_row = mmap[0]
-            min_heap, size = heap_push(min_heap, size, np.array(
-                [first_row["summary_id"], first_row["period_no"], first_row["file_idx"], i, 0],
-                dtype=np.int32
-            ))
-
-    # Perform the k-way merge
-    while size > 0:
-        # The min heap will store the smallest row at the top when popped
-        element, min_heap, size = heap_pop(min_heap, size)
-        file_idx = element[3]
-        row_num = element[4]
-        smallest_row = memmaps[file_idx][row_num]
-        yield smallest_row
-
-        # Push the next row from the same file into the heap if there are any more rows
-        if row_num + 1 < len(memmaps[file_idx]):
-            next_row = memmaps[file_idx][row_num + 1]
-            min_heap, size = heap_push(min_heap, size, np.array(
-                [next_row["summary_id"], next_row["period_no"], next_row["file_idx"], file_idx, row_num + 1],
-                dtype=np.int32
-            ))
 
 
 def get_summaries_data(
@@ -646,7 +605,10 @@ def run_aal(
     vecs_sample_aal,
     vec_used_summary_id,
 ):
-    """Run AAL calculation loop to populate vec data
+    """Run AAL calculation loop to populate vec data, reading the sorted chunks in order with a k-way merge.
+
+    The merge is inlined rather than a jitted generator: numba leaks a generator's arguments when it is
+    consumed in jitted code, which kept the chunk files mapped (Windows can't then delete them, #2238).
 
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
@@ -667,7 +629,31 @@ def run_aal(
     last_summary_id = -1
     last_period_no = -1
 
-    for line in merge_sorted_chunks(memmaps):
+    # Min heap of (summary_id, period_no, file_idx, chunk index, row number), one entry per chunk
+    min_heap = init_heap(num_compare=3)
+    size = 0
+    for i, mmap in enumerate(memmaps):
+        if len(mmap) > 0:
+            first_row = mmap[0]
+            min_heap, size = heap_push(min_heap, size, np.array(
+                [first_row["summary_id"], first_row["period_no"], first_row["file_idx"], i, 0],
+                dtype=np.int32
+            ))
+
+    while size > 0:
+        element, min_heap, size = heap_pop(min_heap, size)
+        chunk_idx = element[3]
+        row_num = element[4]
+        line = memmaps[chunk_idx][row_num]
+
+        # Push the next row from the same chunk into the heap if there are any more rows
+        if row_num + 1 < len(memmaps[chunk_idx]):
+            next_row = memmaps[chunk_idx][row_num + 1]
+            min_heap, size = heap_push(min_heap, size, np.array(
+                [next_row["summary_id"], next_row["period_no"], next_row["file_idx"], chunk_idx, row_num + 1],
+                dtype=np.int32
+            ))
+
         summary_id = line["summary_id"]
         file_idx = line["file_idx"]
         period_no = line["period_no"]
