@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import shutil
+import traceback
 from pathlib import Path
 import pandas as pd
 import pytest
@@ -316,5 +317,8 @@ def test_aal_oversize_event_raises(use_idx):
         # buffer_size = int(tiny_memory * 1024**3 / _SUMMARIES_DTYPE_size) = 1
         tiny_memory = _SUMMARIES_DTYPE_size / 1024 ** 3
         with patch("oasislmf.pytools.aal.manager.OASIS_AAL_MEMORY", tiny_memory):
-            with pytest.raises(ValueError, match="OASIS_AAL_MEMORY is too small"):
+            with pytest.raises(ValueError, match="OASIS_AAL_MEMORY is too small") as excinfo:
                 main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / "aal.csv")
+        # redirect_logging logs the error with its traceback and pytest keeps the record until the
+        # test ends, keeping the raising frames' memmaps open: Windows then can't delete tmp_dir (#2238)
+        traceback.clear_frames(excinfo.tb)
