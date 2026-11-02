@@ -153,8 +153,8 @@ def reservation_overflows(idx, reservation, capacity, name):
     if idx + reservation > capacity:
         if idx == 0:
             raise ValueError(
-                f"{name} reservation of {reservation} rows for a single summary exceeds the "
-                f"output buffer capacity of {capacity}; increase OASIS_DEFAULT_BUFFER_SIZE."
+                name, "reservation of", reservation, "rows for a single summary exceeds the output buffer capacity of",
+                capacity, "; increase OASIS_DEFAULT_BUFFER_SIZE."
             )
         return True
     return False

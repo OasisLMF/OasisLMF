@@ -775,7 +775,7 @@ def get_aal_data(
     """
     aal_data = []
     assert len(vec_analytical_aal) == len(vecs_sample_aal), \
-        f"Lengths of analytical ({len(vec_analytical_aal)}) and sample ({len(vecs_sample_aal)}) aal data differ"
+        ("Lengths of analytical and sample aal data differ:", len(vec_analytical_aal), len(vecs_sample_aal))
     mean_analytical, std_analytical = calculate_mean_stddev(
         vec_analytical_aal["mean"],
         vec_analytical_aal["mean_squared"],
@@ -822,7 +822,7 @@ def get_aal_data_meanonly(
     """
     aal_data = []
     assert len(vec_analytical_aal) == len(vecs_sample_aal), \
-        f"Lengths of analytical ({len(vec_analytical_aal)}) and sample ({len(vecs_sample_aal)}) aal data differ"
+        ("Lengths of analytical and sample aal data differ:", len(vec_analytical_aal), len(vecs_sample_aal))
     mean_analytical, std_analytical = calculate_mean_stddev(
         vec_analytical_aal["mean"],
         vec_analytical_aal["mean_squared"],
