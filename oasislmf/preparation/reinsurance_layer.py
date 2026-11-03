@@ -457,6 +457,8 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
 
     reinsurance_index = 1
     inuring_metadata = {}
+
+    xref_output_offset = fm_xref_df['output'].max()
     for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
         for risk_level in oed.REINS_RISK_LEVELS:
             cur_ri_info_df = ri_info_df[(ri_info_df['InuringPriority'] == inuring_priority) & (ri_info_df['RiskLevel'] == risk_level)]
@@ -554,6 +556,8 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
             # fm_xref to the maximum layer gives the final net retained after all
             # parallel treaties at this inuring priority.
             fm_xref_df['layer_id'] = fm_policytc_df['layer_id'].max()
+            # give each IP a unique output
+            fm_xref_df['output'] += xref_output_offset
 
             _log_dataframe(logger, {'fm_programme_df': fm_programme_df, 'fm_profile_df': fm_profile_df,
                                     'fm_policytc_df': fm_policytc_df}, output_name)
