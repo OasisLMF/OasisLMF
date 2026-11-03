@@ -98,7 +98,7 @@ import numpy as np
 
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, SUMMARY_STREAM_ID, TIV_IDX, init_streams_in, mv_write_sidx_loss, mv_write_summary_header, stream_info_to_bytes, write_mv_to_stream
 
-from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, def_to_type_and_size, null_index
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, def_to_type_and_size, null_index, summary_stream_index_dtype
 from oasislmf.pytools.summary.manager import load_summary_object
 from oasislmf.utils.exceptions import OasisException
 
@@ -284,14 +284,21 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv):
         print('\n\n')
 
 
-def prepare_intermediate_outputs(event_id, event_buffer, partial_out_byte_mv):
+def prepare_intermediate_outputs(event_id, event_buffer, partial_out_byte_mv,
+                                 intermediate_cursors, file_idx,
+                                 idx_stream_buffer):
     cursor = 0
+    idx_cursor = 0
 
     n_records = len(event_buffer['summary_ids'])
     for i in range(n_records):
+        summary_id = event_buffer['summary_ids'][i]
+        idx_stream_buffer[idx_cursor]['summary_id'] = summary_id
+        idx_stream_buffer[idx_cursor]['offset'] = cursor
+
         cursor = mv_write_summary_header(partial_out_byte_mv, cursor,
                                          event_id=event_id,
-                                         summary_id=event_buffer['summary_ids'][i],
+                                         summary_id=summary_id,
                                          exposure_value=event_buffer['expval'][i])
 
         start_offset, end_offset = event_buffer['offsets'][i], event_buffer['offsets'][i+1]
@@ -302,7 +309,13 @@ def prepare_intermediate_outputs(event_id, event_buffer, partial_out_byte_mv):
                                         event_buffer['loss'][offset])
 
         cursor = mv_write_sidx_loss(partial_out_byte_mv, cursor, 0, 0)
-    return cursor
+
+        # set the correct offset for idx file
+        summary_byte_len = cursor - idx_stream_buffer[idx_cursor]['offset']
+        idx_stream_buffer[idx_cursor]['offset'] = intermediate_cursors[file_idx]
+        intermediate_cursors[file_idx] += summary_byte_len
+        idx_cursor += 1
+    return cursor, idx_cursor
 
 def add_record_to_byte_mv(byte_mv, cursor, record, loss_pairs, special_loss_pairs, output_zeros=False):
     print('Writing record...')
@@ -336,20 +349,32 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
     partial_out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
 
     with ExitStack() as stack:
+        # gather inputs and read meta
+        streams_in, len_sample, summary_set_id = init_summary_streams_in(summary_files_in, stack)
+        max_summary_id = get_max_summary_id(static_paths, summary_set_id)
+
+        # prepare idx files
+        idx_buffer = np.empty(max_summary_id, dtype=summary_stream_index_dtype)
+        idx_file_cursors = np.zeros(n_inputs + 1, dtype=np.int64)
+
+        # prepare final output
         output_pipe = stack.enter_context(open(output_summary_file, 'wb'))
+        idx_file_cursors[-1] += output_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
+        idx_file_cursors[-1] += output_pipe.write(len_sample.tobytes())
+        idx_file_cursors[-1] += output_pipe.write(summary_id_dtype.type(summary_set_id).tobytest())
+
+        # prepare the intermediate outputs
+        intermediate_pipes = {i: stack.enter_context(open(intermediate_path, 'wb')) for i, intermediate_path in intermediate_outputs.items()}
+        for i, int_pipe in intermediate_pipes.items():
+            idx_file_cursors[i] += int_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
+            idx_file_cursors[i] += int_pipe.write(len_sample.tobytes())
+            idx_file_cursors[i] += int_pipe.write(summary_id_dtype.type(summary_set_id).tobytes())
+
 
         if low_memory:
             output_index_name = output_summary_file.rsplit('.', 1)[0] + '.idx'
             output_index_pipe = stack.enter_context(open(output_index_name, 'wb'))
-        streams_in, len_sample, summary_set_id = init_summary_streams_in(summary_files_in, stack)
-        max_summary_id = get_max_summary_id(static_paths, summary_set_id)
-
-        # prepare the intermediate outputs
-        intermediate_pipes = {i: stack.enter_context(open(intermediate_path, 'wb')) for i, intermediate_path in intermediate_outputs.items()}
-        for _, int_pipe in intermediate_pipes.items():
-            int_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
-            int_pipe.write(len_sample.tobytes())
-            int_pipe.write(summary_id_dtype.type(summary_set_id).tobytes())
+            intermediate_idx_pipes = {i: stack.enter_context(open(intermediate_path.rsplit('.', 1)[0] + '.idx', 'wb')) for i, intermediate_path in intermediate_outputs.items()}
 
         summary_stream_reader = SummaryCombineReader(n_inputs, max_summary_id, len_sample)
         input_queues = [[] for _ in range(n_inputs)]
@@ -361,10 +386,15 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
             # pass through requested IP
             if file_idx in intermediate_pipes:
                 print(f'passing through event_id {event_id} from file_idx {file_idx}')
-                intermediate_cursor = prepare_intermediate_outputs(event_id,
+                intermediate_cursor, idx_buffer_cursor = prepare_intermediate_outputs(event_id,
                                                                    event_buffer,
-                                                                   partial_out_byte_mv)
+                                                                   partial_out_byte_mv,
+                                                                   idx_file_cursors,
+                                                                   file_idx, idx_buffer)
                 write_mv_to_stream(intermediate_pipes[file_idx], partial_out_byte_mv, intermediate_cursor)
+                if low_memory:
+                    print('Writing idx file...')
+                    intermediate_idx_pipes[file_idx].write(idx_buffer[:idx_buffer_cursor].tobytes())
 
             event_ids_seen.add(event_id)
             print(f'read file_idx: {file_idx}')
