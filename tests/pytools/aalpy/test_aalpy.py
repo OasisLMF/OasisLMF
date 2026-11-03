@@ -1,8 +1,9 @@
+import gc
 import numpy as np
 import os
 import shutil
-import sys
 import traceback
+import weakref
 from pathlib import Path
 import pandas as pd
 import pytest
@@ -374,9 +375,11 @@ def test_run_aal_releases_its_chunks():
         chunks.append(chunk)
     vec_analytical_aal = np.zeros(1, dtype=_AAL_REC_DTYPE)
 
-    refcounts = [sys.getrefcount(chunk) for chunk in chunks]
     run_aal(chunks, 2, np.array([(1, 0.5), (2, 0.5)], dtype=periods_dtype), 1, 1, [block.view(np.uint8)],
             vec_analytical_aal, np.zeros(get_num_subsets(False, 1, 1), dtype=_AAL_REC_PERIOD_DTYPE), np.zeros(1, dtype=np.bool_))
-
-    assert [sys.getrefcount(chunk) for chunk in chunks] == refcounts
     assert vec_analytical_aal["mean"][0] > 0
+
+    chunk_refs = [weakref.ref(chunk) for chunk in chunks]
+    del chunks, chunk
+    gc.collect()
+    assert [ref() for ref in chunk_refs] == [None, None]
