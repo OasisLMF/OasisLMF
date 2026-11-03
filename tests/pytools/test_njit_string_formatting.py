@@ -38,7 +38,7 @@ def _formats_string(node):
 def test_jitted_functions_do_not_format_strings():
     found = []
     for path in sorted(PYTOOLS_DIR.rglob("*.py")):
-        for func in ast.walk(ast.parse(path.read_text())):
+        for func in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(func, ast.FunctionDef) and any("jit" in ast.unparse(d) for d in func.decorator_list):
                 found += [f"{path.relative_to(PYTOOLS_DIR)}:{node.lineno} in {func.name}"
                           for node in ast.walk(func) if _formats_string(node)]
