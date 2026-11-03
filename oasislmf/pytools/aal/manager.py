@@ -51,7 +51,7 @@ _SUMMARIES_DTYPE = np.dtype([
     ("file_idx", np.int32),
     ("period_no", np.int32),
     ("file_offset", np.int64),
-], align=True)  # pads file_offset to 8 bytes (24-byte rows); was needed by the old merge generator (#1957)
+])  # packed (20-byte rows): aligning file_offset costs 20% more index memory and disk for no measurable speedup
 _SUMMARIES_DTYPE_size = _SUMMARIES_DTYPE.itemsize
 
 

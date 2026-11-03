@@ -350,6 +350,13 @@ def test_output_unchanged_when_index_is_split_into_chunks(test_name):
         np.testing.assert_allclose(expected, actual, rtol=1e-5, atol=1e-8)
 
 
+def test_summary_index_rows_are_packed():
+    """The index buffer (OASIS_AAL_MEMORY) and its chunk files hold one of these rows per event occurrence and
+    summary_id; padding file_offset to 8 bytes would make them 24 bytes, 20% more memory and disk."""
+    assert _SUMMARIES_DTYPE_size == 20
+    assert not _SUMMARIES_DTYPE.isalignedstruct
+
+
 def test_run_aal_releases_its_chunks():
     """The merge used to be a jitted generator, and numba leaks the arguments of a generator consumed in
     jitted code: the chunk memmaps stayed mapped and Windows couldn't delete their files (#2238)."""
