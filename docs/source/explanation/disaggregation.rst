@@ -287,14 +287,16 @@ pairs that took a loss, so it depends on which mode wrote the items. For one loc
 
     "``none``", "1"
     "``items``", "3"
-    "``samples`` (default)", "1"
+    "``samples`` (default)", "3"
 
-``samples`` reports what ``none`` reports, because both write a single item per location with
-``building_id = 1``; ``items`` is the mode that differs. ``IsAggregate`` does not change any of
-these — the count keys on ``building_id``, not ``risk_id``, so a multi-building campus counts as
-three affected risks under ``items`` even though it is a single insured risk.
+``samples`` reports what ``items`` reports. It writes a single item per location, but the summary
+map records how many buildings that item stands for (``number_of_buildings``), and the count is
+weighted by it. ``none`` is the mode that differs: it has one item and one building.
+``IsAggregate`` does not change any of these — the count keys on ``building_id``, not ``risk_id``,
+so a multi-building campus counts as three affected risks under ``items`` and ``samples`` even
+though it is a single insured risk.
 
-Which of these is correct is under discussion: see
+Whether a campus should count once, by ``risk_id``, is still open: see
 `issue #2153 <https://github.com/OasisLMF/OasisLMF/issues/2153>`_. Losses are unaffected in every
 mode — only this count differs.
 
@@ -308,7 +310,7 @@ mode — only this count differs.
 
 .. versionadded:: 1.28
 
-This is the default. Multiple records are created in the kernel input files for each disaggregated
+Multiple records are created in the kernel input files for each disaggregated
 risk, and the reference information is kept in the gul_summary_map file as normal.
 
 The following example shows the disaggregated kernel files for two aggregate locations
