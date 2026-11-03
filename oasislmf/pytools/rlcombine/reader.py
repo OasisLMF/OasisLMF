@@ -141,9 +141,6 @@ class SummaryCombineReader(EventReader):
         return read_buffer(byte_mv, cursor, valid_buff, self.state[file_idx], self.len_sample,
                            buffer.summary_ids, buffer.expval, buffer.offsets, buffer.sidx, buffer.loss)
 
-    def event_read_log(self, event_id):
-        pass
-
     def read_events(self, streams_in):
         """Yield every event of every input as soon as that input has sent it in full.
 

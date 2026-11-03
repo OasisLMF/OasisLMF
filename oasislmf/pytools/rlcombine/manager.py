@@ -96,7 +96,7 @@ from contextlib import ExitStack
 import logging
 import numpy as np
 
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, SUMMARY_STREAM_ID, TIV_IDX, init_streams_in, mv_write_sidx_loss, mv_write_summary_header, write_mv_to_stream
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, SUMMARY_STREAM_ID, TIV_IDX, init_streams_in, mv_write_sidx_loss, mv_write_summary_header, stream_info_to_bytes, write_mv_to_stream
 
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, def_to_type_and_size, null_index
 from oasislmf.pytools.summary.manager import load_summary_object
@@ -146,6 +146,21 @@ def init_summary_streams_in(files_in, stack):
         raise OasisException(f"input streams have different summary_set_id {summary_set_ids}")
 
     return streams_in, len_sample, summary_set_ids[0]
+
+def parse_intermediate_outputs(intermediate_outputs_arg):
+    intermediate_outputs = {}
+    if intermediate_outputs_arg is None:
+        return intermediate_outputs
+
+    error_msg = f'intermediate-outputs expected input of form input=path, found {intermediate_outputs_arg}'
+    try:
+        for arg in intermediate_outputs_arg:
+            idx, path = arg.split('=', 1)
+            intermediate_outputs[int(idx)] = path
+    except ValueError:
+        raise Exception(error_msg)
+
+    return intermediate_outputs
 
 def get_max_summary_id__single_static_path(static_path, summary_set_id):
     _, set_id_to_idx, set_idx_to_loss, _, _ = load_summary_object(static_path, 'rl')
@@ -269,6 +284,26 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv):
         print('\n\n')
 
 
+def prepare_intermediate_outputs(event_id, event_buffer, partial_out_byte_mv):
+    cursor = 0
+
+    n_records = len(event_buffer['summary_ids'])
+    for i in range(n_records):
+        cursor = mv_write_summary_header(partial_out_byte_mv, cursor,
+                                         event_id=event_id,
+                                         summary_id=event_buffer['summary_ids'][i],
+                                         exposure_value=event_buffer['expval'][i])
+
+        start_offset, end_offset = event_buffer['offsets'][i], event_buffer['offsets'][i+1]
+
+        for offset in range(start_offset, end_offset):
+            cursor = mv_write_sidx_loss(partial_out_byte_mv, cursor,
+                                        event_buffer['sidx'][offset],
+                                        event_buffer['loss'][offset])
+
+        cursor = mv_write_sidx_loss(partial_out_byte_mv, cursor, 0, 0)
+    return cursor
+
 def add_record_to_byte_mv(byte_mv, cursor, record, loss_pairs, special_loss_pairs, output_zeros=False):
     print('Writing record...')
     print(f'event_id: {record["event_id"]}, summary_id: {record["summary_id"]}, expval: {record["expval"]}')
@@ -286,26 +321,35 @@ def add_record_to_byte_mv(byte_mv, cursor, record, loss_pairs, special_loss_pair
     return cursor
 
 
-def run(summary_files_in, output_summary_file, static_paths, low_memory,  **kwargs):
+def run(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, **kwargs):
+    intermediate_outputs = parse_intermediate_outputs(intermediate_outputs)
 
     if len(summary_files_in) != len(static_paths):
         raise OasisException('each summary stream file needs a corresponding static path')
 
     n_inputs = len(summary_files_in)
-    inuring_priority_info_dict = { i: {'summary_fp': summary_files_in[i],
-                                       'static_path': static_paths[i],
-                                       'stream_in': None,
-                                       'max_summary_id': None} for i in range(n_inputs)}
+
+    if any([k > n_inputs - 1 for k in intermediate_outputs.keys()]):
+        raise ValueError(f'Index of requested intermediate-outputs is out of bound. Requested values: {intermediate_outputs.keys()}')
 
     out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
+    partial_out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
 
     with ExitStack() as stack:
         output_pipe = stack.enter_context(open(output_summary_file, 'wb'))
+
         if low_memory:
             output_index_name = output_summary_file.rsplit('.', 1)[0] + '.idx'
             output_index_pipe = stack.enter_context(open(output_index_name, 'wb'))
         streams_in, len_sample, summary_set_id = init_summary_streams_in(summary_files_in, stack)
         max_summary_id = get_max_summary_id(static_paths, summary_set_id)
+
+        # prepare the intermediate outputs
+        intermediate_pipes = {i: stack.enter_context(open(intermediate_path, 'wb')) for i, intermediate_path in intermediate_outputs.items()}
+        for _, int_pipe in intermediate_pipes.items():
+            int_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
+            int_pipe.write(len_sample.tobytes())
+            int_pipe.write(summary_id_dtype.type(summary_set_id).tobytes())
 
         summary_stream_reader = SummaryCombineReader(n_inputs, max_summary_id, len_sample)
         input_queues = [[] for _ in range(n_inputs)]
@@ -314,6 +358,14 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory,  **kwar
         n_event_ids_written = 0
         event_ids_seen = set()
         for file_idx, event_id, event_buffer in summary_stream_reader.read_events(streams_in):
+            # pass through requested IP
+            if file_idx in intermediate_pipes:
+                print(f'passing through event_id {event_id} from file_idx {file_idx}')
+                intermediate_cursor = prepare_intermediate_outputs(event_id,
+                                                                   event_buffer,
+                                                                   partial_out_byte_mv)
+                write_mv_to_stream(intermediate_pipes[file_idx], partial_out_byte_mv, intermediate_cursor)
+
             event_ids_seen.add(event_id)
             print(f'read file_idx: {file_idx}')
             print(f'event_id read: {event_id}')
@@ -328,6 +380,11 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory,  **kwar
             cursor = merge_events(input_queues, n_inputs,len_sample, out_byte_mv)
             write_mv_to_stream(output_pipe, out_byte_mv, cursor)
             n_event_ids_written += 1
+
+
+
+        if any([len(input_queues[k]) != 0 for k in range(n_inputs)]):
+               raise OasisException('Summary streams only partially combined.')
 
         print("Finished combining streams...")
         print(f"No. event ids written: {n_event_ids_written}")

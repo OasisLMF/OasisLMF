@@ -17,6 +17,7 @@ parser.add_argument('-m', '--low-memory', help='reduce downstream memory use wit
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
                     default=30, type=int)
 parser.add_argument('-z', '--output-zeros', help='if set, output zero values', action='store_true')
+parser.add_argument('-i', '--intermediate-outputs', help='intermediate outputs to passthrough. Specified like output_index=/path/to/file', nargs='*')
 
 
 def main():
