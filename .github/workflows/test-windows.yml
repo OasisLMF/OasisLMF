@@ -2,8 +2,10 @@
 #
 # This runs on every PR and push to main to catch Windows-specific regressions.
 # It is intentionally lightweight — install + smoke test only — to keep CI costs low.
-# The one exception is the zipped-converter tests: python.org Python 3.14+ on Windows bundles
-# zlib-ng, which compresses differently from classic zlib (#2236), and no other job covers that.
+# The exceptions are the zipped-converter tests: python.org Python 3.14+ on Windows bundles
+# zlib-ng, which compresses differently from classic zlib (#2236), and no other job covers that;
+# and the pytools tests on one Python version: Windows can't delete a file that is still
+# memory-mapped, so they catch memmaps left open, which other platforms don't notice (#2238).
 
 name: Windows Smoke Test
 
@@ -101,3 +103,10 @@ jobs:
             tests/pytools/converters/test_converters_footprint.py::test_footprint_zip_tobin_independent_of_deflate_implementation \
             tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability \
             tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability_zip_tobin_independent_of_deflate_implementation
+
+      - name: pytools tests
+        if: matrix.python-version == '3.12'
+        shell: bash
+        run: |
+          python -m pip install pytest mock
+          python -m pytest -q tests/pytools
