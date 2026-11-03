@@ -1,7 +1,7 @@
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int, item_adjustment_dtype, item_id, NAME_DTYPE_SLICE
+from oasislmf.pytools.common.data import areaperil_int, building_count_dtype, oasis_float, oasis_int, item_adjustment_dtype, item_id, NAME_DTYPE_SLICE
 
 
 # define the damage_bin_dict damage_types
@@ -32,7 +32,7 @@ items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('source_item_j', np.int32),
                                              # signed: magnitude is the building count, negative
                                              # means the buildings stay separate
-                                             ('packed_buildings', oasis_int),
+                                             ('packed_buildings', building_count_dtype),
                                              # the correlation actually applied to this item's
                                              # damage draws, so 0 when correlation is off -- the
                                              # writer needs the effective value, not the file's

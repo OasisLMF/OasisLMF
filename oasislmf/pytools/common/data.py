@@ -154,12 +154,18 @@ limit1 = ("limit1", oasis_float, "%f")
 limit2 = ("limit2", oasis_float, "%f")
 loss = ("loss", oasis_float, "%.2f")
 model_data_len = ("model_data_len", 'u4', "%u")
+# A building count, wherever one is held: coverage_buildings and fm_structure_info on disk, the
+# summary maps, generation's frames, and the per-item arrays of gulpy, gulmc, fmpy and summarypy.
+# Every one of them takes its type from here, so they cannot drift apart. Fixed rather than
+# oasis_int because it is part of on-disk records whose layout must not follow OASIS_INT.
+number_of_buildings = ("number_of_buildings", 'i4', "%d")
+building_count_dtype = np.dtype(number_of_buildings[DTYPE_IDX])
 # signed: magnitude is the building count, negative means the buildings stay separate. Lives on
 # the coverage because that is where it is true -- buildings belong to the LOCATION, so every
 # coverage of one, and every item of those coverages, carries the same value.
-n_building = ("n_building", 'i4', "%d")
+n_building = ("n_building", number_of_buildings[DTYPE_IDX], "%d")
 site_collapse_level = ("site_collapse_level", 'i4', "%d")
-max_buildings = ("max_buildings", 'i4', "%d")
+max_buildings = ("max_buildings", number_of_buildings[DTYPE_IDX], "%d")
 occ_date_id = ("occ_date_id", 'i4', "%d")
 occ_date_id_granular = ("occ_date_id", 'i8', "%d")
 output_id = ("output_id", 'i4', "%d")
@@ -244,7 +250,7 @@ correlations_headers, correlations_dtype, correlations_fmt = generate_output_met
 # One record. site_collapse_level is the last fm level whose aggregation key includes risk_id --
 # packed buildings collapse after it, and 0 means there is no such level. max_buildings sizes the
 # computation arrays.
-total_packed_buildings = ("total_packed_buildings", 'i4', "%d")
+total_packed_buildings = ("total_packed_buildings", number_of_buildings[DTYPE_IDX], "%d")
 # The arena's packed allowance, summed over the packable levels at generation time where the
 # per-node building counts exist. 0 means "not recorded" and the reader falls back to the
 # total-times-levels bound, which over-reserves by about 2-3x on an aggregate-heavy book.

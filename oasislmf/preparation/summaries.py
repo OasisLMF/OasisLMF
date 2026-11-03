@@ -46,7 +46,7 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
-from oasislmf.pytools.common.data import gul_summary_xref_dtype, fm_summary_xref_dtype
+from oasislmf.pytools.common.data import building_count_dtype, gul_summary_xref_dtype, fm_summary_xref_dtype
 from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
 
@@ -69,7 +69,8 @@ MAP_SUMMARY_DTYPES = {
     # buildings, and the map is filtered to these columns before that sum is taken. Dropping it
     # here silently reports one building's share as the location's TIV. Maps written before
     # building packing do not carry it, hence the intersection at every read site.
-    'number_of_buildings': 'int',
+    # by name: set_dataframe_column_dtypes looks these up as strings in PANDAS_BASIC_DTYPES
+    'number_of_buildings': building_count_dtype.name,
 }
 
 logger = logging.getLogger(__name__)

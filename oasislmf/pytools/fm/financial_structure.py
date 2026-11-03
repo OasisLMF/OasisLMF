@@ -13,7 +13,7 @@ from numba import from_dtype, njit
 
 
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, fm_structure_info_dtype, load_as_ndarray, load_as_array, almost_equal,
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, building_count_dtype, fm_structure_info_dtype, load_as_ndarray, load_as_array, almost_equal,
                                           fm_policytc_dtype,
                                           fm_profile_dtype, fm_profile_step_dtype,
                                           fm_programme_dtype,
@@ -58,7 +58,7 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', oasis_int),
                                           ('output_len', oasis_int),
                                           ('stepped', np.bool_),
                                           ('site_collapse_level', oasis_int),
-                                          ('max_buildings', oasis_int),
+                                          ('max_buildings', building_count_dtype),
                                           ('packable_node_len', oasis_int),
                                           ('packable_building_slots', oasis_int),
                                           ('packable_layer_slots', oasis_int),
@@ -178,7 +178,7 @@ def load_static(static_path):
     # falls back to its bound and the tiv is used as stored. Scattered to a dense array indexed by
     # coverage_id - 1, matching coverages.
     buildings = read_coverage_buildings(static_path)
-    n_building = np.ones(coverages.shape[0], dtype=np.int32)
+    n_building = np.ones(coverages.shape[0], dtype=building_count_dtype)
     if buildings.shape[0] and coverages.shape[0]:
         if buildings.shape[0] != coverages.shape[0]:
             raise OasisException(
@@ -863,7 +863,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                             and site_collapse_level >= max(1, start_level)
                             and items.shape[0] > 0
                             and n_building.shape[0] > 0)
-    node_buildings = np.zeros(total_nodes if have_building_counts else 1, dtype=np.int32)
+    node_buildings = np.zeros(total_nodes if have_building_counts else 1, dtype=building_count_dtype)
     packed_extra_slots = 0
     if have_building_counts:
         # A pass of its own rather than a line in the node loop below: the extras closure reaches

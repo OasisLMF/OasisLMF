@@ -10,7 +10,7 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
-from oasislmf.pytools.common.data import (correlations_headers, correlations_dtype, amplifications_dtype, items_dtype,
+from oasislmf.pytools.common.data import (building_count_dtype, correlations_headers, correlations_dtype, amplifications_dtype, items_dtype,
                                           COVERAGE_BUILDINGS_FILE, coverage_buildings_dtype,
                                           coverage_buildings_headers,
                                           coverages_dtype, item_adjustment_dtype,
@@ -723,10 +723,10 @@ def get_gul_input_items(
         # so listing it in the group_id columns no longer separates a location's buildings.
         gul_inputs_df = gul_inputs_df.copy()
         gul_inputs_df['number_of_buildings'] = np.maximum(
-            1, gul_inputs_df['NumberOfBuildings'].values).astype('int32')
+            1, gul_inputs_df['NumberOfBuildings'].values).astype(building_count_dtype)
         gul_inputs_df['building_id'] = 1
     elif disaggregation == DISAGGREGATION_ITEMS:
-        repeat_counts = np.maximum(1, gul_inputs_df['NumberOfBuildings'].values).astype(int)
+        repeat_counts = np.maximum(1, gul_inputs_df['NumberOfBuildings'].values).astype(building_count_dtype)
         # Repeat rows using np.repeat + iloc (faster than iterative expansion)
         gul_inputs_df = gul_inputs_df.iloc[np.repeat(np.arange(len(gul_inputs_df)), repeat_counts)].reset_index(drop=True)
         # Assign building_id: 1, 2, ..., n for each location, by numbering the repeated rows
@@ -740,9 +740,9 @@ def get_gul_input_items(
     # Both must exist on every path -- il_inputs reads them separately to split the terms.
     # Outside packing each item is a single building.
     if 'number_of_buildings' not in gul_inputs_df.columns:
-        gul_inputs_df['number_of_buildings'] = np.int32(1)
+        gul_inputs_df['number_of_buildings'] = building_count_dtype.type(1)
     if 'keep_buildings_separate' not in gul_inputs_df.columns:
-        gul_inputs_df['keep_buildings_separate'] = np.int32(0)
+        gul_inputs_df['keep_buildings_separate'] = np.int8(0)
 
     # The wire form for coverages.bin: the two columns above folded into one signed field, so the
     # count and the keep-separate flag cannot be read apart from each other downstream. A plain

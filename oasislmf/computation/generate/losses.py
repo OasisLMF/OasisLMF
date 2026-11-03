@@ -25,7 +25,7 @@ from subprocess import CalledProcessError
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
-from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, def_to_type_and_size
+from oasislmf.pytools.common.data import building_count_dtype, load_as_ndarray, items_dtype, tiv as tiv_dtype, def_to_type_and_size
 from oasislmf.pytools.common.event_stream import NUM_SPECIAL_SIDX, max_emitted_blocks
 from oasislmf.pytools.common.input_files import read_coverage_buildings
 import pandas as pd
@@ -863,9 +863,9 @@ def _item_packed_buildings(items, files_dir):
     """
     counts = read_coverage_buildings(files_dir)
     if counts.shape[0] == 0:
-        return np.ones(len(items), dtype='i4')
+        return np.ones(len(items), dtype=building_count_dtype)
     # coverage_id is the dense 1..N that read_coverage_buildings validates, so index directly
-    by_coverage = np.ones(int(counts['coverage_id'].max()) + 1, dtype='i4')
+    by_coverage = np.ones(int(counts['coverage_id'].max()) + 1, dtype=building_count_dtype)
     by_coverage[counts['coverage_id']] = counts['n_building']
     return by_coverage[items['coverage_id'].to_numpy()]
 

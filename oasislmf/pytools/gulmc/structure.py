@@ -14,7 +14,7 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import numba as nb
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, oasis_float)
+from oasislmf.pytools.common.data import (building_count_dtype, load_as_ndarray, oasis_int, oasis_float)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
@@ -500,7 +500,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                               np.empty(items.shape,
                                        dtype=nb.from_dtype(np.dtype([("vulnerability_idx", oasis_int),
                                                                      ("areaperil_agg_vuln_idx", oasis_int),
-                                                                     ("packed_buildings", np.int32)])))),
+                                                                     ("packed_buildings", building_count_dtype)])))),
                              flatten=True)
     # building-packing, signed: magnitude is the number of buildings multiplexed into each item's
     # sample dimension, a negative sign marks the ones that must reach the financial module as

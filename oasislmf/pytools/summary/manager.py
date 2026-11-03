@@ -40,7 +40,7 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from oasislmf.pytools.common.data import (def_to_type_and_size, load_as_ndarray, oasis_int, nb_oasis_int, oasis_float,
+from oasislmf.pytools.common.data import (building_count_dtype, def_to_type_and_size, load_as_ndarray, oasis_int, nb_oasis_int, oasis_float,
                                           null_index, fm_summary_xref_dtype, gul_summary_xref_dtype,
                                           loss_pair_dtype, loss_pair_size, summary_stream_index_dtype, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
@@ -75,7 +75,7 @@ risk_key_type = nb.types.UniTuple(nb_oasis_int, 2)
 summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 
 summary_map_dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
-summary_map_with_buildings_dtype = np.dtype(summary_map_dtype.descr + [('number_of_buildings', oasis_int)])
+summary_map_with_buildings_dtype = np.dtype(summary_map_dtype.descr + [('number_of_buildings', building_count_dtype)])
 
 SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
 
@@ -148,7 +148,7 @@ def get_summary_object(static_path, run_type):
         nb_risk, item_id_to_risks_i, risk_i_to_n_buildings = extract_risk_info(item_id_to_summary_id.shape[0], summary_map)
     else:
         item_id_to_risks_i = np.zeros(0, dtype=oasis_int)
-        risk_i_to_n_buildings = np.zeros(0, dtype=oasis_int)
+        risk_i_to_n_buildings = np.zeros(0, dtype=building_count_dtype)
         nb_risk = 0
 
     summary_info = np.empty(1, dtype=summary_info_dtype)
@@ -180,7 +180,7 @@ def read_summary_objects(static_path, run_type):
     if os.path.isfile(n_buildings_path):
         risk_i_to_n_buildings = np.load(n_buildings_path, mmap_mode='r')
     else:  # objects prepared before building packing: every risk is one building
-        risk_i_to_n_buildings = np.ones(summary_info[0]['nb_risk'], dtype=oasis_int)
+        risk_i_to_n_buildings = np.ones(summary_info[0]['nb_risk'], dtype=building_count_dtype)
     return (summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id,
             item_id_to_risks_i, risk_i_to_n_buildings)
 
@@ -213,11 +213,11 @@ def extract_risk_info(len_item_id, summary_map):
         (number of risk, mapping array item_id => risks_i, mapping array risks_i => number of buildings)
     """
     item_id_to_risks_i = np.zeros(len_item_id, oasis_int)
-    risk_i_to_n_buildings = np.ones(summary_map.shape[0], oasis_int)
+    risk_i_to_n_buildings = np.ones(summary_map.shape[0], building_count_dtype)
     if 'number_of_buildings' in summary_map.dtype.names:
-        row_n_buildings = np.maximum(np.asarray(summary_map['number_of_buildings'], dtype=oasis_int), 1)
+        row_n_buildings = np.maximum(np.asarray(summary_map['number_of_buildings'], dtype=building_count_dtype), 1)
     else:
-        row_n_buildings = np.ones(summary_map.shape[0], oasis_int)
+        row_n_buildings = np.ones(summary_map.shape[0], building_count_dtype)
     nb_risk = nb_extract_risk_info(
         item_id_to_risks_i,
         risk_i_to_n_buildings,

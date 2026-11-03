@@ -12,7 +12,7 @@ import os
 
 import numpy as np
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import correlations_dtype, load_as_ndarray, oasis_float
+from oasislmf.pytools.common.data import building_count_dtype, correlations_dtype, load_as_ndarray, oasis_float
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverage_buildings, read_coverages, read_correlations
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.gul.common import coverage_type
@@ -101,7 +101,7 @@ def coverage_building_counts(input_path, ignore_file_type, n_coverages):
     Raises:
         OasisException: if the file covers a different number of coverages than coverages.bin.
     """
-    counts = np.ones(n_coverages, dtype='i4')
+    counts = np.ones(n_coverages, dtype=building_count_dtype)
     buildings = read_coverage_buildings(input_path, ignore_file_type)
     if buildings.shape[0] == 0:
         return counts
@@ -218,7 +218,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     #
     # Indexed by item_id here because that is what the compute walks; an unpacked run is the
     # all-ones case, which is what lets it treat packing as N == 1 rather than as a second path.
-    n_buildings_by_item_id = np.ones(max_item_id + 1, dtype='i4')
+    n_buildings_by_item_id = np.ones(max_item_id + 1, dtype=building_count_dtype)
     if len(items):
         cov_i = items['coverage_id'] - 1
         if cov_i.min() < 0 or cov_i.max() >= n_building_by_coverage.shape[0]:
