@@ -322,6 +322,9 @@ class FootprintBin(Footprint):
         footprint_file = self.stack.enter_context(self.storage.with_fileno(footprint_filename))
 
         self.footprint = mmap.mmap(footprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
+        # closing the file doesn't release the mapping, and Windows can't delete a mapped file (#2238).
+        # Safe as reads copy out of the mapping (slices) rather than holding views into it.
+        self.stack.callback(self.footprint.close)
 
         footprint_header = np.frombuffer(bytearray(self.footprint[:FootprintHeader.itemsize]), dtype=FootprintHeader)
 
@@ -398,6 +401,7 @@ class FootprintBinZ(Footprint):
     def __enter__(self):
         zfootprint_file = self.stack.enter_context(self.storage.with_fileno(zfootprint_filename))
         self.zfootprint = mmap.mmap(zfootprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
+        self.stack.callback(self.zfootprint.close)  # as in FootprintBin
 
         footprint_header = np.frombuffer(bytearray(self.zfootprint[:FootprintHeader.itemsize]), dtype=FootprintHeader)
 

@@ -3,6 +3,7 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 import pandas as pd
+import pytest
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
@@ -63,3 +64,26 @@ def test_footprint_binz_handles_zero_event_footprint():
         with FootprintBinZ(LocalStorage(tmp)) as footprint:
             assert len(footprint.footprint_index) == 0
             assert footprint.get_event(1) is None
+
+
+@pytest.mark.parametrize("footprint_cls, zip_files", [(FootprintBin, False), (FootprintBinZ, True)])
+def test_footprint_bin_closes_mapping_on_exit(footprint_cls, zip_files):
+    """FootprintBin / FootprintBinZ only closed their files on exit, leaving the footprint
+    memory-mapped until garbage collection, so Windows couldn't delete it (#2238). Events read
+    in the context hold their own data, so they stay valid once the mapping is closed."""
+    with TemporaryDirectory() as tmp:
+        csv_path = Path(tmp, "footprint.csv")
+        csv_path.write_text("event_id,areaperil_id,intensity_bin_id,probability\n1,10,1,1.0\n")
+        ext = ".z" if zip_files else ""
+        csvtobin(csv_path, Path(tmp, f"footprint.bin{ext}"), "footprint", idx_file_out=Path(tmp, f"footprint.idx{ext}"),
+                 max_intensity_bin_idx=1, no_intensity_uncertainty=True, decompressed_size=False, no_validation=False,
+                 zip_files=zip_files)
+
+        with footprint_cls(LocalStorage(tmp)) as footprint:
+            event = footprint.get_event(1)
+            mapping = footprint.zfootprint if zip_files else footprint.footprint
+            assert not mapping.closed
+
+        assert mapping.closed
+        assert event["areaperil_id"].tolist() == [10]
+        assert event["probability"].tolist() == [1.0]

@@ -378,7 +378,7 @@ def test_selt_reservation_impossible_raises_instead_of_hanging():
         # Buffer smaller than a single summary's worst case (len_sample + 2 = 7).
         with patch('oasislmf.pytools.elt.manager.DEFAULT_BUFFER_SIZE', 3), \
                 patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
-            with pytest.raises(OasisStreamException, match="SELT reservation"):
+            with pytest.raises(OasisStreamException, match="SELT.*reservation of"):
                 main(run_dir=tmp_dir, files_in=stream_file, selt=selt_out, ext="csv")
 
 
