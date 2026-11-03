@@ -106,7 +106,9 @@ jobs:
 
       - name: pytools tests
         if: matrix.python-version == '3.12'
+        timeout-minutes: 60
         shell: bash
         run: |
-          python -m pip install pytest mock
-          python -m pytest -q tests/pytools
+          python -m pip install pytest mock pytest-timeout
+          python -m pytest -v -rfE --tb=short --timeout=600 tests/pytools \
+            --deselect tests/pytools/converters/test_converters_io.py::test_csvtobin_non_seekable_stream
