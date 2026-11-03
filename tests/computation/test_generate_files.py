@@ -303,6 +303,64 @@ class TestGenFiles(ComputationChecker):
             with self.subTest(case):
                 self.assertEqual(groups(model_fields, **cols), expected, '(damage groups, hazard groups)')
 
+    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
+    def test_files__the_deprecated_do_disaggregation_is_honoured_on_every_route(self, mock_output_dir):
+        """do_disaggregation given on its own still chooses the mode; given with disaggregation, it loses.
+
+        It once could not: disaggregation defaulted to 'samples', and every route into this step
+        fills unset parameters with their defaults, so an explicit do_disaggregation=False was
+        overridden and the location's TIV split across packed buildings -- a change in losses whose
+        only signal was a deprecation warning.
+
+        The routes are the keyword call (CLI and MDK config arrive this way), the platform worker's
+        call (every default filled in by _params_generate_oasis_files), and computation_settings in
+        the analysis settings, which only that call merges in.
+
+        The mode is read from what generation writes for a 3-building location: 'items' writes three
+        times the items of 'none', and 'samples' writes as many items as 'none' but records the three
+        buildings in coverage_buildings.
+        """
+        import numpy as np
+        from oasislmf.pytools.common.data import items_dtype
+        from oasislmf.pytools.common.input_files import read_coverage_buildings
+
+        loc_df = pd.read_csv(io.StringIO(MIN_LOC))
+        loc_df['NumberOfBuildings'] = 3
+        self.write_str(self.tmp_files.get('oed_location_csv'), loc_df.to_csv(index=False))
+        analysis_settings_file = self.tmp_files.get('analysis_settings_json')
+
+        def written_mode(route, computation_settings=None, **given):
+            self.write_json(analysis_settings_file, {**MIN_RUN_SETTINGS, 'computation_settings': computation_settings or {}})
+            with self.tmp_dir() as t_dir:
+                run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
+                mock_output_dir.return_value = run_dir
+                kwargs = {**self.min_args, 'oasis_files_dir': t_dir,
+                          'analysis_settings_json': analysis_settings_file.name, **given}
+                if route == 'platform':
+                    kwargs = self.manager._params_generate_oasis_files(**kwargs)
+                self.manager.generate_files(**kwargs)
+                n_items = len(np.fromfile(os.path.join(run_dir, 'items.bin'), dtype=items_dtype))
+                # absent unless some coverage has more than one building
+                n_buildings = int(np.abs(read_coverage_buildings(run_dir)['n_building']).max(initial=1))
+            return n_items, n_buildings
+
+        n_none, _ = written_mode('keyword', disaggregation='none')
+        signature = {'none': (n_none, 1), 'items': (3 * n_none, 1), 'samples': (n_none, 3)}
+
+        for route, given, expected in (
+                ('keyword', {}, 'samples'),
+                ('platform', {}, 'samples'),
+                ('keyword', {'do_disaggregation': False}, 'none'),
+                ('keyword', {'do_disaggregation': True}, 'items'),
+                ('platform', {'do_disaggregation': False}, 'none'),
+                ('platform', {'do_disaggregation': True}, 'items'),
+                ('platform', {'computation_settings': {'do_disaggregation': False}}, 'none'),
+                ('keyword', {'disaggregation': 'samples', 'do_disaggregation': False}, 'samples'),
+                ('platform', {'disaggregation': 'none', 'do_disaggregation': True}, 'none'),
+        ):
+            with self.subTest(route=route, **given):
+                self.assertEqual(written_mode(route, **given), signature[expected], '(items, buildings per coverage)')
+
     def test_files__keys_csv__is_given(self):
 
         keys_file = self.tmp_files.get('keys_data_path').name

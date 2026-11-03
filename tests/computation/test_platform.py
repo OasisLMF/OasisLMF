@@ -1327,12 +1327,23 @@ class TestPlatformExposureRun(ComputationChecker):
 
     def test_exposure_run__disaggregation_is_posted_as_the_boolean_the_endpoint_takes(self):
         """'none' by default, as RunExposure does; posted as False rather than left to the server,
-        whose own default for the boolean is True."""
+        whose own default for the boolean is True.
+
+        The deprecated --do-disaggregation given on its own is posted as given, as it was before
+        --disaggregation existed; given with --disaggregation, it loses.
+        """
         portfolio_id = 3
         url_run = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/exposure_run/'
         url_portfolio = f'{self.api_url}/{self.api_ver}/portfolios/{portfolio_id}/'
 
-        for given, posted in (({}, False), ({'disaggregation': 'none'}, False), ({'disaggregation': 'items'}, True)):
+        for given, posted in (
+                ({}, False),
+                ({'disaggregation': 'none'}, False),
+                ({'disaggregation': 'items'}, True),
+                ({'do_disaggregation': True}, True),
+                ({'do_disaggregation': False}, False),
+                ({'disaggregation': 'none', 'do_disaggregation': True}, False),
+        ):
             with self.subTest(given=given):
                 with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                     self.add_connection_startup(rsps)

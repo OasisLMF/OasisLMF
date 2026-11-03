@@ -97,8 +97,9 @@ gulcalc is generated as `items` unless it sets `custom_gulcalc_supports_packing`
 and splitting a location's TIV across buildings moves those numbers for reasons
 unrelated to the terms under test.
 
-The older `--do-disaggregation` flag is deprecated: `True` means `items` and
-`False` means `none`.
+The older `--do-disaggregation` flag is deprecated. Given on its own, `True`
+means `items` and `False` means `none`; when `--disaggregation` is also given,
+`--disaggregation` wins and `--do-disaggregation` is ignored with a warning.
 
 See {doc}`../explanation/disaggregation`.
 

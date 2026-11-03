@@ -267,10 +267,12 @@ For example, to model each location as a single risk regardless of its NumberOfB
 
     oasislmf model run --disaggregation none -C oasislmf.json
 
-The older ``--do-disaggregation`` switch is **deprecated and ignored**, and emits a
-``FutureWarning``. It could only name two of the three modes, which is why it was replaced:
-``True`` meant ``--disaggregation items`` and ``False`` meant ``--disaggregation none``. Because
-``--disaggregation`` now has a default of its own, it always wins.
+The older ``--do-disaggregation`` switch is **deprecated** and emits a ``FutureWarning``. It
+could only name two of the three modes, which is why it was replaced. Given on its own it is still
+honoured: ``True`` means ``--disaggregation items`` and ``False`` means ``--disaggregation none``.
+Given alongside ``--disaggregation``, it is ignored and ``--disaggregation`` wins. This holds
+wherever the switch is set: on the command line, in an MDK config file, or in the
+``computation_settings`` of an analysis settings file.
 
 |
 

@@ -790,11 +790,12 @@ class PlatformExposureRun(PlatformBase):
             'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'order fmpy output by item_id'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
-        # 'none' to match RunExposure, which the platform runs.
-        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_NONE, 'choices': DISAGGREGATION_MODES,
-            'help': DISAGGREGATION_HELP + " 'samples' is not available on a platform exposure run."},
+        # Defaults to 'none', to match RunExposure, which the platform runs. Applied in
+        # _do_disaggregation_for_platform rather than here, so a do_disaggregation given on its own is honoured.
+        {'name': 'disaggregation', 'type': str, 'default': None, 'choices': DISAGGREGATION_MODES,
+            'help': DISAGGREGATION_HELP + " Defaults to 'none'. 'samples' is not available on a platform exposure run."},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
-            'help': "DEPRECATED and ignored. Use --disaggregation."},
+            'help': "DEPRECATED, and ignored when --disaggregation is given. Use --disaggregation."},
         {'name': 'poll_interval', 'type': int, 'default': 5, 'help': 'Polling interval in seconds while waiting for the exposure run to complete'},
     ]
 
@@ -810,7 +811,7 @@ class PlatformExposureRun(PlatformBase):
         Raises:
             OasisException: if 'samples' is asked for, which the boolean cannot express.
         """
-        disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation)
+        disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation, default=DISAGGREGATION_NONE)
         if disaggregation == DISAGGREGATION_SAMPLES:
             raise OasisException(
                 "disaggregation='samples' is not available on a platform exposure run: the "

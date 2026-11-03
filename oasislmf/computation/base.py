@@ -25,7 +25,8 @@ DISAGGREGATION_HELP = (
     "'items' expands one item per building; "
     "'samples' keeps one item per (location, peril, coverage_type) and multiplexes the buildings "
     "into the sample dimension, which needs the pure-Python gulmc/gulpy pipeline. "
-    "Default 'samples'. Supersedes --do-disaggregation, which is deprecated and ignored. "
+    "Supersedes --do-disaggregation, which is deprecated: given on its own, True means 'items' "
+    "and False means 'none'; given alongside --disaggregation, it is ignored. "
     "A model whose own ground-up binary does not understand packed streams is generated as "
     "'items' instead, unless it sets custom_gulcalc_supports_packing."
 )

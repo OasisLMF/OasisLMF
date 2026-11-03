@@ -111,8 +111,11 @@ class GenerateFiles(ComputationStep):
          'help': 'Disables creation of an exposure summary report'},
         {'name': 'damage_group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': DAMAGE_GROUP_ID_COLS},
         {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
-        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_SAMPLES, 'choices': DISAGGREGATION_MODES,
-         'help': DISAGGREGATION_HELP},
+        # The 'samples' default is applied in run(), not here. Every route into this step -- the CLI, an
+        # MDK config, computation_settings, the platform worker -- fills unset parameters with their
+        # defaults, so a default here would always beat an explicit do_disaggregation.
+        {'name': 'disaggregation', 'type': str, 'default': None, 'choices': DISAGGREGATION_MODES,
+         'help': DISAGGREGATION_HELP + " Defaults to 'samples'."},
         {'name': 'custom_gulcalc_supports_packing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': "set when this model's custom gulcalc understands building-packed streams. Without it a "
                  "complex model is generated with --disaggregation items instead of samples, because a gulcalc "
@@ -125,7 +128,8 @@ class GenerateFiles(ComputationStep):
          'help': 'Path containing model specific package. Declared here too because its supplier_model_runner.py '
                  'can choose its own gulcalc, which generation must know about when choosing how to represent buildings.'},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
-         'help': "DEPRECATED and ignored. Use --disaggregation items if you explicitly want a location's buildings split into separate items."},
+         'help': "DEPRECATED, and ignored when --disaggregation is given. Use --disaggregation items to split a location's "
+                 "buildings into separate items."},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -248,7 +252,7 @@ class GenerateFiles(ComputationStep):
             )
         self.oasis_files_dir = self._get_output_dir()
         disaggregation = self._disaggregation_for_this_engine(
-            resolve_disaggregation(self.disaggregation, self.do_disaggregation))
+            resolve_disaggregation(self.disaggregation, self.do_disaggregation, default=DISAGGREGATION_SAMPLES))
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
