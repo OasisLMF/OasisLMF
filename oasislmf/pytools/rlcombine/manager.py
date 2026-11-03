@@ -177,8 +177,10 @@ def get_max_summary_id(static_paths, summary_set_id):
             max_summary_id = summary_id
     return max_summary_id
 
-def merge_events(input_queues, n_inputs, len_sample, out_byte_mv):
+def merge_events(input_queues, n_inputs, len_sample, out_byte_mv,
+                 idx_buffer, idx_file_cursors):
     cursor = 0
+    idx_cursor = 0
 
     event_id = None
     curr_events = [input_queues[k].pop(0) for k in range(n_inputs)]
@@ -201,7 +203,7 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv):
                 finished[i] = True
 
         if all(finished):
-            return cursor
+            return cursor, idx_cursor
 
         curr_summary_id = min([curr_event_buffers[k]['summary_ids'][curr_record_offset[k]] for k in remaining_inputs])
 
@@ -218,6 +220,9 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv):
         special_loss_pairs[1]['sidx'] = MEAN_IDX
 
         regular_loss_mask = np.zeros(len_sample, dtype=bool)
+
+        idx_buffer[idx_cursor]['summary_id'] = curr_summary_id
+        idx_buffer[idx_cursor]['offset'] = cursor
 
         print(f'New record... event_id: {event_id}, summary_id: {curr_summary_id}')
         print('---')
@@ -278,6 +283,7 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv):
         # need to handle output properly
         cursor = add_record_to_byte_mv(out_byte_mv, cursor, new_record, regular_loss_pairs, special_loss_pairs)
 
+        idx_cursor = update_idx_cursors(cursor, idx_cursor, idx_buffer, idx_file_cursors, -1)
         print('Moving onto the next record...')
 
         print('---')
@@ -310,11 +316,7 @@ def prepare_intermediate_outputs(event_id, event_buffer, partial_out_byte_mv,
 
         cursor = mv_write_sidx_loss(partial_out_byte_mv, cursor, 0, 0)
 
-        # set the correct offset for idx file
-        summary_byte_len = cursor - idx_stream_buffer[idx_cursor]['offset']
-        idx_stream_buffer[idx_cursor]['offset'] = intermediate_cursors[file_idx]
-        intermediate_cursors[file_idx] += summary_byte_len
-        idx_cursor += 1
+        idx_cursor = update_idx_cursors(cursor, idx_cursor, idx_stream_buffer, intermediate_cursors, file_idx)
     return cursor, idx_cursor
 
 def add_record_to_byte_mv(byte_mv, cursor, record, loss_pairs, special_loss_pairs, output_zeros=False):
@@ -332,6 +334,13 @@ def add_record_to_byte_mv(byte_mv, cursor, record, loss_pairs, special_loss_pair
 
     cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
     return cursor
+
+
+def update_idx_cursors(curr_cursor, curr_idx_cursor, idx_buffer, idx_file_cursors, file_idx):
+    summary_byte_len = curr_cursor - idx_buffer[curr_idx_cursor]['offset']
+    idx_buffer[curr_idx_cursor]['offset'] = idx_file_cursors[file_idx]
+    idx_file_cursors[file_idx] += summary_byte_len
+    return curr_idx_cursor + 1
 
 
 def run(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, **kwargs):
@@ -361,7 +370,7 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         output_pipe = stack.enter_context(open(output_summary_file, 'wb'))
         idx_file_cursors[-1] += output_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
         idx_file_cursors[-1] += output_pipe.write(len_sample.tobytes())
-        idx_file_cursors[-1] += output_pipe.write(summary_id_dtype.type(summary_set_id).tobytest())
+        idx_file_cursors[-1] += output_pipe.write(summary_id_dtype.type(summary_set_id).tobytes())
 
         # prepare the intermediate outputs
         intermediate_pipes = {i: stack.enter_context(open(intermediate_path, 'wb')) for i, intermediate_path in intermediate_outputs.items()}
@@ -407,8 +416,11 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
                 print('Waiting to fill all queues...')
                 continue
 
-            cursor = merge_events(input_queues, n_inputs,len_sample, out_byte_mv)
+            cursor, idx_buffer_cursor = merge_events(input_queues, n_inputs,len_sample, out_byte_mv,
+                                                     idx_buffer, idx_file_cursors)
             write_mv_to_stream(output_pipe, out_byte_mv, cursor)
+            if low_memory:
+                output_index_pipe.write(idx_buffer[:idx_buffer_cursor].tobytes())
             n_event_ids_written += 1
 
 
