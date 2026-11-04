@@ -1011,13 +1011,11 @@ class GenerateLossesDeterministic(ComputationStep):
             raise OasisException(
                 "building-packed inputs need il_stream_type 2, got {}".format(self.il_stream_type))
 
+        # the loss stream's own field types, so the CSV carries exactly what csvtobin will store
+        gul_stream_dtypes = {name: def_to_type_and_size(name)[0] for name in ('event_id', 'item_id', 'sidx', 'loss')}
         guls = _expand_packed_items(items, gulcalc_sidxs, len(self.loss_factor))
         guls['loss'] = guls['local_sidx'].map(loss_factor_map) * guls['tiv']
-        guls_stream = guls.astype({
-            'event_id': int,
-            'item_id': int,
-            'sidx': int,
-            'loss': float})[['event_id', 'item_id', 'sidx', 'loss']]
+        guls_stream = guls.astype(gul_stream_dtypes)[list(gul_stream_dtypes)]
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls_bin_fp = os.path.join(output_dir, "guls.bin")
         guls_stream.to_csv(guls_fp, index=False)
@@ -1029,11 +1027,7 @@ class GenerateLossesDeterministic(ComputationStep):
             # is joined to. raw_guls.csv above keeps the per-building detail.
             guls = (guls.groupby(['event_id', 'item_id', 'local_sidx'], as_index=False)['loss'].sum()
                         .rename(columns={'local_sidx': 'sidx'}))
-        guls = guls.astype({
-            'event_id': int,
-            'item_id': int,
-            'sidx': int,
-            'loss': float})[['event_id', 'item_id', 'sidx', 'loss']]
+        guls = guls.astype(gul_stream_dtypes)[list(gul_stream_dtypes)]
 
         # il_stream_type = 2 if self.fmpy else 1
         ils_bin_fp = os.path.join(output_dir, "ils.bin")
