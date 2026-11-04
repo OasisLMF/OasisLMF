@@ -474,6 +474,18 @@ decides whether each building gets its own site node in the financial structure:
 Generation records what the financial module needs to do this in ``fm_structure_info.bin``,
 alongside the other fm input files.
 
+**Reported standard deviation of a summed item**
+
+An item whose buildings are summed at source reports the statistics of the sum. Its standard
+deviation (sample index -2) combines the buildings' variances through the correlation between two
+buildings' losses, and that correlation is derived from the peril's ``damage_correlation_value``
+alone. ``hazard_correlation_value`` is not taken into account: with no damage correlation the
+buildings are treated as independent even when their hazard draws are correlated, so the reported
+value is too low. In one test on a 3-building item it read about 7% below the sampled spread at a
+hazard correlation of 0.9, against about 3% with no hazard correlation. Only this reported value is
+affected: the sampled losses carry the hazard correlation, and the financial module does not read
+the standard deviation.
+
 **Deterministic runs default to** ``none``
 
 ``oasislmf exposure run`` supports all three modes, but unlike generation it defaults to ``none``

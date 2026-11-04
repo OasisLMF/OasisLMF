@@ -1466,6 +1466,9 @@ def compute_event_losses(compute_info,
 
             # Only a SUMMED item reports the spread of a sum, and only then does the correlation
             # between two buildings' losses matter. Everything else keeps 0 and pays nothing.
+            # Hazard correlation is not included: with no damage correlation the buildings count
+            # as independent, so the reported std_dev is low when their hazard draws are correlated
+            # (a documented limitation; the sampled losses are unaffected).
             item_rho = item_event_data['damage_correlation_value']
             if item_event_data['packed_buildings'] > 1 and item_rho > 0.:
                 for k in range(HERMITE_TERMS):
