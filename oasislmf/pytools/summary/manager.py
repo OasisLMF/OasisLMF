@@ -70,7 +70,7 @@ summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
 
 def get_sentinel_bytes(event_id):
-    byte_mv = np.empty(SENTINEL_SIZE)
+    byte_mv = np.empty(SENTINEL_SIZE, dtype='b')
 
     cursor = 0
     cursor = mv_write_summary_header(byte_mv, cursor, event_id, SENTINEL_SUMMARY_ID, 0)
