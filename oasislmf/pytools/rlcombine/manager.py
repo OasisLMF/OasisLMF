@@ -230,10 +230,10 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv,
             k_curr_record_offset = curr_record_offset[k]
             k_curr_buffer = curr_event_buffers[k]
             k_curr_summary_id = k_curr_buffer['summary_ids'][k_curr_record_offset]
-            if k_curr_summary_id != curr_summary_id:
-                continue
-            elif k_curr_summary_id < previous_summary_id[k]:
+            if k_curr_summary_id < previous_summary_id[k]:
                 raise OasisException(f'summaryids are not strictly increasing for file idx {k}')
+            elif k_curr_summary_id != curr_summary_id:
+                continue
 
             # sum expval
             new_record['expval'] += k_curr_buffer['expval'][k_curr_record_offset]
