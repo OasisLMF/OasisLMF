@@ -396,12 +396,12 @@ class GenerateLossesDir(GenerateLossesBase):
                     # requested, which writes one into every layer. Mirrors the argument
                     # generate_summaryxref_files passes, so both resolve the same set.
                     if runtype == RUNTYPE_REINSURANCE_LOSS:
-                        summary_dirs = get_ri_summaryxref_dirs(
+                        _, summary_dirs = get_ri_summaryxref_dirs(
                             os.path.join(self.model_run_dir, 'input'),
                             self.settings
                         )
                     elif runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
-                        summary_dirs = get_ri_summaryxref_dirs(
+                        _, summary_dirs = get_ri_summaryxref_dirs(
                             os.path.join(self.model_run_dir, 'input'),
                             self.settings,
                             all_layers=True
