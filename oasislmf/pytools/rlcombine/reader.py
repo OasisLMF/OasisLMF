@@ -100,12 +100,10 @@ def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, exp
                 raise ValueError('rlcombine: event not closed by an S0 sentinel record')
 
             if summary_id == SENTINEL_SUMMARY_ID:
-                print('read sentinel...')
                 pair_sidx, cursor = mv_read(byte_mv, cursor, sidx_dtype, sidx_dtype_size)
                 cursor += loss_dtype_size
                 if pair_sidx != 0:
                     raise ValueError('rlcombine: S0 sentinel record must only hold the (0, 0) terminator')
-                print('resetting state...')
                 offsets[state['n_records']] = state['n_pairs']
                 event_id = state['event_id']
                 state['event_id'] = 0
@@ -140,7 +138,6 @@ class SummaryCombineReader(EventReader):
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx=0, **kwargs):
         self.file_idx = file_idx
         buffer = self.buffers[file_idx]
-        print(f'Reading file_idx {file_idx}')
         return read_buffer(byte_mv, cursor, valid_buff, self.state[file_idx], self.len_sample,
                            buffer.summary_ids, buffer.expval, buffer.offsets, buffer.sidx, buffer.loss)
 
