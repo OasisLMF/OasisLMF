@@ -8,6 +8,7 @@ be the ones numpy would produce, and must read back unchanged.
 import numba as nb
 import numpy as np
 import pytest
+from numba.core import config as nb_config
 
 from oasislmf.pytools.common.event_stream import mv_read, mv_write
 
@@ -100,12 +101,15 @@ def _write_one(byte_mv, cursor):
     return mv_write(byte_mv, cursor, np.dtype('f8'), 8, 1.0)
 
 
+# Under JIT the overrun check exists only with NUMBA_BOUNDSCHECK (as for any numba indexing); the
+# pure-Python path (NUMBA_DISABLE_JIT) always raises.
+@pytest.mark.skipif(not (nb_config.BOUNDSCHECK or nb_config.DISABLE_JIT),
+                    reason="overrun is only checked under NUMBA_BOUNDSCHECK or NUMBA_DISABLE_JIT")
 @pytest.mark.parametrize('call', [
     lambda: _write_one(np.zeros(10, dtype='b'), 3),  # last byte would land past the end
     lambda: _write_one(np.zeros(10, dtype='b'), -1),
     lambda: _read_one(np.zeros(3, dtype='b')),
 ])
 def test_overrunning_the_buffer_raises(call):
-    # ValueError under JIT; the pure-Python path (NUMBA_DISABLE_JIT) may surface an IndexError instead
     with pytest.raises((ValueError, IndexError)):
         call()

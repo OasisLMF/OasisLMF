@@ -7,7 +7,7 @@ import sys
 
 import numpy as np
 import numba as nb
-from numba.core import cgutils, types
+from numba.core import cgutils, config as nb_config, types
 from numba.extending import intrinsic, overload
 
 from .data import def_to_type_and_size
@@ -129,6 +129,11 @@ def init_streams_in(files_in, stack):
 # (unaligned, native byte order, exactly what `.view()` does), with no array temporaries at all.
 # mv_read / mv_write themselves stay plain Python so they still work without JIT (from Python
 # callers and under NUMBA_DISABLE_JIT); the @overload below is what jitted callers compile.
+#
+# Overrun is checked only under NUMBA_BOUNDSCHECK, like every other numba array access. An
+# always-on check costs ~17% of gulmc on numba >= 0.66: its `raise` branch sits between the
+# incref/decref numba now emits around each inlined write, and llvmlite's RefPrune cannot remove a
+# pair that spans a raise. Callers size the buffer before writing; CI runs with the check on.
 
 
 def _scalar_type_of(dtype):
@@ -150,6 +155,21 @@ def _is_contiguous_byte_array(byte_mv):
 
 def _is_scalar(value):
     return isinstance(value, (types.Number, types.Boolean))
+
+
+def _check_in_buffer(byte_mv, cursor, itemsize):
+    pass  # pure-Python path: the view-based code raises on overrun by itself
+
+
+@overload(_check_in_buffer)
+def _check_in_buffer_jit(byte_mv, cursor, itemsize):
+    if not nb_config.BOUNDSCHECK:
+        return lambda byte_mv, cursor, itemsize: None
+
+    def impl(byte_mv, cursor, itemsize):
+        if cursor < 0 or cursor + itemsize > byte_mv.shape[0]:
+            raise IndexError("event stream cursor out of the byte buffer")
+    return impl
 
 
 def _pointer_at(context, builder, sig, args, scalar_type):
@@ -215,9 +235,7 @@ def _mv_read_jit(byte_mv, cursor, _dtype, itemsize):
         return _mv_read_view  # unusual buffer: keep the view-based implementation
 
     def impl(byte_mv, cursor, _dtype, itemsize):
-        # the view-based version raised on overrun too; an unchecked raw load would read past the buffer
-        if cursor < 0 or cursor + itemsize > byte_mv.shape[0]:
-            raise ValueError("mv_read: cursor out of the byte buffer")
+        _check_in_buffer(byte_mv, cursor, itemsize)
         return _unaligned_load(byte_mv, cursor, _dtype), cursor + itemsize
     return impl
 
@@ -276,8 +294,7 @@ def _mv_write_jit(byte_mv, cursor, _dtype, itemsize, value):
 
     if _is_scalar(value):
         def impl(byte_mv, cursor, _dtype, itemsize, value):
-            if cursor < 0 or cursor + itemsize > byte_mv.shape[0]:
-                raise ValueError("mv_write: cursor out of the byte buffer")
+            _check_in_buffer(byte_mv, cursor, itemsize)
             _unaligned_store(byte_mv, cursor, _dtype, value)
             return cursor + itemsize
         return impl
@@ -286,8 +303,7 @@ def _mv_write_jit(byte_mv, cursor, _dtype, itemsize, value):
         # a 0-d array (e.g. a numpy scalar reaching jitted code as `arr[()]`-able), which the
         # view-based version accepted through setitem; store the element it holds
         def impl_0d(byte_mv, cursor, _dtype, itemsize, value):
-            if cursor < 0 or cursor + itemsize > byte_mv.shape[0]:
-                raise ValueError("mv_write: cursor out of the byte buffer")
+            _check_in_buffer(byte_mv, cursor, itemsize)
             _unaligned_store(byte_mv, cursor, _dtype, value[()])
             return cursor + itemsize
         return impl_0d
