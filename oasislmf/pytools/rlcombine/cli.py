@@ -10,14 +10,14 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter  # for multi-line help text
 )
 
-parser.add_argument('-i', '--summary-files-in', help='names of the input summary files for each inuring priority', nargs='?')
+parser.add_argument('-i', '--summary-files-in', help='names of the input summary files for each inuring priority', nargs='+')
 parser.add_argument('-o', '--output-summary-file', help='output file for the final combined summary file')
-parser.add_argument('-p', '--static-paths', help='static file-paths for each inuring priority', nargs='?')
+parser.add_argument('-p', '--static-paths', help='static file-paths for each inuring priority', nargs='+')
 parser.add_argument('-m', '--low-memory', help='reduce downstream memory use with index file(s)', action='store_true')
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
                     default=30, type=int)
 parser.add_argument('-z', '--output-zeros', help='if set, output zero values', action='store_true')
-parser.add_argument('-i', '--intermediate-outputs', help='intermediate outputs to passthrough. Specified like output_index=/path/to/file', nargs='*')
+parser.add_argument('-I', '--intermediate-outputs', help='intermediate outputs to passthrough. Specified like output_index=/path/to/file', nargs='*')
 
 
 def main():

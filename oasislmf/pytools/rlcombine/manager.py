@@ -100,6 +100,7 @@ from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, ITEM_STREAM, MAX
 
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, def_to_type_and_size, null_index, summary_stream_index_dtype
 from oasislmf.pytools.summary.manager import load_summary_object
+from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.exceptions import OasisException
 
 from oasislmf.pytools.rlcombine.reader import SummaryCombineReader
@@ -432,3 +433,7 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         print(f"No. event ids written: {n_event_ids_written}")
         print(f"No. event ids seen: {len(event_ids_seen)}")
         print(f"Missing event_ids: {event_ids_seen.discard(n_event_ids_written)}")
+
+@redirect_logging(exec_name='rlcombine')
+def main(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, **kwargs):
+    run(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, **kwargs)
