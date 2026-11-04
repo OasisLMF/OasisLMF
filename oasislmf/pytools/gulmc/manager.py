@@ -592,6 +592,10 @@ def run(run_dir,
                 oasis_ping_async(ping_data)
                 counter = 0
 
+        # the CDF cache counter only grows (by the cache size per event plus the CDFs cached in it)
+        logger.debug(f"cdf cache counter: final value {int(compute_info['cdf_cache_ctr'])} "
+                     f"({compute_info['cdf_cache_ctr'].dtype}), cache size {int(cdf_cache_mask) + 1}")
+
     return 0
 
 
