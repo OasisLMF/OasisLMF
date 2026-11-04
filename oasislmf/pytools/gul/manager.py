@@ -442,7 +442,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         rval = rndms[sample_idx - 1]
 
                         if rval >= prob_to[Nbins - 1]:
-                            rval = prob_to[Nbins - 1] - 0.00000003
+                            rval = np.float64(prob_to[Nbins - 1]) - 0.00000003
                             bin_idx = Nbins - 1
                         else:
                             # find the bin in which the random value `rval` falls into
