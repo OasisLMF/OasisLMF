@@ -631,6 +631,32 @@ def pdf_to_cdf(pdf, empty_cdf):
 
 
 @nb.njit(cache=True, fastmath=True)
+def get_max_haz_records_per_areaperil(haz_arr_ptr, n_haz_records):
+    """Return the largest number of hazard records any one areaperil holds in this event.
+
+    A dynamic footprint keeps one record per (intensity, return period), so an areaperil lying
+    in several sections of one event can hold more records than the model has intensity bins.
+
+    Args:
+        haz_arr_ptr (np.array[int64]): offsets where each areaperil's records start in haz_pdf.
+          Only the entries up to the one equal to ``n_haz_records`` are valid; the buffer is
+          reused across events and holds stale values after it.
+        n_haz_records (int): total number of hazard records in the event (len(haz_pdf)).
+
+    Returns:
+        int: the largest number of records of one areaperil, 0 if there are none.
+    """
+    max_records = 0
+    haz_arr_i = 0
+    # each stored areaperil holds at least one record, so the offsets increase strictly
+    # until the last one, which equals n_haz_records
+    while haz_arr_ptr[haz_arr_i] < n_haz_records:
+        max_records = max(max_records, haz_arr_ptr[haz_arr_i + 1] - haz_arr_ptr[haz_arr_i])
+        haz_arr_i += 1
+    return max_records
+
+
+@nb.njit(cache=True, fastmath=True)
 def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
     """Calculate the covoluted cumulative distribution between vulnerability damage and hazard probability distribution
 
@@ -897,9 +923,13 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
                                       areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data, vuln_pdf_empty)
 
         # calculate and cache all CDFs as a contiguous block (dependent CDFs are event-specific,
-        # so they are computed but not cached)
+        # so they are computed but not cached). A block wider than the cache would wrap onto
+        # itself, which a dynamic footprint areaperil with more records than intensity bins can
+        # cause, so such an item is computed but not cached either.
+        block_size = 1 if compute_info['effective_damageability'] else 1 + Nhaz_bins
+        do_cache = not is_dependent and block_size <= cdf_cache_mask + 1
         eff_damage_cdf = calc_eff_damage_cdf(vuln_pdf, haz_pdf_prob, eff_damage_cdf_empty)
-        if not is_dependent:
+        if do_cache:
             cdf_cache_tag[cdf_group] = compute_info['cdf_cache_ctr']
             # slot 0: effective damage CDF
             cache_idx = compute_info['cdf_cache_ctr'] & cdf_cache_mask
@@ -907,10 +937,10 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
             cdf_cache_nbins[cache_idx] = nb_int32(eff_damage_cdf.shape[0])
             compute_info['cdf_cache_ctr'] += 1
 
-        if not compute_info['effective_damageability']:  # also (unless dependent) cache per-bin vuln CDFs
+        if not compute_info['effective_damageability']:  # also (if do_cache) cache per-bin vuln CDFs
             for haz_i in range(Nhaz_bins):
                 haz_i_to_Ndamage_bins[haz_i] = pdf_to_cdf(vuln_pdf[haz_i], haz_i_to_vuln_cdf[haz_i]).shape[0]
-                if not is_dependent:
+                if do_cache:
                     cache_idx = compute_info['cdf_cache_ctr'] & cdf_cache_mask
                     ndamage_bins = haz_i_to_Ndamage_bins[haz_i]
                     cached_vuln_cdfs[cache_idx, :ndamage_bins] = haz_i_to_vuln_cdf[haz_i][:ndamage_bins]
@@ -1201,9 +1231,12 @@ def compute_event_losses(compute_info,
     """
     cdf_cache_size = nb_int64(cdf_cache_mask + 1)
     # a dependent's "hazard bins" are its source's damage bins, so the per-hazard-bin scratch
-    # buffers must be sized to the larger of num_damage_bins and num_intensity_bins
+    # buffers must be sized to the larger of num_damage_bins and num_intensity_bins. An item's
+    # hazard bins are its areaperil's footprint records, which under a dynamic footprint can
+    # outnumber the intensity bins, so the largest areaperil of this event is included too.
     n_damage_bins_total = damage_bins.shape[0]
-    max_haz_bins = max(vuln_array.shape[2], n_damage_bins_total)
+    max_haz_bins = max(vuln_array.shape[2], n_damage_bins_total,
+                       get_max_haz_records_per_areaperil(haz_arr_ptr, haz_pdf.shape[0]))
     haz_cdf_empty = np.empty(max_haz_bins, dtype=oasis_float)
     vuln_pdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
     eff_damage_cdf_empty = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
