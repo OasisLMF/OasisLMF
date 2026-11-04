@@ -1,0 +1,27 @@
+// Top-level fmpy pipeline. Render: dot -Tsvg fm_pipeline.dot -o fm_pipeline.svg
+digraph fm_pipeline {
+    rankdir=LR;
+    bgcolor="transparent";
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+          fillcolor="#eef3fb", color="#4a6fa5"];
+    edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+    static  [label="static input files\nfm_programme, fm_policytc,\nfm_profile, fm_xref,\nfm_structure_info", fillcolor="#fdf0e0", color="#c8863c"];
+    fs      [label="financial structure\nnodes_array, profiles,\nparent/child CSR", fillcolor="#fdf0e0", color="#c8863c"];
+    reader  [label="event reader\nstream -> sparse losses"];
+    compute [label="compute_event\nper level, bottom up", fillcolor="#e3ecfa", color="#2f5596"];
+    writer  [label="event writer"];
+    instream  [label="input stream(s)\nGUL, IL or RI", shape=box, style=filled, fillcolor="#f2f2f2", color="#888888"];
+    outstream [label="output stream", shape=box, style=filled, fillcolor="#f2f2f2", color="#888888"];
+
+    static -> fs [label="once"];
+    fs -> reader  [style=dashed, label="compute_info"];
+    fs -> compute [style=dashed];
+    fs -> writer  [style=dashed];
+    instream -> reader;
+    reader -> compute [label="per event"];
+    compute -> writer;
+    writer -> outstream;
+
+    {rank=same; instream; reader; compute; writer; outstream;}
+}

@@ -187,7 +187,7 @@ def test_build_rtree_associates_correctly(locations_by_name, expected_ids, reque
 
 def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinates):
     """Test that the rtree builtin still works with the deprecated parameter."""
-    with pytest.warns(DeprecationWarning):
+    with pytest.warns(FutureWarning):
         rtree = Lookup(config={}).build_rtree(
             file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
             file_type="parquet",

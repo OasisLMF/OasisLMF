@@ -1,0 +1,2 @@
+PortNumber,AccNumber,LocNumber,CountryCode,Latitude,Longitude,LocCurrency,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,NumberOfBuildings,IsAggregate,LocPeril,LocDed6All,LocDedType6All,LocMinDed6All,LocMaxDed6All,LocLimit6All,LocLimitType6All,OEDVersion
+1,A1,L1,GB,52.0,0.0,GBP,BBF,4000000,0,0,0,4,1,BBF,100000,0,200000,300000,10000000,0,latest version

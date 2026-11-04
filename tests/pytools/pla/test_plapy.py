@@ -2,6 +2,8 @@ import filecmp
 from mock import patch
 import numpy as np
 import os
+import pandas as pd
+import pytest
 from pathlib import Path
 from oasislmf.pytools.common.input_files import AMPLIFICATIONS_FILE
 from tempfile import NamedTemporaryFile
@@ -14,9 +16,11 @@ from oasislmf.pytools.pla.common import (
     PLAFACTORS_FILE
 )
 from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, FM_STREAM_ID, ITEM_STREAM,
-                                                  mv_write_item_header, mv_write_sidx_loss)
+                                                  mv_write_item_header, mv_write_sidx_loss,
+                                                  CHANCE_OF_LOSS_IDX, decode_building, decode_local_sidx)
 
 from oasislmf.pytools.pla.manager import run
+from tests.pytools.utils import packed_gul_stream, read_gul_stream
 
 
 # Reduce BUFFER_SIZE to ensure that loop in
@@ -293,3 +297,39 @@ class TestPostLossAmplification(TestCase):
         ))
 
         second_uni_out.close()
+
+
+def _write_factors_by_event(run_dir, item_ids, event_ids):
+    """Every item on amplification 1, at a factor that differs by event: 1 + event_id / 100."""
+    with open(run_dir / 'input' / AMPLIFICATIONS_FILE, 'wb') as f:
+        f.write(np.int32(0).tobytes())
+        f.write(np.array([(i, 1) for i in item_ids], dtype=[('item_id', 'i4'), ('amplification_id', 'i4')]).tobytes())
+    with open(run_dir / 'static' / PLAFACTORS_FILE, 'wb') as f:
+        f.write(np.int32(0).tobytes())
+        for event_id in event_ids:
+            f.write(np.array([(event_id, 1)], dtype=event_count_dtype).tobytes())
+            f.write(np.array([(1, 1 + event_id / 100)], dtype=amp_factor_dtype).tobytes())
+
+
+@pytest.mark.parametrize('uniform_factor', [0.0, 1.25], ids=['factors_by_event', 'uniform_factor'])
+def test_a_packed_item_is_amplified_whole(tmp_path, uniform_factor):
+    """A factor applies to an item and event, so every building of a packed item is scaled by it,
+    and the stream keeps its sample indices. The chance of a loss is a probability and is never
+    scaled: there is one per building, at -4, -9, -14 ..."""
+    sample_size, n_buildings = 10, 3
+    run_dir, gul = packed_gul_stream(tmp_path / 'model', n_building=-n_buildings, sample_size=sample_size)
+    before = read_gul_stream(gul)[2]
+    if not uniform_factor:
+        _write_factors_by_event(run_dir, pd.read_csv(run_dir / 'input' / 'items.csv')['item_id'],
+                                before['event_id'].unique())
+
+    out = run_dir / 'pla.bin'
+    run(run_dir=str(run_dir), file_in=str(gul), file_out=str(out), input_path='input', static_path='static',
+        secondary_factor=1.0, uniform_factor=uniform_factor)
+    after = read_gul_stream(out)[2]
+
+    pd.testing.assert_frame_equal(after[['event_id', 'item_id', 'sidx']], before[['event_id', 'item_id', 'sidx']])
+    chance_of_loss = [decode_local_sidx(s, sample_size) == CHANCE_OF_LOSS_IDX for s in before['sidx']]
+    assert sum(chance_of_loss) > 0 and decode_building(before['sidx'].min(), sample_size) == n_buildings
+    factor = np.where(chance_of_loss, 1.0, uniform_factor or 1 + before['event_id'] / 100)
+    np.testing.assert_allclose(after['loss'], before['loss'] * factor, rtol=1e-5)
