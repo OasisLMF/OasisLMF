@@ -356,7 +356,8 @@ def test_gulmc_socket_server_ping(socket_server, ping_expected, port_expected):
     """
     test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
     with (TemporaryDirectory() as tmp_result_dir_str,
-          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping):
+          patch('oasislmf.utils.ping.oasis_ping') as mock_ping,
+          patch('oasislmf.utils.ping.oasis_ping_async') as mock_ping_async):
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
         os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
         file_out = tmp_result_dir.joinpath('tmp.bin')
@@ -377,12 +378,14 @@ def test_gulmc_socket_server_ping(socket_server, ping_expected, port_expected):
             )
             if ping_expected:
                 mock_ping.assert_called()
-                ping_payloads = [c.args[0] for c in mock_ping.call_args_list]
+                ping_payloads = [c.args[0] for c in mock_ping.call_args_list + mock_ping_async.call_args_list]
                 assert all(('port_override' in p) == (port_expected is not None) for p in ping_payloads)
                 if port_expected is not None:
                     assert all(p['port_override'] == port_expected for p in ping_payloads)
+                assert mock_ping_async.call_args_list[0].args[0]['gul_ready'] == 1
             else:
                 mock_ping.assert_not_called()
+                mock_ping_async.assert_not_called()
         finally:
             if file_out.exists():
                 file_out.unlink()
@@ -398,9 +401,9 @@ def test_gulmc_socket_server_periodic_ping():
     """
     test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
     with (TemporaryDirectory() as tmp_result_dir_str,
-          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping,
-          patch('oasislmf.pytools.gulmc.manager.oasis_ping_async') as mock_ping_async,
-          patch('oasislmf.pytools.gulmc.manager.SERVER_UPDATE_TIME', -1)):
+          patch('oasislmf.utils.ping.oasis_ping') as mock_ping,
+          patch('oasislmf.utils.ping.oasis_ping_async') as mock_ping_async,
+          patch('oasislmf.utils.ping.SERVER_UPDATE_TIME', -1)):
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
         os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
         file_out = tmp_result_dir.joinpath('tmp.bin')
@@ -422,6 +425,44 @@ def test_gulmc_socket_server_periodic_ping():
             # periodic ping (per event, threshold forced negative) fires more than once
             assert mock_ping_async.call_count > 1
             mock_ping.assert_called_once()
+        finally:
+            if file_out.exists():
+                file_out.unlink()
+
+
+def test_gulmc_dropped_periodic_ping_keeps_count():
+    """Events from a periodic ping that `oasis_ping_async` dropped are carried into the next ping.
+
+    Every periodic ping is dropped, so each one must carry the running total and the
+    end-of-run ping must report every event; none are lost from the progress count.
+    """
+    test_model_dir = TESTS_ASSETS_DIR.joinpath("test_model_1")
+    with (TemporaryDirectory() as tmp_result_dir_str,
+          patch('oasislmf.utils.ping.oasis_ping') as mock_ping,
+          patch('oasislmf.utils.ping.oasis_ping_async', return_value=False) as mock_ping_async,
+          patch('oasislmf.utils.ping.SERVER_UPDATE_TIME', -1)):
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        file_out = tmp_result_dir.joinpath('tmp.bin')
+        try:
+            run_gulmc(
+                run_dir=tmp_result_dir,
+                ignore_file_type=set(),
+                file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                file_out=file_out,
+                sample_size=10,
+                loss_threshold=0.,
+                alloc_rule=1,
+                debug=0,
+                random_generator=1,
+                ignore_correlation=False,
+                effective_damageability=False,
+                socket_server='True',
+            )
+            periodic = [c.args[0]['events_complete'] for c in mock_ping_async.call_args_list
+                        if 'events_complete' in c.args[0]]
+            assert periodic == list(range(1, len(periodic) + 1))
+            assert mock_ping.call_args.args[0]['events_complete'] == len(periodic)
         finally:
             if file_out.exists():
                 file_out.unlink()
