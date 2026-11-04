@@ -225,10 +225,6 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv,
         idx_buffer[idx_cursor]['summary_id'] = curr_summary_id
         idx_buffer[idx_cursor]['offset'] = cursor
 
-        print(f'New record... event_id: {event_id}, summary_id: {curr_summary_id}')
-        print('---')
-        print()
-
         for k in remaining_inputs:
             k_curr_record_offset = curr_record_offset[k]
             k_curr_buffer = curr_event_buffers[k]
@@ -244,11 +240,6 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv,
             start_offset = k_curr_buffer['offsets'][k_curr_record_offset]
             end_offset = k_curr_buffer['offsets'][k_curr_record_offset+1]
 
-            print(f'Combining from input buffer {k}...')
-            print(f"expval: {k_curr_buffer['expval'][k_curr_record_offset]}")
-
-            print(f"sidx: {k_curr_buffer['sidx'][start_offset: end_offset]}")
-            print(f"loss: {k_curr_buffer['loss'][start_offset: end_offset]}")
             for i in range(start_offset, end_offset):
                 _curr_sidx = k_curr_buffer['sidx'][i]
                 _curr_loss = k_curr_buffer['loss'][i]
@@ -270,25 +261,10 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv,
 
         regular_loss_pairs = regular_loss_pairs[regular_loss_mask]
 
-        print('---')
-        print()
-
-        print('Combined record: ')
-        print(f"expval: {new_record['expval']}")
-        print(f"regular loss pairs: {regular_loss_pairs}")
-        print(f"special loss pairs: {special_loss_pairs}")
-
-        print('---')
-        print()
-
         # need to handle output properly
         cursor = add_record_to_byte_mv(out_byte_mv, cursor, new_record, regular_loss_pairs, special_loss_pairs)
 
         idx_cursor = update_idx_cursors(cursor, idx_cursor, idx_buffer, idx_file_cursors, -1)
-        print('Moving onto the next record...')
-
-        print('---')
-        print('\n\n')
 
 
 def prepare_intermediate_outputs(event_id, event_buffer, partial_out_byte_mv,
@@ -395,7 +371,6 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         for file_idx, event_id, event_buffer in summary_stream_reader.read_events(streams_in):
             # pass through requested IP
             if file_idx in intermediate_pipes:
-                print(f'passing through event_id {event_id} from file_idx {file_idx}')
                 intermediate_cursor, idx_buffer_cursor = prepare_intermediate_outputs(event_id,
                                                                    event_buffer,
                                                                    partial_out_byte_mv,
@@ -403,18 +378,13 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
                                                                    file_idx, idx_buffer)
                 write_mv_to_stream(intermediate_pipes[file_idx], partial_out_byte_mv, intermediate_cursor)
                 if low_memory:
-                    print('Writing idx file...')
                     intermediate_idx_pipes[file_idx].write(idx_buffer[:idx_buffer_cursor].tobytes())
 
             event_ids_seen.add(event_id)
-            print(f'read file_idx: {file_idx}')
-            print(f'event_id read: {event_id}')
             file_idx_events[file_idx].append(event_id)
             input_queues[file_idx].append((event_id, event_buffer))
-            print(f'length of input queue {file_idx}: {len(input_queues[file_idx])}')
 
             if any([len(input_queues[k]) == 0 for k in range(n_inputs)]):
-                print('Waiting to fill all queues...')
                 continue
 
             cursor, idx_buffer_cursor = merge_events(input_queues, n_inputs,len_sample, out_byte_mv,
@@ -429,10 +399,6 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         if any([len(input_queues[k]) != 0 for k in range(n_inputs)]):
                raise OasisException('Summary streams only partially combined.')
 
-        print("Finished combining streams...")
-        print(f"No. event ids written: {n_event_ids_written}")
-        print(f"No. event ids seen: {len(event_ids_seen)}")
-        print(f"Missing event_ids: {event_ids_seen.discard(n_event_ids_written)}")
 
 @redirect_logging(exec_name='rlcombine')
 def main(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, **kwargs):
