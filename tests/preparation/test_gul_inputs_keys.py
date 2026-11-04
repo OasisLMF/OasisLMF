@@ -105,3 +105,26 @@ def test_empty_join_reports_both_sides_loc_ids():
     keys = make_keys([(7, 1, 10, 1, 1), (8, 1, 11, 1, 2)])
     with pytest.raises(OasisException, match=r"matched no row.*keys loc_id values: \[7, 8\].*location loc_id values: \[1, 2\]"):
         get_gul_input_items(make_exposure(), keys)
+
+
+def test_item_ids_do_not_depend_on_keys_row_order():
+    """item_id and coverage_id follow (loc_id, peril_id, coverage_type_id, building_id), not the
+    keys row order - which depends on the lookup, e.g. on how many chunks a multiprocessed lookup
+    split the locations into (#2211)."""
+    exposure = make_exposure(num_locations=3)
+    exposure['NumberOfBuildings'] = [1, 2, 1]
+    keys = pd.DataFrame(
+        [(loc_id, peril_id, cov_type, 10 * loc_id, cov_type)
+         for cov_type in (1, 3) for peril_id in ('WTC', 'WSS') for loc_id in (3, 1, 2)],
+        columns=['loc_id', 'peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'])
+    keys['status'] = 'success'
+
+    expected = get_gul_input_items(exposure.copy(), keys.copy())
+    item_key = ['loc_id', 'peril_id', 'coverage_type_id', 'building_id']
+    assert expected[item_key].apply(tuple, axis=1).is_monotonic_increasing
+    assert expected['item_id'].tolist() == list(range(1, len(expected) + 1))
+
+    cols = item_key + ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'tiv', 'group_id']
+    for seed in range(5):
+        shuffled = keys.sample(frac=1, random_state=seed).reset_index(drop=True)
+        pd.testing.assert_frame_equal(get_gul_input_items(exposure.copy(), shuffled)[cols], expected[cols])
