@@ -479,7 +479,7 @@ def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
 
     if all_layers:
         ri_output_levels = {int(x) for x in ri_settings}
-        return [
+        return ri_output_levels, [
             os.path.join(input_dir, os.path.basename(ri_settings[str(output_level)]['directory']))
             for output_level in sorted(ri_output_levels)
         ]
@@ -500,9 +500,9 @@ def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
 
     ri_output_levels = {int(x) for x in ri_settings}
 
-    return [
-        os.path.join(input_dir, os.path.basename(ri_settings[str(output_level)]['directory']))
-        for output_level in sorted(ri_output_levels)
+    return ri_output_levels, [
+                              os.path.join(input_dir, os.path.basename(ri_settings[str(output_level)]['directory']))
+                              for output_level in sorted(ri_output_levels)
     ]
 
 
@@ -752,7 +752,8 @@ def generate_summaryxref_files(
             empty_data_error_msg='No summary map file found.',
         )
         il_map_df = il_map_df[list(set(il_map_df).intersection(MAP_SUMMARY_DTYPES))]
-        max_output_id = il_map_df['output_id'].max()
+        original_output_id = il_map_df['output_id'].copy()
+        max_output_id = original_output_id.max()
 
     if il_summaries:
         # Load FM summary map
@@ -784,12 +785,12 @@ def generate_summaryxref_files(
             'ri'
         )
         # Write Xref file for each inuring priority where output has been requested.
-        summary_ri_fps = get_ri_summaryxref_dirs(
+        ri_output_levels, summary_ri_fps = get_ri_summaryxref_dirs(
             os.path.join(model_run_fp, 'input'), analysis_settings
             )
 
-        for summary_ri_fp in summary_ri_fps:
-            ri_summaryxref_df['output'] += max_output_id # offset per IP
+        for output_level, summary_ri_fp in zip(ri_output_levels, summary_ri_fps):
+            ri_summaryxref_df['output'] = original_output_id + output_level*max_output_id # offset per IP
             df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['ri']}.bin"))
             if intermediary_csv:
                 write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, f"{SUMMARY_OUTPUT['ri']}.csv")
@@ -812,12 +813,12 @@ def generate_summaryxref_files(
         )
 
         # Write rl summary xref in all directories (needed for total)
-        summary_rl_fps = get_ri_summaryxref_dirs(
+        rl_output_levels, summary_rl_fps = get_ri_summaryxref_dirs(
             os.path.join(model_run_fp, 'input'), analysis_settings, all_layers=True
         )
 
-        for summary_rl_fp in summary_rl_fps:
-            rl_summaryxref_df['output'] += max_output_id # offset per IP
+        for output_level, summary_rl_fp in zip(rl_output_levels, summary_rl_fps):
+            rl_summaryxref_df['output'] = original_output_id + max_output_id*output_level # offset per IP
             df_to_ndarray(rl_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_rl_fp, f"{SUMMARY_OUTPUT['rl']}.bin"))
 
             if intermediary_csv:
