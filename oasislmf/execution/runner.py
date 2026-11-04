@@ -81,13 +81,38 @@ def _wait_for_log_writers(log_dir, timeout=30, poll_interval=0.5, stable_seconds
     )
 
 
-def _find_incomplete_pytool_logs(log_dir):
+def _find_incomplete_custom_gulcalc(log_dir, log_start, log_finish):
+    """Return how many custom gulcalc processes logged `log_start` but not `log_finish`.
+
+    Custom gulcalc binaries write to `gul_stderror.err` in log_dir rather than
+    to a pytool log, so they are counted by line markers instead, matched as
+    plain substrings. The file holds raw stderr from a third-party
+    binary, so bytes that are not valid UTF-8 are replaced rather than failing
+    the check. Returns 0 when either marker is unset or the file does not exist.
+    """
+    path = os.path.join(log_dir, 'gul_stderror.err')
+    if not (log_start and log_finish and os.path.isfile(path)):
+        return 0
+    try:
+        with open(path, encoding='utf-8', errors='replace') as f:
+            lines = f.readlines()
+    except OSError:
+        logging.warning("Could not read %s to count custom gulcalc processes", path)
+        return 0
+    started = sum(log_start in line for line in lines)
+    finished = sum(log_finish in line for line in lines)
+    return max(started - finished, 0)
+
+
+def _find_incomplete_pytool_logs(log_dir, custom_gulcalc_log_start=None, custom_gulcalc_log_finish=None):
     """Return {tool: [path, ...]} for every pytool log under log_dir missing its 'finish' marker.
 
-    Python-side equivalent of bash's own `check_complete()` function. Empty
-    dict means every log file found reached "finish" (see
+    Empty dict means every log file found reached "finish" (see
     oasislmf/pytools/utils.py's `redirect_logging`, which writes 'finishing
     process' on a clean exit) - i.e. nothing here needs waiting or raising on.
+    When both custom gulcalc markers are given, lost custom gulcalc processes
+    are reported under 'gulcalc', with `gul_stderror.err` listed once per lost
+    process.
     """
     lost = {}
     for tool in sorted(MONITORED_TOOLS):
@@ -106,10 +131,13 @@ def _find_incomplete_pytool_logs(log_dir):
                 missing.append(path)
         if missing:
             lost[tool] = missing
+    lost_gulcalc = _find_incomplete_custom_gulcalc(log_dir, custom_gulcalc_log_start, custom_gulcalc_log_finish)
+    if lost_gulcalc:
+        lost['gulcalc'] = [os.path.join(log_dir, 'gul_stderror.err')] * lost_gulcalc
     return lost
 
 
-def _ensure_pytool_logs_complete(log_dir):
+def _ensure_pytool_logs_complete(log_dir, custom_gulcalc_log_start=None, custom_gulcalc_log_finish=None):
     """Check log_dir is complete; if not, wait for stragglers and check again.
 
     Cheap in the common case: if every pytool log already has its "finish"
@@ -119,8 +147,15 @@ def _ensure_pytool_logs_complete(log_dir):
     genuinely still-running, reparented worker a chance to catch up) and
     re-check - raising `OasisException`, naming exactly which tool/files are
     still incomplete, only if it's still missing after that.
+
+    Args:
+        log_dir (str): Directory holding the script's pytool logs.
+        custom_gulcalc_log_start (str or None): Line a custom gulcalc binary
+            writes to `gul_stderror.err` when it starts.
+        custom_gulcalc_log_finish (str or None): Line a custom gulcalc binary
+            writes to `gul_stderror.err` when it finishes.
     """
-    lost = _find_incomplete_pytool_logs(log_dir)
+    lost = _find_incomplete_pytool_logs(log_dir, custom_gulcalc_log_start, custom_gulcalc_log_finish)
     if not lost:
         return
 
@@ -129,7 +164,7 @@ def _ensure_pytool_logs_complete(log_dir):
         log_dir, lost,
     )
     _wait_for_log_writers(log_dir)
-    lost = _find_incomplete_pytool_logs(log_dir)
+    lost = _find_incomplete_pytool_logs(log_dir, custom_gulcalc_log_start, custom_gulcalc_log_finish)
     if lost:
         summary = ", ".join(f"{tool} ({len(paths)} lost)" for tool, paths in lost.items())
         raise OasisException(
@@ -153,6 +188,7 @@ def run(analysis_settings,
         model_df_engine=None,
         dynamic_footprint=False,
         resource_monitor_interval=1,
+        disable_resource_report=False,
         log_level=None,
         **kwargs
         ):
@@ -233,6 +269,7 @@ def run(analysis_settings,
     monitor = ResourceMonitor(
         output_dir='log',
         poll_interval=resource_monitor_interval,
+        enabled=not disable_resource_report,
     )
     proc = subprocess.Popen(['bash', filename], stdout=subprocess.PIPE)
     monitor.start(proc.pid)
@@ -241,6 +278,17 @@ def run(analysis_settings,
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', filename], output=stdout)
     logging.info(stdout.decode('utf-8'))
+    try:
+        _ensure_pytool_logs_complete(
+            os.path.join(os.path.dirname(os.path.abspath(filename)), 'log'),
+            custom_gulcalc_log_start or analysis_settings.get('model_custom_gulcalc_log_start'),
+            custom_gulcalc_log_finish or analysis_settings.get('model_custom_gulcalc_log_finish'),
+        )
+    except OasisException as e:
+        # Callers such as GenerateLosses dump the run logs and call rerun() on CalledProcessError.
+        raise subprocess.CalledProcessError(
+            1, ['bash', filename], output=stdout + f'\n[ERROR] {e}\n'.encode('utf-8')
+        ) from e
 
 
 # matches a trailing output redirect (e.g. `> /path/to/fifo` or `2>> log/err`)
@@ -300,20 +348,21 @@ def rerun():
 @oasis_log()
 def run_analysis(**params):
     resource_monitor_interval = params.pop('resource_monitor_interval', 1.0)
+    disable_resource_report = params.pop('disable_resource_report', False)
 
     with bash_wrapper(params['filename'],
                       params['bash_trace'],
                       params['stderr_guard'],
                       log_sub_dir=params.get("process_number", None),
-                      process_number=params.get("process_number", None),
-                      run_check_complete=False):
+                      process_number=params.get("process_number", None)):
         create_bash_analysis(**params)
 
     process_number = params.get('process_number')
     run_dir = os.path.dirname(params['filename'])
     log_root = os.path.join(run_dir, 'log')
     monitor_dir = os.path.join(log_root, str(process_number)) if process_number else log_root
-    monitor = ResourceMonitor(output_dir=monitor_dir, poll_interval=resource_monitor_interval, generate_report=False)
+    monitor = ResourceMonitor(output_dir=monitor_dir, poll_interval=resource_monitor_interval, generate_report=False,
+                              enabled=not disable_resource_report)
     proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
@@ -326,26 +375,32 @@ def run_analysis(**params):
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
 
-    # Check and wait for loggers to complete
-    _ensure_pytool_logs_complete(monitor_dir)
-    logging.debug("run_analysis: log completeness check for %s took %.2fs", monitor_dir, time.time() - check_start)
-
     bash_trace = stdout.decode('utf-8')
     logging.info(bash_trace)
+
+    # Check and wait for loggers to complete
+    _ensure_pytool_logs_complete(
+        monitor_dir,
+        params.get('custom_gulcalc_log_start'),
+        params.get('custom_gulcalc_log_finish'),
+    )
+    logging.debug("run_analysis: log completeness check for %s took %.2fs", monitor_dir, time.time() - check_start)
     return params['fifo_queue_dir'], bash_trace
 
 
 @oasis_log()
 def run_outputs(**params):
     resource_monitor_interval = params.pop('resource_monitor_interval', 1.0)
+    disable_resource_report = params.pop('disable_resource_report', False)
 
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'],
-                      log_sub_dir='out', run_check_complete=False):
+                      log_sub_dir='out'):
         create_bash_outputs(**params)
 
     run_dir = os.path.dirname(params['filename'])
     log_root = os.path.join(run_dir, 'log')
-    monitor = ResourceMonitor(output_dir=os.path.join(log_root, 'out'), poll_interval=resource_monitor_interval, log_root=log_root)
+    monitor = ResourceMonitor(output_dir=os.path.join(log_root, 'out'), poll_interval=resource_monitor_interval,
+                              log_root=log_root, enabled=not disable_resource_report)
     proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
@@ -359,10 +414,10 @@ def run_outputs(**params):
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
 
+    bash_trace = stdout.decode('utf-8')
+    logging.info(bash_trace)
+
     # Check and wait for loggers to complete
     _ensure_pytool_logs_complete(out_log_dir)
     logging.debug("run_outputs: log completeness check for %s took %.2fs", out_log_dir, time.time() - check_start)
-
-    bash_trace = stdout.decode('utf-8')
-    logging.info(bash_trace)
     return bash_trace

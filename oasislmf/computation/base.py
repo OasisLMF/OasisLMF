@@ -242,7 +242,7 @@ class ComputationStep:
         """Return a json schema equivalent to validate the input of the command line"""
         arg_type_to_json_type = {
             str: "string",
-            int: "number",
+            int: "integer",
             float: "number",
             str2bool: "boolean",
         }

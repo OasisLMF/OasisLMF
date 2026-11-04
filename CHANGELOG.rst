@@ -1,6 +1,35 @@
 OasisLMF Changelog
 ==================
 
+`2.5.8`_
+ ---------
+* [#2060](https://github.com/OasisLMF/OasisLMF/pull/2060) - fix(pre-analysis): preserve original exposure file format for snapshot saves
+* [#2063](https://github.com/OasisLMF/OasisLMF/pull/2063) - feat(gulmc): coverage dependency (source-driven conditional vulnerability)
+* [#2108](https://github.com/OasisLMF/OasisLMF/pull/2108) - Dummy model vectorise
+* [#2130](https://github.com/OasisLMF/OasisLMF/pull/2130) - Only Track issues with the hubspot label 
+* [#2132](https://github.com/OasisLMF/OasisLMF/pull/2132) - Fix fmpy back-allocation rule 1 for layers above layer 1
+* [#2133](https://github.com/OasisLMF/OasisLMF/pull/2133) - Fix IntCastingNaNError in write_empty_policy_layer when an account has no policy-layer terms
+* [#2135](https://github.com/OasisLMF/OasisLMF/pull/2135) -  Pre-analysis hook constructs the user's class twice and prints kwargs
+* [#2138](https://github.com/OasisLMF/OasisLMF/pull/2138) - fix(lookup): reproject vector geometries to EPSG:4326 in build_rtree (#2134)
+* [#2140](https://github.com/OasisLMF/OasisLMF/pull/2140) - fix/csvtobin_pipe
+* [#2141](https://github.com/OasisLMF/OasisLMF/pull/2141) - fix/elt-plt-reset-state-buffer-full
+* [#2142](https://github.com/OasisLMF/OasisLMF/pull/2142) - fix/rerun-stale-fifo-redirect
+* [#2148](https://github.com/OasisLMF/OasisLMF/pull/2148) - Make optional arguments not required
+* [#2150](https://github.com/OasisLMF/OasisLMF/pull/2150) - docs: scope the docstring rule, and correct what CI enforces
+* [#2152](https://github.com/OasisLMF/OasisLMF/pull/2152) - Add global logging options to all computaion funcs
+* [#2154](https://github.com/OasisLMF/OasisLMF/pull/2154) - fix(cli): print help when oasislmf api get is called without options set
+* [#2155](https://github.com/OasisLMF/OasisLMF/pull/2155) - feature/not-modelled-locations
+* [#2157](https://github.com/OasisLMF/OasisLMF/pull/2157) - Parallelise the ExposurePreAnalysis hook by account group
+* [#2158](https://github.com/OasisLMF/OasisLMF/pull/2158) - docs: author version availability as NEXT, resolve it at release
+* [#2160](https://github.com/OasisLMF/OasisLMF/pull/2160) - fix(losses): pre-build GUL structures for the engine that actually runs
+* [#2163](https://github.com/OasisLMF/OasisLMF/pull/2163) - Check and wait for pytools logging to complete
+* [#2164](https://github.com/OasisLMF/OasisLMF/pull/2164) - FileNotFoundError on GenerateLossesDir.run
+* [#2166](https://github.com/OasisLMF/OasisLMF/pull/2166) - feat(lookup): add geog_lookup builtin for OED GeogScheme/GeogName (#2144)
+* [#2167](https://github.com/OasisLMF/OasisLMF/pull/2167) - fix/gul_error_csv_write
+* [#2170](https://github.com/OasisLMF/OasisLMF/pull/2170) - Fix Crash in a Cyber model using PreAnalysis hook 
+* [#2173](https://github.com/OasisLMF/OasisLMF/pull/2173) - Fix FootprintCsv crashing on a bare pd.read_csv() call
+.. _`2.5.8`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.7...2.5.8
+
 `2.5.7`_
  ---------
 * [#2065](https://github.com/OasisLMF/OasisLMF/pull/2065) - docs: Diátaxis restructure + ktools→pytools kernel + executable notebooks

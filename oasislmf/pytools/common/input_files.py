@@ -141,11 +141,11 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
         if correlations_file.exists():
             logger.debug(f"loading {correlations_file}")
             if ext == "bin":
-                try:
+                if correlations_file.stat().st_size == 0:
+                    # numpy.memmap cannot map an empty file
+                    correlations = np.empty(0, dtype=correlations_dtype)
+                else:
                     correlations = np.memmap(correlations_file, dtype=correlations_dtype, mode='r')
-                except ValueError:
-                    logger.debug("binary file is empty, numpy.memmap failed. trying to read correlations.csv.")
-                    correlations = read_correlations(run_dir, ignore_file_type={'bin'}, filename=correlations_file.with_suffix(".csv").name)
             elif ext == "csv":
                 # Check for header
                 with open(correlations_file, "r") as fin:
