@@ -17,6 +17,7 @@ parser.add_argument('-p', '--static-path', help='path to the folder containing t
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
                     default=30, type=int)
 parser.add_argument('-z', '--output-zeros', help='if set, output zero values', action='store_true')
+parser.add_argument('-s', '--sentinel-event', help='if set, output sentinel event delimiters', action='store_true')
 parser.add_argument('--create-summarypy-files', help='create summarypy files', action='store_true')
 parser.add_argument('summary_sets_output', help='summary set output files: -summaryset_id file_path', nargs=argparse.REMAINDER)
 

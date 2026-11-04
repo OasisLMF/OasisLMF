@@ -41,6 +41,7 @@ from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, 
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_GROSS_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
+from oasislmf.pytools.rlcombine.reader import SENTINEL_SUMMARY_ID
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.defaults import SUMMARY_OUTPUT
 
@@ -51,12 +52,13 @@ event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
 item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
 loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
 summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
-_, summary_id_dtype_size = def_to_type_and_size('summary_id')
+summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
 
 SPECIAL_SIDX_COUNT = 6  # 0 is included as a special sidx
 SUMMARY_HEADER_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size + SPECIAL_SIDX_COUNT * (loss_pair_size)
 SUMMARY_META_SIZE = 4 + 4 + summaryset_id_dtype_size  # (stream_type, sample size , summary_set_id)
 SIDX_LOSS_WRITE_SIZE = 2 * (loss_pair_size)
+SENTINEL_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size + loss_pair_size
 
 
 SUPPORTED_SUMMARY_SET_ID = list(range(1, 10))
@@ -67,6 +69,15 @@ summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 
 SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
 
+def get_sentinel_bytes(event_id):
+    byte_mv = np.empty(SENTINEL_SIZE)
+
+    cursor = 0
+    cursor = mv_write_summary_header(byte_mv, cursor, event_id, SENTINEL_SUMMARY_ID, 0)
+    cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
+    if cursor != SENTINEL_SIZE:
+        print(f'writing sentinel not as expected: {cursor}')
+    return byte_mv
 
 def create_summary_object_file(static_path, run_type):
     """Create and write summary object into static path"""
@@ -388,7 +399,7 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
     return summary_set_index_to_loss_ptr, item_id_to_summary_id
 
 
-def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
+def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_event, **kwargs):
     """Run the summary calculation, writing a summary output stream for each summary set.
 
     Args:
@@ -397,6 +408,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         static_path: path to the static files
         low_memory: if true output summary index file
         output_zeros: if true output 0 loss
+        sentinel_event: add a sentinel event delimiter with 0 summary_id for the end of an event
         **kwargs: additional options, including ``summary_sets_output``, a list of
             ``-summary_set_id summary_set_path`` pairs
     """
@@ -411,6 +423,9 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         except ValueError:
             raise Exception(error_msg)
     summary_sets_id = np.array(list(summary_sets_path.keys()))
+
+    if low_memory and sentinel_event:
+        raise ValueError('cannot combine `low_memory` and `sentinel_event`')
 
     with ExitStack() as stack:
         summary_sets_pipe = {i: stack.enter_context(open(summary_set_path, 'wb')) for i, summary_set_path in summary_sets_path.items()}
@@ -481,11 +496,16 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                         write_mv_to_stream(summary_pipe, out_byte_mv, cursor)
                         if last_loss_summary_index == -1:
                             break
+
                     if low_memory:
                         # write the per-event index records to .idx as packed binary
                         summary_sets_index_pipe[summary_set_id].write(
                             summary_stream_index[:summary_index_cursor].tobytes()
                         )
+
+                    if sentinel_event:
+                        sentinel_bytes = get_sentinel_bytes(event_id)
+                        write_mv_to_stream(summary_pipe, sentinel_bytes, SENTINEL_SIZE)
 
                 loss_summary.fill(0)
                 present_summary_id.fill(0)
