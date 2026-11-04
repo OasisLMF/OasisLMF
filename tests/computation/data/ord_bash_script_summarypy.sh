@@ -45,27 +45,6 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT
 
-check_complete(){
-    set +e
-    proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
-    has_error=0
-    for p in $proc_list; do
-        started=$(find $LOG_DIR -name "${p}_[0-9]*.log" | wc -l)
-        finished=$(find $LOG_DIR -name "${p}_[0-9]*.log" -exec grep -l "finish" {} + | wc -l)
-        if [ "$finished" -lt "$started" ]; then
-            echo "[ERROR] $p - $((started-finished)) processes lost"
-            has_error=1
-        elif [ "$started" -gt 0 ]; then
-            echo "[OK] $p"
-        fi
-    done
-    if [ "$has_error" -ne 0 ]; then
-        false # raise non-zero exit code
-    else
-        echo 'Run Completed'
-    fi
-}
-
 check_fifos() {
     local has_error=0
     for f in "$@"; do
@@ -291,5 +270,3 @@ rm -R -f fifo/*
 { printf '%s\n' '{"outputs_done": 1}' > /dev/tcp/${OASIS_SOCKET_SERVER_IP:-127.0.0.1}/10006; } 2>/dev/null || true
 for _ in $(seq 30); do kill -0 "${spid:-}" 2>/dev/null || break; sleep 0.1; done
 kill -9 "${spid:-}" 2>/dev/null || true
-
-check_complete

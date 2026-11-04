@@ -11,6 +11,9 @@ from zlib import decompress
 import numpy as np
 import pandas as pd
 import numba as nb
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
 
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from oasis_data_manager.df_reader.reader import OasisReader
@@ -25,7 +28,9 @@ from .common import (
     parquetfootprint_chunked_dir,
     parquetfootprint_chunked_lookup, footprint_bin_lookup
 )
-from oasislmf.pytools.common.data import footprint_event_dtype, areaperil_int
+from oasislmf.pytools.common.data import (
+    footprint_event_dtype, areaperil_int, memmap_or_empty, is_first_entry_zlib_compressed
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +39,33 @@ intensityMask = 1
 
 
 CURRENT_DIRECTORY = str(os.getcwd())
+
+
+def select_row_groups(metadata, sorted_areaperil_ids):
+    """Indices of the row groups in a parquet file that may hold one of sorted_areaperil_ids.
+
+    A row group is skipped only if its areaperil_id min/max statistics show it holds none of them.
+    Row groups without statistics are always kept.
+
+    Args:
+        metadata (pyarrow.parquet.FileMetaData): the parquet file's metadata
+        sorted_areaperil_ids (np.array): sorted, unique areaperil_ids being looked for
+
+    Returns: (list[int]) row group indices, in file order
+    """
+    if 'areaperil_id' not in metadata.schema.names:
+        return list(range(metadata.num_row_groups))
+    column = metadata.schema.names.index('areaperil_id')
+    keep = []
+    for i in range(metadata.num_row_groups):
+        stats = metadata.row_group(i).column(column).statistics
+        if stats is None or not stats.has_min_max:
+            keep.append(i)
+            continue
+        j = np.searchsorted(sorted_areaperil_ids, stats.min)
+        if j < len(sorted_areaperil_ids) and sorted_areaperil_ids[j] <= stats.max:
+            keep.append(i)
+    return keep
 
 
 @nb.njit(cache=True)
@@ -282,6 +314,7 @@ class FootprintBin(Footprint):
         num_intensity_bins (int): number of intensity bins in the data
         has_intensity_uncertainty (bool): if the data has uncertainty
         footprint_index (dict): map of footprint IDs with the index in the data
+        compressed (bool): if the events are zlib compressed despite the uncompressed file names
     """
     footprint_filenames = [footprint_filename, footprint_index_filename]
 
@@ -294,11 +327,16 @@ class FootprintBin(Footprint):
 
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'].item())
         self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'].item() & intensityMask)
+        # the idx entries carry the decompressed size when the header says so, even uncompressed
+        uncompressed_size = int((footprint_header['has_intensity_uncertainty'].item() & uncompressedMask) >> 1)
 
         f = self.stack.enter_context(self.storage.with_fileno(footprint_index_filename))
-        footprint_mmap = np.memmap(f, dtype=EventIndexBin, mode='r')
-
-        self.footprint_index = np.array(footprint_mmap)
+        idx_dtype = EventIndexBinZ if uncompressed_size else EventIndexBin
+        self.footprint_index = np.array(memmap_or_empty(f, idx_dtype))
+        self.compressed = self._is_compressed()
+        if self.compressed:
+            logger.warning(f"{footprint_filename} holds zlib compressed events, reading it as a compressed footprint. "
+                           f"Compressed footprints should be named {zfootprint_filename} and {zfootprint_index_filename}")
         try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
             with lookup_file as f:
@@ -313,6 +351,14 @@ class FootprintBin(Footprint):
             self.events_dict = None
 
         return self
+
+    def _is_compressed(self):
+        """Whether the events are zlib compressed, as csvtobin writes them when zipping under the
+        uncompressed file names.
+
+        Returns: (bool) True if the events are compressed
+        """
+        return is_first_entry_zlib_compressed(self.footprint, self.footprint_index)
 
     def get_event(self, event_id):
         """Gets the event from self.footprint based off the event ID passed in.
@@ -330,7 +376,10 @@ class FootprintBin(Footprint):
         if idx >= len(self.footprint_index) or self.footprint_index['event_id'][idx] != event_id:
             return None
         event_info = self.footprint_index[idx]
-        return np.frombuffer(self.footprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])], Event)
+        data = self.footprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])]
+        if self.compressed:
+            data = decompress(data)
+        return np.frombuffer(data, Event)
 
 
 class FootprintBinZ(Footprint):
@@ -362,9 +411,7 @@ class FootprintBinZ(Footprint):
             self.index_dtype = EventIndexBin
 
         f = self.stack.enter_context(self.storage.with_fileno(zfootprint_index_filename))
-
-        zfootprint_mmap = np.memmap(f, dtype=self.index_dtype, mode='r')
-        self.footprint_index = np.array(zfootprint_mmap)
+        self.footprint_index = np.array(memmap_or_empty(f, self.index_dtype))
 
         try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
@@ -420,6 +467,7 @@ class FootprintParquet(Footprint):
 
         if self.areaperil_ids is not None:
             self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
+            self.sorted_areaperil_ids = np.unique(self.areaperil_ids)
         else:
             self.areaperil_ids_filter = None
 
@@ -434,12 +482,47 @@ class FootprintParquet(Footprint):
         Returns: (np.array[Event]) the event that was extracted
         """
         dir_path = f"footprint.parquet/event_id={event_id}/"
-        if self.storage.exists(dir_path):
-            reader = self.get_df_reader(dir_path, filters=self.areaperil_ids_filter)
-            numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
-            return numpy_data
-        else:
+        if not self.storage.exists(dir_path):
             return np.empty(0, dtype=Event)
+        if self.areaperil_ids is None:
+            reader = self.get_df_reader(dir_path)
+            return self.prepare_df_data(data_frame=reader.as_pandas())
+        return self.get_event_row_groups(dir_path)
+
+    def get_event_row_groups(self, dir_path):
+        """Reads only the row groups that may hold one of self.areaperil_ids, then keeps only the
+        rows with one of those areaperil_ids.
+
+        pyarrow doesn't use row group statistics to skip data for an "in" filter, so filtering
+        with one still decompresses every row of the event. Selecting row groups from their
+        areaperil_id min/max statistics first skips most of the event when its rows are sorted by
+        areaperil_id; if they aren't, every row group overlaps and the whole event is read, as
+        before. The rows returned are the same either way.
+
+        Args:
+            dir_path (str): the event's directory in footprint.parquet
+
+        Returns: (np.array[Event]) the event's rows with one of self.areaperil_ids
+        """
+        parts = []
+        for file_path in sorted(self.storage.listdir(dir_path)):
+            if os.path.basename(file_path).startswith(('.', '_')):  # not data files, as for pyarrow datasets
+                continue
+            with self.storage.open(file_path, 'rb') as f:
+                parquet_file = pq.ParquetFile(f)
+                row_groups = select_row_groups(parquet_file.metadata, self.sorted_areaperil_ids)
+                if row_groups:
+                    # filter in arrow before converting, so only the kept rows are ever copied to numpy
+                    table = parquet_file.read_row_groups(row_groups, columns=list(Event.fields))
+                    value_set = pa.array(self.sorted_areaperil_ids, type=table.schema.field('areaperil_id').type)
+                    table = table.filter(pc.is_in(table['areaperil_id'], value_set=value_set))
+                    part = np.empty(table.num_rows, dtype=Event)
+                    for column in Event.fields:
+                        part[column] = table[column].to_numpy()
+                    parts.append(part)
+        if not parts:
+            return np.empty(0, dtype=Event)
+        return np.concatenate(parts) if len(parts) > 1 else parts[0]
 
 
 class FootprintParquetChunk(Footprint):

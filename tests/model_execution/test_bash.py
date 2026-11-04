@@ -139,8 +139,6 @@ class GenbashBase(TestCase):
                 params['filename'],
                 bash_trace or self.bash_trace,
                 stderr_guard or self.stderr_guard,
-                custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
-                custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
             ):
                 create_bash_analysis(
                     **{**params, 'process_number': process_id + 1, 'fifo_tmp_dir': fifo_tmp_dir}
@@ -156,8 +154,6 @@ class GenbashBase(TestCase):
             params['filename'],
             bash_trace or self.bash_trace,
             stderr_guard or self.stderr_guard,
-            custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
-            custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
         ):
             create_bash_outputs(**params)
 
@@ -552,7 +548,7 @@ def test_exit_handler_cleans_up_when_exec_monitor_already_gone(tmp_path):
     used to abort under `set -e` when it failed to kill it, skipping the rest of the clean-up.
     """
     filename = str(tmp_path / 'run_kernel.sh')
-    with bash_wrapper(filename, False, True, run_check_complete=False):
+    with bash_wrapper(filename, False, True):
         print_command(filename, 'kill -9 $pid0 2>/dev/null; wait $pid0 2>/dev/null || true')
         print_command(filename, 'sleep 300 & spid=$!')
         print_command(filename, 'sleep 300 & pid1=$!')

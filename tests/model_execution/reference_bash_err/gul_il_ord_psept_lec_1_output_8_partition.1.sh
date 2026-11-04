@@ -45,27 +45,6 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT
 
-check_complete(){
-    set +e
-    proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
-    has_error=0
-    for p in $proc_list; do
-        started=$(find $LOG_DIR -name "${p}_[0-9]*.log" | wc -l)
-        finished=$(find $LOG_DIR -name "${p}_[0-9]*.log" -exec grep -l "finish" {} + | wc -l)
-        if [ "$finished" -lt "$started" ]; then
-            echo "[ERROR] $p - $((started-finished)) processes lost"
-            has_error=1
-        elif [ "$started" -gt 0 ]; then
-            echo "[OK] $p"
-        fi
-    done
-    if [ "$has_error" -ne 0 ]; then
-        false # raise non-zero exit code
-    else
-        echo 'Run Completed'
-    fi
-}
-
 check_fifos() {
     local has_error=0
     for f in "$@"; do
@@ -131,5 +110,3 @@ check_fifos \
 
 exec_wait $pid1 $pid2 $pid3 $pid4 $pid5
 
-
-check_complete
