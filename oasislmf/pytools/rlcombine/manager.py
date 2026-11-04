@@ -195,18 +195,17 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv,
     curr_record_offset = [0 for _ in range(n_inputs)]
 
     previous_summary_id = [0 for _ in range(n_inputs)]
-    remaining_inputs = list(range(n_inputs))
     finished = [False for _ in range(n_inputs)]
     while True:
         # Check if all inputs are finished for current event
-        for i, k in enumerate(remaining_inputs):
+        for k, _ in enumerate(finished):
             if curr_record_offset[k] == curr_event_buffers[k]['summary_ids'].shape[0]:
-                finished[i] = True
+                finished[k] = True
 
         if all(finished):
             return cursor, idx_cursor
 
-        curr_summary_id = min([curr_event_buffers[k]['summary_ids'][curr_record_offset[k]] for k in remaining_inputs])
+        curr_summary_id = min([curr_event_buffers[k]['summary_ids'][curr_record_offset[k]] for k, is_finished in enumerate(finished) if not is_finished])
 
         # create a new record + loss array
         new_record = np.empty(1, dtype=record_dtype)[0]
@@ -216,7 +215,7 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv,
 
         regular_loss_pairs = np.zeros(len_sample, dtype=sidx_pair_dtype)
         regular_loss_pairs['sidx'] = np.arange(len_sample, dtype=sidx_dtype) + 1
-        special_loss_pairs = np.empty(2, dtype=sidx_pair_dtype)
+        special_loss_pairs = np.zeros(2, dtype=sidx_pair_dtype)
         special_loss_pairs[0]['sidx'] = MAX_LOSS_IDX
         special_loss_pairs[1]['sidx'] = MEAN_IDX
 
@@ -225,7 +224,9 @@ def merge_events(input_queues, n_inputs, len_sample, out_byte_mv,
         idx_buffer[idx_cursor]['summary_id'] = curr_summary_id
         idx_buffer[idx_cursor]['offset'] = cursor
 
-        for k in remaining_inputs:
+        for k, is_finished in enumerate(finished):
+            if is_finished:
+                continue
             k_curr_record_offset = curr_record_offset[k]
             k_curr_buffer = curr_event_buffers[k]
             k_curr_summary_id = k_curr_buffer['summary_ids'][k_curr_record_offset]
