@@ -292,11 +292,25 @@ class GenerateFiles(ComputationStep):
             keys_errors_df = pd.DataFrame(columns=['locid'])
 
         returned_locid = set(keys_errors_df['locid']).union(set(keys_df['locid']))
-        del keys_errors_df
 
         missing_ids = set(location_df['loc_id']).difference(returned_locid)
         if len(missing_ids) > 0:
             raise OasisException(f'Lookup error: missing "loc_id" values from keys return: {list(missing_ids)}')
+
+        # If not in det. loss gen. scenario, write exposure summary file. Done before the GUL inputs
+        # so that it uses the keys already in memory, and the keys errors can be freed after it.
+        if summarise_exposure:
+            write_exposure_summary(
+                target_dir,
+                location_df,
+                exposure_profile=location_profile,
+                additional_fields=(self.settings.get('model_settings', {})
+                                   .get('summary_report_fields', [])),
+                intermediary_csv=self.intermediary_csv,
+                keys_df=keys_df,
+                keys_errors_df=keys_errors_df,
+            )
+        del keys_errors_df
 
         # Columns from loc file to assign group_id
         model_damage_group_fields = []
@@ -349,19 +363,6 @@ class GenerateFiles(ComputationStep):
             do_disaggregation=self.do_disaggregation,
             coverage_dependency_settings=get_coverage_dependency_settings(data=model_settings)
         )
-
-        # If not in det. loss gen. scenario, write exposure summary file
-        if summarise_exposure:
-            write_exposure_summary(
-                target_dir,
-                location_df,
-                keys_fp=_keys_fp,
-                keys_errors_fp=_keys_errors_fp,
-                exposure_profile=location_profile,
-                additional_fields=(model_settings.get('model_settings', {})
-                                   .get('summary_report_fields', [])),
-                intermediary_csv=self.intermediary_csv,
-            )
 
         # If exposure summary set, write valid columns for summary levels to file
         if summarise_exposure:
