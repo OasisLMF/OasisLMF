@@ -1346,9 +1346,9 @@ def rl(
             process_counter=process_counter,
             combine_levels=combine_levels,
             passthrough_levels=passthrough_levels, # requested IP levels
-            fifo_dir='fifo/',
-            stderr_guard=True,
-            summarypy_low_memory=False,
+            fifo_dir=fifo_dir,
+            stderr_guard=stderr_guard,
+            summarypy_low_memory=summarypy_low_memory,
         )
 
     for inuring_priority in combine_levels:
