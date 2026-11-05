@@ -23,6 +23,8 @@ event based intermediary data structure::
     loss_summary : 2D array of losses for each summary
                    loss_summary[loss_index[summary_set_index], sidx] = loss
     is_risk_affected : array to store in if a risk has already been affected or not in this event
+    affected_risks : risks_i set in is_risk_affected during the event (the first affected_risks_n[0] entries),
+                     so that only those are reset at the end of the event
 """
 import numpy as np
 import numba as nb
@@ -182,7 +184,7 @@ def extract_risk_info(len_item_id, summary_map):
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                 loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-                item_id_to_risks_i, is_risk_affected, has_affected_risk):
+                item_id_to_risks_i, is_risk_affected, has_affected_risk, affected_risks, affected_risks_n):
     """Read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
     while True:
@@ -229,6 +231,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     new_risk = 0
                 else:
                     new_risk = is_risk_affected[risk_i] = 1
+                    affected_risks[affected_risks_n[0]] = risk_i
+                    affected_risks_n[0] += 1
 
             for summary_set_index in summary_set_indices:
                 if item_id >= item_id_to_summary_id.shape[0] or item_id_to_summary_id[item_id, summary_set_index] == null_index:
@@ -251,6 +255,26 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
     # Buffer exhausted; caller may re-enter to accumulate more sidx_loss for this event.
     # SummaryReader.finalize_event handles the per-event sort once, just before yield.
     return cursor, event_id, item_id, 0
+
+
+@nb.njit(cache=True)
+def reset_event(summary_set_indices, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end,
+                present_summary_id, loss_summary, is_risk_affected, affected_risks, affected_risks_n):
+    """Reset the event based data structures for the next event.
+
+    Only the entries used by the event are reset: the loss_summary rows and present_summary_id entries of the
+    summary ids present in the event (for each summary set read), and the risks it affected. Resetting the whole
+    arrays would cost, on every event, time proportional to the size of the portfolio rather than of the event.
+    """
+    for summary_set_index in summary_set_indices:
+        start = summary_set_index_to_loss_ptr[summary_set_index]
+        for present_i in range(start, summary_set_index_to_present_loss_ptr_end[summary_set_index]):
+            loss_summary[start + present_summary_id[present_i] - 1, :] = 0
+            present_summary_id[present_i] = 0
+        summary_set_index_to_present_loss_ptr_end[summary_set_index] = start
+    for risk_j in range(affected_risks_n[0]):
+        is_risk_affected[affected_risks[risk_j]] = 0
+    affected_risks_n[0] = 0
 
 
 @nb.njit(cache=True)
@@ -429,7 +453,7 @@ class SummaryReader(EventReader):
 
     def __init__(self, summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                  loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
+                 item_id_to_risks_i, is_risk_affected, has_affected_risk, affected_risks, affected_risks_n):
         self.summary_set_indices = summary_set_indices
         self.summary_set_index_to_loss_ptr = summary_set_index_to_loss_ptr
         self.item_id_to_summary_id = item_id_to_summary_id
@@ -440,6 +464,8 @@ class SummaryReader(EventReader):
         self.item_id_to_risks_i = item_id_to_risks_i
         self.is_risk_affected = is_risk_affected
         self.has_affected_risk = has_affected_risk
+        self.affected_risks = affected_risks
+        self.affected_risks_n = affected_risks_n
         self.logger = logger
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
@@ -447,7 +473,8 @@ class SummaryReader(EventReader):
             byte_mv, cursor, valid_buff, event_id, item_id,
             self.summary_set_indices, self.summary_set_index_to_loss_ptr, self.item_id_to_summary_id,
             self.loss_index, self.loss_summary, self.present_summary_id, self.summary_set_index_to_present_loss_ptr_end,
-            self.item_id_to_risks_i, self.is_risk_affected, self.has_affected_risk
+            self.item_id_to_risks_i, self.is_risk_affected, self.has_affected_risk,
+            self.affected_risks, self.affected_risks_n
         )
 
     def finalize_event(self, **kwargs):
@@ -575,11 +602,13 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
         summary_set_index_to_present_loss_ptr_end = np.array(summary_set_index_to_loss_ptr)
         loss_summary = np.zeros((summary_set_index_to_loss_ptr[-1], len_sample + SPECIAL_SIDX_COUNT), dtype=oasis_float)
         is_risk_affected = np.zeros(summary_info[0]['nb_risk'], dtype=oasis_int)
+        affected_risks = np.empty(summary_info[0]['nb_risk'], dtype=oasis_int)
+        affected_risks_n = np.zeros(1, dtype=np.int64)
 
         summary_reader = SummaryReader(
             summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
             loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-            item_id_to_risks_i, is_risk_affected, has_affected_risk)
+            item_id_to_risks_i, is_risk_affected, has_affected_risk, affected_risks, affected_risks_n)
 
         out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
 
@@ -635,10 +664,8 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
                             summary_stream_index[:summary_index_cursor].tobytes()
                         )
 
-                loss_summary.fill(0)
-                present_summary_id.fill(0)
-                summary_set_index_to_present_loss_ptr_end[:] = summary_set_index_to_loss_ptr
-                is_risk_affected.fill(0)
+                reset_event(summary_set_indices, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end,
+                            present_summary_id, loss_summary, is_risk_affected, affected_risks, affected_risks_n)
 
         except Exception:
             data = {
