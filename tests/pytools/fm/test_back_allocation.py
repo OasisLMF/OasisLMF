@@ -1,4 +1,7 @@
 """End to end tests of the fm back-allocation rules on a small multi layer structure."""
+import os
+import subprocess
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -126,3 +129,20 @@ def test_back_allocated_losses_sum_to_the_layer_loss_for_any_losses_and_limits(a
         for layer_outputs, limit in [((1, 3), limits[0]), ((2, 4), limits[1])]:
             allocated = sum(losses.get((output_id, sidx), 0.) for output_id in layer_outputs)
             assert allocated == pytest.approx(min(total_gul, float(limit)), rel=1e-5, abs=1e-2)
+
+
+def test_allocation_rule_0_builds_with_item_level_outputs(tmp_path):
+    """fm_xref maps item ids to outputs whatever the allocation rule, but rule 0 outputs at the top level,
+    which has fewer nodes. The structure build must not index past the top level. It runs in a subprocess
+    with the JIT disabled so the index is always checked: under the JIT an out of bounds write corrupts
+    memory silently or aborts the process.
+    See https://github.com/OasisLMF/OasisLMF/issues/2256.
+    """
+    write_static(tmp_path)
+
+    build = subprocess.run(
+        [sys.executable, '-c', 'import sys; from oasislmf.pytools.fm.financial_structure import create_financial_structure; '
+                               'create_financial_structure(0, sys.argv[1])', str(tmp_path)],
+        capture_output=True, text=True, env={**os.environ, 'NUMBA_DISABLE_JIT': '1'})
+
+    assert build.returncode == 0, build.stderr[-2000:]
