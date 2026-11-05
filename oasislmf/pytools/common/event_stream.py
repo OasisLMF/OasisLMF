@@ -7,6 +7,8 @@ import sys
 
 import numpy as np
 import numba as nb
+from numba.core import cgutils, config as nb_config, types
+from numba.extending import intrinsic, overload
 
 from .data import def_to_type_and_size
 
@@ -113,7 +115,118 @@ def init_streams_in(files_in, stack):
     return streams_in, get_and_check_header_in(streams_in)
 
 
-@nb.jit(nopython=True, cache=True)
+# mv_read / mv_write move one scalar at a time between a byte buffer and a typed value. They are
+# the innermost call of every stream reader and writer, so they run once per sidx/loss pair.
+#
+# Refcounting in hot loops (issue #2240). In numba, every array view (slice, field view, `.view()`)
+# and every call that passes an array costs an atomic NRT incref/decref pair. numba <= 0.65 deleted
+# these pairs from small helpers (removerefctpass); numba PR #10511 removed that pass in 0.66, and
+# llvmlite's RefPrune cannot remove a pair across a call layer or a `raise`. So per-value loops in
+# pytools avoid creating views and avoid calls that take arrays; other modules refer to this note.
+#
+# The natural numba spelling, `byte_mv[cursor:cursor + itemsize].view(_dtype)[0]`, builds two
+# temporary arrays per call, and its refcounting was ~40% of gulmc's run time. A single typed view
+# of the whole buffer is not an option: the stream mixes field types (loss is f4 or f8 depending on
+# OASIS_FLOAT), so fields sit at offsets that are not multiples of their own size.
+#
+# Instead, under JIT, the value is loaded/stored straight through a pointer to byte `cursor`
+# (unaligned, native byte order, exactly what `.view()` does), with no array temporaries at all.
+# mv_read / mv_write themselves stay plain Python so they still work without JIT (from Python
+# callers and under NUMBA_DISABLE_JIT); the @overload below is what jitted callers compile.
+#
+# Overrun is checked only under NUMBA_BOUNDSCHECK, like every other numba array access. An
+# always-on check costs ~17% of gulmc on numba >= 0.66: its `raise` branch sits between the
+# incref/decref numba now emits around each inlined write, and llvmlite's RefPrune cannot remove a
+# pair that spans a raise. Callers size the buffer before writing (gulpy/gulmc via
+# adjust_byte_mv_size and a per-subtree space check, fmpy/summarypy by testing the cursor against
+# PIPE_CAPACITY before each record); CI runs with the check on. The setting is read when the caller
+# is compiled: a cache built without NUMBA_BOUNDSCHECK keeps the check off (see CLAUDE.md), and a
+# per-function `@njit(boundscheck=True)` does not enable it.
+#
+# The helpers below marked `pragma: no cover` run only while numba compiles a jitted caller. The
+# uploaded coverage comes from the NUMBA_DISABLE_JIT run, where nothing is compiled; the JIT test
+# jobs and test_event_stream_mv.py exercise them.
+
+
+def _scalar_type_of(dtype):  # pragma: no cover
+    """Numba scalar type named by a dtype argument, or None if it is not a plain scalar.
+
+    Callers pass both `np.dtype(...)` instances (typed as DType) and scalar classes such as
+    `np.int32` (typed as NumberClass). A structured dtype (a Record) returns None, so it takes the
+    view-based fallback rather than a scalar load/store.
+    """
+    if isinstance(dtype, types.DType):
+        scalar_type = dtype.dtype
+    elif isinstance(dtype, types.NumberClass):
+        scalar_type = dtype.instance_type
+    else:
+        return None
+    return scalar_type if _is_scalar(scalar_type) else None
+
+
+def _is_contiguous_byte_array(byte_mv):  # pragma: no cover
+    return isinstance(byte_mv, types.Array) and byte_mv.ndim == 1 and byte_mv.layout == 'C' and byte_mv.dtype.bitwidth == 8
+
+
+def _is_scalar(value):  # pragma: no cover
+    return isinstance(value, (types.Number, types.Boolean))
+
+
+def _check_in_buffer(byte_mv, cursor, itemsize):  # pragma: no cover
+    pass  # pure-Python path: the view-based code raises on overrun by itself
+
+
+@overload(_check_in_buffer)
+def _check_in_buffer_jit(byte_mv, cursor, itemsize):  # pragma: no cover
+    if not nb_config.BOUNDSCHECK:
+        return lambda byte_mv, cursor, itemsize: None
+
+    def impl(byte_mv, cursor, itemsize):
+        if cursor < 0 or cursor + itemsize > byte_mv.shape[0]:
+            raise IndexError("event stream cursor out of the byte buffer")
+    return impl
+
+
+def _pointer_at(context, builder, sig, args, scalar_type):  # pragma: no cover
+    """LLVM pointer to `scalar_type` at byte offset `cursor` (args[1]) of the byte array args[0]."""
+    ary = context.make_array(sig.args[0])(context, builder, args[0])
+    offset = context.cast(builder, args[1], sig.args[1], types.intp)
+    addr = cgutils.pointer_add(builder, ary.data, offset)
+    return builder.bitcast(addr, context.get_value_type(scalar_type).as_pointer())
+
+
+# The two intrinsics are only called from the mv_read / mv_write overloads below, which have already
+# checked for a contiguous (and, to store, mutable) byte buffer, a dtype and a scalar value.
+@intrinsic
+def _unaligned_load(typingctx, byte_mv, cursor, dtype):  # pragma: no cover
+    scalar_type = _scalar_type_of(dtype)
+
+    def codegen(context, builder, sig, args):
+        return builder.load(_pointer_at(context, builder, sig, args, scalar_type), align=1)
+    return scalar_type(byte_mv, cursor, dtype), codegen
+
+
+@intrinsic
+def _unaligned_store(typingctx, byte_mv, cursor, dtype, value):  # pragma: no cover
+    scalar_type = _scalar_type_of(dtype)
+
+    def codegen(context, builder, sig, args):
+        # same implicit conversion as `view[0] = value`, e.g. a float64 loss into an f4 field
+        val = context.cast(builder, args[3], sig.args[3], scalar_type)
+        builder.store(val, _pointer_at(context, builder, sig, args, scalar_type), align=1)
+        return context.get_dummy_value()
+    return types.none(byte_mv, cursor, dtype, value), codegen
+
+
+def _mv_read_view(byte_mv, cursor, _dtype, itemsize):
+    return byte_mv[cursor:cursor + itemsize].view(_dtype)[0], cursor + itemsize
+
+
+def _mv_write_view(byte_mv, cursor, _dtype, itemsize, value):
+    byte_mv[cursor:cursor + itemsize].view(_dtype)[0] = value
+    return cursor + itemsize
+
+
 def mv_read(byte_mv, cursor, _dtype, itemsize):
     """Read a certain dtype from numpy byte view starting at cursor, return the value and the index of the end of the object
 
@@ -126,7 +239,18 @@ def mv_read(byte_mv, cursor, _dtype, itemsize):
     Returns:
         (object value, end of object index)
     """
-    return byte_mv[cursor:cursor + itemsize].view(_dtype)[0], cursor + itemsize
+    return _mv_read_view(byte_mv, cursor, _dtype, itemsize)
+
+
+@overload(mv_read)
+def _mv_read_jit(byte_mv, cursor, _dtype, itemsize):  # pragma: no cover
+    if _scalar_type_of(_dtype) is None or not _is_contiguous_byte_array(byte_mv):
+        return _mv_read_view  # unusual buffer: keep the view-based implementation
+
+    def impl(byte_mv, cursor, _dtype, itemsize):
+        _check_in_buffer(byte_mv, cursor, itemsize)
+        return _unaligned_load(byte_mv, cursor, _dtype), cursor + itemsize
+    return impl
 
 
 @nb.njit(cache=True)
@@ -160,7 +284,6 @@ def reservation_overflows(idx, reservation, capacity, name):
     return False
 
 
-@nb.jit(nopython=True, cache=True)
 def mv_write(byte_mv, cursor, _dtype, itemsize, value) -> int:
     """Load an object into the numpy byte view at index cursor, return the index of the end of the object
 
@@ -174,8 +297,22 @@ def mv_write(byte_mv, cursor, _dtype, itemsize, value) -> int:
     Returns:
         end of object index
     """
-    byte_mv[cursor:cursor + itemsize].view(_dtype)[0] = value
-    return cursor + itemsize
+    return _mv_write_view(byte_mv, cursor, _dtype, itemsize, value)
+
+
+@overload(mv_write)
+def _mv_write_jit(byte_mv, cursor, _dtype, itemsize, value):  # pragma: no cover
+    if _scalar_type_of(_dtype) is None or not _is_contiguous_byte_array(byte_mv) or not byte_mv.mutable:
+        return _mv_write_view  # unusual buffer: keep the view-based implementation
+
+    if _is_scalar(value):
+        def impl(byte_mv, cursor, _dtype, itemsize, value):
+            _check_in_buffer(byte_mv, cursor, itemsize)
+            _unaligned_store(byte_mv, cursor, _dtype, value)
+            return cursor + itemsize
+        return impl
+
+    return _mv_write_view  # any other value type: keep the view-based implementation's semantics
 
 
 @nb.jit(nopython=True)
@@ -264,7 +401,10 @@ def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
                                      loss_type=loss_type, loss_size=loss_size)
 
 
-@nb.jit(nopython=True, cache=True)
+# inlined so byte_mv is not increfed/decrefed across a call boundary once per sidx/loss pair;
+# measured: ~14% less gulmc run time on numba 0.68, neutral on 0.61 (issue #2240).
+# Inlining the outer, uncached wrappers too was measured to slow numba 0.61 down, so they stay calls.
+@nb.jit(nopython=True, cache=True, inline='always')
 def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
                               loss_type, sidx_size, loss_size) -> int:
     """Cached write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object

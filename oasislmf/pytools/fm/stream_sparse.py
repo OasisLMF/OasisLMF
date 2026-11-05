@@ -84,15 +84,13 @@ def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
 
 
 @nb.jit(cache=True, nopython=True)
-def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
-    """Insert a (sidx, loss) pair into the sparse arrays, maintaining sorted sidx order.
+def insert_loss_out_of_order(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
+    """Insert a (sidx, loss) pair whose sidx is below the node's last one, keeping sidx sorted.
 
-    The sidx values must be stored in sorted order for efficient lookup during
-    computation. This function handles three cases:
-
-    1. First value for this node: insert at current position
-    2. Sidx > last sidx: append at end (common case, O(1))
-    3. Sidx < last sidx: binary search for position, shift existing values (O(n))
+    The sidx values must be stored in sorted order for efficient lookup during computation. They
+    usually arrive in order, and ``read_buffer`` appends those directly (first value for the node,
+    or sidx > last sidx: O(1)). This is the rare remaining case: binary-search the insertion point
+    and shift the tail up by one (O(n)).
 
     Raises ValueError if duplicate sidx is detected (stream corruption).
 
@@ -104,18 +102,12 @@ def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
         sidx_val: Sample index values
         loss_val: Loss values
     """
-    # Fast path: empty or append at end (sidx values usually arrive in order)
-    if ((sidx_indptr[compute_i - 1] == sidx_indptr[compute_i])
-            or (sidx_val[sidx_indptr[compute_i] - 1] < sidx)):
-        insert_i = sidx_indptr[compute_i]
-    else:
-        # Slow path: need to insert in middle, shift existing values
-        insert_i = np.searchsorted(sidx_val[sidx_indptr[compute_i - 1]: sidx_indptr[compute_i]], sidx) + sidx_indptr[compute_i - 1]
-        if sidx_val[insert_i] == sidx:
-            raise ValueError("duplicated sidx in input stream")
-        # Shift values to make room for insertion
-        sidx_val[insert_i + 1: sidx_indptr[compute_i] + 1] = sidx_val[insert_i: sidx_indptr[compute_i]]
-        loss_val[insert_i + 1: sidx_indptr[compute_i] + 1] = loss_val[insert_i: sidx_indptr[compute_i]]
+    insert_i = np.searchsorted(sidx_val[sidx_indptr[compute_i - 1]: sidx_indptr[compute_i]], sidx) + sidx_indptr[compute_i - 1]
+    if sidx_val[insert_i] == sidx:
+        raise ValueError("duplicated sidx in input stream")
+    # Shift values to make room for insertion
+    sidx_val[insert_i + 1: sidx_indptr[compute_i] + 1] = sidx_val[insert_i: sidx_indptr[compute_i]]
+    loss_val[insert_i + 1: sidx_indptr[compute_i] + 1] = loss_val[insert_i: sidx_indptr[compute_i]]
     sidx_val[insert_i] = sidx
     loss_val[insert_i] = loss
     sidx_indptr[compute_i] += 1
@@ -202,8 +194,17 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                         # Chance of loss - store separately for pass-through
                         pass_through[compute_idx['next_compute_i']] = loss
                     else:
-                        # Regular sample or special index (-5, -3, -1, 1..N)
-                        add_new_loss(sidx, loss, compute_idx['next_compute_i'], sidx_indptr, sidx_val, loss_val)
+                        # Regular sample or special index (-5, -3, -1, 1..N), appended in sidx order.
+                        # The in-order case is written out rather than called: a call taking the three
+                        # arrays per pair cost ~44% of fmpy (see the refcount note in common/event_stream.py).
+                        compute_i = compute_idx['next_compute_i']
+                        end = sidx_indptr[compute_i]
+                        if sidx_indptr[compute_i - 1] == end or sidx_val[end - 1] < sidx:
+                            sidx_val[end] = sidx
+                            loss_val[end] = loss
+                            sidx_indptr[compute_i] = end + 1
+                        else:
+                            insert_loss_out_of_order(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val)
             else:
                 cursor += n_pairs * loss_pair_size
         else:
