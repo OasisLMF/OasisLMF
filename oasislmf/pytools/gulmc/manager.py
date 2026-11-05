@@ -609,9 +609,8 @@ def pdf_to_cdf(pdf, n_pdf, cdf):
     """Write the cumulative distribution of ``pdf[:n_pdf]`` into ``cdf`` and return its valid length.
 
     The cdf stops once it reaches 1 (to float32 precision) and drops trailing bins that add no
-    probability, so the returned length can be shorter than ``n_pdf``. The length is returned
-    instead of a ``cdf[:n]`` slice because every array view costs an NRT incref/decref pair, and on
-    numba >= 0.66 those are no longer pruned in the per-item hot loop (issue #2240).
+    probability, so the returned length can be shorter than ``n_pdf``. It returns a length rather
+    than a ``cdf[:n]`` slice so the per-item loop creates no array view (see the refcount note in common/event_stream.py).
     """
     cumsum = 0
     i = 0
@@ -746,9 +745,8 @@ def fill_haz_bins(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment, 
                   intensity_bin_peril_ids, intensity_bins, haz_bin_id, haz_pdf_prob):
     """Copy an item's hazard intensity bin ids and probabilities into the per-item scratch buffers.
 
-    The item's records are ``haz_pdf[haz_start:haz_start + Nhaz_records]``. They are read by index
-    and copied rather than sliced: a slice or a field view (``records['probability']``) is an array
-    view, and each view costs an NRT incref/decref pair per item on numba >= 0.66 (issue #2240).
+    The item's records are ``haz_pdf[haz_start:haz_start + Nhaz_records]``, read by index and copied
+    rather than sliced or field-viewed (see the refcount note in common/event_stream.py).
 
     With no dynamic footprint the intensity bin ids are read directly from the hazard pdf. With a
     dynamic footprint the recorded intensities are shifted by ``intensity_adjustment``, clamped to
@@ -802,8 +800,7 @@ def build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, Ndamage_bins_max,
     zero).
 
     The pdf is written to rows ``[:Nhaz_bins]`` of ``vuln_pdf_empty`` with explicit loops rather
-    than through a ``vuln_pdf_empty[:Nhaz_bins]`` view or row slices: each view costs an NRT
-    incref/decref pair per item on numba >= 0.66 (issue #2240).
+    than through views or row slices (see the refcount note in common/event_stream.py).
 
     Args:
         item (np.void): the item record (uses areaperil_agg_vuln_idx / vulnerability_idx).
@@ -881,8 +878,7 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
     CDF always ends up in ``eff_damage_cdf`` (a cache hit copies it there), and the per-hazard-bin
     CDFs in rows ``[:Nhaz_bins]`` of ``haz_i_to_vuln_cdf`` with their lengths in
     ``haz_i_to_Ndamage_bins`` (only when ``effective_damageability`` is False, the only case in which
-    the caller reads them). Every array view costs an NRT incref/decref pair per item on
-    numba >= 0.66 (issue #2240); copying a few tens of floats is cheaper.
+    the caller reads them). Copying a few tens of floats is cheaper than a view (see the refcount note in common/event_stream.py).
 
     Coverage dependency: for a dependent item (``is_dependent``) the vuln pdf is assembled from the
     conditional (damage-transition) matrix ``conditional_vuln_array`` — column ``haz_i`` is the
@@ -1232,7 +1228,7 @@ def compute_event_losses(compute_info,
     # source's damage pmf is written to haz_pdf_prob instead, playing the role of the hazard pdf
     haz_bin_id = np.empty(max_haz_bins, dtype=np.int32)
     haz_pdf_prob = np.empty(max_haz_bins, dtype=oasis_float)
-    # field view taken once per call rather than once per item (each view costs an NRT pair)
+    # field view taken once per call rather than once per item (see the refcount note in common/event_stream.py)
     damage_bins_interpolation = damage_bins['interpolation']
 
     # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
