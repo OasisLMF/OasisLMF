@@ -248,7 +248,7 @@ def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=
     check_function = """
 check_complete(){
     set +e
-    proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
+    proc_list="evepy modelpy gulpy fmpy gulmc summarypy rlcombine plapy katpy eltpy pltpy aalpy lecpy"
     has_error=0
     for p in $proc_list; do
         started=$(find $LOG_DIR -name "${p}_[0-9]*.log" | wc -l)
@@ -2493,11 +2493,15 @@ def create_bash_analysis(
             )
     if rl_output:
         for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
-                                                                   perspective='rl', all_layers=True): # todo: relabel to levels
+                                                                   perspective='rl', include_final=False): # todo: relabel to levels
             create_workfolders(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 work_dir, inuring_priority=inuring_priority['text']
             )
+
+        # always make it for final output
+        create_workfolders( RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
+                           filename, work_dir))
     print_command(filename, '')
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
