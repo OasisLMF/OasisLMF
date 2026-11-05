@@ -1054,6 +1054,7 @@ def test_conditional_convolution_reference():
         [0.0, 0.0, 0.1, 0.2, 0.5, 0.2],
         [0.0, 0.0, 0.0, 0.0, 0.1, 0.9],
     ], dtype='f8')
-    eff_cdf = calc_eff_damage_cdf(dependent_vuln, source_pmf, np.zeros(dependent_vuln.shape[1], dtype='f8'))
+    eff_cdf = np.zeros(dependent_vuln.shape[1], dtype='f8')
+    eff_cdf = eff_cdf[:calc_eff_damage_cdf(dependent_vuln, source_pmf, source_pmf.shape[0], eff_cdf)]
     eff_pmf = np.diff(np.concatenate(([0.0], eff_cdf)))
     np.testing.assert_allclose(eff_pmf, [0.18, 0.19, 0.21, 0.16, 0.13, 0.13], atol=1e-9)
