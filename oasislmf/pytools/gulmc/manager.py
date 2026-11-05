@@ -1054,13 +1054,15 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item
     """
     if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
         if hazard_rng_index >= 0:
-            losses[1:, item_j] = haz_z_unif[:]
+            for sample_k in range(sample_size):
+                losses[sample_k + 1, item_j] = haz_z_unif[sample_k]
         else:
             # deterministic hazard / effective damageability: no hazard intensity sampled
             losses[1:, item_j] = 0
 
     elif compute_info['debug'] == 2:  # store the random value used for the damage sampling instead of the loss
-        losses[1:, item_j] = vuln_z_unif[:]
+        for sample_k in range(sample_size):
+            losses[sample_k + 1, item_j] = vuln_z_unif[sample_k]
 
     else:  # calculate gul
         if compute_info['effective_damageability']:
@@ -1105,134 +1107,66 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item
                     source_damage_bin_stack[depth, item_j, sample_idx - 1] = src_bin
 
 
-@nb.njit(cache=True, fastmath=True)
-def compute_event_losses(compute_info,
-                         coverages,
-                         coverage_ids,
-                         items_event_data,
-                         items,
-                         sample_size,
-                         haz_pdf,
-                         haz_arr_ptr,
-                         vuln_array,
-                         conditional_vuln_array,
-                         vuln_idx_to_cond_idx,
-                         damage_bins,
-                         cdf_cache_tag,
-                         cdf_cache_nbins,
-                         cdf_cache_mask,
-                         cached_vuln_cdfs,
-                         areaperil_agg_vuln_idx_ja_offsets,
-                         areaperil_agg_vuln_idx_ja_data,
-                         losses,
-                         haz_rndms_base,
-                         vuln_rndms_base,
-                         vuln_adj,
-                         haz_eps_ij,
-                         damage_eps_ij,
-                         norm_inv_parameters,
-                         norm_inv_cdf,
-                         norm_cdf,
-                         vuln_z_unif,
-                         haz_z_unif,
-                         byte_mv,
-                         dynamic_footprint,
-                         intensity_bin_peril_ids,
-                         intensity_bins,
-                         compute_depth,
-                         source_damage_bin_stack,
-                         source_eff_damage_cdf_stack,
-                         source_eff_damage_cdf_len_stack
-                         ):
-    """Compute ground-up losses for all coverages in a single event.
+@nb.njit(cache=True, fastmath=True, _nrt=False)
+def _compute_event_losses_core(compute_info,
+                               coverages,
+                               coverage_ids,
+                               items_event_data,
+                               items,
+                               sample_size,
+                               haz_pdf,
+                               haz_arr_ptr,
+                               vuln_array,
+                               conditional_vuln_array,
+                               vuln_idx_to_cond_idx,
+                               damage_bins,
+                               cdf_cache_tag,
+                               cdf_cache_nbins,
+                               cdf_cache_mask,
+                               cached_vuln_cdfs,
+                               areaperil_agg_vuln_idx_ja_offsets,
+                               areaperil_agg_vuln_idx_ja_data,
+                               losses,
+                               haz_rndms_base,
+                               vuln_rndms_base,
+                               vuln_adj,
+                               haz_eps_ij,
+                               damage_eps_ij,
+                               norm_inv_parameters,
+                               norm_inv_cdf,
+                               norm_cdf,
+                               vuln_z_unif,
+                               haz_z_unif,
+                               byte_mv,
+                               dynamic_footprint,
+                               intensity_bin_peril_ids,
+                               intensity_bins,
+                               compute_depth,
+                               source_damage_bin_stack,
+                               source_eff_damage_cdf_stack,
+                               source_eff_damage_cdf_len_stack,
+                               haz_cdf_empty,
+                               vuln_pdf_empty,
+                               eff_damage_cdf_empty,
+                               haz_i_to_Ndamage_bins_empty,
+                               haz_i_to_vuln_cdf_empty,
+                               haz_bin_id,
+                               haz_pdf_prob,
+                               damage_bins_interpolation):
+    """Body of compute_event_losses, compiled without the numba runtime (``_nrt=False``).
 
-    Iterates over coverages and their items, looking up or computing the vulnerability cdf
-    for each item, then sampling losses using the pre-generated random numbers. Results are
-    written into a byte buffer for streaming output.
+    Without the runtime numba emits no NRT incref/decref at all, which removes the per-item
+    refcounting the inlined helpers' array arguments still cost (see the refcount note in
+    common/event_stream.py): ~16% of gulmc's CPU on a PiWind run with numba 0.68. In exchange
+    nothing in here, or in any helper it calls, may allocate (numba refuses to compile it), so the
+    scratch buffers are allocated by compute_event_losses and passed in. Every array here is an
+    argument or a view of one, kept alive by the caller for the whole call. ``_nrt`` is a private
+    numba option.
 
-    CDF caching uses a monotonic write counter and array-based slot tracking. Each unique
-    (areaperil, vuln_id[, intensity_adjustment]) CDF group has a pre-computed index stored in
-    eff_cdf_id. cdf_cache_tag[triplet_idx] records the write counter value when the CDFs were
-    cached. A slot is valid when cdf_cache_tag[triplet_idx] >= 0 and
-    cdf_cache_ctr - cdf_cache_tag[triplet_idx] < cdf_cache_size. Physical slot indexing uses
-    bitwise AND with cdf_cache_mask (power-of-two sized cache).
-
-    For effective_damageability=False, CDFs are stored as contiguous blocks:
-    slot 0 = effective damage CDF, slots 1..Nhaz_bins = per-intensity-bin vulnerability CDFs.
-
-    Args:
-        compute_info (gulmc_compute_info_type): computation state (event_id, cursor position,
-          coverage range, cdf_cache_ctr, thresholds, flags).
-        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
-        coverage_ids (numpy.array[int]): ordered list of coverage_ids to process in this event.
-        items_event_data (numpy.array[items_MC_data_type]): per-item event data populated by
-          reconstruct_coverages, containing item_idx, haz_arr_i, rng_index, hazard_rng_index,
-          and eff_cdf_id (CDF group index).
-        items (np.ndarray): items table merged with correlation parameters.
-        sample_size (int): number of random samples to draw.
-        haz_pdf (np.array[haz_arr_type]): hazard intensity pdf records for this event.
-        haz_arr_ptr (np.array[int64]): indices where each areaperil's hazard records start in haz_pdf.
-        vuln_array (np.array[float]): 3d vulnerability array of shape
-          (Nvulnerability, Ndamage_bins_max, Nintensity_bins).
-        damage_bins (np.array): damage bin dictionary with bin_from, bin_to, interpolation, damage_type.
-        cdf_cache_tag (np.array[int64]): CDF group index → write counter when cached (CDF_CACHE_EMPTY = -1).
-        cdf_cache_nbins (np.array[int32]): physical slot → CDF length (Ndamage_bins).
-        cdf_cache_mask (int64): bitmask for physical slot indexing (cdf_cache_size - 1).
-        cached_vuln_cdfs (np.array[oasis_float]): 2d cdf cache of shape (cdf_cache_size, Ndamage_bins_max).
-        areaperil_agg_vuln_idx_ja_offsets (np.array[oasis_int]): jagged array offsets.
-        areaperil_agg_vuln_idx_ja_data (np.array[agg_vuln_idx_weight_dtype]): merged structured array
-          with fields 'vuln_idx' (dense vulnerability index) and 'weight' (vulnerability weight).
-        losses (numpy.array[oasis_float]): reusable 2d buffer for loss values.
-        haz_rndms_base (numpy.array[float64]): base random values for hazard intensity sampling.
-        vuln_rndms_base (numpy.array[float64]): base random values for damage sampling.
-        vuln_adj (np.array[float]): per-vulnerability adjustment factors.
-        haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
-        damage_eps_ij (np.array[float]): correlated random values for damage sampling.
-        norm_inv_parameters (NormInversionParameters): parameters for Gaussian inversion.
-        norm_inv_cdf (np.array[float]): inverse Gaussian cdf lookup table.
-        norm_cdf (np.array[float]): Gaussian cdf lookup table.
-        vuln_z_unif (np.array[float]): reusable buffer for correlated vulnerability random values.
-        haz_z_unif (np.array[float]): reusable buffer for correlated hazard random values.
-        byte_mv (numpy.array[byte]): output byte buffer for the binary stream.
-        dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
-        intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids (length n_perils).
-        intensity_bins (np.array[int32, 2d]): shape (n_perils, max_intensity + 1) mapping
-          [peril_idx, intensity_value] -> intensity_bin_id.
-        conditional_vuln_array (np.array[oasis_float]): damage-transition matrices, indexed
-          [cond_idx, dependent damage bin - 1, source damage bin - 1]. Empty when no dependency.
-        vuln_idx_to_cond_idx (np.array[int64]): dense vuln index -> conditional row, or -1.
-        compute_depth (np.array[int32]): per entry of ``coverage_ids``, its depth in the dependency
-          forest (0 for a root), matching the DFS order the caller put them in.
-        source_damage_bin_stack (np.array[int32]): per-depth, per-item sampled damage bins, holding
-          a source coverage's result while its dependent subtree is computed.
-        source_eff_damage_cdf_stack (np.array[oasis_float]): per-depth, per-item effective damage
-          cdfs, the effective-damageability counterpart of the sampled bins.
-        source_eff_damage_cdf_len_stack (np.array[int64]): valid length of each entry of
-          ``source_eff_damage_cdf_stack``.
-
-    Returns:
-        bool: True if all coverages have been processed, False if the buffer is full and
-          the caller should flush and call again.
+    The arguments are those of compute_event_losses, followed by its scratch buffers.
     """
     cdf_cache_size = nb_int64(cdf_cache_mask + 1)
-    # a dependent's "hazard bins" are its source's damage bins, so the per-hazard-bin scratch
-    # buffers must be sized to the larger of num_damage_bins and num_intensity_bins
     n_damage_bins_total = damage_bins.shape[0]
-    # Upper bound on an item's hazard bins: an areaperil's footprint records per event (one per
-    # intensity bin, so at most vuln_array.shape[2]) or, on the dependent path, the source's damage
-    # bins. The per-item buffers below are not bounds-checked outside NUMBA_BOUNDSCHECK.
-    max_haz_bins = max(vuln_array.shape[2], n_damage_bins_total)
-    haz_cdf_empty = np.empty(max_haz_bins, dtype=oasis_float)
-    vuln_pdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
-    eff_damage_cdf_empty = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
-    haz_i_to_Ndamage_bins_empty = np.empty(max_haz_bins, dtype=oasis_int)
-    haz_i_to_vuln_cdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
-    # per-item hazard records, copied out of haz_pdf (see fill_haz_bins); for a dependent the
-    # source's damage pmf is written to haz_pdf_prob instead, playing the role of the hazard pdf
-    haz_bin_id = np.empty(max_haz_bins, dtype=np.int32)
-    haz_pdf_prob = np.empty(max_haz_bins, dtype=oasis_float)
-    # field view taken once per call rather than once per item (see the refcount note in common/event_stream.py)
-    damage_bins_interpolation = damage_bins['interpolation']
 
     # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
     compute_info['cursor'] = 0
@@ -1389,6 +1323,178 @@ def compute_event_losses(compute_info,
         compute_info['coverage_i'] += 1
 
     return True
+
+
+@nb.njit(cache=True, fastmath=True)
+def compute_event_losses(compute_info,
+                         coverages,
+                         coverage_ids,
+                         items_event_data,
+                         items,
+                         sample_size,
+                         haz_pdf,
+                         haz_arr_ptr,
+                         vuln_array,
+                         conditional_vuln_array,
+                         vuln_idx_to_cond_idx,
+                         damage_bins,
+                         cdf_cache_tag,
+                         cdf_cache_nbins,
+                         cdf_cache_mask,
+                         cached_vuln_cdfs,
+                         areaperil_agg_vuln_idx_ja_offsets,
+                         areaperil_agg_vuln_idx_ja_data,
+                         losses,
+                         haz_rndms_base,
+                         vuln_rndms_base,
+                         vuln_adj,
+                         haz_eps_ij,
+                         damage_eps_ij,
+                         norm_inv_parameters,
+                         norm_inv_cdf,
+                         norm_cdf,
+                         vuln_z_unif,
+                         haz_z_unif,
+                         byte_mv,
+                         dynamic_footprint,
+                         intensity_bin_peril_ids,
+                         intensity_bins,
+                         compute_depth,
+                         source_damage_bin_stack,
+                         source_eff_damage_cdf_stack,
+                         source_eff_damage_cdf_len_stack):
+    """Compute ground-up losses for all coverages in a single event.
+
+    Iterates over coverages and their items, looking up or computing the vulnerability cdf
+    for each item, then sampling losses using the pre-generated random numbers. Results are
+    written into a byte buffer for streaming output.
+
+    CDF caching uses a monotonic write counter and array-based slot tracking. Each unique
+    (areaperil, vuln_id[, intensity_adjustment]) CDF group has a pre-computed index stored in
+    eff_cdf_id. cdf_cache_tag[triplet_idx] records the write counter value when the CDFs were
+    cached. A slot is valid when cdf_cache_tag[triplet_idx] >= 0 and
+    cdf_cache_ctr - cdf_cache_tag[triplet_idx] < cdf_cache_size. Physical slot indexing uses
+    bitwise AND with cdf_cache_mask (power-of-two sized cache).
+
+    For effective_damageability=False, CDFs are stored as contiguous blocks:
+    slot 0 = effective damage CDF, slots 1..Nhaz_bins = per-intensity-bin vulnerability CDFs.
+
+    Args:
+        compute_info (gulmc_compute_info_type): computation state (event_id, cursor position,
+          coverage range, cdf_cache_ctr, thresholds, flags).
+        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
+        coverage_ids (numpy.array[int]): ordered list of coverage_ids to process in this event.
+        items_event_data (numpy.array[items_MC_data_type]): per-item event data populated by
+          reconstruct_coverages, containing item_idx, haz_arr_i, rng_index, hazard_rng_index,
+          and eff_cdf_id (CDF group index).
+        items (np.ndarray): items table merged with correlation parameters.
+        sample_size (int): number of random samples to draw.
+        haz_pdf (np.array[haz_arr_type]): hazard intensity pdf records for this event.
+        haz_arr_ptr (np.array[int64]): indices where each areaperil's hazard records start in haz_pdf.
+        vuln_array (np.array[float]): 3d vulnerability array of shape
+          (Nvulnerability, Ndamage_bins_max, Nintensity_bins).
+        damage_bins (np.array): damage bin dictionary with bin_from, bin_to, interpolation, damage_type.
+        cdf_cache_tag (np.array[int64]): CDF group index → write counter when cached (CDF_CACHE_EMPTY = -1).
+        cdf_cache_nbins (np.array[int32]): physical slot → CDF length (Ndamage_bins).
+        cdf_cache_mask (int64): bitmask for physical slot indexing (cdf_cache_size - 1).
+        cached_vuln_cdfs (np.array[oasis_float]): 2d cdf cache of shape (cdf_cache_size, Ndamage_bins_max).
+        areaperil_agg_vuln_idx_ja_offsets (np.array[oasis_int]): jagged array offsets.
+        areaperil_agg_vuln_idx_ja_data (np.array[agg_vuln_idx_weight_dtype]): merged structured array
+          with fields 'vuln_idx' (dense vulnerability index) and 'weight' (vulnerability weight).
+        losses (numpy.array[oasis_float]): reusable 2d buffer for loss values.
+        haz_rndms_base (numpy.array[float64]): base random values for hazard intensity sampling.
+        vuln_rndms_base (numpy.array[float64]): base random values for damage sampling.
+        vuln_adj (np.array[float]): per-vulnerability adjustment factors.
+        haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
+        damage_eps_ij (np.array[float]): correlated random values for damage sampling.
+        norm_inv_parameters (NormInversionParameters): parameters for Gaussian inversion.
+        norm_inv_cdf (np.array[float]): inverse Gaussian cdf lookup table.
+        norm_cdf (np.array[float]): Gaussian cdf lookup table.
+        vuln_z_unif (np.array[float]): reusable buffer for correlated vulnerability random values.
+        haz_z_unif (np.array[float]): reusable buffer for correlated hazard random values.
+        byte_mv (numpy.array[byte]): output byte buffer for the binary stream.
+        dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
+        intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids (length n_perils).
+        intensity_bins (np.array[int32, 2d]): shape (n_perils, max_intensity + 1) mapping
+          [peril_idx, intensity_value] -> intensity_bin_id.
+        conditional_vuln_array (np.array[oasis_float]): damage-transition matrices, indexed
+          [cond_idx, dependent damage bin - 1, source damage bin - 1]. Empty when no dependency.
+        vuln_idx_to_cond_idx (np.array[int64]): dense vuln index -> conditional row, or -1.
+        compute_depth (np.array[int32]): per entry of ``coverage_ids``, its depth in the dependency
+          forest (0 for a root), matching the DFS order the caller put them in.
+        source_damage_bin_stack (np.array[int32]): per-depth, per-item sampled damage bins, holding
+          a source coverage's result while its dependent subtree is computed.
+        source_eff_damage_cdf_stack (np.array[oasis_float]): per-depth, per-item effective damage
+          cdfs, the effective-damageability counterpart of the sampled bins.
+        source_eff_damage_cdf_len_stack (np.array[int64]): valid length of each entry of
+          ``source_eff_damage_cdf_stack``.
+
+    Returns:
+        bool: True if all coverages have been processed, False if the buffer is full and
+          the caller should flush and call again.
+    """
+    # scratch buffers for _compute_event_losses_core, which cannot allocate (compiled without NRT)
+    # Upper bound on an item's hazard bins: an areaperil's footprint records per event (one per
+    # intensity bin, so at most vuln_array.shape[2]) or, on the dependent path, the source's damage
+    # bins. The per-item buffers below are not bounds-checked outside NUMBA_BOUNDSCHECK.
+    max_haz_bins = max(vuln_array.shape[2], damage_bins.shape[0])
+    haz_cdf_empty = np.empty(max_haz_bins, dtype=oasis_float)
+    vuln_pdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
+    eff_damage_cdf_empty = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
+    haz_i_to_Ndamage_bins_empty = np.empty(max_haz_bins, dtype=oasis_int)
+    haz_i_to_vuln_cdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
+    # per-item hazard records, copied out of haz_pdf (see fill_haz_bins); for a dependent the
+    # source's damage pmf is written to haz_pdf_prob instead, playing the role of the hazard pdf
+    haz_bin_id = np.empty(max_haz_bins, dtype=np.int32)
+    haz_pdf_prob = np.empty(max_haz_bins, dtype=oasis_float)
+    # field view taken once per call rather than once per item (see the refcount note in common/event_stream.py)
+    damage_bins_interpolation = damage_bins['interpolation']
+
+    return _compute_event_losses_core(compute_info,
+                                      coverages,
+                                      coverage_ids,
+                                      items_event_data,
+                                      items,
+                                      sample_size,
+                                      haz_pdf,
+                                      haz_arr_ptr,
+                                      vuln_array,
+                                      conditional_vuln_array,
+                                      vuln_idx_to_cond_idx,
+                                      damage_bins,
+                                      cdf_cache_tag,
+                                      cdf_cache_nbins,
+                                      cdf_cache_mask,
+                                      cached_vuln_cdfs,
+                                      areaperil_agg_vuln_idx_ja_offsets,
+                                      areaperil_agg_vuln_idx_ja_data,
+                                      losses,
+                                      haz_rndms_base,
+                                      vuln_rndms_base,
+                                      vuln_adj,
+                                      haz_eps_ij,
+                                      damage_eps_ij,
+                                      norm_inv_parameters,
+                                      norm_inv_cdf,
+                                      norm_cdf,
+                                      vuln_z_unif,
+                                      haz_z_unif,
+                                      byte_mv,
+                                      dynamic_footprint,
+                                      intensity_bin_peril_ids,
+                                      intensity_bins,
+                                      compute_depth,
+                                      source_damage_bin_stack,
+                                      source_eff_damage_cdf_stack,
+                                      source_eff_damage_cdf_len_stack,
+                                      haz_cdf_empty,
+                                      vuln_pdf_empty,
+                                      eff_damage_cdf_empty,
+                                      haz_i_to_Ndamage_bins_empty,
+                                      haz_i_to_vuln_cdf_empty,
+                                      haz_bin_id,
+                                      haz_pdf_prob,
+                                      damage_bins_interpolation)
 
 
 @nb.njit(cache=True, fastmath=True)
