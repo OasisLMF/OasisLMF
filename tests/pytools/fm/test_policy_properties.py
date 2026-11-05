@@ -41,7 +41,8 @@ def profiles(draw, calcrule_ids, full_limit=False):
     """Draw an fm profile with valid terms for one of `calcrule_ids`.
 
     Percentage terms are fractions, the min deductible (deductible2) is at most the max
-    deductible (deductible3), and a %-of-loss limit is below 100% unless `full_limit` is set.
+    deductible (deductible3), and a %-of-loss limit is below 100% unless `full_limit` is set, in which
+    case it is between 100% and 200%.
     """
     calcrule_id = draw(st.sampled_from(calcrule_ids))
     profile = np.zeros(1, dtype=fm_profile_dtype)[0]
@@ -52,7 +53,7 @@ def profiles(draw, calcrule_ids, full_limit=False):
     profile['deductible3'] = max_deductible
     profile['attachment1'] = draw(amounts)
     if full_limit:
-        profile['limit1'] = 1.
+        profile['limit1'] = draw(st.one_of(st.just(1.), st.floats(1, 2, width=32)))
     elif calcrule_id in FRACTION_LIMIT:
         profile['limit1'] = draw(st.floats(0, 1, width=32, exclude_max=True))
     else:
@@ -140,7 +141,7 @@ def test_min_deductible_conserves_the_loss_of_the_level_below(lower_profile, pro
 @property_settings
 @given(profile=profiles([15, 115], full_limit=True), loss_in=losses)
 def test_a_full_percentage_of_loss_limit_is_accepted(profile, loss_in):
-    """A %-of-loss limit of 100% caps nothing, so calcrule 15 must behave like a plain deductible.
+    """A %-of-loss limit of 100% or more caps nothing, so calcrule 15 must behave like a plain deductible.
     See https://github.com/OasisLMF/OasisLMF/issues/2247.
     """
     loss_out = np.empty_like(loss_in)
