@@ -8,6 +8,7 @@ import pytest
 
 from oasislmf.lookup.builtin import (
     Lookup,
+    PerilCoveredDeterministicLookup,
     create_lat_lon_id_functions,
     get_step,
     jit_geo_grid_lookup,
@@ -283,6 +284,38 @@ def test_split_loc_perils_covered_not_covered_status_restores_previous_behaviour
     not_covered = result[result["loc_id"] == 2]
     assert len(not_covered) == 1
     assert not_covered["status"].iloc[0] == OASIS_KEYS_STATUS["notatrisk"]["id"]
+
+
+def test_split_loc_perils_covered_group_listed_with_its_perils_gives_each_peril_once():
+    """OO1 is the group {ORF, OSF}: listing it with ORF and OSF must not give those perils twice."""
+    fct = Lookup(config={}).build_split_loc_perils_covered()
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "LocPerilsCovered": ["OO1;ORF;OSF", "ORF;OSF"],
+    })
+
+    result = fct(locations)
+
+    perils = result.groupby("loc_id")["peril_id"].apply(sorted)
+    assert perils[1] == perils[2] == ["ORF", "OSF"]
+    assert "peril_group_id" not in locations
+
+
+def test_peril_covered_deterministic_lookup_group_listed_with_its_perils_gives_each_peril_once():
+    lookup = PerilCoveredDeterministicLookup(config={
+        "model_perils_covered": ["OO1"],
+        "supported_oed_coverage_types": [1, 3],
+    })
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "LocPerilsCovered": ["OO1;ORF;OSF", "ORF;OSF"],
+    })
+
+    keys_df = lookup.process_locations(locations)
+
+    assert not keys_df.duplicated(["loc_id", "peril_id", "coverage_type"]).any()
+    assert (keys_df["loc_id"].value_counts() == 4).all()  # 2 perils x 2 coverage types each
+    assert "peril_group_id" not in locations
 
 
 def test_split_loc_perils_covered_rejects_unknown_not_covered_status():

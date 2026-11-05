@@ -241,9 +241,11 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
                                          .merge(peril_groups_df)['peril_id'])
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
-        locations['peril_group_id'] = locations[peril_covered_column].astype(str).str.split(';')
-        keys_df = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)[['loc_id', 'peril_id']]
-        locations.drop(columns='peril_group_id')
+        # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
+        # de-duplicate after expanding the groups, ignoring which group a peril came from
+        keys_df = (locations.assign(peril_group_id=locations[peril_covered_column].astype(str).str.split(';'))
+                   .explode('peril_group_id').merge(peril_groups_df))
+        keys_df = keys_df.drop_duplicates(subset=keys_df.columns.drop('peril_group_id'))[['loc_id', 'peril_id']]
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
         keys_df = keys_df.merge(coverage_df, how="cross").sort_values(['loc_id', 'peril_id', 'coverage_type'], kind='stable')
@@ -639,9 +641,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing PerilsCovered column in location')
 
-            locations['peril_group_id'] = locations[perils_covered_column].astype(str).str.split(';')
-            peril_locations = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)
-            locations.drop(columns='peril_group_id')
+            # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
+            # de-duplicate after expanding the groups, ignoring which group a peril came from
+            peril_locations = (locations.assign(peril_group_id=locations[perils_covered_column].astype(str).str.split(';'))
+                               .explode('peril_group_id').merge(peril_groups_df))
+            peril_locations = peril_locations.drop_duplicates(subset=peril_locations.columns.drop('peril_group_id'))
 
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
