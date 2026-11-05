@@ -138,9 +138,13 @@ def init_streams_in(files_in, stack):
 # always-on check costs ~17% of gulmc on numba >= 0.66: its `raise` branch sits between the
 # incref/decref numba now emits around each inlined write, and llvmlite's RefPrune cannot remove a
 # pair that spans a raise. Callers size the buffer before writing; CI runs with the check on.
+#
+# The helpers below marked `pragma: no cover` run only while numba compiles a jitted caller. The
+# uploaded coverage comes from the NUMBA_DISABLE_JIT run, where nothing is compiled; the JIT test
+# jobs and test_event_stream_mv.py exercise them.
 
 
-def _scalar_type_of(dtype):
+def _scalar_type_of(dtype):  # pragma: no cover
     """Numba scalar type named by a dtype argument, or None if it is not one.
 
     Callers pass both `np.dtype(...)` instances (typed as DType) and scalar classes such as
@@ -153,20 +157,20 @@ def _scalar_type_of(dtype):
     return None
 
 
-def _is_contiguous_byte_array(byte_mv):
+def _is_contiguous_byte_array(byte_mv):  # pragma: no cover
     return isinstance(byte_mv, types.Array) and byte_mv.ndim == 1 and byte_mv.layout == 'C' and byte_mv.dtype.bitwidth == 8
 
 
-def _is_scalar(value):
+def _is_scalar(value):  # pragma: no cover
     return isinstance(value, (types.Number, types.Boolean))
 
 
-def _check_in_buffer(byte_mv, cursor, itemsize):
+def _check_in_buffer(byte_mv, cursor, itemsize):  # pragma: no cover
     pass  # pure-Python path: the view-based code raises on overrun by itself
 
 
 @overload(_check_in_buffer)
-def _check_in_buffer_jit(byte_mv, cursor, itemsize):
+def _check_in_buffer_jit(byte_mv, cursor, itemsize):  # pragma: no cover
     if not nb_config.BOUNDSCHECK:
         return lambda byte_mv, cursor, itemsize: None
 
@@ -176,7 +180,7 @@ def _check_in_buffer_jit(byte_mv, cursor, itemsize):
     return impl
 
 
-def _pointer_at(context, builder, sig, args, scalar_type):
+def _pointer_at(context, builder, sig, args, scalar_type):  # pragma: no cover
     """LLVM pointer to `scalar_type` at byte offset `cursor` (args[1]) of the byte array args[0]."""
     ary = context.make_array(sig.args[0])(context, builder, args[0])
     offset = context.cast(builder, args[1], sig.args[1], types.intp)
@@ -187,7 +191,7 @@ def _pointer_at(context, builder, sig, args, scalar_type):
 # The two intrinsics are only called from the mv_read / mv_write overloads below, which have already
 # checked for a contiguous (and, to store, mutable) byte buffer, a dtype and a scalar value.
 @intrinsic
-def _unaligned_load(typingctx, byte_mv, cursor, dtype):
+def _unaligned_load(typingctx, byte_mv, cursor, dtype):  # pragma: no cover
     scalar_type = _scalar_type_of(dtype)
 
     def codegen(context, builder, sig, args):
@@ -196,7 +200,7 @@ def _unaligned_load(typingctx, byte_mv, cursor, dtype):
 
 
 @intrinsic
-def _unaligned_store(typingctx, byte_mv, cursor, dtype, value):
+def _unaligned_store(typingctx, byte_mv, cursor, dtype, value):  # pragma: no cover
     scalar_type = _scalar_type_of(dtype)
 
     def codegen(context, builder, sig, args):
@@ -232,7 +236,7 @@ def mv_read(byte_mv, cursor, _dtype, itemsize):
 
 
 @overload(mv_read)
-def _mv_read_jit(byte_mv, cursor, _dtype, itemsize):
+def _mv_read_jit(byte_mv, cursor, _dtype, itemsize):  # pragma: no cover
     if _scalar_type_of(_dtype) is None or not _is_contiguous_byte_array(byte_mv):
         return _mv_read_view  # unusual buffer: keep the view-based implementation
 
@@ -290,7 +294,7 @@ def mv_write(byte_mv, cursor, _dtype, itemsize, value) -> int:
 
 
 @overload(mv_write)
-def _mv_write_jit(byte_mv, cursor, _dtype, itemsize, value):
+def _mv_write_jit(byte_mv, cursor, _dtype, itemsize, value):  # pragma: no cover
     if _scalar_type_of(_dtype) is None or not _is_contiguous_byte_array(byte_mv) or not byte_mv.mutable:
         return _mv_write_view  # unusual buffer: keep the view-based implementation
 
