@@ -208,6 +208,8 @@ def process_summary_entries(
         _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)  # expval
 
         occ_start, occ_end = occ_range(occ_csr, event_id)
+        if occ_start == occ_end:
+            continue  # event has no occurrence: skip reading its losses
         accumulate_summary_record(
             fin, cursor, 1, occ_flat, occ_start, occ_end,
             outloss_mean_s, row_used_mean_s,

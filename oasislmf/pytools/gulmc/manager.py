@@ -1092,7 +1092,7 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item
                 # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
                 # we don't need to use last haz_cdf_prob value because if for rounding reason haz_rval
                 # is bigger, we want the index Nhaz_bins-1 anyway. if we were using Nhaz_bins,
-                # bigger than haz_cdf_prob[-1] haz_rval would have index Nhaz_bins, outside haz_i_to_Ndamage_bins
+                # bigger than haz_cdf_prob[Nhaz_bins - 1] haz_rval would have index Nhaz_bins, outside haz_i_to_Ndamage_bins
                 haz_bin_idx = binary_search(haz_z_unif[sample_idx - 1], haz_cdf_prob, Nhaz_bins - 1)
 
                 # get the individual vulnerability cdf
@@ -1218,6 +1218,9 @@ def compute_event_losses(compute_info,
     # a dependent's "hazard bins" are its source's damage bins, so the per-hazard-bin scratch
     # buffers must be sized to the larger of num_damage_bins and num_intensity_bins
     n_damage_bins_total = damage_bins.shape[0]
+    # Upper bound on an item's hazard bins: an areaperil's footprint records per event (one per
+    # intensity bin, so at most vuln_array.shape[2]) or, on the dependent path, the source's damage
+    # bins. The per-item buffers below are not bounds-checked outside NUMBA_BOUNDSCHECK.
     max_haz_bins = max(vuln_array.shape[2], n_damage_bins_total)
     haz_cdf_empty = np.empty(max_haz_bins, dtype=oasis_float)
     vuln_pdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)

@@ -137,7 +137,11 @@ def init_streams_in(files_in, stack):
 # Overrun is checked only under NUMBA_BOUNDSCHECK, like every other numba array access. An
 # always-on check costs ~17% of gulmc on numba >= 0.66: its `raise` branch sits between the
 # incref/decref numba now emits around each inlined write, and llvmlite's RefPrune cannot remove a
-# pair that spans a raise. Callers size the buffer before writing; CI runs with the check on.
+# pair that spans a raise. Callers size the buffer before writing (gulpy/gulmc via
+# adjust_byte_mv_size and a per-subtree space check, fmpy/summarypy by testing the cursor against
+# PIPE_CAPACITY before each record); CI runs with the check on. The setting is read when the caller
+# is compiled: a cache built without NUMBA_BOUNDSCHECK keeps the check off (see CLAUDE.md), and a
+# per-function `@njit(boundscheck=True)` does not enable it.
 #
 # The helpers below marked `pragma: no cover` run only while numba compiles a jitted caller. The
 # uploaded coverage comes from the NUMBA_DISABLE_JIT run, where nothing is compiled; the JIT test
@@ -145,16 +149,19 @@ def init_streams_in(files_in, stack):
 
 
 def _scalar_type_of(dtype):  # pragma: no cover
-    """Numba scalar type named by a dtype argument, or None if it is not one.
+    """Numba scalar type named by a dtype argument, or None if it is not a plain scalar.
 
     Callers pass both `np.dtype(...)` instances (typed as DType) and scalar classes such as
-    `np.int32` (typed as NumberClass).
+    `np.int32` (typed as NumberClass). A structured dtype (a Record) returns None, so it takes the
+    view-based fallback rather than a scalar load/store.
     """
     if isinstance(dtype, types.DType):
-        return dtype.dtype
-    if isinstance(dtype, types.NumberClass):
-        return dtype.instance_type
-    return None
+        scalar_type = dtype.dtype
+    elif isinstance(dtype, types.NumberClass):
+        scalar_type = dtype.instance_type
+    else:
+        return None
+    return scalar_type if _is_scalar(scalar_type) else None
 
 
 def _is_contiguous_byte_array(byte_mv):  # pragma: no cover
