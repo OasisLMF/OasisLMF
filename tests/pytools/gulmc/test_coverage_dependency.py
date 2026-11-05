@@ -484,10 +484,6 @@ def test_areaperil_mismatch_leaves_dependent_unpaired(caplog):
         keys.append({'loc_id': loc, 'coverage_type_id': 1, 'areaperil_id': 1})
         # loc 3 contents is geocoded to a different areaperil than its building
         keys.append({'loc_id': loc, 'coverage_type_id': 3, 'areaperil_id': 2 if loc == 3 else 1})
-    # at_level must name the logger that actually emits, not an ancestor: any gulmc/gulpy run in
-    # the same process leaves every 'oasislmf.*' logger pinned at WARNING
-    # (pytools.utils.logging_reset_handlers restores their handlers and propagate flag but not
-    # their level), so raising only the parent's level leaves this record filtered at source.
     emitter = 'oasislmf.preparation.gul_inputs'
     with caplog.at_level(logging.INFO, logger=emitter):
         gul = _gul_inputs_for_keys(keys)
