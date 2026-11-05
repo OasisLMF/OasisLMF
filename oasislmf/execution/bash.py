@@ -940,6 +940,7 @@ def do_summarycalcs(
     gul_full_correlation=False,
     inuring_priority=None,
     summarypy_low_memory=False,
+    rlcombine=False,
 ):
     """Write a ``summarypy`` command for one process to the bash script.
 
@@ -972,6 +973,9 @@ def do_summarycalcs(
     if not summaries:
         return
 
+    if rlcombine and runtype != RUNTYPE_REINSURANCE_GROSS_LOSS:
+            raise ValueError('rlcombine only supported for the rl runtype')
+
     if process_id == 1:
         print_command(filename, '')
 
@@ -990,14 +994,21 @@ def do_summarycalcs(
         input_filename_component = '_sumcalc'
 
     cmd = 'summarypy'
-    low_memory_switch = ' -m' if summarypy_low_memory else ''
-    cmd = f'{cmd}{low_memory_switch} {summarycalc_switch} {summarycalc_directory_switch}'
+
+    if rlcombine:
+        flag_switch = ' -s'
+        output_suffix = 'rlcombine'
+    else:
+        flag_switch = ' -m' if summarypy_low_memory else ''
+        output_suffix = 'summary'
+
+    cmd = f'{cmd}{flag_switch} {summarycalc_switch} {summarycalc_directory_switch}'
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            cmd = '{0} -{1} {4}{2}_{5}S{1}_summary_P{3}'.format(
+            cmd = '{0} -{1} {4}{2}_{5}S{1}_{6}_P{3}'.format(
                 cmd, summary_set, runtype, process_id, fifo_dir,
-                inuring_priority_text
+                inuring_priority_text, output_suffix
             )
 
     cmd = '{0} < {1}{2}{3}_{5}P{4}'.format(
@@ -1006,6 +1017,60 @@ def do_summarycalcs(
     )
     cmd = '( {0} ) 2>> $LOG_DIR/stderror.err  &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
     print_command(filename, cmd)
+
+
+def do_rlcombine(
+            analysis_settings,
+            process_id,
+            filename,
+            process_counter,
+            combine_levels,
+            passthrough_levels,
+            fifo_dir='fifo/',
+            stderr_guard=True,
+            summarypy_low_memory=False,
+    ):
+    runtype = RUNTYPE_REINSURANCE_GROSS_LOSS
+    summaries = analysis_settings.get('{}_summaries'.format(runtype))
+    if not summaries:
+        return
+
+    if process_id == 1:
+        print_command(filename, '')
+
+    input_index_map = {ip["level"]: i for i, ip in enumerate(combine_levels)}
+    static_paths = ' '.join(os.path.join('input', f'RI_{ip["level"]}') for ip in combine_levels)
+
+    for summary in summaries:
+        if 'id' not in summary:
+            continue
+
+        summary_set = summary['id']
+        inputs = ' '.join(get_fifo_name(fifo_dir, runtype, process_id,
+                                        f"{ip['text']}S{summary_set}_rlcombine") for ip in combine_levels)
+
+        output = get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_summary")
+        cmd = f"rlcombine -i {inputs} -p {static_paths} -o {output}"
+
+        if passthrough_levels:
+            intermediates = []
+            for ip in passthrough_levels:
+                intermediates.append(f"{input_index_map[ip['level']]}=" +
+                                     get_fifo_name(fifo_dir, runtype,
+                                                   process_id,
+                                                   f"{ip['text']}S{summary_set}_summary"))
+
+            cmd = f"{cmd} -I {' '.join(intermediates)}"
+
+        if summarypy_low_memory and (ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES)):
+            cmd = f"{cmd} -m"
+
+        process_counter['pid_monitor_count'] += 1
+        if stderr_guard:
+            cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+        else:
+            cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
+        print_command(filename, cmd)
 
 
 def do_tees(
@@ -1250,7 +1315,14 @@ def rl(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-    for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations, perspective='rl'):
+
+    combine_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                        perspective='rl', all_layers=True)
+    passthrough_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                        perspective='rl', include_final=False)
+
+    output_levels = passthrough_levels + [{'text': '', 'level': num_reinsurance_iterations + 1}]
+    for inuring_priority in output_levels:
         for process_id in process_range(max_process_id, process_number):
             do_ord(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
@@ -1266,6 +1338,20 @@ def rl(
                 summarypy_low_memory=summarypy_low_memory,
             )
 
+    for process_id in process_range(max_process_id, process_number):
+        do_rlcombine(
+            analysis_settings=analysis_settings,
+            process_id=process_id,
+            filename=filename,
+            process_counter=process_counter,
+            combine_levels=combine_levels,
+            passthrough_levels=passthrough_levels, # requested IP levels
+            fifo_dir='fifo/',
+            stderr_guard=True,
+            summarypy_low_memory=False,
+        )
+
+    for inuring_priority in combine_levels:
         for process_id in process_range(max_process_id, process_number):
             do_summarycalcs(
                 runtype=RUNTYPE_REINSURANCE_GROSS_LOSS,
@@ -1276,7 +1362,7 @@ def rl(
                 stderr_guard=stderr_guard,
                 num_reinsurance_iterations=num_reinsurance_iterations,
                 inuring_priority=inuring_priority,
-                summarypy_low_memory=summarypy_low_memory,
+                rlcombine=True
             )
 
 
