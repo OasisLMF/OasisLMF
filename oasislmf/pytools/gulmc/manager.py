@@ -313,9 +313,11 @@ def run(run_dir,
         # create the array to store the seeds
         haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
-        # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts)
-        group_seq_rng_index = np.empty(n_unique_groups, dtype=np.int64)
-        hazard_group_seq_rng_index = np.empty(n_unique_haz_groups, dtype=np.int64)
+        # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts).
+        # Initialised once; reconstruct_coverages restores the entries it used, so they are never
+        # reset in full (their size is that of the portfolio, not of the event).
+        group_seq_rng_index = np.full(n_unique_groups, NO_RNG_INDEX, dtype=np.int64)
+        hazard_group_seq_rng_index = np.full(n_unique_haz_groups, NO_RNG_INDEX, dtype=np.int64)
 
         # haz correlation
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
@@ -432,6 +434,10 @@ def run(run_dir,
         cdf_cache_tag = np.full(n_cdf_groups, CDF_CACHE_EMPTY, dtype=np.int64)
         cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
 
+        # per-event coverage state starts at zero; reconstruct_coverages then only resets the
+        # coverages touched by the previous event
+        coverages['cur_items'].fill(0)
+
         counter = 0
         timer = time.time()
         socket_server_val = kwargs.get('socket_server', 'False')
@@ -511,9 +517,11 @@ def run(run_dir,
                         haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
-                # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
-                cdf_cache_tag[:] = CDF_CACHE_EMPTY
-                compute_info['cdf_cache_ctr'] = 0
+                # Invalidate the CDF cache for the new event without touching cdf_cache_tag, whose size
+                # is the number of CDF groups of the portfolio: a cached entry is valid only while
+                # cdf_cache_ctr - tag < cdf_cache_size, so advancing the counter by the cache size
+                # invalidates every tag written for previous events.
+                compute_info['cdf_cache_ctr'] += cdf_cache_mask + 1
 
                 processing_done = False
                 logger.info(f"event {event_ids[0]} STARTED")
@@ -583,6 +591,10 @@ def run(run_dir,
                     ping_data['port_override'] = ping_port
                 oasis_ping_async(ping_data)
                 counter = 0
+
+        # the CDF cache counter only grows (by the cache size per event plus the CDFs cached in it)
+        logger.debug(f"cdf cache counter: final value {int(compute_info['cdf_cache_ctr'])} "
+                     f"({compute_info['cdf_cache_ctr'].dtype}), cache size {int(cdf_cache_mask) + 1}")
 
     return 0
 
@@ -1545,14 +1557,16 @@ def reconstruct_coverages(compute_info,
           - byte_mv (numpy.array[byte]): output buffer, possibly resized.
     """
     # init data structures
-    # Reset pre-allocated arrays instead of creating new Numba Dicts
-    group_seq_rng_index[:] = NO_RNG_INDEX
-    hazard_group_seq_rng_index[:] = NO_RNG_INDEX
+    # Only the coverages registered by the previous event (still listed in compute[:coverage_n])
+    # can have cur_items > 0: reset those instead of the whole coverages array. Likewise
+    # group_seq_rng_index and hazard_group_seq_rng_index hold NO_RNG_INDEX on entry (initialised
+    # in run, restored at the end of this function).
+    for position in range(compute_info['coverage_n']):
+        coverages[compute[position]]['cur_items'] = 0
     rng_index = 0
     hazard_rng_index = 0
     compute_i = 0
     items_data_i = 0
-    coverages['cur_items'].fill(0)
     items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
     # for each areaperil_id, loop over all vulnerability functions used in that areaperil_id and,
@@ -1693,9 +1707,20 @@ def reconstruct_coverages(compute_info,
             )
         compute_i = write_index
     else:
+        max_subtree_items = 0
         for position in range(compute_i):
             compute_depth[position] = 0
-        max_subtree_items = int(np.max(coverages['cur_items']))
+            if coverages[compute[position]]['cur_items'] > max_subtree_items:
+                max_subtree_items = coverages[compute[position]]['cur_items']
+        max_subtree_items = int(max_subtree_items)
+
+    # restore the group -> rng index maps for the groups seen in this event only
+    for position in range(compute_i):
+        coverage = coverages[compute[position]]
+        for item_j in range(coverage['cur_items']):
+            item_idx = items_event_data[coverage['start_items'] + item_j]['item_idx']
+            group_seq_rng_index[items[item_idx]['group_seq_id']] = NO_RNG_INDEX
+            hazard_group_seq_rng_index[items[item_idx]['hazard_group_seq_id']] = NO_RNG_INDEX
 
     compute_info['coverage_i'] = 0
     compute_info['coverage_n'] = compute_i
