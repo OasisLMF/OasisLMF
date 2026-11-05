@@ -10,7 +10,7 @@ from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTI
                                           write_ndarray_to_fmt_csv, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, reservation_overflows, SUMMARY_STREAM_ID)
-from oasislmf.pytools.common.input_files import occ_get, occ_get_date, read_occurrence, read_periods, read_quantile
+from oasislmf.pytools.common.input_files import occ_range, occ_get_date, read_occurrence, read_periods, read_quantile
 from oasislmf.pytools.common.parquet import BufferedParquetWriter
 from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
@@ -238,6 +238,11 @@ def read_buffer(
     # (so event_id would otherwise stay at the caller's 0 for every write this call).
     last_event_id = state["current_event_id"]
     event_id = state["current_event_id"]
+    # The current event's occurrence records, as an index range into occ_flat. Looked up once per
+    # event rather than via an occ_get() slice per loss value: each slice is a view that numba >= 0.66
+    # refcounts (~25% of pltpy run time).
+    occ_flat = occ_csr.occ_flat
+    occ_start, occ_end = occ_range(occ_csr, event_id)
     si = splt_idx[0]
     mi = mplt_idx[0]
     qi = qplt_idx[0]
@@ -308,6 +313,8 @@ def read_buffer(
                     state["current_event_id"] = 0
                     _update_idxs()
                     return cursor - event_id_dtype_size, last_event_id, item_id, 1
+                if event_id_new != event_id:
+                    occ_start, occ_end = occ_range(occ_csr, event_id_new)
                 event_id = event_id_new
                 state["current_event_id"] = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, summary_id_dtype, summary_id_dtype_size)
@@ -327,7 +334,8 @@ def read_buffer(
 
                 # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
-                    for record in occ_get(occ_csr, event_id):
+                    for occ_i in range(occ_start, occ_end):
+                        record = occ_flat[occ_i]
                         if state["hasrec"]:
                             meanloss, sdloss = _get_mean_and_sd_loss()
                             if meanloss > 0 or sdloss > 0:
@@ -350,7 +358,8 @@ def read_buffer(
                 # Update QPLT data
                 if state["compute_qplt"]:
                     state["vrec"].sort()
-                    for record in occ_get(occ_csr, event_id):
+                    for occ_i in range(occ_start, occ_end):
+                        record = occ_flat[occ_i]
                         for i in range(len(intervals)):
                             q = intervals[i]["quantile"]
                             ipart = intervals[i]["integer_part"]
@@ -384,7 +393,8 @@ def read_buffer(
                 impacted_exposure = state["exposure_value"] * (loss > 0)
                 # Update SPLT data
                 if state["compute_splt"]:
-                    for record in occ_get(occ_csr, event_id):
+                    for occ_i in range(occ_start, occ_end):
+                        record = occ_flat[occ_i]
                         _update_splt_data(
                             splt_data, si, period_weights, granular_date,
                             record=record,
@@ -400,7 +410,8 @@ def read_buffer(
             elif sidx == MEAN_IDX:
                 # Update MPLT data (analytical mean)
                 if state["compute_mplt"]:
-                    for record in occ_get(occ_csr, event_id):
+                    for occ_i in range(occ_start, occ_end):
+                        record = occ_flat[occ_i]
                         if loss <= 0:
                             continue
                         _update_mplt_data(

@@ -404,6 +404,20 @@ def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
 
 
 @nb.njit(cache=True)
+def occ_range(occ_csr, event_id):
+    """Return the (start, end) index range of event_id's records in ``occ_csr.occ_flat``.
+
+    Returns (0, 0) if the event is not in the occurrence file. Use this rather than ``occ_get`` in
+    per-value loops: iterating ``occ_flat[i]`` over the range creates no array view, whereas each
+    ``occ_get`` slice is a view that numba >= 0.66 refcounts.
+    """
+    i = _id_index_get_idx(occ_csr.event_id_index, nb.int32(event_id))
+    if i == _OCC_IDX_NOT_FOUND:
+        return 0, 0
+    return occ_csr.occ_offsets[i], occ_csr.occ_offsets[i + 1]
+
+
+@nb.njit(cache=True)
 def occ_get(occ_csr, event_id):
     """Return the occ_flat slice for event_id, or an empty slice on miss.
 
