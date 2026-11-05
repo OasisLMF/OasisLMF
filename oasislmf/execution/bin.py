@@ -40,6 +40,7 @@ from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import ord_enabled, ORD_LECCALC
+from oasislmf.pytools.common.input_files import write_occurrence_index
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
@@ -425,6 +426,16 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, r
         # Prepare periods.bin
         if model_storage.exists('periods.bin'):
             _prepare_input_bin(run_dir, 'periods', model_settings, model_storage, ri=ri)
+
+        # Build the occurrence index once, for every pltpy/aalpy/lecpy process to share. It is an
+        # optimisation only: without it each of them builds its own copy, as before.
+        input_dir = os.path.join(run_dir, 'input')
+        occurrence_fp = os.path.join(input_dir, 'occurrence.bin')
+        if os.path.exists(occurrence_fp) and os.path.getsize(occurrence_fp) > 0:
+            try:
+                write_occurrence_index(input_dir)
+            except (ValueError, RuntimeError, OSError) as e:
+                logger.warning(f"occurrence index not built, each output process will build its own: {e}")
 
     except (OSError, IOError) as e:
         raise OasisException("Error preparing the model 'inputs' directory: {}".format(e))

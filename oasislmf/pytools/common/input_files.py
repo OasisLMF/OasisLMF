@@ -1,7 +1,9 @@
 from collections import namedtuple
 from contextlib import ExitStack
+import json
 import logging
 import sys
+import zlib
 import numba as nb
 import numpy as np
 from pathlib import Path
@@ -34,6 +36,7 @@ FMXREF_FILE = "fmxref.bin"
 GULSUMMARYXREF_FILE = "gulsummaryxref.bin"
 ITEMS_FILE = "items.bin"
 OCCURRENCE_FILE = "occurrence.bin"
+OCCURRENCE_INDEX_SOURCE_FILE = "source.json"  # in the occurrence index dir: size and CRC32 of the indexed file
 PERIODS_FILE = "periods.bin"
 QUANTILE_FILE = "quantile.bin"
 RETURNPERIODS_FILE = "returnperiods.bin"
@@ -392,6 +395,9 @@ def _build_occ_id_index_csr(occ_arr, granular_date):
 def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
     """Read the occurrence binary file and return an id_index-backed CSR map.
 
+    If write_occurrence_index has saved an index for this exact occurrence file, it is memory-mapped
+    (shared by every process) instead of being built again.
+
     Returns:
         occ_csr (OccurrenceCSR): id_index-backed CSR occurrence map
         date_algorithm (int): date algorithm flag
@@ -399,8 +405,74 @@ def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
         no_of_periods (int): number of periods
     """
     occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(run_dir, filename=filename)
-    occ_csr = _build_occ_id_index_csr(occ_arr, granular_date)
+    occ_csr = _load_occurrence_index(run_dir, filename)
+    if occ_csr is None:
+        occ_csr = _build_occ_id_index_csr(occ_arr, granular_date)
     return occ_csr, date_algorithm, granular_date, no_of_periods
+
+
+def _occurrence_index_dir(run_dir, filename=OCCURRENCE_FILE):
+    return Path(run_dir, Path(filename).stem + "_index")
+
+
+def _occurrence_file_signature(occurrence_fp):
+    """Size and CRC32 of the occurrence file, identifying the file an index was built from."""
+    occ_bytes = np.memmap(occurrence_fp, mode="r", dtype="u1")
+    return {"size": int(occ_bytes.size), "crc32": zlib.crc32(occ_bytes)}
+
+
+def _load_occurrence_index(run_dir, filename=OCCURRENCE_FILE):
+    """Memory-map the index saved by write_occurrence_index.
+
+    Returns:
+        OccurrenceCSR, or None if there is no complete index for the current occurrence file
+    """
+    index_dir = _occurrence_index_dir(run_dir, filename)
+    source_fp = Path(index_dir, OCCURRENCE_INDEX_SOURCE_FILE)
+    try:
+        with open(source_fp) as f:
+            source = json.load(f)
+        if source != _occurrence_file_signature(Path(run_dir, filename)):
+            logger.info(f"occurrence index {index_dir} is out of date, building the index in memory")
+            return None
+        return OccurrenceCSR(*(np.load(Path(index_dir, f"{name}.npy"), mmap_mode="r") for name in OccurrenceCSR._fields))
+    except (OSError, ValueError):
+        return None
+
+
+def write_occurrence_index(run_dir, filename=OCCURRENCE_FILE):
+    """Build the occurrence CSR once and save it beside the occurrence file, so that every
+    process reading occurrences maps one shared copy instead of building its own.
+
+    The size and CRC32 of the occurrence file are saved last, so read_occurrence only uses a
+    complete index built from the same file.
+
+    Args:
+        run_dir (str | os.PathLike): directory holding the occurrence file
+        filename (str): occurrence file name
+    """
+    occurrence_fp = Path(run_dir, filename)
+    index_dir = _occurrence_index_dir(run_dir, filename)
+    source_fp = Path(index_dir, OCCURRENCE_INDEX_SOURCE_FILE)
+    source_fp.unlink(missing_ok=True)
+
+    occ_arr, _, granular_date, _ = read_occurrence_bin(run_dir, filename=filename)
+    occ_csr = _build_occ_id_index_csr(occ_arr, granular_date)
+    index_dir.mkdir(exist_ok=True)
+    for name in OccurrenceCSR._fields:
+        np.save(Path(index_dir, f"{name}.npy"), getattr(occ_csr, name))
+    with open(source_fp, "w") as f:
+        json.dump(_occurrence_file_signature(occurrence_fp), f)
+
+
+@nb.njit(cache=True)
+def occ_max_records_per_event(occ_offsets):
+    """Largest number of occurrences of any one event, without allocating np.diff(occ_offsets)."""
+    max_records = 0
+    for i in range(len(occ_offsets) - 1):
+        if occ_offsets[i + 1] - occ_offsets[i] > max_records:
+            max_records = occ_offsets[i + 1] - occ_offsets[i]
+    return max_records
 
 
 @nb.njit(cache=True)
