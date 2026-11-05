@@ -241,10 +241,11 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
                                          .merge(peril_groups_df)['peril_id'])
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
-        # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice
+        # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
+        # de-duplicate after expanding the groups, ignoring which group a peril came from
         keys_df = (locations.assign(peril_group_id=locations[peril_covered_column].astype(str).str.split(';'))
-                   .explode('peril_group_id').merge(peril_groups_df)[['loc_id', 'peril_id']]
-                   .drop_duplicates())
+                   .explode('peril_group_id').merge(peril_groups_df))
+        keys_df = keys_df.drop_duplicates(subset=keys_df.columns.drop('peril_group_id'))[['loc_id', 'peril_id']]
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
         keys_df = keys_df.merge(coverage_df, how="cross").sort_values(['loc_id', 'peril_id', 'coverage_type'], kind='stable')
