@@ -863,7 +863,7 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
     int32_mv[cursor], cursor = vulns_id[vuln_i], cursor + 1
 
     cur_vuln_mat = vuln_array[vuln_i]
-    p = 0
+    p = np.float64(0.)
     cursor_start = cursor
     cursor += 1
     oasis_float_mv = int32_mv[cursor: cursor + num_damage_bins * results_relative_size].view(oasis_float)

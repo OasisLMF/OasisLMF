@@ -183,8 +183,9 @@ def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
 
     Previously `get_corr_rval_float` used by GulMC, now shared by both GULs
     """
-    sqrt_rho = sqrt(rho)
-    sqrt_1_minus_rho = sqrt(1. - rho)
+    # Numba types sqrt(float32) as float32; round explicitly so the pure-Python path matches
+    sqrt_rho = np.float32(sqrt(rho))
+    sqrt_1_minus_rho = sqrt(1. - np.float64(rho))
     N = len(norm_inv_cdf)
     eps = epsilon
     upper = 1.0 - eps

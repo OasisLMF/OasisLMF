@@ -5,6 +5,7 @@ so it make no sense to compute deductible, over_limit, under_limit
 """
 
 
+import numpy as np
 from numba import njit
 
 
@@ -89,7 +90,10 @@ def calcrule_14(policy, loss_out, loss_in):
 @njit(cache=True, fastmath=True)
 def calcrule_15(policy, loss_out, loss_in):
     """Deductible and limit % loss"""
-    effective_limit = policy['deductible1'] / (1 - policy['limit1'])
+    if policy['limit1'] >= 1:
+        effective_limit = np.inf
+    else:
+        effective_limit = policy['deductible1'] / (1 - policy['limit1'])
     for i in range(loss_in.shape[0]):
         if loss_in[i] <= policy['deductible1']:
             loss_out[i] = 0

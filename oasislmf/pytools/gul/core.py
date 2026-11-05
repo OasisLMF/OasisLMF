@@ -31,7 +31,7 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, bin_scaling):
 
         return gul
 
-    bin_height = prob_to - prob_from
+    bin_height = np.float64(prob_to - prob_from)
     rval_bin_offset = rval - prob_from
 
     # linear interpolation
@@ -135,8 +135,8 @@ def split_tiv_multiplicative(gulitems, tiv):
         tiv (oasis_float): total insured value.
     """
     Ngulitems = gulitems.shape[0]
-    undamaged_value = 1.
-    sum_loss = 0.
+    undamaged_value = np.float64(1.)
+    sum_loss = np.float64(0.)
     for i in range(Ngulitems):
         undamaged_value *= 1. - gulitems[i] / tiv
         sum_loss += gulitems[i]
@@ -170,15 +170,16 @@ def compute_mean_loss(bin_scaling, prob_to, bin_mean, bin_count, max_damage_bin_
     # chance_of_loss = 1. - prob_to[0] if bin_mean[0] == 0. else 1.
     chance_of_loss = 1 - prob_to[0] * (1 - (bin_mean[0] > 0))
 
-    gul_mean = 0.
-    ctr_var = 0.
-    last_prob_to = 0.
+    bin_scaling = np.float64(bin_scaling)
+    gul_mean = np.float64(0.)
+    ctr_var = np.float64(0.)
+    last_prob_to = np.float64(0.)
     for i in range(bin_count):
         prob_from = last_prob_to
         new_gul = (prob_to[i] - prob_from) * bin_mean[i]
         gul_mean += new_gul
         ctr_var += new_gul * bin_mean[i]
-        last_prob_to = prob_to[i]
+        last_prob_to = np.float64(prob_to[i])
 
     gul_mean *= bin_scaling
     ctr_var *= bin_scaling**2.
