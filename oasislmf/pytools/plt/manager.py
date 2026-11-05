@@ -238,9 +238,8 @@ def read_buffer(
     # (so event_id would otherwise stay at the caller's 0 for every write this call).
     last_event_id = state["current_event_id"]
     event_id = state["current_event_id"]
-    # The current event's occurrence records, as an index range into occ_flat. Looked up once per
-    # event rather than via an occ_get() slice per loss value: each slice is a view that numba >= 0.66
-    # refcounts (~25% of pltpy run time).
+    # The current event's occurrence records, as an index range into occ_flat, looked up once per
+    # event: an occ_get() slice per loss value cost ~25% of pltpy (see the refcount note in common/event_stream.py).
     occ_flat = occ_csr.occ_flat
     occ_start, occ_end = occ_range(occ_csr, event_id)
     si = splt_idx[0]
@@ -333,27 +332,26 @@ def read_buffer(
                 cursor += loss_dtype_size  # Read extra 0 for end of record
 
                 # Update MPLT data (sample mean)
-                if state["compute_mplt"]:
-                    for occ_i in range(occ_start, occ_end):
-                        record = occ_flat[occ_i]
-                        if state["hasrec"]:
-                            meanloss, sdloss = _get_mean_and_sd_loss()
-                            if meanloss > 0 or sdloss > 0:
-                                _update_mplt_data(
-                                    mplt_data, mi, period_weights, granular_date,
-                                    record=record,
-                                    event_id=event_id,
-                                    summary_id=state["summary_id"],
-                                    sample_type=MEAN_TYPE_SAMPLE,
-                                    chance_of_loss=state["chance_of_loss"],
-                                    meanloss=meanloss,
-                                    sdloss=sdloss,
-                                    maxloss=state["max_loss"],
-                                    footprint_exposure=state["exposure_value"],
-                                    mean_impacted_exposure=state["mean_impacted_exposure"],
-                                    max_impacted_exposure=state["max_impacted_exposure"],
-                                )
-                                mi += 1
+                if state["compute_mplt"] and state["hasrec"]:
+                    meanloss, sdloss = _get_mean_and_sd_loss()
+                    if meanloss > 0 or sdloss > 0:
+                        for occ_i in range(occ_start, occ_end):
+                            record = occ_flat[occ_i]
+                            _update_mplt_data(
+                                mplt_data, mi, period_weights, granular_date,
+                                record=record,
+                                event_id=event_id,
+                                summary_id=state["summary_id"],
+                                sample_type=MEAN_TYPE_SAMPLE,
+                                chance_of_loss=state["chance_of_loss"],
+                                meanloss=meanloss,
+                                sdloss=sdloss,
+                                maxloss=state["max_loss"],
+                                footprint_exposure=state["exposure_value"],
+                                mean_impacted_exposure=state["mean_impacted_exposure"],
+                                max_impacted_exposure=state["max_impacted_exposure"],
+                            )
+                            mi += 1
 
                 # Update QPLT data
                 if state["compute_qplt"]:
@@ -409,11 +407,9 @@ def read_buffer(
                 state["max_loss"] = loss
             elif sidx == MEAN_IDX:
                 # Update MPLT data (analytical mean)
-                if state["compute_mplt"]:
+                if state["compute_mplt"] and loss > 0:
                     for occ_i in range(occ_start, occ_end):
                         record = occ_flat[occ_i]
-                        if loss <= 0:
-                            continue
                         _update_mplt_data(
                             mplt_data, mi, period_weights, granular_date,
                             record=record,

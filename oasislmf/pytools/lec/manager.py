@@ -135,8 +135,8 @@ def accumulate_summary_record(
 
     Reads from ``cursor`` up to and including the ``sidx == 0`` terminator. Each loss is added to
     every occurrence of the event, ``occ_flat[occ_start:occ_end]``, indexed rather than sliced.
-    A whole record is handled per call, not one value per call: every call passes these arrays,
-    and on numba >= 0.66 each is refcounted on entry and exit.
+    One call per record rather than per value, because a call passing these arrays is refcounted
+    (see the refcount note in common/event_stream.py).
 
     Args:
         fin (np.memmap): summary binary memmap
@@ -164,21 +164,22 @@ def accumulate_summary_record(
             break
         if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
             continue
-        if loss > 0 or use_return_period:
+        if not (loss > 0 or use_return_period):
+            continue
+        if sidx == MEAN_IDX:
             for occ_i in range(occ_start, occ_end):
-                period_no = occ_flat[occ_i]["period_no"]
-                if sidx == MEAN_IDX:
-                    idx = get_outloss_mean_idx(period_no, summary_id, max_summary_id)
-                    outloss_mean[idx]["agg_out_loss"] += loss
-                    if loss > outloss_mean[idx]["max_out_loss"]:
-                        outloss_mean[idx]["max_out_loss"] = loss
-                    row_used_mean[idx] = True
-                else:
-                    idx = get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id)
-                    outloss_sample[idx]["agg_out_loss"] += loss
-                    if loss > outloss_sample[idx]["max_out_loss"]:
-                        outloss_sample[idx]["max_out_loss"] = loss
-                    row_used_sample[idx] = True
+                idx = get_outloss_mean_idx(occ_flat[occ_i]["period_no"], summary_id, max_summary_id)
+                outloss_mean[idx]["agg_out_loss"] += loss
+                if loss > outloss_mean[idx]["max_out_loss"]:
+                    outloss_mean[idx]["max_out_loss"] = loss
+                row_used_mean[idx] = True
+        else:
+            for occ_i in range(occ_start, occ_end):
+                idx = get_outloss_sample_idx(occ_flat[occ_i]["period_no"], sidx, summary_id, num_sidxs, max_summary_id)
+                outloss_sample[idx]["agg_out_loss"] += loss
+                if loss > outloss_sample[idx]["max_out_loss"]:
+                    outloss_sample[idx]["max_out_loss"] = loss
+                row_used_sample[idx] = True
     return cursor
 
 
@@ -207,9 +208,6 @@ def process_summary_entries(
         _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)  # expval
 
         occ_start, occ_end = occ_range(occ_csr, event_id)
-        if occ_start == occ_end:
-            continue
-
         accumulate_summary_record(
             fin, cursor, 1, occ_flat, occ_start, occ_end,
             outloss_mean_s, row_used_mean_s,

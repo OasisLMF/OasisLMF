@@ -90,8 +90,7 @@ def insert_loss_out_of_order(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_
     The sidx values must be stored in sorted order for efficient lookup during computation. They
     usually arrive in order, and ``read_buffer`` appends those directly (first value for the node,
     or sidx > last sidx: O(1)). This is the rare remaining case: binary-search the insertion point
-    and shift the tail up by one (O(n)). It is kept out of line so the common path in
-    ``read_buffer`` makes no call, which on numba >= 0.66 would refcount the three arrays per pair.
+    and shift the tail up by one (O(n)).
 
     Raises ValueError if duplicate sidx is detected (stream corruption).
 
@@ -196,9 +195,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                         pass_through[compute_idx['next_compute_i']] = loss
                     else:
                         # Regular sample or special index (-5, -3, -1, 1..N), appended in sidx order.
-                        # The in-order case is written out here rather than called: a call passes three
-                        # arrays per pair, and on numba >= 0.66 each is refcounted on entry and exit
-                        # (~44% of fmpy run time).
+                        # The in-order case is written out rather than called: a call taking the three
+                        # arrays per pair cost ~44% of fmpy (see the refcount note in common/event_stream.py).
                         compute_i = compute_idx['next_compute_i']
                         end = sidx_indptr[compute_i]
                         if sidx_indptr[compute_i - 1] == end or sidx_val[end - 1] < sidx:

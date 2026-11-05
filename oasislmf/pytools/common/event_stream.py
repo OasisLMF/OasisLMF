@@ -118,12 +118,16 @@ def init_streams_in(files_in, stack):
 # mv_read / mv_write move one scalar at a time between a byte buffer and a typed value. They are
 # the innermost call of every stream reader and writer, so they run once per sidx/loss pair.
 #
+# Refcounting in hot loops (issue #2240). In numba, every array view (slice, field view, `.view()`)
+# and every call that passes an array costs an atomic NRT incref/decref pair. numba <= 0.65 deleted
+# these pairs from small helpers (removerefctpass); numba PR #10511 removed that pass in 0.66, and
+# llvmlite's RefPrune cannot remove a pair across a call layer or a `raise`. So per-value loops in
+# pytools avoid creating views and avoid calls that take arrays; other modules refer to this note.
+#
 # The natural numba spelling, `byte_mv[cursor:cursor + itemsize].view(_dtype)[0]`, builds two
-# temporary arrays per call, and each one costs an atomic NRT incref/decref on the buffer. That
-# refcounting was ~40% of gulmc's run time, and numba >= 0.66 prunes fewer of the pairs, which is
-# the regression in issue #2240. A single typed view of the whole buffer is not an option: the
-# stream mixes field types (loss is f4 or f8 depending on OASIS_FLOAT), so fields sit at offsets
-# that are not multiples of their own size.
+# temporary arrays per call, and its refcounting was ~40% of gulmc's run time. A single typed view
+# of the whole buffer is not an option: the stream mixes field types (loss is f4 or f8 depending on
+# OASIS_FLOAT), so fields sit at offsets that are not multiples of their own size.
 #
 # Instead, under JIT, the value is loaded/stored straight through a pointer to byte `cursor`
 # (unaligned, native byte order, exactly what `.view()` does), with no array temporaries at all.
@@ -180,11 +184,11 @@ def _pointer_at(context, builder, sig, args, scalar_type):
     return builder.bitcast(addr, context.get_value_type(scalar_type).as_pointer())
 
 
+# The two intrinsics are only called from the mv_read / mv_write overloads below, which have already
+# checked for a contiguous (and, to store, mutable) byte buffer, a dtype and a scalar value.
 @intrinsic
 def _unaligned_load(typingctx, byte_mv, cursor, dtype):
     scalar_type = _scalar_type_of(dtype)
-    if scalar_type is None or not _is_contiguous_byte_array(byte_mv):
-        return None
 
     def codegen(context, builder, sig, args):
         return builder.load(_pointer_at(context, builder, sig, args, scalar_type), align=1)
@@ -194,8 +198,6 @@ def _unaligned_load(typingctx, byte_mv, cursor, dtype):
 @intrinsic
 def _unaligned_store(typingctx, byte_mv, cursor, dtype, value):
     scalar_type = _scalar_type_of(dtype)
-    if scalar_type is None or not _is_contiguous_byte_array(byte_mv) or not byte_mv.mutable or not _is_scalar(value):
-        return None
 
     def codegen(context, builder, sig, args):
         # same implicit conversion as `view[0] = value`, e.g. a float64 loss into an f4 field
