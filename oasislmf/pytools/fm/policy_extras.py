@@ -45,36 +45,21 @@ def deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limi
 
 @njit(cache=True)
 def deductible_under_min(i, loss_out, loss_in, effective_deductible, over_limit, under_limit, min_deductible, deductible):
-    """Deductible is under the minimum, we raise the deductible from over_limit first then loss if over_limit is not enough"""
-    loss_delta = min_deductible - deductible - effective_deductible[i]
-    if loss_delta <= over_limit[i]:  # we have enough over_limit to cover loss_delta
-        if loss_in[i] > deductible:  # we have enough loss to cover deductible
-            loss_out[i] = loss_in[i]
-            over_limit[i] -= loss_delta
-            effective_deductible[i] = min_deductible
-        elif (over_limit[i] - loss_delta) + loss_in[i] > deductible:  # not enough loss, we also reduce the over_limit
-            loss_out[i] = 0
-            over_limit[i] -= loss_delta + deductible
-            effective_deductible[i] = min_deductible
-            under_limit[i] += loss_in[i]
-        else:
-            effective_deductible[i] += loss_in[i] + over_limit[i]
-            loss_out[i] = 0
-            over_limit[i] = 0
-            under_limit[i] += loss_in[i]
+    """Deductible is under the minimum, so raise it to the minimum while conserving the loss.
 
-    else:
-        loss_not_over_limit = loss_delta - over_limit[i]
-        if loss_in[i] > loss_not_over_limit + deductible:  # we have enough loss after we use over_limit pool
-            loss_out[i] = loss_in[i] - loss_not_over_limit - deductible
-            over_limit[i] = 0
-            effective_deductible[i] = min_deductible
-            under_limit[i] += loss_not_over_limit
-        else:
-            loss_out[i] = 0
-            effective_deductible[i] += loss_in[i] + over_limit[i]
-            under_limit[i] += loss_in[i]
-            over_limit[i] = 0
+    The level's own deductible comes off the loss, as it does when the minimum does not bind. The top up to the
+    minimum comes from the over_limit pool first, then from the loss. If loss and pool together are not enough,
+    all of both become deductible.
+    """
+    from_loss = min2(loss_in[i], deductible)
+    top_up = min_deductible - effective_deductible[i] - from_loss
+    from_over_limit = min2(over_limit[i], top_up)
+    from_loss += min2(loss_in[i] - from_loss, top_up - from_over_limit)
+
+    loss_out[i] = loss_in[i] - from_loss
+    over_limit[i] -= from_over_limit
+    effective_deductible[i] += from_loss + from_over_limit
+    under_limit[i] += from_loss
 
 
 @njit(cache=True, fastmath=True)
