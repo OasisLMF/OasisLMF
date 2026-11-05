@@ -15,9 +15,11 @@ from oasislmf.pytools.gulmc.manager import CDF_CACHE_EMPTY, compute_event_losses
 
 from .test_rp_protection import _make_compute_event_losses_args
 
-# the helper's model has 1 intensity bin, 2 damage bins and a 16-slot CDF cache
+# the helper's model has 1 intensity bin, 2 damage bins and a 16-slot CDF cache. The helper shares
+# the probability evenly between the records, so powers of two keep each share exact in float32 and
+# the comparison with one record exact with the JIT disabled too.
 N_HAZ_RECORDS_ABOVE_BINS = 8     # above the per-hazard-bin buffers (2), within the cache
-N_HAZ_RECORDS_ABOVE_CACHE = 40   # a CDF block (1 + records) larger than the 16-slot cache
+N_HAZ_RECORDS_ABOVE_CACHE = 64   # a CDF block (1 + records) larger than the 16-slot cache
 
 
 @pytest.mark.parametrize("n_haz_records", [N_HAZ_RECORDS_ABOVE_BINS, N_HAZ_RECORDS_ABOVE_CACHE],
