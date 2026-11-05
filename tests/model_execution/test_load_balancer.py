@@ -71,9 +71,10 @@ def input_streams(draw):
 
 
 @settings(max_examples=100, deadline=None)
-@given(streams=input_streams(), n_outputs=st.integers(1, 3), read_size=st.sampled_from([104, 152, 256, 1_048_576]))
+@given(streams=input_streams(), n_outputs=st.integers(1, 3), read_size=st.sampled_from([32, 36, 44, 104, 152, 256, 1_048_576]))
 def test_every_record_comes_out_once_and_events_are_not_split(streams, n_outputs, read_size):
-    """The largest record drawn is 48 bytes, so small read sizes carry partial records over between reads."""
+    """The largest record drawn is 48 bytes, so small read sizes carry partial records over between reads and the
+    smallest ones must grow to fit a whole record."""
     outputs = run_balance(streams, n_outputs, read_size)
 
     assert all(out[:8] == HEADER for out in outputs)
