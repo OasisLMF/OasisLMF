@@ -11,7 +11,7 @@ from oasislmf.pytools.summary.manager import SUMMARY_META_SIZE
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE,
                                           summary_stream_index_dtype, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
-from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_get, read_occurrence, read_periods, read_returnperiods
+from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_range, read_occurrence, read_periods, read_returnperiods
 from oasislmf.pytools.common.parquet import BufferedParquetWriter
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
                                        OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR,
@@ -116,46 +116,70 @@ def get_max_summary_id(file_handles):
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
-def do_lec_output_agg_summary(
+def accumulate_summary_record(
+    fin,
+    cursor,
     summary_id,
-    sidx,
-    loss,
-    filtered_occ_map,
+    occ_flat,
+    occ_start,
+    occ_end,
     outloss_mean,
     row_used_mean,
     outloss_sample,
     row_used_sample,
+    use_return_period,
     num_sidxs,
     max_summary_id,
 ):
-    """Populate outloss_mean and outloss_sample with aggregate and max losses
+    """Read one summary record's (sidx, loss) pairs and add them to the aggregate and max losses.
+
+    Reads from ``cursor`` up to and including the ``sidx == 0`` terminator. Each loss is added to
+    every occurrence of the event, ``occ_flat[occ_start:occ_end]``, indexed rather than sliced.
+    A whole record is handled per call, not one value per call: every call passes these arrays,
+    and on numba >= 0.66 each is refcounted on entry and exit.
 
     Args:
+        fin (np.memmap): summary binary memmap
+        cursor (int): position of the record's first (sidx, loss) pair
         summary_id (summary_id_dtype): summary_id
-        sidx (sidx_dtype): Sample ID
-        loss (loss_dtype): Loss value
-        filtered_occ_map (ndarray[occ_map_dtype]): Filtered numpy map of event_id, period_no, occ_date_id from the occurrence file
+        occ_flat (ndarray[occ_map_dtype]): occurrence records of all events (OccurrenceCSR.occ_flat)
+        occ_start (int): index of the event's first occurrence record in occ_flat
+        occ_end (int): index after the event's last occurrence record (== occ_start if none)
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
         row_used_mean (ndarray[bool]): bool mask for outloss_mean
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         row_used_sample (ndarray[bool]): bool mask for outloss_sample
+        use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
+
+    Returns:
+        int: cursor after the record's terminator
     """
-    for row in filtered_occ_map:
-        period_no = row["period_no"]
-        if sidx == MEAN_IDX:
-            idx = get_outloss_mean_idx(period_no, summary_id, max_summary_id)
-            outloss_mean[idx]["agg_out_loss"] += loss
-            if loss > outloss_mean[idx]["max_out_loss"]:
-                outloss_mean[idx]["max_out_loss"] = loss
-            row_used_mean[idx] = True
-        else:
-            idx = get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id)
-            outloss_sample[idx]["agg_out_loss"] += loss
-            if loss > outloss_sample[idx]["max_out_loss"]:
-                outloss_sample[idx]["max_out_loss"] = loss
-            row_used_sample[idx] = True
+    valid_buff = len(fin)
+    while cursor < valid_buff:
+        sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
+        loss, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
+        if sidx == 0:
+            break
+        if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
+            continue
+        if loss > 0 or use_return_period:
+            for occ_i in range(occ_start, occ_end):
+                period_no = occ_flat[occ_i]["period_no"]
+                if sidx == MEAN_IDX:
+                    idx = get_outloss_mean_idx(period_no, summary_id, max_summary_id)
+                    outloss_mean[idx]["agg_out_loss"] += loss
+                    if loss > outloss_mean[idx]["max_out_loss"]:
+                        outloss_mean[idx]["max_out_loss"] = loss
+                    row_used_mean[idx] = True
+                else:
+                    idx = get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id)
+                    outloss_sample[idx]["agg_out_loss"] += loss
+                    if loss > outloss_sample[idx]["max_out_loss"]:
+                        outloss_sample[idx]["max_out_loss"] = loss
+                    row_used_sample[idx] = True
+    return cursor
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -175,31 +199,23 @@ def process_summary_entries(
     Eliminates per-event Python→numba overhead by looping over all offsets inside numba.
     offsets should be sorted ascending for best OS page-cache utilisation.
     """
-    valid_buff = len(fin)
+    occ_flat = occ_csr.occ_flat
     for offset in offsets:
         cursor = offset
         event_id, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
         _, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)    # summary_id known from idx
         _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)  # expval
 
-        filtered_occ_map = occ_get(occ_csr, event_id)
-        if len(filtered_occ_map) == 0:
+        occ_start, occ_end = occ_range(occ_csr, event_id)
+        if occ_start == occ_end:
             continue
 
-        while cursor < valid_buff:
-            sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
-            loss, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
-            if sidx == 0:
-                break
-            if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
-                continue
-            if loss > 0 or use_return_period:
-                do_lec_output_agg_summary(
-                    1, sidx, loss, filtered_occ_map,
-                    outloss_mean_s, row_used_mean_s,
-                    outloss_sample_s, row_used_sample_s,
-                    num_sidxs, 1,
-                )
+        accumulate_summary_record(
+            fin, cursor, 1, occ_flat, occ_start, occ_end,
+            outloss_mean_s, row_used_mean_s,
+            outloss_sample_s, row_used_sample_s,
+            use_return_period, num_sidxs, 1,
+        )
 
 
 _MERGED_IDX_DTYPE = np.dtype([
@@ -256,39 +272,19 @@ def process_input_file(
     cursor = SUMMARY_META_SIZE
 
     valid_buff = len(fin)
+    occ_flat = occ_csr.occ_flat
     while cursor < valid_buff:
         event_id, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
         summary_id, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)
         expval, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
 
-        filtered_occ_map = occ_get(occ_csr, event_id)
-        if len(filtered_occ_map) == 0:
-            while cursor < valid_buff:
-                sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
-                _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
-                if sidx == 0:
-                    break
-            continue
-        while cursor < valid_buff:
-            sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
-            loss, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
-            if sidx == 0:
-                break
-            if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
-                continue
-            if loss > 0 or use_return_period:
-                do_lec_output_agg_summary(
-                    summary_id,
-                    sidx,
-                    loss,
-                    filtered_occ_map,
-                    outloss_mean,
-                    row_used_mean,
-                    outloss_sample,
-                    row_used_sample,
-                    num_sidxs,
-                    max_summary_id,
-                )
+        # an event with no occurrence records gives an empty range: its pairs are read and skipped
+        occ_start, occ_end = occ_range(occ_csr, event_id)
+        cursor = accumulate_summary_record(
+            fin, cursor, summary_id, occ_flat, occ_start, occ_end,
+            outloss_mean, row_used_mean, outloss_sample, row_used_sample,
+            use_return_period, num_sidxs, max_summary_id,
+        )
 
 
 @nb.njit(cache=True, error_model="numpy")
