@@ -814,9 +814,8 @@ def build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, Ndamage_bins_max,
         vuln_pdf_empty (np.array[float]): output buffer of shape (>= Nhaz_bins, Ndamage_bins_max);
           rows ``[:Nhaz_bins]`` are overwritten.
     """
-    n_damage_bins = vuln_pdf_empty.shape[1]
     for haz_i in range(Nhaz_bins):
-        for damage_bin_i in range(n_damage_bins):
+        for damage_bin_i in range(Ndamage_bins_max):
             vuln_pdf_empty[haz_i, damage_bin_i] = 0
     if item['areaperil_agg_vuln_idx'] >= 0:  # aggregate vulnerability — use jagged arrays
         tot_weights = 0.
@@ -847,16 +846,16 @@ def build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, Ndamage_bins_max,
             for j in range(n_sub):
                 vuln_i = areaperil_agg_vuln_idx_ja_data[ptr + j]['vuln_idx']
                 for haz_i in range(Nhaz_bins):
-                    for damage_bin_i in range(n_damage_bins):
+                    for damage_bin_i in range(Ndamage_bins_max):
                         vuln_pdf_empty[haz_i, damage_bin_i] += vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1]
             norm = n_sub
         for haz_i in range(Nhaz_bins):
-            for damage_bin_i in range(n_damage_bins):
+            for damage_bin_i in range(Ndamage_bins_max):
                 vuln_pdf_empty[haz_i, damage_bin_i] /= norm
     else:
         vuln_idx = item['vulnerability_idx']
         for haz_i in range(Nhaz_bins):
-            for damage_bin_i in range(n_damage_bins):
+            for damage_bin_i in range(Ndamage_bins_max):
                 vuln_pdf_empty[haz_i, damage_bin_i] = vuln_array[vuln_idx, damage_bin_i, haz_bin_id[haz_i] - 1]
 
 
@@ -915,7 +914,6 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
 
         if not compute_info['effective_damageability']:  # also (unless dependent) cache per-bin vuln CDFs
             for haz_i in range(Nhaz_bins):
-                # cache miss under full Monte Carlo only, so the two row views here are not per sample
                 ndamage_bins = pdf_to_cdf(vuln_pdf_empty[haz_i], n_damage_bins, haz_i_to_vuln_cdf[haz_i])
                 haz_i_to_Ndamage_bins[haz_i] = ndamage_bins
                 if not is_dependent:
@@ -1151,8 +1149,7 @@ def _compute_event_losses_core(compute_info,
                                haz_i_to_Ndamage_bins_empty,
                                haz_i_to_vuln_cdf_empty,
                                haz_bin_id,
-                               haz_pdf_prob,
-                               damage_bins_interpolation):
+                               haz_pdf_prob):
     """Body of compute_event_losses, compiled without the numba runtime (``_nrt=False``).
 
     Without the runtime numba emits no NRT incref/decref at all, which removes the per-item
@@ -1167,6 +1164,7 @@ def _compute_event_losses_core(compute_info,
     """
     cdf_cache_size = nb_int64(cdf_cache_mask + 1)
     n_damage_bins_total = damage_bins.shape[0]
+    damage_bins_interpolation = damage_bins['interpolation']  # one field view per call, not per item
 
     # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
     compute_info['cursor'] = 0
@@ -1447,8 +1445,6 @@ def compute_event_losses(compute_info,
     # source's damage pmf is written to haz_pdf_prob instead, playing the role of the hazard pdf
     haz_bin_id = np.empty(max_haz_bins, dtype=np.int32)
     haz_pdf_prob = np.empty(max_haz_bins, dtype=oasis_float)
-    # field view taken once per call rather than once per item (see the refcount note in common/event_stream.py)
-    damage_bins_interpolation = damage_bins['interpolation']
 
     return _compute_event_losses_core(compute_info,
                                       coverages,
@@ -1493,8 +1489,7 @@ def compute_event_losses(compute_info,
                                       haz_i_to_Ndamage_bins_empty,
                                       haz_i_to_vuln_cdf_empty,
                                       haz_bin_id,
-                                      haz_pdf_prob,
-                                      damage_bins_interpolation)
+                                      haz_pdf_prob)
 
 
 @nb.njit(cache=True, fastmath=True)

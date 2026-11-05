@@ -312,15 +312,6 @@ def _mv_write_jit(byte_mv, cursor, _dtype, itemsize, value):  # pragma: no cover
             return cursor + itemsize
         return impl
 
-    if isinstance(value, types.Array) and value.ndim == 0 and _is_scalar(value.dtype):
-        # a 0-d array (e.g. a numpy scalar reaching jitted code as `arr[()]`-able), which the
-        # view-based version accepted through setitem; store the element it holds
-        def impl_0d(byte_mv, cursor, _dtype, itemsize, value):
-            _check_in_buffer(byte_mv, cursor, itemsize)
-            _unaligned_store(byte_mv, cursor, _dtype, value[()])
-            return cursor + itemsize
-        return impl_0d
-
     return _mv_write_view  # any other value type: keep the view-based implementation's semantics
 
 

@@ -80,7 +80,7 @@ def _write_0d(byte_mv, value_0d):
 
 
 def test_zero_dim_array_value_is_written_as_its_element():
-    # plapy passes losses as 0-d arrays
+    # no pytools caller does this, but main accepted it; it goes through the view-based fallback
     byte_mv = np.zeros(4, dtype='b')
     assert _write_0d(byte_mv, np.array(2.5)) == 4
     assert byte_mv.tobytes() == np.float32(2.5).tobytes()
