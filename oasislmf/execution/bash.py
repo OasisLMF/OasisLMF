@@ -717,6 +717,30 @@ def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=No
     return fifos
 
 
+def do_fifos_rlcombine(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None,
+                       consumer_prefix=None, action='mkfifo'):
+    if runtype != 'rl':
+        raise ValueError('rlcombine tool only supported for `rl` runtype')
+    summaries = analysis_settings.get(f'{runtype}_summaries')
+    if not summaries:
+        return []
+
+    if not consumer_prefix:
+        consumer_prefix = ''
+
+    fifos = []
+    for process_id in process_range(max_process_id, process_number):
+        for summary in summaries:
+            if 'id' in summary:
+                summary_set = summary['id']
+                fifos.append(do_fifo_exec(runtype, process_id, filename,
+                                          fifo_dir, action,
+                                          f'{consumer_prefix}S{summary_set}_rlcombine'))
+
+    print_command(filename, '')
+    return fifos
+
+
 def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None,
                   consumer_prefix=None, action='mkfifo', summarypy_low_memory=False):
     """Write FIFO create/remove commands for all summary and ORD output pipes.
@@ -1155,7 +1179,10 @@ def do_ord(
                     print_command(filename, cmd)
 
 
-def get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations, perspective='ri', all_layers=False):
+def get_reinsurance_inuring_priorities(analysis_settings,
+                                       num_reinsurance_iterations,
+                                       perspective='ri', all_layers=False,
+                                       include_final=True):
     """Build the list of inuring priority dicts for reinsurance net and gross loss.
 
     Returns intermediate inuring priorities specified in the analysis settings
@@ -1174,16 +1201,19 @@ def get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterat
         ``'level'`` (iteration number) keys.
     """
     if all_layers:
-        intermediate_inuring_priorities = range(1, num_reinsurance_iterations)
+        intermediate_inuring_priorities = set(range(1, num_reinsurance_iterations + 1))
     else:
         intermediate_inuring_priorities = set(analysis_settings.get(f'{perspective}_inuring_priorities', []))
+
+    if include_final:
+        intermediate_inuring_priorities.add(num_reinsurance_iterations)
+
     reins_inuring_priorities = [
         {
             'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
             'level': inuring_priority
-        } for inuring_priority in intermediate_inuring_priorities if inuring_priority < num_reinsurance_iterations
+        } for inuring_priority in intermediate_inuring_priorities
     ]
-    reins_inuring_priorities.append({'text': '', 'level': num_reinsurance_iterations})   # Final inuring priority
 
     return reins_inuring_priorities
 
@@ -2436,12 +2466,29 @@ def create_bash_analysis(
                     fifo_dir, process_number,
                     consumer=inuring_priority['text'].rstrip('_')
                 )
+
+                fifo_list += do_fifos_rlcombine(
+                        RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
+                        num_fm_output, filename, fifo_dir, process_number,
+                        consumer_prefix=inuring_priority['text']
+                        )
+
+            # outputs only need the requested layers
+            for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                                       perspective='rl', include_final=False):
                 fifo_list += do_fifos_calc(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                     num_fm_output, filename, fifo_dir, process_number,
                     consumer_prefix=inuring_priority['text'],
                     summarypy_low_memory=summarypy_low_memory,
                 )
+
+            # fifos for final output
+            fifo_list += do_fifos_calc(
+                    RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
+                    num_fm_output, filename, fifo_dir, process_number,
+                    summarypy_low_memory=summarypy_low_memory,
+                    )
 
         # create fifos for Load balancer
         if num_lb:
@@ -2701,7 +2748,7 @@ def create_bash_analysis(
                     ri_inuring_priorities={ip['level']: ip['text'] for ip in get_reinsurance_inuring_priorities(
                         analysis_settings, num_reinsurance_iterations) if ip['level'] and ri_output},
                     rl_inuring_priorities={ip['level']: ip['text'] for ip in get_reinsurance_inuring_priorities(
-                        analysis_settings, num_reinsurance_iterations, gross=True) if rl_output}
+                        analysis_settings, num_reinsurance_iterations, perspective='rl', all_layers=True) if rl_output}
                 )
                 print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None),
                                                         kwargs.get("socket_server_port")))
@@ -2801,7 +2848,7 @@ def create_bash_outputs(
         print_command(filename, '# --- Do reinsurance gross loss kats ---')
         print_command(filename, '')
         for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
-                                                                   gross=True):
+                                                                   perspective='rl', all_layers=True):
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                 num_fm_output, filename, process_counter, work_kat_dir,
@@ -2894,7 +2941,7 @@ def create_bash_outputs(
     if rl_output:
         for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings,
                                                                    num_reinsurance_iterations,
-                                                                   gross=True):
+                                                                   perspective='rl'):
             post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
