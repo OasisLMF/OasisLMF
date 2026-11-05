@@ -10,7 +10,7 @@ from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTI
                                           write_ndarray_to_fmt_csv, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, reservation_overflows, SUMMARY_STREAM_ID)
-from oasislmf.pytools.common.input_files import occ_get, occ_get_date, read_occurrence, read_periods, read_quantile
+from oasislmf.pytools.common.input_files import occ_get, occ_get_date, occ_max_records_per_event, read_occurrence, read_periods, read_quantile
 from oasislmf.pytools.common.parquet import BufferedParquetWriter
 from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
@@ -90,10 +90,7 @@ class PLTReader(EventReader):
 
         # Worst-case number of periods any single event maps to, used to reserve
         # output buffer capacity for a summary before reading it (see read_buffer).
-        if len(occ_csr.occ_offsets) > 1:
-            self.max_records_per_event = int(np.diff(occ_csr.occ_offsets).max())
-        else:
-            self.max_records_per_event = 0
+        self.max_records_per_event = int(occ_max_records_per_event(occ_csr.occ_offsets))
 
     def get_data(self, out_type):
         if out_type == "splt":
