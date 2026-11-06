@@ -1703,7 +1703,8 @@ def get_main_cmd_ri_stream(
             main_cmd += ' -n -'
         if i in ri_inuring_priorities.keys():
             if i == num_reinsurance_iterations:   # Final inuring priority always produces net output if ri output requested
-                ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
+                ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id,
+                                             consumer=ri_inuring_priorities[i].rstrip('_'))
                 main_cmd += f" -n - > {ri_fifo_name}"
             else:
                 main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id, consumer=ri_inuring_priorities[i].rstrip('_'))}"
