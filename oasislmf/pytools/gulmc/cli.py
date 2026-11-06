@@ -5,6 +5,7 @@ import logging
 logging.captureWarnings(True)
 
 from oasislmf import __version__ as oasis_version
+from oasislmf.pytools.getmodel.common import SECTION_MERGE_DEFAULT, SECTION_MERGE_OPTIONS
 from oasislmf.pytools.gulmc import logger, manager
 
 parser = argparse.ArgumentParser(
@@ -57,6 +58,9 @@ parser.add_argument('--model-df-engine', help='The engine to use when loading mo
                     default='oasis_data_manager.df_reader.reader.OasisPandasReader')
 parser.add_argument('--dynamic-footprint', help='Apply dynamic footprint logic with intensity adjustments',
                     default=False)
+parser.add_argument('--section-merge', default=SECTION_MERGE_DEFAULT, choices=SECTION_MERGE_OPTIONS,
+                    help='How a dynamic footprint merges the intensities of an areaperil lying in several '
+                         f'sections of one event. Default: {SECTION_MERGE_DEFAULT}')
 parser.add_argument('--socket-server', help='Send progress updates to a local socket server with this url',
                     default='False')
 parser.add_argument('--analysis-pk', help='Only used by platform to link run to an analysis',

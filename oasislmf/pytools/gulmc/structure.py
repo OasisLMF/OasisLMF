@@ -404,6 +404,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     Returns:
         dict: mapping variable names to numpy arrays / scalars.
     """
+    # absolute, as the footprint is loaded with the run directory as cwd (setcwd below): a relative
+    # model storage root first resolved there would point to run_dir/run_dir/static
+    run_dir = os.path.abspath(run_dir)
     model_storage = get_storage_from_config_path(
         os.path.join(run_dir, 'model_storage.json'),
         os.path.join(run_dir, 'static'),

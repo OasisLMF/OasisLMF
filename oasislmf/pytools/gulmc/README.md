@@ -189,6 +189,10 @@ When enabled, intensity values in the hazard footprint are adjusted per item usi
 via `intensity_bin_dict`. Items with different adjustments in the same (areaperil, vuln)
 group receive different `eff_cdf_id` values.
 
+The footprint itself is built per event by `FootprintParquetDynamic` (`getmodel/footprint.py`),
+including the merge of an areaperil lying in several sections (`--section-merge`); see the
+dynamic footprint page of the documentation (`docs/source/explanation/dynamic-footprint.rst`).
+
 
 ## Binary I/O Format
 
