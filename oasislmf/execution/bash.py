@@ -1073,6 +1073,25 @@ def do_rlcombine(
         print_command(filename, cmd)
 
 
+def do_ri_final_output(filename,
+                       analysis_settings,
+                       num_reinsurance_iterations,
+                       output_dir='output/'
+                       ):
+    final_text = f'{INTERMEDIATE_INURING_PRIORITY_PREFIX}{num_reinsurance_iterations}_'
+    final_requested = num_reinsurance_iterations is in analysis_settings.get('ri_inuring_priorities', [])
+
+    action = 'cp' if final_requested else 'mv'
+    src_prefix = f'{output_dir}{RUNTYPE_REINSURANCE_LOSS}_{final_text}'
+    dst_prefix = f'{output_dir}{RUNTYPE_REINSURANCE_LOSS}_'
+
+    print_command(filename, '')
+    print_command(filename, '# --- ri final output copy {"copy" if final_requested else "rename"}')
+    print_command(filename, f'for f in {src_prefix}*; do')
+    print_command(filename, f'    if [ -e "$f" ]; then {action} "$f" "{dst_prefix}${{f#{src_prefix}}}"; fi')
+    print_command(filename, 'done')
+
+
 def do_tees(
     runtype,
     analysis_settings,
@@ -3081,6 +3100,9 @@ def create_bash_outputs(
     for cmd in post_wait_cmds:
         print_command(filename, cmd)
     do_jwaits(filename, process_counter)
+
+    if ri_output:
+        do_ri_final_output(filename, analysis_settings, num_reinsurance_iterations, output_dir)
 
     if remove_working_files:
         print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
