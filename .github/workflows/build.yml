@@ -2,7 +2,7 @@
 #
 # Pass 'platforms' to build a subset; default 'all' builds the full matrix:
 #   ubuntu-22.04 / x86_64  |  ubuntu-22.04-arm / aarch64
-#   macos-14 / arm64        |  windows-2022 / AMD64
+#   macos-15 / arm64        |  windows-2022 / AMD64
 
 name: Oasislmf Build
 
@@ -68,7 +68,7 @@ jobs:
           buildplat = [
               ["ubuntu-22.04",     "x86_64"],
               ["ubuntu-22.04-arm", "aarch64"],
-              ["macos-14",         "arm64"],
+              ["macos-15",         "arm64"],
               ["windows-2022",     "AMD64"],
           ]
 
