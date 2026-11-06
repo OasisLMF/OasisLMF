@@ -1079,14 +1079,14 @@ def do_ri_final_output(filename,
                        output_dir='output/'
                        ):
     final_text = f'{INTERMEDIATE_INURING_PRIORITY_PREFIX}{num_reinsurance_iterations}_'
-    final_requested = num_reinsurance_iterations is in analysis_settings.get('ri_inuring_priorities', [])
+    final_requested = num_reinsurance_iterations in analysis_settings.get('ri_inuring_priorities', [])
 
     action = 'cp' if final_requested else 'mv'
     src_prefix = f'{output_dir}{RUNTYPE_REINSURANCE_LOSS}_{final_text}'
     dst_prefix = f'{output_dir}{RUNTYPE_REINSURANCE_LOSS}_'
 
     print_command(filename, '')
-    print_command(filename, '# --- ri final output copy {"copy" if final_requested else "rename"}')
+    print_command(filename, f'# --- ri final output {"copy" if final_requested else "rename"}')
     print_command(filename, f'for f in {src_prefix}*; do')
     print_command(filename, f'    if [ -e "$f" ]; then {action} "$f" "{dst_prefix}${{f#{src_prefix}}}"; fi')
     print_command(filename, 'done')
@@ -1973,6 +1973,18 @@ def get_pla_cmd(pla, secondary_factor, uniform_factor):
     return pla_cmd
 
 
+def get_valid_inuring_priorities(ip_to_level, request_ip, runtype):
+    request_ip = [int(p) for p in request_ip]
+    valid_ip = [p for p in request_ip if p in ip_to_level]
+    invalid_ip = [p for p in request_ip if p not in ip_to_level]
+
+    warning_msg = f'{runtype}_inuring_priorities requested but were not valid so ignored: '
+    if invalid_ip:
+        warning_msg += ', '.join([str(p) for p in invalid_ip])
+        logger.warning(warning_msg)
+    return valid_ip
+
+
 def bash_params(
     analysis_settings,
     max_process_id=-1,
@@ -2099,19 +2111,28 @@ def bash_params(
     # index of the last RI layer (output level) belonging to that priority.
     # We shadow analysis_settings with a shallow copy so the caller's dict is never mutated —
     # this means repeated bash_params() calls with the same dict remain safe (idempotent).
-    if model_run_dir and analysis_settings.get('ri_inuring_priorities'):
+    if analysis_settings.get('ri_inuring_priorities') or analysis_settings.get('rl_inuring_priorities'):
         mapping_fp = os.path.join(model_run_dir, 'input', 'ri_inuring_priority_output_levels.json')
         if os.path.exists(mapping_fp):
             with io.open(mapping_fp, encoding='utf-8') as _f:
                 _ip_to_level = {int(k): int(v) for k, v in json.load(_f).items()}
-            analysis_settings = {
-                **analysis_settings,
-                'ri_inuring_priorities': [
-                    _ip_to_level[int(p)]
-                    for p in analysis_settings['ri_inuring_priorities']
-                    if int(p) in _ip_to_level
-                ],
-            }
+            if analysis_settings.get('ri_inuring_priorities'):
+                valid_ips = get_valid_inuring_priorities(_ip_to_level, analysis_settings['ri_inuring_priorities'], 'ri')
+                analysis_settings = {
+                    **analysis_settings,
+                    'ri_inuring_priorities': [
+                        _ip_to_level[int(p)] for p in valid_ips
+                    ],
+                }
+
+            if analysis_settings.get('rl_inuring_priorities'):
+                valid_ips = get_valid_inuring_priorities(_ip_to_level, analysis_settings['rl_inuring_priorities'], 'rl')
+                analysis_settings = {
+                    **analysis_settings,
+                    'rl_inuring_priorities': [
+                        _ip_to_level[int(p)] for p in valid_ips
+                    ],
+                }
 
     if model_storage_json:
         bash_params['model_storage_json'] = model_storage_json
@@ -3105,6 +3126,8 @@ def create_bash_outputs(
         do_ri_final_output(filename, analysis_settings, num_reinsurance_iterations, output_dir)
 
     if remove_working_files:
+        print_command(filename, '')
+        print_command(filename, '# --- removing working files')
         print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
 
         if fifo_tmp_dir:
