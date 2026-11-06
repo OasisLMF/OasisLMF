@@ -1266,12 +1266,12 @@ def get_reinsurance_inuring_priorities(analysis_settings,
         ``'level'`` (iteration number) keys.
     """
     if all_layers:
-        intermediate_inuring_priorities = set(range(1, num_reinsurance_iterations + 1))
+        intermediate_inuring_priorities = list(range(1, num_reinsurance_iterations + 1))
     else:
-        intermediate_inuring_priorities = set(analysis_settings.get(f'{perspective}_inuring_priorities', []))
+        intermediate_inuring_priorities = sorted(list(analysis_settings.get(f'{perspective}_inuring_priorities', [])))
 
-    if include_final:
-        intermediate_inuring_priorities.add(num_reinsurance_iterations)
+    if include_final and num_reinsurance_iterations not in intermediate_inuring_priorities:
+        intermediate_inuring_priorities.append(num_reinsurance_iterations)
 
     reins_inuring_priorities = [
         {
@@ -2501,7 +2501,7 @@ def create_bash_analysis(
 
         # always make it for final output
         create_workfolders( RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
-                           filename, work_dir))
+                           filename, work_dir)
     print_command(filename, '')
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
