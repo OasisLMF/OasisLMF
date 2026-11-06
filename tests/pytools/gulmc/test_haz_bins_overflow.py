@@ -29,11 +29,11 @@ def test_more_hazard_records_than_intensity_bins(n_haz_records, sample_size):
     """Splitting one hazard record into many records of the same intensity, with the probability
     shared between them, describes the same hazard, so the losses must not change.
     """
-    args, losses_one = _make_compute_event_losses_args(
+    args, losses_one, *_ = _make_compute_event_losses_args(
         event_rp=0, item_rp=0, sample_size=sample_size, n_haz_records=1)
     assert compute_event_losses(*args) is True
 
-    args, losses_many = _make_compute_event_losses_args(
+    args, losses_many, *_ = _make_compute_event_losses_args(
         event_rp=0, item_rp=0, sample_size=sample_size, n_haz_records=n_haz_records)
     assert compute_event_losses(*args) is True
 
@@ -48,7 +48,7 @@ def test_cdf_block_wider_than_cache_is_not_cached(n_haz_records, cached):
     cache would wrap onto itself and a later cache hit would read overwritten CDFs, so such an item
     is computed but left out of the cache.
     """
-    args, _ = _make_compute_event_losses_args(event_rp=0, item_rp=0, sample_size=8, n_haz_records=n_haz_records)
+    args, *_ = _make_compute_event_losses_args(event_rp=0, item_rp=0, sample_size=8, n_haz_records=n_haz_records)
     cdf_cache_tag = args[12]
     assert compute_event_losses(*args) is True
     assert (cdf_cache_tag[0] != CDF_CACHE_EMPTY) == cached
