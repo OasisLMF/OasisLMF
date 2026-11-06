@@ -399,3 +399,51 @@ def test_a_section_given_twice_with_different_brackets_is_refused():
         build_merged(haz, [(1, 10, 100, 0.5), (1, 10, 100, 0.25)], 'max')
     # the same row twice is harmless
     assert atoms(build_merged(haz, [(1, 10, 100, 0.5), (1, 10, 100, 0.5)], 'max')) == [(10, 1.0, 100)]
+
+
+# ---------------------------------------------------------------------------
+# collapse — rows of one areaperil that floor to the same intensity become one,
+# whatever their return periods; gulmc reads only an areaperil's first one.
+# ---------------------------------------------------------------------------
+
+def test_collapse_merges_one_intensity_across_return_periods():
+    import numpy as np
+    from oasislmf.pytools.getmodel.dynamic_footprint import collapse
+
+    areaperil_id = np.full(4, 7, np.uint32)
+    intensity = np.array([5.2, 5.9, 8.0, 8.4])
+    probability = np.array([0.1, 0.2, 0.3, 0.4])
+    return_period = np.array([50, 10, 100, 20], np.int64)
+    out = collapse(areaperil_id, intensity, probability, return_period)
+    rows = [(int(i), pytest.approx(float(p)), int(rp)) for _, i, p, rp in zip(*out)]
+    # largest intensity first, carrying the smallest return period of its rows, which is the one
+    # gulmc reads; the rows per (intensity, return period) used to be (8, .4, 20), (8, .3, 100), ...
+    assert rows == [(8, 0.7, 20), (5, 0.3, 10)]
+
+
+def test_confluence_levels_flooring_together_become_one_row():
+    # section 1 (rp_to 10) gives {50, 100.7}, section 2 (rp_to 50) gives {100.2, 100.5}; max pairs
+    # them by level into 100.2 (section 2) and 100.7 (section 1), which both floor to 100
+    haz = pd.concat([flat(1, 100, [50, 100.7], return_periods=(5, 10)),
+                     flat(2, 100, [100.2, 100.5], return_periods=(5, 50))])
+    result = build_merged(haz, [(1, 5, 10, 0.5), (2, 5, 50, 0.5)], 'max')
+    # was [(100, 0.5, 10), (100, 0.5, 50)]: the event return period read by gulmc is still 10
+    assert atoms(result) == [(100, 1.0, 10)]
+
+
+@pytest.mark.parametrize('section_merge', ['max', 'max_independent', 'sum'])
+def test_at_most_one_row_per_intensity_however_many_sections(section_merge):
+    """An areaperil lying in many sections whose brackets differ held one row per (intensity, return
+    period), which could outnumber the model's intensity bins; it now holds one row per intensity."""
+    import numpy as np
+    rng = np.random.default_rng(0)
+    n_sections = 40
+    # every section's intensities lie in [10, 11), so whichever sections win, their levels floor
+    # together while carrying different return periods
+    haz = pd.concat([flat(s, 100, list(10 + np.sort(rng.random(3))), return_periods=(5, rp_to))
+                     for s, rp_to in zip(range(1, n_sections + 1), np.tile([10, 20, 50, 100], n_sections // 4))])
+    sections = [(s, 5, rp_to, 0.5) for s, rp_to in zip(range(1, n_sections + 1), np.tile([10, 20, 50, 100], n_sections // 4))]
+    result = build_merged(haz, sections, section_merge)
+    rows = result[result['areaperil_id'] == 100]
+    assert len(rows) == len(np.unique(rows['intensity']))
+    assert float(rows['probability'].sum()) == pytest.approx(1.0)
