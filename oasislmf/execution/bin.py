@@ -14,7 +14,8 @@ __all__ = [
     'set_footprint_set',
     'set_vulnerability_set',
     'set_loss_factors_set',
-    'set_hazard_case_set'
+    'set_hazard_case_set',
+    'OPTIONAL_MODEL_SETS',
 ]
 
 import pathlib
@@ -546,6 +547,14 @@ def set_hazard_case_set(setting_val, run_dir):
     elif os.path.exists(hazard_case_target_fp):
         os.remove(hazard_case_target_fp)
     os.symlink(hazard_case_fp, hazard_case_target_fp)
+
+
+OPTIONAL_MODEL_SETS = {
+    'footprint_set': set_footprint_set,
+    'vulnerability_set': set_vulnerability_set,
+    'pla_loss_factors_set': set_loss_factors_set,
+    'hazard_case_set': set_hazard_case_set,
+}
 
 
 @oasis_log
