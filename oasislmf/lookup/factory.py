@@ -36,6 +36,31 @@ def _split_locations(loc_df, part_count):
     return (loc_df[loc_df['loc_id'].isin(loc_ids_parts[i])] for i in range(part_count))
 
 
+KEYS_ID_COLUMNS = ('area_peril_id', 'vulnerability_id', 'amplification_id')
+
+
+def ids_as_int(success_df):
+    """Return success keys with float id columns cast back to integers.
+
+    A lookup that returns NaN ids for failed rows makes pandas store the whole id column as float, so the
+    success rows would otherwise be written as e.g. ``367923277.0``, which strict integer readers reject (#2217).
+    Columns holding NaN or fractions are left as they are.
+
+    Args:
+        success_df (pandas.DataFrame): the success rows of a lookup result.
+
+    Returns:
+        pandas.DataFrame: ``success_df``, with whole float id columns as int64 (uint64 for values above 2**63 - 1).
+    """
+    for col in KEYS_ID_COLUMNS:
+        if col in success_df.columns and pd.api.types.is_float_dtype(success_df[col]):
+            values = success_df[col]
+            if values.notna().all() and (values % 1 == 0).all():
+                int_type = 'uint64' if values.max() >= 2 ** 63 else 'int64'
+                success_df = success_df.assign(**{col: values.astype(int_type)})
+    return success_df
+
+
 class KeyServerFactory(object):
     """A factory class to create the Keys Server that will be use to generate the keys files
     All Key Server must implement the interface defined in lookup.interface.KeyServerInterface
@@ -390,7 +415,7 @@ class BasicKeyServer:
             error_count = 0
             for i, result in enumerate(results):
                 success = result['status'] == OASIS_KEYS_STATUS['success']['id']
-                success_df = result[success]
+                success_df = ids_as_int(result[success])
                 if not success_df.empty:
                     if success_heading_row is None:
                         success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
@@ -417,7 +442,7 @@ class BasicKeyServer:
             error_count = 0
             for i, result in enumerate(results):
                 success = result['status'] == OASIS_KEYS_STATUS['success']['id']
-                success_df = result[success]
+                success_df = ids_as_int(result[success])
                 if not success_df.empty:
                     if successes_count == 0:
                         success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
