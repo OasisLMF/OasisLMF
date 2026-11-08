@@ -1032,13 +1032,13 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item
     """
     if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
         if hazard_rng_index >= 0:
-            losses[1:, item_j] = haz_z_unif[:]
+            losses[1:sample_size + 1, item_j] = haz_z_unif[:]
         else:
             # deterministic hazard / effective damageability: no hazard intensity sampled
-            losses[1:, item_j] = 0
+            losses[1:sample_size + 1, item_j] = 0
 
     elif compute_info['debug'] == 2:  # store the random value used for the damage sampling instead of the loss
-        losses[1:, item_j] = vuln_z_unif[:]
+        losses[1:sample_size + 1, item_j] = vuln_z_unif[:]
 
     else:  # calculate gul
         if compute_info['effective_damageability']:

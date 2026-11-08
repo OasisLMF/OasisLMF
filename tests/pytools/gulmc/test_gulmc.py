@@ -447,3 +447,50 @@ def test_get_dynamic_footprint_adjustments_without_item_adjustments_bin_only():
         assert adjustments[0]["item_id"] == 1
         assert np.all(adjustments["intensity_adjustment"] == 0)
         assert np.all(adjustments["return_period"] == 0)
+
+
+@pytest.mark.parametrize("debug", [1, 2])
+@pytest.mark.parametrize("test_model", test_models_dirs, ids=lambda x: x[0])
+def test_debug_modes__write_random_values__issue_2208(test_model: Tuple[str, str], debug):
+    """gulmc -d1 / -d2 write the hazard / damage random value of each sample in place of its loss.
+
+    The special sidx rows (mean, std dev, tiv, ...) are the same as in a normal run.
+    """
+    test_model_name, test_model_dir = test_model
+    sample_size = 20
+
+    with TemporaryDirectory() as tmp_result_dir_str:
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        out_dir = Path(tmp_result_dir_str)
+
+        frames = {}
+        for run_debug in [0, debug]:
+            out_bin = out_dir.joinpath(f'gulmc_d{run_debug}.bin')
+            run_gulmc(
+                run_dir=tmp_result_dir,
+                ignore_file_type=set(),
+                file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                file_out=out_bin,
+                sample_size=sample_size,
+                loss_threshold=0.,
+                alloc_rule=0,
+                debug=run_debug,
+                random_generator=1,
+                ignore_correlation=False,
+                effective_damageability=False,
+            )
+            bintocsv(out_bin, out_bin.with_suffix('.csv'), 'gul')
+            frames[run_debug] = pd.read_csv(out_bin.with_suffix('.csv'))
+
+    normal, dbg = frames[0], frames[debug]
+    samples = dbg[dbg['sidx'] > 0]
+    assert not samples.empty
+    assert samples.groupby(['event_id', 'item_id'])['sidx'].max().eq(sample_size).all()
+    assert samples['loss'].between(0, 1).all()
+    if debug == 2:
+        assert samples['loss'].gt(0).any()
+
+    special_dbg = dbg[dbg['sidx'] < 0].reset_index(drop=True)
+    special_normal = normal[normal['sidx'] < 0].reset_index(drop=True)
+    pd.testing.assert_frame_equal(special_dbg, special_normal)
