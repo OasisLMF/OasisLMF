@@ -16,6 +16,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.int_range import astype_checked, widen_int_dtypes
 from oasislmf.pytools.getmodel.manager import (
     get_items, get_vulns, get_mean_damage_bins, convert_vuln_id_to_index, get_conditional_vuln_ids,
 )
@@ -71,7 +72,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
 
     # --- keys / peril filter ---------------------------------------------------
     if os.path.exists(os.path.join(input_path, 'keys.csv')):
-        keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
+        keys_df = astype_checked(pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=widen_int_dtypes(Keys)), Keys, 'keys.csv')
         if peril_filter:
             valid_area_peril_id = np.unique(
                 keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'])

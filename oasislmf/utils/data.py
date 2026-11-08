@@ -63,6 +63,7 @@ from tabulate import tabulate
 
 from oasislmf.utils.defaults import SOURCE_IDX, SAR_ID
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.int_range import astype_checked, narrow_int, widen_int_dtypes
 
 
 logger = logging.getLogger(__name__)
@@ -440,7 +441,9 @@ def get_dataframe(
                         low_memory=low_memory,
                         keep_default_na=False,
                         na_values=na_values,
-                        dtype=col_dtypes,
+                        # integers are read at 64 bits and range checked as they are
+                        # narrowed by set_dataframe_column_dtypes below
+                        dtype=widen_int_dtypes(col_dtypes),
                         encoding=use_encoding,
                         quotechar='"',
                         skipinitialspace=True,
@@ -521,7 +524,7 @@ def get_dataframe(
 
     if col_dtypes:
         _col_dtypes = {k.lower(): v for k, v in col_dtypes.items()} if lowercase_cols else col_dtypes
-        df = set_dataframe_column_dtypes(df, _col_dtypes)
+        df = set_dataframe_column_dtypes(df, _col_dtypes, source=os.path.basename(src_fp) if src_fp else None)
 
     if sort_cols:
         _sort_cols = (
@@ -789,7 +792,7 @@ def prepare_account_df(accounts_df):
                                     ).astype('uint32')
         accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
     else:
-        accounts_df['layer_id'] = accounts_df['layer_id'].astype('uint32')
+        accounts_df['layer_id'] = narrow_int(accounts_df['layer_id'], 'uint32', 'account layer_id')
     return accounts_df
 
 
@@ -914,7 +917,7 @@ def print_dataframe(
         end=end)
 
 
-def set_dataframe_column_dtypes(df, dtypes):
+def set_dataframe_column_dtypes(df, dtypes, source=None):
     """A method to set column datatypes for a Pandas dataframe
 
     Args:
@@ -922,18 +925,22 @@ def set_dataframe_column_dtypes(df, dtypes):
         dtypes (dict): A dict of column names and corresponding Numpy datatypes -
             Python built-in datatypes can be passed in but they will be
             mapped to the corresponding Numpy datatypes
+        source (str, optional): where the data came from, e.g. a file name,
+            for the error raised when an integer does not fit its new type
 
     Returns:
         pandas.DataFrame: The processed dataframe with column datatypes set
+
+    Raises:
+        OasisException: if an integer value does not fit its column's new type,
+            which ``astype`` would otherwise wrap to a different value
     """
     existing_cols = list(set(dtypes).intersection(df.columns))
     _dtypes = {
         col: PANDAS_BASIC_DTYPES[getattr(builtins, dtype) if dtype in ('int', 'bool', 'float', 'object', 'str',) else dtype]
         for col, dtype in [(_col, dtypes[_col]) for _col in existing_cols]
     }
-    df = df.astype(_dtypes)
-
-    return df
+    return astype_checked(df, _dtypes, source or 'dataframe')
 
 
 def validate_vuln_csv_contents(file_path):

@@ -24,6 +24,7 @@ from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
                                      OASIS_FILES_PREFIXES, SOURCE_IDX,
                                      get_default_exposure_profile)
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.int_range import astype_checked
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
@@ -708,7 +709,7 @@ def get_gul_input_items(
 @oasis_log
 def write_file(gul_inputs_df, file_path, file_dtype, chunksize=100000):
     try:
-        gul_inputs_df[file_dtype.keys()].astype(file_dtype).drop_duplicates().to_csv(
+        astype_checked(gul_inputs_df[file_dtype.keys()], file_dtype, os.path.basename(file_path)).drop_duplicates().to_csv(
             path_or_buf=file_path,
             encoding='utf-8',
             mode=('w' if os.path.exists(file_path) else 'a'),
