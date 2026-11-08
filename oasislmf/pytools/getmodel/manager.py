@@ -209,12 +209,19 @@ def get_intensity_bin_dict(input_path):
     Args:
         input_path (str): the path pointing to the file
 
+    Intensities may be negative (some flood models use them for off-floodplain impacts), so
+    each peril's row starts at ``intensity_bin_min[peril_idx]``, which is the lower of 0 and the
+    peril's smallest intensity: intensity ``v`` is held in column ``v - intensity_bin_min``.
+    Columns the CSV does not define are filled as follows: below the peril's smallest intensity
+    with that intensity's bin, above its largest with the largest intensity's bin, and gaps in
+    between with the bin for intensity 0 (or, if the peril has none, the nearest lower bin).
+
     Returns:
-        Tuple[np.array[int32], np.array[int32, 2d]]: intensity_bin_peril_ids, a 1-d array of
-            unique encoded peril_ids (length n_perils), and intensity_bins, a 2-d array of shape
-            (n_perils, max_intensity + 1) mapping [peril_idx, intensity_value] ->
-            intensity_bin_id. Slots not present in the CSV are pre-filled with the fallback bin
-            for intensity=0 of that peril.
+        Tuple[np.array[int32], np.array[int32, 2d], np.array[int32]]: intensity_bin_peril_ids, a
+            1-d array of unique encoded peril_ids (length n_perils); intensity_bins, a 2-d array
+            mapping [peril_idx, intensity_value - intensity_bin_min[peril_idx]] ->
+            intensity_bin_id; and intensity_bin_min, the intensity held in each peril's first
+            column (length n_perils).
     """
     input_files = set(os.listdir(input_path))
     if "intensity_bin_dict.csv" not in input_files:
@@ -228,28 +235,33 @@ def get_intensity_bin_dict(input_path):
     data = np.array(data, dtype=np.int32)
 
     # unique peril_ids (typically 1-3)
-    unique_perils = np.unique(data[:, 0])
-    n_perils = len(unique_perils)
-    max_intensity = int(data[:, 1].max())
+    intensity_bin_peril_ids = np.unique(data[:, 0]).astype(np.int32)
+    n_perils = len(intensity_bin_peril_ids)
+    peril_idxs = np.searchsorted(intensity_bin_peril_ids, data[:, 0])
 
-    # build peril_id -> peril_idx mapping (small linear scan is fine)
-    intensity_bin_peril_ids = unique_perils.astype(np.int32)
+    peril_min = np.array([data[peril_idxs == pi, 1].min() for pi in range(n_perils)], dtype=np.int64)
+    peril_max = np.array([data[peril_idxs == pi, 1].max() for pi in range(n_perils)], dtype=np.int64)
+    intensity_bin_min = np.minimum(peril_min, 0).astype(np.int32)
+    width = int((peril_max - intensity_bin_min).max()) + 1
 
-    # allocate and pre-fill with fallback (bin for intensity=0 per peril)
-    intensity_bins = np.zeros((n_perils, max_intensity + 1), dtype=np.int32)
-    for d in data:
-        peril_id, intensity_val, bin_id = d[0], d[1], d[2]
-        peril_idx = np.searchsorted(intensity_bin_peril_ids, peril_id)
-        intensity_bins[peril_idx, intensity_val] = bin_id
+    intensity_bins = np.zeros((n_perils, width), dtype=np.int32)
+    defined = np.zeros((n_perils, width), dtype=np.bool_)
+    cols = data[:, 1] - intensity_bin_min[peril_idxs]
+    intensity_bins[peril_idxs, cols] = data[:, 2]
+    defined[peril_idxs, cols] = True
 
-    # pre-fill missing slots with the fallback value (bin for intensity=0)
     for pi in range(n_perils):
-        fallback = intensity_bins[pi, 0]
-        for i in range(max_intensity + 1):
-            if intensity_bins[pi, i] == 0 and i != 0:
-                intensity_bins[pi, i] = fallback
+        first = int(peril_min[pi] - intensity_bin_min[pi])
+        last = int(peril_max[pi] - intensity_bin_min[pi])
+        zero_col = -int(intensity_bin_min[pi])
+        zero_bin = intensity_bins[pi, zero_col] if zero_col < width and defined[pi, zero_col] else None
+        intensity_bins[pi, :first] = intensity_bins[pi, first]
+        intensity_bins[pi, last + 1:] = intensity_bins[pi, last]
+        for col in range(first + 1, last):
+            if not defined[pi, col]:
+                intensity_bins[pi, col] = intensity_bins[pi, col - 1] if zero_bin is None else zero_bin
 
-    return intensity_bin_peril_ids, intensity_bins
+    return intensity_bin_peril_ids, intensity_bins, intensity_bin_min
 
 
 def encode_peril_id(peril_id):

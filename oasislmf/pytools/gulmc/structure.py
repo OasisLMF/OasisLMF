@@ -67,6 +67,7 @@ ARRAY_FILES = [
     'norm_inv_parameters',
     'intensity_bin_peril_ids',
     'intensity_bins',
+    'intensity_bin_min',
     'coverage_source_id',
     'coverage_dependents_ja_offsets',
     'coverage_dependents_ja_data',
@@ -580,10 +581,12 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
 
     # --- dynamic footprint intensity bins --------------------------------------
     if dynamic_footprint:
-        intensity_bin_peril_ids, intensity_bins = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
+        intensity_bin_peril_ids, intensity_bins, intensity_bin_min = get_intensity_bin_dict(
+            os.path.join(run_dir, 'static'))
     else:
         intensity_bin_peril_ids = np.empty(0, dtype=np.int32)
         intensity_bins = np.empty((0, 0), dtype=np.int32)
+        intensity_bin_min = np.empty(0, dtype=np.int32)
 
     # --- pack everything into a dict -------------------------------------------
     # Only include arrays used at runtime (event loop). Build-time intermediaries
@@ -610,6 +613,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'norm_inv_parameters': norm_inv_parameters,
         'intensity_bin_peril_ids': intensity_bin_peril_ids,
         'intensity_bins': intensity_bins,
+        'intensity_bin_min': intensity_bin_min,
         'coverage_source_id': coverage_source_id,
         'coverage_dependents_ja_offsets': coverage_dependents_ja_offsets,
         'coverage_dependents_ja_data': coverage_dependents_ja_data,
