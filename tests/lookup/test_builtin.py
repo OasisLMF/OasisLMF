@@ -596,8 +596,9 @@ def test_merge_join_columns_missing_from_file_raises(vulnerability_dict_path):
 
 
 def test_merge_join_columns_missing_from_locations_raises(vulnerability_dict_path, german_locations):
-    merge = Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), join_columns=["peril_id", "countrycode"])
-    with pytest.raises(OasisException, match="not found in the locations"):
+    merge = Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path),
+                                          join_columns=["peril_id", "coverage_type", "countrycode"])
+    with pytest.raises(OasisException, match="not found in the locations.*add them to this step's 'columns'"):
         merge(german_locations.drop(columns="countrycode"))
 
 
@@ -658,3 +659,136 @@ def test_combine_and_raises_when_child_columns_are_missing():
     locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no AutoCode
     with pytest.raises(OasisException, match="by_autocode"):
         AutoLookup(config=config).process_locations(locations)
+
+
+def test_merge_join_columns_duplicate_keys_raises(tmp_path):
+    """#2232: a dict with FR and IT rows for the same peril, coverage and occupancy would return each
+    matching location twice when joined without CountryCode, both rows marked success."""
+    path = tmp_path / "vulnerability_dict.csv"
+    pd.DataFrame({
+        "peril_id": ["WTC", "WTC"],
+        "coverage_type": [1, 1],
+        "occupancycode": [1000, 1000],
+        "countrycode": ["FR", "IT"],
+        "vulnerability_id": [10, 11],
+    }).to_csv(path, index=False)
+    with pytest.raises(OasisException, match="2 rows of .* share their join_columns"):
+        Lookup(config={}).build_merge(file_path=str(path), id_columns=["vulnerability_id"],
+                                      join_columns=["peril_id", "coverage_type", "occupancycode"])
+    # joining on the column that tells the rows apart is fine
+    Lookup(config={}).build_merge(file_path=str(path), id_columns=["vulnerability_id"],
+                                  join_columns=["peril_id", "coverage_type", "occupancycode", "countrycode"])
+
+
+def test_process_locations_merge_step_column_missing_from_file_raises(tmp_path, german_locations):
+    """#2204: a dict file without one of the step's columns used to be joined on the remaining
+    shared columns, assigning wrong ids instead of failing."""
+    path = tmp_path / "vulnerability_dict.csv"
+    pd.DataFrame({"peril_id": ["WTC"], "coverage_type": [1], "vulnerability_id": [10]}).to_csv(path, index=False)
+    config = _vulnerability_merge_config(path)
+    with pytest.raises(OasisException, match=r"step's columns \['occupancycode'\] are not in"):
+        Lookup(config=config).process_locations(german_locations)
+
+
+def test_process_locations_merge_step_columns_checked_case_insensitively(vulnerability_dict_path, german_locations):
+    config = _vulnerability_merge_config(vulnerability_dict_path)
+    config["step_definition"]["vulnerability"]["columns"] = ["Peril_ID", "COVERAGE_TYPE", "OccupancyCode"]
+    config["step_definition"]["areaperil"]["columns"] = []  # don't join on countrycode
+    result = Lookup(config=config).process_locations(german_locations)
+    assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, 30]
+
+
+def test_build_merge_without_step_columns_keeps_old_behaviour(vulnerability_dict_path, german_locations):
+    """Called directly (or from a subclass with the old signature), build_merge doesn't check step columns."""
+    merge = Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), id_columns=["vulnerability_id"])
+    assert (merge(german_locations)["vulnerability_id"] == OASIS_UNKNOWN_ID).all()  # joins on countrycode too
+
+
+class BuildingTypeLookup(Lookup):
+    """Maps a building type to a vulnerability id, reading the column with the spelling its step declares."""
+
+    def build_vuln_by_building_type(self, column):
+        return lambda locations: locations.assign(vulnerability_id=locations[column].map({5: 50}).fillna(OASIS_UNKNOWN_ID).astype(int))
+
+
+def test_process_locations_column_created_by_step_in_another_case():
+    """#2204: a step asking for 'BuildingType' used to fail with "missing columns" once an earlier
+    step had created the column as 'buildingtype'."""
+    config = {
+        "strategy": ["prepare", "vulnerability"],
+        "step_definition": {
+            "prepare": {"type": "prepare", "parameters": {"area_peril_id": {"default": 1}, "buildingtype": {"default": 5}}},
+            "vulnerability": {"type": "vuln_by_building_type", "columns": ["peril_id", "coverage_type", "BuildingType"],
+                              "parameters": {"column": "BuildingType"}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})
+    result = BuildingTypeLookup(config=config).process_locations(locations)
+    assert result["vulnerability_id"].tolist() == [50]
+    assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()
+
+
+def test_process_locations_steps_declaring_a_column_in_different_cases():
+    """#2204: two steps naming the same exposure column in different cases both get it. The exposure
+    column used to be renamed to only one of the spellings, so the other step failed."""
+    config = {
+        "strategy": ["first", "second"],
+        "step_definition": {
+            "first": {"type": "prepare", "columns": ["OccupancyCode"], "parameters": {"area_peril_id": {"default": 1}}},
+            "second": {"type": "vuln_by_building_type", "columns": ["peril_id", "coverage_type", "occupancycode"],
+                       "parameters": {"column": "OccupancyCode"}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1], "OCCUPANCYCODE": [5]})
+    result = BuildingTypeLookup(config=config).process_locations(locations)
+    assert result["vulnerability_id"].tolist() == [50]
+
+
+def test_process_locations_key_columns_keep_their_names():
+    """A config naming an output key column in another case still returns the standard keys columns."""
+    config = {
+        "strategy": ["prepare"],
+        "step_definition": {
+            "prepare": {"type": "prepare", "columns": ["Peril_ID", "Coverage_Type"],
+                        "parameters": {"area_peril_id": {"default": 1}, "Vulnerability_ID": {"default": 2}}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1], "PERIL_ID": ["WTC"], "coverage_type": [1]})
+    result = Lookup(config=config).process_locations(locations)
+    assert result[["peril_id", "area_peril_id", "vulnerability_id"]].values.tolist() == [["WTC", 1, 2]]
+
+
+def test_process_locations_step_creating_column_that_exists_in_another_case_raises():
+    config = {
+        "strategy": ["prepare"],
+        "step_definition": {
+            "prepare": {"type": "prepare", "columns": ["BuildingType"],
+                        "parameters": {"area_peril_id": {"default": 1}, "buildingtype": {"default": 5}}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1], "BuildingType": [3]})
+    with pytest.raises(OasisException, match="differ only by case"):
+        Lookup(config=config).process_locations(locations)
+
+
+def test_combine_skip_warning_logged_once_per_step(caplog):
+    """#2232: the "skipping step" warning used to be logged for every chunk of locations."""
+    config = {
+        "strategy": ["areaperil", "vulnerability"],
+        "step_definition": {
+            "areaperil": {"type": "prepare", "parameters": {"area_peril_id": {"default": 1}}},
+            "vulnerability": {
+                "type": "combine",
+                "columns": ["peril_id", "coverage_type"],
+                "parameters": {"id_columns": ["vulnerability_id"], "strategy": ["by_postcode", "fallback"]},
+            },
+            "by_postcode": {"type": "prepare", "columns": ["postalcode"], "parameters": {"vulnerability_id": {"default": 5}}},
+            "fallback": {"type": "prepare", "columns": ["peril_id"], "parameters": {"vulnerability_id": {"default": 7}}},
+        },
+    }
+    lookup = Lookup(config=config)
+    with caplog.at_level("WARNING", logger="oasislmf.lookup.builtin"):
+        for loc_id in range(3):  # three chunks
+            result = lookup.process_locations(pd.DataFrame({"loc_id": [loc_id], "peril_id": ["WTC"], "coverage_type": [1]}))
+            assert result["vulnerability_id"].tolist() == [7]
+    assert caplog.text.count("skipping step by_postcode") == 1

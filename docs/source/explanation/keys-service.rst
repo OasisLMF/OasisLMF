@@ -292,6 +292,17 @@ class otherwise this will try and run and the ``build_simple_add`` function will
 that we have signposted our ``["example"]`` column name in the ``"columns"`` field. This is to ensure that our ``example`` 
 field is not wiped at the end of the process.
 
+Column names are matched case-insensitively, and the lookup uses one spelling for each name throughout. The output key
+columns (``loc_id``, ``peril_id``, ``coverage_type``, ``area_peril_id``, ``vulnerability_id``, ``amplification_id``,
+...) are always lower case. Any other column takes the first spelling found in the steps' ``"columns"`` lists: exposure
+columns are renamed to it before the first step, and a column a step creates in another case is renamed to it once the
+step returns. A step that creates a column already present in another case (``buildingtype`` next to
+``BuildingType``) raises an error, since it isn't clear which one to keep.
+
+.. versionchanged:: NEXT
+   Column names are matched case-insensitively. Before, a column a step created in another case than the
+   one declared in ``"columns"`` was missing from the output.
+
 |
 
 .. _built_in_functions_keys:
@@ -341,6 +352,15 @@ and one using postcode.
            "logical_type": "and"
        }
    }
+
+A strategy whose own ``"columns"`` are missing from the locations is handled differently by the two types. With
+``'or'`` it is skipped, so the next strategy can act as a fallback; the warning is logged once per strategy rather than
+for every chunk of locations. With ``'and'`` every strategy is required, so it raises an error.
+
+.. note::
+   Before OasisLMF 2.5.9 an ``'and'`` combine checked the parent step's ``"columns"`` instead, so a child strategy
+   whose columns were missing from the exposure ran anyway (and usually failed inside the step). It now raises
+   ``Key Server Issue: missing columns ... of 'and' combine`` up front.
 
 |
 
@@ -563,9 +583,17 @@ column name the file and the locations have in common, including columns only de
 reuse a file that carries a column the locations also have but that must not be matched on, for example a
 vulnerability dict built for France (``CountryCode`` = ``FR``) on a German model. Any other column present in both
 keeps its locations value, except ``id_columns``, which take the file's value. The file must have at most one row
-per combination of ``join_columns``; otherwise each matching location is duplicated, once per row. For example, a
-dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupancy can't be joined without
-``CountryCode``.
+per combination of ``join_columns``, since each matching location would otherwise be duplicated, once per row; the
+step raises an error naming the duplicated values. For example, a dict holding both ``FR`` and ``IT`` rows for the
+same peril, coverage and occupancy can't be joined without ``CountryCode``.
+
+Without ``join_columns``, every column in the step's ``"columns"`` (other than ``id_columns``) must be in the file.
+The step raises an error naming the missing ones, rather than joining on the remaining shared columns and assigning
+wrong ids.
+
+.. versionchanged:: NEXT
+   Duplicated ``join_columns`` values in the file, and step ``"columns"`` missing from the file, raise an error
+   instead of duplicating locations or joining on fewer columns.
 
 .. code-block:: JSON
 
