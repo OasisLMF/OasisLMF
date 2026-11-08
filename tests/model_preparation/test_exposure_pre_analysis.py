@@ -719,3 +719,62 @@ def test_exposure_pre_analysis_account_only(lookup_multiprocessing):
         account_df = pd.read_parquet(os.path.join(d, 'account.parquet'))
         assert account_df['LayerLimit'].astype(float).tolist() == expected_limit.astype(float).tolist()
         assert 'loc_id' not in account_df.columns
+
+
+def write_mixed_type_epa_module(module_path):
+    """Hook from #2191: renumber accepted locations with ints, pass a rejected one through with its OED string."""
+    with open(module_path, 'w') as f:
+        f.write('''
+import pandas as pd
+
+
+class ExposurePreAnalysis:
+    def __init__(self, exposure_data, exposure_pre_analysis_setting=None, **kwargs):
+        self.exposure_data = exposure_data
+
+    def run(self):
+        loc_df = self.exposure_data.location.dataframe
+        accepted = loc_df.iloc[:-1].copy()
+        rejects = loc_df.iloc[-1:].copy()
+        accepted["LocNumber"] = list(range(1, len(accepted) + 1))
+        accepted["LocNumber"] = accepted["LocNumber"].astype(object)
+        rejects["LocNumber"] = rejects["LocNumber"].astype(str).astype(object)
+        loc_df = pd.concat([accepted, rejects], ignore_index=True)
+        assert loc_df["LocNumber"].dtype == object
+        self.exposure_data.location.dataframe = loc_df
+''')
+
+
+def test_exposure_pre_analysis_mixed_type_column__saved_as_parquet__issue_2191():
+    with TemporaryDirectory() as d:
+        kwargs = {'oasis_files_dir': d,
+                  'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_mixed.py'),
+                  'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
+                  'check_oed': False}
+        write_mixed_type_epa_module(kwargs['exposure_pre_analysis_module'])
+        write_oed_location(kwargs['oed_location_csv'])
+
+        OasisManager().exposure_pre_analysis(**kwargs)
+
+        saved = pd.read_parquet(os.path.join(d, 'location.parquet'))
+        assert saved['LocNumber'].astype(str).tolist() == ['1', '2', '3', '4', '10002082050']
+        exposure = OedExposure.from_config(os.path.join(d, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
+        assert exposure.location.dataframe['LocNumber'].astype(str).tolist() == ['1', '2', '3', '4', '10002082050']
+
+
+def test_parquet_safe_dataframe__converts_only_mixed_columns_and_keeps_nulls():
+    from oasislmf.computation.hooks.pre_analysis import parquet_safe_dataframe
+
+    df = pd.DataFrame({'mixed': pd.Series([1, '12', None], dtype=object),
+                       'ints': pd.Series([1, 2, None], dtype=object),
+                       'num': [1.0, 2.0, 3.0]})
+    safe, converted = parquet_safe_dataframe(df)
+    assert converted == ['mixed']
+    assert safe['mixed'].tolist()[:2] == ['1', '12'] and pd.isna(safe['mixed'][2])
+    assert df['mixed'].tolist()[:2] == [1, '12']  # input untouched
+    assert safe['ints'].equals(df['ints']) and safe['num'].equals(df['num'])
+    safe.to_parquet(io.BytesIO())
+
+    parquet_ok = df[['ints', 'num']]
+    same, converted = parquet_safe_dataframe(parquet_ok)
+    assert converted == [] and same is parquet_ok
