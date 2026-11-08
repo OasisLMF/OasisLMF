@@ -251,7 +251,7 @@ class GenerateFiles(ComputationStep):
         _keys_fp = _keys_errors_fp = None
         if not self.keys_data_path:
             gen_key_res = GenerateKeys(**self.kwargs).run()
-            _keys_fp = gen_key_res[0]  # _keys_fp is returned as the third element
+            _keys_fp = gen_key_res[0]
             if len(gen_key_res) == 4:
                 _keys_errors_fp = gen_key_res[2]  # if present, keys_errors_fp is returned as the third element
         else:
@@ -268,9 +268,16 @@ class GenerateFiles(ComputationStep):
             'vulnerabilityid': 'uint32',
             'modeldata': 'str'
         }
-        keys_error_fp = os.path.join(os.path.dirname(_keys_fp), 'keys-errors.csv') if _keys_fp else 'Missing'
+        # Name the errors file that was actually written: the lookup writes it in the same format
+        # as the keys file (csv or parquet), and a pre-generated one may have any name.
+        if _keys_errors_fp:
+            keys_error_fp = _keys_errors_fp
+        elif _keys_fp:
+            keys_error_fp = os.path.join(os.path.dirname(_keys_fp), 'keys-errors' + os.path.splitext(_keys_fp)[1])
+        else:
+            keys_error_fp = 'Missing'
         missing_keys_msg = 'No successful lookup results found in the keys file - '
-        missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
+        missing_keys_msg += 'Check the `{}` file for details. \n File path: {}'.format(os.path.basename(keys_error_fp), keys_error_fp)
         try:
             keys_df = get_dataframe(
                 src_fp=_keys_fp,
