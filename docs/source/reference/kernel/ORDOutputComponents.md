@@ -58,6 +58,17 @@ and reinsurance perspectives. Global options include `parquet_format` (write par
 instead of CSV) and `return_period_file` (use `input/returnperiods.bin` for the EP curve
 return periods).
 
+By default MELT has an analytical-mean row and a sample-mean row for every event and
+summary with exposure, even when the loss is zero, while MPLT leaves zero-loss rows out.
+Set `elt_moment_exclude_zero_loss` to `true` (with `elt_moment`) to filter MELT the way
+MPLT is filtered: the analytical-mean row is written only if its mean loss is above zero,
+and the sample-mean row only if its mean or standard deviation is above zero. This passes
+`-Z` (`--melt-exclude-zero-loss`) to `eltpy`; the loss values themselves are unchanged.
+
+```{versionadded} NEXT
+`elt_moment_exclude_zero_loss` and the `eltpy -Z` option.
+```
+
 ## How they are produced in a run
 
 `oasislmf model run` generates a `run_kernel.sh` pipeline that streams `summarypy` output

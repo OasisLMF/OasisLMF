@@ -120,7 +120,9 @@ The program calculates loss by SummaryId and EventId. There are two variants (in
 by summarycalc, above):
 
 * **Moment ELT (MELT)** outputs Mean and Standard deviation of loss, as well as EventRate, ChanceOfLoss, MaxLoss, 
-  FootprintExposure, MeanImpactedExposure and MaxImpactedExposure
+  FootprintExposure, MeanImpactedExposure and MaxImpactedExposure. It has a row for every event and summary with
+  exposure, including zero-loss rows; set ``elt_moment_exclude_zero_loss`` in ``ord_output`` to leave them out as
+  MPLT does.
 
 * **Quantile ELT (QELT)** outputs loss quantiles for the provided set of probabilites.
 
