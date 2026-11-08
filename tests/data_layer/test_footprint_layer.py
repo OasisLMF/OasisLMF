@@ -1,15 +1,24 @@
 import pickle
+import shutil
 import socket
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
+from oasis_data_manager.filestore.backends.local import LocalStorage
+
 from oasislmf.pytools.data_layer.footprint_layer import (
     FootprintLayer,
     FootprintLayerClient,
     OperationEnum,
+    portfolio_areaperil_ids,
 )
+from oasislmf.pytools.getmodel.footprint import Footprint
+
+TEST_MODEL_1 = Path(__file__).parent.parent / 'assets' / 'test_model_1'
 
 
 def _make_header(operation: OperationEnum, event_id: int = 0) -> bytes:
@@ -191,3 +200,60 @@ def test_client_get_event_returns_none_on_empty_response():
         result = FootprintLayerClient.get_event(event_id=1)
 
     assert result is None
+
+
+# --- issue #2220: servedata with footprints other than csv -------------------
+
+@pytest.mark.parametrize('items_file', ['items.csv', 'items.bin'])
+def test_portfolio_areaperil_ids_read_from_items(tmp_path, items_file):
+    shutil.copy(TEST_MODEL_1 / 'input' / items_file, tmp_path / items_file)
+    expected = np.unique(np.loadtxt(TEST_MODEL_1 / 'input' / 'items.csv', delimiter=',', skiprows=1,
+                                    usecols=2, dtype=np.int64))
+
+    np.testing.assert_array_equal(portfolio_areaperil_ids(str(tmp_path)), expected)
+
+
+def test_portfolio_areaperil_ids_none_without_items(tmp_path):
+    assert portfolio_areaperil_ids(str(tmp_path)) is None
+    assert portfolio_areaperil_ids(str(tmp_path / 'missing')) is None
+
+
+@patch('oasislmf.pytools.data_layer.footprint_layer.socket.socket')
+def test_get_event_data_needs_no_footprint_index(mock_socket_cls):
+    """Parquet and dynamic footprints have no footprint_index; serving an event used to fail on it."""
+    event = np.array([1, 2, 3])
+    layer = FootprintLayer(storage=MagicMock(), total_expected=1)
+    layer.file_data = SimpleNamespace(get_event=lambda event_id: event if event_id == 4 else None)
+
+    assert layer.get_event_data(4) is event
+    assert layer.get_event_data(5) is None
+
+
+@pytest.mark.parametrize('ignore_file_type', [{'csv'}, {'bin', 'idx'}], ids=['bin', 'csv'])
+@patch.object(FootprintLayer, '_define_socket')
+def test_get_event_data_serves_an_event_more_than_once(mock_define_socket, ignore_file_type):
+    """The csv footprint's index entry was deleted after the first request, so a repeat got nothing."""
+    storage = LocalStorage(root_dir=str(TEST_MODEL_1 / 'static'))
+    layer = FootprintLayer(storage=storage, total_expected=1)
+    with Footprint.load(storage, ignore_file_type=ignore_file_type) as footprint:
+        layer.file_data = footprint
+        event_id = 1
+        first = layer.get_event_data(event_id)
+        second = layer.get_event_data(event_id)
+
+    assert first is not None and len(first) > 0
+    np.testing.assert_array_equal(first, second)
+
+
+@patch('oasislmf.pytools.data_layer.footprint_layer.Footprint.load')
+@patch('oasislmf.pytools.data_layer.footprint_layer.socket.socket')
+def test_listen_loads_footprint_for_the_portfolio_areaperils(mock_socket_cls, mock_load):
+    """A dynamic footprint needs the areaperils; without them it read input/keys.csv, absent for parquet keys."""
+    connection = MagicMock()
+    connection.recv.return_value = _make_header(OperationEnum.UNREGISTER)
+    mock_socket_cls.return_value.accept.return_value = (connection, ('127.0.0.1', 1))
+    areaperil_ids = np.array([3, 7])
+
+    FootprintLayer(storage=MagicMock(), total_expected=0, areaperil_ids=areaperil_ids).listen()
+
+    assert mock_load.call_args.kwargs['areaperil_ids'] is areaperil_ids
