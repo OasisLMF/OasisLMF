@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import warnings
 import zlib
 import numba as nb
 import numpy as np
@@ -499,8 +500,11 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
                 return np.empty(0, dtype=_dtype)
             data_start = file_in.tell()
             try:
-                return np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=np.dtype(_use_dtype), usecols=_usecols))
-            except ValueError:
+                with warnings.catch_warnings():
+                    # numpy < 2.3 only warns when it truncates "1.5" or wraps an out-of-range integer
+                    warnings.simplefilter('error', DeprecationWarning)
+                    return np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=np.dtype(_use_dtype), usecols=_usecols))
+            except (ValueError, DeprecationWarning):
                 # numpy >= 2.3 will not parse an integer written as a float, e.g. "367923277.0" (#2217)
                 file_in.seek(data_start)
                 return _loadtxt_whole_float_ints(file_in, filepath, _use_dtype, _usecols, col_map)
