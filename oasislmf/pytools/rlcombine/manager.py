@@ -126,6 +126,23 @@ sidx_pair_dtype = np.dtype([
     ('loss', loss_dtype),
 ])
 
+class EventAccumulator:
+    """Combined losses of the event being merged, indexed by summary_id - 1."""
+
+    def __init__(self, max_summary_id, len_sample):
+        self.present = np.zeros(max_summary_id, dtype=np.bool_)
+        self.expval = np.zeros(max_summary_id, dtype=loss_dtype)
+        self.max_loss = np.zeros(max_summary_id, dtype=loss_dtype)
+        self.mean = np.zeros(max_summary_id, dtype=loss_dtype)
+        self.losses = np.zeros((max_summary_id, len_sample), dtype=loss_dtype)
+
+    def reset(self):
+        self.present = False
+        self.expval = 0
+        self.max_loss = 0
+        self.mean = 0
+        self.losses = 0
+
 def init_summary_streams_in(files_in, stack):
     """Open the input summary streams and check that their headers agree.
 
@@ -164,12 +181,14 @@ def parse_intermediate_outputs(intermediate_outputs_arg):
 
     return intermediate_outputs
 
+
 def get_max_summary_id__single_static_path(static_path, summary_set_id):
     _, set_id_to_idx, set_idx_to_loss, _, _ = load_summary_object(static_path, 'rl')
     set_idx = set_id_to_idx[summary_set_id]
     if set_idx == null_index:
         raise OasisException(f'summary_set_id {summary_set_id} not in {static_path} rlsummaryxref')
     return set_idx_to_loss[set_idx + 1] - set_idx_to_loss[set_idx]
+
 
 def get_max_summary_id(static_paths, summary_set_id):
     max_summary_id = -1
@@ -179,147 +198,96 @@ def get_max_summary_id(static_paths, summary_set_id):
             max_summary_id = summary_id
     return max_summary_id
 
-def merge_events(input_queues, n_inputs, len_sample, out_byte_mv,
-                 idx_buffer, idx_file_cursors):
+
+@nb.njit(cache=True)
+def accumulate_input_events(summary_ids, expval_event, offsets_event, sidx_event, loss_event,
+                            present, expval, max_loss, mean, losses):
+    """
+    Add one event buffer to the event accumulator.
+    """
+    previous_summary_id = 0
+    for i in range(summary_ids.shape[0]):
+        summary_id = summary_ids[i]
+        if summary_id < previous_summary_id:
+            raise ValueError('rlcombine: summary_ids are not strictly increasing')
+        previous_summary_id = summary_id
+
+        row = summary_id - 1
+        present[row] = True
+        expval[row] += expval_event
+        for j in range(offsets_event[i], offsets_event[i+1]):
+            if sidx_event[j] > 0:
+                losses[row, sidx_event[j]-1] += loss_event[j]
+            elif sidx_event[j] == MAX_LOSS_IDX:
+                max_loss[row] += loss_event[j]
+            elif sidx_event[j] == MEAN_IDX:
+                mean[row] += loss_event[j]
+            else:
+                raise ValueError('rlcombine: unknown special sidx found. Only support MEAN_IDX and MAX_LOSS_IDX')
+
+
+def combine_events(event_buffers, acc):
+    for event_buffer in event_buffers:
+        accumulate_input_events(event_buffer['summary_ids'], event_buffer['expval'], event_buffer['offsets'],
+                                event_buffer['sidx'], event_buffer['loss'], acc.present, acc.expval,
+                                acc.max_loss, acc.mean, acc.losses)
+
+    return (np.flatnonzero(acc.present) + 1).astype(summary_id_dtype)
+
+
+@nb.njit(cache=True)
+def mv_write_combined_event(byte_mv, event_id, len_sample, present_ids, expval, max_loss, mean, losses,
+                            output_zeros, last_record, last_sidx, stream_offset, idx_buffer, idx_cursor):
     cursor = 0
-    idx_cursor = 0
+    for i in range(last_record, present_ids.shape[0]):
+        summary_id = present_ids[i]
+        row = summary_id - 1
 
-    event_id = None
-    curr_events = [input_queues[k].pop(0) for k in range(n_inputs)]
+        if last_sidx == 0:
+            if cursor + RECORD_HEADER_SIZE + 3 * PAIR_SIZE > PIPE_CAPACITY:
+                return cursor, i, last_sidx, idx_cursor
+            idx_buffer[idx_cursor]['summary_id'] = summary_id
+            idx_buffer[idx_buffer]['offset'] = stream_offset + cursor
+            idx_cursor += 1
+            cursor = mv_write_summary_header(byte_mv, cursor, event_id, summary_id, expval[row])
+            cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, max_loss[row])
+            cursor = mv_write_sidx_loss(byte_mv, cursor, MEAN_IDX, mean[row])
+            last_sidx = 1
+
+        for sidx in range(last_sidx, len_sample + 1):
+            loss = losses[row, sidx - 1]
+            if not output_zeros and loss == 0:
+                continue
+
+            if cursor + 2 * PAIR_SIZE > PIPE_CAPACITY:
+                return cursor, i, sidx, idx_cursor
+
+            cursor = mv_write_sidx_loss(byte_mv, cursor, sidx, loss)
+
+        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
+        last_sidx = 0
+    return cursor, -1, 0, idx_cursor
 
 
-    event_id = curr_events[0][0]
-    if any([curr_events[k][0] != event_id for k in range(n_inputs)]):
-        raise OasisException('event sequence mismatch in the streams')
-
-    curr_event_buffers = [ce[1] for ce in curr_events]
-    curr_record_offset = [0 for _ in range(n_inputs)]
-
-    previous_summary_id = [0 for _ in range(n_inputs)]
-    finished = [False for _ in range(n_inputs)]
+def write_combined_event(pipe, idx_pipe, byte_mv, event_id, len_sample, present_ids, acc,
+                         output_zeros, stream_offsets, file_idx, idx_buffer):
+    '''
+    Write combined events into PIPE_CAPACITY chunks and .idx records if idx_pipe.
+    '''
+    last_record, last_sidx, idx_cursor = 0, 0, 0
     while True:
-        # Check if all inputs are finished for current event
-        for k, _ in enumerate(finished):
-            if curr_record_offset[k] == curr_event_buffers[k]['summary_ids'].shape[0]:
-                finished[k] = True
+        cursor, last_record, last_sidx, idx_cursor = mv_write_combined_event(
+                byte_mv, event_id, len_sample, present_ids, acc.expval, acc.max_loss,
+                acc.mean, acc.losses, output_zeros, last_record, last_sidx, stream_offsets[file_idx],
+                idx_buffer, idx_cursor)
+        write_mv_to_stream(pipe, byte_mv, cursor)
+        stream_offsets[file_idx] += cursor
+        if last_record == -1:
+            break
 
-        if all(finished):
-            return cursor, idx_cursor
+    if idx_pipe is not None:
+        idx_pipe.write(idx_buffer[:idx_cursor].tobytes())
 
-        curr_summary_id = min([curr_event_buffers[k]['summary_ids'][curr_record_offset[k]] for k, is_finished in enumerate(finished) if not is_finished])
-
-        # create a new record + loss array
-        new_record = np.empty(1, dtype=record_dtype)[0]
-        new_record['event_id'] = event_id
-        new_record['summary_id'] = curr_summary_id
-        new_record['expval'] = 0.
-
-        regular_loss_pairs = np.zeros(len_sample, dtype=sidx_pair_dtype)
-        regular_loss_pairs['sidx'] = np.arange(len_sample, dtype=sidx_dtype) + 1
-        special_loss_pairs = np.zeros(2, dtype=sidx_pair_dtype)
-        special_loss_pairs[0]['sidx'] = MAX_LOSS_IDX
-        special_loss_pairs[1]['sidx'] = MEAN_IDX
-
-        regular_loss_mask = np.zeros(len_sample, dtype=bool)
-
-        idx_buffer[idx_cursor]['summary_id'] = curr_summary_id
-        idx_buffer[idx_cursor]['offset'] = cursor
-
-        for k, is_finished in enumerate(finished):
-            if is_finished:
-                continue
-            k_curr_record_offset = curr_record_offset[k]
-            k_curr_buffer = curr_event_buffers[k]
-            k_curr_summary_id = k_curr_buffer['summary_ids'][k_curr_record_offset]
-            if k_curr_summary_id < previous_summary_id[k]:
-                raise OasisException(f'summaryids are not strictly increasing for file idx {k}')
-            elif k_curr_summary_id != curr_summary_id:
-                continue
-
-            # sum expval
-            new_record['expval'] += k_curr_buffer['expval'][k_curr_record_offset]
-
-            start_offset = k_curr_buffer['offsets'][k_curr_record_offset]
-            end_offset = k_curr_buffer['offsets'][k_curr_record_offset+1]
-
-            for i in range(start_offset, end_offset):
-                _curr_sidx = k_curr_buffer['sidx'][i]
-                _curr_loss = k_curr_buffer['loss'][i]
-
-                if _curr_sidx < 0:
-                    if _curr_sidx == MAX_LOSS_IDX:
-                        special_loss_pairs[0]['loss'] += _curr_loss
-                    elif _curr_sidx == MEAN_IDX:
-                        special_loss_pairs[1]['loss'] += _curr_loss
-                    else:
-                        raise ValueError(f'unexpected special sidx{_curr_sidx} found')
-                    continue
-
-                regular_loss_pairs[_curr_sidx - 1]['loss'] += _curr_loss
-                regular_loss_mask[_curr_sidx - 1] = True
-
-            curr_record_offset[k] += 1
-            previous_summary_id[k] = curr_summary_id
-
-        regular_loss_pairs = regular_loss_pairs[regular_loss_mask]
-
-        # need to handle output properly
-        cursor = add_record_to_byte_mv(out_byte_mv, cursor, new_record, regular_loss_pairs, special_loss_pairs)
-
-        idx_cursor = update_idx_cursors(cursor, idx_cursor, idx_buffer, idx_file_cursors, -1)
-
-
-def prepare_intermediate_outputs(event_id, event_buffer, partial_out_byte_mv,
-                                 intermediate_cursors, file_idx,
-                                 idx_stream_buffer):
-    cursor = 0
-    idx_cursor = 0
-
-    n_records = len(event_buffer['summary_ids'])
-    for i in range(n_records):
-        summary_id = event_buffer['summary_ids'][i]
-        idx_stream_buffer[idx_cursor]['summary_id'] = summary_id
-        idx_stream_buffer[idx_cursor]['offset'] = cursor
-
-        cursor = mv_write_summary_header(partial_out_byte_mv, cursor,
-                                         event_id=event_id,
-                                         summary_id=summary_id,
-                                         exposure_value=event_buffer['expval'][i])
-
-        start_offset, end_offset = event_buffer['offsets'][i], event_buffer['offsets'][i+1]
-
-        for offset in range(start_offset, end_offset):
-            cursor = mv_write_sidx_loss(partial_out_byte_mv, cursor,
-                                        event_buffer['sidx'][offset],
-                                        event_buffer['loss'][offset])
-
-        cursor = mv_write_sidx_loss(partial_out_byte_mv, cursor, 0, 0)
-
-        idx_cursor = update_idx_cursors(cursor, idx_cursor, idx_stream_buffer, intermediate_cursors, file_idx)
-    return cursor, idx_cursor
-
-def add_record_to_byte_mv(byte_mv, cursor, record, loss_pairs, special_loss_pairs, output_zeros=False):
-    print('Writing record...')
-    print(f'event_id: {record["event_id"]}, summary_id: {record["summary_id"]}, expval: {record["expval"]}')
-    cursor = mv_write_summary_header(byte_mv, cursor, record['event_id'], record['summary_id'], record['expval'])
-    cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, special_loss_pairs[0]['loss'])
-    cursor = mv_write_sidx_loss(byte_mv, cursor, MEAN_IDX, special_loss_pairs[1]['loss'])
-
-    for _curr_loss_pair in loss_pairs:
-        sidx, loss = _curr_loss_pair['sidx'], _curr_loss_pair['loss']
-        if not output_zeros and loss == 0:
-            continue
-        cursor = mv_write_sidx_loss(byte_mv, cursor, sidx, loss)
-
-    cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
-    return cursor
-
-
-def update_idx_cursors(curr_cursor, curr_idx_cursor, idx_buffer, idx_file_cursors, file_idx):
-    summary_byte_len = curr_cursor - idx_buffer[curr_idx_cursor]['offset']
-    idx_buffer[curr_idx_cursor]['offset'] = idx_file_cursors[file_idx]
-    idx_file_cursors[file_idx] += summary_byte_len
-    return curr_idx_cursor + 1
 
 @nb.njit(cache=True)
 def mv_write_passthrough_event(byte_mv, last_record, last_pair, idx_buffer, idx_cursor, idx_file_cursors,
@@ -355,7 +323,6 @@ def write_passthrough_event(pipe, idx_pipe, byte_mv, event_id, event_buffer,
                 byte_mv, last_record, last_pair, idx_buffer, idx_cursor, idx_file_cursors[file_idx], event_id,
                 event_buffer['summary_ids'], event_buffer['expval'], event_buffer['sidx'], event_buffer['loss'],
                 event_buffer['offsets'])
-        # TODO - THIS NEEDS TO BE FINISHED
 
         write_mv_to_stream(pipe, byte_mv, cursor)
         idx_file_cursors[file_idx] += cursor
@@ -367,7 +334,7 @@ def write_passthrough_event(pipe, idx_pipe, byte_mv, event_id, event_buffer,
         idx_pipe.write(idx_buffer[:idx_cursor].tobytes())
 
 
-def run(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, **kwargs):
+def run(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, output_zeros, **kwargs):
     intermediate_outputs = parse_intermediate_outputs(intermediate_outputs)
 
     if len(summary_files_in) != len(static_paths):
@@ -385,6 +352,8 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         # gather inputs and read meta
         streams_in, len_sample, summary_set_id = init_summary_streams_in(summary_files_in, stack)
         max_summary_id = get_max_summary_id(static_paths, summary_set_id)
+
+        acc = EventAccumulator(max_summary_id, len_sample)
 
         # prepare idx files
         idx_buffer = np.empty(max_summary_id, dtype=summary_stream_index_dtype)
@@ -415,9 +384,6 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         summary_stream_reader = SummaryCombineReader(n_inputs, max_summary_id, len_sample)
         input_queues = [[] for _ in range(n_inputs)]
 
-        file_idx_events = {i: [] for i in range(n_inputs)}
-        n_event_ids_written = 0
-        event_ids_seen = set()
         for file_idx, event_id, event_buffer in summary_stream_reader.read_events(streams_in):
             # pass through requested IP
             if file_idx in intermediate_pipes:
@@ -425,26 +391,28 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
                                         intermediate_idx_pipes.get(file_idx),
                                         out_byte_mv, event_id, event_buffer, idx_file_cursors, file_idx, idx_buffer)
 
-            event_ids_seen.add(event_id)
-            file_idx_events[file_idx].append(event_id)
             input_queues[file_idx].append((event_id, event_buffer))
-
-            if any([len(input_queues[k]) == 0 for k in range(n_inputs)]):
+            if any([len(input_queue) == 0 for input_queue in input_queues]):
                 continue
 
-            cursor, idx_buffer_cursor = merge_events(input_queues, n_inputs,len_sample, out_byte_mv,
-                                                     idx_buffer, idx_file_cursors)
-            write_mv_to_stream(output_pipe, out_byte_mv, cursor)
-            if low_memory:
-                output_index_pipe.write(idx_buffer[:idx_buffer_cursor].tobytes())
-            n_event_ids_written += 1
+            # every input sent an event, now combine
+            curr_events = [input_queue.pop(0) for input_queue in input_queues]
+            event_id = curr_events[0][0]
 
+            if any([curr_event[0] != event_id for curr_event in curr_events]):
+                raise OasisException('event sequence mismatch in the streams')
 
+            present_ids = combine_events(curr_events, acc)
+            write_combined_event(output_pipe, output_index_pipe, out_byte_mv, event_id, len_sample,
+                                 present_ids, acc, output_zeros, idx_file_cursors, file_idx, idx_buffer)
+            acc.reset()
 
-        if any([len(input_queues[k]) != 0 for k in range(n_inputs)]):
+        if any([len(input_queue) != 0 for input_queue in input_queues]):
                raise OasisException('Summary streams only partially combined.')
 
 
 @redirect_logging(exec_name='rlcombine')
-def main(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, **kwargs):
-    run(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, **kwargs)
+def main(summary_files_in, output_summary_file, static_paths, low_memory,
+         intermediate_outputs, output_zeros, **kwargs):
+    run(summary_files_in, output_summary_file, static_paths, low_memory,
+        intermediate_outputs, output_zeros, **kwargs)
