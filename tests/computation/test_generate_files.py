@@ -462,6 +462,39 @@ class TestGenFilesEmptyKeys(ComputationChecker):
             finally:
                 os.unlink(loc_file.name)
 
+    def test_files__no_keys__message_names_errors_file_in_keys_format(self):
+        """The no-keys message names the errors file in the keys file's format, not always keys-errors.csv (#2227)."""
+        with self.tmp_dir() as t_dir:
+            keys_path = os.path.join(t_dir, 'keys.parquet')
+            pd.DataFrame({c: pd.Series(dtype='int64') for c in
+                          ['LocID', 'PerilID', 'CoverageTypeID', 'AreaPerilID', 'VulnerabilityID']}).to_parquet(keys_path)
+            args, loc_file = self._base_args(keys_path, t_dir)
+            try:
+                with self.assertRaises(OasisExceptionNoKeys) as ctx:
+                    self.manager.generate_files(**args)
+                self.assertIn('keys-errors.parquet', str(ctx.exception))
+                self.assertNotIn('keys-errors.csv', str(ctx.exception))
+            finally:
+                os.unlink(loc_file.name)
+
+    def test_files__no_keys__message_names_given_errors_file(self):
+        """A pre-generated keys errors file is named in the no-keys message by its own name (#2227)."""
+        with self.tmp_dir() as t_dir:
+            keys_path = os.path.join(t_dir, 'keys.csv')
+            with open(keys_path, 'w') as f:
+                f.write('LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID\n')
+            errors_path = os.path.join(t_dir, 'my-errors.csv')
+            with open(errors_path, 'w') as f:
+                f.write('LocID,PerilID,CoverageTypeID,Status,Message\n')
+            args, loc_file = self._base_args(keys_path, t_dir)
+            args['keys_errors_path'] = errors_path
+            try:
+                with self.assertRaises(OasisExceptionNoKeys) as ctx:
+                    self.manager.generate_files(**args)
+                self.assertIn('`my-errors.csv`', str(ctx.exception))
+            finally:
+                os.unlink(loc_file.name)
+
     def test_files__zero_byte_keys__raises_no_keys(self):
         """Zero-byte keys.csv (mmap error path) must also raise OasisExceptionNoKeys."""
         with self.tmp_dir() as t_dir:
