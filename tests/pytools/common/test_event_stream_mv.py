@@ -80,7 +80,7 @@ def _write_0d(byte_mv, value_0d):
 
 
 def test_zero_dim_array_value_is_written_as_its_element():
-    # no pytools caller does this, but main accepted it; it goes through the view-based fallback
+    # no pytools caller does this, but main accepted it
     byte_mv = np.zeros(4, dtype='b')
     assert _write_0d(byte_mv, np.array(2.5)) == 4
     assert byte_mv.tobytes() == np.float32(2.5).tobytes()
@@ -112,4 +112,30 @@ def _write_one(byte_mv, cursor):
 ])
 def test_overrunning_the_buffer_raises(call):
     with pytest.raises((ValueError, IndexError)):
+        call()
+
+
+@nb.njit
+def _write_any(byte_mv, _dtype, value):
+    return mv_write(byte_mv, 0, _dtype, 4, value)
+
+
+@nb.njit
+def _read_any(byte_mv, _dtype):
+    return mv_read(byte_mv, 0, _dtype, 4)
+
+
+# Under JIT there is no slow fallback: anything but a scalar (or 0-d array) into a C-contiguous byte
+# buffer is a compile error rather than a silently slower code path.
+@pytest.mark.skipif(nb_config.DISABLE_JIT, reason="type checks happen when numba compiles the caller")
+@pytest.mark.parametrize('call', [
+    lambda: _write_any(np.zeros(8, dtype='b'), np.dtype('f4'), np.zeros(1, dtype='f4')),  # 1-d array value, even of size 1
+    lambda: _write_any(np.zeros(8, dtype='i4'), np.dtype('f4'), 1.0),  # not a byte buffer
+    lambda: _write_any(np.zeros(8, dtype='b')[::2], np.dtype('f4'), 1.0),  # not C-contiguous
+    lambda: _write_any(np.zeros(8, dtype=np.bool_), np.dtype('f4'), 1.0),  # bool buffer
+    lambda: _write_any(np.zeros(8, dtype='b'), np.dtype([('a', 'i4')]), 1),  # structured dtype
+    lambda: _read_any(np.zeros(8, dtype='i4'), np.dtype('f4')),
+])
+def test_unsupported_types_fail_to_compile(call):
+    with pytest.raises(nb.core.errors.TypingError):
         call()
