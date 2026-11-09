@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 from ods_tools.oed import OedExposure
 
+from oasislmf.computation.hooks.pre_analysis import parquet_safe_dataframe
 from oasislmf.manager import OasisManager
 from oasislmf.utils.defaults import SOURCE_FILENAMES
 from oasislmf.utils.exceptions import OasisException
@@ -763,8 +764,6 @@ def test_exposure_pre_analysis_mixed_type_column__saved_as_parquet__issue_2191()
 
 
 def test_parquet_safe_dataframe__converts_only_mixed_columns_and_keeps_nulls():
-    from oasislmf.computation.hooks.pre_analysis import parquet_safe_dataframe
-
     df = pd.DataFrame({'mixed': pd.Series([1, '12', None], dtype=object),
                        'ints': pd.Series([1, 2, None], dtype=object),
                        'num': [1.0, 2.0, 3.0]})
