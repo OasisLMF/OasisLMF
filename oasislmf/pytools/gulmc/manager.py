@@ -206,9 +206,12 @@ def run(run_dir,
 
         # --- load or build read-only structures --------------------------------
         from oasislmf.pytools.gulmc.structure import (
-            gulmc_structure_exists, load_gulmc_structure, build_structures,
+            gulmc_structure_exists, load_gulmc_structure, build_structures, dynamic_footprint_path,
         )
+        # the dynamic footprint's hazard is memory-mapped when create_gulmc_structure saved it
+        footprint_shared_dir = None
         if gulmc_structure_exists(run_dir):
+            footprint_shared_dir = dynamic_footprint_path(run_dir)
             logger.info("loading pre-computed gulmc structures (shared memory)")
             structures = load_gulmc_structure(run_dir)
         else:
@@ -293,7 +296,8 @@ def run(run_dir,
             footprint_obj = None
         else:
             footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
-                                                df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids))
+                                                df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids,
+                                                shared_dir=footprint_shared_dir))
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         # set up streams

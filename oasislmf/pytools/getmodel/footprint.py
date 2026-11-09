@@ -34,6 +34,9 @@ from oasislmf.pytools.common.data import (
 
 logger = logging.getLogger(__name__)
 
+# files of a dynamic footprint's hazard saved for sharing between processes, see FootprintParquetDynamic.save_shared
+SHARED_MANIFEST = 'manifest.json'
+
 uncompressedMask = 1 << 1
 intensityMask = 1
 
@@ -179,6 +182,7 @@ class Footprint:
         ignore_file_type=set(),
         df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         areaperil_ids=None,
+        shared_dir=None,
         **kwargs
     ):
         """Loads the loading classes defined in this file checking to see if the files are in the static path
@@ -206,6 +210,9 @@ class Footprint:
 
             df_engine (str): the engine to use when loading dataframes
             areaperil_ids (list): areaperil_ids to filter the loaded footprint to
+            shared_dir (str or None): directory where a dynamic footprint's hazard was saved by
+                FootprintParquetDynamic.save_shared, memory-mapped instead of read from the model data
+                when present. Ignored by the other footprint formats.
             **kwargs: additional keyword arguments, accepted and ignored so that callers can
                 forward a wider parameter dict
 
@@ -221,6 +228,9 @@ class Footprint:
             if valid:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {filename}")
+                if footprint_class is FootprintParquetDynamic:
+                    return footprint_class(storage, df_engine=df_engine, areaperil_ids=areaperil_ids,
+                                           shared_dir=shared_dir)
                 return footprint_class(storage, df_engine=df_engine, areaperil_ids=areaperil_ids)
         else:
             if storage.isfile("footprint.parquet"):
@@ -594,7 +604,8 @@ class FootprintParquetDynamic(Footprint):
     Both layouts are read the same way, by pushing a section_id filter down to the reader.
 
     The hazard case is bulk-loaded at __enter__ for this portfolio's sections and areaperils,
-    which is all get_event ever needs of it. The event definition is bulk-loaded too when it
+    which is all get_event ever needs of it. Every process loading it holds its own copy, so it can
+    be saved once with save_shared and memory-mapped by each process instead (shared_dir). The event definition is bulk-loaded too when it
     is partitioned, giving indexed per-event lookups; when it is unpartitioned it is instead
     filtered to the event per get_event call.
 
@@ -609,6 +620,21 @@ class FootprintParquetDynamic(Footprint):
         return periods (list): the list of return periods in the model. Not currently used
     """
     footprint_filenames: List[str] = [event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename]
+
+    def __init__(self, storage: BaseStorage, df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+                 areaperil_ids=None, shared_dir=None) -> None:
+        """The constructor for the FootprintParquetDynamic class.
+
+        Args:
+            storage (BaseStorage): the storage object used to lookup files
+            df_engine (str): the engine to use when loading dataframes
+            areaperil_ids (list): areaperil_ids that will be useful
+            shared_dir (str or None): directory written by save_shared. When it holds a complete save,
+                the hazard case and partitioned event definition are memory-mapped from it rather than
+                read from the model data.
+        """
+        super().__init__(storage, df_engine=df_engine, areaperil_ids=areaperil_ids)
+        self.shared_dir = shared_dir
 
     def _is_partitioned_by_section(self, filename):
         """Check whether a parquet file is a dataset partitioned by section_id.
@@ -649,6 +675,10 @@ class FootprintParquetDynamic(Footprint):
         self.df_event_definition = None
         self.df_hazard_case = None
         self.event_set = set()
+        self.shared_hazard = None
+
+        if self.shared_dir is not None and self._load_shared():
+            return self
 
         if self.event_definition_partitioned:
             self.get_event = self._get_event_partitioned
@@ -727,6 +757,91 @@ class FootprintParquetDynamic(Footprint):
 
         self.df_hazard_case = df_hazard_case.set_index('section_id').sort_index(kind='stable')
 
+    def save_shared(self, shared_dir):
+        """Save the loaded hazard case, and the event definition if partitioned, for other processes
+        to memory-map (see shared_dir).
+
+        Each column is saved as its own .npy file in the order the footprint build walks it, with the
+        row offsets of each section. The manifest is written last, so a save that did not finish is
+        not used.
+
+        Args:
+            shared_dir (str): the directory to save into
+
+        Returns: (bool) True if saved; False if there is nothing to share (no event or hazard affects
+            the portfolio) or a column is not numeric, in which case each process reads the model data
+        """
+        if self.df_hazard_case is None or (self.event_definition_partitioned and self.df_event_definition is None):
+            return False
+
+        tables = {'hazard_case': self.df_hazard_case.reset_index()}
+        if self.event_definition_partitioned:
+            tables['event_definition'] = self.df_event_definition.reset_index()
+        for name, df in tables.items():
+            not_numeric = [column for column in df.columns if df[column].dtype.kind not in 'biuf']
+            if not_numeric:
+                logger.info(f"dynamic footprint not shared between processes: {name} column(s) {not_numeric} "
+                            f"are not numeric")
+                return False
+
+        manifest_path = os.path.join(shared_dir, SHARED_MANIFEST)
+        if os.path.exists(manifest_path):
+            os.remove(manifest_path)
+        os.makedirs(shared_dir, exist_ok=True)
+
+        for name, df in tables.items():
+            for column in df.columns:
+                np.save(os.path.join(shared_dir, f'{name}.{column}.npy'), df[column].to_numpy())
+        section_id = tables['hazard_case']['section_id'].to_numpy()
+        starts = np.flatnonzero(np.diff(section_id)) + 1
+        np.save(os.path.join(shared_dir, 'hazard_case_sections.npy'), section_id[np.concatenate(([0], starts))])
+        np.save(os.path.join(shared_dir, 'hazard_case_offsets.npy'),
+                np.concatenate(([0], starts, [len(section_id)])).astype(np.int64))
+
+        manifest = {'event_definition_partitioned': self.event_definition_partitioned,
+                    'columns': {name: list(df.columns) for name, df in tables.items()}}
+        with open(manifest_path, 'w') as f:
+            json.dump(manifest, f)
+        return True
+
+    def _load_shared(self):
+        """Memory-map the hazard case, and the event definition if partitioned, saved by save_shared.
+
+        Returns: (bool) False if shared_dir holds no complete save for this model data's layout
+        """
+        manifest_path = os.path.join(self.shared_dir, SHARED_MANIFEST)
+        if not os.path.isfile(manifest_path):
+            return False
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        if manifest['event_definition_partitioned'] != self.event_definition_partitioned:
+            return False
+
+        def load(name):
+            return np.load(os.path.join(self.shared_dir, f'{name}.npy'), mmap_mode='r')
+
+        self.shared_hazard = {column: load(f'hazard_case.{column}') for column in manifest['columns']['hazard_case']}
+        self.shared_hazard_sections = load('hazard_case_sections')
+        self.shared_hazard_offsets = load('hazard_case_offsets')
+        if self.event_definition_partitioned:
+            self.shared_event_definition = {column: load(f'event_definition.{column}')
+                                            for column in manifest['columns']['event_definition']}
+            self.get_event = self._get_event_shared
+        else:
+            self.get_event = self._get_event_flat
+        logger.info(f"dynamic footprint memory-mapped from {self.shared_dir}")
+        return True
+
+    def _get_event_shared(self, event_id):
+        """Shared path: the event definition is memory-mapped and sorted by event_id."""
+        event_ids = self.shared_event_definition['event_id']
+        start, end = np.searchsorted(event_ids, event_id, 'left'), np.searchsorted(event_ids, event_id, 'right')
+        if start == end:
+            return None
+
+        return self._build_event(pd.DataFrame(
+            {column: np.array(values[start:end]) for column, values in self.shared_event_definition.items()}))
+
     def _get_event_partitioned(self, event_id):
         """Fast path: the event definition is indexed in memory, so look the event up."""
         if event_id not in self.event_set:
@@ -754,14 +869,23 @@ class FootprintParquetDynamic(Footprint):
             with its index drops both the sections outside the portfolio and those the
             modelled perils leave unaffected.
         """
-        if self.df_hazard_case is None:
-            return None
+        if self.shared_hazard is not None:
+            sections = np.intersect1d(self.shared_hazard_sections, df_event_definition['section_id'].unique())
+            if len(sections) == 0:
+                return None
 
-        sections = self.df_hazard_case.index.intersection(df_event_definition['section_id'].unique())
-        if sections.empty:
+            at = np.searchsorted(self.shared_hazard_sections, sections)
+            rows = np.concatenate([np.arange(self.shared_hazard_offsets[i], self.shared_hazard_offsets[i + 1])
+                                   for i in at])
+            df_hazard_case = pd.DataFrame({column: values[rows] for column, values in self.shared_hazard.items()})
+        elif self.df_hazard_case is None:
             return None
+        else:
+            sections = self.df_hazard_case.index.intersection(df_event_definition['section_id'].unique())
+            if sections.empty:
+                return None
 
-        df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
+            df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
         df_event_definition = df_event_definition[df_event_definition['section_id'].isin(sections)]
 
         return self._build_footprint(df_hazard_case, df_event_definition)
