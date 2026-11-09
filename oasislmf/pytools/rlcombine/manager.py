@@ -136,12 +136,13 @@ class EventAccumulator:
         self.mean = np.zeros(max_summary_id, dtype=loss_dtype)
         self.losses = np.zeros((max_summary_id, len_sample), dtype=loss_dtype)
 
-    def reset(self):
-        self.present = False
-        self.expval = 0
-        self.max_loss = 0
-        self.mean = 0
-        self.losses = 0
+    def reset(self, present_ids):
+        rows = present_ids - 1
+        self.present[rows] = False
+        self.expval[rows] = 0
+        self.max_loss[rows] = 0
+        self.mean[rows] = 0
+        self.losses[rows] = 0
 
 def init_summary_streams_in(files_in, stack):
     """Open the input summary streams and check that their headers agree.
@@ -208,13 +209,13 @@ def accumulate_input_events(summary_ids, expval_event, offsets_event, sidx_event
     previous_summary_id = 0
     for i in range(summary_ids.shape[0]):
         summary_id = summary_ids[i]
-        if summary_id < previous_summary_id:
+        if summary_id <= previous_summary_id:
             raise ValueError('rlcombine: summary_ids are not strictly increasing')
         previous_summary_id = summary_id
 
         row = summary_id - 1
         present[row] = True
-        expval[row] += expval_event
+        expval[row] += expval_event[i]
         for j in range(offsets_event[i], offsets_event[i+1]):
             if sidx_event[j] > 0:
                 losses[row, sidx_event[j]-1] += loss_event[j]
@@ -247,7 +248,7 @@ def mv_write_combined_event(byte_mv, event_id, len_sample, present_ids, expval, 
             if cursor + RECORD_HEADER_SIZE + 3 * PAIR_SIZE > PIPE_CAPACITY:
                 return cursor, i, last_sidx, idx_cursor
             idx_buffer[idx_cursor]['summary_id'] = summary_id
-            idx_buffer[idx_buffer]['offset'] = stream_offset + cursor
+            idx_buffer[idx_cursor]['offset'] = stream_offset + cursor
             idx_cursor += 1
             cursor = mv_write_summary_header(byte_mv, cursor, event_id, summary_id, expval[row])
             cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, max_loss[row])
@@ -312,7 +313,7 @@ def mv_write_passthrough_event(byte_mv, last_record, last_pair, idx_buffer, idx_
 
         cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0) # terminator
         last_pair = -1
-    return cursor -1, -1, idx_cursor
+    return cursor, -1, -1, idx_cursor
 
 
 def write_passthrough_event(pipe, idx_pipe, byte_mv, event_id, event_buffer,
@@ -402,10 +403,10 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
             if any([curr_event[0] != event_id for curr_event in curr_events]):
                 raise OasisException('event sequence mismatch in the streams')
 
-            present_ids = combine_events(curr_events, acc)
+            present_ids = combine_events([ev[1] for ev in curr_events], acc)
             write_combined_event(output_pipe, output_index_pipe, out_byte_mv, event_id, len_sample,
-                                 present_ids, acc, output_zeros, idx_file_cursors, file_idx, idx_buffer)
-            acc.reset()
+                                 present_ids, acc, output_zeros, idx_file_cursors, -1, idx_buffer)
+            acc.reset(present_ids)
 
         if any([len(input_queue) != 0 for input_queue in input_queues]):
                raise OasisException('Summary streams only partially combined.')
