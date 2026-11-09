@@ -117,7 +117,7 @@ Starting from 1st January 2019, Pandas will no longer be supporting Python 2. As
 are **dropping Python 2 (2.7) support** as of this release (1.3.4). The last version which still supports Python 2.7 is 
 version ``1.3.3`` (published 12/03/2019).
 
-Also for this release (and all future releases) a **minimum of Python 3.10 is required**.
+Also for this release (and all future releases) a **minimum of Python 3.11 is required**.
 
 |
 
@@ -156,7 +156,7 @@ macOS Apple Silicon (M1/M2/M3/M4)
 
 OasisLMF installs natively on Apple Silicon Macs via ``pip install oasislmf``. Ensure you have:
 
-* **Python 3.10+** — the system Python on macOS is 3.9; install a newer version via ``brew install python@3.12`` or ``pyenv``.
+* **Python 3.11+** — the system Python on macOS is 3.9; install a newer version via ``brew install python@3.12`` or ``pyenv``.
 * **macOS 12 (Monterey) or later** — required for scipy ARM64 wheels.
 
 For optional geospatial extras (``pip install oasislmf[extra]``), also install:
@@ -343,7 +343,7 @@ To test the code style run:
 
 |
 
-To run the unit tests (as CI does, on Python 3.10 - 3.14) run:
+To run the unit tests (as CI does, on Python 3.11 - 3.15) run:
 
 .. code-block::
 
