@@ -195,8 +195,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                         pass_through[compute_idx['next_compute_i']] = loss
                     else:
                         # Regular sample or special index (-5, -3, -1, 1..N), appended in sidx order.
-                        # The in-order case is written out rather than called: a call taking the three
-                        # arrays per pair cost ~44% of fmpy (see the refcount note in common/event_stream.py).
+                        # Written inline, not as a call, to avoid refcounting the arrays once per pair.
                         compute_i = compute_idx['next_compute_i']
                         end = sidx_indptr[compute_i]
                         if sidx_indptr[compute_i - 1] == end or sidx_val[end - 1] < sidx:

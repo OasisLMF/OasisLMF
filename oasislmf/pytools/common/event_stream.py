@@ -368,9 +368,7 @@ def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
                                      loss_type=loss_type, loss_size=loss_size)
 
 
-# inlined so byte_mv is not increfed/decrefed across a call boundary once per sidx/loss pair;
-# measured: ~14% less gulmc run time on numba 0.68, neutral on 0.61 (issue #2240).
-# Inlining the outer, uncached wrappers too was measured to slow numba 0.61 down, so they stay calls.
+# inlined to avoid refcounting byte_mv on a call per sidx/loss pair
 @nb.jit(nopython=True, cache=True, inline='always')
 def mv_write_sidx_loss_cached(byte_mv, cursor, sidx, loss, sidx_type,
                               loss_type, sidx_size, loss_size) -> int:
