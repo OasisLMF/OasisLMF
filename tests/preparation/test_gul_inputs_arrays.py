@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from oasislmf.preparation.gul_inputs import get_gul_input_items, write_gul_input_files
-from oasislmf.pytools.common.data import correlations_dtype, correlations_headers
+from oasislmf.preparation.gul_inputs import COMPLEX_MODEL_PLACEHOLDER_ID, get_gul_input_items, write_gul_input_files
+from oasislmf.pytools.common.data import correlations_dtype, correlations_headers, items_dtype
+from oasislmf.utils.exceptions import OasisException
 
 COVERAGE_TYPE_IDS = [1, 3]
 
@@ -213,3 +214,48 @@ def test_correlations_bin_is_empty_when_there_are_no_correlations(tmp_path):
 
 def test_correlations_bin_is_empty_when_correlations_are_not_given(tmp_path):
     assert len(written_correlations(tmp_path, None)) == 0
+
+
+def make_complex_keys(exposure):
+    """Keys of a complex model: model_data instead of areaperil and vulnerability ids."""
+    keys = make_keys(exposure).drop(columns=['areaperil_id', 'vulnerability_id'])
+    keys['model_data'] = '{"zone": 7}'
+    return keys
+
+
+def test_complex_model_items_are_written_with_the_areaperil_id_they_always_had__issue_2197(tmp_path):
+    exposure = make_exposure([1, 1])
+    gul_inputs = get_gul_input_items(exposure, make_complex_keys(exposure))
+    assert (gul_inputs['areaperil_id'] == COMPLEX_MODEL_PLACEHOLDER_ID).all()
+
+    write_gul_input_files(gul_inputs, str(tmp_path), None, str(tmp_path), intermediary_csv=True)
+
+    # what the placeholder wrapped to when narrowing did not check the range
+    wrapped = np.array([COMPLEX_MODEL_PLACEHOLDER_ID]).astype(items_dtype['areaperil_id'])[0]
+    items = np.fromfile(tmp_path / 'items.bin', dtype=items_dtype)
+    assert len(items) == len(gul_inputs)
+    assert (items['areaperil_id'] == wrapped).all()
+    assert (items['vulnerability_id'] == COMPLEX_MODEL_PLACEHOLDER_ID).all()
+    assert (pd.read_csv(tmp_path / 'items.csv')['areaperil_id'] == wrapped).all()
+    # the caller's frame, which the summary files are built from, still has the placeholder
+    assert (gul_inputs['areaperil_id'] == COMPLEX_MODEL_PLACEHOLDER_ID).all()
+
+
+def test_areaperil_id_minus_one_still_raises_outside_complex_models(tmp_path):
+    exposure = make_exposure([1, 1])
+    keys = make_keys(exposure)
+    keys['areaperil_id'] = -1
+    gul_inputs = get_gul_input_items(exposure, keys)
+
+    with pytest.raises(OasisException, match='areaperil_id: value -1'):
+        write_gul_input_files(gul_inputs, str(tmp_path), None, str(tmp_path))
+
+
+@pytest.mark.skipif(items_dtype['areaperil_id'].itemsize > 4, reason='2**33 fits a 64 bit areaperil id')
+def test_complex_model_areaperil_ids_that_do_not_fit_still_raise(tmp_path):
+    exposure = make_exposure([1, 1])
+    gul_inputs = get_gul_input_items(exposure, make_complex_keys(exposure))
+    gul_inputs.loc[gul_inputs.index[0], 'areaperil_id'] = 2 ** 33
+
+    with pytest.raises(OasisException, match=f'areaperil_id: value {2 ** 33}'):
+        write_gul_input_files(gul_inputs, str(tmp_path), None, str(tmp_path))
