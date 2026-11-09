@@ -14,6 +14,7 @@ from oasislmf.pytools.data_layer.footprint_layer import (
     FootprintLayer,
     FootprintLayerClient,
     OperationEnum,
+    main,
     portfolio_areaperil_ids,
 )
 from oasislmf.pytools.getmodel.footprint import Footprint
@@ -257,3 +258,50 @@ def test_listen_loads_footprint_for_the_portfolio_areaperils(mock_socket_cls, mo
     FootprintLayer(storage=MagicMock(), total_expected=0, areaperil_ids=areaperil_ids).listen()
 
     assert mock_load.call_args.kwargs['areaperil_ids'] is areaperil_ids
+
+
+@patch.object(FootprintLayer, '_stream_footprint_data')
+@patch.object(FootprintLayer, '_define_socket')
+def test_listen_serves_a_get_data_request(mock_define_socket, mock_stream):
+    """A GET_DATA request is answered from the loaded footprint, then UNREGISTER stops the server."""
+    storage = LocalStorage(root_dir=str(TEST_MODEL_1 / 'static'))
+    layer = FootprintLayer(storage=storage, total_expected=0, ignore_file_type={'csv'})
+    get_data, unregister = MagicMock(), MagicMock()
+    get_data.recv.return_value = _make_header(OperationEnum.GET_DATA, event_id=1)
+    unregister.recv.return_value = _make_header(OperationEnum.UNREGISTER)
+    layer.socket = MagicMock()
+    layer.socket.accept.side_effect = [(get_data, ('127.0.0.1', 1)), (unregister, ('127.0.0.1', 2))]
+
+    layer.listen()
+
+    with Footprint.load(storage, ignore_file_type={'csv'}) as footprint:
+        expected = footprint.get_event(1)
+    assert mock_stream.call_count == 1
+    np.testing.assert_array_equal(mock_stream.call_args.kwargs['event_data'], expected)
+    assert mock_stream.call_args.kwargs['connection'] is get_data
+
+
+@patch.object(FootprintLayer, 'listen')
+@patch.object(FootprintLayer, '_define_socket')
+def test_main_filters_the_footprint_to_the_input_items(mock_define_socket, mock_listen, tmp_path, monkeypatch):
+    shutil.copy(TEST_MODEL_1 / 'input' / 'items.csv', tmp_path / 'items.csv')
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr('sys.argv', ['servedata', str(TEST_MODEL_1 / 'static'), '2', '--input-path', str(tmp_path)])
+    created = []
+    monkeypatch.setattr(FootprintLayer, '__init__', _recording_init(FootprintLayer.__init__, created))
+
+    main()
+
+    assert mock_listen.call_count == 1
+    layer, = created
+    assert layer.total_expected == 2
+    np.testing.assert_array_equal(layer.areaperil_ids, portfolio_areaperil_ids(str(tmp_path)))
+
+
+def _recording_init(init, created):
+    """Wrap ``FootprintLayer.__init__`` so a test can inspect the server ``main`` builds."""
+
+    def recording_init(self, *args, **kwargs):
+        init(self, *args, **kwargs)
+        created.append(self)
+    return recording_init
