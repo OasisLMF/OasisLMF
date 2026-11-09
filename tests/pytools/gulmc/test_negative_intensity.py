@@ -1,4 +1,7 @@
 """Intensity bin lookup for dynamic footprints with negative intensities (issue #2165)."""
+import shutil
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -6,6 +9,7 @@ import pytest
 from oasislmf.pytools.getmodel.manager import encode_peril_id, get_intensity_bin_dict
 from oasislmf.pytools.gulmc.common import haz_arr_type
 from oasislmf.pytools.gulmc.manager import compute_haz_bin_id
+from oasislmf.pytools.gulmc.structure import build_structures
 
 ITEM_DTYPE = np.dtype([('peril_id', np.int32)])
 
@@ -87,3 +91,20 @@ def test_gaps(tmp_path, rows, expected):
 def test_dict_starting_above_zero_does_not_map_low_intensities_to_bin_zero(tmp_path):
     tables = _bin_dict(tmp_path, [['WTC', i, i] for i in range(1, 4)])
     assert _lookup(tables, 'WTC', [0, 1, 3]) == [1, 1, 3]
+
+
+def test_build_structures_keeps_each_perils_first_intensity_for_dynamic_footprints(tmp_path):
+    """gulmc builds the bin tables once per run and needs the first intensity to read them."""
+    model = Path(__file__).parents[2] / 'assets' / 'test_model_1'
+    shutil.copytree(model / 'input', tmp_path / 'input')
+    shutil.copytree(model / 'static', tmp_path / 'static')
+    items = pd.read_csv(tmp_path / 'input' / 'gul_summary_map.csv')
+    items.assign(peril_id='ORF').to_csv(tmp_path / 'input' / 'gul_summary_map.csv', index=False)
+    pd.DataFrame([['ORF', i, i + 4] for i in range(-3, 4)], columns=['peril_id', 'intensity', 'intensity_bin']).to_csv(
+        tmp_path / 'static' / 'intensity_bin_dict.csv', index=False)
+
+    structures = build_structures(str(tmp_path), set(), None, True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
+
+    assert structures['intensity_bin_peril_ids'].tolist() == [encode_peril_id('ORF')]
+    assert structures['intensity_bin_min'].tolist() == [-3]
+    assert structures['intensity_bins'].tolist() == [[1, 2, 3, 4, 5, 6, 7]]
