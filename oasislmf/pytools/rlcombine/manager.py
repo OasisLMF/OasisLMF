@@ -95,6 +95,7 @@ Method of combining records depends on the type of the field:
 from contextlib import ExitStack
 import logging
 import numpy as np
+import numba as nb
 
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, SUMMARY_STREAM_ID, TIV_IDX, init_streams_in, mv_write_sidx_loss, mv_write_summary_header, stream_info_to_bytes, write_mv_to_stream
 
@@ -103,7 +104,7 @@ from oasislmf.pytools.summary.manager import load_summary_object
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.exceptions import OasisException
 
-from oasislmf.pytools.rlcombine.reader import SummaryCombineReader
+from oasislmf.pytools.rlcombine.reader import PAIR_SIZE, RECORD_HEADER_SIZE, SummaryCombineReader
 
 logger = logging.getLogger(__name__)
 
@@ -320,6 +321,51 @@ def update_idx_cursors(curr_cursor, curr_idx_cursor, idx_buffer, idx_file_cursor
     idx_file_cursors[file_idx] += summary_byte_len
     return curr_idx_cursor + 1
 
+@nb.njit(cache=True)
+def mv_write_passthrough_event(byte_mv, last_record, last_pair, idx_buffer, idx_cursor, idx_file_cursors,
+                               event_id, summary_ids, expval, sidx, loss, offsets):
+    n_records = summary_ids.shape[0]
+    cursor = 0
+
+    for i in range(last_record, n_records):
+        if last_pair == -1: # start of new record
+            if cursor + RECORD_HEADER_SIZE + PAIR_SIZE > PIPE_CAPACITY:
+                return cursor, i, -1, idx_cursor
+            idx_buffer[idx_cursor]['summary_id'] = summary_ids[i]
+            idx_buffer[idx_cursor]['offset'] = idx_file_cursors + cursor
+            idx_cursor += 1
+            cursor = mv_write_summary_header(byte_mv, cursor, event_id, summary_ids[i], expval[i])
+            last_pair = offsets[i]
+
+        for j in range(last_pair, offsets[i+1]):
+            if cursor + PAIR_SIZE * 2 > PIPE_CAPACITY: # pair + terminator
+                return cursor, i, j, idx_cursor
+            cursor = mv_write_sidx_loss(byte_mv, cursor, sidx[j], loss[j])
+
+        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0) # terminator
+        last_pair = -1
+    return cursor -1, -1, idx_cursor
+
+
+def write_passthrough_event(pipe, idx_pipe, byte_mv, event_id, event_buffer,
+                            idx_file_cursors, file_idx, idx_buffer):
+    last_record, last_pair, idx_cursor = 0, -1, 0
+    while True:
+        cursor, last_record, last_pair, idx_cursor = mv_write_passthrough_event(
+                byte_mv, last_record, last_pair, idx_buffer, idx_cursor, idx_file_cursors[file_idx], event_id,
+                event_buffer['summary_ids'], event_buffer['expval'], event_buffer['sidx'], event_buffer['loss'],
+                event_buffer['offsets'])
+        # TODO - THIS NEEDS TO BE FINISHED
+
+        write_mv_to_stream(pipe, byte_mv, cursor)
+        idx_file_cursors[file_idx] += cursor
+
+        if last_record == -1:
+            break
+
+    if idx_pipe is not None:
+        idx_pipe.write(idx_buffer[:idx_cursor].tobytes())
+
 
 def run(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, **kwargs):
     intermediate_outputs = parse_intermediate_outputs(intermediate_outputs)
@@ -358,6 +404,9 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
             idx_file_cursors[i] += int_pipe.write(summary_id_dtype.type(summary_set_id).tobytes())
 
 
+        # prepare index pipes
+        output_index_pipe = None
+        intermediate_idx_pipes = {}
         if low_memory:
             output_index_name = output_summary_file.rsplit('.', 1)[0] + '.idx'
             output_index_pipe = stack.enter_context(open(output_index_name, 'wb'))
@@ -372,14 +421,9 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         for file_idx, event_id, event_buffer in summary_stream_reader.read_events(streams_in):
             # pass through requested IP
             if file_idx in intermediate_pipes:
-                intermediate_cursor, idx_buffer_cursor = prepare_intermediate_outputs(event_id,
-                                                                   event_buffer,
-                                                                   partial_out_byte_mv,
-                                                                   idx_file_cursors,
-                                                                   file_idx, idx_buffer)
-                write_mv_to_stream(intermediate_pipes[file_idx], partial_out_byte_mv, intermediate_cursor)
-                if low_memory:
-                    intermediate_idx_pipes[file_idx].write(idx_buffer[:idx_buffer_cursor].tobytes())
+                write_passthrough_event(intermediate_pipes[file_idx],
+                                        intermediate_idx_pipes.get(file_idx),
+                                        out_byte_mv, event_id, event_buffer, idx_file_cursors, file_idx, idx_buffer)
 
             event_ids_seen.add(event_id)
             file_idx_events[file_idx].append(event_id)
