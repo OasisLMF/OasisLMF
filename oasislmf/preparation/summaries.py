@@ -486,18 +486,16 @@ def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
     inuring_priority_to_output_level = get_ri_inuring_priority_output_levels(input_dir)
     valid_oed_priorities = set(inuring_priority_to_output_level.keys())
 
-    ri_inuring_priorities_oed = set(int(p) for p in analysis_settings.get('ri_inuring_priorities', []))
-    ri_inuring_priorities_oed.add(max(valid_oed_priorities))
+    ri_output_levels = set(int(p) for p in analysis_settings.get('ri_inuring_priorities', []))
+    ri_output_levels.add(max(valid_oed_priorities))
 
-    if not ri_inuring_priorities_oed.issubset(valid_oed_priorities):
-        ri_missing = ri_inuring_priorities_oed.difference(valid_oed_priorities)
+    if not ri_output_levels.issubset(valid_oed_priorities):
+        ri_missing = ri_output_levels.difference(valid_oed_priorities)
         ri_missing = [str(p) for p in sorted(ri_missing)]
         missing_str = ', '.join(ri_missing[:-1])
         missing_str += ' and ' * (len(ri_missing) > 1) + ri_missing[-1]
         missing_str = ('priority ' if len(ri_missing) == 1 else 'priorities ') + missing_str
         raise OasisException(f'Requested outputs for inuring {missing_str} lie outside of scope.')
-
-    ri_output_levels = {int(x) for x in ri_settings}
 
     return [
         os.path.join(input_dir, os.path.basename(ri_settings[str(output_level)]['directory']))
