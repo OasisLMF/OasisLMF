@@ -24,6 +24,7 @@ from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
                                      OASIS_FILES_PREFIXES, SOURCE_IDX,
                                      get_default_exposure_profile)
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.int_range import astype_checked, narrow_int
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
@@ -65,6 +66,10 @@ KEYS_COLUMN_RENAME = {
     'intensityadjustment': 'intensity_adjustment',
     'returnperiod': 'return_period'
 }
+
+#: The areaperil_id and vulnerability_id given to the items of a complex model whose keys
+#: carry ``model_data`` but no areaperil or vulnerability ids.
+COMPLEX_MODEL_PLACEHOLDER_ID = -1
 
 
 def check_has_loc_id(df, name):
@@ -524,7 +529,7 @@ def get_gul_input_items(
     # and vulnerability ID columns, unless it's the dynamic model generator which
     # uses them
     if 'model_data' in keys_df and 'areaperil_id' not in keys_df and 'vulnerability_id' not in keys_df:
-        keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
+        keys_df['areaperil_id'] = keys_df['vulnerability_id'] = COMPLEX_MODEL_PLACEHOLDER_ID
     gul_inputs_df = merge_dataframes(
         keys_df,
         gul_inputs_df,
@@ -705,10 +710,41 @@ def get_gul_input_items(
     return gul_inputs_df
 
 
+def with_placeholder_areaperils_narrowed(gul_inputs_df):
+    """Give complex model items the areaperil id they have always been written with.
+
+    The items of a complex model whose keys have no areaperil id get
+    ``COMPLEX_MODEL_PLACEHOLDER_ID`` (-1). Nothing reads that areaperil id, and narrowing
+    it to the unsigned areaperil type used to wrap it to the type's largest value. This
+    writes that value explicitly, so that any other areaperil id that does not fit the
+    type still raises.
+
+    Args:
+        gul_inputs_df (pd.DataFrame): GUL inputs dataframe.
+
+    Returns:
+        pd.DataFrame: ``gul_inputs_df`` if it has no placeholder areaperil ids, otherwise
+        a copy whose areaperil_id column has the areaperil type, with the placeholders set
+        to its largest value.
+    """
+    if 'model_data' not in gul_inputs_df or 'areaperil_id' not in gul_inputs_df:
+        return gul_inputs_df
+    placeholder = (gul_inputs_df['areaperil_id'] == COMPLEX_MODEL_PLACEHOLDER_ID).to_numpy()
+    if not placeholder.any():
+        return gul_inputs_df
+
+    areaperil_type = items_dtype['areaperil_id']
+    areaperil_ids = narrow_int(
+        gul_inputs_df['areaperil_id'].where(~placeholder, 0), areaperil_type, 'areaperil_id'
+    ).to_numpy(copy=True)
+    areaperil_ids[placeholder] = np.iinfo(areaperil_type).max
+    return gul_inputs_df.assign(areaperil_id=areaperil_ids)
+
+
 @oasis_log
 def write_file(gul_inputs_df, file_path, file_dtype, chunksize=100000):
     try:
-        gul_inputs_df[file_dtype.keys()].astype(file_dtype).drop_duplicates().to_csv(
+        astype_checked(gul_inputs_df[file_dtype.keys()], file_dtype, os.path.basename(file_path)).drop_duplicates().to_csv(
             path_or_buf=file_path,
             encoding='utf-8',
             mode=('w' if os.path.exists(file_path) else 'a'),
@@ -757,6 +793,8 @@ def write_gul_input_files(
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
+
+    gul_inputs_df = with_placeholder_areaperils_narrowed(gul_inputs_df)
 
     # write the correlations to a binary file
     if correlations_df is None:

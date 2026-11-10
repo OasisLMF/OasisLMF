@@ -28,6 +28,7 @@ from .common import (
     parquetfootprint_chunked_dir,
     parquetfootprint_chunked_lookup, footprint_bin_lookup
 )
+from oasislmf.utils.int_range import check_int_range, widen_int_dtypes
 from oasislmf.pytools.common.data import (
     footprint_event_dtype, areaperil_int, memmap_or_empty, is_first_entry_zlib_compressed
 )
@@ -87,6 +88,10 @@ def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
     Returns:
         numpy nd array
 
+    Raises:
+        OasisException: if an integer column has a value that does not fit its field, which
+            numpy would otherwise wrap to a different value.
+
     >>> dataframe = pd.DataFrame({'a':[1,2], 'b':[0.0, 1.0]})
     >>> dtype = np.dtype([('a', np.int64), ('c', np.float32),])
     >>> columns = {'c': 'b'}
@@ -95,7 +100,9 @@ def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
     """
     numpy_data = np.empty(len(dataframe), dtype=dtype)
     for np_column in dtype.fields.keys():
-        numpy_data[:][np_column] = dataframe[columns.get(np_column, np_column)].to_numpy()
+        values = dataframe[columns.get(np_column, np_column)]
+        check_int_range(values, dtype.fields[np_column][0], f'footprint {np_column}')
+        numpy_data[:][np_column] = values.to_numpy()
     return numpy_data
 
 
@@ -149,6 +156,7 @@ class Footprint:
         self.stack = ExitStack()
         self.df_engine = df_engine
         if areaperil_ids is not None:
+            check_int_range(np.asarray(areaperil_ids), areaperil_int, 'item areaperil_id')
             self.areaperil_ids = np.array(areaperil_ids, dtype=areaperil_int)
         else:
             self.areaperil_ids = None
@@ -271,7 +279,9 @@ class FootprintCsv(Footprint):
     footprint_filenames = [csvfootprint_filename]
 
     def __enter__(self):
-        self.reader = self.get_df_reader("footprint.csv", dtype=footprint_event_dtype)
+        # read integers at 64 bits; prepare_df_data range checks them as it narrows to Event
+        csv_dtype = widen_int_dtypes({name: footprint_event_dtype.fields[name][0] for name in footprint_event_dtype.names})
+        self.reader = self.get_df_reader("footprint.csv", dtype=csv_dtype)
 
         self.num_intensity_bins = self.reader.query(lambda df: df['intensity_bin_id'].max())
 
@@ -518,7 +528,9 @@ class FootprintParquet(Footprint):
                     table = table.filter(pc.is_in(table['areaperil_id'], value_set=value_set))
                     part = np.empty(table.num_rows, dtype=Event)
                     for column in Event.fields:
-                        part[column] = table[column].to_numpy()
+                        values = table[column].to_numpy()
+                        check_int_range(values, part.dtype.fields[column][0], f'footprint {column}')
+                        part[column] = values
                     parts.append(part)
         if not parts:
             return np.empty(0, dtype=Event)
