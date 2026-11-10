@@ -448,7 +448,7 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
 
     n_inputs = len(summary_files_in)
 
-    if any([k > n_inputs - 1 for k in intermediate_outputs.keys()]):
+    if any(k < 0 or k > n_inputs - 1 for k in intermediate_outputs.keys()):
         raise ValueError(f'Index of requested intermediate-outputs is out of bound. Requested values: {intermediate_outputs.keys()}')
 
     out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
