@@ -88,6 +88,9 @@ def get_sentinel_bytes(event_id):
 
     Returns:
         byte_mv (ndarray): numpy byte view of the SENTINEL_SIZE bytes of the record
+
+    Raises:
+        Exception: if the record written is not SENTINEL_SIZE bytes
     """
     byte_mv = np.empty(SENTINEL_SIZE, dtype='b')
 
