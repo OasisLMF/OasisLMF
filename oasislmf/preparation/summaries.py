@@ -790,7 +790,7 @@ def generate_summaryxref_files(
             )
 
         for output_level, summary_ri_fp in zip(ri_output_levels, summary_ri_fps):
-            ri_summaryxref_df['output'] = original_output_id + output_level*max_output_id # offset per IP
+            # ri_summaryxref_df['output'] = original_output_id + output_level*max_output_id # offset per IP
             df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['ri']}.bin"))
             if intermediary_csv:
                 write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, f"{SUMMARY_OUTPUT['ri']}.csv")
@@ -818,7 +818,7 @@ def generate_summaryxref_files(
         )
 
         for output_level, summary_rl_fp in zip(rl_output_levels, summary_rl_fps):
-            rl_summaryxref_df['output'] = original_output_id + max_output_id*output_level # offset per IP
+            # rl_summaryxref_df['output'] = original_output_id + max_output_id*output_level # offset per IP
             df_to_ndarray(rl_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_rl_fp, f"{SUMMARY_OUTPUT['rl']}.bin"))
 
             if intermediary_csv:
