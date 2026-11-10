@@ -172,6 +172,7 @@ def _compile_summarypy():
             create_summarypy_files=False,
             low_memory=True,
             output_zeros=False,
+            sentinel_event=False,
             static_path=_DATA_DIR / "summarypy" / "single_summary_set",
             run_type="gul",
             files_in=[_DATA_DIR / "input" / "gul.bin"],

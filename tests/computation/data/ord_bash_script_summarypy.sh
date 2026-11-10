@@ -47,7 +47,7 @@ trap exit_handler QUIT HUP INT KILL TERM ERR EXIT
 
 check_complete(){
     set +e
-    proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
+    proc_list="evepy modelpy gulpy fmpy gulmc summarypy rlcombine plapy katpy eltpy pltpy aalpy lecpy"
     has_error=0
     for p in $proc_list; do
         started=$(find $LOG_DIR -name "${p}_[0-9]*.log" | wc -l)
@@ -101,9 +101,9 @@ mkdir -p work/gul_S1_summary_altmeanonly
 mkdir -p work/il_S1_summaryleccalc
 mkdir -p work/il_S1_summary_palt
 mkdir -p work/il_S1_summary_altmeanonly
-mkdir -p work/ri_S1_summaryleccalc
-mkdir -p work/ri_S1_summary_palt
-mkdir -p work/ri_S1_summary_altmeanonly
+mkdir -p work/ri_IP1_S1_summaryleccalc
+mkdir -p work/ri_IP1_S1_summary_palt
+mkdir -p work/ri_IP1_S1_summary_altmeanonly
 
 mkfifo fifo/gul_P1
 mkfifo fifo/gul_P2
@@ -131,38 +131,38 @@ mkfifo fifo/il_S1_summary_P2.idx
 mkfifo fifo/il_S1_plt_ord_P2
 mkfifo fifo/il_S1_elt_ord_P2
 mkfifo fifo/il_S1_selt_ord_P2
-mkfifo fifo/ri_P1
-mkfifo fifo/ri_P2
+mkfifo fifo/ri_IP1_P1
+mkfifo fifo/ri_IP1_P2
 
-mkfifo fifo/ri_S1_summary_P1
-mkfifo fifo/ri_S1_summary_P1.idx
-mkfifo fifo/ri_S1_plt_ord_P1
-mkfifo fifo/ri_S1_elt_ord_P1
-mkfifo fifo/ri_S1_selt_ord_P1
-mkfifo fifo/ri_S1_summary_P2
-mkfifo fifo/ri_S1_summary_P2.idx
-mkfifo fifo/ri_S1_plt_ord_P2
-mkfifo fifo/ri_S1_elt_ord_P2
-mkfifo fifo/ri_S1_selt_ord_P2
+mkfifo fifo/ri_IP1_S1_summary_P1
+mkfifo fifo/ri_IP1_S1_summary_P1.idx
+mkfifo fifo/ri_IP1_S1_plt_ord_P1
+mkfifo fifo/ri_IP1_S1_elt_ord_P1
+mkfifo fifo/ri_IP1_S1_selt_ord_P1
+mkfifo fifo/ri_IP1_S1_summary_P2
+mkfifo fifo/ri_IP1_S1_summary_P2.idx
+mkfifo fifo/ri_IP1_S1_plt_ord_P2
+mkfifo fifo/ri_IP1_S1_elt_ord_P2
+mkfifo fifo/ri_IP1_S1_selt_ord_P2
 
 export OASIS_PYTOOLS_LOG_LEVEL=10
 
 # --- Do reinsurance loss computes ---
 
-( pltpy -E bin  -s work/kat/ri_S1_plt_sample_P1 -q work/kat/ri_S1_plt_quantile_P1 -m work/kat/ri_S1_plt_moment_P1 < fifo/ri_S1_plt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
-( eltpy -E bin  -q work/kat/ri_S1_elt_quantile_P1 -m work/kat/ri_S1_elt_moment_P1 < fifo/ri_S1_elt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid2=$!
-( eltpy -E bin  -s work/kat/ri_S1_elt_sample_P1 < fifo/ri_S1_selt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid3=$!
-( pltpy -E bin  -H -s work/kat/ri_S1_plt_sample_P2 -q work/kat/ri_S1_plt_quantile_P2 -m work/kat/ri_S1_plt_moment_P2 < fifo/ri_S1_plt_ord_P2 ) 2>> $LOG_DIR/stderror.err & pid4=$!
-( eltpy -E bin  -H -q work/kat/ri_S1_elt_quantile_P2 -m work/kat/ri_S1_elt_moment_P2 < fifo/ri_S1_elt_ord_P2 ) 2>> $LOG_DIR/stderror.err & pid5=$!
-( eltpy -E bin  -H -s work/kat/ri_S1_elt_sample_P2 < fifo/ri_S1_selt_ord_P2 ) 2>> $LOG_DIR/stderror.err & pid6=$!
+( pltpy -E bin  -s work/kat/ri_IP1_S1_plt_sample_P1 -q work/kat/ri_IP1_S1_plt_quantile_P1 -m work/kat/ri_IP1_S1_plt_moment_P1 < fifo/ri_IP1_S1_plt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
+( eltpy -E bin  -q work/kat/ri_IP1_S1_elt_quantile_P1 -m work/kat/ri_IP1_S1_elt_moment_P1 < fifo/ri_IP1_S1_elt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid2=$!
+( eltpy -E bin  -s work/kat/ri_IP1_S1_elt_sample_P1 < fifo/ri_IP1_S1_selt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid3=$!
+( pltpy -E bin  -H -s work/kat/ri_IP1_S1_plt_sample_P2 -q work/kat/ri_IP1_S1_plt_quantile_P2 -m work/kat/ri_IP1_S1_plt_moment_P2 < fifo/ri_IP1_S1_plt_ord_P2 ) 2>> $LOG_DIR/stderror.err & pid4=$!
+( eltpy -E bin  -H -q work/kat/ri_IP1_S1_elt_quantile_P2 -m work/kat/ri_IP1_S1_elt_moment_P2 < fifo/ri_IP1_S1_elt_ord_P2 ) 2>> $LOG_DIR/stderror.err & pid5=$!
+( eltpy -E bin  -H -s work/kat/ri_IP1_S1_elt_sample_P2 < fifo/ri_IP1_S1_selt_ord_P2 ) 2>> $LOG_DIR/stderror.err & pid6=$!
 
-tee < fifo/ri_S1_summary_P1 fifo/ri_S1_plt_ord_P1 fifo/ri_S1_elt_ord_P1 fifo/ri_S1_selt_ord_P1 work/ri_S1_summary_palt/P1.bin work/ri_S1_summary_altmeanonly/P1.bin work/ri_S1_summaryleccalc/P1.bin > /dev/null & pid7=$!
-tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summary_palt/P1.idx work/ri_S1_summaryleccalc/P1.idx > /dev/null & pid8=$!
-tee < fifo/ri_S1_summary_P2 fifo/ri_S1_plt_ord_P2 fifo/ri_S1_elt_ord_P2 fifo/ri_S1_selt_ord_P2 work/ri_S1_summary_palt/P2.bin work/ri_S1_summary_altmeanonly/P2.bin work/ri_S1_summaryleccalc/P2.bin > /dev/null & pid9=$!
-tee < fifo/ri_S1_summary_P2.idx work/ri_S1_summary_palt/P2.idx work/ri_S1_summaryleccalc/P2.idx > /dev/null & pid10=$!
+tee < fifo/ri_IP1_S1_summary_P1 fifo/ri_IP1_S1_plt_ord_P1 fifo/ri_IP1_S1_elt_ord_P1 fifo/ri_IP1_S1_selt_ord_P1 work/ri_IP1_S1_summary_palt/P1.bin work/ri_IP1_S1_summary_altmeanonly/P1.bin work/ri_IP1_S1_summaryleccalc/P1.bin > /dev/null & pid7=$!
+tee < fifo/ri_IP1_S1_summary_P1.idx work/ri_IP1_S1_summary_palt/P1.idx work/ri_IP1_S1_summaryleccalc/P1.idx > /dev/null & pid8=$!
+tee < fifo/ri_IP1_S1_summary_P2 fifo/ri_IP1_S1_plt_ord_P2 fifo/ri_IP1_S1_elt_ord_P2 fifo/ri_IP1_S1_selt_ord_P2 work/ri_IP1_S1_summary_palt/P2.bin work/ri_IP1_S1_summary_altmeanonly/P2.bin work/ri_IP1_S1_summaryleccalc/P2.bin > /dev/null & pid9=$!
+tee < fifo/ri_IP1_S1_summary_P2.idx work/ri_IP1_S1_summary_palt/P2.idx work/ri_IP1_S1_summaryleccalc/P2.idx > /dev/null & pid10=$!
 
-( summarypy -m -t ri -p input/RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
-( summarypy -m -t ri -p input/RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 ) 2>> $LOG_DIR/stderror.err  &
+( summarypy -m -t ri -p input/RI_1 -1 fifo/ri_IP1_S1_summary_P1 < fifo/ri_IP1_P1 ) 2>> $LOG_DIR/stderror.err  &
+( summarypy -m -t ri -p input/RI_1 -1 fifo/ri_IP1_S1_summary_P2 < fifo/ri_IP1_P2 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do insured loss computes ---
 
@@ -226,21 +226,21 @@ check_fifos \
     fifo/il_S1_plt_ord_P2 \
     fifo/il_S1_elt_ord_P2 \
     fifo/il_S1_selt_ord_P2 \
-    fifo/ri_P1 \
-    fifo/ri_P2 \
-    fifo/ri_S1_summary_P1 \
-    fifo/ri_S1_summary_P1.idx \
-    fifo/ri_S1_plt_ord_P1 \
-    fifo/ri_S1_elt_ord_P1 \
-    fifo/ri_S1_selt_ord_P1 \
-    fifo/ri_S1_summary_P2 \
-    fifo/ri_S1_summary_P2.idx \
-    fifo/ri_S1_plt_ord_P2 \
-    fifo/ri_S1_elt_ord_P2 \
-    fifo/ri_S1_selt_ord_P2
+    fifo/ri_IP1_P1 \
+    fifo/ri_IP1_P2 \
+    fifo/ri_IP1_S1_summary_P1 \
+    fifo/ri_IP1_S1_summary_P1.idx \
+    fifo/ri_IP1_S1_plt_ord_P1 \
+    fifo/ri_IP1_S1_elt_ord_P1 \
+    fifo/ri_IP1_S1_selt_ord_P1 \
+    fifo/ri_IP1_S1_summary_P2 \
+    fifo/ri_IP1_S1_summary_P2.idx \
+    fifo/ri_IP1_S1_plt_ord_P2 \
+    fifo/ri_IP1_S1_elt_ord_P2 \
+    fifo/ri_IP1_S1_selt_ord_P2
 
-( ( evepy 1 2 | gulmc --socket-server='10006' --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P1 | fmpy -a2 | tee fifo/il_P1 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err ) & pid31=$!
-( ( evepy 2 2 | gulmc --socket-server='10006' --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P2 | fmpy -a2 | tee fifo/il_P2 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_P2 ) 2>> $LOG_DIR/stderror.err ) & pid32=$!
+( ( evepy 1 2 | gulmc --socket-server='10006' --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P1 | fmpy -a2 | tee fifo/il_P1 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_IP1_P1 ) 2>> $LOG_DIR/stderror.err ) & pid31=$!
+( ( evepy 2 2 | gulmc --socket-server='10006' --random-generator=2  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S1 -L0 -a0  | tee fifo/gul_P2 | fmpy -a2 | tee fifo/il_P2 | fmpy -a3 -p input/RI_1 -n - > fifo/ri_IP1_P2 ) 2>> $LOG_DIR/stderror.err ) & pid32=$!
 
 exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
 
@@ -248,12 +248,12 @@ kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>/dev/null
 
 # --- Do reinsurance loss kats ---
 
-katpy -S -f bin -i work/kat/ri_S1_plt_sample_P1 work/kat/ri_S1_plt_sample_P2 -o output/ri_S1_splt.parquet & kpid1=$!
-katpy -Q -f bin -i work/kat/ri_S1_plt_quantile_P1 work/kat/ri_S1_plt_quantile_P2 -o output/ri_S1_qplt.parquet & kpid2=$!
-katpy -M -f bin -i work/kat/ri_S1_plt_moment_P1 work/kat/ri_S1_plt_moment_P2 -o output/ri_S1_mplt.parquet & kpid3=$!
-katpy -q -f bin -i work/kat/ri_S1_elt_quantile_P1 work/kat/ri_S1_elt_quantile_P2 -o output/ri_S1_qelt.parquet & kpid4=$!
-katpy -m -f bin -i work/kat/ri_S1_elt_moment_P1 work/kat/ri_S1_elt_moment_P2 -o output/ri_S1_melt.parquet & kpid5=$!
-katpy -s -f bin -i work/kat/ri_S1_elt_sample_P1 work/kat/ri_S1_elt_sample_P2 -o output/ri_S1_selt.parquet & kpid6=$!
+katpy -S -f bin -i work/kat/ri_IP1_S1_plt_sample_P1 work/kat/ri_IP1_S1_plt_sample_P2 -o output/ri_IP1_S1_splt.parquet & kpid1=$!
+katpy -Q -f bin -i work/kat/ri_IP1_S1_plt_quantile_P1 work/kat/ri_IP1_S1_plt_quantile_P2 -o output/ri_IP1_S1_qplt.parquet & kpid2=$!
+katpy -M -f bin -i work/kat/ri_IP1_S1_plt_moment_P1 work/kat/ri_IP1_S1_plt_moment_P2 -o output/ri_IP1_S1_mplt.parquet & kpid3=$!
+katpy -q -f bin -i work/kat/ri_IP1_S1_elt_quantile_P1 work/kat/ri_IP1_S1_elt_quantile_P2 -o output/ri_IP1_S1_qelt.parquet & kpid4=$!
+katpy -m -f bin -i work/kat/ri_IP1_S1_elt_moment_P1 work/kat/ri_IP1_S1_elt_moment_P2 -o output/ri_IP1_S1_melt.parquet & kpid5=$!
+katpy -s -f bin -i work/kat/ri_IP1_S1_elt_sample_P1 work/kat/ri_IP1_S1_elt_sample_P2 -o output/ri_IP1_S1_selt.parquet & kpid6=$!
 
 # --- Do insured loss kats ---
 
@@ -275,9 +275,9 @@ katpy -s -f bin -i work/kat/gul_S1_elt_sample_P1 work/kat/gul_S1_elt_sample_P2 -
 exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12 $kpid13 $kpid14 $kpid15 $kpid16 $kpid17 $kpid18
 
 
-( aalpy -Kri_S1_summary_palt -E parquet -a output/ri_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid1=$!
-( aalpy -Kri_S1_summary_altmeanonly -E parquet -a output/ri_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid2=$!
-( lecpy  -Kri_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/ri_S1_ept.parquet -o output/ri_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid3=$!
+( aalpy -Kri_IP1_S1_summary_palt -E parquet -a output/ri_IP1_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid1=$!
+( aalpy -Kri_IP1_S1_summary_altmeanonly -E parquet -a output/ri_IP1_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid2=$!
+( lecpy  -Kri_IP1_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/ri_IP1_S1_ept.parquet -o output/ri_IP1_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid3=$!
 ( aalpy -Kil_S1_summary_palt -E parquet -a output/il_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid4=$!
 ( aalpy -Kil_S1_summary_altmeanonly -E parquet -a output/il_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid5=$!
 ( lecpy  -Kil_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/il_S1_ept.parquet -o output/il_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid6=$!
@@ -286,6 +286,13 @@ exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10
 ( lecpy  -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/gul_S1_ept.parquet -o output/gul_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid9=$!
 exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7 $lpid8 $lpid9
 
+
+# --- ri final output rename
+for f in output/ri_IP1_*; do
+    if [ -e "$f" ]; then mv "$f" "output/ri_${f#output/ri_IP1_}"; fi
+done
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f fifo/*
 
