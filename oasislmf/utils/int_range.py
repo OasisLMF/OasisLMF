@@ -40,7 +40,16 @@ def _as_numpy(values):
 def _out_of_range(arr, info):
     """Boolean mask of the values in ``arr`` outside the range ``info`` (an ``np.iinfo``)."""
     if arr.dtype.kind == 'f':
-        return (arr < info.min) | (arr > info.max)  # NaN compares False either way
+        # info.max (2**n - 1) is not exactly representable in floats this wide: 2**63 - 1 rounds up to
+        # 2**63 in float64, so `arr > info.max` would let 2.0**63 through to wrap. The bounds that are
+        # powers of two are exact, so compare against those, with an exclusive upper bound. Narrower
+        # floats are widened first (exactly) so the bounds neither round nor overflow to inf.
+        if arr.dtype.itemsize < 8:
+            arr = arr.astype(np.float64)
+        signed = info.min < 0
+        low = -np.ldexp(1.0, info.bits - 1) if signed else 0.0
+        high = np.ldexp(1.0, info.bits - 1 if signed else info.bits)
+        return (arr < low) | (arr >= high)  # NaN compares False either way
     # Only compare against a bound the source type can go past; that bound is then representable
     # in the source type, so the comparison is exact on every numpy version.
     src = np.iinfo(arr.dtype)

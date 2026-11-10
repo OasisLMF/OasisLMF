@@ -18,6 +18,11 @@ INT_TYPES = ['i1', 'i2', 'i4', 'i8', 'u1', 'u2', 'u4', 'u8']
     (pd.Series([1, 4294967298]), 'u4'),             # the issue's areaperil example
     (pd.Series([3000000000]), np.int32),            # the issue's vulnerability example
     (pd.Series([5000000000.0]), 'u4'),              # float to int wraps too
+    (pd.Series([2.0 ** 63]), 'i8'),                 # i8 max rounds up to 2**63 as a float
+    (pd.Series([2.0 ** 64]), 'u8'),
+    (np.array([2.0 ** 31], dtype='f4'), 'i4'),      # i4 max rounds up to 2**31 in float32
+    (np.array([np.inf]), 'i8'),
+    (np.array([-np.inf], dtype='f2'), 'i4'),
     (np.array([-1]), 'u4'),
     (np.array([2 ** 63], dtype='u8'), 'i8'),
     (pd.Series([None, 2 ** 40], dtype='Int64'), 'u4'),
@@ -31,6 +36,9 @@ def test_check_int_range__out_of_range__raises(values, dtype):
 @pytest.mark.parametrize('values, dtype', [
     (pd.Series([0, 4294967295]), 'u4'),
     (pd.Series([5.0, np.nan]), 'u4'),               # NaN is not a range problem
+    (pd.Series([-2.0 ** 63, 2.0 ** 63 - 1024]), 'i8'),  # the extreme floats that do fit
+    (pd.Series([2.0 ** 64 - 2048]), 'u8'),
+    (np.array([-2.0 ** 31, 2.0 ** 31 - 128], dtype='f4'), 'i4'),
     (pd.Series([None, 1], dtype='Int64'), 'u4'),
     (np.array([5]), 'u8'),
     (np.arange(3, dtype='i4'), 'i4'),
