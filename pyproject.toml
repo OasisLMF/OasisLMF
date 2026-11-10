@@ -81,6 +81,8 @@ extra = {file = ["optional-package.in"]}
 
 [tool.cibuildwheel]
 build = "cp311-* cp312-* cp313-* cp314-* cp315-*"
+# cibuildwheel 4.1 still counts CPython 3.15 as a prerelease; the 3.15 smoke tests install these wheels
+enable = ["cpython-prerelease"]
 
 [tool.cibuildwheel.linux]
 archs = "x86_64 aarch64"
