@@ -745,50 +745,63 @@ def compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv):
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def compute_haz_bin_id(haz_pdf_record, item, intensity_adjustment, dynamic_footprint,
-                       intensity_bin_peril_ids, intensity_bins):
-    """Resolve the hazard intensity bin ids for an item's hazard pdf records.
+def merge_dynamic_haz_records_per_bin(haz_pdf_record, item, intensity_adjustment, intensity_bin_peril_ids,
+                                      intensity_bins, bin_slot, haz_bin_id_out, haz_prob_out):
+    """Bin a dynamic footprint areaperil's records for one item, summing the probability of the
+    records that fall in the same intensity bin.
 
-    With no dynamic footprint the intensity bin ids are read directly from the hazard pdf.
-    With a dynamic footprint the recorded intensities are shifted by ``intensity_adjustment``,
-    clamped to the valid range, and re-mapped to bin ids via the per-peril ``intensity_bins``
-    lookup table.
+    A dynamic footprint record holds a raw intensity, binned here because the item's
+    intensity_adjustment shifts it first. An areaperil lying in several sections of an event can
+    hold many more records than the model has intensity bins, but all the per-hazard-bin work that
+    follows (vulnerability rows, their CDFs, the CDF cache, sampling) depends on the bin alone. So
+    the hazard axis is the bins the records fall in, never longer than the number of intensity bins,
+    which the per-hazard-bin buffers and the CDF cache are sized on.
+
+    Entries are kept in the order of each bin's first record. Records come largest intensity first
+    and intensity_bins does not decrease with intensity, so the records of a bin are adjacent and
+    the hazard CDF keeps its bin boundaries: a random number picks the same bin as unmerged.
 
     Args:
-        haz_pdf_record (np.array[haz_arr_type]): hazard pdf records for this item's areaperil.
-        item (np.void): the item record (needs peril_id when dynamic footprint is active).
-        intensity_adjustment (int): intensity shift to apply under a dynamic footprint.
-        dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
+        haz_pdf_record (np.array[haz_arr_type]): the areaperil's footprint records for this event.
+        item (np.void): the item record (uses peril_id).
+        intensity_adjustment (int): intensity shift applied before binning.
         intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids.
         intensity_bins (np.array[int32, 2d]): [peril_idx, intensity_value] -> intensity_bin_id.
+        bin_slot (np.array[int64]): scratch indexed by bin id, -1 everywhere on entry and on return.
+        haz_bin_id_out (np.array[int32]): receives the bin id of each entry.
+        haz_prob_out (np.array[oasis_float]): receives the summed probability of each entry.
 
     Returns:
-        np.array: intensity bin ids, one per hazard pdf record.
+        int: the number of entries written.
     """
-    if dynamic_footprint is not None:
-        # adjust intensity in dynamic footprint
-        haz_intensity = haz_pdf_record['intensity']
-        haz_intensity = haz_intensity - intensity_adjustment
-        haz_bin_id = np.zeros_like(haz_pdf_record['intensity_bin_id'])
-        peril_id = item['peril_id']
-        # find peril index (linear scan of small array, typically 1-3 perils)
-        peril_idx = nb_int32(0)
-        for pi in range(intensity_bin_peril_ids.shape[0]):
-            if intensity_bin_peril_ids[pi] == peril_id:
-                peril_idx = nb_int32(pi)
-                break
-        max_intensity = nb_int32(intensity_bins.shape[1] - 1)
-        for haz_bin_idx in range(haz_bin_id.shape[0]):
-            intensity_val = haz_intensity[haz_bin_idx]
-            if intensity_val < 0:
-                intensity_val = nb_int32(0)
-            elif intensity_val > max_intensity:
-                # past the table, its last intensity stands for that much or more
-                intensity_val = max_intensity
-            haz_bin_id[haz_bin_idx] = intensity_bins[peril_idx, intensity_val]
-    else:
-        haz_bin_id = haz_pdf_record['intensity_bin_id']
-    return haz_bin_id
+    peril_id = item['peril_id']
+    # find peril index (linear scan of small array, typically 1-3 perils)
+    peril_idx = nb_int32(0)
+    for pi in range(intensity_bin_peril_ids.shape[0]):
+        if intensity_bin_peril_ids[pi] == peril_id:
+            peril_idx = nb_int32(pi)
+            break
+    max_intensity = nb_int32(intensity_bins.shape[1] - 1)
+    n_entries = 0
+    for record_i in range(haz_pdf_record.shape[0]):
+        intensity_val = haz_pdf_record[record_i]['intensity'] - intensity_adjustment
+        if intensity_val < 0:
+            intensity_val = nb_int32(0)
+        elif intensity_val > max_intensity:
+            # past the table, its last intensity stands for that much or more
+            intensity_val = max_intensity
+        bin_id = intensity_bins[peril_idx, intensity_val]
+        entry = bin_slot[bin_id]
+        if entry < 0:
+            entry = n_entries
+            bin_slot[bin_id] = entry
+            haz_bin_id_out[entry] = bin_id
+            haz_prob_out[entry] = 0.
+            n_entries += 1
+        haz_prob_out[entry] += haz_pdf_record[record_i]['probability']
+    for entry in range(n_entries):
+        bin_slot[haz_bin_id_out[entry]] = -1
+    return n_entries
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
@@ -1209,6 +1222,11 @@ def compute_event_losses(compute_info,
     eff_damage_cdf_empty = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
     haz_i_to_Ndamage_bins_empty = np.empty(max_haz_bins, dtype=oasis_int)
     haz_i_to_vuln_cdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
+    # a dynamic footprint's records merged per intensity bin (see merge_dynamic_haz_records_per_bin)
+    n_bin_ids = intensity_bins.max() + 1 if intensity_bins.size > 0 else 1
+    bin_slot = np.full(n_bin_ids, -1, dtype=np.int64)
+    haz_bin_id_empty = np.empty(n_bin_ids, dtype=np.int32)
+    haz_prob_empty = np.empty(n_bin_ids, dtype=oasis_float)
     # the source's damage pmf plays the role of the hazard pdf for a dependent
     source_damage_pmf_empty = np.empty(n_damage_bins_total, dtype=oasis_float)
 
@@ -1271,9 +1289,15 @@ def compute_event_losses(compute_info,
 
             # we calculate this adjusted hazard pdf
             # get the right hazard pdf from the array containing all hazard cdfs
-            haz_bin_id = compute_haz_bin_id(haz_pdf_record, item, intensity_adjustment, dynamic_footprint,
-                                            intensity_bin_peril_ids, intensity_bins)
-            haz_pdf_prob = haz_pdf_record['probability']
+            if dynamic_footprint is not None:
+                n_entries = merge_dynamic_haz_records_per_bin(haz_pdf_record, item, intensity_adjustment,
+                                                              intensity_bin_peril_ids, intensity_bins,
+                                                              bin_slot, haz_bin_id_empty, haz_prob_empty)
+                haz_bin_id = haz_bin_id_empty[:n_entries]
+                haz_pdf_prob = haz_prob_empty[:n_entries]
+            else:
+                haz_bin_id = haz_pdf_record['intensity_bin_id']
+                haz_pdf_prob = haz_pdf_record['probability']
 
             cdf_group = nb_int64(item_event_data['eff_cdf_id'])
 
