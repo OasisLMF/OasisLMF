@@ -440,7 +440,7 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
     return summary_set_index_to_loss_ptr, item_id_to_summary_id
 
 
-def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_event, **kwargs):
+def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_event=False, **kwargs):
     """Run the summary calculation, writing a summary output stream for each summary set.
 
     Args:
@@ -450,7 +450,8 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_even
         low_memory (bool): if true output summary index file
         output_zeros (bool): if true output 0 loss
         sentinel_event (bool): if true close every event with an ``E:S0`` sentinel record
-            (summary_id 0), written even when the event has no summary record. Used by rlcombine
+            (summary_id 0), written even when the event has no summary record. Used by rlcombine.
+            Defaults to False
         **kwargs: additional options, including ``summary_sets_output``, a list of
             ``-summary_set_id summary_set_path`` pairs
 
