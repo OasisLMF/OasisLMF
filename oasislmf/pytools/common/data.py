@@ -3,8 +3,11 @@ import os
 import sys
 import warnings
 import zlib
+from decimal import Decimal, InvalidOperation
+
 import numba as nb
 import numpy as np
+import pandas as pd
 
 from oasislmf.utils.exceptions import OasisException
 
@@ -513,14 +516,18 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
 
 
 _WHOLE_FLOAT_RE = r'^\s*([+-]?\d+)\.0*\s*$'
+_FLOAT_EXACT_LIMIT = 2.0 ** 53  # every integer of smaller magnitude is exact as a float64, and no other value parses to one
+_INT_TEXT_WIDTH = 32  # characters read per integer field on the text route; an int64 or uint64 needs at most 20
 
 
 def _loadtxt_whole_float_ints(file_in, filepath, use_dtype, usecols, col_map):
     """Read csv columns as ``np.loadtxt`` does, but accept integer fields written as whole floats.
 
-    Integer fields are read as text, any trailing ``.0`` is dropped, and the text is converted straight to the
-    target type, so large ids keep their exact value. Values that are not whole numbers, or that do not fit the
-    target type, raise an error naming the file, column, line and value.
+    Integer fields are first read as float64, which is fast and exact for values below 2**53 in magnitude.
+    If any value is not a whole number, is that large, or does not fit the target type, the file is read again
+    with integer fields as text: any trailing ``.0`` is dropped and the text is converted straight to the target
+    type, so large ids keep their exact value, and values that are not whole numbers, or that do not fit the target
+    type, raise an error naming the file, column, line and value.
 
     Args:
         file_in (io.TextIOBase): the csv file, positioned at the first data line.
@@ -532,16 +539,50 @@ def _loadtxt_whole_float_ints(file_in, filepath, use_dtype, usecols, col_map):
     Returns:
         numpy.ndarray: the file as a structured array with dtype ``use_dtype``.
     """
-    import pandas as pd
-
     int_fields = {name for name, field_dtype in use_dtype if np.dtype(field_dtype).kind in 'iu'}
-    text_dtype = np.dtype([(name, 'U64' if name in int_fields else field_dtype) for name, field_dtype in use_dtype])
+    data_start = file_in.tell()
+    result = _read_ints_as_float(file_in, use_dtype, usecols, int_fields)
+    if result is not None:
+        return result
+    file_in.seek(data_start)
+    return _read_ints_as_text(file_in, filepath, use_dtype, usecols, col_map, int_fields)
+
+
+def _read_ints_as_float(file_in, use_dtype, usecols, int_fields):
+    """Read integer fields as float64 and convert them, or return None if any value can't be converted exactly."""
+    float_dtype = np.dtype([(name, 'f8' if name in int_fields else field_dtype) for name, field_dtype in use_dtype])
+    try:
+        floats = np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=float_dtype, usecols=usecols))
+    except ValueError:  # e.g. an empty field; the text route names it
+        return None
+    result = np.empty(len(floats), dtype=np.dtype(use_dtype))
+    for name, field_dtype in use_dtype:
+        values = floats[name]
+        if name in int_fields:
+            info = np.iinfo(field_dtype)
+            exact = (np.abs(values) < _FLOAT_EXACT_LIMIT) & (values == np.trunc(values))  # False for NaN and inf
+            if not (exact & (values >= info.min) & (values <= info.max)).all():
+                return None
+            values = values.astype(field_dtype)
+        result[name] = values
+    return result
+
+
+def _read_ints_as_text(file_in, filepath, use_dtype, usecols, col_map, int_fields):
+    """Read integer fields as text and convert them exactly, raising on values that aren't whole or don't fit."""
+    text_dtype = np.dtype([(name, f'U{_INT_TEXT_WIDTH}' if name in int_fields else field_dtype)
+                           for name, field_dtype in use_dtype])
     text = np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=text_dtype, usecols=usecols))
     result = np.empty(len(text), dtype=np.dtype(use_dtype))
     for name, field_dtype in use_dtype:
         if name not in int_fields:
             result[name] = text[name]
             continue
+        # loadtxt cuts longer text to the field width without telling, so a full width value may be cut short
+        too_long = np.flatnonzero(np.char.str_len(text[name]) >= _INT_TEXT_WIDTH)
+        if too_long.size:
+            raise OasisException(f"{filepath}: {col_map.get(name, name)} value on line {too_long[0] + 2} is "
+                                 f"{_INT_TEXT_WIDTH} or more characters long, too long for an integer")
         values = pd.Series(text[name]).str.replace(_WHOLE_FLOAT_RE, r'\1', regex=True).to_numpy(dtype=str)
         try:
             result[name] = values.astype(field_dtype)
@@ -564,8 +605,6 @@ def _whole_int(value, dtype, filepath, column, line):
     Returns:
         int: the value.
     """
-    from decimal import Decimal, InvalidOperation
-
     try:
         number = Decimal(value.strip())
         whole = number.is_finite() and number == number.to_integral_value()
