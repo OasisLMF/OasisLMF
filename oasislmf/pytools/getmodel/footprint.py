@@ -36,6 +36,9 @@ logger = logging.getLogger(__name__)
 
 # files of a dynamic footprint's hazard saved for sharing between processes, see FootprintParquetDynamic.save_shared
 SHARED_MANIFEST = 'manifest.json'
+# (required, optional) columns the footprint build uses, the only ones saved; other columns are not needed
+SHARED_HAZARD_CASE_COLUMNS = (['section_id', 'areaperil_id', 'return_period', 'intensity'], ['probability'])
+SHARED_EVENT_DEFINITION_COLUMNS = (['event_id', 'section_id', 'rp_from', 'rp_to', 'interpolation'], [])
 
 uncompressedMask = 1 << 1
 intensityMask = 1
@@ -761,7 +764,8 @@ class FootprintParquetDynamic(Footprint):
         """Save the loaded hazard case, and the event definition if partitioned, for other processes
         to memory-map (see shared_dir).
 
-        Each column is saved as its own .npy file in the order the footprint build walks it, with the
+        Each column the footprint build uses (SHARED_HAZARD_CASE_COLUMNS, SHARED_EVENT_DEFINITION_COLUMNS)
+        is saved as its own .npy file in the order the footprint build walks it, with the
         row offsets of each section. The manifest is written last, so a save that did not finish is
         not used.
 
@@ -769,37 +773,41 @@ class FootprintParquetDynamic(Footprint):
             shared_dir (str): the directory to save into
 
         Returns: (bool) True if saved; False if there is nothing to share (no event or hazard affects
-            the portfolio) or a column is not numeric, in which case each process reads the model data
+            the portfolio) or a column it uses is missing or not numeric, in which case each process reads
+            the model data
         """
         if self.df_hazard_case is None or (self.event_definition_partitioned and self.df_event_definition is None):
             return False
 
-        tables = {'hazard_case': self.df_hazard_case.reset_index()}
+        tables = {'hazard_case': (self.df_hazard_case.reset_index(), SHARED_HAZARD_CASE_COLUMNS)}
         if self.event_definition_partitioned:
-            tables['event_definition'] = self.df_event_definition.reset_index()
-        for name, df in tables.items():
-            not_numeric = [column for column in df.columns if df[column].dtype.kind not in 'biuf']
-            if not_numeric:
-                logger.info(f"dynamic footprint not shared between processes: {name} column(s) {not_numeric} "
-                            f"are not numeric")
+            tables['event_definition'] = (self.df_event_definition.reset_index(), SHARED_EVENT_DEFINITION_COLUMNS)
+        for name, (df, (required, optional)) in tables.items():
+            missing = [column for column in required if column not in df.columns]
+            columns = required + [column for column in optional if column in df.columns]
+            not_numeric = [column for column in columns if column in df.columns and df[column].dtype.kind not in 'biuf']
+            if missing or not_numeric:
+                logger.warning(f"dynamic footprint not shared between processes, each process reads the model data: "
+                               f"{name} column(s) missing {missing}, not numeric {not_numeric}")
                 return False
+            tables[name] = (df, columns)
 
         manifest_path = os.path.join(shared_dir, SHARED_MANIFEST)
         if os.path.exists(manifest_path):
             os.remove(manifest_path)
         os.makedirs(shared_dir, exist_ok=True)
 
-        for name, df in tables.items():
-            for column in df.columns:
+        for name, (df, columns) in tables.items():
+            for column in columns:
                 np.save(os.path.join(shared_dir, f'{name}.{column}.npy'), df[column].to_numpy())
-        section_id = tables['hazard_case']['section_id'].to_numpy()
+        section_id = tables['hazard_case'][0]['section_id'].to_numpy()
         starts = np.flatnonzero(np.diff(section_id)) + 1
         np.save(os.path.join(shared_dir, 'hazard_case_sections.npy'), section_id[np.concatenate(([0], starts))])
         np.save(os.path.join(shared_dir, 'hazard_case_offsets.npy'),
                 np.concatenate(([0], starts, [len(section_id)])).astype(np.int64))
 
         manifest = {'event_definition_partitioned': self.event_definition_partitioned,
-                    'columns': {name: list(df.columns) for name, df in tables.items()}}
+                    'columns': {name: columns for name, (df, columns) in tables.items()}}
         with open(manifest_path, 'w') as f:
             json.dump(manifest, f)
         return True
