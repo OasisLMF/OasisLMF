@@ -301,6 +301,18 @@ def test_split_loc_perils_covered_group_listed_with_its_perils_gives_each_peril_
     assert "peril_group_id" not in locations
 
 
+@pytest.mark.parametrize("perils_covered, expected_group", [("OO1;ORF", "OO1"), ("ORF;OO1", "ORF")])
+def test_split_loc_perils_covered_peril_in_several_groups_keeps_the_first_listed(perils_covered, expected_group):
+    """A peril reached through several listed groups keeps the first listed group as peril_group_id."""
+    fct = Lookup(config={}).build_split_loc_perils_covered()
+
+    result = fct(pd.DataFrame({"loc_id": [1], "LocPerilsCovered": [perils_covered]}))
+
+    orf = result[result["peril_id"] == "ORF"]
+    assert len(orf) == 1
+    assert orf["peril_group_id"].iloc[0] == expected_group
+
+
 def test_peril_covered_deterministic_lookup_group_listed_with_its_perils_gives_each_peril_once():
     lookup = PerilCoveredDeterministicLookup(config={
         "model_perils_covered": ["OO1"],

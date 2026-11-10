@@ -613,6 +613,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
 
+        Each peril gives one row per location. When it is reached through more than one listed
+        group (e.g. ``OO1;ORF``), the row kept has as ``peril_group_id`` the first listed group
+        that contains it.
+
         Useful inspirational code:
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
 
