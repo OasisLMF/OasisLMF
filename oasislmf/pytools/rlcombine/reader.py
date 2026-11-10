@@ -1,9 +1,7 @@
-"""WIP draft: EventReader based reader for the rl inuring-priority summary streams.
+"""Reader for the rl summary streams of several inuring priorities, used by rlcombine.
 
-See manager.py for the stream format and design notes.
-
-SummaryCombineReader only reads: it yields each event as soon as one input (inuring priority)
-has sent it in full, closed by its E:S0 sentinel. Combining the inputs is left to the caller.
+SummaryCombineReader yields each event of an input as soon as that input has sent it in full,
+closed by its ``E:S0`` sentinel record. Combining the inputs is left to the caller (see manager.py).
 """
 import logging
 
@@ -48,6 +46,11 @@ class EventBuffer:
     """
 
     def __init__(self, max_summary_id, len_sample):
+        """
+        Args:
+            max_summary_id (int): largest summary_id in the summary set
+            len_sample (int): number of samples
+        """
         max_pairs = max_summary_id * (len_sample + len(SPECIAL_IDX_PER_PAIR))
         self.summary_ids = np.empty(max_summary_id, dtype=summary_id_dtype)
         self.expval = np.empty(max_summary_id, dtype=loss_dtype)
@@ -63,10 +66,27 @@ def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, exp
     The arrays are sized for the largest possible event (see EventBuffer). numba does not check
     array bounds, so a stream that breaks those bounds is reported as an error before any write.
 
+    Args:
+        byte_mv (ndarray): numpy byte view of the input buffer
+        cursor (int): position in byte_mv to read from
+        valid_buff (int): number of valid bytes in byte_mv
+        state (ndarray[read_state_dtype]): read state of the input, updated in place
+        len_sample (int): number of samples
+        summary_ids (ndarray[summary_id_dtype]): EventBuffer.summary_ids, filled in place
+        expval (ndarray[loss_dtype]): EventBuffer.expval, filled in place
+        offsets (ndarray[int64]): EventBuffer.offsets, filled in place
+        sidx (ndarray[sidx_dtype]): EventBuffer.sidx, filled in place
+        loss (ndarray[loss_dtype]): EventBuffer.loss, filled in place
+
     Returns:
-        cursor, event_id, summary_id (non zero if a record is only partly read), yield_event
-        yield_event is 1 right after the E:S0 sentinel, so an event is known to be complete
-        without reading ahead into the next event.
+        cursor (int): position in byte_mv reached
+        event_id (event_id_dtype): event being read, or the event just completed
+        summary_id (summary_id_dtype): non zero if a record is only partly read
+        yield_event (int): 1 right after the ``E:S0`` sentinel, so an event is known to be complete
+            without reading ahead into the next event
+
+    Raises:
+        ValueError: if the stream breaks the summary stream format or the EventBuffer bounds
     """
     while True:
         if state['summary_id']:  # inside a record: read (sidx, loss) pairs
@@ -129,6 +149,12 @@ class SummaryCombineReader(EventReader):
     """
 
     def __init__(self, n_inputs, max_summary_id, len_samples):
+        """
+        Args:
+            n_inputs (int): number of input streams
+            max_summary_id (int): largest summary_id in the summary set
+            len_samples (int): number of samples
+        """
         self.logger = logger
         self.state = np.zeros(n_inputs, dtype=read_state_dtype)  # one row per input (file_idx)
         self.len_sample = len_samples
@@ -136,6 +162,7 @@ class SummaryCombineReader(EventReader):
         self.file_idx = 0
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx=0, **kwargs):
+        """EventReader hook: read the buffer of input file_idx into its EventBuffer, see read_buffer."""
         self.file_idx = file_idx
         buffer = self.buffers[file_idx]
         return read_buffer(byte_mv, cursor, valid_buff, self.state[file_idx], self.len_sample,
@@ -144,11 +171,18 @@ class SummaryCombineReader(EventReader):
     def read_events(self, streams_in):
         """Yield every event of every input as soon as that input has sent it in full.
 
+        Args:
+            streams_in (List[BinaryIO]): input streams, positioned after their header
+
         Yields:
-            (file_idx, event_id, summary_ids, expval, offsets, sidx, loss): file_idx is the input
-            (index in streams_in); record i is summary_ids[i] with expval[i] and the pairs
-            sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]].
-            The arrays are views that are only valid until the next iteration.
+            file_idx (int): index of the input in streams_in
+            event_id (event_id_dtype): event id
+            event_buffer (Dict[str, ndarray]): copies of the event's records: ``summary_ids``, ``expval``,
+                ``offsets``, ``sidx`` and ``loss``. Record i is summary_ids[i] with expval[i] and the
+                pairs sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]]
+
+        Raises:
+            OasisException: if an input ends in the middle of an event
         """
         for event_id in self.read_streams(streams_in):
             file_idx = self.file_idx

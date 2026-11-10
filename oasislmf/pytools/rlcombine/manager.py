@@ -1,96 +1,24 @@
-"""rlcombine
+"""Entry point to the run method of rlcombine
+combine the reinsurer's loss (rl) summary streams of every inuring priority (IP) into one stream
 
-read multiple summary loss streams from multiple rl inuring priorities and combine
+Each input is the ``summarypy -t rl -s`` stream of one IP for the same summary set and process,
+e.g. ``rl_IP1_S1_rlcombine_P1 ... rl_IPN_S1_rlcombine_P1``. The ``-s`` flag closes every event with a
+sentinel record ``E:S0`` (summary_id 0), so an event is known to be complete even when an IP has no
+loss records for it. The sentinels are not written to any output.
 
-the input is the summary loss stream from each individual IP for a given summaryset (and process)
+For each event:
 
-i.e. fifo/rl_IP1_S1_combine_P1, fifo/rl_IP2_S1_combine_P2, ... fifo/rl_IPN_S1_combine_P2
+1. ``SummaryCombineReader`` reads the inputs as data arrives and yields an input's event once its
+   sentinel is read. Every IP sends the events in the same order.
+2. If the input is requested with ``-I``, the event is written unchanged to its pass-through stream
+   (``rl_IP{i}_S{j}``).
+3. Once every input has sent the event, records with the same summary_id are summed across inputs:
+   the samples, the mean (sidx -1), the max loss (sidx -5) and the expval (TIV) in the header. The
+   combined event is written to the output stream (``rl_S{j}``) in summary_id order.
 
-The summary streams from each individual IP are structured something like this:
-
-header │ E1:S2 │ E1:S5 │ E1:S9 │ E7:S1 │ E7:S5 │ E3:S2 │ …
-         └──── event 1 ────┘     └─ event 7 ─┘  └ event 3 …
-
-STREAM HEADER (12 B, once): [agg type=1 (3 B) | source type=3 (1 B)] int32 len_sample=N | int32 summary_set_id
-
-and each summary record (e.g. E1:S2) consists of:
-    single header (12 bytes): int32 event_id, int32 summary_id, float32 expval
-    multiple records (8 bytes each): (int32 sidx, float32 loss)
-        sidx -5, -4, -1 are the max, affected risk and mean analytical loss respectively
-        sidx of a positive integar is a single sample
-        sidx 0 = terminator (end of summary record)
-
-To combine summary streams from multiple IP we need to know when a particular
-inuring priority has sent the final event_id record, including when an event_id
-has no loss and no records. Events with no loss are never sent. Hence we need a
-sentinel record to notify when an `event_id` has finished. This should only
-happen if --combine-out is passed to summarypy and this type of stream will
-only be passed to this module (not the output components) and will be stripped
-from this stream in this module before passing on. Propose using a `summary_id`
-of 0 for the sentinel record for example `E10:S0` and the sidx 0 terminator
-afterwards to preserve consistency with the other parsers. Then you can know
-when a record is done for a particular `event_id` without reading the next
-record in the stream.
-
-We can use the fact that that the event_ids should be aligned and the
-summary_ids should be sorted as they get passed to rlcombine to do a merge with
-these streams. #TODO - check this
-
-The pseudo code for this module looks something like:
-
-open inputs; read the 12-byte header of each
-    all must have source type == SUMMARY (3), agg type == ITEM (1),
-    and equal len_sample and summary_set_id               → else error
-write output header (same three values); out_offset = 12
-
-for each input k: head[k] = next_record(k)                  # non-blocking fill, see below
-if every head is EOF: done                                   # empty run
-if any head is EOF: error
-
-loop:
-    E = head[0].event_id
-    if any head[k].event_id != E: error (event sequence mismatch)
-
-    S = min(head[k].summary_id, with S0 = ∞)
-
-    if S == ∞:                                               # every input has closed event E
-        for each k: head[k] = next_record(k)
-        if every head is EOF: done
-        if any head is EOF: error
-        continue
-
-    acc = new summary record (E, S)
-    for each k with head[k].summary_id == S:
-        combine head[k] into acc
-        prev[k] = S
-        head[k] = next_record(k)
-        if head[k] is EOF: error (event E not closed by S0)
-        if head[k] is not S0:
-            if head[k].event_id != E: error (event E not closed by S0)
-            if head[k].summary_id <= prev[k]: error (summary_id not strictly increasing)
-
-    if -z or acc.tiv != 0 or acc.mean != 0:
-        if -m: write (S, out_offset) to .idx
-        write acc to output buffer (flushing and splitting across 64 KB chunks)
-        out_offset += record size
-
-next_record(k):
-    while stream k has no complete record (terminator not yet buffered) and not EOF:
-        select on all open inputs; for each ready input j, read what is available into buf[j]
-    parse one record from buf[k] (or return EOF)
-
-Method of combining records depends on the type of the field:
-
-    sidx 1...N         | regular sample                  | sum
-    sidx -1            | mean                            | sum (no. samples are the same)
-    sidx -2            | std dev                         | not in summary stream → error if seen
-    header expval (-3) | TIV (passed through fm terms)   | sum
-    sidx -4            | chance of loss / affected risks | not written for -t ri → error if seen
-    sidx -5            | max loss                        | sum
-
-
-# TODO: check that tiv and max loss are actually calculated per term in the RI case and not just passed through.
-    - what to do with these fields will depend on this output.
+The writers stop before their PIPE_CAPACITY buffer is full and resume after it is flushed, so events
+and single records can be larger than PIPE_CAPACITY. With ``-m``, a ``.idx`` file of
+(summary_id, offset) records is written next to each output.
 """
 from contextlib import ExitStack
 import logging
@@ -127,9 +55,22 @@ sidx_pair_dtype = np.dtype([
 ])
 
 class EventAccumulator:
-    """Combined losses of the event being merged, indexed by summary_id - 1."""
+    """Combined losses of the event being merged, one row per summary_id (row = summary_id - 1).
+
+    Attributes:
+        present (ndarray[bool]): True for the summary_ids that have a record in the event
+        expval (ndarray[loss_dtype]): summed expval (TIV) of each summary_id
+        max_loss (ndarray[loss_dtype]): summed max loss (sidx -5) of each summary_id
+        mean (ndarray[loss_dtype]): summed mean loss (sidx -1) of each summary_id
+        losses (ndarray[loss_dtype]): summed sample losses, shape (max_summary_id, len_sample)
+    """
 
     def __init__(self, max_summary_id, len_sample):
+        """
+        Args:
+            max_summary_id (int): largest summary_id in the summary set
+            len_sample (int): number of samples
+        """
         self.present = np.zeros(max_summary_id, dtype=np.bool_)
         self.expval = np.zeros(max_summary_id, dtype=loss_dtype)
         self.max_loss = np.zeros(max_summary_id, dtype=loss_dtype)
@@ -137,6 +78,11 @@ class EventAccumulator:
         self.losses = np.zeros((max_summary_id, len_sample), dtype=loss_dtype)
 
     def reset(self, present_ids):
+        """Clear the rows used by the last event, in place.
+
+        Args:
+            present_ids (ndarray[summary_id_dtype]): summary_ids of the last event, as returned by combine_events
+        """
         rows = present_ids - 1
         self.present[rows] = False
         self.expval[rows] = 0
@@ -147,15 +93,20 @@ class EventAccumulator:
 def init_summary_streams_in(files_in, stack):
     """Open the input summary streams and check that their headers agree.
 
-    init_streams_in only reads the first 8 bytes of the header (stream type, len_sample),
-    the summary stream header also carries the summary_set_id that is read here.
+    init_streams_in only reads the stream type and len_sample, the summary_set_id that follows them
+    in a summary stream header is read here.
 
     Args:
-        files_in: list of input summary stream paths
-        stack: contextlib ExitStack the streams are added to
+        files_in (List[str]): paths of the input summary streams, one per inuring priority
+        stack (ExitStack): context stack the opened streams are added to
 
     Returns:
-        (streams_in, len_sample, summary_set_id)
+        streams_in (List[BinaryIO]): opened input streams, positioned after the header
+        len_sample (int): number of samples
+        summary_set_id (summaryset_id_dtype): summary set of the streams
+
+    Raises:
+        OasisException: if a stream is not a summary stream or the streams have different summary_set_id
     """
     streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
     if stream_source_type != SUMMARY_STREAM_ID or stream_agg_type != ITEM_STREAM:
@@ -168,6 +119,18 @@ def init_summary_streams_in(files_in, stack):
     return streams_in, len_sample, summary_set_ids[0]
 
 def parse_intermediate_outputs(intermediate_outputs_arg):
+    """Parse the -I/--intermediate-outputs arguments.
+
+    Args:
+        intermediate_outputs_arg (List[str] | None): arguments of the form ``input_index=path``, where
+            input_index is the 0-based position of the input in -i
+
+    Returns:
+        intermediate_outputs (Dict[int, str]): pass-through output path for each input index
+
+    Raises:
+        Exception: if an argument is not of the form ``input_index=path``
+    """
     intermediate_outputs = {}
     if intermediate_outputs_arg is None:
         return intermediate_outputs
@@ -184,6 +147,18 @@ def parse_intermediate_outputs(intermediate_outputs_arg):
 
 
 def get_max_summary_id__single_static_path(static_path, summary_set_id):
+    """Get the largest summary_id of a summary set from the rlsummaryxref in static_path.
+
+    Args:
+        static_path (str): static folder of one inuring priority (e.g. input/RI_1)
+        summary_set_id (summaryset_id_dtype): summary set to look up
+
+    Returns:
+        max_summary_id (int): largest summary_id of the summary set
+
+    Raises:
+        OasisException: if the summary set is not in the rlsummaryxref
+    """
     _, set_id_to_idx, set_idx_to_loss, _, _ = load_summary_object(static_path, 'rl')
     set_idx = set_id_to_idx[summary_set_id]
     if set_idx == null_index:
@@ -192,6 +167,15 @@ def get_max_summary_id__single_static_path(static_path, summary_set_id):
 
 
 def get_max_summary_id(static_paths, summary_set_id):
+    """Get the largest summary_id of a summary set across all inuring priorities.
+
+    Args:
+        static_paths (List[str]): static folder of each inuring priority
+        summary_set_id (summaryset_id_dtype): summary set to look up
+
+    Returns:
+        max_summary_id (int): largest summary_id of the summary set in any static folder
+    """
     max_summary_id = -1
     for static_path in static_paths:
         summary_id = get_max_summary_id__single_static_path(static_path, summary_set_id)
@@ -203,8 +187,26 @@ def get_max_summary_id(static_paths, summary_set_id):
 @nb.njit(cache=True)
 def accumulate_input_events(summary_ids, expval_event, offsets_event, sidx_event, loss_event,
                             present, expval, max_loss, mean, losses):
-    """
-    Add one event buffer to the event accumulator.
+    """Add the records of one input's event to the event accumulator arrays.
+
+    Record i of the event is summary_ids[i] with expval_event[i] and the (sidx, loss) pairs
+    sidx_event[offsets_event[i]:offsets_event[i + 1]], loss_event[offsets_event[i]:offsets_event[i + 1]].
+
+    Args:
+        summary_ids (ndarray[summary_id_dtype]): summary_id of each record, strictly increasing
+        expval_event (ndarray[loss_dtype]): expval (TIV) of each record
+        offsets_event (ndarray[int64]): start of each record's pairs in sidx_event / loss_event
+        sidx_event (ndarray[sidx_dtype]): sidx of each pair
+        loss_event (ndarray[loss_dtype]): loss of each pair
+        present (ndarray[bool]): EventAccumulator.present, updated in place
+        expval (ndarray[loss_dtype]): EventAccumulator.expval, updated in place
+        max_loss (ndarray[loss_dtype]): EventAccumulator.max_loss, updated in place
+        mean (ndarray[loss_dtype]): EventAccumulator.mean, updated in place
+        losses (ndarray[loss_dtype]): EventAccumulator.losses, updated in place
+
+    Raises:
+        ValueError: if the summary_ids are not strictly increasing or a special sidx other than
+            MAX_LOSS_IDX and MEAN_IDX is found
     """
     previous_summary_id = 0
     for i in range(summary_ids.shape[0]):
@@ -228,6 +230,16 @@ def accumulate_input_events(summary_ids, expval_event, offsets_event, sidx_event
 
 
 def combine_events(event_buffers, acc):
+    """Sum the same event from every input into acc.
+
+    Args:
+        event_buffers (List[Dict[str, ndarray]]): the event from each input, as yielded by
+            SummaryCombineReader.read_events
+        acc (EventAccumulator): accumulator, empty before the call
+
+    Returns:
+        present_ids (ndarray[summary_id_dtype]): summary_ids with a record in any input, sorted
+    """
     for event_buffer in event_buffers:
         accumulate_input_events(event_buffer['summary_ids'], event_buffer['expval'], event_buffer['offsets'],
                                 event_buffer['sidx'], event_buffer['loss'], acc.present, acc.expval,
@@ -239,6 +251,34 @@ def combine_events(event_buffers, acc):
 @nb.njit(cache=True)
 def mv_write_combined_event(byte_mv, event_id, len_sample, present_ids, expval, max_loss, mean, losses,
                             output_zeros, last_record, last_sidx, stream_offset, idx_buffer, idx_cursor):
+    """Write the combined event to byte_mv, from record last_record and sample last_sidx.
+
+    Stops before byte_mv is full: a record header is only started if it fits with its two special
+    sidx and the terminator, and a sample only if the terminator still fits after it. Call again with
+    the returned last_record and last_sidx after flushing byte_mv.
+
+    Args:
+        byte_mv (ndarray): numpy byte view of the PIPE_CAPACITY output buffer
+        event_id (event_id_dtype): event id
+        len_sample (int): number of samples
+        present_ids (ndarray[summary_id_dtype]): summary_ids to write, as returned by combine_events
+        expval (ndarray[loss_dtype]): EventAccumulator.expval
+        max_loss (ndarray[loss_dtype]): EventAccumulator.max_loss
+        mean (ndarray[loss_dtype]): EventAccumulator.mean
+        losses (ndarray[loss_dtype]): EventAccumulator.losses
+        output_zeros (bool): if False, samples with a zero loss are skipped
+        last_record (int): index in present_ids to resume from (0 for a new event)
+        last_sidx (int): sample to resume from, 0 if the record header has not been written yet
+        stream_offset (int): bytes already written to the output stream, used for the .idx offsets
+        idx_buffer (ndarray[summary_stream_index_dtype]): .idx records of the event, filled in place
+        idx_cursor (int): next free slot in idx_buffer
+
+    Returns:
+        cursor (int): bytes written to byte_mv
+        last_record (int): record to resume from, -1 when the event is complete
+        last_sidx (int): sample to resume from
+        idx_cursor (int): next free slot in idx_buffer
+    """
     cursor = 0
     for i in range(last_record, present_ids.shape[0]):
         summary_id = present_ids[i]
@@ -272,9 +312,21 @@ def mv_write_combined_event(byte_mv, event_id, len_sample, present_ids, expval, 
 
 def write_combined_event(pipe, idx_pipe, byte_mv, event_id, len_sample, present_ids, acc,
                          output_zeros, stream_offsets, file_idx, idx_buffer):
-    '''
-    Write combined events into PIPE_CAPACITY chunks and .idx records if idx_pipe.
-    '''
+    """Write the combined event to pipe in PIPE_CAPACITY chunks, and its .idx records to idx_pipe.
+
+    Args:
+        pipe (BinaryIO): combined output stream
+        idx_pipe (BinaryIO | None): .idx stream of the combined output, None without -m
+        byte_mv (ndarray): numpy byte view of the PIPE_CAPACITY output buffer
+        event_id (event_id_dtype): event id
+        len_sample (int): number of samples
+        present_ids (ndarray[summary_id_dtype]): summary_ids to write, as returned by combine_events
+        acc (EventAccumulator): combined losses of the event
+        output_zeros (bool): if False, samples with a zero loss are skipped
+        stream_offsets (ndarray[int64]): bytes written so far to each output, updated in place
+        file_idx (int): index of this output in stream_offsets (-1 for the combined output)
+        idx_buffer (ndarray[summary_stream_index_dtype]): buffer for the .idx records of the event
+    """
     last_record, last_sidx, idx_cursor = 0, 0, 0
     while True:
         cursor, last_record, last_sidx, idx_cursor = mv_write_combined_event(
@@ -293,6 +345,32 @@ def write_combined_event(pipe, idx_pipe, byte_mv, event_id, len_sample, present_
 @nb.njit(cache=True)
 def mv_write_passthrough_event(byte_mv, last_record, last_pair, idx_buffer, idx_cursor, idx_file_cursors,
                                event_id, summary_ids, expval, sidx, loss, offsets):
+    """Write one input's event unchanged to byte_mv, from record last_record and pair last_pair.
+
+    Stops before byte_mv is full: a record header is only started if it fits with the terminator,
+    and a pair only if the terminator still fits after it. Call again with the returned last_record
+    and last_pair after flushing byte_mv.
+
+    Args:
+        byte_mv (ndarray): numpy byte view of the PIPE_CAPACITY output buffer
+        last_record (int): record to resume from (0 for a new event)
+        last_pair (int): pair to resume from, -1 if the record header has not been written yet
+        idx_buffer (ndarray[summary_stream_index_dtype]): .idx records of the event, filled in place
+        idx_cursor (int): next free slot in idx_buffer
+        idx_file_cursors (int): bytes already written to the pass-through stream, used for the .idx offsets
+        event_id (event_id_dtype): event id
+        summary_ids (ndarray[summary_id_dtype]): summary_id of each record
+        expval (ndarray[loss_dtype]): expval (TIV) of each record
+        sidx (ndarray[sidx_dtype]): sidx of each pair
+        loss (ndarray[loss_dtype]): loss of each pair
+        offsets (ndarray[int64]): start of each record's pairs in sidx / loss
+
+    Returns:
+        cursor (int): bytes written to byte_mv
+        last_record (int): record to resume from, -1 when the event is complete
+        last_pair (int): pair to resume from, -1 if the next record starts with its header
+        idx_cursor (int): next free slot in idx_buffer
+    """
     n_records = summary_ids.shape[0]
     cursor = 0
 
@@ -318,6 +396,18 @@ def mv_write_passthrough_event(byte_mv, last_record, last_pair, idx_buffer, idx_
 
 def write_passthrough_event(pipe, idx_pipe, byte_mv, event_id, event_buffer,
                             idx_file_cursors, file_idx, idx_buffer):
+    """Write one input's event to its pass-through stream in PIPE_CAPACITY chunks, and its .idx records to idx_pipe.
+
+    Args:
+        pipe (BinaryIO): pass-through output stream of the input
+        idx_pipe (BinaryIO | None): .idx stream of the pass-through output, None without -m
+        byte_mv (ndarray): numpy byte view of the PIPE_CAPACITY output buffer
+        event_id (event_id_dtype): event id
+        event_buffer (Dict[str, ndarray]): the input's event, as yielded by SummaryCombineReader.read_events
+        idx_file_cursors (ndarray[int64]): bytes written so far to each output, updated in place
+        file_idx (int): index of the input
+        idx_buffer (ndarray[summary_stream_index_dtype]): buffer for the .idx records of the event
+    """
     last_record, last_pair, idx_cursor = 0, -1, 0
     while True:
         cursor, last_record, last_pair, idx_cursor = mv_write_passthrough_event(
@@ -336,6 +426,21 @@ def write_passthrough_event(pipe, idx_pipe, byte_mv, event_id, event_buffer,
 
 
 def run(summary_files_in, output_summary_file, static_paths, low_memory, intermediate_outputs, output_zeros, **kwargs):
+    """Combine the rl summary streams of every inuring priority into one summary stream.
+
+    Args:
+        summary_files_in (List[str]): ``summarypy -t rl -s`` stream of each inuring priority
+        output_summary_file (str): path of the combined summary stream
+        static_paths (List[str]): static folder of each inuring priority, in the same order as summary_files_in
+        low_memory (bool): if True, write a .idx file next to each output
+        intermediate_outputs (List[str] | None): pass-through outputs, as ``input_index=path``
+        output_zeros (bool): if True, samples with a zero loss are written to the combined output
+
+    Raises:
+        OasisException: if the inputs do not match their static paths, the events of the inputs are not
+            in the same order, or an input ends before the others
+        ValueError: if an intermediate output refers to an input that does not exist
+    """
     intermediate_outputs = parse_intermediate_outputs(intermediate_outputs)
 
     if len(summary_files_in) != len(static_paths):
@@ -415,5 +520,6 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
 @redirect_logging(exec_name='rlcombine')
 def main(summary_files_in, output_summary_file, static_paths, low_memory,
          intermediate_outputs, output_zeros, **kwargs):
+    """rlcombine entry point, see run for the arguments."""
     run(summary_files_in, output_summary_file, static_paths, low_memory,
         intermediate_outputs, output_zeros, **kwargs)
