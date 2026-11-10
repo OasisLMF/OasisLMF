@@ -76,7 +76,7 @@ def get_sentinel_bytes(event_id):
     cursor = mv_write_summary_header(byte_mv, cursor, event_id, SENTINEL_SUMMARY_ID, 0)
     cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
     if cursor != SENTINEL_SIZE:
-        print(f'writing sentinel not as expected: {cursor}')
+        raise Exception('sentinel is not the correct size')
     return byte_mv
 
 def create_summary_object_file(static_path, run_type):
