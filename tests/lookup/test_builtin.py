@@ -1,3 +1,4 @@
+import logging
 from collections import OrderedDict
 from pathlib import Path
 
@@ -672,7 +673,7 @@ def test_merge_join_columns_duplicate_keys_raises(tmp_path):
         "countrycode": ["FR", "IT"],
         "vulnerability_id": [10, 11],
     }).to_csv(path, index=False)
-    with pytest.raises(OasisException, match="2 rows of .* share their join_columns"):
+    with pytest.raises(OasisException, match=r"2 rows of .* share their values of the join columns \['coverage_type', 'occupancycode', 'peril_id'\]"):
         Lookup(config={}).build_merge(file_path=str(path), id_columns=["vulnerability_id"],
                                       join_columns=["peril_id", "coverage_type", "occupancycode"])
     # joining on the column that tells the rows apart is fine
@@ -680,13 +681,28 @@ def test_merge_join_columns_duplicate_keys_raises(tmp_path):
                                   join_columns=["peril_id", "coverage_type", "occupancycode", "countrycode"])
 
 
-def test_process_locations_merge_step_column_missing_from_file_raises(tmp_path, german_locations):
-    """#2204: a dict file without one of the step's columns used to be joined on the remaining
-    shared columns, assigning wrong ids instead of failing."""
+def test_process_locations_merge_step_column_missing_from_file_logs_and_joins(tmp_path, german_locations, caplog):
+    """A dict file without one of the step's columns is joined on the columns it shares with the
+    locations; that is fine as long as those identify one row, so it is only logged."""
     path = tmp_path / "vulnerability_dict.csv"
     pd.DataFrame({"peril_id": ["WTC"], "coverage_type": [1], "vulnerability_id": [10]}).to_csv(path, index=False)
     config = _vulnerability_merge_config(path)
-    with pytest.raises(OasisException, match=r"step's columns \['occupancycode'\] are not in"):
+    config["step_definition"]["areaperil"]["columns"] = []  # don't join on countrycode
+    with caplog.at_level(logging.INFO, logger="oasislmf.lookup.builtin"):
+        result = Lookup(config=config).process_locations(german_locations)
+    assert "step's columns ['occupancycode'] are not in" in caplog.text
+    assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, OASIS_UNKNOWN_ID]
+
+
+def test_process_locations_merge_duplicate_rows_on_joined_columns_raises(tmp_path, german_locations):
+    """#2204: a dict file without one of the step's columns used to be joined on the remaining
+    shared columns, duplicating locations (or assigning wrong ids) when those don't identify one row."""
+    path = tmp_path / "vulnerability_dict.csv"
+    pd.DataFrame({"peril_id": ["WTC", "WTC"], "coverage_type": [1, 1],
+                  "vulnerability_id": [10, 30]}).to_csv(path, index=False)
+    config = _vulnerability_merge_config(path)
+    config["step_definition"]["areaperil"]["columns"] = []
+    with pytest.raises(OasisException, match=r"2 rows of .* join columns \['coverage_type', 'peril_id'\]"):
         Lookup(config=config).process_locations(german_locations)
 
 

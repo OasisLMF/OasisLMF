@@ -582,18 +582,16 @@ This is an efficient way to map a combination of columns that have a finite scop
 column name the file and the locations have in common, including columns only declared by other steps. Set this to
 reuse a file that carries a column the locations also have but that must not be matched on, for example a
 vulnerability dict built for France (``CountryCode`` = ``FR``) on a German model. Any other column present in both
-keeps its locations value, except ``id_columns``, which take the file's value. The file must have at most one row
-per combination of ``join_columns``, since each matching location would otherwise be duplicated, once per row; the
-step raises an error naming the duplicated values. For example, a dict holding both ``FR`` and ``IT`` rows for the
-same peril, coverage and occupancy can't be joined without ``CountryCode``.
+keeps its locations value, except ``id_columns``, which take the file's value.
 
-Without ``join_columns``, every column in the step's ``"columns"`` (other than ``id_columns``) must be in the file.
-The step raises an error naming the missing ones, rather than joining on the remaining shared columns and assigning
-wrong ids.
+Whichever columns the join is on, the file must have at most one row per combination of their values, since each
+matching location would otherwise be duplicated, once per row; the step raises an error naming the duplicated
+values. For example, a dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupancy can't be
+joined without ``CountryCode``. Without ``join_columns``, columns in the step's ``"columns"`` that are not in the
+file are logged, as the join then uses only the columns the file and the locations share.
 
 .. versionchanged:: NEXT
-   Duplicated ``join_columns`` values in the file, and step ``"columns"`` missing from the file, raise an error
-   instead of duplicating locations or joining on fewer columns.
+   Rows of the file that share their values of the join columns raise an error instead of duplicating locations.
 
 .. code-block:: JSON
 

@@ -1248,8 +1248,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         ``join_columns``, otherwise matching locations would be duplicated, so this raises.
 
         ``step_columns`` is filled in by the lookup with the step's ``columns`` list. Without
-        ``join_columns``, every column listed there (other than ``id_columns``) must be in the
-        file; otherwise the join would quietly use only the columns that are, and assign wrong ids.
+        ``join_columns``, any column listed there (other than ``id_columns``) that is not in the
+        file is logged, as the join then uses only the shared columns. Either way, the file must
+        have at most one row per combination of the columns actually joined on, otherwise matching
+        locations would be duplicated, so this raises.
 
         If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
         """
@@ -1261,6 +1263,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
         id_columns_lower = {col.lower() for col in id_columns}
 
+        checked_keys = set()
+
+        def check_unique(keys):
+            """Raise if rows of the file share their ``keys`` values, as each matching location would
+            then be duplicated, once per row. Checked once per set of keys.
+            """
+            if frozenset(keys) in checked_keys:
+                return
+            duplicated = df_to_merge.duplicated(keys, keep=False)
+            if duplicated.any():
+                examples = df_to_merge.loc[duplicated, keys].drop_duplicates().head(3).to_dict('records')
+                raise OasisException(
+                    f"merge step: {int(duplicated.sum())} rows of '{file_path}' share their values of the join "
+                    f"columns {sorted(keys)} with another row, e.g. {examples}. Each matching location would be "
+                    "duplicated, once per row. Join on the column that tells these rows apart (add it to the "
+                    "step's 'columns' or to 'join_columns'), or remove the extra rows.")
+            checked_keys.add(frozenset(keys))
+
         if isinstance(join_columns, str):
             join_columns = [join_columns]
         if join_columns is not None:
@@ -1270,22 +1290,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 raise OasisException(
                     f"merge step: join_columns {missing_in_file} not found in '{file_path}'. "
                     f"Table columns: {sorted(df_to_merge.columns)}")
-            duplicated = df_to_merge.duplicated(join_columns, keep=False)
-            if duplicated.any():
-                examples = df_to_merge.loc[duplicated, join_columns].drop_duplicates().head(3).to_dict('records')
-                raise OasisException(
-                    f"merge step: {int(duplicated.sum())} rows of '{file_path}' share their join_columns "
-                    f"{join_columns} values with another row, e.g. {examples}. Each matching location would be "
-                    "duplicated, once per row. Add the column that tells these rows apart to join_columns, or "
-                    "remove the extra rows.")
+            check_unique(join_columns)
         elif step_columns:
             missing_in_file = sorted({col.lower() for col in step_columns} - id_columns_lower - set(df_to_merge.columns))
             if missing_in_file:
-                raise OasisException(
-                    f"merge step: the step's columns {missing_in_file} are not in '{file_path}', so the join would "
-                    f"use only the other shared columns and could assign wrong ids. Table columns: "
-                    f"{sorted(df_to_merge.columns)}. Add them to the file, remove them from the step's 'columns', "
-                    "or set 'join_columns'.")
+                logger.info(
+                    "merge step: the step's columns %s are not in '%s', so the join uses only the columns the file "
+                    "and the locations share. Set 'join_columns' to choose them explicitly.", missing_in_file, file_path)
 
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
@@ -1297,6 +1308,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"are the names the two have in common.")
             if join_columns is None:
                 logger.debug("merge step: joining on %s", sorted(rename_map.values()))
+                check_unique(sorted(rename_map))
                 locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
                 return self.set_id_columns(locations, id_columns)
 
