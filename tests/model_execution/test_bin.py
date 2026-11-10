@@ -17,7 +17,6 @@ from hypothesis import (
 )
 from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
-import numpy as np
 from pathlib import Path
 
 from oasislmf.execution.files import GUL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
@@ -38,7 +37,6 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from oasislmf.pytools.getmodel.common import hazard_case_filename
-from oasislmf.pytools.common.input_files import read_occurrence
 
 from tests.data import il_input_files, tar_file_targets
 
@@ -665,29 +663,19 @@ class PrepareRunInputs(TestCase):
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
 
-    def test_occurrence_bin_copied___occurrence_index_is_built(self):
+    def test_occurrence_bin_copied___occurrence_index_not_built(self):
+        """The index is built by GenerateLossesDir, so model validation, which also calls
+        prepare_run_inputs, doesn't write one it never uses."""
         settings = {"gul_summaries": [{"ord_output": {"ept_full_uncertainty_aep": True}}]}
-        for ri in (False, True):
-            with TemporaryDirectory() as d:
-                self.make_fake_bins(d)
-                shutil.copy(Path(TEST_COMMON_INPUT_DIR, 'occurrence.bin'), os.path.join(d, 'static', 'occurrence.bin'))
-                model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
-
-                prepare_run_inputs(settings, d, model_storage, ri=ri)
-
-                occ_csr, *_ = read_occurrence(os.path.join(d, 'input'))
-                self.assertIsInstance(occ_csr.occ_offsets, np.memmap)
-
-    def test_occurrence_bin_unreadable___index_skipped_with_warning(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            shutil.copy(Path(TEST_COMMON_INPUT_DIR, 'occurrence.bin'), os.path.join(d, 'static', 'occurrence.bin'))
             model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
-            Path(d, 'input', 'occurrence.bin').write_bytes(b'\x01\x00')  # truncated header
 
-            with self.assertLogs('oasislmf.execution.bin', level='WARNING'):
-                prepare_run_inputs({}, d, model_storage)
+            prepare_run_inputs(settings, d, model_storage)
 
-            self.assertFalse(Path(d, 'input', 'occurrence_index', 'source.json').exists())
+            self.assertTrue(Path(d, 'input', 'occurrence.bin').exists())
+            self.assertFalse(Path(d, 'input', 'occurrence_index').exists())
 
     def test_ord_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
