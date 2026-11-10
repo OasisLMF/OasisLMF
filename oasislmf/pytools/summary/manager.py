@@ -1,6 +1,14 @@
 """Entry point to the run method of summarypy
 read an event loss stream and aggregate it into the relevant summary loss stream
 
+The run type selects the summaryxref read from the static path: ``gul`` (gulsummaryxref),
+``il`` (fmsummaryxref), ``ri`` (risummaryxref) or ``rl`` (rlsummaryxref).
+
+With ``-s/--sentinel-event``, every event of each summary set stream is closed by a sentinel record
+``E:S0`` (summary_id 0, expval 0 and the (0, 0) terminator), even when the event has no summary record.
+This lets rlcombine tell when an inuring priority has finished an event. Sentinel streams are only
+meant for rlcombine, and ``-s`` cannot be combined with ``-m``.
+
 using numba latest version 0.59, we are limited is our usage of classes and have to pass each data structure into the different function
 The attributes are name the same throughout the code, below is their definition
 
@@ -70,6 +78,17 @@ summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
 
 def get_sentinel_bytes(event_id):
+    """Build the sentinel record that closes an event in a ``-s/--sentinel-event`` summary stream.
+
+    The sentinel is a summary record with summary_id SENTINEL_SUMMARY_ID (0), expval 0 and no
+    (sidx, loss) pairs other than the (0, 0) terminator.
+
+    Args:
+        event_id (event_id_dtype): event the sentinel closes
+
+    Returns:
+        byte_mv (ndarray): numpy byte view of the SENTINEL_SIZE bytes of the record
+    """
     byte_mv = np.empty(SENTINEL_SIZE, dtype='b')
 
     cursor = 0
@@ -94,7 +113,26 @@ def load_summary_object(static_path, run_type):
 
 
 def get_summary_object(static_path, run_type):
-    """Read static files to get summary static data structure"""
+    """Read static files to get summary static data structure
+
+    The summaryxref read depends on run_type: gulsummaryxref (gul), fmsummaryxref (il),
+    risummaryxref (ri) or rlsummaryxref (rl). Only gul and il also read a summary map to track the
+    number of affected risks.
+
+    Args:
+        static_path (str): path to the static files
+        run_type (str): one of SUPPORTED_RUN_TYPE
+
+    Returns:
+        summary_info (ndarray[summary_info_dtype]): single element array holding the number of risks
+        summary_set_id_to_summary_set_index (ndarray[oasis_int]): mapping summary_set_id => summary_set_index
+        summary_set_index_to_loss_ptr (ndarray[oasis_int]): starting index of each summary set in the loss_summary table
+        item_id_to_summary_id (ndarray[oasis_int]): mapping item_id => summary_id for each summary set
+        item_id_to_risks_i (ndarray[oasis_int]): mapping item_id => risk index, empty for ri and rl
+
+    Raises:
+        Exception: if run_type is not supported
+    """
     # extract item_id to index in the loss summary
     summary_map_dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
     if run_type == RUNTYPE_GROUNDUP_LOSS:
@@ -403,14 +441,19 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_even
     """Run the summary calculation, writing a summary output stream for each summary set.
 
     Args:
-        files_in: list of file path to read event from
-        run_type: type of the source that is sending the stream
-        static_path: path to the static files
-        low_memory: if true output summary index file
-        output_zeros: if true output 0 loss
-        sentinel_event: add a sentinel event delimiter with 0 summary_id for the end of an event
+        files_in (str | List[str] | None): file path(s) to read events from, stdin if None
+        static_path (str): path to the static files
+        run_type (str): type of the source that is sending the stream, one of SUPPORTED_RUN_TYPE
+        low_memory (bool): if true output summary index file
+        output_zeros (bool): if true output 0 loss
+        sentinel_event (bool): if true close every event with an ``E:S0`` sentinel record
+            (summary_id 0), written even when the event has no summary record. Used by rlcombine
         **kwargs: additional options, including ``summary_sets_output``, a list of
             ``-summary_set_id summary_set_path`` pairs
+
+    Raises:
+        Exception: if summary_sets_output is malformed or the input stream type is not supported
+        ValueError: if low_memory and sentinel_event are both set, or a summary set is not in the summaryxref
     """
     summary_sets_path = {}
     error_msg = (f"summary_sets_output expected format is a list of -summary_set_id summary_set_path (ex: -1 S1.bin -2 S2.bin')"
