@@ -150,8 +150,12 @@ def collapse(areaperil_id, intensity, probability, return_period):
     probabilities are normalised per areaperil; each areaperil is written from the largest
     intensity down. gulmc reads the event's return period off an areaperil's first row only, so on
     a tie it is the smaller, whichever unfloored intensity was larger, as the pandas build did.
-    Merging across return periods keeps an areaperil to at most one row per intensity, which
-    gulmc's per-hazard-bin work and buffers scale with.
+    Merging across return periods keeps an areaperil to at most one row per intensity, so the
+    footprint and gulmc's loop over an item's records stay small.
+
+    Only an areaperil's first row carries a meaningful return_period: the others hold the smallest
+    return period of their own merged rows, which nothing reads. Code that needs a return period per
+    record must not read it from this footprint.
 
     Returns:
         tuple: areaperil_id, intensity (int32), probability, return_period of each output row.

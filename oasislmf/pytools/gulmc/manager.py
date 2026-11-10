@@ -1458,6 +1458,7 @@ def process_areaperils_in_footprint(event_footprint,
                     haz_pdf['intensity_bin_id'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity_bin_id'][last_areaperil_id_start: footprint_i]
                     if dynamic_footprint is not None:
                         haz_pdf['intensity'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity'][last_areaperil_id_start: footprint_i]
+                        # only the first row's return period is the event's (see dynamic_footprint.collapse)
                         event_rps[haz_arr_i - 1] = nb_int32(event_footprint[last_areaperil_id_start]['return_period'])
 
                     haz_arr_ptr[haz_arr_i] = arr_ptr_end
