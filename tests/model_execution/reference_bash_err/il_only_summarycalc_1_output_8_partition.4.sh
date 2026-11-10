@@ -47,7 +47,7 @@ trap exit_handler QUIT HUP INT KILL TERM ERR EXIT
 
 check_complete(){
     set +e
-    proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
+    proc_list="evepy modelpy gulpy fmpy gulmc summarypy rlcombine plapy katpy eltpy pltpy aalpy lecpy"
     has_error=0
     for p in $proc_list; do
         started=$(find $LOG_DIR -name "${p}_[0-9]*.log" | wc -l)

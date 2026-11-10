@@ -153,5 +153,7 @@ lecpy -r -Kgul_S1_summaryleccalc -F -S -s -M -m -W -w -O output/gul_S1_ept.csv -
 lecpy -r -Kgul_S2_summaryleccalc -F -S -s -M -m -W -w -O output/gul_S2_ept.csv -o output/gul_S2_psept.csv & lpid4=$!
 exec_wait $lpid1 $lpid2 $lpid3 $lpid4
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f fifo/*

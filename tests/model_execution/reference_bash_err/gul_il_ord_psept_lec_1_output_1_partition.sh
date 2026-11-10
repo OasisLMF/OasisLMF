@@ -47,7 +47,7 @@ trap exit_handler QUIT HUP INT KILL TERM ERR EXIT
 
 check_complete(){
     set +e
-    proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
+    proc_list="evepy modelpy gulpy fmpy gulmc summarypy rlcombine plapy katpy eltpy pltpy aalpy lecpy"
     has_error=0
     for p in $proc_list; do
         started=$(find $LOG_DIR -name "${p}_[0-9]*.log" | wc -l)
@@ -149,6 +149,8 @@ exec_wait $pid1 $pid2 $pid3 $pid4 $pid5
 ( lecpy  -Kgul_S1_summaryleccalc -W -w -o output/gul_S1_psept.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
 exec_wait $lpid1 $lpid2
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/
 
