@@ -115,5 +115,7 @@ aalpy -Kgul_S2_summary_palt -a output/gul_S2_palt.csv & lpid6=$!
 lecpy -r -Kgul_S2_summaryleccalc -F -S -s -M -m -W -w -O output/gul_S2_ept.csv -o output/gul_S2_psept.csv & lpid7=$!
 exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f fifo/*

@@ -59,5 +59,7 @@ aalpy -Kgul_S1_summary_altmeanonly -E parquet -a output/gul_S1_altmeanonly.parqu
 lecpy -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/gul_S1_ept.parquet -o output/gul_S1_psept.parquet & lpid6=$!
 exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f fifo/*
