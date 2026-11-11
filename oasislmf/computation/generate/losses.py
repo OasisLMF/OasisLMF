@@ -25,6 +25,7 @@ from subprocess import CalledProcessError
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+from oasislmf.pytools.common.input_files import OCCURRENCE_FILE, write_occurrence_index
 from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, def_to_type_and_size
 import pandas as pd
 import numpy as np
@@ -56,6 +57,31 @@ from ...utils.path import setcwd
 from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
 from ...utils.ping import oasis_ping
+
+
+# outputs whose processes (pltpy, aalpy, lecpy) read the occurrence file
+OCCURRENCE_OUTPUT_SWITCHES = {
+    **bash.ORD_PLT_OUTPUT_SWITCHES,
+    **bash.ORD_ALT_OUTPUT_SWITCHES,
+    **bash.ORD_ALT_MEANONLY_OUTPUT_SWITCHES,
+    **bash.ORD_LECCALC,
+}
+
+
+def occurrence_outputs_requested(analysis_settings):
+    """Check if any summary requests a PLT, ALT or EPT/PSEPT output, which read the occurrence file.
+
+    Args:
+        analysis_settings (dict): the analysis settings
+
+    Returns:
+        bool: True if a gul/il/ri/rl summary requests such an output
+    """
+    return any(bash.ord_enabled(summary, OCCURRENCE_OUTPUT_SWITCHES)
+               for key, summaries in analysis_settings.items()
+               if key.endswith('_summaries') and isinstance(summaries, list)
+               for summary in summaries)
+
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -331,6 +357,17 @@ class GenerateLossesDir(GenerateLossesBase):
             self.settings['number_of_samples'] = default_model_samples
 
         prepare_run_inputs(self.settings, model_run_fp, model_storage, ri=ri or rl)
+
+        input_dir = os.path.join(model_run_fp, 'input')
+        occurrence_fp = os.path.join(input_dir, OCCURRENCE_FILE)
+        if (occurrence_outputs_requested(self.settings) and os.path.isfile(occurrence_fp)
+                and os.path.getsize(occurrence_fp) > 0):
+            # an optimisation only: without the index each pltpy/aalpy/lecpy builds its own copy, as before
+            self.logger.info(f'Creating occurrence index: {input_dir}')
+            try:
+                write_occurrence_index(input_dir)
+            except (ValueError, RuntimeError, OSError) as e:
+                self.logger.warning(f"occurrence index not built, each output process will build its own: {e}")
 
         for model_set, model_setter in OPTIONAL_MODEL_SETS.items():
             model_set_val = self.settings.get('model_settings', {}).get(model_set)
