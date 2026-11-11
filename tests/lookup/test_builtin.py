@@ -330,6 +330,49 @@ def test_peril_covered_deterministic_lookup_group_listed_with_its_perils_gives_e
     assert "peril_group_id" not in locations
 
 
+def test_split_loc_perils_covered_two_groups_containing_a_peril_give_it_once():
+    """XX1 and AA1 both contain XHL."""
+    fct = Lookup(config={}).build_split_loc_perils_covered(["XHL"])
+    result = fct(pd.DataFrame({"loc_id": [1], "LocPerilsCovered": ["WTC;XX1;AA1"]}))
+
+    assert result[["loc_id", "peril_id", "peril_group_id"]].values.tolist() == [[1, "XHL", "XX1"]]
+
+
+def test_split_loc_perils_covered_keeps_location_rows_that_share_a_loc_id():
+    """Rows sharing a loc_id but differing elsewhere keep their own perils; identical rows give them once,
+    whatever the index."""
+    fct = Lookup(config={}).build_split_loc_perils_covered(["ORF", "OSF", "WTC"])
+    locations = pd.DataFrame({
+        "loc_id": [1, 1, 2, 2],
+        "BuildingTIV": [10., 20., 30., 30.],
+        "LocPerilsCovered": ["OO1;ORF", "WTC", "ORF", "ORF"],
+    }, index=[7, 3, 5, 9])
+
+    result = fct(locations)
+
+    assert result[["loc_id", "BuildingTIV", "peril_id"]].values.tolist() == [
+        [1, 10., "ORF"], [2, 30., "ORF"], [1, 10., "OSF"], [1, 20., "WTC"]]  # sorted on peril_id by the model filter
+    assert result.index.tolist() == list(range(4))
+    assert list(locations.columns) == ["loc_id", "BuildingTIV", "LocPerilsCovered"]
+
+
+def test_peril_covered_deterministic_lookup_keeps_location_rows_that_share_a_loc_id():
+    lookup = PerilCoveredDeterministicLookup(config={
+        "model_perils_covered": ["WTC"],
+        "supported_oed_coverage_types": [1],
+    })
+    locations = pd.DataFrame({
+        "loc_id": [1, 1, 2, 2],
+        "BuildingTIV": [10., 20., 30., 30.],
+        "LocPerilsCovered": ["WTC", "WTC", "WW1;WTC", "WW1;WTC"],
+    })
+
+    keys_df = lookup.process_locations(locations)
+
+    # loc 1: two distinct rows, one key each; loc 2: identical rows, WW1 = {WTC, WEC, WSS} given once
+    assert keys_df[["loc_id", "peril_id"]].values.tolist() == [[1, "WTC"], [1, "WTC"], [2, "WEC"], [2, "WSS"], [2, "WTC"]]
+
+
 def test_split_loc_perils_covered_rejects_unknown_not_covered_status():
     with pytest.raises(OasisException):
         Lookup(config={}).build_split_loc_perils_covered(not_covered_status="not_a_real_status")
