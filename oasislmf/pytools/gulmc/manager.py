@@ -614,7 +614,7 @@ def pdf_to_cdf(pdf, empty_cdf):
     Returns:
          cdf (np.array[float]): here we return only the valid part if needed
     """
-    cumsum = 0
+    cumsum = np.float64(0.)
     i = 0
     while i < pdf.shape[0]:
         cumsum += pdf[i]
@@ -637,7 +637,7 @@ def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
     Returns:
         eff_damage_cdf (np.array[float]): cdf is stored in eff_damage_cdf_empty, here we return only the valid part if needed
     """
-    eff_damage_cdf_cumsum = 0.
+    eff_damage_cdf_cumsum = np.float64(0.)
     damage_bin_i = 0
     while damage_bin_i < vuln_pdf.shape[1]:
         for haz_i in range(vuln_pdf.shape[0]):
@@ -725,11 +725,12 @@ def compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv):
     if tiv <= 0:
         return 0.
 
+    tiv = np.float64(tiv)
     damage_type = damage_bins[Neff_damage_bins - 1]['damage_type']
     if damage_type == DAMAGE_TYPE_RELATIVE:
         damage_bin_scaling = tiv
     elif damage_type == DAMAGE_TYPE_ABSOLUTE:
-        damage_bin_scaling = 1
+        damage_bin_scaling = 1.
     elif damage_type == DAMAGE_TYPE_DURATION:
         # convert annual tiv to daily
         damage_bin_scaling = tiv / 365

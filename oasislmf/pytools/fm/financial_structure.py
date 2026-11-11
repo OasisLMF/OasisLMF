@@ -547,7 +547,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         if output_len < xref['output']:
             output_len = nb_oasis_int(xref['output'])
 
-        output_id_arr[xref['agg_id'], xref['layer_id']] = xref['output']
+        # under allocation rule 0 fm_xref still lists item level agg_ids, which may not exist at the output level
+        if xref['agg_id'] <= max_agg_id_out:
+            output_id_arr[xref['agg_id'], xref['layer_id']] = xref['output']
 
     ##### programme ####
     # node_layers will contain the number of layers for each node

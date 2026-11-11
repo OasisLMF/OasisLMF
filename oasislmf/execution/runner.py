@@ -244,8 +244,6 @@ def run(analysis_settings,
                     cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
 
                 return cmd
-        else:
-            custom_get_getmodel_cmd = None
 
     ###########################################################
 

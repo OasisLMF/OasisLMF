@@ -5,13 +5,14 @@ import os
 import shutil
 import tempfile
 import uuid
+import warnings
 
 
 def logging_set_handlers(logger_name, handler, log_level):
     logger = logging.getLogger(logger_name)
     # set all handlers to ERROR
-    for handler in logger.handlers:
-        handler.setLevel(logging.ERROR)
+    for existing_handler in logger.handlers:
+        existing_handler.setLevel(logging.ERROR)
     # set children oasislmf loggers to 'log_level'
     if 'oasislmf.' in logger_name:
         logger.addHandler(handler)
@@ -21,20 +22,35 @@ def logging_set_handlers(logger_name, handler, log_level):
         logger.setLevel(logging.ERROR)
 
 
-def logging_reset_handlers(logger_name):
-    logger = logging.getLogger(logger_name)
-    # revert all handlers to NOTSET
-    for handler in logger.handlers:
-        handler.setLevel(logging.NOTSET)
-    # Remove added handlers
-    if 'oasislmf.' in logger_name:
-        logger.handlers.clear()
-    # Undo what logging_set_handlers did to the logger itself: leaving the level in place pinned
-    # every 'oasislmf.*' logger for the rest of the process. propagate is restored only where we
-    # cleared it — redirect_logging walks every logger, including the host application's.
-    if 'oasislmf.' in logger_name:
-        logger.propagate = True
-    logger.setLevel(logging.NOTSET)
+def logging_snapshot(logger_names):
+    """Record the level, propagate flag and handlers (with their levels) of each logger.
+
+    Args:
+        logger_names (Iterable[str]): names of the loggers to record.
+
+    Returns:
+        dict: logger name to (level, propagate, [(handler, handler level), ...]).
+    """
+    snapshot = {}
+    for logger_name in logger_names:
+        logger = logging.getLogger(logger_name)
+        snapshot[logger_name] = (logger.level, logger.propagate, [(handler, handler.level) for handler in logger.handlers])
+    return snapshot
+
+
+def logging_restore(snapshot):
+    """Put each logger back exactly as `logging_snapshot` recorded it.
+
+    Args:
+        snapshot (dict): the result of `logging_snapshot`.
+    """
+    for logger_name, (level, propagate, handlers) in snapshot.items():
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(level)
+        logger.propagate = propagate
+        logger.handlers[:] = [handler for handler, _ in handlers]
+        for handler, handler_level in handlers:
+            handler.setLevel(handler_level)
 
 
 def redirect_logging(exec_name, log_dir='./log'):
@@ -76,7 +92,9 @@ def redirect_logging(exec_name, log_dir='./log'):
             # './log', which is what `log_dir` would otherwise always resolve to.
             _log_dir = _tmp_dir or os.environ.get('OASIS_PYTOOLS_LOG_DIR') or log_dir
             os.makedirs(_log_dir, exist_ok=True)
-            logging_config = logging.root.manager.loggerDict.keys()
+            logging_config = list(logging.root.manager.loggerDict.keys())
+            logging_state = logging_snapshot(logging_config + ['oasislmf', 'py.warnings'])
+            previous_showwarning = warnings.showwarning
             logging.captureWarnings(True)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
@@ -129,11 +147,11 @@ def redirect_logging(exec_name, log_dir='./log'):
                 logger.exception(err)
                 raise err
             finally:
-                for lg_name in logging_config:
-                    logging_reset_handlers(lg_name)
-                logger.removeHandler(rootFileHandler)
-                logging.shutdown()
-                logging.captureWarnings(False)
+                logging_restore(logging_state)
+                childFileHandler.close()
+                rootFileHandler.close()
+                if warnings.showwarning is not previous_showwarning:
+                    logging.captureWarnings(False)
                 if _tmp_dir:
                     shutil.rmtree(_tmp_dir, ignore_errors=True)
         return wrapper
