@@ -10,7 +10,7 @@ import pytest
 
 from oasislmf.pytools.getmodel.manager import encode_peril_id, get_intensity_bin_dict
 from oasislmf.pytools.gulmc.common import haz_arr_type
-from oasislmf.pytools.gulmc.manager import compute_haz_bin_id
+from oasislmf.pytools.gulmc.manager import merge_dynamic_haz_records_per_bin
 
 
 @pytest.fixture
@@ -23,11 +23,21 @@ def intensity_bins(tmp_path):
 
 
 def bins_of(intensity_bins, peril_id, intensities, intensity_adjustment=0):
-    haz_pdf_record = np.zeros(len(intensities), dtype=haz_arr_type)
-    haz_pdf_record['intensity'] = intensities
+    """The bin of each intensity, given one record at a time so that none is merged with another."""
     item = np.zeros(1, dtype=[('peril_id', np.int32)])[0]
     item['peril_id'] = encode_peril_id(peril_id)
-    return compute_haz_bin_id(haz_pdf_record, item, intensity_adjustment, True, *intensity_bins).tolist()
+    haz_pdf_record = np.zeros(1, dtype=haz_arr_type)
+    n_bin_ids = intensity_bins[1].max() + 1
+    bin_slot = np.full(n_bin_ids, -1, dtype=np.int64)
+    haz_bin_id = np.empty(n_bin_ids, dtype=np.int32)
+    haz_prob = np.empty(n_bin_ids, dtype=haz_pdf_record['probability'].dtype)
+    bins = []
+    for intensity in intensities:
+        haz_pdf_record['intensity'] = intensity
+        merge_dynamic_haz_records_per_bin(haz_pdf_record, item, intensity_adjustment, *intensity_bins,
+                                          bin_slot, haz_bin_id, haz_prob)
+        bins.append(int(haz_bin_id[0]))
+    return bins
 
 
 def test_an_intensity_past_the_table_takes_the_top_bin(intensity_bins):

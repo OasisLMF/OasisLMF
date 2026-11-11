@@ -145,11 +145,17 @@ def collapse(areaperil_id, intensity, probability, return_period):
     """Floor the intensities, merge equal ones, normalise, and order each areaperil for gulmc.
 
     Each areaperil's rows must be together; they are expected in non-decreasing intensity, as both
-    kernels above write them, and sorted here if not. Rows of one areaperil with the same floored intensity and return period become
-    one; probabilities are normalised per areaperil; each areaperil is written from the largest
-    intensity down, the smaller return period first when rows of different return periods floor to
-    the same intensity, as the pandas build did. gulmc reads the event's return period off an
-    areaperil's first row, so on such a tie it is the smaller, whichever unfloored intensity was larger.
+    kernels above write them, and sorted here if not. Rows of one areaperil with the same floored
+    intensity become one, whatever their return periods, keeping the smallest of them;
+    probabilities are normalised per areaperil; each areaperil is written from the largest
+    intensity down. gulmc reads the event's return period off an areaperil's first row only, so on
+    a tie it is the smaller, whichever unfloored intensity was larger, as the pandas build did.
+    Merging across return periods keeps an areaperil to at most one row per intensity, so the
+    footprint and gulmc's loop over an item's records stay small.
+
+    Only an areaperil's first row carries a meaningful return_period: the others hold the smallest
+    return period of their own merged rows, which nothing reads. Code that needs a return period per
+    record must not read it from this footprint.
 
     Returns:
         tuple: areaperil_id, intensity (int32), probability, return_period of each output row.
@@ -181,33 +187,22 @@ def collapse(areaperil_id, intensity, probability, return_period):
         for i in range(start, end):
             total += probability[i]
         first = k
-        # runs of one floored intensity, merged per return period, written in reverse afterwards
+        # each run of one floored intensity becomes one row, written in reverse afterwards
         i = start
         while i < end:
             j = i
+            run_probability = 0.0
+            run_return_period = return_period[i]
             while j < end and floored[j] == floored[i]:
+                run_probability += probability[j]
+                if return_period[j] < run_return_period:
+                    run_return_period = return_period[j]
                 j += 1
-            run_start = k
-            for r in range(i, j):
-                found = False
-                for q in range(run_start, k):
-                    if out_return_period[q] == return_period[r]:
-                        out_probability[q] += probability[r]
-                        found = True
-                        break
-                if not found:
-                    out_areaperil[k] = areaperil_id[r]
-                    out_intensity[k] = floored[r]
-                    out_probability[k] = probability[r]
-                    out_return_period[k] = return_period[r]
-                    k += 1
-            # within a run, the larger return period first, so that it ends up last once reversed
-            for a in range(run_start + 1, k):
-                b = a
-                while b > run_start and out_return_period[b - 1] < out_return_period[b]:
-                    out_return_period[b - 1], out_return_period[b] = out_return_period[b], out_return_period[b - 1]
-                    out_probability[b - 1], out_probability[b] = out_probability[b], out_probability[b - 1]
-                    b -= 1
+            out_areaperil[k] = areaperil_id[i]
+            out_intensity[k] = floored[i]
+            out_probability[k] = run_probability
+            out_return_period[k] = run_return_period
+            k += 1
             i = j
         for q in range(first, k):
             out_probability[q] /= total
