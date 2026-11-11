@@ -12,8 +12,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from oasis_data_manager.filestore.config import get_storage_from_config_path
+from oasislmf.pytools.getmodel.common import FootprintHeader
+from oasislmf.pytools.getmodel.footprint import SHARED_MANIFEST, Footprint
 from oasislmf.pytools.gulmc.items import get_dynamic_footprint_adjustments
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
+from oasislmf.pytools.gulmc.structure import create_gulmc_structure, dynamic_footprint_path
 from oasislmf.pytools.utils import assert_allclose
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 
@@ -447,3 +451,103 @@ def test_get_dynamic_footprint_adjustments_without_item_adjustments_bin_only():
         assert adjustments[0]["item_id"] == 1
         assert np.all(adjustments["intensity_adjustment"] == 0)
         assert np.all(adjustments["return_period"] == 0)
+
+
+def make_dynamic_test_model(run_dir, confluences=False, partitioned=False, labels=False):
+    """Copy test_model_1 to run_dir with its binary footprint replaced by a dynamic one over the same areaperils.
+
+    Args:
+        confluences (bool): if True, a second section holds every other areaperil with other intensities, and
+            every other event affects both sections with different brackets
+        partitioned (bool): if True, the hazard case and event definition are partitioned by section_id
+        labels (bool): if True, the hazard case and event definition have a string label column the footprint
+            build does not use
+    """
+    shutil.copytree(TESTS_ASSETS_DIR / 'test_model_1', run_dir, ignore=shutil.ignore_patterns('log', 'expected', '*.log'))
+    static = run_dir / 'static'
+    num_intensity_bins = int(np.fromfile(static / 'footprint.bin', dtype=FootprintHeader, count=1)['num_intensity_bins'][0])
+    for footprint_file in static.glob('footprint.*'):
+        footprint_file.unlink()
+    areaperils = np.unique(pd.read_csv(run_dir / 'input' / 'items.csv')['areaperil_id'])
+    event_ids = pd.read_csv(run_dir / 'input' / 'events.csv')['event_id']
+    hazard_case = [pd.DataFrame({'section_id': 1, 'areaperil_id': np.repeat(areaperils, 2),
+                                 'return_period': np.tile([10, 20], len(areaperils)),
+                                 'intensity': np.tile([1, 2], len(areaperils))})]
+    event_definition = [pd.DataFrame({'event_id': event_ids, 'section_id': 1, 'rp_from': 10, 'rp_to': 20,
+                                      'interpolation': 0.5})]
+    sections = [1]
+    if confluences:
+        in_two = areaperils[::2]
+        hazard_case.append(pd.DataFrame({'section_id': 2, 'areaperil_id': np.repeat(in_two, 2),
+                                         'return_period': np.tile([10, 20], len(in_two)),
+                                         'intensity': np.tile([2, 3], len(in_two))}))
+        event_definition.append(pd.DataFrame({'event_id': event_ids[::2], 'section_id': 2, 'rp_from': 10, 'rp_to': 20,
+                                              'interpolation': 0.8}))
+        sections.append(2)
+    hazard_case, event_definition = pd.concat(hazard_case), pd.concat(event_definition)
+    if labels:
+        hazard_case['label'] = 'rp' + hazard_case['return_period'].astype(str)
+        event_definition['label'] = 'event' + event_definition['event_id'].astype(str)
+    partition_cols = ['section_id'] if partitioned else None
+    hazard_case.to_parquet(static / 'hazard_case.parquet', index=False, partition_cols=partition_cols)
+    event_definition.to_parquet(static / 'event_definition.parquet', index=False, partition_cols=partition_cols)
+    # a dynamic footprint maps intensities to bins per peril; here intensity n is bin n
+    pd.DataFrame({'peril_id': 'WTC', 'intensity_bin': np.arange(num_intensity_bins + 1),
+                  'intensity': np.arange(num_intensity_bins + 1)}).to_csv(static / 'intensity_bin_dict.csv', index=False)
+    (static / 'footprint_parquet_meta.json').write_text(
+        f'{{"num_intensity_bins": {num_intensity_bins}, "has_intensity_uncertainty": 0}}')
+    pd.DataFrame({'section_id': sections}).to_csv(run_dir / 'input' / 'sections.csv', index=False)
+    items = pd.read_csv(run_dir / 'input' / 'items.csv')
+    pd.DataFrame({'LocID': np.arange(1, len(items) + 1), 'PerilID': 'WTC', 'CoverageTypeID': 1,
+                  'AreaPerilID': items['areaperil_id'], 'VulnerabilityID': items['vulnerability_id']}).to_csv(
+        run_dir / 'input' / 'keys.csv', index=False)
+    summary_map = pd.read_csv(run_dir / 'input' / 'gul_summary_map.csv')
+    summary_map.assign(peril_id='WTC').to_csv(run_dir / 'input' / 'gul_summary_map.csv', index=False)
+
+
+@pytest.mark.parametrize("partitioned,labels", [(False, False), (True, False), (True, True)],
+                         ids=["flat", "partitioned", "partitioned-labels"])
+@pytest.mark.parametrize("sample_size", [0, 10])
+def test_dynamic_footprint_shared_between_processes_gives_the_same_losses(tmp_path, monkeypatch, partitioned, labels,
+                                                                          sample_size):
+    """gulmc memory-maps the dynamic footprint's hazard that create_gulmc_structure saved, rather than reading the
+    model data in every process, with the same losses, confluences included. A column the footprint build does not
+    use, here a string label, is not saved and does not stop the sharing.
+    """
+    run_dir = tmp_path / 'run'
+    make_dynamic_test_model(run_dir, confluences=True, partitioned=partitioned, labels=labels)
+    monkeypatch.chdir(run_dir)
+
+    def gulmc(file_out):
+        run_gulmc(run_dir=str(run_dir), ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin',
+                  file_out=file_out, sample_size=sample_size, loss_threshold=0., alloc_rule=1, debug=0,
+                  random_generator=1, dynamic_footprint=True)
+
+    gulmc(tmp_path / 'read.bin')  # no gulmc structures: the footprint is read from the model data
+    create_gulmc_structure(str(run_dir), set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
+    manifest_path = Path(dynamic_footprint_path(str(run_dir))) / SHARED_MANIFEST
+    assert manifest_path.is_file()
+    assert 'label' not in manifest_path.read_text()
+    gulmc(tmp_path / 'shared.bin')
+
+    assert (tmp_path / 'read.bin').stat().st_size > 1000
+    assert filecmp.cmp(tmp_path / 'read.bin', tmp_path / 'shared.bin', shallow=False)
+
+
+def test_dynamic_footprint_incomplete_save_is_not_used(tmp_path, monkeypatch):
+    """A save without its manifest, written last, did not finish: the footprint is read from the model data."""
+    run_dir = tmp_path / 'run'
+    make_dynamic_test_model(run_dir, confluences=True, partitioned=True)
+    monkeypatch.chdir(run_dir)
+    create_gulmc_structure(str(run_dir), set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
+    shared_dir = dynamic_footprint_path(str(run_dir))
+    storage = get_storage_from_config_path(str(run_dir / 'model_storage.json'), str(run_dir / 'static'))
+
+    with Footprint.load(storage, shared_dir=shared_dir) as footprint:
+        assert isinstance(footprint.shared_hazard['intensity'], np.memmap)
+        shared_event = footprint.get_event(1)
+
+    (Path(shared_dir) / SHARED_MANIFEST).unlink()
+    with Footprint.load(storage, shared_dir=shared_dir) as footprint:
+        assert footprint.shared_hazard is None and footprint.df_hazard_case is not None
+        np.testing.assert_array_equal(footprint.get_event(1), shared_event)
