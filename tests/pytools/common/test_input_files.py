@@ -59,7 +59,7 @@ def test_structure__read_amplifications__first_item_id_not_1():
         itemsamps_file = Path(tmpdir, "amplifications.bin")
         write_items_amplifications_file(2, itemsamps_file, formula='+ 2')
 
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(ValueError):
             read_amplifications(tmpdir)
 
 
@@ -76,7 +76,7 @@ def test_structure__read_amplifications__non_contiguous_item_ids():
             4, itemsamps_file, formula='* 2 + 1'
         )
 
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(ValueError):
             read_amplifications(tmpdir)
 
 

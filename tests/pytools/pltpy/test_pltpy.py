@@ -392,7 +392,7 @@ def test_splt_reservation_impossible_raises_instead_of_hanging():
         with patch('oasislmf.pytools.plt.manager.DEFAULT_BUFFER_SIZE', 3), \
                 patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
                 patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights):
-            with pytest.raises(OasisStreamException, match="SPLT reservation"):
+            with pytest.raises(OasisStreamException, match="SPLT.*reservation of"):
                 main(run_dir=tmp_dir, files_in=stream_file, splt=splt_out, ext="csv")
 
 
