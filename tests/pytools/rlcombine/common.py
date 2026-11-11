@@ -127,6 +127,10 @@ IP1 = [(10, [(1, 100, [(-5, 50), (-1, 5), (1, 4)]), (3, 100, [(-5, 9), (-1, 1)])
 IP2 = [(10, [(3, 10, [(-5, 1), (-1, 1), (2, 7)])]),
        (7, [(1, 5, [(-5, 2), (-1, 2)])]),
        (12, [])]
+# A third inuring priority, for passing through a subset of the inputs. It has nothing for event 10.
+IP3 = [(10, []),
+       (7, [(2, 20, [(-5, 6), (-1, 4), (1, 6), (3, 2)])]),
+       (12, [(1, 8, [(-5, 8), (-1, 8), (2, 8)])])]
 
 # IP1 and IP2 combined as rlcombine writes them with len_sample 3: records with the same summary_id
 # summed, in summary_id order, max loss and mean first, then the non-zero samples.
