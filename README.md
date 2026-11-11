@@ -189,17 +189,13 @@ To test the code style run:
 
     ruff check oasislmf/
 
-To test against all supported python versions run:
+To run the unit tests (as CI does, on Python 3.10 - 3.14) run:
 
-    tox
+    pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation
 
-To test against your currently installed version of python run:
+To run the docstring examples run:
 
-    py.test
-
-To run the full test suite run:
-
-    ./runtests.sh
+    pytest -p no:flaky --doctest-modules --no-cov oasislmf/
 
 ## Publishing
 

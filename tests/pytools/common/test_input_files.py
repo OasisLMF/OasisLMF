@@ -128,6 +128,15 @@ def test_read_correlations():
     np.testing.assert_array_almost_equal(hazard_correlation_value_expected, hazard_correlation_value_actual, decimal=3, verbose=True)
 
 
+def test_read_correlations__empty_bin():
+    """An empty correlations.bin (no correlations) must load without a correlations.csv"""
+    with TemporaryDirectory() as tmp:
+        Path(tmp, "correlations.bin").touch()
+        correlations = read_correlations(tmp)
+        assert correlations.dtype == correlations_dtype
+        assert len(correlations) == 0
+
+
 def test_read_coverages():
     """Tests read_coverages
     """

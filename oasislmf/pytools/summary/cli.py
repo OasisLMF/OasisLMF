@@ -19,6 +19,8 @@ parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info
 parser.add_argument('-z', '--output-zeros', help='if set, output zero values', action='store_true')
 parser.add_argument('-s', '--sentinel-event', help='if set, output sentinel event delimiters', action='store_true')
 parser.add_argument('--create-summarypy-files', help='create summarypy files', action='store_true')
+parser.add_argument('-E', '--ext', help='output data format, csv and parquet are written in the SELT layout',
+                    default='bin', choices=manager.VALID_EXT)
 parser.add_argument('summary_sets_output', help='summary set output files: -summaryset_id file_path', nargs=argparse.REMAINDER)
 
 

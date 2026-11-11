@@ -9,36 +9,50 @@ sub-command per file type, replacing the many individual ktools `*tobin`/`*tocsv
 
 ```{note}
 The per-file **format tables in the sections below are unchanged** (the binary formats are
-stable). Command examples in those sections may still show the legacy ktools binary names
-(e.g. `footprinttobin`); substitute the pytools tool + sub-command from the table below —
-note some names differ (`rand`→`random`, `item`→`items`, singular→plural).
+stable). Command examples in those sections still show the legacy ktools binary names and
+flags (e.g. `footprinttobin -i ... -b ... -u ...`) — these do **not** carry over 1:1 to the
+pytools tools. Beyond the tool/sub-command name (see the table below; some names differ,
+e.g. `rand`→`random`, `item`→`items`, singular→plural), several flags also differ or have
+no equivalent:
+
+- pytools takes explicit `-o`/`-x` output paths; there is no `-b`, and `-i` is pytools'
+  generic `--file_in` everywhere, not a per-type flag — ktools' footprint `-i` (number of
+  intensity bins) is pytools' `-m`/`--max_intensity_bin_idx`, and ktools' vulnerability `-i`
+  (create an index file) is pytools' `-x`/`--idx_file_out <path>` (a path, not a boolean flag).
+- There is no automatic `.z` naming for compressed output — name zipped files
+  `*.bin.z`/`*.idx.z` yourself.
+- ktools' `-u` (store the uncompressed size in the index) is pytools' `-d`/`--decompressed_size`
+  for footprint; this is unrelated to vulnerability's own `-d`/`--max_damage_bin_idx`.
+
+Run `csvtobin <type> --help` / `bintocsv <type> --help` for the authoritative flag set rather
+than assuming a ktools command translates directly.
 ```
 
 **Sub-command per file type** (used with both `csvtobin` and `bintocsv`):
 
-| Data file | sub-command |
-|-----------|-------------|
-| aggregate vulnerability | `aggregatevulnerability` |
-| damage bin dictionary | `damagebin` |
-| footprint | `footprint` |
-| loss factors | `lossfactors` |
-| random numbers | `random` |
-| vulnerability | `vulnerability` |
-| weights | `weights` |
-| amplifications | `amplifications` |
-| coverages | `coverages` |
-| events | `eve` |
-| items | `items` |
-| gul summary xref | `gul_summary_xref` |
-| fm policytc | `fm_policytc` |
-| fm programme | `fm_programme` |
-| fm profile (/ step) | `fm_profile` (`fm_profile_step`) |
-| fm summary xref | `fm_summary_xref` |
-| fm xref | `fm_xref` |
-| occurrence | `occurrence` |
-| return periods | `returnperiods` |
-| periods | `periods` |
-| quantile | `quantile` |
+| Data file | sub-command | runtime filename |
+|-----------|-------------|-------------------|
+| aggregate vulnerability | `aggregatevulnerability` | `aggregate_vulnerability.bin` |
+| damage bin dictionary | `damagebin` | `damage_bin_dict.bin` |
+| footprint | `footprint` | `footprint.bin` (`footprint.bin.z` if zipped) |
+| loss factors | `lossfactors` | `lossfactors.bin` |
+| random numbers | `random` | `random.bin` |
+| vulnerability | `vulnerability` | `vulnerability.bin` (`vulnerability.bin.z` if zipped) |
+| weights | `weights` | `weights.bin` |
+| amplifications | `amplifications` | `amplifications.bin` |
+| coverages | `coverages` | `coverages.bin` |
+| events | `eve` | `events.bin` |
+| items | `items` | `items.bin` |
+| gul summary xref | `gul_summary_xref` | `gulsummaryxref.bin` |
+| fm policytc | `fm_policytc` | `fm_policytc.bin` |
+| fm programme | `fm_programme` | `fm_programme.bin` |
+| fm profile (/ step) | `fm_profile` (`fm_profile_step`) | `fm_profile.bin` |
+| fm summary xref | `fm_summary_xref` | `fmsummaryxref.bin` |
+| fm xref | `fm_xref` | `fmxref.bin` |
+| occurrence | `occurrence` | `occurrence.bin` |
+| return periods | `returnperiods` | `returnperiods.bin` |
+| periods | `periods` | `periods.bin` |
+| quantile | `quantile` | `quantile.bin` |
 
 Parquet input is handled by `parquettobin`. A reference intensity bin dictionary CSV may
 also exist (there is no converter for it — it is not needed for calculation).
