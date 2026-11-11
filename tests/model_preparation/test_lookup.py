@@ -7,6 +7,7 @@ import string
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
+import numpy as np
 import pandas as pd
 from hypothesis import HealthCheck, given, settings
 from hypothesis.strategies import just, sampled_from, text
@@ -333,31 +334,35 @@ class GenerateKeysWithBuiltinLookup(TestCase):
 
     def test_built_in_lookup_step_multiproc_matches_singleproc(self):
         """Forcing an explicit lookup_num_chunks/lookup_num_processes > 1 must exercise the
-        real multiprocess pool (generate_key_files_multiproc), and produce the same rows as
-        the singleproc run (see the shared run_multiproc engine in oasislmf.utils.multiproc).
-        Row order isn't guaranteed across workers, so rows are compared as sets, not bytes."""
-        with TemporaryDirectory() as d:
-            generate_keys = GenerateKeys(
-                oed_location_csv=pathlib.Path(META_DATA_PATH, 'location.csv'),
-                lookup_config_json=pathlib.Path(META_DATA_PATH, 'lookup_config.json'),
-                keys_data_path=str(pathlib.Path(d, 'keys.csv')),
-                keys_format="oasis",
-                lookup_multiprocessing=True,
-                lookup_num_chunks=2,
-                lookup_num_processes=2,
-            )
-            generate_keys.run()
+        real multiprocess pool (generate_key_files_multiproc), and produce the singleproc rows.
 
-            def row_set(fp):
-                with open(fp) as f:
-                    lines = f.readlines()
-                return lines[0], set(lines[1:])
-
-            new_header, new_rows = row_set(pathlib.Path(d, 'keys.csv'))
-            expected_header, expected_rows = row_set(pathlib.Path(META_DATA_PATH, 'keys.csv'))
-            assert new_header == expected_header
-            assert new_rows == expected_rows
-            assert filecmp.cmp(pathlib.Path(d, 'keys-errors.csv'), pathlib.Path(META_DATA_PATH, 'keys-errors.csv'), shallow=False)
+        Row order must also be deterministic (#2211): the keys row order sets item_id downstream,
+        so results are written in chunk order, not in whichever order workers finish. The builtin
+        lookup orders rows within each block it processes, so the expected file is the singleproc
+        rows taken chunk by chunk (chunks split by sorted loc_id, see _split_locations)."""
+        expected_keys = pd.read_csv(pathlib.Path(META_DATA_PATH, 'keys.csv'))
+        # loc_id is assigned 1..n in location file order; include locations that only produce errors
+        loc_ids = np.arange(1, len(pd.read_csv(pathlib.Path(META_DATA_PATH, 'location.csv'))) + 1)
+        for num_chunks in (2, 3):
+            chunk_of = {loc_id: i for i, part in enumerate(np.array_split(loc_ids, num_chunks)) for loc_id in part}
+            expected = expected_keys.iloc[
+                expected_keys['LocID'].map(chunk_of).reset_index(drop=True).sort_values(kind='stable').index]
+            for _ in range(3):
+                with self.subTest(num_chunks=num_chunks), TemporaryDirectory() as d:
+                    generate_keys = GenerateKeys(
+                        oed_location_csv=pathlib.Path(META_DATA_PATH, 'location.csv'),
+                        lookup_config_json=pathlib.Path(META_DATA_PATH, 'lookup_config.json'),
+                        keys_data_path=str(pathlib.Path(d, 'keys.csv')),
+                        keys_format="oasis",
+                        lookup_multiprocessing=True,
+                        lookup_num_chunks=num_chunks,
+                        lookup_num_processes=num_chunks,
+                    )
+                    generate_keys.run()
+                    pd.testing.assert_frame_equal(pd.read_csv(pathlib.Path(d, 'keys.csv')),
+                                                  expected.reset_index(drop=True))
+                    assert filecmp.cmp(pathlib.Path(d, 'keys-errors.csv'),
+                                       pathlib.Path(META_DATA_PATH, 'keys-errors.csv'), shallow=False)
 
     def test_builtin_geo_grid_peril(self):
         with TemporaryDirectory() as d:
