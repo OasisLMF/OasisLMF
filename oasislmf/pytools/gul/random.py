@@ -7,7 +7,11 @@ import numpy as np
 from numba import njit
 from scipy.stats import norm
 
+from oasislmf.pytools.common.data import oasis_float
+
 logger = logging.getLogger(__name__)
+
+oasis_float_type = oasis_float.type
 
 
 GROUP_ID_HASH_CODE = np.int64(1543270363)
@@ -183,8 +187,8 @@ def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
 
     Previously `get_corr_rval_float` used by GulMC, now shared by both GULs
     """
-    # Numba types sqrt(float32) as float32; round explicitly so the pure-Python path matches
-    sqrt_rho = np.float32(sqrt(rho))
+    # Numba types sqrt(rho) as rho's own float width; round explicitly so the pure-Python path matches
+    sqrt_rho = oasis_float_type(sqrt(rho))
     sqrt_1_minus_rho = sqrt(1. - np.float64(rho))
     N = len(norm_inv_cdf)
     eps = epsilon

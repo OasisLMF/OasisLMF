@@ -465,6 +465,13 @@ class TestRunCustomGulcalcCommand(TestCase):
     def test_no_custom_gulcalc_leaves_the_default_command(self):
         self.assertIsNone(self._getmodel_cmd_passed_to_genbash())
 
+    def test_caller_command_builder_is_used_without_a_custom_gulcalc(self):
+        """A caller's builder must reach genbash even when no custom gulcalc is set or inferred."""
+        def caller_builder(**kwargs):
+            return 'caller command'
+
+        self.assertIs(self._getmodel_cmd_passed_to_genbash(custom_get_getmodel_cmd=caller_builder), caller_builder)
+
     def test_caller_command_builder_is_used_with_a_custom_gulcalc(self):
         """A model runner that passes its own builder for its custom gulcalc must have it used.
         See https://github.com/OasisLMF/OasisLMF/issues/2255.
