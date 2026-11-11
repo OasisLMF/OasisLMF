@@ -357,15 +357,11 @@ def first_time_layer_extra(profile_count, base_children_count, temp_children_que
 
     Same as first_time_layer but also handles the extras array (deductible, overlimit, underlimit).
 
-    With a single base child, that child is the node whose layers the profiles read, so its
-    extras are copied from layer 0: every layer of a node holds the node's whole accumulated
-    extras (see "Extras Across Layers" in TECHNICAL.md).
-
-    With several base children, these are the items under the node, not the node. The node's
-    own layers are copied elsewhere (the single-child path in compute_event, or
-    aggregate_children_extras reading layers that still alias layer 0). The items' new layers
-    start at zero: they only receive the changes back-allocated to them, and items are never
-    aggregated again, so nothing reads them as accumulated extras.
+    Every new layer gets a copy of layer 0's extras, whether the base child is the node itself
+    (a single base child) or one of the items under it (several): each layer holds the whole
+    accumulated extras (see "Extras Across Layers" in TECHNICAL.md). The items need the copy too.
+    When a per-layer profile gives deductible back, back_alloc_extra_a2 shares it between the
+    items in proportion to their own extras, so items left at zero would receive none of it.
 
     Args:
         profile_count: Number of profiles/layers to create
@@ -394,10 +390,7 @@ def first_time_layer_extra(profile_count, base_children_count, temp_children_que
             compute_idx['loss_ptr_i'] += child_val_count
 
             extras_indptr[child['extra'] + profile_i] = compute_idx['extras_ptr_i']
-            if base_children_count == 1:  # the node itself: copy
-                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_count] = child_extra_val_layer_0
-            else:  # items under the node: start at zero
-                extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_count].fill(0)
+            extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_count] = child_extra_val_layer_0
             compute_idx['extras_ptr_i'] += child_val_count
 
 
