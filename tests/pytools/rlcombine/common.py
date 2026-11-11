@@ -1,14 +1,19 @@
 """Common data and helpers for the rlcombine tests: build summary streams and run the reader on them."""
+import shutil
 from contextlib import ExitStack
+from pathlib import Path
 
 import numpy as np
 
 from oasislmf.pytools.common.data import fm_summary_xref_dtype
 from oasislmf.pytools.common.event_stream import ITEM_STREAM, SUMMARY_STREAM_ID, stream_info_to_bytes
-from oasislmf.pytools.rlcombine.manager import init_summary_streams_in
+from oasislmf.pytools.rlcombine.manager import init_summary_streams_in, run
 from oasislmf.pytools.rlcombine.reader import (SENTINEL_SUMMARY_ID, SummaryCombineReader, event_id_dtype, loss_dtype,
                                                sidx_dtype, summary_id_dtype, summaryset_id_dtype)
 from oasislmf.utils.defaults import SUMMARY_OUTPUT
+
+SUMMARYPY_ASSETS = Path(__file__).parent.parent.parent / 'assets' / 'test_summarypy'
+COMBINED_FILE = 'rl_S1_summary_P1'  # name of the combined output written by run_rlcombine
 
 # a summary record header and a (sidx, loss) pair, as written in a summary stream
 record_header_dtype = np.dtype([('event_id', event_id_dtype), ('summary_id', summary_id_dtype), ('expval', loss_dtype)])
@@ -92,6 +97,44 @@ def write_rl_static(static_dir, n_summary_ids, summary_set_id=1):
     xref['summaryset_id'] = summary_set_id
     xref.tofile(static_dir / f"{SUMMARY_OUTPUT['rl']}.bin")
     return str(static_dir)
+
+
+def write_summarypy_rl_static(static_dir):
+    """Copy the risummaryxref of the summarypy test assets to static_dir as an rlsummaryxref, so
+    summarypy -t rl and rlcombine can run on SUMMARYPY_ASSETS/ri.bin."""
+    static_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(SUMMARYPY_ASSETS / 'single_summary_set' / 'RI_1' / f"{SUMMARY_OUTPUT['ri']}.bin",
+                static_dir / f"{SUMMARY_OUTPUT['rl']}.bin")
+    return str(static_dir)
+
+
+def passthrough_file(file_idx):
+    """Name of the pass-through output of input file_idx written by run_rlcombine."""
+    return f'rl_IP{file_idx + 1}_S1_summary_P1'
+
+
+def run_rlcombine(tmp_path, streams, passthrough=(), low_memory=False, ext='', max_summary_id=5):
+    """Run rlcombine on the summary streams, writing to tmp_path/out.
+
+    Args:
+        tmp_path (Path): directory for the inputs, static files and outputs
+        streams (list): summary stream of each input, as bytes
+        passthrough (list): indices of the inputs to pass through (-I)
+        low_memory (bool): if True write .idx files (-m)
+        ext (str): extension of the output files, e.g. '.bin'
+        max_summary_id (int): number of summary_ids in the rlsummaryxref of each input
+
+    Returns:
+        dict: ``{file name: bytes}`` of every file rlcombine wrote, named COMBINED_FILE and
+            passthrough_file(i), plus ext
+    """
+    files = write_stream_files(tmp_path, streams)
+    static_paths = [write_rl_static(tmp_path / f'RI_{i + 1}', max_summary_id) for i in range(len(streams))]
+    out_dir = tmp_path / 'out'
+    out_dir.mkdir()
+    run(files, str(out_dir / (COMBINED_FILE + ext)), static_paths, low_memory,
+        [f'{i}={out_dir / (passthrough_file(i) + ext)}' for i in passthrough], False)
+    return {path.name: path.read_bytes() for path in out_dir.iterdir()}
 
 
 def read_events(files_in, max_summary_id=10):
