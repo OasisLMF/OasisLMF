@@ -9,7 +9,7 @@ import numba as nb
 import numpy as np
 
 from oasislmf.pytools.common.data import def_to_type_and_size
-from oasislmf.pytools.common.event_stream import MEAN_IDX, MAX_LOSS_IDX, EventReader, init_streams_in, mv_read, ITEM_STREAM, SUMMARY_STREAM_ID
+from oasislmf.pytools.common.event_stream import MEAN_IDX, MAX_LOSS_IDX, EventReader, mv_read
 from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,8 @@ class EventBuffer:
     """
 
     def __init__(self, max_summary_id, len_sample):
-        """
+        """Allocate the arrays for the largest possible event.
+
         Args:
             max_summary_id (int): largest summary_id in the summary set
             len_sample (int): number of samples
@@ -148,7 +149,8 @@ class SummaryCombineReader(EventReader):
     """
 
     def __init__(self, n_inputs, max_summary_id, len_samples):
-        """
+        """Set up the read state and an EventBuffer for each input.
+
         Args:
             n_inputs (int): number of input streams
             max_summary_id (int): largest summary_id in the summary set
@@ -194,12 +196,12 @@ class SummaryCombineReader(EventReader):
             n_records, n_pairs = state['n_records'], state['n_pairs']
 
             output_buffer = {
-                    'summary_ids': buffer.summary_ids[:n_records].copy(),
-                    'expval': buffer.expval[:n_records].copy(),
-                    'offsets': buffer.offsets[:n_records + 1].copy(),
-                    'sidx': buffer.sidx[:n_pairs].copy(),
-                    'loss': buffer.loss[:n_pairs].copy()
-                    }
+                'summary_ids': buffer.summary_ids[:n_records].copy(),
+                'expval': buffer.expval[:n_records].copy(),
+                'offsets': buffer.offsets[:n_records + 1].copy(),
+                'sidx': buffer.sidx[:n_pairs].copy(),
+                'loss': buffer.loss[:n_pairs].copy()
+            }
 
             yield (file_idx, event_id, output_buffer)
             state['n_records'] = 0

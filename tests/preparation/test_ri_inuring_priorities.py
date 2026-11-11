@@ -258,15 +258,15 @@ class TestGenerateSummaryxrefRI(TestCase):
         """generate_summaryxref_files() should create a readable output in the output directory/."""
         with tempfile.TemporaryDirectory() as d:
             expected_mapping_file = {
-                                     "IP1": {
-                                              "inuring_priority": 1,
-                                              "risk_level": "LOC"
-                                            },
-                                     "IP2": {
-                                             "inuring_priority": 2,
-                                             "risk_level": "SEL"
-                                             }
-                                     }
+                "IP1": {
+                    "inuring_priority": 1,
+                    "risk_level": "LOC"
+                },
+                "IP2": {
+                    "inuring_priority": 2,
+                    "risk_level": "SEL"
+                }
+            }
             self._setup_run_dir(d, [(1, 'LOC'), (2, 'SEL')])
             settings = self._analysis_settings()
 

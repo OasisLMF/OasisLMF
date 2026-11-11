@@ -16,7 +16,6 @@ __all__ = [
 
 import logging
 import pathlib
-import shutil
 
 import io
 import json
@@ -797,7 +796,7 @@ def generate_summaryxref_files(
         # Write Xref file for each inuring priority where output has been requested.
         summary_ri_fps = get_ri_summaryxref_dirs(
             os.path.join(model_run_fp, 'input'), analysis_settings
-            )
+        )
 
         for summary_ri_fp in summary_ri_fps:
             df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['ri']}.bin"))

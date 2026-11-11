@@ -25,9 +25,9 @@ import logging
 import numpy as np
 import numba as nb
 
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, SUMMARY_STREAM_ID, TIV_IDX, init_streams_in, mv_write_sidx_loss, mv_write_summary_header, stream_info_to_bytes, write_mv_to_stream
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_write_sidx_loss, mv_write_summary_header, stream_info_to_bytes, write_mv_to_stream
 
-from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, def_to_type_and_size, null_index, summary_stream_index_dtype
+from oasislmf.pytools.common.data import def_to_type_and_size, null_index, summary_stream_index_dtype
 from oasislmf.pytools.summary.manager import load_summary_object
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.exceptions import OasisException
@@ -45,14 +45,15 @@ loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
 
 record_dtype = np.dtype([
     ('event_id', event_id_dtype),
-    ('summary_id',  summary_id_dtype),
-    ('expval',  loss_dtype),
+    ('summary_id', summary_id_dtype),
+    ('expval', loss_dtype),
 ])
 
 sidx_pair_dtype = np.dtype([
     ('sidx', sidx_dtype),
     ('loss', loss_dtype),
 ])
+
 
 class EventAccumulator:
     """Combined losses of the event being merged, one row per summary_id (row = summary_id - 1).
@@ -66,7 +67,8 @@ class EventAccumulator:
     """
 
     def __init__(self, max_summary_id, len_sample):
-        """
+        """Allocate the combined loss arrays, set to zero.
+
         Args:
             max_summary_id (int): largest summary_id in the summary set
             len_sample (int): number of samples
@@ -89,6 +91,7 @@ class EventAccumulator:
         self.max_loss[rows] = 0
         self.mean[rows] = 0
         self.losses[rows] = 0
+
 
 def init_summary_streams_in(files_in, stack):
     """Open the input summary streams and check that their headers agree.
@@ -117,6 +120,7 @@ def init_summary_streams_in(files_in, stack):
         raise OasisException(f"input streams have different summary_set_id {summary_set_ids}")
 
     return streams_in, len_sample, summary_set_ids[0]
+
 
 def parse_intermediate_outputs(intermediate_outputs_arg):
     """Parse the -I/--intermediate-outputs arguments.
@@ -218,9 +222,9 @@ def accumulate_input_events(summary_ids, expval_event, offsets_event, sidx_event
         row = summary_id - 1
         present[row] = True
         expval[row] += expval_event[i]
-        for j in range(offsets_event[i], offsets_event[i+1]):
+        for j in range(offsets_event[i], offsets_event[i + 1]):
             if sidx_event[j] > 0:
-                losses[row, sidx_event[j]-1] += loss_event[j]
+                losses[row, sidx_event[j] - 1] += loss_event[j]
             elif sidx_event[j] == MAX_LOSS_IDX:
                 max_loss[row] += loss_event[j]
             elif sidx_event[j] == MEAN_IDX:
@@ -330,9 +334,9 @@ def write_combined_event(pipe, idx_pipe, byte_mv, event_id, len_sample, present_
     last_record, last_sidx, idx_cursor = 0, 0, 0
     while True:
         cursor, last_record, last_sidx, idx_cursor = mv_write_combined_event(
-                byte_mv, event_id, len_sample, present_ids, acc.expval, acc.max_loss,
-                acc.mean, acc.losses, output_zeros, last_record, last_sidx, stream_offsets[file_idx],
-                idx_buffer, idx_cursor)
+            byte_mv, event_id, len_sample, present_ids, acc.expval, acc.max_loss,
+            acc.mean, acc.losses, output_zeros, last_record, last_sidx, stream_offsets[file_idx],
+            idx_buffer, idx_cursor)
         write_mv_to_stream(pipe, byte_mv, cursor)
         stream_offsets[file_idx] += cursor
         if last_record == -1:
@@ -375,7 +379,7 @@ def mv_write_passthrough_event(byte_mv, last_record, last_pair, idx_buffer, idx_
     cursor = 0
 
     for i in range(last_record, n_records):
-        if last_pair == -1: # start of new record
+        if last_pair == -1:  # start of new record
             if cursor + RECORD_HEADER_SIZE + PAIR_SIZE > PIPE_CAPACITY:
                 return cursor, i, -1, idx_cursor
             idx_buffer[idx_cursor]['summary_id'] = summary_ids[i]
@@ -384,12 +388,12 @@ def mv_write_passthrough_event(byte_mv, last_record, last_pair, idx_buffer, idx_
             cursor = mv_write_summary_header(byte_mv, cursor, event_id, summary_ids[i], expval[i])
             last_pair = offsets[i]
 
-        for j in range(last_pair, offsets[i+1]):
-            if cursor + PAIR_SIZE * 2 > PIPE_CAPACITY: # pair + terminator
+        for j in range(last_pair, offsets[i + 1]):
+            if cursor + PAIR_SIZE * 2 > PIPE_CAPACITY:  # pair + terminator
                 return cursor, i, j, idx_cursor
             cursor = mv_write_sidx_loss(byte_mv, cursor, sidx[j], loss[j])
 
-        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0) # terminator
+        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)  # terminator
         last_pair = -1
     return cursor, -1, -1, idx_cursor
 
@@ -411,9 +415,9 @@ def write_passthrough_event(pipe, idx_pipe, byte_mv, event_id, event_buffer,
     last_record, last_pair, idx_cursor = 0, -1, 0
     while True:
         cursor, last_record, last_pair, idx_cursor = mv_write_passthrough_event(
-                byte_mv, last_record, last_pair, idx_buffer, idx_cursor, idx_file_cursors[file_idx], event_id,
-                event_buffer['summary_ids'], event_buffer['expval'], event_buffer['sidx'], event_buffer['loss'],
-                event_buffer['offsets'])
+            byte_mv, last_record, last_pair, idx_buffer, idx_cursor, idx_file_cursors[file_idx], event_id,
+            event_buffer['summary_ids'], event_buffer['expval'], event_buffer['sidx'], event_buffer['loss'],
+            event_buffer['offsets'])
 
         write_mv_to_stream(pipe, byte_mv, cursor)
         idx_file_cursors[file_idx] += cursor
@@ -435,6 +439,7 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         low_memory (bool): if True, write a .idx file next to each output
         intermediate_outputs (List[str] | None): pass-through outputs, as ``input_index=path``
         output_zeros (bool): if True, samples with a zero loss are written to the combined output
+        **kwargs: other command line options, unused
 
     Raises:
         OasisException: if the inputs do not match their static paths, the events of the inputs are not
@@ -478,14 +483,14 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
             idx_file_cursors[i] += int_pipe.write(len_sample.tobytes())
             idx_file_cursors[i] += int_pipe.write(summary_id_dtype.type(summary_set_id).tobytes())
 
-
         # prepare index pipes
         output_index_pipe = None
         intermediate_idx_pipes = {}
         if low_memory:
             output_index_name = output_summary_file.rsplit('.', 1)[0] + '.idx'
             output_index_pipe = stack.enter_context(open(output_index_name, 'wb'))
-            intermediate_idx_pipes = {i: stack.enter_context(open(intermediate_path.rsplit('.', 1)[0] + '.idx', 'wb')) for i, intermediate_path in intermediate_outputs.items()}
+            intermediate_idx_pipes = {i: stack.enter_context(open(intermediate_path.rsplit('.', 1)[0] + '.idx', 'wb'))
+                                      for i, intermediate_path in intermediate_outputs.items()}
 
         summary_stream_reader = SummaryCombineReader(n_inputs, max_summary_id, len_sample)
         input_queues = [[] for _ in range(n_inputs)]
@@ -514,12 +519,12 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
             acc.reset(present_ids)
 
         if any([len(input_queue) != 0 for input_queue in input_queues]):
-               raise OasisException('Summary streams only partially combined.')
+            raise OasisException('Summary streams only partially combined.')
 
 
 @redirect_logging(exec_name='rlcombine')
 def main(summary_files_in, output_summary_file, static_paths, low_memory,
          intermediate_outputs, output_zeros, **kwargs):
-    """rlcombine entry point, see run for the arguments."""
+    """Entry point of rlcombine, see run for the arguments."""
     run(summary_files_in, output_summary_file, static_paths, low_memory,
         intermediate_outputs, output_zeros, **kwargs)

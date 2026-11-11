@@ -923,13 +923,18 @@ def do_summarycalcs(
             chain (see ``do_tees``). The Python aggregators (``lecpy``,
             ``aalpy``, ``eltpy``, ``pltpy``) glob ``*.bin`` work files and
             do not read ``.idx`` -- so they don't require this flag.
+        rlcombine (bool): If True, write the ``summarypy -s`` streams that ``rlcombine``
+            reads for each inuring priority (``rl`` runtype only).
+
+    Raises:
+        ValueError: if rlcombine is set for a runtype other than ``rl``
     """
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
     if rlcombine and runtype != RUNTYPE_REINSURANCE_GROSS_LOSS:
-            raise ValueError('rlcombine only supported for the rl runtype')
+        raise ValueError('rlcombine only supported for the rl runtype')
 
     if process_id == 1:
         print_command(filename, '')
@@ -975,16 +980,16 @@ def do_summarycalcs(
 
 
 def do_rlcombine(
-            analysis_settings,
-            process_id,
-            filename,
-            process_counter,
-            combine_levels,
-            passthrough_levels,
-            fifo_dir='fifo/',
-            stderr_guard=True,
-            summarypy_low_memory=False,
-    ):
+    analysis_settings,
+    process_id,
+    filename,
+    process_counter,
+    combine_levels,
+    passthrough_levels,
+    fifo_dir='fifo/',
+    stderr_guard=True,
+    summarypy_low_memory=False,
+):
     runtype = RUNTYPE_REINSURANCE_GROSS_LOSS
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -1232,8 +1237,12 @@ def get_reinsurance_inuring_priorities(analysis_settings,
             checked for the ``'r{i,l}_inuring_priorities'`` key.
         num_reinsurance_iterations (int): Total number of reinsurance
             iterations.
-        gross (bool): If True then return gross reinsurance inuring priorities.
-            By default is False and will return net reinsurance inuring priorities.
+        perspective (str): ``'ri'`` for net loss or ``'rl'`` for the reinsurer's
+            loss, selecting ``ri_inuring_priorities`` or ``rl_inuring_priorities``.
+        all_layers (bool): If True return every iteration instead of the
+            requested inuring priorities.
+        include_final (bool): If True add the final iteration when it is not
+            already included.
 
     Returns:
         list[dict]: Each dict has ``'text'`` (file-name prefix) and
@@ -1311,11 +1320,10 @@ def rl(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-
     combine_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
                                                         perspective='rl', all_layers=True)
     passthrough_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
-                                                        perspective='rl', include_final=False)
+                                                            perspective='rl', include_final=False)
 
     for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
         for process_id in process_range(max_process_id, process_number):
@@ -1340,7 +1348,7 @@ def rl(
             filename=filename,
             process_counter=process_counter,
             combine_levels=combine_levels,
-            passthrough_levels=passthrough_levels, # requested IP levels
+            passthrough_levels=passthrough_levels,  # requested IP levels
             fifo_dir=fifo_dir,
             stderr_guard=stderr_guard,
             summarypy_low_memory=summarypy_low_memory,
@@ -2546,10 +2554,10 @@ def create_bash_analysis(
                 )
 
                 fifo_list += do_fifos_rlcombine(
-                        RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
-                        num_fm_output, filename, fifo_dir, process_number,
-                        consumer_prefix=inuring_priority['text']
-                        )
+                    RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
+                    num_fm_output, filename, fifo_dir, process_number,
+                    consumer_prefix=inuring_priority['text']
+                )
 
             # outputs only need the requested layers and the final combined output
             for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
