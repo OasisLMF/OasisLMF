@@ -4,6 +4,7 @@ import pathlib
 import os
 import logging
 import shutil
+import numpy as np
 
 from unittest.mock import patch, Mock
 
@@ -473,6 +474,53 @@ class TestGenLosses(ComputationChecker):
                 self.assertEqual(gulmc_built, gulmc_structure_exists(model_run_dir))
                 self.assertEqual(gulpy_built, gulpy_structure_exists(model_run_dir))
                 self.assertEqual(getmodel_built, getmodel_structure_exists(model_run_dir))
+
+    def test_losses__dir__occurrence_index_built_only_for_outputs_that_read_occurrences(self):
+        """pltpy, aalpy and lecpy share an occurrence index built once by the dir step; it is
+        skipped when no summary requests PLT, ALT or EPT/PSEPT."""
+        from oasislmf.pytools.common.input_files import read_occurrence
+
+        self.manager.generate_files(**self.args_gen_files_gul)
+        cases = [
+            ({"elt_sample": True}, False),
+            ({"plt_moment": True}, True),
+            ({"alt_period": True}, True),
+        ]  # EPT/PSEPT need returnperiods.bin, which the dummy model lacks: see the test below
+        for ord_output, built in cases:
+            settings = {**MIN_RUN_SETTINGS, "gul_summaries": [{"id": 1, "ord_output": ord_output}]}
+            self.write_json(self.tmp_files.get('analysis_settings_json'), settings)
+            with self.subTest(**ord_output), self.tmp_dir() as model_run_dir:
+                self.manager.generate_losses_dir(**{**self.min_args, 'model_run_dir': model_run_dir})
+                input_dir = os.path.join(model_run_dir, 'input')
+                self.assertEqual(built, os.path.isfile(os.path.join(input_dir, 'occurrence_index', 'source.json')))
+                if built:
+                    occ_csr, *_ = read_occurrence(input_dir)
+                    self.assertIsInstance(occ_csr.occ_offsets, np.memmap)
+
+    def test_losses__occurrence_outputs_requested(self):
+        from oasislmf.computation.generate.losses import occurrence_outputs_requested
+
+        def settings(runtype, ord_output):
+            return {f"{runtype}_summaries": [{"id": 1, "ord_output": ord_output}]}
+
+        for option in ["plt_sample", "plt_quantile", "plt_moment", "alt_period", "alt_meanonly",
+                       "ept_full_uncertainty_aep", "ept_per_sample_mean_oep", "psept_aep"]:
+            for runtype in ["gul", "il", "ri", "rl"]:
+                with self.subTest(option=option, runtype=runtype):
+                    self.assertTrue(occurrence_outputs_requested(settings(runtype, {option: True})))
+        self.assertFalse(occurrence_outputs_requested(settings("gul", {"plt_moment": False})))
+        self.assertFalse(occurrence_outputs_requested(settings("il", {"elt_sample": True, "elt_moment": True})))
+        self.assertFalse(occurrence_outputs_requested({"gul_summaries": [{"id": 1}], "il_output": True}))
+
+    def test_losses__dir__occurrence_index_failure_only_warns(self):
+        self.manager.generate_files(**self.args_gen_files_gul)
+        settings = {**MIN_RUN_SETTINGS, "gul_summaries": [{"id": 1, "ord_output": {"plt_moment": True}}]}
+        self.write_json(self.tmp_files.get('analysis_settings_json'), settings)
+        with (self.tmp_dir() as model_run_dir,
+              patch('oasislmf.computation.generate.losses.write_occurrence_index', side_effect=ValueError('bad file')),
+              self.assertLogs('oasislmf', level='WARNING') as logs):
+            self.manager.generate_losses_dir(**{**self.min_args, 'model_run_dir': model_run_dir})
+        self.assertTrue(any('occurrence index not built' in line for line in logs.output))
 
     def test_losses__chucked_workflow(self):
         num_chunks = 5

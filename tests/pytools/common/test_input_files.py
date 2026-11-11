@@ -1,3 +1,5 @@
+import os
+import shutil
 from tempfile import TemporaryDirectory
 import numpy as np
 import pytest
@@ -12,6 +14,10 @@ from oasislmf.pytools.common.data import (
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as OCC_IDX_NOT_FOUND
 from oasislmf.pytools.common.input_files import (
+    OccurrenceCSR,
+    OCCURRENCE_INDEX_SOURCE_FILE,
+    _occurrence_index_dir,
+    occ_max_records_per_event,
     read_amplifications,
     read_coverage_buildings,
     read_coverages,
@@ -22,6 +28,7 @@ from oasislmf.pytools.common.input_files import (
     read_periods,
     read_quantile,
     read_returnperiods,
+    write_occurrence_index,
 )
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_common")
@@ -290,6 +297,71 @@ def test_read_occurrence_granular():
         csr_slice = occ_csr.occ_flat[occ_csr.occ_offsets[i]:occ_csr.occ_offsets[i + 1]]
         expected = occ_arr[occ_arr["event_id"] == event_id]["period_no"]
         np.testing.assert_array_equal(np.sort(csr_slice["period_no"]), np.sort(expected))
+
+
+def _copy_occurrence(filename, run_dir):
+    shutil.copy(Path(TESTS_ASSETS_DIR, "input", filename), Path(run_dir, filename))
+
+
+def _assert_same_csr(actual, expected):
+    for name in OccurrenceCSR._fields:
+        np.testing.assert_array_equal(getattr(actual, name), getattr(expected, name))
+
+
+@pytest.mark.parametrize("filename", ["occurrence.bin", "occurrence_gran.bin"])
+def test_read_occurrence_maps_saved_index(filename):
+    """An index saved by write_occurrence_index is memory-mapped and equals the one built in memory."""
+    with TemporaryDirectory() as run_dir:
+        _copy_occurrence(filename, run_dir)
+        built, *built_meta = read_occurrence(run_dir, filename)
+        assert not isinstance(built.occ_offsets, np.memmap)
+
+        write_occurrence_index(run_dir, filename)
+        mapped, *mapped_meta = read_occurrence(run_dir, filename)
+
+        assert all(isinstance(getattr(mapped, name), np.memmap) for name in OccurrenceCSR._fields)
+        _assert_same_csr(mapped, built)
+        assert mapped_meta == built_meta
+
+
+def test_read_occurrence_ignores_index_of_a_different_occurrence_file():
+    """An index left from another occurrence file is not used, even if that file looks newer."""
+    filename = "occurrence.bin"
+    with TemporaryDirectory() as run_dir:
+        _copy_occurrence(filename, run_dir)
+        write_occurrence_index(run_dir, filename)
+
+        occurrence_fp = Path(run_dir, filename)
+        occ_bytes = bytearray(occurrence_fp.read_bytes())
+        occ_bytes[-8:-4] = np.int32(999).tobytes()  # last record's period_no
+        occurrence_fp.write_bytes(occ_bytes)
+        os.utime(occurrence_fp, (0, 0))  # older than the index
+
+        occ_csr, *_ = read_occurrence(run_dir, filename)
+        assert not isinstance(occ_csr.occ_offsets, np.memmap)
+        assert 999 in occ_csr.occ_flat["period_no"]
+
+
+@pytest.mark.parametrize("missing", [OCCURRENCE_INDEX_SOURCE_FILE, "occ_flat.npy"])
+def test_read_occurrence_ignores_incomplete_index(missing):
+    filename = "occurrence.bin"
+    with TemporaryDirectory() as run_dir:
+        _copy_occurrence(filename, run_dir)
+        built, *_ = read_occurrence(run_dir, filename)
+        write_occurrence_index(run_dir, filename)
+        Path(_occurrence_index_dir(run_dir, filename), missing).unlink()
+
+        occ_csr, *_ = read_occurrence(run_dir, filename)
+        assert not isinstance(occ_csr.occ_offsets, np.memmap)
+        _assert_same_csr(occ_csr, built)
+
+
+@pytest.mark.parametrize("occ_offsets, expected", [
+    ([0], 0),
+    ([0, 2, 2, 5, 6], 3),
+])
+def test_occ_max_records_per_event(occ_offsets, expected):
+    assert occ_max_records_per_event(np.array(occ_offsets, dtype=np.int64)) == expected
 
 
 def test_read_periods():

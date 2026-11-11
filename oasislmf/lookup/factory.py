@@ -533,6 +533,9 @@ class BasicKeyServer:
                 output_format=output_format,
                 keys_success_msg=keys_success_msg,
             ),
+            # keys file row order sets item_id downstream, so it must not depend on which
+            # worker finishes first (see #2211)
+            ordered=True,
         )
 
     @oasis_log()

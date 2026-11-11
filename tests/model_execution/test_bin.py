@@ -42,6 +42,8 @@ from oasislmf.pytools.common.data import FM_STRUCTURE_INFO_FILE
 
 from tests.data import il_input_files, tar_file_targets
 
+TEST_COMMON_INPUT_DIR = Path(__file__).parent.parent.joinpath('assets', 'test_common', 'input')
+
 
 class MoveBinStructureInfo(TestCase):
     def test_structure_info_moves_with_the_binaries(self):
@@ -716,6 +718,20 @@ class PrepareRunInputs(TestCase):
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
+
+    def test_occurrence_bin_copied___occurrence_index_not_built(self):
+        """The index is built by GenerateLossesDir, so model validation, which also calls
+        prepare_run_inputs, doesn't write one it never uses."""
+        settings = {"gul_summaries": [{"ord_output": {"ept_full_uncertainty_aep": True}}]}
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+            shutil.copy(Path(TEST_COMMON_INPUT_DIR, 'occurrence.bin'), os.path.join(d, 'static', 'occurrence.bin'))
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
+
+            prepare_run_inputs(settings, d, model_storage)
+
+            self.assertTrue(Path(d, 'input', 'occurrence.bin').exists())
+            self.assertFalse(Path(d, 'input', 'occurrence_index').exists())
 
     def test_ord_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:

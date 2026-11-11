@@ -9,6 +9,7 @@ Follows the same pattern as ``oasislmf.pytools.fm.financial_structure``:
 """
 import logging
 import os
+import shutil
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
@@ -19,7 +20,7 @@ from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
 from oasislmf.pytools.gul.structure import coverage_building_counts
-from oasislmf.pytools.getmodel.footprint import Footprint
+from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
 from oasislmf.pytools.getmodel.manager import (
     get_damage_bins, get_vulns, get_intensity_bin_dict, read_conditional_vulnerability,
 )
@@ -44,6 +45,8 @@ from oasislmf.utils.path import setcwd
 logger = logging.getLogger(__name__)
 
 STRUCTURE_DIR = 'gulmc_structure'
+# the dynamic footprint's hazard, saved once for every gulmc process to memory-map
+DYNAMIC_FOOTPRINT_DIR = 'dynamic_footprint'
 
 # (variable_name, filename) pairs for all arrays that are saved/loaded.
 # number of scalars load_gulmc_structure reads out of metadata.npy
@@ -415,7 +418,12 @@ def gulmc_structure_exists(run_dir):
     return True
 
 
-def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint, model_df_engine):
+def dynamic_footprint_path(run_dir):
+    return os.path.join(_structure_path(run_dir), DYNAMIC_FOOTPRINT_DIR)
+
+
+def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint, model_df_engine,
+                     dynamic_footprint_dir=None):
     """Build all read-only gulmc data structures from input files.
 
     This extracts the preparation logic from ``manager.run()`` into a
@@ -429,6 +437,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         peril_filter (list): list of perils to include (empty = all).
         dynamic_footprint (bool): whether to apply dynamic footprint logic.
         model_df_engine (str): engine for loading model dataframes.
+        dynamic_footprint_dir (str, optional): if given and the model has a dynamic footprint, save
+            its hazard there for the gulmc processes to memory-map. Defaults to None.
 
     Returns:
         dict: mapping variable names to numpy arrays / scalars.
@@ -593,6 +603,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                                          df_engine=model_df_engine,
                                          areaperil_ids=item_map_ja_areaperil_ids) as footprint_obj:
         num_intensity_bins = footprint_obj.num_intensity_bins
+        if dynamic_footprint_dir is not None and isinstance(footprint_obj, FootprintParquetDynamic):
+            if footprint_obj.save_shared(dynamic_footprint_dir):
+                logger.info(f"dynamic footprint saved to {dynamic_footprint_dir}")
 
     # --- vulnerabilities -------------------------------------------------------
     logger.debug('import vulnerabilities')
@@ -676,10 +689,13 @@ def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
         dynamic_footprint (bool): whether to apply dynamic footprint logic.
         model_df_engine (str): engine for loading model dataframes.
     """
-    structures = build_structures(run_dir, ignore_file_type, peril_filter,
-                                  dynamic_footprint, model_df_engine)
-
     structure_path = _structure_path(run_dir)
+    # a footprint saved for an earlier portfolio in this run directory must not be used for this one
+    shutil.rmtree(dynamic_footprint_path(run_dir), ignore_errors=True)
+    structures = build_structures(run_dir, ignore_file_type, peril_filter,
+                                  dynamic_footprint, model_df_engine,
+                                  dynamic_footprint_dir=dynamic_footprint_path(run_dir))
+
     os.makedirs(structure_path, exist_ok=True)
 
     # save all numpy arrays
