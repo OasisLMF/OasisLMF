@@ -46,6 +46,8 @@ class FootprintLayer:
         count (int): the number of processes currently relying on the server
         total_expected (int): the total number of reliant processes expected
         total_served (int): the total number of processes that have ever registered through the server's lifetime
+        areaperil_ids (Optional[np.ndarray]): areaperil_ids the footprint is filtered to, as gulmc does
+            when it loads the footprint itself; None to load it whole
     """
 
     def __init__(
@@ -54,6 +56,7 @@ class FootprintLayer:
         total_expected: int,
         ignore_file_type: Set[str] = set(),
         df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+        areaperil_ids: Optional[np.ndarray] = None,
     ) -> None:
         """The constructor for the FootprintLayer class.
 
@@ -62,6 +65,8 @@ class FootprintLayer:
             total_expected (int): the total number of reliant processes expected
             ignore_file_type (Set[str]): collection of file types to ignore when loading
             df_engine (str): the engine to use when loading dataframes
+            areaperil_ids (Optional[np.ndarray]): areaperil_ids to filter the footprint to. A dynamic
+                footprint needs them; without them it falls back to reading ``input/keys.csv``.
         """
         self.storage = storage
         self.ignore_file_type: Set[str] = ignore_file_type
@@ -71,6 +76,7 @@ class FootprintLayer:
         self.total_expected: int = total_expected
         self.total_served: int = 0
         self.df_engine = df_engine
+        self.areaperil_ids = areaperil_ids
         self._define_socket()
 
     def _define_socket(self) -> None:
@@ -92,6 +98,22 @@ class FootprintLayer:
         Returns: None
         """
         logging.info(f"establishing shutdown procedure: {datetime.datetime.now()}")
+
+    def get_event_data(self, event_id: int) -> Optional[np.array]:
+        """Fetch one event's footprint from the loaded footprint.
+
+        Uses only ``Footprint.get_event``, which every footprint format implements, so the
+        server works for csv, bin, binZ, parquet, chunked parquet and dynamic footprints alike.
+
+        Args:
+            event_id (int): the event to fetch
+
+        Returns:
+            Optional[np.array]: the event's footprint rows, or None if the event has none
+        """
+        event_data = self.file_data.get_event(event_id=event_id)
+        logging.debug(f'event_id "{event_id}": {0 if event_data is None else len(event_data)} footprint rows')
+        return event_data
 
     @staticmethod
     def _stream_footprint_data(event_data: np.array, connection: socket.socket, event_id: int) -> None:
@@ -141,7 +163,8 @@ class FootprintLayer:
         with ExitStack() as stack:
             footprint_obj = stack.enter_context(Footprint.load(self.storage,
                                                                ignore_file_type=self.ignore_file_type,
-                                                               df_engine=self.df_engine))
+                                                               df_engine=self.df_engine,
+                                                               areaperil_ids=self.areaperil_ids))
             self.file_data = footprint_obj
             while True:
                 try:
@@ -152,14 +175,7 @@ class FootprintLayer:
                         operation, event_id = self._extract_header(header_data=data)
 
                         if operation == OperationEnum.GET_DATA:
-                            event_data = self.file_data.get_event(event_id=event_id)
-
-                            if event_id in self.file_data.footprint_index:
-                                logging.info(f'event_id "{event_id}" retrieved from footprint index')
-                                del self.file_data.footprint_index[event_id]
-                            else:
-                                logging.error(f'event_id "{event_id}" not in footprint_index')
-
+                            event_data = self.get_event_data(event_id)
                             FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection, event_id=event_id)
 
                         elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
@@ -279,6 +295,27 @@ class FootprintLayerClient:
             return pickle.loads(b"".join(raw_data_buffer))
 
 
+def portfolio_areaperil_ids(input_path: str = 'input', ignore_file_type: Set[str] = set()) -> Optional[np.ndarray]:
+    """The unique areaperil_ids of the portfolio's items, which gulmc filters the footprint to.
+
+    Args:
+        input_path (str): the run's input directory, holding items.bin or items.csv
+        ignore_file_type (Set[str]): file extensions to skip when loading the items
+
+    Returns:
+        Optional[np.ndarray]: sorted unique areaperil_ids, or None if there is no items file
+    """
+    from oasislmf.pytools.gulmc.items import read_items  # gulmc imports this module
+
+    if not os.path.isdir(input_path):
+        return None
+    try:
+        items = read_items(input_path, ignore_file_type)
+    except FileNotFoundError:
+        return None
+    return np.unique(items['areaperil_id'])
+
+
 def main() -> None:
     logging.basicConfig(
         filename='footprint_tcp_server.log',
@@ -291,8 +328,11 @@ def main() -> None:
     parser.add_argument("n", help="number of processes expected to be reliant on server", type=int)
     parser.add_argument("--df-engine", help="The engine to use when loading dataframes",
                         default="oasis_data_manager.df_reader.reader.OasisPandasReader", )
+    parser.add_argument("--input-path", default="input",
+                        help="the run's input directory; its items set the areaperils the footprint is filtered to")
     args = parser.parse_args()
-    server = FootprintLayer(LocalStorage(root_dir=args.p), total_expected=args.n, df_engine=args.df_engine)
+    server = FootprintLayer(LocalStorage(root_dir=args.p), total_expected=args.n, df_engine=args.df_engine,
+                            areaperil_ids=portfolio_areaperil_ids(args.input_path))
     server.listen()
 
 
