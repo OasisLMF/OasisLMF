@@ -44,6 +44,7 @@ try:  # needed for h3 lookup
 except ImportError:
     h3 = h3_int = None
 
+import inspect
 import logging
 import math
 import re
@@ -56,6 +57,10 @@ from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 logger = logging.getLogger(__name__)
 
 OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
+
+# columns of the keys the built-in lookup returns, always or when a step creates them
+KEY_COLUMNS = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
+ADDITIONAL_KEY_COLUMNS = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
 
 
 def get_nearest(src_points, candidates, k_neighbors=1):
@@ -389,13 +394,82 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                         step_name=child_step_name,
                         step_config=child_step_config,
                         function_being_set=function_being_set)
-                    functions.append({'name': child_step_name, 'function': child_fct,
+                    functions.append({'name': child_step_name, 'function': self.with_canonical_columns(child_fct),
                                       'columns': set(child_step_config.get("columns", []))})
                 step_config['parameters']['strategy'] = functions
 
-            step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
+            builder = getattr(self, f"build_{step_config['type']}")
+            parameters = step_config['parameters']
+            if 'step_columns' in inspect.signature(builder).parameters:
+                parameters = {**parameters, 'step_columns': step_config.get('columns', [])}
+            step_function = builder(**parameters)
             setattr(self, step_name, step_function)
         return step_function
+
+    def canonical_column_map(self):
+        """Map each lower-case column name to the single spelling the lookup uses for it.
+
+        Output key columns (``peril_id``, ``area_peril_id``, ...) keep their lower-case names. Any other
+        column takes the first spelling found in the steps' ``columns`` lists, and those lists are
+        rewritten to use it, so every step sees the same name whatever case the config or the
+        exposure used.
+
+        Returns:
+            dict: lower-case column name to canonical spelling
+        """
+        if getattr(self, '_canonical_column_map', None) is None:
+            canonical = {col: col for col in KEY_COLUMNS + ADDITIONAL_KEY_COLUMNS}
+            step_definitions = self.config['step_definition'].values()
+            for step_config in step_definitions:
+                for col in step_config.get('columns', []):
+                    canonical.setdefault(col.lower(), col)
+            for step_config in step_definitions:
+                if 'columns' in step_config:
+                    step_config['columns'] = list(dict.fromkeys(canonical[col.lower()] for col in step_config['columns']))
+            self._canonical_column_map = canonical
+        return self._canonical_column_map
+
+    def canonicalise_columns(self, locations):
+        """Rename the columns of ``locations`` to their canonical spelling (see ``canonical_column_map``).
+
+        Args:
+            locations (pd.DataFrame): locations, possibly with columns added by a step in another case
+
+        Returns:
+            pd.DataFrame: locations with canonical column names
+
+        Raises:
+            OasisException: if two columns differ only by case, since it isn't clear which one to keep
+        """
+        canonical = self.canonical_column_map()
+        rename = {col: canonical[col.lower()] for col in locations.columns
+                  if isinstance(col, str) and canonical.get(col.lower(), col) != col}
+        if not rename:
+            return locations
+        targets = list(rename.values()) + [col for col in locations.columns if col not in rename]
+        clashes = sorted({target for target in targets if targets.count(target) > 1})
+        if clashes:
+            spellings = {target: sorted(col for col in locations.columns
+                                        if isinstance(col, str) and col.lower() == target.lower())
+                         for target in clashes}
+            raise OasisException(
+                f"Key Server Issue: columns {spellings} differ only by case. Column names in the built-in lookup "
+                "are matched case-insensitively, so a step must not create a column that already exists in "
+                "another case.")
+        return locations.rename(columns=rename)
+
+    def with_canonical_columns(self, step_function):
+        """Wrap a step function so the columns it returns have their canonical spelling.
+
+        Args:
+            step_function (function): step function taking and returning a locations DataFrame
+
+        Returns:
+            function: wrapped step function
+        """
+        def fct(locations):
+            return self.canonicalise_columns(step_function(locations))
+        return fct
 
     def process_locations(self, locations):
         missing = [key for key in ('step_definition', 'strategy') if not self.config.get(key)]
@@ -406,6 +480,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             )
 
         # drop all unused columns and remove duplicate rows, find and rename useful columns
+        self.canonical_column_map()  # one spelling per column name in every step's 'columns'
         lower_case_column_map = {column.lower(): column for column in locations.columns}
         useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))
 
@@ -427,14 +502,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 raise OasisException(
                     f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             step_function = self.set_step_function(step_name, step_config)
-            locations = step_function(locations)
+            locations = self.canonicalise_columns(step_function(locations))
 
-        key_columns = [
-            'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
-            'vulnerability_id', 'status', 'message'
-        ]
-        additional_columns = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
-        for col in additional_columns:
+        key_columns = list(KEY_COLUMNS)
+        for col in ADDITIONAL_KEY_COLUMNS:
             if col in locations.columns:
                 key_columns += [col]
 
@@ -564,14 +635,18 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             function: function combining all strategies
         """
         if logical_type.lower() == 'or':
+            warned = set()  # children already reported as skipped, so the warning isn't repeated for every chunk
+
             def fct(locations):
                 initial_columns = locations.columns
                 result = []
                 for i, child_strategy in enumerate(strategy):
                     if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
-                        logger.warning("combine: skipping step %s, missing columns %s",
-                                       child_strategy.get('name', i),
-                                       sorted(child_strategy['columns'].difference(locations.columns)))
+                        child_name = child_strategy.get('name', i)
+                        logger.log(logging.DEBUG if child_name in warned else logging.WARNING,
+                                   "combine: skipping step %s, missing columns %s", child_name,
+                                   sorted(child_strategy['columns'].difference(locations.columns)))
+                        warned.add(child_name)
                         continue
                     locations = child_strategy['function'](locations)
                     locations = Lookup.set_id_columns(locations, id_columns)
@@ -1166,7 +1241,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         return h3_lookup
 
-    def build_merge(self, file_path, id_columns=[], file_type='csv', join_columns=None, **kwargs):
+    def build_merge(self, file_path, id_columns=[], file_type='csv', join_columns=None, step_columns=None, **kwargs):
         """Merges the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
 
@@ -1177,7 +1252,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         e.g. to reuse a file that carries a column (such as ``CountryCode``) the locations also
         have but that must not be matched on. With ``join_columns``, any other column in both
         the file and the locations keeps its locations value, except ``id_columns``, which take
-        the file's value.
+        the file's value. The file must then have at most one row per combination of
+        ``join_columns``, otherwise matching locations would be duplicated, so this raises.
+
+        ``step_columns`` is filled in by the lookup with the step's ``columns`` list. Without
+        ``join_columns``, any column listed there (other than ``id_columns``) that is not in the
+        file is logged, as the join then uses only the shared columns. Either way, the file must
+        have at most one row per combination of the columns actually joined on, otherwise matching
+        locations would be duplicated, so this raises.
 
         If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
         """
@@ -1187,6 +1269,25 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         else:
             df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
         df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
+        id_columns_lower = {col.lower() for col in id_columns}
+
+        checked_keys = set()
+
+        def check_unique(keys):
+            """Raise if rows of the file share their ``keys`` values, as each matching location would
+            then be duplicated, once per row. Checked once per set of keys.
+            """
+            if frozenset(keys) in checked_keys:
+                return
+            duplicated = df_to_merge.duplicated(keys, keep=False)
+            if duplicated.any():
+                examples = df_to_merge.loc[duplicated, keys].drop_duplicates().head(3).to_dict('records')
+                raise OasisException(
+                    f"merge step: {int(duplicated.sum())} rows of '{file_path}' share their values of the join "
+                    f"columns {sorted(keys)} with another row, e.g. {examples}. Each matching location would be "
+                    "duplicated, once per row. Join on the column that tells these rows apart (add it to the "
+                    "step's 'columns' or to 'join_columns'), or remove the extra rows.")
+            checked_keys.add(frozenset(keys))
 
         if isinstance(join_columns, str):
             join_columns = [join_columns]
@@ -1197,7 +1298,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 raise OasisException(
                     f"merge step: join_columns {missing_in_file} not found in '{file_path}'. "
                     f"Table columns: {sorted(df_to_merge.columns)}")
-            id_columns_lower = {col.lower() for col in id_columns}
+            check_unique(join_columns)
+        elif step_columns:
+            missing_in_file = sorted({col.lower() for col in step_columns} - id_columns_lower - set(df_to_merge.columns))
+            if missing_in_file:
+                logger.info(
+                    "merge step: the step's columns %s are not in '%s', so the join uses only the columns the file "
+                    "and the locations share. Set 'join_columns' to choose them explicitly.", missing_in_file, file_path)
 
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
@@ -1209,6 +1316,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"are the names the two have in common.")
             if join_columns is None:
                 logger.debug("merge step: joining on %s", sorted(rename_map.values()))
+                check_unique(sorted(rename_map))
                 locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
                 return self.set_id_columns(locations, id_columns)
 
@@ -1216,7 +1324,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if missing_in_locations:
                 raise OasisException(
                     f"merge step: join_columns {missing_in_locations} not found in the locations. "
-                    f"Location columns available to this step: {sorted(locations.columns)}")
+                    f"Location columns available to this step: {sorted(locations.columns)}. Exposure columns "
+                    "that no step lists in its 'columns' are dropped before the steps run, so if the exposure "
+                    "has them, add them to this step's 'columns'.")
             # columns in both that aren't join keys: id_columns come from the file, the rest stay as in locations
             shared = [col for col in rename_map if col not in join_columns]
             from_file = [col for col in shared if col in id_columns_lower]
