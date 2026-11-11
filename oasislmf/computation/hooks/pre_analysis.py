@@ -3,10 +3,12 @@ __all__ = [
 ]
 
 import json
+import logging
 import pathlib
 from collections import defaultdict
 
 import pandas as pd
+import pyarrow as pa
 from ods_tools.oed import OED_TYPE_TO_NAME, PANDAS_COMPRESSION_MAP, UnknownColumnSaveOption
 
 from ..base import ComputationStep
@@ -17,6 +19,8 @@ from ...utils.inputs import str2bool
 from ...utils.parallel import resolve_partition_count
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
+
+logger = logging.getLogger(__name__)
 
 
 def get_source_compression(oed_source):
@@ -55,6 +59,35 @@ def get_source_compression(oed_source):
     return None
 
 
+def parquet_safe_dataframe(df):
+    """Return ``df`` with the object columns that parquet cannot store converted to text.
+
+    A pre-analysis hook can leave an object column holding mixed Python types, e.g. new integer LocNumbers
+    next to the original string ones of passed-through rows. pyarrow refuses such a column, which a csv snapshot
+    used to accept (#2191). Saving the non-null values as text matches the old csv round trip, as the snapshot is
+    read back with OED dtypes.
+
+    Args:
+        df (pandas.DataFrame): the dataframe to save; it is not modified.
+
+    Returns:
+        tuple(pandas.DataFrame, list): the dataframe to save (``df`` itself if nothing needed converting) and the
+        names of the converted columns.
+    """
+    converted = []
+    for col in df.columns[df.dtypes == object]:
+        try:
+            pa.array(df[col], from_pandas=True)
+        except (pa.ArrowInvalid, pa.ArrowTypeError):
+            converted.append(col)
+    if not converted:
+        return df, converted
+    df = df.copy(deep=False)
+    for col in converted:
+        df[col] = df[col].where(df[col].isna(), df[col].astype(str))
+    return df, converted
+
+
 def save_exposure_data(exposure_data, path, version_name, save_config, unknown_columns):
     """Save each OED source of exposure_data preserving its own original file
     format, rather than forcing every source to the same one.
@@ -83,16 +116,27 @@ def save_exposure_data(exposure_data, path, version_name, save_config, unknown_c
         if oed_source:
             sources_by_compression[get_source_compression(oed_source)].append(oed_name)
 
+    unsafe_dataframes = {}
     try:
         for compression, oed_names in sources_by_compression.items():
             for oed_name, oed_source in original_sources.items():
                 setattr(exposure_data, oed_name, oed_source if oed_name in oed_names else None)
+            if compression == 'parquet':
+                for oed_name in oed_names:
+                    oed_source = original_sources[oed_name]
+                    safe_df, converted = parquet_safe_dataframe(oed_source.dataframe)
+                    if converted:
+                        logger.warning(f"{oed_name} columns {converted} hold mixed types, saving them as text")
+                        unsafe_dataframes[oed_name] = oed_source.dataframe
+                        oed_source.dataframe = safe_df
             # save_config also makes OedExposure.save() record each filepath relative to the
             # config file rather than absolute; the partial config each call writes is
             # overwritten below once all sources are restored.
             exposure_data.save(path=path, version_name=version_name, compression=compression,
                                save_config=save_config, unknown_columns=unknown_columns)
     finally:
+        for oed_name, df in unsafe_dataframes.items():  # leave the hook's dataframes as they were
+            original_sources[oed_name].dataframe = df
         for oed_name, oed_source in original_sources.items():
             setattr(exposure_data, oed_name, oed_source)
 
