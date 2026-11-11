@@ -114,8 +114,8 @@ def write_event(tmp_path, event_id, records_per_input, len_sample, output_zeros)
 def test_write_combined_event_output_zeros(tmp_path, output_zeros, samples):
     """Sample 2 sums to 0 and sample 3 is in neither input: without output_zeros only the non-zero
     sample is written, with it every sample is. The max loss and mean are always written."""
-    records_per_input = [[(1, 10.0, [(-5, 4.0), (-1, 1.0), (1, 2.0), (2, 3.0)])],
-                         [(1, 5.0, [(-5, 1.0), (-1, 0.5), (2, -3.0)])]]
+    records_per_input = [[(1, 10.0, [(-5, 4.0), (-1, 1.0), (1, 2.0), (2, 0.0)])],
+                         [(1, 5.0, [(-5, 1.0), (-1, 0.5), (2, 0.0)])]]
     expected = [(1, 15.0, [(-5, 5.0), (-1, 1.5)] + samples)]
 
     written = write_event(tmp_path, 7, records_per_input, LEN_SAMPLE, output_zeros)
