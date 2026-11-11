@@ -232,6 +232,29 @@ def get_step(grid):
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
 
 
+def expand_perils_covered(locations, perils_covered_column, peril_groups_df):
+    """The perils each location row covers, once per row, with the peril group they came from.
+
+    A peril reached through several listed codes (a group listed with perils it contains, e.g.
+    OO1;ORF;OSF, or two groups that contain it) is kept once, with the first listed code that
+    contains it. Identical location rows give their perils once. Only the perils covered column
+    is expanded, so the memory used does not grow with the number of location columns.
+
+    Args:
+        locations (pd.DataFrame): the locations
+        perils_covered_column (str): the column with the ';'-separated peril and peril group codes
+        peril_groups_df (pd.DataFrame): peril_group_id to peril_id, see get_peril_groups_df
+
+    Returns:
+        pd.DataFrame: row (position of the location row), peril_group_id, peril_id
+    """
+    rows = np.flatnonzero(~locations.duplicated().to_numpy())
+    codes = pd.Series(locations[perils_covered_column].iloc[rows].astype(str).str.split(';').to_numpy(), index=rows).explode()
+    perils = pd.DataFrame({'row': codes.index.to_numpy(),
+                           'peril_group_id': codes.astype(peril_groups_df['peril_group_id'].dtype).array}).merge(peril_groups_df)
+    return perils.drop_duplicates(subset=['row', 'peril_id'], ignore_index=True)
+
+
 class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
     multiproc_enabled = False
 
@@ -241,11 +264,9 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
                                          .merge(peril_groups_df)['peril_id'])
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
-        # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
-        # de-duplicate after expanding the groups, ignoring which group a peril came from
-        keys_df = (locations.assign(peril_group_id=locations[peril_covered_column].astype(str).str.split(';'))
-                   .explode('peril_group_id').merge(peril_groups_df))
-        keys_df = keys_df.drop_duplicates(subset=keys_df.columns.drop('peril_group_id'))[['loc_id', 'peril_id']]
+        perils = expand_perils_covered(locations, peril_covered_column, peril_groups_df)
+        keys_df = pd.DataFrame({'loc_id': locations['loc_id'].to_numpy()[perils['row'].to_numpy()],
+                                'peril_id': perils['peril_id'].array})
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
         keys_df = keys_df.merge(coverage_df, how="cross").sort_values(['loc_id', 'peril_id', 'coverage_type'], kind='stable')
@@ -645,11 +666,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing PerilsCovered column in location')
 
-            # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
-            # de-duplicate after expanding the groups, ignoring which group a peril came from
-            peril_locations = (locations.assign(peril_group_id=locations[perils_covered_column].astype(str).str.split(';'))
-                               .explode('peril_group_id').merge(peril_groups_df))
-            peril_locations = peril_locations.drop_duplicates(subset=peril_locations.columns.drop('peril_group_id'))
+            perils = expand_perils_covered(locations, perils_covered_column, peril_groups_df)
+            if model_perils_covered:
+                # only the rows kept below are copied with every location column
+                perils = perils[perils['peril_id'].isin(model_perils_covered)]
+            peril_locations = locations.iloc[perils['row'].to_numpy()].reset_index(drop=True)
+            peril_locations['peril_group_id'] = perils['peril_group_id'].array
+            peril_locations['peril_id'] = perils['peril_id'].array
 
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
