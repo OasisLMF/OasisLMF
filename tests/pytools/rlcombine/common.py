@@ -3,10 +3,12 @@ from contextlib import ExitStack
 
 import numpy as np
 
+from oasislmf.pytools.common.data import fm_summary_xref_dtype
 from oasislmf.pytools.common.event_stream import ITEM_STREAM, SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.rlcombine.manager import init_summary_streams_in
 from oasislmf.pytools.rlcombine.reader import (SENTINEL_SUMMARY_ID, SummaryCombineReader, event_id_dtype, loss_dtype,
                                                sidx_dtype, summary_id_dtype, summaryset_id_dtype)
+from oasislmf.utils.defaults import SUMMARY_OUTPUT
 
 # a summary record header and a (sidx, loss) pair, as written in a summary stream
 record_header_dtype = np.dtype([('event_id', event_id_dtype), ('summary_id', summary_id_dtype), ('expval', loss_dtype)])
@@ -26,6 +28,21 @@ def sentinel_bytes(event_id):
     return record_bytes(event_id, SENTINEL_SUMMARY_ID, 0.0, [])
 
 
+def event_bytes(event_id, records, sentinel=True):
+    """Bytes of one event's summary records, by default closed with an E:S0 sentinel record.
+
+    Args:
+        event_id (int): event the records belong to
+        records (list): ``[(summary_id, expval, [(sidx, loss), ...]), ...]``
+        sentinel (bool): if True close the event with an ``E:S0`` sentinel record
+
+    Returns:
+        bytes: the event's records
+    """
+    out = b''.join(record_bytes(event_id, summary_id, expval, pairs) for summary_id, expval, pairs in records)
+    return out + sentinel_bytes(event_id) if sentinel else out
+
+
 def make_summary_stream(events, len_sample=3, summary_set_id=1, sentinel=True):
     """Build a summary stream, by default with an E:S0 sentinel after every event.
 
@@ -41,10 +58,7 @@ def make_summary_stream(events, len_sample=3, summary_set_id=1, sentinel=True):
     out = bytearray(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
     out += np.int32(len_sample).tobytes() + summaryset_id_dtype.type(summary_set_id).tobytes()
     for event_id, records in events:
-        for summary_id, expval, pairs in records:
-            out += record_bytes(event_id, summary_id, expval, pairs)
-        if sentinel:
-            out += sentinel_bytes(event_id)
+        out += event_bytes(event_id, records, sentinel)
     return bytes(out)
 
 
@@ -66,6 +80,18 @@ def buffer_to_records(event_buffer):
              list(zip(event_buffer['sidx'][offsets[i]:offsets[i + 1]].tolist(),
                       event_buffer['loss'][offsets[i]:offsets[i + 1]].tolist())))
             for i, summary_id in enumerate(event_buffer['summary_ids'])]
+
+
+def write_rl_static(static_dir, n_summary_ids, summary_set_id=1):
+    """Write an rlsummaryxref mapping outputs 1..n_summary_ids to the same summary_ids, so
+    get_max_summary_id finds n_summary_ids for the summary set."""
+    static_dir.mkdir(parents=True, exist_ok=True)
+    xref = np.zeros(n_summary_ids, dtype=fm_summary_xref_dtype)
+    xref['output'] = np.arange(1, n_summary_ids + 1)
+    xref['summary_id'] = np.arange(1, n_summary_ids + 1)
+    xref['summaryset_id'] = summary_set_id
+    xref.tofile(static_dir / f"{SUMMARY_OUTPUT['rl']}.bin")
+    return str(static_dir)
 
 
 def read_events(files_in, max_summary_id=10):
@@ -101,3 +127,9 @@ IP1 = [(10, [(1, 100, [(-5, 50), (-1, 5), (1, 4)]), (3, 100, [(-5, 9), (-1, 1)])
 IP2 = [(10, [(3, 10, [(-5, 1), (-1, 1), (2, 7)])]),
        (7, [(1, 5, [(-5, 2), (-1, 2)])]),
        (12, [])]
+
+# IP1 and IP2 combined as rlcombine writes them with len_sample 3: records with the same summary_id
+# summed, in summary_id order, max loss and mean first, then the non-zero samples.
+IP1_IP2_COMBINED = [(10, [(1, 100, [(-5, 50), (-1, 5), (1, 4)]), (3, 110, [(-5, 10), (-1, 2), (2, 7)])]),
+                    (7, [(1, 5, [(-5, 2), (-1, 2)])]),
+                    (12, [(2, 30, [(-5, 30), (-1, 3), (3, 2.5)])])]
