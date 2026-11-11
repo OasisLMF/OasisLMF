@@ -242,6 +242,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     intensity_bin_peril_ids = np.array([PERIL_ID], dtype=np.int32)
     intensity_bins = np.zeros((1, int(HAZ_INTENSITY) + 1), dtype=np.int32)
     intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
+    intensity_bin_min = np.zeros(1, dtype=np.int32)
 
     dynamic_footprint = True  # truthy, enables dynamic footprint path
 
@@ -266,7 +267,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
-        byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
+        byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins, intensity_bin_min,
         compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
     )
     return args, losses
@@ -566,7 +567,7 @@ def test_rp_protection_only_affects_protected_items():
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
-        byte_mv, True, intensity_bin_peril_ids, intensity_bins,
+        byte_mv, True, intensity_bin_peril_ids, intensity_bins, np.zeros(1, dtype=np.int32),
         compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack, source_eff_damage_cdf_len_stack,
     )
 
