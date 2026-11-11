@@ -37,7 +37,7 @@ package, so each subsystem sits beside the explanation pages that describe it an
 build stays fast. Currently included: the Financial Module (`oasislmf.pytools.fm`), the
 ground-up Monte-Carlo engine (`oasislmf.pytools.gulmc`), the shared stream/data layer
 (`oasislmf.pytools.common`), the output modules (`elt`, `lec`, `plt`, `aal`, `summary`,
-`pla`) and the keys/lookup framework (`oasislmf.lookup`). Coverage widens as more
+`pla`), the reinsurer's loss combiner (`rlcombine`) and the keys/lookup framework (`oasislmf.lookup`). Coverage widens as more
 subsystems are documented.
 ```
 
@@ -52,6 +52,7 @@ api/oasislmf/pytools/lec/index
 api/oasislmf/pytools/plt/index
 api/oasislmf/pytools/aal/index
 api/oasislmf/pytools/summary/index
+api/oasislmf/pytools/rlcombine/index
 api/oasislmf/pytools/pla/index
 api/oasislmf/lookup/index
 ```

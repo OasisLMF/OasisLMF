@@ -82,8 +82,7 @@ def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, exp
         cursor (int): position in byte_mv reached
         event_id (event_id_dtype): event being read, or the event just completed
         summary_id (summary_id_dtype): non zero if a record is only partly read
-        yield_event (int): 1 right after the ``E:S0`` sentinel, so an event is known to be complete
-            without reading ahead into the next event
+        yield_event (int): 1 right after the ``E:S0`` sentinel, so the event is complete without reading ahead
 
     Raises:
         ValueError: if the stream breaks the summary stream format or the EventBuffer bounds
@@ -171,15 +170,17 @@ class SummaryCombineReader(EventReader):
     def read_events(self, streams_in):
         """Yield every event of every input as soon as that input has sent it in full.
 
+        The event buffer holds copies of the event's records: ``summary_ids``, ``expval``, ``offsets``,
+        ``sidx`` and ``loss``. Record i is summary_ids[i] with expval[i] and the pairs
+        sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]].
+
         Args:
             streams_in (List[BinaryIO]): input streams, positioned after their header
 
         Yields:
             file_idx (int): index of the input in streams_in
             event_id (event_id_dtype): event id
-            event_buffer (Dict[str, ndarray]): copies of the event's records: ``summary_ids``, ``expval``,
-                ``offsets``, ``sidx`` and ``loss``. Record i is summary_ids[i] with expval[i] and the
-                pairs sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]]
+            event_buffer (Dict[str, ndarray]): copies of the event's records, as described above
 
         Raises:
             OasisException: if an input ends in the middle of an event

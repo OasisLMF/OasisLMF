@@ -83,6 +83,8 @@ autoapi_dirs = [
     '../../oasislmf/pytools/plt',
     '../../oasislmf/pytools/aal',
     '../../oasislmf/pytools/summary',
+    # reinsurer's loss over all inuring priorities
+    '../../oasislmf/pytools/rlcombine',
     '../../oasislmf/pytools/pla',
     # keys / lookup framework
     '../../oasislmf/lookup',

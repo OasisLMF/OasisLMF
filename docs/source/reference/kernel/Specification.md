@@ -19,6 +19,7 @@ The components are;
 * **gulmc**
 * **fmpy**
 * **summarypy**
+* **rlcombine**
 * **outputcalc**
 
 
@@ -63,6 +64,7 @@ The supported standard input and output streams of the reference model component
 | gulmc        | event_id list                         | 2/1 loss                              | -a{} (reads model data directly, not a cdf stream) |
 | fmpy         | 2/1 loss                              | 2/1 loss                              | none                                    |
 | summarypy    | 2/1 loss                              | 3/1 summary                           | -i input from gulmc, -f input from fmpy |
+| rlcombine    | 3/1 summary (one per inuring priority, from `summarypy -s`) | 3/1 summary          | -i inputs, -o output, -I pass-throughs  |
 | outputcalc   | 3/1 summary                           | none                                  | none                                    |
 
 
@@ -197,6 +199,10 @@ fmpy is the component which takes the loss stream as standard input and output a
 
 ### summarypy
 summarypy is a component which sums the sampled losses from either gulmc or fmpy to the users required level(s) for reporting results.  This is a simple sum of the loss value by event_id, sidx and summary_id, where summary_id is a grouping of coverage_id or item_id for gulmc or output_id for fmpy defined in the user's input files.  
+
+
+### rlcombine
+rlcombine is a component which combines the reinsurer's loss summary streams of several inuring priorities into one. It reads one `summarypy -t rl -s` stream per inuring priority, all with the same events in the same order, and sums the records of each event by summary_id: the samples, the mean and maximum loss and the exposure_value. Chosen inputs can also be passed through unchanged, less their sentinel records.
 
 
 

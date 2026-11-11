@@ -645,6 +645,21 @@ Where each of perspective, summary level, output type and file extension are spe
 - gul: ground up loss
 - il: insured loss
 - ri: losses net of reinsurance
+- rl: reinsurer's loss, the losses ceded to reinsurance (combined over all inuring priorities)
+
+**Inuring priority outputs**: for reinsurance, results can also be requested for intermediate
+inuring priorities with ``ri_inuring_priorities`` and ``rl_inuring_priorities``. These are
+named with an ``IP{level}`` prefix after the perspective, for example ``ri_IP1_S1_elt.csv`` or
+``rl_IP2_S1_palt.csv``, where ``{level}`` is the reinsurance layer (``RI_{level}``) that ends
+that inuring priority. ``reins_output_levels_summary.json`` in the output folder maps each
+``IP{level}`` to its OED ``InuringPriority`` and ``RiskLevel``. The files without a prefix,
+``ri_S1_*`` and ``rl_S1_*``, are the results for the whole reinsurance programme. See
+:doc:`../../explanation/financial-module`.
+
+.. versionchanged:: NEXT
+   ``rl`` results are the reinsurer's loss over all inuring priorities, set by ``rl_summaries``,
+   and ``rl_IP{level}`` results are written only for the priorities in ``rl_inuring_priorities``.
+   ``reins_output_levels_summary.json`` replaces ``ri_inuring_priority_output_levels.json``.
 
 **Summary Level** will be an integer and taken from the “id” item in the analysis settings file for the requested outputs
 

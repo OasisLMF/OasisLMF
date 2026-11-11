@@ -12,6 +12,7 @@ ktools design.
 | Ground-up loss | `gulpy` / `gulmc` | `gulcalc` |
 | Financial module (insured loss) | `fmpy` | `fmcalc` |
 | Summary aggregation | `summarypy` | `summarycalc` |
+| Reinsurer's loss over all inuring priorities | `rlcombine` | — (new) |
 
 `gulpy` is the standard ground-up engine (it consumes `modelpy`'s effective-damage
 CDF stream). `gulmc` is the full Monte-Carlo engine: it reads the model data directly
@@ -166,7 +167,10 @@ ground-up losses, producing insured-loss samples. It reads a loss stream from `g
 
 - `-a, --allocation-rule` — back-allocation rule: `0` none, `1` ground-up basis,
   `2` prior-level basis (default `0`).
-- `-n, --net-loss` — output net losses (input minus calculated) instead of gross.
+- `-n, --net-loss` — output net losses (input minus calculated). Empty (`-n`) writes the net
+  instead of the gross to the `-o` output. `-n -` or `-n <path>` writes both: the gross (the loss
+  to the contracts, i.e. the reinsurer's loss in a reinsurance run) to `-o`, and the net to
+  stdout or `<path>`.
 - `-p, --static-path` — location of the FM input files (default `input/`).
 - `-i, --files-in` / `-o, --files-out`.
 - `--create-financial-structure-files` — pre-build the shared FM structure.
@@ -176,6 +180,7 @@ ground-up losses, producing insured-loss samples. It reads a loss stream from `g
 ```bash
 evepy 1 1 | gulmc -S100 -a1 | fmpy -a2 | summarypy -t il -1 il_summary.bin
 fmpy -p ri1 -a2 -n -i gul.bin -o ri1_net.bin        # reinsurance, net losses
+fmpy -p ri1 -a2 -i il.bin -o ri1_gross.bin -n -     # gross to ri1_gross.bin, net to stdout
 ```
 
 **Internal data** — `input/items.bin`, `input/coverages.bin`, `input/fm_programme.bin`,
@@ -198,11 +203,17 @@ and producing one or more summary sets in a single pass.
 
 **Parameters**
 
-- `-t, --run-type {gul,il,ri}` — the input stream type (replaces the ktools `-i`/`-f`
-  distinction).
+- `-t, --run-type {gul,il,ri,rl}` — the input stream type (replaces the ktools `-i`/`-f`
+  distinction): ground-up, insured, reinsurance net (`ri`) or reinsurer's loss (`rl`).
 - `-i, --files-in` — input stream.
 - `-p, --static-path` — location of the summary-xref files.
 - `-m, --low-memory` — reduce downstream memory with index files.
+- `-z, --output-zeros` — also write zero losses.
+- `-s, --sentinel-event` — close every event of each summary set with an `E:S0` sentinel
+  record (`summary_id` 0, no samples), so `rlcombine` knows when an event is complete. Binary
+  output only, and not with `-m`.
+- `-E, --ext {bin,csv,parquet}` — output format; csv and parquet are written in the SELT
+  layout.
 
 **Usage**
 
@@ -211,13 +222,59 @@ evepy 1 1 | gulmc -S100 -a1 | summarypy -t gul -1 gul_summary.bin
 fmpy -a2 -i gul.bin | summarypy -t il -1 il_summary.bin
 ```
 
-**Internal data** — `input/gulsummaryxref.bin` (for `-t gul`) or `input/fmsummaryxref.bin`
-(for `-t il`/`-t ri`), which map the input identifier to a user-defined `summary_id`.
+**Internal data** — the summary xref for the run type, which maps the input identifier to a
+user-defined `summary_id`: `gulsummaryxref.bin` (`-t gul`) or `fmsummaryxref.bin` (`-t il`)
+in `input/`, and `risummaryxref.bin` (`-t ri`) or `rlsummaryxref.bin` (`-t rl`) in each
+reinsurance layer folder (`input/RI_<n>/`).
 
 **Calculation** — losses are summed to each `summary_id`. The mean (sidx -1), impacted
 exposure (sidx -3) and maximum loss (sidx -5) are summed as normal; the standard
 deviation (sidx -2) is dropped; the chance of loss (sidx -4, gul input only) is combined
 by the law of total probability, `1 − Π(1 − Cᵢ)` over the items in each summary.
+
+## rlcombine
+
+```{versionadded} NEXT
+```
+
+`rlcombine` combines the reinsurer's loss (`rl`) of every inuring priority into one summary
+stream for the whole reinsurance programme. It reads one `summarypy -t rl -s` stream per
+inuring priority, sums the records of each event across them, and can pass chosen inputs
+through unchanged as intermediate outputs.
+
+**Output stream** — a summary stream (stream type `3/1`) without sentinel records.
+
+**Parameters**
+
+- `-i, --summary-files-in` (required) — the `summarypy -t rl -s` stream of each inuring
+  priority, in order.
+- `-p, --static-paths` (required) — the reinsurance layer folder of each input, in the same
+  order; each holds the `rlsummaryxref.bin` the input was summarised with.
+- `-o, --output-summary-file` (required) — the combined stream.
+- `-I, --intermediate-outputs index=path …` — pass input `index` (0-based position in `-i`)
+  through to `path`, without its sentinels.
+- `-m, --low-memory` — write an `.idx` file next to the combined output and each
+  pass-through, as `summarypy -m` does.
+- `-z, --output-zeros` — also write zero samples.
+
+**Usage**
+
+```bash
+rlcombine -i rl_IP1_S1_rlcombine_P1 rl_IP2_S1_rlcombine_P1 rl_IP3_S1_rlcombine_P1 \
+          -p input/RI_1 input/RI_2 input/RI_3 \
+          -o rl_S1_summary_P1 \
+          -I 0=rl_IP1_S1_summary_P1
+```
+
+**Internal data** — `rlsummaryxref.bin` in each `-p` folder, read for the number of
+`summary_id`s in the summary set.
+
+**Calculation** — the inputs must carry the same events in the same order; the `E:S0`
+sentinel marks the end of each event on each input, including events an input has no loss
+for. For each event, the records with the same `summary_id` are summed across the inputs:
+the samples, the mean (sidx -1), the maximum loss (sidx -5) and the `expval` in the record
+header. The combined records are written in `summary_id` order, mean and maximum loss
+first, then the non-zero samples (every sample with `-z`).
 
 ---
 
