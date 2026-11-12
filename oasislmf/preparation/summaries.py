@@ -16,7 +16,6 @@ __all__ = [
 
 import logging
 import pathlib
-import shutil
 
 import io
 import json
@@ -431,20 +430,45 @@ def get_ri_inuring_priority_output_levels(run_dir):
         run_dir (str): Directory containing ``ri_inuring_priority_output_levels.json``
 
     Returns:
-        dict: mapping ``{inuring_priority: output_level}`` with integer keys/values
+        dict: mapping ``{output_level: inuring_priority}`` with integer keys/values
     """
     raw = get_json(src_fp=os.path.join(run_dir, 'ri_inuring_priority_output_levels.json'))
     return {int(k): int(v) for k, v in raw.items()}
 
 
-def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
-    """Resolve the RI layer directories that receive an ``fmsummaryxref`` file.
+def prepare_reins_output_map_summary(run_dir):
+    """Prepare a summary json representing the mapping between the RI output level and the OED Inuring Priority and risk level.
 
-    ``analysis_settings['ri_inuring_priorities']`` holds OED InuringPriority
-    values; the mapping written during input generation converts each to its RI
-    output level (the last RI layer index for that priority). The final priority
-    always receives output. Gross RL output is written for every RI layer, so
-    pass ``all_layers=True`` for that case.
+    Args:
+        run_dir (str): Directory containing ``ri_inuring_priority_output_levels.json`` and `ri_layers.json`.
+
+    Returns:
+        dict: mapping ``{ IP{output_level}: {'inuring_priority': {inuring_priority}, 'risk_level': {risk_level} } }
+    """
+    reins_layers = get_ri_settings(run_dir)
+    reins_output_map = get_ri_inuring_priority_output_levels(run_dir)
+
+    output_keys = ['inuring_priority', 'risk_level']
+
+    reins_map_summary = {f'IP{level}': {} for level in reins_output_map.values()}
+
+    for ip, level in reins_output_map.items():
+        for k in output_keys:
+            reins_map_summary[f'IP{level}'][k] = reins_layers[str(level)][k]
+
+    return reins_map_summary
+
+
+def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
+    """Resolve the RI layer directories that receive an ``risummaryxref`` or
+    ``rlsummaryxref`` file.
+
+    For `rl` set `all_layers=True` as all the sub directories get a summarxref.
+
+    For `ri` ``analysis_settings['ri_inuring_priorities']`` holds OED
+    InuringPriority values; the mapping written during input generation
+    converts each to its RI output level (the last RI layer index for that
+    priority). The final priority always receives output.
 
     This is the single definition of which RI directories are summarised - both
     :func:`generate_summaryxref_files` and loss generation resolve it here so
@@ -464,6 +488,13 @@ def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
         OasisException: If a requested inuring priority is not in the structure
     """
     ri_settings = get_ri_settings(input_dir)
+
+    if all_layers:
+        return [
+            os.path.join(input_dir, os.path.basename(ri_settings[str(output_level)]['directory']))
+            for output_level in sorted(int(x) for x in ri_settings)
+        ]
+
     inuring_priority_to_output_level = get_ri_inuring_priority_output_levels(input_dir)
     valid_oed_priorities = set(inuring_priority_to_output_level.keys())
 
@@ -478,10 +509,7 @@ def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):
         missing_str = ('priority ' if len(ri_missing) == 1 else 'priorities ') + missing_str
         raise OasisException(f'Requested outputs for inuring {missing_str} lie outside of scope.')
 
-    if all_layers:
-        ri_output_levels = {int(x) for x in ri_settings}
-    else:
-        ri_output_levels = {inuring_priority_to_output_level[p] for p in ri_inuring_priorities_oed}
+    ri_output_levels = {inuring_priority_to_output_level[p] for p in ri_inuring_priorities_oed}
 
     return [
         os.path.join(input_dir, os.path.basename(ri_settings[str(output_level)]['directory']))
@@ -726,8 +754,7 @@ def generate_summaryxref_files(
             else:
                 write_df_to_csv_file(gul_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
-    if il_summaries:
-        # Load FM summary map
+    if il_summaries or ri_summaries or rl_summaries:
         il_map_fp = get_summary_map_fp(os.path.join(model_run_fp, 'input'), SUMMARY_MAPPING['fm_map_fn'])
         il_map_df = get_dataframe(
             src_fp=il_map_fp,
@@ -737,6 +764,8 @@ def generate_summaryxref_files(
         )
         il_map_df = il_map_df[list(set(il_map_df).intersection(MAP_SUMMARY_DTYPES))]
 
+    if il_summaries:
+        # Load FM summary map
         il_summaryxref_df, il_summary_desc = get_summary_xref_df(
             il_map_df,
             location_df,
@@ -756,17 +785,7 @@ def generate_summaryxref_files(
             else:
                 write_df_to_csv_file(il_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
-    if ri_summaries or rl_summaries:
-        if ('il_summaries' not in analysis_settings) or (not il_summaries):
-            il_map_fp = get_summary_map_fp(os.path.join(model_run_fp, 'input'), SUMMARY_MAPPING['fm_map_fn'])
-            il_map_df = get_dataframe(
-                src_fp=il_map_fp,
-                lowercase_cols=False,
-                col_dtypes=MAP_SUMMARY_DTYPES,
-                empty_data_error_msg='No summary map file found.',
-            )
-            il_map_df = il_map_df[list(set(il_map_df).intersection(MAP_SUMMARY_DTYPES))]
-
+    if ri_summaries:
         ri_summaryxref_df, ri_summary_desc = get_summary_xref_df(
             il_map_df,
             location_df,
@@ -776,13 +795,13 @@ def generate_summaryxref_files(
         )
         # Write Xref file for each inuring priority where output has been requested.
         summary_ri_fps = get_ri_summaryxref_dirs(
-            os.path.join(model_run_fp, 'input'), analysis_settings, all_layers=bool(rl_summaries)
+            os.path.join(model_run_fp, 'input'), analysis_settings
         )
 
         for summary_ri_fp in summary_ri_fps:
-            df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.bin"))
+            df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['ri']}.bin"))
             if intermediary_csv:
-                write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.csv")
+                write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, f"{SUMMARY_OUTPUT['ri']}.csv")
 
         # Write summary_id description files
         output_dir = os.path.join(model_run_fp, 'output')
@@ -792,13 +811,41 @@ def generate_summaryxref_files(
             else:
                 write_df_to_csv_file(ri_summary_desc[desc_key], output_dir, desc_key)
 
+    if rl_summaries:
+        rl_summaryxref_df, rl_summary_desc = get_summary_xref_df(
+            il_map_df,
+            location_df,
+            account_df,
+            analysis_settings['rl_summaries'],
+            'rl'
+        )
+
+        # Write rl summary xref in all directories (needed for total)
+        summary_rl_fps = get_ri_summaryxref_dirs(
+            os.path.join(model_run_fp, 'input'), analysis_settings, all_layers=True
+        )
+
+        for summary_rl_fp in summary_rl_fps:
+            df_to_ndarray(rl_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_rl_fp, f"{SUMMARY_OUTPUT['rl']}.bin"))
+
+            if intermediary_csv:
+                write_df_to_csv_file(rl_summaryxref_df, summary_rl_fp, f"{SUMMARY_OUTPUT['rl']}.csv")
+
+        for desc_key in rl_summary_desc:
+            if desc_key.split('.')[-1] == 'parquet':
+                write_df_to_parquet_file(rl_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            else:
+                write_df_to_csv_file(rl_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+
+    if ri_summaries or rl_summaries:
+        output_dir = os.path.join(model_run_fp, 'output')
         # Copy the inuring-priority-to-output-level mapping into the output directory so it is
         # available alongside the results for downstream consumers.
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(
-            os.path.join(model_run_fp, 'input', 'ri_inuring_priority_output_levels.json'),
-            os.path.join(output_dir, 'ri_inuring_priority_output_levels.json'),
-        )
+
+        reins_map_summary = prepare_reins_output_map_summary(os.path.join(model_run_fp, 'input'))
+        with open(os.path.join(output_dir, 'reins_output_levels_summary.json'), 'w', encoding='utf-8') as f:
+            f.write(json.dumps(reins_map_summary, ensure_ascii=False, indent=4))
 
 
 def code_column(name):

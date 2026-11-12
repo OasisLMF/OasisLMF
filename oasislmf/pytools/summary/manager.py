@@ -1,6 +1,14 @@
 """Entry point to the run method of summarypy
 read an event loss stream and aggregate it into the relevant summary loss stream
 
+The run type selects the summaryxref read from the static path: ``gul`` (gulsummaryxref),
+``il`` (fmsummaryxref), ``ri`` (risummaryxref) or ``rl`` (rlsummaryxref).
+
+With ``-s/--sentinel-event``, every event of each summary set stream is closed by a sentinel record
+``E:S0`` (summary_id 0, expval 0 and the (0, 0) terminator), even when the event has no summary record.
+This lets rlcombine tell when an inuring priority has finished an event. Sentinel streams are only
+meant for rlcombine, and ``-s`` cannot be combined with ``-m``.
+
 using numba latest version 0.59, we are limited is our usage of classes and have to pass each data structure into the different function
 The attributes are name the same throughout the code, below is their definition
 
@@ -45,9 +53,11 @@ from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, 
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
-from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
+from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_GROSS_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_fmt, SELT_headers, VALID_EXT
+from oasislmf.pytools.rlcombine.reader import SENTINEL_SUMMARY_ID
 from oasislmf.pytools.utils import redirect_logging
+from oasislmf.utils.defaults import SUMMARY_OUTPUT
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +66,13 @@ event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
 item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
 loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
 summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
-_, summary_id_dtype_size = def_to_type_and_size('summary_id')
+summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
 
 SPECIAL_SIDX_COUNT = 6  # 0 is included as a special sidx
 SUMMARY_HEADER_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size + SPECIAL_SIDX_COUNT * (loss_pair_size)
 SUMMARY_META_SIZE = 4 + 4 + summaryset_id_dtype_size  # (stream_type, sample size , summary_set_id)
 SIDX_LOSS_WRITE_SIZE = 2 * (loss_pair_size)
+SENTINEL_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size + loss_pair_size
 
 
 SUPPORTED_SUMMARY_SET_ID = list(range(1, 10))
@@ -73,6 +84,31 @@ summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
 
 OUTPUT_ROWS_BUFFER_SIZE = 100_000
+
+
+def get_sentinel_bytes(event_id):
+    """Build the sentinel record that closes an event in a ``-s/--sentinel-event`` summary stream.
+
+    The sentinel is a summary record with summary_id SENTINEL_SUMMARY_ID (0), expval 0 and no
+    (sidx, loss) pairs other than the (0, 0) terminator.
+
+    Args:
+        event_id (event_id_dtype): event the sentinel closes
+
+    Returns:
+        byte_mv (ndarray): numpy byte view of the SENTINEL_SIZE bytes of the record
+
+    Raises:
+        Exception: if the record written is not SENTINEL_SIZE bytes
+    """
+    byte_mv = np.empty(SENTINEL_SIZE, dtype='b')
+
+    cursor = 0
+    cursor = mv_write_summary_header(byte_mv, cursor, event_id, SENTINEL_SUMMARY_ID, 0)
+    cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
+    if cursor != SENTINEL_SIZE:
+        raise Exception('sentinel is not the correct size')
+    return byte_mv
 
 
 def create_summary_object_file(static_path, run_type):
@@ -90,23 +126,46 @@ def load_summary_object(static_path, run_type):
 
 
 def get_summary_object(static_path, run_type):
-    """Read static files to get summary static data structure"""
+    """Read static files to get summary static data structure
+
+    The summaryxref read depends on run_type: gulsummaryxref (gul), fmsummaryxref (il),
+    risummaryxref (ri) or rlsummaryxref (rl). Only gul and il also read a summary map to track the
+    number of affected risks.
+
+    Args:
+        static_path (str): path to the static files
+        run_type (str): one of SUPPORTED_RUN_TYPE
+
+    Returns:
+        summary_info (ndarray[summary_info_dtype]): single element array holding the number of risks
+        summary_set_id_to_summary_set_index (ndarray[oasis_int]): mapping summary_set_id => summary_set_index
+        summary_set_index_to_loss_ptr (ndarray[oasis_int]): starting index of each summary set in the loss_summary table
+        item_id_to_summary_id (ndarray[oasis_int]): mapping item_id => summary_id for each summary set
+        item_id_to_risks_i (ndarray[oasis_int]): mapping item_id => risk index, empty for ri and rl
+
+    Raises:
+        Exception: if run_type is not supported
+    """
     # extract item_id to index in the loss summary
     summary_map_dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
     if run_type == RUNTYPE_GROUNDUP_LOSS:
-        summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', gul_summary_xref_dtype)
+        summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['gul'], gul_summary_xref_dtype)
         summary_map = load_as_ndarray(static_path, 'gul_summary_map', summary_map_dtype)
 
     elif run_type == RUNTYPE_INSURED_LOSS:
-        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
+        summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['il'], fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
         summary_map = load_as_ndarray(static_path, 'fm_summary_map', summary_map_dtype, col_map={'item_id': 'output_id'})
 
     elif run_type == RUNTYPE_REINSURANCE_LOSS:
-        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
+        summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['ri'], fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
         summary_map = None  # numba use none to optimise function when some part are not used
 
+    elif run_type == RUNTYPE_REINSURANCE_GROSS_LOSS:
+        summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['rl'], fm_summary_xref_dtype)
+        summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
+        summary_map = None
     else:
         raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
 
@@ -493,7 +552,7 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
     return summary_set_index_to_loss_ptr, item_id_to_summary_id
 
 
-def run(files_in, static_path, run_type, low_memory, output_zeros, output_format='bin', **kwargs):
+def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_event=False, output_format='bin', **kwargs):
     """Run the summary calculation, writing a summary output for each summary set.
 
     With the default ``bin`` format each summary set is written as a binary summary stream. With ``csv``
@@ -501,14 +560,23 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
     ImpactedExposure), one row per sidx of the stream, special sidx included.
 
     Args:
-        files_in: list of file path to read event from
-        run_type: type of the source that is sending the stream
-        static_path: path to the static files
-        low_memory: if true output summary index file (bin output only)
-        output_zeros: if true output 0 loss
-        output_format: one of ``bin``, ``csv`` or ``parquet``
+        files_in (str | List[str] | None): file path(s) to read events from, stdin if None
+        static_path (str): path to the static files
+        run_type (str): type of the source that is sending the stream, one of SUPPORTED_RUN_TYPE
+        low_memory (bool): if true output summary index file (bin output only)
+        output_zeros (bool): if true output 0 loss
+        sentinel_event (bool): if true close every event with an ``E:S0`` sentinel record
+            (summary_id 0), written even when the event has no summary record. Used by rlcombine.
+            Bin output only. Defaults to False
+        output_format (str): one of ``bin``, ``csv`` or ``parquet``. Defaults to ``bin``
         **kwargs: additional options, including ``summary_sets_output``, a list of
             ``-summary_set_id summary_set_path`` pairs
+
+    Raises:
+        Exception: if summary_sets_output is malformed or the input stream type is not supported
+        ValueError: if low_memory and sentinel_event are both set, if low_memory or sentinel_event is used with
+            csv or parquet output, if output_format or a file extension is not valid, or if a summary set is not in
+            the summaryxref
     """
     summary_sets_path = {}
     error_msg = (f"summary_sets_output expected format is a list of -summary_set_id summary_set_path (ex: -1 S1.bin -2 S2.bin')"
@@ -522,11 +590,15 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
             raise Exception(error_msg)
     summary_sets_id = np.array(list(summary_sets_path.keys()))
 
+    if low_memory and sentinel_event:
+        raise ValueError('cannot combine `low_memory` and `sentinel_event`')
     if output_format not in VALID_EXT:
         raise ValueError(f"unsupported output format {output_format}, expected one of {VALID_EXT}")
     output_binary = output_format == 'bin'
     if low_memory and not output_binary:
         raise ValueError(f"low memory index files are only available for bin output, not {output_format}")
+    if sentinel_event and not output_binary:
+        raise ValueError(f"sentinel events are only available for bin output, not {output_format}")
     if not output_binary:
         for summary_set_path in summary_sets_path.values():
             suffix = Path(summary_set_path).suffix
@@ -629,11 +701,16 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
                         write_mv_to_stream(summary_pipe, out_byte_mv, cursor)
                         if last_loss_summary_index == -1:
                             break
+
                     if low_memory:
                         # write the per-event index records to .idx as packed binary
                         summary_sets_index_pipe[summary_set_id].write(
                             summary_stream_index[:summary_index_cursor].tobytes()
                         )
+
+                    if sentinel_event:
+                        sentinel_bytes = get_sentinel_bytes(event_id)
+                        write_mv_to_stream(summary_pipe, sentinel_bytes, SENTINEL_SIZE)
 
                 loss_summary.fill(0)
                 present_summary_id.fill(0)

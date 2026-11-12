@@ -11,6 +11,7 @@ from oasislmf.pytools.common.data import def_to_type_and_size
 from oasislmf.pytools.common.event_stream import mv_read
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_headers
 from oasislmf.pytools.summary.cli import parser, manager
+from oasislmf.utils.defaults import SUMMARY_OUTPUT
 from oasislmf.utils.exceptions import OasisStreamException
 
 
@@ -151,6 +152,8 @@ def test_tabular_output_matches_binary_stream(test_name, test_case, ext, buffer_
 @pytest.mark.parametrize('extra_args, error', [
     ('-E csv -m -1 {tmp}/S1.csv', 'only available for bin output'),
     ('-E parquet -1 {tmp}/S1.csv', 'Invalid file extension'),
+    ('-E csv -s -1 {tmp}/S1.csv', 'sentinel events are only available for bin output'),
+    ('-m -s -1 {tmp}/S1.bin', 'cannot combine `low_memory` and `sentinel_event`'),
 ])
 def test_tabular_output_invalid_arguments(extra_args, error):
     with TemporaryDirectory() as tmp:
@@ -232,3 +235,72 @@ def test_requested_summary_set_missing_item(monkeypatch):
         with pytest.raises(OasisStreamException, match='has no summaryxref row'):
             run_summarypy(manager.RUNTYPE_INSURED_LOSS, static_path,
                           {i: Path(tmp_dir_str, f'S{i}_summary.bin') for i in (1, 2)})
+
+
+# sentinel events (-s)
+
+SENTINEL_EXPECTED_DIR = TESTS_ASSETS_DIR.joinpath('sentinel_event')
+
+
+def write_rl_static(test_name, static_path):
+    """Save the risummaryxref of the test_name assets as an rlsummaryxref in static_path, so -t rl can run
+    on the ri.bin asset."""
+    static_path.mkdir(parents=True, exist_ok=True)
+    for xref_path in Path(TESTS_ASSETS_DIR, test_name, 'RI_1').glob(f"{SUMMARY_OUTPUT['ri']}.*"):
+        shutil.copy(xref_path, static_path / f"{SUMMARY_OUTPUT['rl']}{xref_path.suffix}")
+    return static_path
+
+
+@pytest.fixture
+def update_expected(request):
+    return request.config.getoption('--update-expected')
+
+
+def test_get_sentinel_bytes():
+    """The sentinel is a summary record for summary_id 0 with expval 0 and no pairs, just the terminator."""
+    header = np.array([(7, 0, 0.0)], dtype=[('event_id', EVENT_ID_DTYPE), ('summary_id', SUMMARY_ID_DTYPE),
+                                            ('expval', LOSS_DTYPE)])
+    terminator = np.array([(0, 0.0)], dtype=[('sidx', SIDX_DTYPE), ('loss', LOSS_DTYPE)])
+    assert manager.get_sentinel_bytes(7).tobytes() == header.tobytes() + terminator.tobytes()
+
+
+@pytest.mark.parametrize('test_name, summary_set_ids', [
+    pytest.param('single_summary_set', [1], id='single_summary_set'),
+    pytest.param('multiple_summary_set', [1, 2], id='multiple_summary_set'),
+])
+def test_sentinel_after_every_event(tmp_path, test_name, summary_set_ids, update_expected):
+    """With -s, every rl summary set stream equals its expected stream in
+    tests/assets/test_summarypy/sentinel_event/<test_name>, which closes every event with an E:S0 sentinel.
+    Run pytest with --update-expected to rewrite the expected streams."""
+    static_path = write_rl_static(test_name, tmp_path / 'RI_1')
+    expected_dir = SENTINEL_EXPECTED_DIR.joinpath(test_name)
+    file_names = {summary_set_id: f'rl_S{summary_set_id}_summary.bin' for summary_set_id in summary_set_ids}
+    # with -z as for the ri assets, so the expected streams are those assets with sentinels added
+    manager.run(str(Path(TESTS_ASSETS_DIR, 'ri.bin')), str(static_path), manager.RUNTYPE_REINSURANCE_GROSS_LOSS, False, True,
+                sentinel_event=True,
+                summary_sets_output=[arg for summary_set_id, file_name in file_names.items()
+                                     for arg in (f'-{summary_set_id}', str(tmp_path / file_name))])
+
+    for summary_set_id, file_name in file_names.items():
+        if update_expected:
+            expected_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(tmp_path / file_name, expected_dir / file_name)
+        if (tmp_path / file_name).read_bytes() != (expected_dir / file_name).read_bytes():
+            pytest.fail(f'summarypy -s output for rl summary set {summary_set_id} differs from {expected_dir / file_name}')
+
+
+def test_rl_run_type_reads_rlsummaryxref(tmp_path):
+    """-t rl reads rlsummaryxref, not risummaryxref: with the ri assets' risummaryxref saved as an
+    rlsummaryxref, -t rl writes what -t ri writes from the original, and -t ri finds no risummaryxref."""
+    base_path = Path(TESTS_ASSETS_DIR, 'single_summary_set')
+    static_path = write_rl_static('single_summary_set', tmp_path / 'RI_1')
+    files_in = str(Path(TESTS_ASSETS_DIR, 'ri.bin'))
+
+    out_path = tmp_path / 'rl_S1_summary.bin'
+    manager.run(files_in, str(static_path), manager.RUNTYPE_REINSURANCE_GROSS_LOSS, False, True,
+                summary_sets_output=['-1', str(out_path)])
+    assert out_path.read_bytes() == (base_path / 'ri_S1_summary.bin').read_bytes()
+
+    with pytest.raises(FileNotFoundError):
+        manager.run(files_in, str(static_path), manager.RUNTYPE_REINSURANCE_LOSS, False, True,
+                    summary_sets_output=['-1', str(tmp_path / 'ri_S1_summary.bin')])

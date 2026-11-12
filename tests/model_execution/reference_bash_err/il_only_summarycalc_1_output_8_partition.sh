@@ -150,5 +150,7 @@ exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $p
 # --- Do insured loss kats ---
 
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

@@ -228,7 +228,7 @@ class TestGenLosses(ComputationChecker):
 
     def test_losses__run_ri_and_rl__all_layers_summarised(self):
         """Gross RL output is produced at every RI layer, so requesting it alongside net RI
-        output writes an fmsummaryxref into all of them - the pre-built summarypy structures
+        output writes an rlsummaryxref into all of them - the pre-built summarypy structures
         must cover the same set."""
         self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MULTI_LAYER_INF)
         self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MULTI_LAYER_SCP)
@@ -253,7 +253,7 @@ class TestGenLosses(ComputationChecker):
         run_input_dir = os.path.join(call_args['model_run_dir'], 'input')
         built = {
             ri_dir for ri_dir in ri_dirs
-            if os.path.isfile(os.path.join(run_input_dir, ri_dir, 'ri', 'summary_info.npy'))
+            if os.path.isfile(os.path.join(run_input_dir, ri_dir, 'rl', 'summary_info.npy'))
         }
         self.assertEqual(built, set(ri_dirs))
 

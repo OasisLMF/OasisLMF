@@ -192,5 +192,7 @@ aalpy -Kgul_S1_summary_palt -a output/gul_S1_palt.csv & lpid1=$!
 aalpy -Kgul_S2_summary_palt -a output/gul_S2_palt.csv & lpid2=$!
 exec_wait $lpid1 $lpid2
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f fifo/*

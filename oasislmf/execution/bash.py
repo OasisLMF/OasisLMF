@@ -672,6 +672,30 @@ def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=No
     return fifos
 
 
+def do_fifos_rlcombine(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None,
+                       consumer_prefix=None, action='mkfifo'):
+    if runtype != 'rl':
+        raise ValueError('rlcombine tool only supported for `rl` runtype')
+    summaries = analysis_settings.get(f'{runtype}_summaries')
+    if not summaries:
+        return []
+
+    if not consumer_prefix:
+        consumer_prefix = ''
+
+    fifos = []
+    for process_id in process_range(max_process_id, process_number):
+        for summary in summaries:
+            if 'id' in summary:
+                summary_set = summary['id']
+                fifos.append(do_fifo_exec(runtype, process_id, filename,
+                                          fifo_dir, action,
+                                          f'{consumer_prefix}S{summary_set}_rlcombine'))
+
+    print_command(filename, '')
+    return fifos
+
+
 def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None,
                   consumer_prefix=None, action='mkfifo', summarypy_low_memory=False):
     """Write FIFO create/remove commands for all summary and ORD output pipes.
@@ -871,6 +895,7 @@ def do_summarycalcs(
     gul_full_correlation=False,
     inuring_priority=None,
     summarypy_low_memory=False,
+    rlcombine=False,
 ):
     """Write a ``summarypy`` command for one process to the bash script.
 
@@ -898,18 +923,23 @@ def do_summarycalcs(
             chain (see ``do_tees``). The Python aggregators (``lecpy``,
             ``aalpy``, ``eltpy``, ``pltpy``) glob ``*.bin`` work files and
             do not read ``.idx`` -- so they don't require this flag.
+        rlcombine (bool): If True, write the ``summarypy -s`` streams that ``rlcombine``
+            reads for each inuring priority (``rl`` runtype only).
+
+    Raises:
+        ValueError: if rlcombine is set for a runtype other than ``rl``
     """
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
+    if rlcombine and runtype != RUNTYPE_REINSURANCE_GROSS_LOSS:
+        raise ValueError('rlcombine only supported for the rl runtype')
+
     if process_id == 1:
         print_command(filename, '')
 
-    if runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
-        summarycalc_switch = '-t ri'
-    else:
-        summarycalc_switch = f'-t {runtype}'
+    summarycalc_switch = f'-t {runtype}'
 
     summarycalc_directory_switch = ""
     inuring_priority_text = ''   # Only relevant for reinsurance
@@ -924,14 +954,21 @@ def do_summarycalcs(
         input_filename_component = '_sumcalc'
 
     cmd = 'summarypy'
-    low_memory_switch = ' -m' if summarypy_low_memory else ''
-    cmd = f'{cmd}{low_memory_switch} {summarycalc_switch} {summarycalc_directory_switch}'
+
+    if rlcombine:
+        flag_switch = ' -s'
+        output_suffix = 'rlcombine'
+    else:
+        flag_switch = ' -m' if summarypy_low_memory else ''
+        output_suffix = 'summary'
+
+    cmd = f'{cmd}{flag_switch} {summarycalc_switch} {summarycalc_directory_switch}'
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            cmd = '{0} -{1} {4}{2}_{5}S{1}_summary_P{3}'.format(
+            cmd = '{0} -{1} {4}{2}_{5}S{1}_{6}_P{3}'.format(
                 cmd, summary_set, runtype, process_id, fifo_dir,
-                inuring_priority_text
+                inuring_priority_text, output_suffix
             )
 
     cmd = '{0} < {1}{2}{3}_{5}P{4}'.format(
@@ -940,6 +977,79 @@ def do_summarycalcs(
     )
     cmd = '( {0} ) 2>> $LOG_DIR/stderror.err  &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
     print_command(filename, cmd)
+
+
+def do_rlcombine(
+    analysis_settings,
+    process_id,
+    filename,
+    process_counter,
+    combine_levels,
+    passthrough_levels,
+    fifo_dir='fifo/',
+    stderr_guard=True,
+    summarypy_low_memory=False,
+):
+    runtype = RUNTYPE_REINSURANCE_GROSS_LOSS
+    summaries = analysis_settings.get('{}_summaries'.format(runtype))
+    if not summaries:
+        return
+
+    if process_id == 1:
+        print_command(filename, '')
+
+    input_index_map = {ip["level"]: i for i, ip in enumerate(combine_levels)}
+    static_paths = ' '.join(os.path.join('input', f'RI_{ip["level"]}') for ip in combine_levels)
+
+    for summary in summaries:
+        if 'id' not in summary:
+            continue
+
+        summary_set = summary['id']
+        inputs = ' '.join(get_fifo_name(fifo_dir, runtype, process_id,
+                                        f"{ip['text']}S{summary_set}_rlcombine") for ip in combine_levels)
+
+        output = get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_summary")
+        cmd = f"rlcombine -i {inputs} -p {static_paths} -o {output}"
+
+        if passthrough_levels:
+            intermediates = []
+            for ip in passthrough_levels:
+                intermediates.append(f"{input_index_map[ip['level']]}=" +
+                                     get_fifo_name(fifo_dir, runtype,
+                                                   process_id,
+                                                   f"{ip['text']}S{summary_set}_summary"))
+
+            cmd = f"{cmd} -I {' '.join(intermediates)}"
+
+        if summarypy_low_memory and (ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES)):
+            cmd = f"{cmd} -m"
+
+        process_counter['pid_monitor_count'] += 1
+        if stderr_guard:
+            cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+        else:
+            cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
+        print_command(filename, cmd)
+
+
+def do_ri_final_output(filename,
+                       analysis_settings,
+                       num_reinsurance_iterations,
+                       output_dir='output/'
+                       ):
+    final_text = f'{INTERMEDIATE_INURING_PRIORITY_PREFIX}{num_reinsurance_iterations}_'
+    final_requested = num_reinsurance_iterations in analysis_settings.get('ri_inuring_priorities', [])
+
+    action = 'cp' if final_requested else 'mv'
+    src_prefix = f'{output_dir}{RUNTYPE_REINSURANCE_LOSS}_{final_text}'
+    dst_prefix = f'{output_dir}{RUNTYPE_REINSURANCE_LOSS}_'
+
+    print_command(filename, '')
+    print_command(filename, f'# --- ri final output {"copy" if final_requested else "rename"}')
+    print_command(filename, f'for f in {src_prefix}*; do')
+    print_command(filename, f'    if [ -e "$f" ]; then {action} "$f" "{dst_prefix}${{f#{src_prefix}}}"; fi')
+    print_command(filename, 'done')
 
 
 def do_tees(
@@ -1113,56 +1223,69 @@ def do_ord(
                     print_command(filename, cmd)
 
 
-def get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
-    """Build the list of inuring priority dicts for reinsurance net loss.
+def get_reinsurance_inuring_priorities(analysis_settings,
+                                       num_reinsurance_iterations,
+                                       perspective='ri', all_layers=False,
+                                       include_final=True):
+    """Build the list of inuring priority dicts for reinsurance net and gross loss.
 
     Returns intermediate inuring priorities specified in the analysis settings
     plus the final priority (the full reinsurance iteration count).
 
     Args:
         analysis_settings (dict): The full analysis settings dictionary,
-            checked for the ``'ri_inuring_priorities'`` key.
+            checked for the ``'r{i,l}_inuring_priorities'`` key.
         num_reinsurance_iterations (int): Total number of reinsurance
             iterations.
+        perspective (str): ``'ri'`` for net loss or ``'rl'`` for the reinsurer's
+            loss, selecting ``ri_inuring_priorities`` or ``rl_inuring_priorities``.
+        all_layers (bool): If True return every iteration instead of the
+            requested inuring priorities.
+        include_final (bool): If True add the final iteration when it is not
+            already included.
 
     Returns:
         list[dict]: Each dict has ``'text'`` (file-name prefix) and
         ``'level'`` (iteration number) keys.
     """
-    intermediate_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
-    ri_inuring_priorities = [
+    if all_layers:
+        intermediate_inuring_priorities = list(range(1, num_reinsurance_iterations + 1))
+    else:
+        intermediate_inuring_priorities = sorted(list(analysis_settings.get(f'{perspective}_inuring_priorities', [])))
+
+    if include_final and num_reinsurance_iterations not in intermediate_inuring_priorities:
+        intermediate_inuring_priorities.append(num_reinsurance_iterations)
+
+    reins_inuring_priorities = [
         {
             'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
             'level': inuring_priority
-        } for inuring_priority in intermediate_inuring_priorities if inuring_priority < num_reinsurance_iterations
+        } for inuring_priority in intermediate_inuring_priorities
     ]
-    ri_inuring_priorities.append({'text': '', 'level': num_reinsurance_iterations})   # Final inuring priority
 
-    return ri_inuring_priorities
+    return reins_inuring_priorities
 
 
-def get_rl_inuring_priorities(num_reinsurance_iterations):
-    """Build the list of inuring priority dicts for reinsurance gross loss.
+def get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
+    """Build the list of reinsurance gross loss (RL) levels that produce outputs.
 
-    Unlike :func:`get_ri_inuring_priorities`, every iteration from 1 to
-    ``num_reinsurance_iterations`` is included (there is no "final" entry).
+    These are the inuring priorities requested in ``rl_inuring_priorities``
+    (passed through ``rlcombine`` as ``rl_IP{i}_S{j}``) followed by the final
+    combined output (``rl_S{j}``), which has an empty ``'text'`` prefix.
 
     Args:
+        analysis_settings (dict): The full analysis settings dictionary.
         num_reinsurance_iterations (int): Total number of reinsurance
             iterations.
 
     Returns:
         list[dict]: Each dict has ``'text'`` (file-name prefix) and
-        ``'level'`` (iteration number) keys.
+        ``'level'`` keys. The final combined output has ``'level'``
+        ``num_reinsurance_iterations + 1``.
     """
-    rl_inuring_priorities = [
-        {
-            'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
-            'level': inuring_priority
-        } for inuring_priority in range(1, num_reinsurance_iterations + 1)
-    ]
-
-    return rl_inuring_priorities
+    passthrough_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                            perspective='rl', include_final=False)
+    return passthrough_levels + [{'text': '', 'level': num_reinsurance_iterations + 1}]
 
 
 def rl(
@@ -1197,7 +1320,12 @@ def rl(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-    for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+    combine_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                        perspective='rl', all_layers=True)
+    passthrough_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                            perspective='rl', include_final=False)
+
+    for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
         for process_id in process_range(max_process_id, process_number):
             do_ord(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
@@ -1213,6 +1341,20 @@ def rl(
                 summarypy_low_memory=summarypy_low_memory,
             )
 
+    for process_id in process_range(max_process_id, process_number):
+        do_rlcombine(
+            analysis_settings=analysis_settings,
+            process_id=process_id,
+            filename=filename,
+            process_counter=process_counter,
+            combine_levels=combine_levels,
+            passthrough_levels=passthrough_levels,  # requested IP levels
+            fifo_dir=fifo_dir,
+            stderr_guard=stderr_guard,
+            summarypy_low_memory=summarypy_low_memory,
+        )
+
+    for inuring_priority in combine_levels:
         for process_id in process_range(max_process_id, process_number):
             do_summarycalcs(
                 runtype=RUNTYPE_REINSURANCE_GROSS_LOSS,
@@ -1223,7 +1365,7 @@ def rl(
                 stderr_guard=stderr_guard,
                 num_reinsurance_iterations=num_reinsurance_iterations,
                 inuring_priority=inuring_priority,
-                summarypy_low_memory=summarypy_low_memory,
+                rlcombine=True
             )
 
 
@@ -1259,7 +1401,7 @@ def ri(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-    for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+    for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations):
 
         for process_id in process_range(max_process_id, process_number):
             do_ord(
@@ -1564,7 +1706,8 @@ def get_main_cmd_ri_stream(
             main_cmd += ' -n -'
         if i in ri_inuring_priorities.keys():
             if i == num_reinsurance_iterations:   # Final inuring priority always produces net output if ri output requested
-                ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
+                ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id,
+                                             consumer=ri_inuring_priorities[i].rstrip('_'))
                 main_cmd += f" -n - > {ri_fifo_name}"
             else:
                 main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id, consumer=ri_inuring_priorities[i].rstrip('_'))}"
@@ -1814,6 +1957,18 @@ def get_pla_cmd(pla, secondary_factor, uniform_factor):
     return pla_cmd
 
 
+def get_valid_inuring_priorities(ip_to_level, request_ip, runtype):
+    request_ip = [int(p) for p in request_ip]
+    valid_ip = [p for p in request_ip if p in ip_to_level]
+    invalid_ip = [p for p in request_ip if p not in ip_to_level]
+
+    warning_msg = f'{runtype}_inuring_priorities requested but were not valid so ignored: '
+    if invalid_ip:
+        warning_msg += ', '.join([str(p) for p in invalid_ip])
+        logger.warning(warning_msg)
+    return valid_ip
+
+
 def bash_params(
     analysis_settings,
     max_process_id=-1,
@@ -1940,19 +2095,28 @@ def bash_params(
     # index of the last RI layer (output level) belonging to that priority.
     # We shadow analysis_settings with a shallow copy so the caller's dict is never mutated —
     # this means repeated bash_params() calls with the same dict remain safe (idempotent).
-    if model_run_dir and analysis_settings.get('ri_inuring_priorities'):
+    if analysis_settings.get('ri_inuring_priorities') or analysis_settings.get('rl_inuring_priorities'):
         mapping_fp = os.path.join(model_run_dir, 'input', 'ri_inuring_priority_output_levels.json')
         if os.path.exists(mapping_fp):
             with io.open(mapping_fp, encoding='utf-8') as _f:
                 _ip_to_level = {int(k): int(v) for k, v in json.load(_f).items()}
-            analysis_settings = {
-                **analysis_settings,
-                'ri_inuring_priorities': [
-                    _ip_to_level[int(p)]
-                    for p in analysis_settings['ri_inuring_priorities']
-                    if int(p) in _ip_to_level
-                ],
-            }
+            if analysis_settings.get('ri_inuring_priorities'):
+                valid_ips = get_valid_inuring_priorities(_ip_to_level, analysis_settings['ri_inuring_priorities'], 'ri')
+                analysis_settings = {
+                    **analysis_settings,
+                    'ri_inuring_priorities': [
+                        _ip_to_level[int(p)] for p in valid_ips
+                    ],
+                }
+
+            if analysis_settings.get('rl_inuring_priorities'):
+                valid_ips = get_valid_inuring_priorities(_ip_to_level, analysis_settings['rl_inuring_priorities'], 'rl')
+                analysis_settings = {
+                    **analysis_settings,
+                    'rl_inuring_priorities': [
+                        _ip_to_level[int(p)] for p in valid_ips
+                    ],
+                }
 
     if model_storage_json:
         bash_params['model_storage_json'] = model_storage_json
@@ -2318,7 +2482,7 @@ def create_bash_analysis(
             )
 
     if ri_output:
-        for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+        for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             create_workfolders(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, work_dir,
                 inuring_priority=inuring_priority['text']
@@ -2329,7 +2493,7 @@ def create_bash_analysis(
                 filename, work_full_correlation_dir
             )
     if rl_output:
-        for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+        for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
             create_workfolders(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 work_dir, inuring_priority=inuring_priority['text']
@@ -2337,8 +2501,8 @@ def create_bash_analysis(
     print_command(filename, '')
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
-    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output):
-        block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output else 1))
+    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output or rl_output):
+        block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output or rl_output else 1))
         num_lb = (max_process_id - 1) // block_process_size + 1
         num_gul_output = num_lb * num_gul_per_lb
         num_fm_output = num_lb * num_fm_per_lb
@@ -2368,7 +2532,7 @@ def create_bash_analysis(
             fifo_list += do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number,
                                        summarypy_low_memory=summarypy_low_memory)
         if ri_output:
-            for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+            for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations):
                 fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
@@ -2381,12 +2545,22 @@ def create_bash_analysis(
                     summarypy_low_memory=summarypy_low_memory,
                 )
         if rl_output:
-            for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+            for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                                       perspective='rl', all_layers=True):
                 fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
                     consumer=inuring_priority['text'].rstrip('_')
                 )
+
+                fifo_list += do_fifos_rlcombine(
+                    RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
+                    num_fm_output, filename, fifo_dir, process_number,
+                    consumer_prefix=inuring_priority['text']
+                )
+
+            # outputs only need the requested layers and the final combined output
+            for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
                 fifo_list += do_fifos_calc(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                     num_fm_output, filename, fifo_dir, process_number,
@@ -2649,9 +2823,10 @@ def create_bash_analysis(
                     fmpy_sort_output,
                     step_flag,
                     process_counter=process_counter,
-                    ri_inuring_priorities={ip['level']: ip['text'] for ip in get_ri_inuring_priorities(
+                    ri_inuring_priorities={ip['level']: ip['text'] for ip in get_reinsurance_inuring_priorities(
                         analysis_settings, num_reinsurance_iterations) if ip['level'] and ri_output},
-                    rl_inuring_priorities={ip['level']: ip['text'] for ip in get_rl_inuring_priorities(num_reinsurance_iterations) if rl_output}
+                    rl_inuring_priorities={ip['level']: ip['text'] for ip in get_reinsurance_inuring_priorities(
+                        analysis_settings, num_reinsurance_iterations, perspective='rl', all_layers=True) if rl_output}
                 )
                 print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None),
                                                         kwargs.get("socket_server_port")))
@@ -2750,7 +2925,7 @@ def create_bash_outputs(
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance gross loss kats ---')
         print_command(filename, '')
-        for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+        for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                 num_fm_output, filename, process_counter, work_kat_dir,
@@ -2763,7 +2938,7 @@ def create_bash_outputs(
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss kats ---')
         print_command(filename, '')
-        for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+        for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
@@ -2841,14 +3016,15 @@ def create_bash_outputs(
     # Output calcs
     print_command(filename, '')
     if rl_output:
-        for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+        for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
             post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
             ))
     if ri_output:
-        for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+        for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings,
+                                                                   num_reinsurance_iterations):
             post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
@@ -2890,7 +3066,12 @@ def create_bash_outputs(
         print_command(filename, cmd)
     do_jwaits(filename, process_counter)
 
+    if ri_output:
+        do_ri_final_output(filename, analysis_settings, num_reinsurance_iterations, output_dir)
+
     if remove_working_files:
+        print_command(filename, '')
+        print_command(filename, '# --- removing working files')
         print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
 
         if fifo_tmp_dir:

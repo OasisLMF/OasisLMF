@@ -141,5 +141,7 @@ katpy -s -f bin -i work/kat/gul_S1_elt_sample_P1 work/kat/gul_S1_elt_sample_P2 w
 exec_wait $kpid1
 
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f fifo/*

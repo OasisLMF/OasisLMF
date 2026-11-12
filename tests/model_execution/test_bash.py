@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
+from oasislmf.execution.bash import get_rl_output_levels
 from oasislmf.model_execution.bash import (bash_params, bash_wrapper,
                                            create_bash_analysis,
                                            create_bash_outputs, genbash)
@@ -332,6 +333,30 @@ class Genbash_LoadBalancer_and_gulpy(GenbashBase):
         # so key on the actual invocation with its --random-generator flag).
         self.assertIn("gulpy --random-generator", script)
         self.assertNotIn("gulmc --random-generator", script)
+
+
+@discover_and_add_tests
+class Genbash_rl(GenbashBase):
+    """rl outputs with three reinsurance iterations, so rlcombine combines three inuring priorities.
+    The base fixtures run without reinsurance iterations, so they generate no rl commands."""
+    KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "input_json_settings_rl")
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_rl")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_rl_')
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_rl")
+        cls.ri_iterations = 3
+
+    def test_get_rl_output_levels(self):
+        """The requested rl inuring priorities, passed through rlcombine, then the combined output."""
+        self.assertEqual(get_rl_output_levels({}, 3), [{'text': '', 'level': 4}])
+        self.assertEqual(get_rl_output_levels({'rl_inuring_priorities': [2, 1]}, 3),
+                         [{'text': 'IP1_', 'level': 1}, {'text': 'IP2_', 'level': 2}, {'text': '', 'level': 4}])
 
 
 # Special case: Custom gulcalc tests

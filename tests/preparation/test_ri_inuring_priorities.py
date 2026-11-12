@@ -255,17 +255,29 @@ class TestGenerateSummaryxrefRI(TestCase):
                 self._call_summaryxref(d, settings)
 
     def test_mapping_file_written_to_output_dir(self):
-        """generate_summaryxref_files() should copy the mapping JSON to output/."""
+        """generate_summaryxref_files() should create a readable output in the output directory/."""
         with tempfile.TemporaryDirectory() as d:
+            expected_mapping_file = {
+                "IP1": {
+                    "inuring_priority": 1,
+                    "risk_level": "LOC"
+                },
+                "IP2": {
+                    "inuring_priority": 2,
+                    "risk_level": "SEL"
+                }
+            }
             self._setup_run_dir(d, [(1, 'LOC'), (2, 'SEL')])
             settings = self._analysis_settings()
 
             self._call_summaryxref(d, settings)
 
-            output_fp = os.path.join(d, 'output', 'ri_inuring_priority_output_levels.json')
+            output_fp = os.path.join(d, 'output', 'reins_output_levels_summary.json')
             self.assertTrue(os.path.exists(output_fp), f"Mapping file not found at {output_fp}")
             loaded = _read_json(output_fp)
-            self.assertEqual({int(k): v for k, v in loaded.items()}, {1: 1, 2: 2})
+            self.assertEqual(loaded.keys(), expected_mapping_file.keys())
+            for key in expected_mapping_file.keys():
+                self.assertEqual(expected_mapping_file[key], loaded[key])
 
     def test_rl_mode_writes_all_ri_layers(self):
         """When rl_summaries is requested, the xref is written to every RI layer directory."""

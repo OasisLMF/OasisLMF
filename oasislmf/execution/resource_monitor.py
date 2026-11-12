@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # Full list of pytools tool names to monitor
 MONITORED_TOOLS = frozenset([
     'evepy', 'modelpy', 'gulpy', 'fmpy', 'gulmc',
-    'summarypy', 'plapy', 'katpy', 'eltpy', 'pltpy', 'aalpy', 'lecpy',
+    'summarypy', 'rlcombine', 'plapy', 'katpy', 'eltpy', 'pltpy', 'aalpy', 'lecpy',
 ])
 
 # Regex to extract a tool name from a process's command-line
@@ -47,6 +47,7 @@ TOOL_COLORS = {
     "fmpy": "#aec7e8",
     "gulmc": "#ffbb78",
     "summarypy": "#1f77b4",
+    "rlcombine": "#98df8a",
     "pltpy": "#ff7f0e",
     "eltpy": "#2ca02c",
     "katpy": "#d62728",
