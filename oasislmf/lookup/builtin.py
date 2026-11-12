@@ -50,6 +50,7 @@ import logging
 import math
 import os
 import re
+import time
 from contextlib import contextmanager
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
@@ -166,7 +167,11 @@ def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nea
     Returns:
         dict: {peril_id: _RtreeGeometries}, or {None: _RtreeGeometries} without a peril_id column.
     """
+    logger.info("rtree: reading geometry file %s", abs_path)
+    start = time.perf_counter()
     gdf_geometry = getattr(gpd, f"read_{file_type}")(abs_path, **file_read_params)
+    logger.info("rtree: read %d geometries with columns %s in %.1fs",
+                len(gdf_geometry), list(gdf_geometry.columns), time.perf_counter() - start)
 
     if gdf_geometry.crs is None:
         warnings.warn(
@@ -176,8 +181,10 @@ def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nea
         )
         gdf_geometry = gdf_geometry.set_crs("EPSG:4326")
     elif gdf_geometry.crs != "EPSG:4326":
+        logger.info("rtree: reprojecting geometries from %s to EPSG:4326", gdf_geometry.crs)
         gdf_geometry = gdf_geometry.to_crs("EPSG:4326")
 
+    start = time.perf_counter()
     centers = None
     if nearest_neighbor:
         with warnings.catch_warnings():
@@ -192,7 +199,11 @@ def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nea
     del gdf_geometry
 
     if 'peril_id' not in attributes.columns:
-        return {None: _RtreeGeometries(geometries, attributes, centers)}
+        per_peril = {None: _RtreeGeometries(geometries, attributes, centers)}
+        logger.info("rtree: indexed %d geometries (no peril_id column, used for all perils)%s in %.1fs",
+                    len(geometries), " with centroids for nearest neighbour" if nearest_neighbor else "",
+                    time.perf_counter() - start)
+        return per_peril
 
     peril_ids = attributes['peril_id'].to_numpy()
     attributes = attributes.drop(columns=['peril_id'])
@@ -201,6 +212,10 @@ def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nea
         mask = peril_ids == peril_id
         per_peril[peril_id] = _RtreeGeometries(
             geometries[mask], attributes[mask], None if centers is None else centers[mask])
+    logger.info("rtree: indexed geometries per peril %s%s in %.1fs",
+                {str(peril_id): len(geometries.attributes) for peril_id, geometries in per_peril.items()},
+                " with centroids for nearest neighbour" if nearest_neighbor else "",
+                time.perf_counter() - start)
     return per_peril
 
 
@@ -216,9 +231,11 @@ def _rtree_join(located, geometries, nearest_neighbor_max_distance):
     y = located['latitude'].to_numpy(dtype='float64')
     loc_pos, geom_pos = geometries.tree.query(shapely.points(x, y), predicate='intersects')
 
+    n_pairs = len(loc_pos)
     is_unmatched = np.ones(len(located), dtype=bool)
     is_unmatched[loc_pos] = False
     unmatched = np.flatnonzero(is_unmatched)
+    n_in_geometry = len(located) - unmatched.size
 
     if nearest_neighbor_max_distance > 0 and unmatched.size and geometries.ball_tree is not None:
         distance, nearest = geometries.ball_tree.query(
@@ -227,6 +244,10 @@ def _rtree_join(located, geometries, nearest_neighbor_max_distance):
         loc_pos = np.concatenate([loc_pos, unmatched[close]])
         geom_pos = np.concatenate([geom_pos, nearest[close, 0]])
         unmatched = unmatched[~close]
+
+    logger.debug("rtree: %d locations: %d in a geometry (%d location-geometry pairs), %d matched by nearest "
+                 "neighbour, %d unmatched", len(located), n_in_geometry, n_pairs,
+                 len(located) - n_in_geometry - unmatched.size, unmatched.size)
 
     loc_pos = np.concatenate([loc_pos, unmatched])
     geom_pos = np.concatenate([geom_pos, np.full(unmatched.size, -1, dtype=geom_pos.dtype)])
@@ -924,10 +945,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         per_peril = _RTREE_SHARED_DATA.get(key)
         if per_peril is None:
             per_peril = _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nearest_neighbor)
+        else:
+            logger.info("rtree: using the geometries of %s already loaded by the parent process", abs_path)
 
         def get_geometry(locations, geometries):
             has_coordinates = locations["longitude"].notna() & locations["latitude"].notna()
             located = locations[has_coordinates]
+            if not has_coordinates.all():
+                logger.debug("rtree: %d locations without coordinates are left unmatched", (~has_coordinates).sum())
             if located.empty:
                 gdf_loc = locations.copy()
             else:
@@ -946,7 +971,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 return get_geometry(locations, per_peril[None])
 
             res = [locations[~locations['peril_id'].isin(list(per_peril))]]
+            if len(res[0]):
+                logger.debug("rtree: %d locations have a peril with no geometries, perils %s",
+                             len(res[0]), res[0]['peril_id'].unique().tolist())
             for peril_id, geometries in per_peril.items():
+                logger.debug("rtree: joining locations for peril %s", peril_id)
                 res.append(get_geometry(locations.loc[locations['peril_id'] == peril_id], geometries))
 
             return pd.concat(res).reset_index()
@@ -1006,6 +1035,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     nearest_neighbor = nearest_neighbor_max_distance > 0
                     key = _rtree_data_key(abs_path, file_type, file_read_params, nearest_neighbor)
                     if key not in _RTREE_SHARED_DATA:
+                        logger.info("rtree: loading %s in the parent process, to share with the lookup workers", abs_path)
                         _RTREE_SHARED_DATA[key] = _load_rtree_geometries(
                             abs_path, step_config['parameters']['file_path'], file_type, file_read_params, nearest_neighbor)
                         keys.append(key)
