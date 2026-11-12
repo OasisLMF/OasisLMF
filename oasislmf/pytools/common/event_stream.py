@@ -1,6 +1,7 @@
 """Contain all common function and attribute to help read the event stream containing the losses"""
 
 from oasislmf.utils.exceptions import OasisStreamException
+import os
 import selectors
 from select import select
 import sys
@@ -14,6 +15,62 @@ from .data import def_to_type_and_size, sidx as sidx_definition
 
 # streams
 PIPE_CAPACITY = 65536  # bytes
+
+NO_SELECT = os.environ.get('OASIS_PYTOOLS_NO_SELECT', '') not in ('', '0') or os.name == 'nt'
+"""Read once at import: True when ``select`` must not be used on the streams.
+
+``select`` and ``selectors`` only accept sockets on Windows, so this is always True there. Setting
+``OASIS_PYTOOLS_NO_SELECT=1`` forces it on any OS, so that the Windows code path can be tested.
+"""
+
+
+def _select_no_wait(rlist, wlist, xlist, timeout=None):
+    """Stand-in for :func:`select.select` that reports every stream ready at once.
+
+    With blocking pipes and files the following ``readinto1`` or ``write`` blocks until it can
+    proceed, which provides the same back-pressure as waiting in ``select`` first.
+    """
+    return rlist, wlist, []
+
+
+select_streams = _select_no_wait if NO_SELECT else select
+"""``select.select``, or :func:`_select_no_wait` when :data:`NO_SELECT` is set."""
+
+
+class SequentialSelector:
+    """Stand-in for a :mod:`selectors` selector when :data:`NO_SELECT` is set.
+
+    It implements the subset :class:`EventReader` uses. :meth:`select` returns only the first
+    registered stream without waiting, so multiple input streams are read one after another, each
+    to its end, instead of being multiplexed: the blocking reads wait for data. Each event is
+    still read whole and handled on its own, as when multiplexing, whose interleaving of streams
+    depends on timing anyway; but the writer of a later stream is not drained until the earlier
+    streams end, so it must not depend on them. With a single input stream, the only case the
+    orchestrator produces, the behaviour is the same as with a selector.
+    """
+
+    def __init__(self):
+        self._keys = {}
+
+    def register(self, fileobj, events, data=None):
+        key = selectors.SelectorKey(fileobj, None, events, data)
+        self._keys[fileobj] = key
+        return key
+
+    def unregister(self, fileobj):
+        return self._keys.pop(fileobj)
+
+    def get_map(self):
+        return self._keys
+
+    def select(self, timeout=None):
+        for key in self._keys.values():
+            return [(key, key.events)]
+        return []
+
+    def close(self):
+        self._keys.clear()
+
 
 # stream source type
 CDF_STREAM_ID = 0
@@ -559,18 +616,25 @@ class EventReader:
     def read_streams(self, streams_in):
         """Read multiple stream input, yield each event id and load relevant value according to the specific read_buffer implemented in subclass
 
+        With :data:`NO_SELECT` set (always on Windows) the streams are read one after another
+        rather than multiplexed, see :class:`SequentialSelector`.
+
         Args:
             streams_in: streams to read
 
         Yields:
             int: each event id read from the streams
         """
-        try:
-            main_selector, stream_data = self.register_streams_in(selectors.DefaultSelector, streams_in)
-            self.logger.debug("Streams read with DefaultSelector")
-        except PermissionError:  # Fall back option if stream_in contain regular files
-            main_selector, stream_data = self.register_streams_in(selectors.SelectSelector, streams_in)
-            self.logger.debug("Streams read with SelectSelector")
+        if NO_SELECT:
+            main_selector, stream_data = self.register_streams_in(SequentialSelector, streams_in)
+            self.logger.debug("Streams read with SequentialSelector")
+        else:
+            try:
+                main_selector, stream_data = self.register_streams_in(selectors.DefaultSelector, streams_in)
+                self.logger.debug("Streams read with DefaultSelector")
+            except PermissionError:  # Fall back option if stream_in contain regular files
+                main_selector, stream_data = self.register_streams_in(selectors.SelectSelector, streams_in)
+                self.logger.debug("Streams read with SelectSelector")
         try:
             while main_selector.get_map():
                 for sKey, _ in main_selector.select():
@@ -714,7 +778,7 @@ class EventReader:
 
 def write_mv_to_stream(stream, byte_mv, cursor):
     """Write numpy byte array view to stream
-    - use select to handle forward pressure
+    - use select to handle forward pressure (a blocking write does it when :data:`NO_SELECT` is set)
     - use a while loop in case the stream is non-blocking (meaning the ammount of byte written is not guarantied to be cursor len)
 
     Args:
@@ -724,7 +788,7 @@ def write_mv_to_stream(stream, byte_mv, cursor):
     """
     written = 0
     while written < cursor:
-        _, writable, exceptional = select([], [stream], [stream])
+        _, writable, exceptional = select_streams([], [stream], [stream])
         if exceptional:
             raise IOError(f'error with input stream, {exceptional}')
         written += stream.write(byte_mv[written:cursor].tobytes())

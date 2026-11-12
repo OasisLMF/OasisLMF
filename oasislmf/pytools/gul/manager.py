@@ -4,7 +4,6 @@ from math import sqrt
 import os
 import sys
 from contextlib import ExitStack
-from select import select
 
 import numpy as np
 from numba import njit
@@ -12,7 +11,7 @@ import time
 from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, check_packing_supported,
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, select_streams, check_packed_item_fits, check_packing_supported,
                                                   encode_sidx, max_emitted_blocks,
                                                   mv_write_item_header,
                                                   mv_write_sidx_loss,
@@ -407,7 +406,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 # write the losses to the output stream
                 write_start = 0
                 while write_start < cursor:
-                    select([], select_stream_list, select_stream_list)
+                    select_streams([], select_stream_list, select_stream_list)
                     write_start += stream_out.write(byte_mv[write_start:cursor].tobytes())
 
                 cursor = 0

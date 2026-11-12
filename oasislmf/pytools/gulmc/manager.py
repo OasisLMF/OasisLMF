@@ -16,7 +16,6 @@ import os
 import sys
 import json
 from contextlib import ExitStack
-from select import select
 import time
 
 import numpy as np
@@ -26,7 +25,7 @@ from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, ITEM_PACKED_STREAM, ITEM_STREAM, LOSS_STREAM_ID,
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, select_streams, ITEM_PACKED_STREAM, ITEM_STREAM, LOSS_STREAM_ID,
                                                   check_packed_item_fits, check_packing_supported,
                                                   max_emitted_blocks, stream_info_to_bytes)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
@@ -675,7 +674,7 @@ def run(run_dir,
                     # write the losses to the output stream
                     write_start = 0
                     while write_start < compute_info['cursor']:
-                        select([], select_stream_list, select_stream_list)
+                        select_streams([], select_stream_list, select_stream_list)
                         write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
 
                 logger.info(f"event {event_ids[0]} DONE")

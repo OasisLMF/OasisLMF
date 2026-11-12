@@ -1,5 +1,4 @@
 """This file contains the utilities for all the I/O necessary in gulpy."""
-from select import select
 
 import numpy as np
 from numba import njit
@@ -8,7 +7,7 @@ from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasislmf.pytools.common.data import areaperil_int, areaperil_int_size, oasis_int, oasis_int_size, oasis_float, oasis_float_size
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, bytes_to_stream_types, mv_read, CDF_STREAM_ID
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, select_streams, bytes_to_stream_types, mv_read, CDF_STREAM_ID
 from oasislmf.pytools.common.hashmap import unpack as hm_unpack, _find_key as hm_find_key, NOT_FOUND as HM_NOT_FOUND
 from oasislmf.pytools.gul.common import (NP_BASE_ARRAY_SIZE, ProbMean,
                                          ProbMean_size, damagecdfrec,
@@ -99,7 +98,7 @@ def read_getmodel_stream(stream_in, items,
 
     while True:
         if valid_buf < buff_size and len_read:
-            select(select_stream_list, [], select_stream_list)
+            select_streams(select_stream_list, [], select_stream_list)
 
             # read the stream from valid_buf onwards
             len_read = stream_in.readinto1(mv[valid_buf:])
