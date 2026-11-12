@@ -306,12 +306,9 @@ def _getmodel_processes(p, gul_id, max_process_id, stderr_log):
 
     custom_gulcalc_cmd = p.get('custom_gulcalc_cmd') if p.get('_get_getmodel_cmd') is not None else None
     if custom_gulcalc_cmd:
-        # bash appends ` -i <item_output>` where item_output starts with ` | ...`, so the binary gets a bare
-        # trailing -i and writes to stdout; the whole group, item processes included, logs to gul_stderror.err
+        # the whole group, item processes included, logs to gul_stderror.err as in bash
         argv = [custom_gulcalc_cmd, '-e', str(args['process_id']), str(args['max_process_id']),
                 '-a', os.path.abspath('analysis_settings.json'), '-p', 'input']
-        if item_processes:
-            argv.append('-i')
         processes = [Process(custom_gulcalc_cmd, argv)] + item_processes
         for process in processes:
             process.stderr_log = GUL_STDERR_LOG if p['stderr_guard'] else None

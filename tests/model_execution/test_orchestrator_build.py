@@ -394,8 +394,7 @@ def test_custom_gulcalc_binary(name, partitions, monkeypatch, tmp_path):
     assert all(p.stderr_log == GUL_STDERR_LOG for p in binary)
     assert binary[0].argv[5] == os.path.abspath('analysis_settings.json')
     assert not any(p.name in ('evepy', 'gulmc', 'gulpy', 'modelpy') for p in processes)
-    head_feeds_more = params['need_summary_fifo_for_gul'] or params['analysis_settings'].get('pla')
-    assert (binary[0].argv[-1] == '-i') == bool(head_feeds_more)
+    assert '-i' not in binary[0].argv
 
 
 def test_custom_gulcalc_without_name_is_unsupported(monkeypatch):
