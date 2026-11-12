@@ -129,13 +129,30 @@ input loss. The extras are the
 deductible already taken, the loss already cut off by limits, and the room still left under those
 limits, by everything *below* the node. That is one quantity, not something split between the
 layers, so each layer of the node gets a full copy. The copy is made by the single-child path in
-`compute_event`, by `first_time_layer_extra` when the node is its own single base child, and by
-`aggregate_children_extras`, whose children's new layers still point at layer 0.
+`compute_event`, by `first_time_layer_extra`, and by `aggregate_children_extras`, whose children's
+new layers still point at layer 0.
 
-The items *under* a node are different. When `first_time_layer_extra` creates layers for several
-base children, those are the items, and their new layers start at zero. They only receive the
-changes allocated back to them. No profile reads them, and items are never aggregated again, so
-they never act as accumulated extras.
+The items *under* a node follow the same rule. When `first_time_layer_extra` creates layers for
+several base children, those are the items, and each item's new layers are copies of its layer 0.
+Back allocation reads them: when a per-layer profile gives deductible back (a maximum deductible
+below the deductible already taken), `back_alloc_extra_a2` shares the returned amount between the
+items in proportion to each item's own deductible or underlimit. Items left at zero receive none
+of it, and allocation rule 2, which reports the items, comes out short:
+
+```
+acc107: 1 location, building 1.7M + contents 300k, LocDed6All 100k
+        layer 2: PolMaxDed6All 30k, attachment 200k, participation 0.5
+
+layer 2 enters with loss 1.9M and deductible 100k
+  max ded: total 100k > 30k   -> 70k given back   -> 1.97M
+  layer:   (1.97M - 200k) * 0.5                     = 885,000   correct
+
+with the items' layer 2 extras at zero (before #2235):
+  the items get none of the 70k: 1.9M * 885k / 1.97M = 853,553   wrong
+```
+
+A minimum deductible or a limit only adds to the extras, and an addition is shared in proportion
+to loss, so neither reads the items' extras. Only amounts given back do.
 
 **Why each layer needs a full copy: min and max deductibles act on the total.** A minimum or
 maximum deductible is not applied on top of what was taken below. It bounds the *total*
@@ -209,9 +226,9 @@ The layer terms are not re-applied.
 
 | Combination | What the FM computes | Status |
 |---|---|---|
-| Per-layer policy terms (different deductible, min/max deductible or limit per layer), no account terms | Each layer applies its own terms to the whole loss, starting from the full deductible carried forward, then its layer terms. | Exact (acc105, acc106) |
+| Per-layer policy terms (different deductible, min/max deductible or limit per layer), no account terms | Each layer applies its own terms to the whole loss, starting from the full deductible carried forward, then its layer terms. | Exact (acc105, acc106, acc107, acc108) |
 | Account deductible, minimum deductible or limit over layers, with no per-layer terms in between | The layers hold the same extras, so the merged value is the deductible actually taken below. Account terms apply to the summed layer losses, and the change is shared back as above. A maximum deductible is included as long as it does not return deductible taken below. | Exact (acc49 and the `insurance_account` group) |
-| Account maximum deductible below the deductible taken below, over layers | The excess over the maximum is added to the summed layer losses and shared between the layers in proportion to their deductible. The exact result would re-run each layer's terms on the larger loss, which the FM cannot do because account terms apply after layer terms. See the example below. | Approximate |
+| Account maximum deductible below the deductible taken below, over layers | The excess over the maximum is added to the summed layer losses and shared between the layers in proportion to their deductible. The exact result would re-run each layer's terms on the larger loss, which the FM cannot do because account terms apply after layer terms. See the example below. | Approximate (acc109 locks in the FM result) |
 | Account terms over layers whose per-layer terms differ | See below. | Computed, but not defined by OED |
 
 **Account maximum deductible returning deductible over layers.** The exact result would push the
@@ -219,7 +236,7 @@ returned deductible through each layer's terms again. The FM adds it to the laye
 instead:
 
 ```
-1 location, GUL 1.7M, LocDed6All 100k
+acc109 (100% damage): 1 location, GUL 1.7M, LocDed6All 100k
 layer 1: attachment 0, unlimited, participation 1       -> 1,600,000
 layer 2: attachment 200k, unlimited, participation 0.5  -> 700,000
 account: AccMaxDed6All 50k -> 50k of the 100k is returned
