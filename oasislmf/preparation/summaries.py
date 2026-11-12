@@ -850,156 +850,6 @@ def generate_summaryxref_files(
         )
 
 
-def code_column(name):
-    """Name of the coded column for the exposure summary field `name`.
-
-    The codes live in their own namespace because a summary field is named after an OED column, and
-    the summary is grouped by fields while summing columns of its own. `NumberOfBuildings` is an
-    ordinary field to want a breakdown by, and its coded values would otherwise overwrite the
-    `number_of_buildings` being summed.
-
-    Args:
-        name (str): name of the column being coded
-
-    Returns:
-        str: the name the coded column is held under
-    """
-    return f'__code__{name}'
-
-
-def key_column(name):
-    """Name of the coded column for `name` in its role as one of the summary's own group keys.
-
-    The summary always groups by peril id and lookup status, and separately by each summary field.
-    A field is named after an OED column, so it can perfectly well be named `Status` -- which
-    `convert_col_name` turns into 'status'. The two roles are coded under names of their own because
-    sharing one column would make the group key one element shorter for such a field than for every
-    other, and the caller's lookups would then all miss and report the bucket as empty.
-
-    Args:
-        name (str): name of the column being coded
-
-    Returns:
-        str: the name the coded column is held under
-    """
-    return f'__key__{name}'
-
-
-def encode_exposure_summary_keys(df, field_names):
-    """Replace the columns the exposure summary groups by with integer codes.
-
-    Every deduplication and grouping hashes its key columns, and for the object columns holding
-    peril ids, lookup statuses and OED field values that hashing dominates the summary. Coding them
-    up front means each pass hashes integers instead.
-
-    Args:
-        df (pandas.DataFrame): dataframe `df_summary_peril` from `get_exposure_summary`
-        field_names (iterable): names of the exposure summary fields the rows are grouped by
-
-    Returns:
-        tuple: a 2-tuple ``(encoded, codes)``, where ``encoded`` holds the coded key columns, named
-        by `key_column` for the summary's own group keys and by `code_column` for the summary fields,
-        alongside the columns being summed, and ``codes`` maps each coded column name to its
-        ``{value: code}`` lookup. A value missing from a lookup does not appear in `df`.
-    """
-    # taken as arrays as the frame is a concatenation, so its index is not unique
-    encoded = {col: df[col].to_numpy() for col in ['loc_id', 'coverage_type_id', 'tiv',
-                                                   'number_of_buildings', 'number_of_risks']}
-    # a field named 'peril_id' or 'status' is coded under both its names, so that the two roles stay
-    # separate columns and the group key keeps the same shape for every field -- see `key_column`
-    coded_as = {col: [key_column(col)] for col in ['peril_id', 'status']}
-    for col in field_names:
-        coded_as.setdefault(col, []).append(code_column(col))
-
-    codes = {}
-    for col, column_names in coded_as.items():
-        column_codes, values = pd.factorize(df[col], sort=False)
-        for column_name in column_names:
-            encoded[column_name] = column_codes
-        codes[col] = {value: code for code, value in enumerate(values.tolist())}
-
-    return pd.DataFrame(encoded, copy=False), codes
-
-
-def get_exposure_summary_stats(encoded, field_name, group_by_status):
-    """Aggregate the exposure summary statistics for every value of one OED field at once.
-
-    The row-wise equivalent filters the frame down to one (field value, status, coverage type)
-    combination at a time and sums it. As the deduplication it does only ever drops rows within
-    such a combination, deduplicating on the combined key and grouping gives the same numbers from
-    a single pass over the frame instead of one pass per combination.
-
-    The field value is part of that key, so the deduplication is per field and cannot be hoisted out
-    and shared. Two exposure rows sharing a `loc_id` -- which a repeated `LocNumber` produces, and
-    which nothing upstream rejects -- may hold different field values, and sharing the key across
-    fields would drop one of them and zero its bucket.
-
-    Args:
-        encoded (pandas.DataFrame): the coded frame from `encode_exposure_summary_keys`
-        field_name (str): name of the exposure summary field the rows are grouped by
-        group_by_status (bool): keep one row per lookup status, rather than treating the statuses
-            as interchangeable the way the 'all' status does
-
-    Returns:
-        tuple: a 3-tuple ``(tiv, by_coverage, overall)`` of dicts keyed by the group key, which is
-        ``(field_value[, status][, coverage_type_id])``, dropping the enclosing tuple for a single
-        key. ``tiv`` holds the summed TIV, ``by_coverage`` and ``overall`` the location, building
-        and risk counts per coverage type and over all coverage types respectively.
-    """
-    counts = {
-        'number_of_locations': ('loc_id', 'size'),
-        'number_of_buildings': ('number_of_buildings', 'sum'),
-        'number_of_risks': ('number_of_risks', 'sum'),
-    }
-    group_keys = [code_column(field_name)] + ([key_column('status')] if group_by_status else [])
-    coverage_keys = group_keys + ['coverage_type_id']
-
-    # each frame is deduplicated from the one above it, which is already the first row per group
-    tiv_rows = encoded.drop_duplicates(group_keys + ['loc_id', key_column('peril_id'), 'coverage_type_id'])
-    coverage_rows = tiv_rows.drop_duplicates(coverage_keys + ['loc_id'])
-    location_rows = coverage_rows.drop_duplicates(group_keys + ['loc_id'])
-
-    tiv = tiv_rows.groupby(coverage_keys, observed=True, sort=False)['tiv'].sum()
-    by_coverage = coverage_rows.groupby(coverage_keys, observed=True, sort=False).agg(**counts)
-    overall = location_rows.groupby(group_keys, observed=True, sort=False).agg(**counts)
-
-    return tiv.to_dict(), by_coverage.to_dict('index'), overall.to_dict('index')
-
-
-@oasis_log
-def get_exposure_totals(df):
-    """Return dictionary with total TIVs and number of locations
-
-    Args:
-        df (pandas.DataFrame): dataframe `df_summary_peril` from `get_exposure_summary`
-
-    Returns:
-        dict: totals section for exposure_summary dictionary
-    """
-    dedupe_cols = ['loc_id', 'coverage_type_id']
-
-    within_scope = df['status'].isin(OASIS_KEYS_STATUS_MODELLED).to_numpy()
-    # masks rather than frames, so only the scope being summed is held in memory
-    scope_masks = {
-        "modelled": within_scope,
-        "not-modelled": ~within_scope,
-        "portfolio": np.full(len(df), True),
-    }
-
-    totals = {}
-    for scope, mask in scope_masks.items():
-        scope_df = df[mask]
-        by_location = scope_df.drop_duplicates(subset='loc_id')
-        totals[scope] = {
-            "tiv": scope_df.drop_duplicates(subset=dedupe_cols)['tiv'].sum(),
-            "number_of_locations": len(by_location),
-            "number_of_buildings": int(by_location['number_of_buildings'].sum()),
-            "number_of_risks": int(by_location['number_of_risks'].sum()),
-        }
-
-    return totals
-
-
 def convert_col_name(col_name):
     """Convert a column from OED format to exposure summary report format. For
     example `CountryCode` will be converted to `country_code`.
@@ -1018,6 +868,221 @@ def convert_col_name(col_name):
     return ''.join(col_list)
 
 
+EXPOSURE_SUMMARY_KEYS_COLS = ['loc_id', 'peril_id', 'coverage_type_id', 'status']
+
+# columns the exposure summary builds itself, which a summary field of the same name would shadow
+EXPOSURE_SUMMARY_RESERVED_FIELDS = {'loc_id', 'coverage_type_id', 'tiv', 'peril_id', 'status'}
+
+SUMMARY_COUNT_NAMES = ['number_of_locations', 'number_of_buildings', 'number_of_risks']
+
+
+def select_keys_columns(df, columns):
+    """Select `columns` from a keys or keys errors frame, whichever header convention it uses.
+
+    The keys files have OED style headers (`LocID`, `PerilID`, ...), which `get_dataframe` lowercases
+    by default (`locid`, `perilid`, ...) and `get_gul_input_items` renames to snake case (`loc_id`,
+    `peril_id`, ...). All three are accepted.
+
+    Args:
+        df (pandas.DataFrame): keys or keys errors frame
+        columns (list[str]): snake case names of the columns to select
+
+    Returns:
+        pandas.DataFrame: a new frame holding the columns under their snake case names. An empty `df`
+        gives an empty frame with every column, as an empty keys errors file is read without them.
+    """
+    by_normalised_name = {}
+    for col in df.columns:
+        by_normalised_name.setdefault(str(col).lower().replace('_', ''), col)
+
+    selected = {}
+    for col in columns:
+        source_col = by_normalised_name.get(col.replace('_', ''))
+        if source_col is not None:
+            selected[col] = df[source_col].reset_index(drop=True)
+        elif len(df):
+            raise OasisException(f'Keys data has no "{col}" column, found columns: {list(df.columns)}')
+        else:
+            selected[col] = pd.Series([], dtype=object)
+
+    return pd.DataFrame(selected, copy=False)
+
+
+def _factorize_parts(parts):
+    """Factorize a column split across several frames, as if they had been concatenated.
+
+    The keys and keys errors are coded separately, which saves concatenating them: the keys hold
+    the peril id as a categorical, which concatenation with the strings of the keys errors would
+    turn back into one Python string per row.
+
+    Args:
+        parts (list[pandas.Series]): the pieces of the column, in concatenation order
+
+    Returns:
+        tuple: ``(codes, uniques)``, the integer code of every row of the concatenated column and the
+        list of distinct values in order of first appearance, as `pandas.factorize` would give them
+        with ``use_na_sentinel=False``.
+    """
+    uniques, code_of, all_codes = [], {}, []
+    missing = object()  # NaN != NaN, so missing values share one key of their own
+
+    for part in parts:
+        codes, part_uniques = pd.factorize(part, sort=False, use_na_sentinel=False)
+        remap = np.empty(len(part_uniques), dtype=np.int64)
+        for i, value in enumerate(part_uniques.tolist()):
+            key = missing if pd.api.types.is_scalar(value) and pd.isna(value) else value
+            if key not in code_of:
+                code_of[key] = len(uniques)
+                uniques.append(value)
+            remap[i] = code_of[key]
+        all_codes.append(remap[codes])
+
+    codes = np.concatenate(all_codes) if all_codes else np.empty(0, dtype=np.int64)
+    return codes, uniques
+
+
+def _value_codes(uniques):
+    """The ``{value: code}`` lookup the summary fields are filled from, leaving out missing values.
+
+    A missing value is listed among the field values but has no code, so its bucket is reported
+    empty, as it always has been.
+    """
+    return {value: code for code, value in enumerate(uniques)
+            if not (pd.api.types.is_scalar(value) and pd.isna(value))}
+
+
+def get_exposure_summary_rows(exposure_df, exposure_profile, additional_fields):
+    """Collect the per location values the exposure summary is built from.
+
+    Args:
+        exposure_df (pandas.DataFrame): source exposure dataframe
+        exposure_profile (dict): profile defining exposure file
+        additional_fields (list): extra exposure columns to group the summary by
+
+    Returns:
+        tuple: ``(rows, field_names, coverage_type_ids, tiv)``. ``rows`` has one row per exposure
+        row, holding `loc_id`, the summary fields under their report names, `number_of_buildings` and
+        `number_of_risks`. ``tiv`` is the matching ``(rows, coverages)`` array of TIVs, missing TIVs
+        as 0, for the coverage types in ``coverage_type_ids``.
+    """
+    fields = {}
+    for field_name in additional_fields:
+        if field_name not in exposure_df.columns:
+            logger.warning(f'exposure summary field not found: {field_name}')
+        elif convert_col_name(field_name) in EXPOSURE_SUMMARY_RESERVED_FIELDS:
+            logger.warning(f'exposure summary field ignored, its name is used by the summary itself: {field_name}')
+        else:
+            fields.setdefault(convert_col_name(field_name), field_name)
+
+    # the first TIV column of each coverage type, in profile order
+    tiv_cols = {}
+    for term_info in exposure_profile.values():
+        if term_info.get('FMTermType') == 'TIV' and term_info['ProfileElementName'] in exposure_df.columns:
+            tiv_cols.setdefault(term_info['CoverageTypeID'], term_info['ProfileElementName'])
+    coverage_type_ids = list(tiv_cols)
+
+    rows = pd.DataFrame({'loc_id': exposure_df['loc_id'].to_numpy()})
+    for name, field_name in fields.items():
+        rows[name] = exposure_df[field_name].reset_index(drop=True)
+
+    # assigned after the fields, which they overwrite if a field has the same name
+    if 'NumberOfBuildings' in exposure_df:
+        rows['number_of_buildings'] = exposure_df['NumberOfBuildings'].to_numpy()
+    else:
+        rows['number_of_buildings'] = 1
+    rows['number_of_risks'] = rows['number_of_buildings']
+    if 'IsAggregate' in exposure_df:
+        rows.loc[(exposure_df['IsAggregate'] == 0).to_numpy(), 'number_of_risks'] = 1
+    rows = rows.replace({'number_of_buildings': 0, 'number_of_risks': 0}, 1)
+
+    tiv = np.zeros((len(rows), len(coverage_type_ids)))
+    for j, col in enumerate(tiv_cols.values()):
+        tiv[:, j] = pd.to_numeric(exposure_df[col], errors='coerce').fillna(0).to_numpy(dtype='float64')
+
+    return rows, list(fields), coverage_type_ids, tiv
+
+
+def _counts_array(col):
+    """A building or risk count column as floats, missing counts as 0 as `sum` treats them."""
+    return pd.to_numeric(col, errors='coerce').fillna(0).to_numpy(dtype='float64')
+
+
+class _SummaryStats:
+    """The ``(tiv, by_coverage, overall)`` dicts `fill_exposure_summary_field` reads, built up per group.
+
+    Only the groups holding a location are stored, as `fill_exposure_summary_field` reports the rest
+    as empty.
+    """
+
+    def __init__(self, coverage_type_ids):
+        self.coverage_type_ids = coverage_type_ids
+        self.tiv, self.by_coverage, self.overall = {}, {}, {}
+
+    def as_tuple(self):
+        return self.tiv, self.by_coverage, self.overall
+
+    def add_coverage(self, key, cov, tiv, counts):
+        """Add the TIV and counts of one group for one coverage.
+
+        Args:
+            key (tuple): the group, ``(field value code[, status code])``
+            cov (int): coverage index
+            tiv (float): TIV of the group
+            counts (dict): location, building and risk counts of the group
+        """
+        if counts['number_of_locations']:
+            key = key + (self.coverage_type_ids[cov],)
+            self.tiv[key] = tiv
+            self.by_coverage[key] = counts
+
+    def add_overall(self, key, counts):
+        """Add the counts of one group over all coverages, as `add_coverage`."""
+        if counts['number_of_locations']:
+            self.overall[key if len(key) > 1 else key[0]] = counts
+
+    def add_coverage_by_value(self, key_suffix, cov, tiv, counts):
+        """`add_coverage` for every field value code, from arrays indexed by the code."""
+        for code in np.flatnonzero(counts['number_of_locations']).tolist():
+            self.add_coverage((code,) + key_suffix, cov, tiv[code],
+                              {name: counts[name][code] for name in SUMMARY_COUNT_NAMES})
+
+    def add_overall_by_value(self, key_suffix, counts):
+        """`add_overall` for every field value code, from arrays indexed by the code."""
+        for code in np.flatnonzero(counts['number_of_locations']).tolist():
+            self.add_overall((code,) + key_suffix, {name: counts[name][code] for name in SUMMARY_COUNT_NAMES})
+
+
+class _FieldRows:
+    """The exposure rows summarised for one additional summary field.
+
+    One row per (location, field value), the first exposure row holding it, as the summary keeps
+    the first row of each group. A location appears more than once only when exposure rows sharing
+    its `loc_id` hold different values of the field.
+    """
+
+    def __init__(self, field_column, loc_codes, tiv, n_buildings, n_risks):
+        value_codes, values = pd.factorize(field_column, sort=False)
+        self.field_list = field_column.drop_duplicates().to_list()
+        self.value_codes = _value_codes(values.tolist())
+        self.n_values = len(values)
+
+        rows = np.flatnonzero(value_codes >= 0)  # a missing value has no code, and is reported empty
+        first = ~pd.Series(loc_codes[rows].astype(np.int64) * self.n_values + value_codes[rows]).duplicated().to_numpy()
+        rows = rows[first]
+        self.value, self.loc = value_codes[rows], loc_codes[rows]
+        self.tiv = np.ascontiguousarray(tiv[rows].T)  # (coverage, row)
+        self.n_buildings, self.n_risks = n_buildings[rows], n_risks[rows]
+
+    def counts(self, mask):
+        """Location, building and risk counts per field value code, over the rows in `mask`."""
+        value = self.value[mask]
+        return {
+            'number_of_locations': np.bincount(value, minlength=self.n_values),
+            'number_of_buildings': np.bincount(value, weights=self.n_buildings[mask], minlength=self.n_values),
+            'number_of_risks': np.bincount(value, weights=self.n_risks[mask], minlength=self.n_values),
+        }
+
+
 @oasis_log
 def get_exposure_summary(
         exposure_df,
@@ -1028,150 +1093,228 @@ def get_exposure_summary(
     """Create exposure summary as dictionary of TIVs and number of locations
     grouped by peril and validity respectively. returns a python dict().
 
+    Every location has a lookup status for every combination of coverage type (with a TIV column in
+    the exposure) and peril (returned by the lookup): the statuses of its keys rows, or `noreturn` if
+    it has none. The summary is aggregated one status at a time from a boolean (peril, coverage,
+    location) grid of which combinations hold that status, rather than from rows for every combination.
+
     Args:
         exposure_df (pandas.DataFrame): source exposure dataframe
-        keys_df (pandas.DataFrame): dataFrame holding keys data (success and errors)
+        keys_df (pandas.DataFrame or list): dataFrame holding keys data (success and errors), with
+            the location, peril, coverage type and status columns under any naming
+            `select_keys_columns` accepts, or a list of such frames
         exposure_profile (dict): profile defining exposure file
         additional_fields (list): extra exposure columns to group the summary by, on top of loc_id
 
     Returns:
         dict: Exposure summary dictionary
     """
-    # get location tivs by coveragetype
-    df_summary = []
+    keys_parts = keys_df if isinstance(keys_df, (list, tuple)) else [keys_df]
+    keys_parts = [select_keys_columns(part, EXPOSURE_SUMMARY_KEYS_COLS) for part in keys_parts]
 
-    exposure_fields = ['loc_id']
-    exposure_col_names = ['loc_id']
+    rows, field_names, coverage_type_ids, tiv = get_exposure_summary_rows(
+        exposure_df, exposure_profile, additional_fields)
+    n_buildings = _counts_array(rows['number_of_buildings'])
+    n_risks = _counts_array(rows['number_of_risks'])
 
-    for field_name in additional_fields:
-        if field_name in exposure_df.columns:
-            exposure_fields += [field_name]
-            exposure_col_names += [convert_col_name(field_name)]
-        else:
-            logger.warn(f'exposure summary field not found: {field_name}')
+    # locations, taking the first exposure row of a loc_id shared by several
+    loc_codes, loc_ids = pd.factorize(rows['loc_id'], sort=False)
+    first_rows = np.flatnonzero(~pd.Series(loc_codes).duplicated().to_numpy())
+    loc_tiv, loc_buildings, loc_risks = tiv[first_rows], n_buildings[first_rows], n_risks[first_rows]
 
-    for field_name in exposure_profile:
-        if 'FMTermType' in exposure_profile[field_name].keys():
-            if exposure_profile[field_name]['FMTermType'] == 'TIV' and exposure_profile[field_name]['ProfileElementName'] in exposure_df.columns:
-                cov_name = exposure_profile[field_name]['ProfileElementName']
-                coverage_type_id = exposure_profile[field_name]['CoverageTypeID']
-
-                fields = exposure_fields + [cov_name]
-                column_names = exposure_col_names + ['tiv']
-
-                tmp_df = exposure_df[fields].copy()
-                tmp_df.columns = column_names
-                tmp_df['coverage_type_id'] = coverage_type_id
-
-                # Add number_of_buildings column
-                if 'NumberOfBuildings' in exposure_df:
-                    tmp_df['number_of_buildings'] = exposure_df['NumberOfBuildings']
-                else:
-                    tmp_df['number_of_buildings'] = 1
-
-                # Add number_of_risks column
-                if 'IsAggregate' in exposure_df:
-                    tmp_df['number_of_risks'] = tmp_df['number_of_buildings']
-                    tmp_df.loc[exposure_df['IsAggregate'] == 0, 'number_of_risks'] = 1
-                else:
-                    tmp_df['number_of_risks'] = 1
-                df_summary.append(tmp_df)
-    df_summary = pd.concat(df_summary)
-
-    # fix 0 number_of_buildings and risks
-    df_summary = df_summary.replace({'number_of_buildings': 0, 'number_of_risks': 0}, 1)
-
-    # get all perils
-    peril_list = keys_df['peril_id'].drop_duplicates().to_list()
-
-    # Initialise sub categories
-    oed_categories = {'peril_id': peril_list}
-    for field_name in exposure_col_names[1:]:  # ignore 'loc_id'
-        field_list = df_summary[field_name].drop_duplicates().to_list()
-        oed_categories[field_name] = field_list
-
-    df_summary_peril = []
-    for peril_id in peril_list:
-        tmp_df = df_summary.copy()
-        tmp_df['peril_id'] = peril_id
-        df_summary_peril.append(tmp_df)
-    df_summary_peril = pd.concat(df_summary_peril)
-
-    df_summary_peril = df_summary_peril.merge(keys_df, how='left', on=['loc_id', 'coverage_type_id', 'peril_id'])
+    # code the keys; the perils of keys outside the exposure are still summarised
+    peril_codes, perils = _factorize_parts([part['peril_id'] for part in keys_parts])
+    status_codes, statuses = _factorize_parts([part['status'] for part in keys_parts])
     no_return = OASIS_KEYS_STATUS['noreturn']['id']
-    df_summary_peril['status'] = df_summary_peril['status'].fillna(no_return)
+    if no_return not in statuses:
+        statuses.append(no_return)
+    no_return_code = statuses.index(no_return)
+    missing_status = [i for i, status in enumerate(statuses) if pd.api.types.is_scalar(status) and pd.isna(status)]
+    status_codes[np.isin(status_codes, missing_status)] = no_return_code
+
+    keys_loc = pd.Index(loc_ids).get_indexer(pd.concat([part['loc_id'] for part in keys_parts], ignore_index=True))
+    keys_cov = pd.Index(coverage_type_ids).get_indexer(
+        pd.concat([part['coverage_type_id'] for part in keys_parts], ignore_index=True))
+    del keys_parts
+    in_exposure = (keys_loc >= 0) & (keys_cov >= 0)
+
+    n_locs, n_covs, n_perils = len(loc_ids), len(coverage_type_ids), len(perils)
+    # (peril, coverage, location), so that every location vector of the grid is contiguous
+    grid_shape = (n_perils, n_covs, n_locs)
+    cell = np.ravel_multi_index(
+        (peril_codes[in_exposure], keys_cov[in_exposure], keys_loc[in_exposure]), grid_shape)
+    cell_status = status_codes[in_exposure]
+    del keys_loc, keys_cov, peril_codes, status_codes, in_exposure
+
+    returned = np.zeros(grid_shape, dtype=bool)
+    returned.reshape(-1)[cell] = True
+
+    loc_tiv = np.ascontiguousarray(loc_tiv.T)  # (coverage, location)
+    field_rows = {name: _FieldRows(rows[name], loc_codes, tiv, n_buildings, n_risks) for name in field_names}
+    peril_stats = _SummaryStats(coverage_type_ids)
+    field_stats = {name: _SummaryStats(coverage_type_ids) for name in field_names}
+    in_scope = {'modelled': np.zeros((n_covs, n_locs), dtype=bool),
+                'not-modelled': np.zeros((n_covs, n_locs), dtype=bool)}
+
+    for status_code in sorted(set(np.unique(cell_status).tolist()) | {no_return_code}):
+        # the (peril, coverage, location) combinations with this status
+        has_status = np.zeros(grid_shape, dtype=bool)
+        has_status.reshape(-1)[cell[cell_status == status_code]] = True
+        if status_code == no_return_code:
+            has_status |= ~returned
+
+        perils_with_status = has_status.sum(axis=0, dtype=np.int64)  # (coverage, location)
+        has_any_peril = perils_with_status > 0
+        scope = 'modelled' if statuses[status_code] in OASIS_KEYS_STATUS_MODELLED else 'not-modelled'
+        in_scope[scope] |= has_any_peril
+
+        # by peril, from the first exposure row of each location
+        for peril in range(n_perils):
+            for cov in range(n_covs):
+                mask = has_status[peril, cov]
+                peril_stats.add_coverage((peril, status_code), cov, _masked_sum(loc_tiv[cov], mask),
+                                         _location_counts(mask, loc_buildings, loc_risks))
+            peril_stats.add_overall((peril, status_code),
+                                    _location_counts(has_status[peril].any(axis=0), loc_buildings, loc_risks))
+
+        # by each additional field, a location's TIV counting once per peril with the status
+        for name, field in field_rows.items():
+            n_perils_of_row = perils_with_status[:, field.loc]
+            for cov in range(n_covs):
+                field_stats[name].add_coverage_by_value((status_code,), cov, np.bincount(
+                    field.value, weights=field.tiv[cov] * n_perils_of_row[cov], minlength=field.n_values),
+                    field.counts(n_perils_of_row[cov] > 0))
+            field_stats[name].add_overall_by_value((status_code,), field.counts(has_any_peril[:, field.loc].any(axis=0)))
+        del has_status, perils_with_status, has_any_peril
+
+    # over all statuses, every location has a status for every coverage type and peril
+    has_rows = n_perils > 0 and n_covs > 0
+    peril_stats_for_all = _SummaryStats(coverage_type_ids)
+    all_locs = np.full(n_locs, has_rows)
+    all_locs_counts = _location_counts(all_locs, loc_buildings, loc_risks)
+    for peril in range(n_perils):
+        for cov in range(n_covs):
+            peril_stats_for_all.add_coverage((peril,), cov, _masked_sum(loc_tiv[cov], all_locs), all_locs_counts)
+        peril_stats_for_all.add_overall((peril,), all_locs_counts)
 
     # Compile summary of exposure data
     exposure_summary = {}
+    exposure_summary['total'] = {
+        scope: _exposure_total(mask, loc_tiv, loc_buildings, loc_risks)
+        for scope, mask in [('modelled', in_scope['modelled']),
+                            ('not-modelled', in_scope['not-modelled']),
+                            ('portfolio', np.full((n_covs, n_locs), has_rows))]
+    }
 
-    # Create totals section
-    exposure_summary['total'] = get_exposure_totals(df_summary_peril)
-    exposure_summary.update(get_exposure_summary_fields(df_summary_peril, oed_categories))
+    status_lookup = _value_codes(statuses)
+    exposure_summary['peril_id'] = fill_exposure_summary_field(
+        perils, _value_codes(perils), status_lookup,
+        peril_stats.as_tuple(), peril_stats_for_all.as_tuple())
+
+    for name, field in field_rows.items():
+        stats_for_all = _SummaryStats(coverage_type_ids)
+        every_row = np.full(len(field.value), has_rows)
+        for cov in range(n_covs):
+            stats_for_all.add_coverage_by_value((), cov, n_perils * np.bincount(
+                field.value, weights=field.tiv[cov], minlength=field.n_values), field.counts(every_row))
+        stats_for_all.add_overall_by_value((), field.counts(every_row))
+
+        exposure_summary[name] = fill_exposure_summary_field(
+            field.field_list, field.value_codes, status_lookup, field_stats[name].as_tuple(), stats_for_all.as_tuple())
 
     return exposure_summary
 
 
-def get_exposure_summary_fields(df, oed_categories):
-    """Summarise the exposure by every value of every field the summary is grouped by.
+def _masked_sum(values, mask):
+    """Sum of `values` where `mask` is set.
+
+    Multiplies rather than calling `numpy.dot`, which hands a float/bool product to a multithreaded
+    BLAS that is no faster here and takes every core.
+    """
+    return (values * mask).sum()
+
+
+def _location_counts(mask, n_buildings, n_risks):
+    """Location, building and risk counts over the locations in `mask`."""
+    return {
+        'number_of_locations': np.count_nonzero(mask),
+        'number_of_buildings': _masked_sum(n_buildings, mask),
+        'number_of_risks': _masked_sum(n_risks, mask),
+    }
+
+
+def _exposure_total(mask, loc_tiv, loc_buildings, loc_risks):
+    """Total TIV and counts over the (coverage, location) pairs in `mask`."""
+    locs = mask.any(axis=0)
+    return {
+        "tiv": _masked_sum(loc_tiv, mask),
+        "number_of_locations": int(np.count_nonzero(locs)),
+        "number_of_buildings": int(_masked_sum(loc_buildings, locs)),
+        "number_of_risks": int(_masked_sum(loc_risks, locs)),
+    }
+
+
+def fill_exposure_summary_field(field_list, value_codes, status_codes, stats_by_status, stats_for_all):
+    """Lay out the summary of one field, for every value and lookup status.
 
     Args:
-        df (pandas.DataFrame): dataframe `df_summary_peril` from `get_exposure_summary`
-        oed_categories (dict): the values to summarise by, per exposure summary field name
+        field_list (list): the field values to report, in report order
+        value_codes (dict): code of each field value in the stats, a value without one being empty
+        status_codes (dict): code of each lookup status in the stats, a status without one being empty
+        stats_by_status (tuple): ``(tiv, by_coverage, overall)`` dicts, the TIV and the counts keyed
+            by ``(value code, status code, coverage type id)`` and the counts over all coverage types
+            keyed by ``(value code, status code)``
+        stats_for_all (tuple): the same over all statuses, keyed by ``(value code, coverage type id)``
+            and by the value code
 
     Returns:
-        dict: the exposure summary sections for the fields in `oed_categories`, holding the TIV
-        and the location, building and risk counts per field value and lookup status
+        dict: the summary section of the field, holding the TIV and the location, building and risk
+        counts per field value and lookup status
     """
-    exposure_summary = {}
-    for field_name, field_list in oed_categories.items():
-        exposure_summary[field_name] = {}
-        for value in field_list:
-            exposure_summary[field_name][value] = {}
-            # Create dictionary structure for all and each validity status
-            for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
-                exposure_summary[field_name][value][status] = {}
-                exposure_summary[field_name][value][status]['tiv'] = 0.0
-                exposure_summary[field_name][value][status]['tiv_by_coverage'] = {}
-                exposure_summary[field_name][value][status]['number_of_locations'] = 0
-                exposure_summary[field_name][value][status]['number_of_locations_by_coverage'] = {}
-                exposure_summary[field_name][value][status]['number_of_buildings'] = 0
-                exposure_summary[field_name][value][status]['number_of_buildings_by_coverage'] = {}
-                exposure_summary[field_name][value][status]['number_of_risks'] = 0
-                exposure_summary[field_name][value][status]['number_of_risks_by_coverage'] = {}
-
     coverage_ids = [(coverage_type, info['id']) for coverage_type, info in SUPPORTED_COVERAGE_TYPES.items()]
-    encoded, codes = encode_exposure_summary_keys(df, oed_categories)
 
-    for field_name, field_list in oed_categories.items():
-        stats_by_status = get_exposure_summary_stats(encoded, field_name, group_by_status=True)
-        stats_for_all = get_exposure_summary_stats(encoded, field_name, group_by_status=False)
-
+    field_summary_by_value = {}
+    for field_value in field_list:
+        field_summary_by_value[field_value] = {}
+        # Create dictionary structure for all and each validity status
         for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
-            if status == 'all':
-                (tiv, by_coverage, overall), group_key = stats_for_all, ()
-            else:
-                # a status absent from the frame has no code, and so matches no group
-                (tiv, by_coverage, overall), group_key = stats_by_status, (codes['status'].get(status),)
+            field_summary_by_value[field_value][status] = {
+                'tiv': 0.0,
+                'tiv_by_coverage': {},
+                'number_of_locations': 0,
+                'number_of_locations_by_coverage': {},
+                'number_of_buildings': 0,
+                'number_of_buildings_by_coverage': {},
+                'number_of_risks': 0,
+                'number_of_risks_by_coverage': {},
+            }
 
-            for field_value in field_list:
-                field_summary = exposure_summary[field_name][field_value][status]
-                field_code = codes[field_name].get(field_value)
+    for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
+        if status == 'all':
+            (tiv, by_coverage, overall), group_key = stats_for_all, ()
+        else:
+            # a status absent from the frame has no code, and so matches no group
+            (tiv, by_coverage, overall), group_key = stats_by_status, (status_codes.get(status),)
 
-                for coverage_type, coverage_type_id in coverage_ids:
-                    coverage_key = (field_code,) + group_key + (coverage_type_id,)
-                    tiv_sum = float(tiv.get(coverage_key, 0.0))
-                    field_summary['tiv_by_coverage'][coverage_type] = tiv_sum
-                    field_summary['tiv'] += tiv_sum
+        for field_value in field_list:
+            field_summary = field_summary_by_value[field_value][status]
+            field_code = value_codes.get(field_value)
 
-                    counts = by_coverage.get(coverage_key)
-                    for count_name in ['number_of_locations', 'number_of_buildings', 'number_of_risks']:
-                        field_summary[f'{count_name}_by_coverage'][coverage_type] = int(counts[count_name]) if counts else 0
+            for coverage_type, coverage_type_id in coverage_ids:
+                coverage_key = (field_code,) + group_key + (coverage_type_id,)
+                tiv_sum = float(tiv.get(coverage_key, 0.0))
+                field_summary['tiv_by_coverage'][coverage_type] = tiv_sum
+                field_summary['tiv'] += tiv_sum
 
-                counts = overall.get((field_code,) + group_key if group_key else field_code)
-                for count_name in ['number_of_locations', 'number_of_buildings', 'number_of_risks']:
-                    field_summary[count_name] = int(counts[count_name]) if counts else 0
+                counts = by_coverage.get(coverage_key)
+                for count_name in SUMMARY_COUNT_NAMES:
+                    field_summary[f'{count_name}_by_coverage'][coverage_type] = int(counts[count_name]) if counts else 0
 
-    return exposure_summary
+            counts = overall.get((field_code,) + group_key if group_key else field_code)
+            for count_name in SUMMARY_COUNT_NAMES:
+                field_summary[count_name] = int(counts[count_name]) if counts else 0
+
+    return field_summary_by_value
 
 
 @oasis_log
@@ -1222,71 +1365,90 @@ def write_gul_errors_map(
     out_df = gul_inputs_errors_df[[c for c in cols if c in gul_inputs_errors_df.columns]].copy()
     # OED id columns can hold mixed types, which parquet cannot store in a single column.
     # Only cast non-null values: astype(str) turns NaN/None into 'nan'/'None' on pandas < 3
+    # A column already of the string dtype astype(str) gives (pandas >= 3) holds nothing else, so is
+    # left as it is: the keys errors are read that way, and casting their message is most of the time
+    str_dtype = pd.Series(['']).astype(str).dtype
     str_cols = [c for c in ['PortNumber', 'AccNumber', 'LocNumber', 'peril_id', 'status', 'message'] if c in out_df.columns]
     for c in str_cols:
-        out_df[c] = out_df[c].where(out_df[c].isna(), out_df[c].astype(str))
+        if str_dtype == object or out_df[c].dtype != str_dtype:
+            out_df[c] = out_df[c].where(out_df[c].isna(), out_df[c].astype(str))
     gul_error_map_fp = write_df_to_parquet_file(out_df, target_dir, 'gul_errors_map.parquet')
     if intermediary_csv:
         write_df_to_csv_file(out_df, target_dir, 'gul_errors_map.csv')
     return gul_error_map_fp
 
 
+def _read_keys_file(fp, columns):
+    """Read a keys or keys errors file, an unreadable (empty) file giving no rows."""
+    try:
+        df = get_dataframe(src_fp=fp, lowercase_cols=False)
+    except OasisException:
+        # Assume empty file on read error.
+        df = pd.DataFrame()
+    return select_keys_columns(df, columns)
+
+
 @oasis_log
 def write_exposure_summary(
         target_dir,
         exposure_df,
-        keys_fp,
-        keys_errors_fp,
-        exposure_profile,
+        keys_fp=None,
+        keys_errors_fp=None,
+        exposure_profile=get_default_exposure_profile(),
         additional_fields=[],
         intermediary_csv=False,
+        keys_df=None,
+        keys_errors_df=None,
 ):
     """Create exposure summary as dictionary of TIVs and number of locations
     grouped by peril and validity respectively. Writes dictionary as json file
     to disk.
 
+    The keys can be given as frames already in memory, as `GenerateFiles` has them, or else are read
+    from the keys files.
+
     Args:
         target_dir (str): directory on disk to write exposure summary file
         exposure_df (pandas.DataFrame): source exposure dataframe
-        keys_fp (str): file path to keys file
-        keys_errors_fp (str): file path to keys errors file
+        keys_fp (str): file path to keys file, read if `keys_df` is not given
+        keys_errors_fp (str): file path to keys errors file, read if `keys_errors_df` is not given
         exposure_profile (dict): profile defining exposure file
         additional_fields (list[str]): list of additional OED fields to add to exposure summary file
         intermediary_csv (bool): If True, also write a csv copy of the gul errors map
+        keys_df (pandas.DataFrame): keys, with the location, peril and coverage type columns under
+            any naming `select_keys_columns` accepts. It is not modified.
+        keys_errors_df (pandas.DataFrame): keys errors, likewise with status and message columns
 
     Returns:
         str: Exposure summary file path
     """
-    keys_success_df = keys_errors_df = None
+    keys_cols = ['loc_id', 'peril_id', 'coverage_type_id']
+    keys_errors_cols = keys_cols + ['status', 'message']
+    keys_parts = []
 
-    # get keys success
-    if keys_fp:
-        try:
-            keys_success_df = get_dataframe(src_fp=keys_fp, lowercase_cols=False)[['LocID', 'PerilID', 'CoverageTypeID']]
-        except OasisException:
-            # Assume empty file on read error.
-            keys_success_df = pd.DataFrame(columns=['locid'])
-        else:
-            keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
-            keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status']
+    if keys_df is not None:
+        keys_success_df = select_keys_columns(keys_df, keys_cols)
+    elif keys_fp:
+        keys_success_df = _read_keys_file(keys_fp, keys_cols)
+    else:
+        keys_success_df = None
+    if keys_success_df is not None:
+        keys_success_df['status'] = pd.Categorical.from_codes(
+            np.zeros(len(keys_success_df), dtype=np.int8), categories=[OASIS_KEYS_STATUS['success']['id']])
+        keys_parts.append(keys_success_df)
 
-    # get keys errors
-    if keys_errors_fp:
-        try:
-            keys_errors_df = get_dataframe(src_fp=keys_errors_fp, lowercase_cols=False)[['LocID', 'PerilID', 'CoverageTypeID', 'Status', 'Message']]
-        except OasisException:
-            # Assume empty file on read error.
-            keys_errors_df = pd.DataFrame(columns=['locid'])
-        else:
-            keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
+    if keys_errors_df is not None:
+        keys_errors_df = select_keys_columns(keys_errors_df, keys_errors_cols)
+    elif keys_errors_fp:
+        keys_errors_df = _read_keys_file(keys_errors_fp, keys_errors_cols)
+    if keys_errors_df is not None:
         if not keys_errors_df.empty:
             write_gul_errors_map(target_dir, exposure_df, keys_errors_df, exposure_profile, intermediary_csv=intermediary_csv)
+        keys_parts.append(keys_errors_df[EXPOSURE_SUMMARY_KEYS_COLS])
 
-    # concatinate keys responses & run
-    df_keys = pd.concat([keys_success_df, keys_errors_df])
-    exposure_summary = get_exposure_summary(exposure_df, df_keys, exposure_profile, additional_fields)
+    exposure_summary = get_exposure_summary(exposure_df, keys_parts, exposure_profile, additional_fields)
 
-    # write exposure summary as json fileV
+    # write exposure summary as json file
     fp = os.path.join(target_dir, 'exposure_summary_report.json')
     with io.open(fp, 'w', encoding='utf-8') as f:
         f.write(json.dumps(exposure_summary, ensure_ascii=False, indent=4))
