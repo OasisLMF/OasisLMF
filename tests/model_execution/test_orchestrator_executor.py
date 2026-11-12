@@ -374,7 +374,12 @@ def test_manifest_content(tmp_path):
               background=[Process('socket-server', ['socket-server', '10'], stderr_log=None)], env={'A': '1'},
               chunk_check=ChunkCheck('stderror.err', IGNORABLE_STDERR_LINE, '1.work/**/P1.bin'))
     executor_module.write_manifest(run, LOG, 'run_kernel.json')
-    data = json.loads((tmp_path / 'run_kernel.json').read_text())
+    text = (tmp_path / 'run_kernel.json').read_text()
+    data = json.loads(text)
+    assert data == executor_module.manifest(run, LOG)
+    process_lines = [line for line in text.splitlines() if '"argv"' in line]
+    assert len(process_lines) == 4
+    assert all(line.strip().rstrip(',').endswith('}') and '"stderr_log"' in line for line in process_lines)
     assert data['log_dir'] == LOG
     assert data['env'] == {'A': '1'}
     assert data['background'] == [{'name': 'socket-server', 'argv': ['socket-server', '10'], 'stdin': None, 'stdout': None,

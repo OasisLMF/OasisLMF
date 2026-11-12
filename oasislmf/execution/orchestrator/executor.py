@@ -108,14 +108,35 @@ def manifest(run, log_dir):
     }
 
 
+def format_manifest(description):
+    """Return ``description`` (from :func:`manifest`) as JSON text with one process per line.
+
+    The structure is indented, but each process is kept on a single line so the file reads like
+    a list of commands; with every argument on its own line a run of a few hundred processes
+    takes thousands of lines.
+    """
+    lines = {}
+
+    def one_line(process):
+        token = f'@process-{len(lines)}@'
+        lines[json.dumps(token)] = json.dumps(process)
+        return token
+
+    outline = dict(description)
+    outline['background'] = [one_line(process) for process in description['background']]
+    outline['stages'] = [{**stage, 'processes': [one_line(process) for process in stage['processes']]}
+                         for stage in description['stages']]
+    text = json.dumps(outline, indent=2)
+    return re.sub(r'"@process-\d+@"', lambda match: lines[match.group(0)], text) + '\n'
+
+
 def write_manifest(run, log_dir, path):
-    """Write :func:`manifest` of ``run`` to ``path`` as indented JSON."""
+    """Write :func:`manifest` of ``run`` to ``path``, formatted by :func:`format_manifest`."""
     directory = os.path.dirname(path)
     if directory:
         os.makedirs(directory, exist_ok=True)
     with open(path, 'w', encoding='utf-8') as f:
-        json.dump(manifest(run, log_dir), f, indent=2)
-        f.write('\n')
+        f.write(format_manifest(manifest(run, log_dir)))
 
 
 def connected_components(stage):
