@@ -680,6 +680,12 @@ def get_gul_input_items(
     # Free memory after merge, before memory-intensive restructuring of data
     del keys_df
 
+    # Put rows in a canonical order before any ID is assigned: item_id and coverage_id are
+    # numbered in row order, and the keys row order depends on the lookup (e.g. on how many
+    # chunks a multiprocessed lookup split the locations into - see #2211). Stable, so duplicate
+    # keys rows for the same item keep their keys file order.
+    gul_inputs_df.sort_values(['loc_id', 'peril_id', 'coverage_type_id'], kind='stable', inplace=True, ignore_index=True)
+
     # =========================================================================
     # COVERAGE UNPACKING: Set TIV based on coverage type
     # =========================================================================
