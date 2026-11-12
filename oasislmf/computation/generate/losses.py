@@ -513,6 +513,8 @@ class GenerateLossesPartial(GenerateLossesDir):
          'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'kernel_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
+        {'name': 'orchestrator', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Run the kernel with the Python orchestrator instead of a generated bash script'},
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gul_random_generator', 'default': 2, 'type': int,
@@ -600,6 +602,10 @@ class GenerateLossesPartial(GenerateLossesDir):
         bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
         bash_params['disable_resource_report'] = self.disable_resource_report
+        if self.orchestrator:
+            bash_params['orchestrator'] = True
+            # bash_params builds the built-in custom gulcalc command but does not keep the binary's name
+            bash_params['custom_gulcalc_cmd'] = self.model_custom_gulcalc
 
         with setcwd(model_run_fp):
             try:
@@ -629,6 +635,8 @@ class GenerateLossesOutput(GenerateLossesDir):
          'help': 'Number of kernel calculation processes to use'},
         {'name': 'kernel_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
+        {'name': 'orchestrator', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Run the kernel with the Python orchestrator instead of a generated bash script'},
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
 
@@ -671,6 +679,8 @@ class GenerateLossesOutput(GenerateLossesDir):
         )
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
         bash_params['disable_resource_report'] = self.disable_resource_report
+        if self.orchestrator:
+            bash_params['orchestrator'] = True
         with setcwd(model_run_fp):
             try:
                 self.logger.info('Generating Loss outputs in {}'.format(model_run_fp))
@@ -728,6 +738,8 @@ class GenerateLosses(GenerateLossesDir):
          'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'kernel_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
+        {'name': 'orchestrator', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Run the kernel with the Python orchestrator instead of a generated bash script'},
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gul_random_generator', 'default': 2, 'type': int,
@@ -826,6 +838,8 @@ class GenerateLosses(GenerateLossesDir):
                         disable_resource_report=self.disable_resource_report,
                         log_level=self.logger.getEffectiveLevel(),
                     )
+                    if self.orchestrator:
+                        run_args['orchestrator'] = True
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:
                     warnings.warn(

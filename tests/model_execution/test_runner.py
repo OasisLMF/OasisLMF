@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from tempfile import TemporaryDirectory
 from unittest import TestCase, mock
@@ -9,6 +10,8 @@ from unittest.mock import patch
 from oasislmf.execution import runner
 from oasislmf.execution.resource_monitor import ResourceMonitor
 from oasislmf.execution.bash import bash_params
+from oasislmf.execution.orchestrator.build import Run
+from oasislmf.execution.orchestrator.model import Process, Stage
 from oasislmf.execution.runner import rerun
 from oasislmf.utils.exceptions import OasisException
 
@@ -417,3 +420,213 @@ class TestResourceMonitorDisabled(TestCase):
             self.assertIsNone(monitor._thread)
             generate_report.assert_not_called()
             self.assertFalse(os.path.exists(log_root))
+
+
+class TestRunWithOrchestrator(TestCase):
+    """runner.run / run_analysis / run_outputs with and without the ``orchestrator`` flag."""
+
+    def setUp(self):
+        self.tmp_dir = TemporaryDirectory()
+        self.addCleanup(self.tmp_dir.cleanup)
+        self.script = os.path.join(self.tmp_dir.name, 'run_kernel.sh')
+        for target in ['ResourceMonitor', '_ensure_pytool_logs_complete', 'check_custom_gulcalc_can_read_inputs']:
+            patcher = patch(f'oasislmf.execution.runner.{target}')
+            setattr(self, target.strip('_'), patcher.start())
+            self.addCleanup(patcher.stop)
+
+    def _run(self, **kwargs):
+        proc = mock.Mock(pid=1, returncode=0)
+        proc.communicate.return_value = (b'bash output', None)
+        with patch('oasislmf.execution.runner.genbash') as genbash, \
+                patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc) as popen, \
+                patch('oasislmf.execution.runner.execute', return_value='orchestrator output') as execute:
+            runner.run(dict(GUL_OUTPUT), filename=self.script, **kwargs)
+        return genbash, popen, execute
+
+    def test_flag_off_runs_bash(self):
+        genbash, popen, execute = self._run()
+        genbash.assert_called_once()
+        self.assertEqual(['bash', self.script], popen.call_args.args[0])
+        execute.assert_not_called()
+
+    def test_flag_on_runs_orchestrator_in_script_dir(self):
+        cwd = []
+        with patch('oasislmf.execution.runner.genbash') as genbash, \
+                patch('oasislmf.execution.runner.subprocess.Popen') as popen, \
+                patch('oasislmf.execution.runner.execute', side_effect=lambda *a, **k: cwd.append(os.getcwd()) or 'text') as execute:
+            runner.run(dict(GUL_OUTPUT), filename=self.script, orchestrator=True, number_of_processes=2)
+        genbash.assert_not_called()
+        popen.assert_not_called()
+        run_, log_dir = execute.call_args.args
+        self.assertEqual('log', log_dir)
+        self.assertEqual(os.path.join(self.tmp_dir.name, 'run_kernel.json'), execute.call_args.kwargs['manifest_path'])
+        self.assertTrue(execute.call_args.kwargs['stderr_guard'])
+        self.assertEqual(['analysis', 'cleanup'], [stage.name for stage in run_.stages])
+        self.assertEqual(os.path.realpath(self.tmp_dir.name), os.path.realpath(cwd[0]))
+        self.ResourceMonitor.return_value.start.assert_called_once_with(os.getpid())
+        self.ResourceMonitor.return_value.stop.assert_called_once()
+        self.ensure_pytool_logs_complete.assert_called_once_with(os.path.join(self.tmp_dir.name, 'log'), None, None)
+        self.check_custom_gulcalc_can_read_inputs.assert_called_once()
+
+    def test_flag_on_writes_manifest_and_no_script(self):
+        with open(self.script, 'w') as f:
+            f.write('stale script')
+        tiny = Run(stages=[Stage('analysis', processes=[Process('ok', [sys.executable, '-c', 'pass'])])])
+        with patch('oasislmf.execution.runner.build_analysis', return_value=tiny), \
+                patch('oasislmf.execution.runner.build_outputs', return_value=Run()), \
+                patch('oasislmf.execution.runner.genbash') as genbash:
+            runner.run(dict(GUL_OUTPUT), filename=self.script, orchestrator=True)
+        genbash.assert_not_called()
+        self.assertFalse(os.path.exists(self.script))
+        with open(os.path.join(self.tmp_dir.name, 'run_kernel.json')) as f:
+            manifest = json.load(f)
+        self.assertEqual('ok', manifest['stages'][0]['processes'][0]['name'])
+        self.assertTrue(os.path.isfile(os.path.join(self.tmp_dir.name, 'log', 'stderror.err')))
+
+    def test_unsupported_config_falls_back_to_bash_with_warning(self):
+        with self.assertLogs('oasislmf.execution.runner', level='WARNING') as logs:
+            genbash, popen, execute = self._run(orchestrator=True, summarypy_low_memory=True)
+        genbash.assert_called_once()
+        execute.assert_not_called()
+        self.assertIn('summarypy_low_memory is not supported by the orchestrator', logs.output[0])
+        self.assertIn('generated bash script instead', logs.output[0])
+
+    def test_caller_getmodel_callable_falls_back_to_bash(self):
+        with self.assertLogs('oasislmf.execution.runner', level='WARNING') as logs:
+            genbash, popen, execute = self._run(orchestrator=True, custom_get_getmodel_cmd=lambda **kw: 'my_gul')
+        genbash.assert_called_once()
+        execute.assert_not_called()
+        self.assertIn('custom_get_getmodel_cmd', logs.output[0])
+        self.check_custom_gulcalc_can_read_inputs.assert_called_once_with('input', 'custom_get_getmodel_cmd', False)
+
+    def test_custom_gulcalc_binary_runs_with_orchestrator(self):
+        genbash, popen, execute = self._run(orchestrator=True, custom_gulcalc_cmd='ls', number_of_processes=2)
+        genbash.assert_not_called()
+        run_ = execute.call_args.args[0]
+        gul = [p for p in run_.stages[0].processes if p.name == 'ls']
+        self.assertEqual([['ls', '-e', '1', '2'], ['ls', '-e', '2', '2']], [p.argv[:4] for p in gul])
+        self.assertEqual({'gul_stderror.err'}, {p.stderr_log for p in gul})
+        self.check_custom_gulcalc_can_read_inputs.assert_called_once_with('input', 'ls', False)
+
+    def test_orchestrator_failure_surfaces_as_called_process_error(self):
+        error = subprocess.CalledProcessError(3, ['fmpy'], output=b'stage analysis: fmpy exited with code 3')
+        with patch('oasislmf.execution.runner.execute', side_effect=error), \
+                self.assertRaises(subprocess.CalledProcessError) as ctx:
+            runner.run(dict(GUL_OUTPUT), filename=self.script, orchestrator=True)
+        self.assertIs(error, ctx.exception)
+        self.ResourceMonitor.return_value.stop.assert_called_once()
+        self.ensure_pytool_logs_complete.assert_not_called()
+
+    def test_incomplete_logs_raise_called_process_error_with_orchestrator_output(self):
+        self.ensure_pytool_logs_complete.side_effect = OasisException('fmpy (1 lost)')
+        with patch('oasislmf.execution.runner.execute', return_value='orchestrator text'), \
+                self.assertRaises(subprocess.CalledProcessError) as ctx:
+            runner.run(dict(GUL_OUTPUT), filename=self.script, orchestrator=True)
+        self.assertIn(b'orchestrator text', ctx.exception.output)
+        self.assertIn(b'fmpy (1 lost)', ctx.exception.output)
+
+    def _chunk_params(self, **extra):
+        params = bash_params(dict(GUL_OUTPUT), max_process_id=4, process_number=3,
+                             filename=os.path.join(self.tmp_dir.name, '3.run_analysis.sh'))
+        params.update(extra)
+        return params
+
+    def test_run_analysis_with_orchestrator(self):
+        params = self._chunk_params(orchestrator=True, resource_monitor_interval=0.5)
+        with patch('oasislmf.execution.runner.execute', return_value='chunk text') as execute, \
+                patch('oasislmf.execution.runner.bash_wrapper') as wrapper:
+            result = runner.run_analysis(**params)
+        wrapper.assert_not_called()
+        self.assertEqual((params['fifo_queue_dir'], 'chunk text'), result)
+        run_, log_dir = execute.call_args.args
+        self.assertEqual(os.path.join('log', '3'), log_dir)
+        self.assertEqual(os.path.join(self.tmp_dir.name, '3.run_analysis.json'), execute.call_args.kwargs['manifest_path'])
+        self.assertEqual('3.work/**/P3.bin', run_.chunk_check.non_empty_glob)
+        self.ensure_pytool_logs_complete.assert_called_once_with(os.path.join(self.tmp_dir.name, 'log', '3'), None, None)
+
+    def test_run_analysis_flag_off_or_unsupported_runs_bash(self):
+        proc = mock.Mock(pid=1, returncode=0)
+        proc.communicate.return_value = (b'', None)
+        for extra in [{}, {'orchestrator': True, 'summarypy_low_memory': True}]:
+            with self.subTest(**extra), \
+                    patch('oasislmf.execution.runner.execute') as execute, \
+                    patch('oasislmf.execution.runner.bash_wrapper'), \
+                    patch('oasislmf.execution.runner.create_bash_analysis') as create_bash, \
+                    patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc):
+                runner.run_analysis(**self._chunk_params(**extra))
+            execute.assert_not_called()
+            create_bash.assert_called_once()
+            self.assertNotIn('orchestrator', create_bash.call_args.kwargs)
+
+    def test_run_outputs_with_orchestrator(self):
+        params = bash_params(dict(GUL_OUTPUT), max_process_id=2, filename=os.path.join(self.tmp_dir.name, 'run_outputs.sh'))
+        params['orchestrator'] = True
+        with patch('oasislmf.execution.runner.execute', return_value='outputs text') as execute:
+            self.assertEqual('outputs text', runner.run_outputs(**params))
+        self.assertEqual(os.path.join('log', 'out'), execute.call_args.args[1])
+        self.assertEqual(os.path.join(self.tmp_dir.name, 'run_outputs.json'), execute.call_args.kwargs['manifest_path'])
+        self.ensure_pytool_logs_complete.assert_called_once_with(os.path.join(self.tmp_dir.name, 'log', 'out'))
+
+    def test_run_outputs_failure_surfaces_as_called_process_error(self):
+        params = bash_params(dict(GUL_OUTPUT), max_process_id=2, filename=os.path.join(self.tmp_dir.name, 'run_outputs.sh'))
+        params['orchestrator'] = True
+        with patch('oasislmf.execution.runner.execute', side_effect=subprocess.CalledProcessError(1, ['katpy'], output=b'x')), \
+                self.assertRaises(subprocess.CalledProcessError):
+            runner.run_outputs(**params)
+
+
+class RerunFromManifestTestCase(TestCase):
+    """rerun() takes the first partition's commands from run_kernel.json when the orchestrator ran."""
+
+    MANIFEST = {
+        'log_dir': 'log',
+        'stages': [{'name': 'analysis', 'processes': [
+            {'name': 'summarypy', 'argv': ['summarypy', '-t', 'il', '-1', '<stream:il_S1_summary_P1>'], 'stdin': '<stream:il_P1>',
+             'stdout': None, 'stderr_log': 'stderror.err'},
+            {'name': 'fmpy', 'argv': ['fmpy', '-a2', '-p', 'input/RI_1', '-o', '<stream:rl_P1>'], 'stdin': '<stream:pipe_3>',
+             'stdout': '<stream:il_P1>', 'stderr_log': 'stderror.err'},
+            {'name': 'teepy', 'argv': ['teepy', '<stream:gul_P1>', '-'], 'stdin': '<stream:pipe_2>', 'stdout': '<stream:pipe_3>',
+             'stderr_log': 'stderror.err'},
+            {'name': 'fmpy', 'argv': ['fmpy', '-a2'], 'stdin': '<stream:pipe_1>', 'stdout': '<stream:pipe_2>', 'stderr_log': 'stderror.err'},
+            {'name': 'gulmc', 'argv': ['gulmc', '--socket-server=8080', '-S10', '-L0', '-a1'], 'stdin': '<stream:pipe_0>',
+             'stdout': '<stream:pipe_1>', 'stderr_log': 'stderror.err'},
+            {'name': 'evepy', 'argv': ['evepy', '1', '2'], 'stdin': None, 'stdout': '<stream:pipe_0>', 'stderr_log': 'stderror.err'},
+            {'name': 'fmpy', 'argv': ['fmpy', '-a2', '-p', 'input/RI_9'], 'stdin': '<stream:pipe_9>', 'stdout': None,
+             'stderr_log': 'stderror.err'},
+            {'name': 'gulmc', 'argv': ['gulmc', '-S10', '-L0', '-a1', '--partition-2'], 'stdin': '<stream:pipe_8>',
+             'stdout': '<stream:pipe_9>', 'stderr_log': 'stderror.err'},
+        ]}],
+    }
+
+    def setUp(self):
+        self.tmp_dir = TemporaryDirectory()
+        self.addCleanup(self.tmp_dir.cleanup)
+        self.cwd = os.getcwd()
+        os.chdir(self.tmp_dir.name)
+        self.addCleanup(os.chdir, self.cwd)
+        with open('event_error.json', 'w') as f:
+            json.dump({'event_id': '7'}, f)
+        with open('run_kernel.json', 'w') as f:
+            json.dump(self.MANIFEST, f)
+
+    def _pipes(self):
+        with patch('oasislmf.execution.runner.subprocess.run') as subprocess_run:
+            rerun()
+        return [c.args[0] for c in subprocess_run.call_args_list]
+
+    def test_commands_taken_from_manifest(self):
+        pipes = self._pipes()
+        self.assertEqual(4, len(pipes))
+        self.assertTrue(pipes[0].startswith('printf'))
+        self.assertTrue(pipes[0].endswith('| gulmc --socket-server=8080 -S10 -L0 -a1 -o 7_gul.bin'))
+        self.assertEqual('fmpy -a2 -o 7_fm1.bin -i 7_gul.bin', pipes[1])
+        self.assertEqual('fmpy -a2 -p input/RI_1 -o 7_fm2.bin -i 7_fm1.bin', pipes[2])
+        self.assertTrue(pipes[3].startswith('summarypy -t il -m -1'))
+
+    def test_newer_script_wins_over_manifest(self):
+        with open('run_kernel.sh', 'w') as f:
+            f.write("( ( eve 1 2 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > /tmp/x/fifo/gul_P1 ) | fmcalc -a2 > /tmp/il_P1 ) &\n")
+        os.utime('run_kernel.json', (1, 1))
+        pipes = self._pipes()
+        self.assertIn('gulcalc -S100 -L100 -r -a1 -i - -o 7_gul.bin', pipes[0])
+        self.assertTrue(pipes[1].startswith('fmcalc -a2'))

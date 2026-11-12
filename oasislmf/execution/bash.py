@@ -2957,6 +2957,93 @@ def create_bash_outputs(
 # COMPATIBILITY ONLY - used to support older model runners
 # ========================================================================== #
 
+def genbash_params(
+    max_process_id,
+    analysis_settings,
+    num_reinsurance_iterations=0,
+    fifo_tmp_dir=True,
+    gul_alloc_rule=None,
+    il_alloc_rule=None,
+    ri_alloc_rule=None,
+    num_gul_per_lb=None,
+    num_fm_per_lb=None,
+    stderr_guard=True,
+    bash_trace=False,
+    filename='run_kools.sh',
+    _get_getmodel_cmd=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None,
+    custom_args={},
+    fmpy_low_memory=False,
+    fmpy_sort_output=False,
+    summarypy_low_memory=False,
+    event_shuffle=None,
+    gulmc=True,
+    gul_random_generator=2,
+    gulmc_effective_damageability=False,
+    gulmc_vuln_cache_size=200,
+    model_py_server=False,
+    peril_filter=[],
+    join_summary_info=False,
+    base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
+    model_df_engine=None,
+    dynamic_footprint=False,
+    analysis_pk=None,
+    socket_server_size=None,
+    socket_server_port=None,
+    log_level=None,
+    **kwargs
+):
+    """The params :func:`genbash` generates its script from: :func:`bash_params` plus the progress keys.
+
+    Takes the arguments of :func:`genbash` (see there; extra keyword arguments are ignored).
+    Nothing is written to disk.
+
+    Returns:
+        dict: the :func:`bash_params` dict with ``analysis_pk``, ``socket_server_size`` and
+        ``socket_server_port`` added.
+    """
+    model_df_engine = model_df_engine or base_df_engine
+
+    params = bash_params(
+        max_process_id=max_process_id,
+        analysis_settings=analysis_settings,
+        num_reinsurance_iterations=num_reinsurance_iterations,
+        fifo_tmp_dir=fifo_tmp_dir,
+        gul_alloc_rule=gul_alloc_rule,
+        il_alloc_rule=il_alloc_rule,
+        ri_alloc_rule=ri_alloc_rule,
+        num_gul_per_lb=num_gul_per_lb,
+        num_fm_per_lb=num_fm_per_lb,
+        stderr_guard=stderr_guard,
+        bash_trace=bash_trace,
+        filename=filename,
+        _get_getmodel_cmd=_get_getmodel_cmd,
+        custom_gulcalc_log_start=custom_gulcalc_log_start,
+        custom_gulcalc_log_finish=custom_gulcalc_log_finish,
+        custom_args=custom_args,
+        fmpy_low_memory=fmpy_low_memory,
+        fmpy_sort_output=fmpy_sort_output,
+        summarypy_low_memory=summarypy_low_memory,
+        event_shuffle=event_shuffle,
+        gulmc=gulmc,
+        gul_random_generator=gul_random_generator,
+        gulmc_effective_damageability=gulmc_effective_damageability,
+        gulmc_vuln_cache_size=gulmc_vuln_cache_size,
+        model_py_server=model_py_server,
+        peril_filter=peril_filter,
+        join_summary_info=join_summary_info,
+        model_df_engine=model_df_engine,
+        dynamic_footprint=dynamic_footprint,
+        log_level=log_level
+    )
+
+    params['analysis_pk'] = analysis_pk
+    params['socket_server_size'] = socket_server_size
+    params['socket_server_port'] = socket_server_port
+    return params
+
+
 def genbash(
     max_process_id,
     analysis_settings,
@@ -2991,7 +3078,8 @@ def genbash(
     analysis_pk=None,
     socket_server_size=None,
     socket_server_port=None,
-    log_level=None
+    log_level=None,
+    **kwargs
 ):
     """Generates a bash script containing pytools calculation instructions for an
     Oasis model.
@@ -3039,49 +3127,15 @@ def genbash(
             socket-server that reports run progress.
         socket_server_port (int or None): port the local socket-server listens on.
         log_level (int or None): Enable logging of pytools subprocesses.
+        **kwargs: accepted and ignored (e.g. ``orchestrator``), so that a model runner forwarding
+            its keyword arguments cannot break script generation.
     """
-    model_df_engine = model_df_engine or base_df_engine
-
-    params = bash_params(
-        max_process_id=max_process_id,
-        analysis_settings=analysis_settings,
-        num_reinsurance_iterations=num_reinsurance_iterations,
-        fifo_tmp_dir=fifo_tmp_dir,
-        gul_alloc_rule=gul_alloc_rule,
-        il_alloc_rule=il_alloc_rule,
-        ri_alloc_rule=ri_alloc_rule,
-        num_gul_per_lb=num_gul_per_lb,
-        num_fm_per_lb=num_fm_per_lb,
-        stderr_guard=stderr_guard,
-        bash_trace=bash_trace,
-        filename=filename,
-        _get_getmodel_cmd=_get_getmodel_cmd,
-        custom_gulcalc_log_start=custom_gulcalc_log_start,
-        custom_gulcalc_log_finish=custom_gulcalc_log_finish,
-        custom_args=custom_args,
-        fmpy_low_memory=fmpy_low_memory,
-        fmpy_sort_output=fmpy_sort_output,
-        summarypy_low_memory=summarypy_low_memory,
-        event_shuffle=event_shuffle,
-        gulmc=gulmc,
-        gul_random_generator=gul_random_generator,
-        gulmc_effective_damageability=gulmc_effective_damageability,
-        gulmc_vuln_cache_size=gulmc_vuln_cache_size,
-        model_py_server=model_py_server,
-        peril_filter=peril_filter,
-        join_summary_info=join_summary_info,
-        model_df_engine=model_df_engine,
-        dynamic_footprint=dynamic_footprint,
-        log_level=log_level
-    )
+    args = {name: value for name, value in locals().items() if name != 'kwargs'}
+    params = genbash_params(**args)
 
     # remove the file if it already exists
     if os.path.exists(filename):
         os.remove(filename)
-
-    params['analysis_pk'] = analysis_pk
-    params['socket_server_size'] = socket_server_size
-    params['socket_server_port'] = socket_server_port
 
     with bash_wrapper(filename, bash_trace, stderr_guard):
         create_bash_analysis(**params)
