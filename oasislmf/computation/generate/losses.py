@@ -1232,9 +1232,10 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
                 if self.settings[param['output']]:
                     # We should only have one summary now
                     self.settings[param['summary']][0]['id'] = 1
-                    if self.settings[param['summary']][0]['leccalc']['return_period_file']:
+                    ord_output = self.settings[param['summary']][0].get('ord_output', {})
+                    if ord_output.get('return_period_file'):
                         warnings.warn('Return period file is not generated. Please use "return_periods" field in analysis settings JSON.')
-                        self.settings[param['summary']][0]['leccalc']['return_period_file'] = False
+                        ord_output['return_period_file'] = False
                     loss_types[idx] = True
         (self.gul, self.il) = loss_types
 
@@ -1302,6 +1303,9 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         output_files = self.model_files + self.gul_files + self.fm_files
         for output_file in output_files:
             output_file.write_file()
+
+        if self.il:
+            create_financial_structure(self.kernel_alloc_rule_il, self.input_dir)
 
         self.logger.info(f'\nGenerating losses (GUL=True, IL={self.il})')
 
