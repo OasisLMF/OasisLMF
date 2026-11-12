@@ -5,7 +5,7 @@ __all__ = [
 
 import csv
 import os
-import shutil
+import re
 import tempfile
 from itertools import chain
 
@@ -25,6 +25,26 @@ from oasislmf.utils.defaults import (KTOOLS_ALLOC_FM_MAX,
                                      OASIS_FILES_PREFIXES)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
+
+
+# A whole CSV field holding a number in scientific notation, e.g. 1.7e+06.
+_SCI_NOTATION_FIELD = re.compile(r'(?<![^,\n])[-+]?\d+(?:\.\d+)?e[-+]\d+(?![^,\n])')
+
+
+def write_expected_file(generated, expected):
+    """Copy a generated test output to the expected folder, numbers in plain notation.
+
+    Recent pandas/numpy write float32 columns in their shortest form, which is scientific
+    notation for round values (1700000 -> 1.7e+06), while older versions wrote 1700000.0. The
+    expected files then change format with whichever version regenerated them. Rewriting each
+    such field as its float64 repr (1700000.0) removes that dependency. Only whole fields that
+    are a number in scientific notation change, so IDs and other text are left as they are.
+    """
+    with open(generated) as f:
+        text = f.read()
+    text = _SCI_NOTATION_FIELD.sub(lambda m: repr(float(m.group())), text)
+    with open(expected, 'w') as f:
+        f.write(text)
 
 
 class RunExposure(ComputationStep):
@@ -445,7 +465,7 @@ class RunFmTest(ComputationStep):
 
             if not os.path.exists(expected):
                 if self.update_expected and os.path.exists(generated):
-                    shutil.copyfile(generated, expected)
+                    write_expected_file(generated, expected)
                 continue
 
             try:
@@ -460,7 +480,7 @@ class RunFmTest(ComputationStep):
                 )
             except AssertionError:
                 if self.update_expected:
-                    shutil.copyfile(generated, expected)
+                    write_expected_file(generated, expected)
                 else:
                     print("Expected:")
                     with open(expected) as f:
