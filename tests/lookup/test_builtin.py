@@ -350,6 +350,49 @@ def test_multiproc_shared_data_skips_overridden_build_rtree(monkeypatch):
     assert not reads
 
 
+def test_strategy_step_names_follows_combine_steps():
+    """The steps run are those in 'strategy' and, recursively, in its 'combine' steps; a combine
+    step that is defined but not used doesn't count, and a built combine step (whose strategy
+    holds {'name': ..., 'function': ...}) is followed too."""
+    config = {
+        "step_definition": {
+            "a": {"type": "merge"},
+            "b": {"type": "rtree"},
+            "c": {"type": "rtree"},
+            "d": {"type": "rtree"},
+            "e": {"type": "merge"},
+            "f": {"type": "merge"},
+            "comb": {"type": "combine", "parameters": {"strategy": ["b", "comb2"]}},
+            "comb2": {"type": "combine", "parameters": {"strategy": [{"name": "c", "function": None}, "comb"]}},
+            "unused_comb": {"type": "combine", "parameters": {"strategy": ["e"]}},
+        },
+        "strategy": ["a", "comb"],
+    }
+    assert Lookup(config=config)._strategy_step_names() == {"a", "comb", "b", "comb2", "c"}
+
+
+def test_multiproc_shared_data_skips_steps_not_in_strategy(monkeypatch, rtree_locations_all_coordinates):
+    """Only the files of steps the strategy runs, directly or through a 'combine' step, are loaded."""
+    from oasislmf.lookup.builtin import _RTREE_SHARED_DATA
+    reads = _count_parquet_reads(monkeypatch)
+    used_file = (FILES_DIR / "rtree_areas.parquet").as_posix()
+    rtree_step = _rtree_lookup_config(used_file)["step_definition"]["peril"]
+    unused_step = {**rtree_step, "parameters": {**rtree_step["parameters"], "file_path": "does_not_exist.parquet"}}
+    config = {
+        "step_definition": {
+            "unused_peril": unused_step,
+            "used_peril": rtree_step,
+            "peril": {"type": "combine", "parameters": {"strategy": ["used_peril"], "id_columns": ["poly_id"]}},
+            "unused_combine": {"type": "combine", "parameters": {"strategy": ["unused_peril"]}},
+        },
+        "strategy": ["peril"],
+    }
+
+    with Lookup(config=config).multiproc_shared_data():
+        assert reads == [used_file]
+        assert len(_RTREE_SHARED_DATA) == 1
+
+
 @pytest.mark.parametrize("preparations, values, expected", [
     ({"min": 5}, [1, 5, 7], [5, 5, 7]),           # values below min are raised to min
     ({"max": 10}, [7, 10, 20], [7, 10, 10]),      # values above max are lowered to max

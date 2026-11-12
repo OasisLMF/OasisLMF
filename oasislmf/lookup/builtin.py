@@ -1025,10 +1025,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         keys = []
         frozen = False
         try:
+            used_steps = self._strategy_step_names()
             # a subclass overriding build_rtree may not use the data loaded here
             if getattr(type(self), 'build_rtree') is Lookup.build_rtree:
-                for step_config in (self.config.get('step_definition') or {}).values():
+                for step_name, step_config in (self.config.get('step_definition') or {}).items():
                     if step_config.get('type') != 'rtree':
+                        continue
+                    if step_name not in used_steps:
+                        logger.debug("rtree: step %s is not in the strategy, its file is not loaded", step_name)
                         continue
                     abs_path, file_type, file_read_params, nearest_neighbor_max_distance = self._rtree_settings(
                         **step_config.get('parameters', {}))
@@ -1050,6 +1054,26 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 gc.unfreeze()
             for key in keys:
                 _RTREE_SHARED_DATA.pop(key, None)
+
+    def _strategy_step_names(self):
+        """Names of the steps the lookup runs: those in the config's 'strategy', and the steps
+        of the 'combine' steps among them, recursively. Other steps in 'step_definition' are
+        never run.
+        """
+        step_definition = self.config.get('step_definition') or {}
+        used = set()
+        to_visit = list(self.config.get('strategy') or [])
+        while to_visit:
+            step = to_visit.pop()
+            # once a combine step is built, its strategy holds {'name': ..., 'function': ...} instead of names
+            name = step['name'] if isinstance(step, dict) else step
+            if name in used:
+                continue
+            used.add(name)
+            step_config = step_definition.get(name) or {}
+            if step_config.get('type') == 'combine':
+                to_visit.extend((step_config.get('parameters') or {}).get('strategy') or [])
+        return used
 
     @staticmethod
     def build_fixed_size_geo_grid_multi_peril(perils_dict):
