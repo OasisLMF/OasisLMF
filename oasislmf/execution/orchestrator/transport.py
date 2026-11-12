@@ -9,33 +9,40 @@ A transport is used by the executor around ``subprocess.Popen``, once per stage:
             transport.after_spawn(process)
         ...wait for the processes...
 
-Mechanism on POSIX (Linux and macOS): every stream is an anonymous ``os.pipe()``. The reader
-always gets the read end as stdin. A writer that takes the stream on stdout gets the write end
-as stdout; a writer that takes it as a path argument inherits the write end through
-``pass_fds`` and receives ``/dev/fd/<n>`` as the path, which it opens itself. Because the write
-end exists from the moment the writer is spawned until it exits, the reader cannot see EOF
-before the writer has opened its path (no FIFO open race), nobody ever blocks in ``open()``
+Mechanism (every OS): every stream is an anonymous ``os.pipe()``. The reader always gets the
+read end as stdin. A writer that takes the stream on stdout gets the write end as stdout; a
+writer that takes it as a path argument inherits the write end itself and receives an
+*inherited stream reference* in place of the path (``<oasis-fd>/<n>`` on POSIX,
+``<oasis-handle>/<n>`` on Windows, see :mod:`oasislmf.pytools.common.stream_ref`), which it
+wraps with :func:`~oasislmf.pytools.common.stream_ref.open_stream_out` instead of opening a
+file. Because the write end exists from the moment the writer is spawned, the reader cannot see
+EOF before the writer has started writing (no FIFO open race), nobody ever blocks in ``open()``
 (no FIFO rendezvous), and no file is ever created. This was preferred to ``mkfifo`` because a
 FIFO's read end must be opened in the parent before the writer is known to have opened it, so
 avoiding an early EOF needs a placeholder write end that someone must hold until the writer
-exits - which is exactly what the inherited fd is, without the files.
+exits - which is exactly what the inherited end is, without the files.
 
-Trade-off: since the writer holds the inherited fd for its whole life, the reader sees EOF when
-the writer process exits (or closes every copy), not when it closes the file it opened by path.
-A process only reads its stdin, so the stream graph of a stage has no cycles and this delay
-cannot deadlock it. A writer that hands the fd on to its own children (``close_fds=False``)
-extends the delay to their lifetime.
+The writer wraps the inherited descriptor rather than re-opening it, so closing the file closes
+the only write end and the reader sees EOF then, even if the writer keeps running. A writer that
+never wraps the reference holds the end until it exits. A writer that hands it on to its own
+children (``close_fds=False``) extends that to their lifetime.
 
-Opening ``/dev/fd/<n>`` re-opens the pipe on Linux (``/proc/self/fd`` magic link) and
-duplicates fd ``n`` on macOS (fdesc); for a pipe either gives a writable fd on the same
-pipe, and the same mechanism underlies bash's process substitution on both systems.
+Only how a path-writer inherits its end, and how that end is named, differs between operating
+systems: see :class:`PosixTransport` and :class:`WindowsTransport`.
 """
 
 import os
 import subprocess
 import sys
 
+from oasislmf.pytools.common.stream_ref import FD_KIND, HANDLE_KIND, stream_reference
+
 from .model import Stream, StreamPath
+
+if os.name == 'nt':
+    import msvcrt
+else:
+    msvcrt = None
 
 
 class Transport:
@@ -56,7 +63,9 @@ class Transport:
         raise NotImplementedError
 
     def popen_kwargs(self, process):
-        """Return the ``stdin``/``stdout``/``pass_fds``/``close_fds`` keyword arguments for ``Popen``.
+        """Return the ``stdin``/``stdout``/``close_fds`` keyword arguments for ``Popen``, plus how path ends are inherited.
+
+        That is ``pass_fds`` on POSIX and, on Windows, ``startupinfo`` when the process takes a path.
 
         stderr is left to the caller.
 
@@ -66,7 +75,7 @@ class Transport:
         raise NotImplementedError
 
     def resolve_argv(self, process):
-        """Return ``process.argv`` with every :class:`~.model.StreamPath` replaced by a real path.
+        """Return ``process.argv`` with every :class:`~.model.StreamPath` replaced by an inherited stream reference.
 
         Args:
             process: a process of the opened stage.
@@ -103,14 +112,17 @@ def _move_above_stdio(fd):
     return fd
 
 
-class PosixTransport(Transport):
-    """Anonymous pipes, with ``/dev/fd/<n>`` for writers that take a path (see module docstring).
+class PipeTransport(Transport):
+    """Anonymous pipes created lazily; the part shared by every operating system.
 
     A stream's pipe is created when the first of its two processes is prepared and each end is
     closed in the parent as soon as its process has been spawned, so the parent only holds
     descriptors for streams that are half connected. Spawning the processes of one connected
     group of streams before starting the next keeps that number small however many groups the
     stage has.
+
+    Subclasses define how a writer inherits the write end of a stream it takes as a path
+    (:meth:`_adopt_path_end`, :meth:`_path_kwargs`) and how that end is named (:meth:`_reference`).
     """
 
     def __init__(self):
@@ -122,6 +134,18 @@ class PosixTransport(Transport):
     def open(self, stage):
         """See :meth:`Transport.open`."""
         stage.validate()
+
+    def _adopt_path_end(self, fd):
+        """Make the pipe write end ``fd`` inheritable by a path-writer; return the descriptor to keep."""
+        raise NotImplementedError
+
+    def _reference(self, fd):
+        """Return the reference string the path-writer receives for the kept descriptor ``fd``."""
+        raise NotImplementedError
+
+    def _path_kwargs(self, fds):
+        """Return the extra ``Popen`` keyword arguments that make the child inherit ``fds``."""
+        raise NotImplementedError
 
     def _ensure_pipe(self, stream):
         if stream.name not in self._created:
@@ -145,18 +169,18 @@ class PosixTransport(Transport):
         for arg in process.argv:
             if isinstance(arg, StreamPath):
                 self._ensure_pipe(arg.stream)
-                owned[2][arg.stream.name] = _move_above_stdio(self._write_fd.pop(arg.stream.name))
+                owned[2][arg.stream.name] = self._adopt_path_end(self._write_fd.pop(arg.stream.name))
         return owned
 
     def popen_kwargs(self, process):
         """See :meth:`Transport.popen_kwargs`."""
         stdin, stdout, path_fds = self._prepare(process)
-        return {'stdin': stdin, 'stdout': stdout, 'pass_fds': tuple(path_fds.values()), 'close_fds': True}
+        return {'stdin': stdin, 'stdout': stdout, 'close_fds': True, **self._path_kwargs(list(path_fds.values()))}
 
     def resolve_argv(self, process):
         """See :meth:`Transport.resolve_argv`."""
         path_fds = self._prepare(process)[2]
-        return [f'/dev/fd/{path_fds[arg.stream.name]}' if isinstance(arg, StreamPath) else arg for arg in process.argv]
+        return [self._reference(path_fds[arg.stream.name]) if isinstance(arg, StreamPath) else arg for arg in process.argv]
 
     @staticmethod
     def _close_owned(owned):
@@ -188,19 +212,58 @@ class PosixTransport(Transport):
             table.clear()
 
 
-class WindowsTransport(Transport):
-    r"""Not implemented yet.
+class PosixTransport(PipeTransport):
+    """Path-writers inherit their write end through ``pass_fds`` and receive ``<oasis-fd>/<n>``.
 
-    Intended approach: each stream is a named pipe ``\\.\pipe\oasis-<uuid>-<stream>`` created
-    by the parent with ``CreateNamedPipe`` (overlapped connect so the parent never blocks). The
-    server end, once connected, is the reader's stdin handle. A writer taking stdout gets a
-    client handle opened by the parent; a writer taking a path receives the pipe name and opens
-    it itself as a client, which is what ``open(path, 'wb')`` does on Windows. Handles are passed
-    with ``STARTUPINFO.lpAttributeList`` handle lists rather than ``pass_fds``.
+    The descriptor is moved to 3 or above so it cannot clash with the child's stdio.
     """
 
-    def __init__(self):
-        raise NotImplementedError("the orchestrator stream transport is not implemented on Windows yet")
+    def _adopt_path_end(self, fd):
+        return _move_above_stdio(fd)
+
+    def _reference(self, fd):
+        return stream_reference(FD_KIND, fd)
+
+    def _path_kwargs(self, fds):
+        return {'pass_fds': tuple(fds)}
+
+
+class WindowsTransport(PipeTransport):
+    """Path-writers inherit their write handle through a ``STARTUPINFO`` handle list and receive ``<oasis-handle>/<n>``.
+
+    ``n`` is the parent's handle value, which an inherited handle keeps in the child. The handle
+    is made inheritable with ``os.set_handle_inheritable`` (``os.pipe`` creates non-inheritable
+    ends) and listed in ``lpAttributeList['handle_list']``, which ``CreateProcess`` requires to
+    hold inheritable handles. This relies on CPython's Windows ``Popen._execute_child``
+    (``subprocess.py`` of 3.12, lines 1480-1507 and 1539-1554):
+
+    * with ``close_fds=True`` and the std handles in use, ``Popen`` appends the stdin, stdout and
+      stderr handles to the caller's ``handle_list``, de-duplicates it, and creates the process
+      with ``bInheritHandles`` true, so the child inherits exactly the listed handles and no
+      other inheritable handle of the parent (another stream's end prepared but not yet
+      spawned, for instance);
+    * stdin/stdout given as descriptors are turned into handles by ``_get_handles`` (lines
+      1361-1365 and 1381-1385): ``msvcrt.get_osfhandle`` then ``_make_inheritable``, a
+      ``DuplicateHandle`` that ``_close_pipe_fds`` closes after ``CreateProcess``. ``Popen``
+      never takes over the caller's descriptors, so the parent closes its own copies in
+      :meth:`after_spawn` as on POSIX; the child's inherited copies are independent.
+
+    ``startupinfo`` is only passed when the process takes a path, so the other processes are
+    created exactly as ``Popen`` does by default.
+    """
+
+    def _adopt_path_end(self, fd):
+        os.set_handle_inheritable(msvcrt.get_osfhandle(fd), True)
+        return fd
+
+    def _reference(self, fd):
+        return stream_reference(HANDLE_KIND, msvcrt.get_osfhandle(fd))
+
+    def _path_kwargs(self, fds):
+        if not fds:
+            return {}
+        handles = [msvcrt.get_osfhandle(fd) for fd in fds]
+        return {'startupinfo': subprocess.STARTUPINFO(lpAttributeList={'handle_list': handles})}
 
 
 def get_transport():

@@ -1,24 +1,26 @@
 import os
 import subprocess
 import sys
+import time
 
 import pytest
 
+from oasislmf.execution.orchestrator import transport as transport_module
 from oasislmf.execution.orchestrator.model import Process, Stage, Stream, StreamPath
-from oasislmf.execution.orchestrator.transport import PosixTransport, get_transport
-
-pytestmark = pytest.mark.skipif(sys.platform == 'win32', reason='the Windows transport is not implemented')
+from oasislmf.execution.orchestrator.transport import PosixTransport, WindowsTransport, get_transport
 
 PY = sys.executable
 TEEPY = [PY, '-m', 'oasislmf.execution.orchestrator.tee']
 TIMEOUT = 30
 
 WRITE_STDOUT = 'import sys; sys.stdout.buffer.write(bytes.fromhex(sys.argv[1]) * int(sys.argv[2]))'
-WRITE_PATH = 'import sys; f = open(sys.argv[1], "wb"); f.write(bytes.fromhex(sys.argv[2]) * int(sys.argv[3])); f.close()'
-SLOW_WRITE_PATH = 'import sys, time; time.sleep(1.5); f = open(sys.argv[1], "wb"); f.write(b"late data"); f.close()'
+OPEN = 'from oasislmf.pytools.common.stream_ref import open_stream_out\n'
+WRITE_PATH = OPEN + 'import sys; f = open_stream_out(sys.argv[1]); f.write(bytes.fromhex(sys.argv[2]) * int(sys.argv[3])); f.close()'
+SLOW_WRITE_PATH = OPEN + 'import sys, time; time.sleep(1.5); f = open_stream_out(sys.argv[1]); f.write(b"late data"); f.close()'
+CLOSE_THEN_SLEEP_PATH = OPEN + 'import sys, time; f = open_stream_out(sys.argv[1]); f.write(b"early"); f.close(); time.sleep(float(sys.argv[2]))'
 COPY = 'import sys, shutil; shutil.copyfileobj(sys.stdin.buffer, sys.stdout.buffer)'
 UPPER = 'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read().upper())'
-WRITE_FOREVER_PATH = 'import sys\nf = open(sys.argv[1], "wb")\nwhile True: f.write(b"x" * 65536)'
+WRITE_FOREVER_PATH = OPEN + 'import sys\nf = open_stream_out(sys.argv[1])\nwhile True: f.write(b"x" * 65536)'
 WRITE_FOREVER_STDOUT = 'import sys\nwhile True: sys.stdout.buffer.write(b"x" * 65536)'
 
 
@@ -124,6 +126,7 @@ def test_reader_exits_immediately_fails_writer(via_path):
     assert codes['writer'] != 0
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason='POSIX transport')
 def test_popen_kwargs_and_argv():
     s = Stream('s')
     writer = Process('writer', ['w', '-o', StreamPath(s)])
@@ -132,11 +135,81 @@ def test_popen_kwargs_and_argv():
         transport.open(Stage('x', [reader, writer]))
         argv = transport.resolve_argv(writer)
         kwargs = transport.popen_kwargs(writer)
-        assert argv[:2] == ['w', '-o'] and argv[2] == f'/dev/fd/{kwargs["pass_fds"][0]}'
+        assert argv[:2] == ['w', '-o'] and argv[2] == f'<oasis-fd>/{kwargs["pass_fds"][0]}'
         assert kwargs['pass_fds'][0] >= 3
         assert kwargs['stdin'] == subprocess.DEVNULL and kwargs['stdout'] == subprocess.DEVNULL
         assert transport.popen_kwargs(reader)['stdin'] >= 0
         assert transport.resolve_argv(reader) == ['r']
+
+
+def test_reader_sees_eof_when_writer_closes_but_keeps_running(tmp_path):
+    """The writer wraps the inherited end, so closing its file is the reader's EOF, not the writer's exit."""
+    s = Stream('s')
+    out = tmp_path / 'out.bin'
+    reader = Process('reader', [PY, '-c', COPY], stdin=s, stdout=str(out))
+    writer = Process('writer', [PY, '-c', CLOSE_THEN_SLEEP_PATH, StreamPath(s), str(TIMEOUT)])
+    stage = Stage('early-eof', [reader, writer])
+    procs = {}
+    try:
+        with get_transport() as transport:
+            transport.open(stage)
+            for process in stage.processes:
+                procs[process.name] = subprocess.Popen(transport.resolve_argv(process), **transport.popen_kwargs(process))
+                transport.after_spawn(process)
+        started = time.monotonic()
+        assert procs['reader'].wait(timeout=TIMEOUT / 2) == 0
+        assert time.monotonic() - started < TIMEOUT / 2
+        assert procs['writer'].poll() is None
+        assert out.read_bytes() == b'early'
+    finally:
+        for proc in procs.values():
+            proc.kill()
+            proc.wait()
+
+
+class _FakeMsvcrt:
+    """``get_osfhandle`` as the identity, so handle values are the test's descriptors."""
+
+    @staticmethod
+    def get_osfhandle(fd):
+        os.fstat(fd)
+        return fd
+
+
+class _FakeStartupInfo:
+    def __init__(self, lpAttributeList=None):
+        self.lpAttributeList = lpAttributeList
+
+
+@pytest.mark.skipif(not os.path.isdir('/proc/self/fd'), reason='fakes the Windows APIs with Linux descriptors')
+def test_windows_transport_kwargs_and_argv(monkeypatch):
+    """Windows-specific part, with ``msvcrt``, ``STARTUPINFO`` and ``set_handle_inheritable`` faked."""
+    inheritable = []
+    monkeypatch.setattr(transport_module, 'msvcrt', _FakeMsvcrt)
+    monkeypatch.setattr(transport_module.subprocess, 'STARTUPINFO', _FakeStartupInfo, raising=False)
+    monkeypatch.setattr(transport_module.os, 'set_handle_inheritable', lambda h, v: inheritable.append((h, v)), raising=False)
+    s, t, src = Stream('s'), Stream('t'), Stream('src')
+    tee = Process('tee', ['teepy', StreamPath(s), StreamPath(t)], stdin=src)
+    source = Process('source', ['src'], stdout=src)
+    readers = [Process('reader_s', ['r'], stdin=s), Process('reader_t', ['r'], stdin=t)]
+    before = open_fds()
+    with WindowsTransport() as transport:
+        transport.open(Stage('x', readers + [tee, source]))
+        argv = transport.resolve_argv(tee)
+        kwargs = transport.popen_kwargs(tee)
+        handles = kwargs['startupinfo'].lpAttributeList['handle_list']
+        assert argv == ['teepy', f'<oasis-handle>/{handles[0]}', f'<oasis-handle>/{handles[1]}']
+        assert sorted(inheritable) == sorted((h, True) for h in handles)
+        assert kwargs['close_fds'] is True and 'pass_fds' not in kwargs
+        assert kwargs['stdin'] >= 0 and kwargs['stdout'] == subprocess.DEVNULL
+        source_kwargs = transport.popen_kwargs(source)
+        assert 'startupinfo' not in source_kwargs and 'pass_fds' not in source_kwargs
+        assert transport.resolve_argv(source) == ['src']
+        transport.after_spawn(tee)
+        for handle in handles:
+            with pytest.raises(OSError):
+                os.fstat(handle)
+    assert open_fds() == before
 
 
 def test_open_rejects_invalid_stage():

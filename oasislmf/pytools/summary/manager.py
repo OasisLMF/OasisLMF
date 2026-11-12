@@ -49,6 +49,7 @@ from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, 
                                                   LOSS_STREAM_AGG_TYPES,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX,
                                                   NUM_SPECIAL_SIDX, decode_local_sidx)
+from oasislmf.pytools.common.stream_ref import open_stream_out
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_fmt, SELT_headers, VALID_EXT
 from oasislmf.pytools.utils import redirect_logging
@@ -597,7 +598,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
 
     with ExitStack() as stack:
         if output_binary:
-            summary_sets_pipe = {i: stack.enter_context(open(summary_set_path, 'wb')) for i, summary_set_path in summary_sets_path.items()}
+            summary_sets_pipe = {i: stack.enter_context(open_stream_out(summary_set_path)) for i, summary_set_path in summary_sets_path.items()}
             if low_memory:
                 summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'wb'))
                                            for summary_set_id, setpath in summary_sets_path.items()}

@@ -56,6 +56,7 @@ from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, LOSS_STR
                                                   mv_read, mv_write_item_header, mv_write_sidx_loss, write_mv_to_stream)
 from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, loss_pair_dtype, loss_pair_size,
                                           def_to_type_and_size)
+from oasislmf.pytools.common.stream_ref import open_stream_out
 
 logger = logging.getLogger(__name__)
 
@@ -475,7 +476,7 @@ class EventWriterSparse:
         if self.files_out is None:
             self.stream_out = sys.stdout.buffer
         else:
-            self.stream_out = open(self.files_out, 'wb')
+            self.stream_out = open_stream_out(self.files_out)
         # prepare output buffer
         self.stream_out.write(stream_info_to_bytes(LOSS_STREAM_ID, ITEM_STREAM))
         self.stream_out.write(np.int32(self.len_sample).tobytes())

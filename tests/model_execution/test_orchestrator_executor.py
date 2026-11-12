@@ -11,10 +11,8 @@ import pytest
 
 from oasislmf.execution.orchestrator import executor as executor_module
 from oasislmf.execution.orchestrator.build import IGNORABLE_STDERR_LINE, ChunkCheck, Run
-from oasislmf.execution.orchestrator.executor import connected_components, execute
+from oasislmf.execution.orchestrator.executor import connected_components, execute, resolve_executable
 from oasislmf.execution.orchestrator.model import Process, Stage, Stream, StreamPath
-
-pytestmark = pytest.mark.skipif(sys.platform == 'win32', reason='the Windows transport is not implemented')
 
 PY = sys.executable
 TEEPY = [PY, '-m', 'oasislmf.execution.orchestrator.tee']
@@ -22,7 +20,8 @@ TIMEOUT = 60
 LOG = 'log'
 
 WRITE_STDOUT = 'import sys; sys.stdout.buffer.write(sys.argv[1].encode() * int(sys.argv[2]))'
-WRITE_PATH = 'import sys; f = open(sys.argv[1], "wb"); f.write(sys.argv[2].encode()); f.close()'
+WRITE_PATH = ('import sys; from oasislmf.pytools.common.stream_ref import open_stream_out\n'
+              'f = open_stream_out(sys.argv[1]); f.write(sys.argv[2].encode()); f.close()')
 COPY = 'import sys, shutil; shutil.copyfileobj(sys.stdin.buffer, sys.stdout.buffer)'
 UPPER = 'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read().upper())'
 SLEEP_FOREVER = 'import time; time.sleep(600)'
@@ -441,3 +440,16 @@ def test_many_components_do_not_exhaust_file_descriptors(tmp_path):
         resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
     assert f'starting {2 * n_chains} processes in {n_chains} groups' in text
     assert all((tmp_path / f'out/{i}.txt').read_text() == f'{i}\n' for i in range(n_chains))
+
+
+def test_resolve_executable_uses_child_path(tmp_path):
+    exe_dir = tmp_path / 'bin'
+    exe_dir.mkdir()
+    name = 'oasis-test-tool'
+    exe = exe_dir / (name + ('.exe' if sys.platform == 'win32' else ''))
+    exe.write_bytes(b'#!/bin/sh\n')
+    exe.chmod(0o755)
+    resolved = resolve_executable([name, '-a', '1'], {'PATH': str(exe_dir)})
+    assert os.path.normcase(resolved[0]) == os.path.normcase(str(exe)) and resolved[1:] == ['-a', '1']
+    assert resolve_executable([name, '-a'], {'PATH': str(tmp_path)}) == [name, '-a']
+    assert resolve_executable([PY, '-c', 'pass'], {'PATH': ''})[0] == PY

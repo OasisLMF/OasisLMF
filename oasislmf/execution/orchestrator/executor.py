@@ -154,6 +154,21 @@ def connected_components(stage):
     return [groups[root] for root in sorted(groups)]
 
 
+def resolve_executable(argv, env):
+    """Return ``argv`` with ``argv[0]`` resolved against ``env['PATH']`` when it is found there.
+
+    On POSIX ``Popen`` already searches the child's ``PATH``. On Windows ``CreateProcess`` searches
+    the current directory first and then the *parent's* ``PATH``, ignoring ``env``; resolving
+    here with :func:`shutil.which` (which applies ``PATHEXT``, so ``fmpy`` finds ``fmpy.exe``)
+    gives the same lookup on every OS. An executable that is not found is left as given so that
+    ``Popen`` raises the usual :class:`FileNotFoundError`.
+    """
+    resolved = shutil.which(argv[0], path=env.get('PATH', os.defpath))
+    if resolved is None:
+        return argv
+    return [resolved, *argv[1:]]
+
+
 def _remove_glob(pattern):
     """``rm -R -f <pattern>``."""
     for path in glob.glob(pattern):
@@ -320,6 +335,7 @@ class _Executor:
         self.next_stderr_check = 0.0
 
     def _popen(self, process, argv, **kwargs):
+        argv = resolve_executable(argv, self.env)
         try:
             return subprocess.Popen(argv, env=self.env, **kwargs)
         except FileNotFoundError as e:

@@ -1,8 +1,9 @@
 """``teepy``: a portable ``tee`` for the kernel's data path.
 
 Copies stdin, byte for byte, to every output given on the command line. An output is a path
-opened for binary write, or ``-`` for teepy's own stdout. All outputs are opened before the
-first read, so a FIFO output applies back-pressure until its reader is there.
+opened for binary write, an inherited stream reference (see
+``oasislmf.pytools.common.stream_ref``), or ``-`` for teepy's own stdout. All outputs are opened
+before the first read, so a FIFO output applies back-pressure until its reader is there.
 
 Unlike GNU ``tee``, which by default dies silently on SIGPIPE, a write error on any output
 (typically its reader having exited) stops teepy with a message naming that output and a
@@ -22,6 +23,8 @@ import os
 import signal
 import sys
 
+from oasislmf.pytools.common.stream_ref import open_stream_out
+
 BUFFER_SIZE = 65536
 """Default read size in bytes; matches ``PIPE_CAPACITY`` in ``oasislmf.pytools.common.event_stream``."""
 
@@ -38,7 +41,7 @@ def _open_output(output):
         return '<stdout>', open(sys.stdout.fileno(), 'wb', buffering=0, closefd=False), True
     if isinstance(output, (str, bytes, os.PathLike)):
         try:
-            return os.fsdecode(output), open(output, 'wb', buffering=0), True
+            return os.fsdecode(output), open_stream_out(output, buffering=0), True
         except OSError as e:
             raise TeeError(f"cannot open output '{os.fsdecode(output)}': {e.strerror or e}") from e
     return getattr(output, 'name', repr(output)), output, False
