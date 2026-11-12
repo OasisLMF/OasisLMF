@@ -445,6 +445,13 @@ Function Factory to associate a location to a geometry (e.g. ``area_peril``) bas
 ``id_columns``: column(s) to transform to an 'id_column' (type int32 with nan replaced by -1)
 
 ``file_read_params``: optional extra keyword arguments passed to the geopandas file reading function.
+   * Every non-geometry column of the file is kept in memory and joined to the locations. If the file has
+     columns the lookup doesn't need, list the ones to keep, including the geometry column, e.g.
+     ``{"columns": ["geometry", "area_peril_id", "peril_id"]}`` for parquet.
+
+The geometry file is read and indexed once. When keys are generated with several processes, it is read in
+the parent process before the worker processes start, and all workers share that one copy, so memory use
+doesn't grow with the number of processes.
 
 ``nearest_neighbor_max_distance``: option to look for the nearest neighboring geometry, up to this distance away (in metres, as a Euclidean distance), if no containing geometry is found.
    * We use: https://automating-gis-processes.github.io/site/notebooks/L3/nearest-neighbor-faster.html

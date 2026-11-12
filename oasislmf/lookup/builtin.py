@@ -11,6 +11,7 @@ import pandas as pd
 from ods_tools.oed import fill_empty, is_empty
 
 try:  # needed for rtree
+    import shapely
     from shapely.geometry import Point
 
     # Hide numerous warnings similar to:
@@ -44,9 +45,12 @@ try:  # needed for h3 lookup
 except ImportError:
     h3 = h3_int = None
 
+import gc
 import logging
 import math
+import os
 import re
+from contextlib import contextmanager
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
 from oasislmf.utils.exceptions import OasisException
@@ -114,6 +118,134 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
         closest_points['distance'] = dist * earth_radius
 
     return closest_points
+
+
+EARTH_RADIUS_M = 6371000
+
+# rtree geometries loaded by Lookup.multiproc_shared_data before the lookup worker processes are
+# forked, so that the workers share one copy instead of each loading the whole file.
+_RTREE_SHARED_DATA = {}
+
+
+class _RtreeGeometries:
+    """The geometries of one peril (or of all perils when the file has no peril_id column) and
+    the spatial indexes used to join locations to them.
+
+    It is built once and only read afterwards, so forked worker processes share it without
+    copying it.
+    """
+
+    def __init__(self, geometries, attributes, centers=None):
+        # attributes: the file's non-geometry columns, positionally aligned with geometries
+        self.attributes = attributes.reset_index(drop=True)
+        self.tree = shapely.STRtree(geometries)
+        if centers is None:
+            self.ball_tree = None
+        else:
+            # (longitude, latitude) order, as nearest_neighbor has always used
+            self.ball_tree = BallTree(
+                np.radians(np.column_stack([shapely.get_x(centers), shapely.get_y(centers)])),
+                leaf_size=15, metric='haversine')
+
+
+def _rtree_data_key(abs_path, file_type, file_read_params, nearest_neighbor):
+    """Identify the geometries loaded from a file, including its version so an edited file
+    is never matched to stale shared data.
+    """
+    try:
+        stat = os.stat(abs_path)
+        version = (stat.st_size, stat.st_mtime_ns)
+    except (OSError, TypeError, ValueError):
+        version = None
+    return abs_path, file_type, repr(file_read_params), bool(nearest_neighbor), version
+
+
+def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nearest_neighbor):
+    """Read a geometry file and index it, per peril if it has a peril_id column.
+
+    Returns:
+        dict: {peril_id: _RtreeGeometries}, or {None: _RtreeGeometries} without a peril_id column.
+    """
+    gdf_geometry = getattr(gpd, f"read_{file_type}")(abs_path, **file_read_params)
+
+    if gdf_geometry.crs is None:
+        warnings.warn(
+            f"Geometry file '{file_path}' has no CRS metadata — assuming EPSG:4326. "
+            "Re-save the file with a CRS to suppress this warning.",
+            UserWarning,
+        )
+        gdf_geometry = gdf_geometry.set_crs("EPSG:4326")
+    elif gdf_geometry.crs != "EPSG:4326":
+        gdf_geometry = gdf_geometry.to_crs("EPSG:4326")
+
+    centers = None
+    if nearest_neighbor:
+        with warnings.catch_warnings():
+            # In the context of a nearest neighbour search, we accept a potentially significant
+            # deviation between the spherical or ellipsoidal distance and the cartesian approximation
+            # that's used here.
+            warnings.filterwarnings('ignore', category=UserWarning, message="Geometry is in a geographic CRS.")
+            centers = np.asarray(gdf_geometry.centroid.array)
+
+    geometries = np.asarray(gdf_geometry.geometry.array)
+    attributes = pd.DataFrame(gdf_geometry.drop(columns=gdf_geometry.geometry.name))
+    del gdf_geometry
+
+    if 'peril_id' not in attributes.columns:
+        return {None: _RtreeGeometries(geometries, attributes, centers)}
+
+    peril_ids = attributes['peril_id'].to_numpy()
+    attributes = attributes.drop(columns=['peril_id'])
+    per_peril = {}
+    for peril_id in np.unique(peril_ids):
+        mask = peril_ids == peril_id
+        per_peril[peril_id] = _RtreeGeometries(
+            geometries[mask], attributes[mask], None if centers is None else centers[mask])
+    return per_peril
+
+
+def _rtree_join(located, geometries, nearest_neighbor_max_distance):
+    """Left spatial join of locations (all with coordinates) to the geometries they intersect.
+
+    Gives the same result as geopandas.sjoin(how='left') followed by the nearest neighbour
+    fallback: one row per (location, intersecting geometry) pair, in location order, keeping
+    the location index; locations that intersect nothing get the nearest geometry centroid
+    within nearest_neighbor_max_distance, or else NaN attributes.
+    """
+    x = located['longitude'].to_numpy(dtype='float64')
+    y = located['latitude'].to_numpy(dtype='float64')
+    loc_pos, geom_pos = geometries.tree.query(shapely.points(x, y), predicate='intersects')
+
+    is_unmatched = np.ones(len(located), dtype=bool)
+    is_unmatched[loc_pos] = False
+    unmatched = np.flatnonzero(is_unmatched)
+
+    if nearest_neighbor_max_distance > 0 and unmatched.size and geometries.ball_tree is not None:
+        distance, nearest = geometries.ball_tree.query(
+            np.radians(np.column_stack([x[unmatched], y[unmatched]])), k=1)
+        close = distance[:, 0] * EARTH_RADIUS_M <= nearest_neighbor_max_distance
+        loc_pos = np.concatenate([loc_pos, unmatched[close]])
+        geom_pos = np.concatenate([geom_pos, nearest[close, 0]])
+        unmatched = unmatched[~close]
+
+    loc_pos = np.concatenate([loc_pos, unmatched])
+    geom_pos = np.concatenate([geom_pos, np.full(unmatched.size, -1, dtype=geom_pos.dtype)])
+    # stable sort by location only: a location's geometries stay in the STRtree's query order,
+    # as with geopandas.sjoin, so the keys' row order is unchanged
+    order = np.argsort(loc_pos, kind='stable')
+    loc_pos, geom_pos = loc_pos[order], geom_pos[order]
+
+    joined = located.iloc[loc_pos]
+    # -1 is not a label of the RangeIndex, so unmatched locations get NaN attributes
+    attributes = geometries.attributes.reindex(geom_pos)
+
+    overlap = joined.columns.intersection(attributes.columns)
+    if len(overlap):  # same suffixes as geopandas.sjoin
+        joined = joined.rename(columns={col: f"{col}_left" for col in overlap})
+        attributes = attributes.rename(columns={col: f"{col}_right" for col in overlap})
+
+    attributes.index = joined.index
+    return pd.concat([joined, attributes], axis=1)
 
 
 # GeoTransform indexes, https://gdal.org/en/stable/tutorials/geotransforms_tut.html
@@ -776,6 +908,56 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
+
+        Memory: the file is read and indexed once per lookup. When keys are generated with several
+        processes, it is read once in the parent process before the workers are forked (see
+        multiproc_shared_data) and the workers share that copy. Each chunk of locations is joined
+        with an STRtree query, so the memory it needs grows with the matches, not the file size.
+        To keep only some of the file's columns, pass e.g. {"columns": [...]} in file_read_params.
+        """
+        abs_path, file_type, file_read_params, nearest_neighbor_max_distance = self._rtree_settings(
+            file_path, file_type, area_peril_read_params, file_read_params,
+            nearest_neighbor_min_distance, nearest_neighbor_max_distance)
+        nearest_neighbor = nearest_neighbor_max_distance > 0
+
+        key = _rtree_data_key(abs_path, file_type, file_read_params, nearest_neighbor)
+        per_peril = _RTREE_SHARED_DATA.get(key)
+        if per_peril is None:
+            per_peril = _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nearest_neighbor)
+
+        def get_geometry(locations, geometries):
+            has_coordinates = locations["longitude"].notna() & locations["latitude"].notna()
+            located = locations[has_coordinates]
+            if located.empty:
+                gdf_loc = locations.copy()
+            else:
+                gdf_loc = _rtree_join(located, geometries, nearest_neighbor_max_distance)
+                if not has_coordinates.all():
+                    gdf_loc = pd.concat([gdf_loc, locations[~has_coordinates]])
+            self.set_id_columns(gdf_loc, id_columns)
+
+            # columns the previous geopandas.sjoin implementation created, kept dropped for compatibility
+            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left', 'geometry', 'center'], errors='ignore')
+
+            return gdf_loc
+
+        def fct(locations):
+            if None in per_peril:
+                return get_geometry(locations, per_peril[None])
+
+            res = [locations[~locations['peril_id'].isin(list(per_peril))]]
+            for peril_id, geometries in per_peril.items():
+                res.append(get_geometry(locations.loc[locations['peril_id'] == peril_id], geometries))
+
+            return pd.concat(res).reset_index()
+        return fct
+
+    def _rtree_settings(self, file_path, file_type, area_peril_read_params=None, file_read_params=None,
+                        nearest_neighbor_min_distance=-1, nearest_neighbor_max_distance=-1, **kwargs):
+        """Validate build_rtree's parameters and resolve the deprecated ones.
+
+        Returns:
+            (abs_path, file_type, file_read_params, nearest_neighbor_max_distance)
         """
         if nearest_neighbor_min_distance > 0:
             warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
@@ -794,79 +976,50 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if Point is None:
             raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
-        if hasattr(gpd, f"read_{file_type}"):
-            if file_read_params is None:
-                file_read_params = {}
-            gdf_geometry = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path), **file_read_params)
-        else:
+        if not hasattr(gpd, f"read_{file_type}"):
             raise OasisException(f"Unrecognised Geopandas read type {file_type}")
 
-        if gdf_geometry.crs is None:
-            warnings.warn(
-                f"Geometry file '{file_path}' has no CRS metadata — assuming EPSG:4326. "
-                "Re-save the file with a CRS to suppress this warning.",
-                UserWarning,
-            )
-            gdf_geometry = gdf_geometry.set_crs("EPSG:4326")
-        elif gdf_geometry.crs != "EPSG:4326":
-            gdf_geometry = gdf_geometry.to_crs("EPSG:4326")
+        if nearest_neighbor_max_distance > 0 and BallTree is None:
+            raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_max_distance, {OPT_INSTALL_MESSAGE}")
 
-        if nearest_neighbor_max_distance > 0:
-            if BallTree is None:
-                raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_max_distance, {OPT_INSTALL_MESSAGE}")
-            with warnings.catch_warnings():
-                # In the context of a nearest neighbour search, we accept a potentially significant
-                # deviation between the spherical or ellipsoidal distance and the cartesian approximation
-                # that's used here.
-                warnings.filterwarnings('ignore', category=UserWarning, message="Geometry is in a geographic CRS.")
-                gdf_geometry['center'] = gdf_geometry.centroid
-            base_geometry_name = gdf_geometry.geometry.name
+        return self.to_abs_filepath(file_path), file_type, file_read_params or {}, nearest_neighbor_max_distance
 
-        def get_geometry(locations, gdf_geometry):
-            # this conversion could be done in a separate step allowing more posibilities for the geometry
-            null_gdf = locations["longitude"].isna() | locations["latitude"].isna()
-            null_gdf_loc = locations[null_gdf]
-            gdf_loc = gpd.GeoDataFrame(
-                locations[~null_gdf], columns=locations.columns,
-                geometry=gpd.points_from_xy(locations.loc[~null_gdf, "longitude"], locations.loc[~null_gdf, "latitude"]),
-                crs="EPSG:4326",
-            )
+    @contextmanager
+    def multiproc_shared_data(self):
+        """Load the data of the lookup steps that worker processes can share, for the duration of the context.
 
-            if not gdf_loc.empty:
-                gdf_loc = gpd.sjoin(gdf_loc, gdf_geometry, 'left')
-
-                if nearest_neighbor_max_distance > 0:
-                    gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
-
-                    if gdf_loc_na.shape[0]:
-                        gdf_geometry.set_geometry('center', inplace=True)
-                        nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_geometry, return_dist=True)
-
-                        gdf_geometry.set_geometry(base_geometry_name, inplace=True)
-                        valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_max_distance
-                        common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
-                        gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
-            if not null_gdf_loc.empty:
-                gdf_loc = pd.concat([gdf_loc, null_gdf_loc])
-            self.set_id_columns(gdf_loc, id_columns)
-
-            # index column are created during the sjoin, we can drop them
-            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left', 'geometry', 'center'], errors='ignore')
-
-            return gdf_loc
-
-        def fct(locations):
-            if 'peril_id' in gdf_geometry.columns:
-                peril_id_covered = np.unique(gdf_geometry['peril_id'])
-                res = [locations[~locations['peril_id'].isin(peril_id_covered)]]
-                for peril_id in peril_id_covered:
-                    res.append(get_geometry(locations.loc[locations['peril_id'] == peril_id],
-                                            gdf_geometry.loc[gdf_geometry['peril_id'] == peril_id].drop(columns=['peril_id'])))
-
-                return pd.concat(res).reset_index()
-            else:
-                return get_geometry(locations, gdf_geometry)
-        return fct
+        Called in the parent process before the lookup workers are forked (see
+        KeyServer.generate_key_files_multiproc): the geometry files of the 'rtree' steps are read
+        and indexed once here, and each worker's build_rtree reuses that copy (shared copy-on-write)
+        instead of reading the file again.
+        """
+        keys = []
+        frozen = False
+        try:
+            # a subclass overriding build_rtree may not use the data loaded here
+            if getattr(type(self), 'build_rtree') is Lookup.build_rtree:
+                for step_config in (self.config.get('step_definition') or {}).values():
+                    if step_config.get('type') != 'rtree':
+                        continue
+                    abs_path, file_type, file_read_params, nearest_neighbor_max_distance = self._rtree_settings(
+                        **step_config.get('parameters', {}))
+                    nearest_neighbor = nearest_neighbor_max_distance > 0
+                    key = _rtree_data_key(abs_path, file_type, file_read_params, nearest_neighbor)
+                    if key not in _RTREE_SHARED_DATA:
+                        _RTREE_SHARED_DATA[key] = _load_rtree_geometries(
+                            abs_path, step_config['parameters']['file_path'], file_type, file_read_params, nearest_neighbor)
+                        keys.append(key)
+            if keys:
+                # Keep the workers' garbage collector from writing to the shared objects' headers,
+                # which would copy their memory pages into every worker.
+                gc.freeze()
+                frozen = True
+            yield
+        finally:
+            if frozen:
+                gc.unfreeze()
+            for key in keys:
+                _RTREE_SHARED_DATA.pop(key, None)
 
     @staticmethod
     def build_fixed_size_geo_grid_multi_peril(perils_dict):

@@ -11,7 +11,7 @@ import types
 import warnings
 
 from collections import OrderedDict
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 
 import numpy as np
 import pandas as pd
@@ -522,21 +522,30 @@ class BasicKeyServer:
                                         self.user_data_dir, self.output_dir, lookup_id)
             return lookup.process_locations_multiproc
 
-        return run_multiproc(
-            _split_locations(loc_df, part_count),
-            make_process_chunk,
-            pool_count,
-            lambda results: self.write_keys_file(
-                results,
-                successes_fp=successes_fp,
-                errors_fp=errors_fp,
-                output_format=output_format,
-                keys_success_msg=keys_success_msg,
-            ),
-            # keys file row order sets item_id downstream, so it must not depend on which
-            # worker finishes first (see #2211)
-            ordered=True,
-        )
+        # Data a lookup loads here, before the workers are forked, is shared by all of them
+        # (copy-on-write) instead of being loaded again by each one.
+        if hasattr(self.lookup_cls, 'multiproc_shared_data'):
+            shared_data = self.create_lookup(self.lookup_cls, self.config, self.config_dir,
+                                             self.user_data_dir, self.output_dir, None).multiproc_shared_data()
+        else:
+            shared_data = nullcontext()
+
+        with shared_data:
+            return run_multiproc(
+                _split_locations(loc_df, part_count),
+                make_process_chunk,
+                pool_count,
+                lambda results: self.write_keys_file(
+                    results,
+                    successes_fp=successes_fp,
+                    errors_fp=errors_fp,
+                    output_format=output_format,
+                    keys_success_msg=keys_success_msg,
+                ),
+                # keys file row order sets item_id downstream, so it must not depend on which
+                # worker finishes first (see #2211)
+                ordered=True,
+            )
 
     @oasis_log()
     def generate_key_files(

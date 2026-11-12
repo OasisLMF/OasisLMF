@@ -238,6 +238,118 @@ def test_build_rtree_reprojects_non_4326_geometries(target_crs, rtree_locations_
     )
 
 
+def _overlapping_geometries():
+    """Overlapping squares, so some locations are in several geometries, with extra columns."""
+    gpd = pytest.importorskip("geopandas")
+    shapely = pytest.importorskip("shapely")
+    return gpd.GeoDataFrame(
+        {"poly_id": [1, 2, 3, 4], "factor": [0.1, 0.2, 0.3, 0.4], "label": ["a", "b", "c", "d"]},
+        geometry=[shapely.box(0, 0, 2, 2), shapely.box(1, 1, 3, 3), shapely.box(0.5, 0.5, 1.5, 1.5),
+                  shapely.box(5, 5, 6, 6)],
+        crs="EPSG:4326",
+    )
+
+
+def test_build_rtree_matches_sjoin_with_overlapping_geometries(tmp_path):
+    """A location in several geometries gets one row per geometry, in the order and with the
+    columns geopandas.sjoin(how='left') gives them."""
+    gpd = pytest.importorskip("geopandas")
+    gdf = _overlapping_geometries()
+    gdf.to_parquet(tmp_path / "areas.parquet")
+    locations = pd.DataFrame({
+        "loc_id": [10, 11, 12, 13, 14],
+        "longitude": [1.2, 2.5, 4.0, 5.5, 0.1],
+        "latitude": [1.2, 2.5, 4.0, 5.5, 0.1],
+    }, index=[7, 3, 9, 1, 5])
+
+    rtree = Lookup(config={}).build_rtree(
+        file_path=(tmp_path / "areas.parquet").as_posix(), file_type="parquet", id_columns="poly_id")
+    output = rtree(locations)
+
+    gdf_loc = gpd.GeoDataFrame(locations, geometry=gpd.points_from_xy(locations.longitude, locations.latitude),
+                               crs="EPSG:4326")
+    expected = gpd.sjoin(gdf_loc, gdf, how="left").drop(columns=["geometry", "index_right"])
+    expected = Lookup.set_id_columns(pd.DataFrame(expected), "poly_id")
+
+    pd.testing.assert_frame_equal(output, expected)
+    assert sorted(output.loc[7, "poly_id"]) == [1, 2, 3]
+    assert output.loc[9, "poly_id"] == OASIS_UNKNOWN_ID
+
+
+def _count_parquet_reads(monkeypatch):
+    from oasislmf.lookup import builtin
+    reads = []
+    read_parquet = builtin.gpd.read_parquet
+
+    def counting_read_parquet(*args, **kwargs):
+        reads.append(args[0])
+        return read_parquet(*args, **kwargs)
+    monkeypatch.setattr(builtin.gpd, "read_parquet", counting_read_parquet)
+    return reads
+
+
+def _rtree_lookup_config(file_path):
+    return {"step_definition": {"peril": {
+        "type": "rtree",
+        "columns": ["longitude", "latitude"],
+        "parameters": {"file_path": file_path, "file_type": "parquet", "id_columns": ["poly_id"],
+                       "nearest_neighbor_max_distance": 12000},
+    }}, "strategy": ["peril"]}
+
+
+def test_multiproc_shared_data_loads_rtree_file_once(monkeypatch, rtree_locations_all_coordinates):
+    """Lookups built while the parent's shared data is loaded (as forked workers are) reuse it
+    instead of reading the geometry file again, and it is released when the context exits."""
+    from oasislmf.lookup.builtin import _RTREE_SHARED_DATA
+    reads = _count_parquet_reads(monkeypatch)
+    config = _rtree_lookup_config((FILES_DIR / "rtree_areas.parquet").as_posix())
+    params = config["step_definition"]["peril"]["parameters"]
+
+    with Lookup(config=config).multiproc_shared_data():
+        assert len(reads) == 1
+        assert len(_RTREE_SHARED_DATA) == 1
+        for _ in range(2):  # e.g. two workers
+            output = Lookup(config=config).build_rtree(**params)(rtree_locations_all_coordinates)
+            assert output["poly_id"].tolist() == [1, 2, 1, OASIS_UNKNOWN_ID]
+        assert len(reads) == 1
+
+    assert not _RTREE_SHARED_DATA
+    Lookup(config=config).build_rtree(**params)
+    assert len(reads) == 2
+
+
+def test_multiproc_shared_data_not_used_for_edited_file(monkeypatch, tmp_path, rtree_locations_all_coordinates):
+    """Shared data identifies the file's version, so an edited file is read again."""
+    gpd = pytest.importorskip("geopandas")
+    file_path = tmp_path / "areas.parquet"
+    gdf = gpd.read_parquet(FILES_DIR / "rtree_areas.parquet")
+    gdf.to_parquet(file_path)
+    reads = _count_parquet_reads(monkeypatch)
+    config = _rtree_lookup_config(file_path.as_posix())
+    params = config["step_definition"]["peril"]["parameters"]
+
+    with Lookup(config=config).multiproc_shared_data():
+        gdf.assign(poly_id=gdf["poly_id"] + 10).to_parquet(file_path)
+        output = Lookup(config=config).build_rtree(**params)(rtree_locations_all_coordinates)
+
+    assert len(reads) == 2
+    assert output["poly_id"].tolist() == [11, 12, 11, OASIS_UNKNOWN_ID]
+
+
+def test_multiproc_shared_data_skips_overridden_build_rtree(monkeypatch):
+    """A subclass with its own build_rtree may not use the data, so none is loaded for it."""
+    reads = _count_parquet_reads(monkeypatch)
+
+    class CustomLookup(Lookup):
+        def build_rtree(self, **kwargs):
+            return lambda locations: locations
+
+    config = _rtree_lookup_config((FILES_DIR / "rtree_areas.parquet").as_posix())
+    with CustomLookup(config=config).multiproc_shared_data():
+        pass
+    assert not reads
+
+
 @pytest.mark.parametrize("preparations, values, expected", [
     ({"min": 5}, [1, 5, 7], [5, 5, 7]),           # values below min are raised to min
     ({"max": 10}, [7, 10, 20], [7, 10, 10]),      # values above max are lowered to max
