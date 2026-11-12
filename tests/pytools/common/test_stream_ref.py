@@ -58,6 +58,7 @@ def test_open_fd_reference_unbuffered():
         assert reader.read() == b'x'
 
 
+@pytest.mark.skipif(os.name == 'nt', reason='pass_fds is POSIX only')
 def test_open_fd_reference_in_child():
     """A child given ``<oasis-fd>/n`` with ``pass_fds`` writes to the parent's pipe."""
     read_fd, write_fd = os.pipe()

@@ -5,6 +5,7 @@ __all__ = [
 
 import contextlib
 import json
+import os
 from collections import ChainMap
 import unittest
 from tempfile import NamedTemporaryFile, TemporaryDirectory
@@ -19,7 +20,19 @@ class ComputationChecker(unittest.TestCase):
         self.stack = contextlib.ExitStack()
 
     def create_tmp_files(self, file_list):
-        return {f: self.stack.enter_context(NamedTemporaryFile(prefix=self.__class__.__name__)) for f in file_list}
+        return {f: self._tmp_file() for f in file_list}
+
+    def _tmp_file(self):
+        """An empty, closed temporary file removed at tearDown; closed so that it can be reopened by name on Windows."""
+        tmp_file = NamedTemporaryFile(prefix=self.__class__.__name__, delete=False)
+        tmp_file.close()
+        self.stack.callback(self._remove_file, tmp_file.name)
+        return tmp_file
+
+    @staticmethod
+    def _remove_file(path):
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(path)
 
     def tearDown(self):
         super().tearDown()

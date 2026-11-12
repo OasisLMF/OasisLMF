@@ -32,6 +32,9 @@ def _flag_in_child(value):
     return subprocess.run([sys.executable, '-c', script], env=env, capture_output=True, text=True, check=True).stdout.split()
 
 
+NO_SELECT_MODES = [True] if os.name == 'nt' else [False, True]
+
+
 @pytest.mark.skipif(os.name == 'nt', reason='always on on Windows')
 @pytest.mark.parametrize('value, expected', [(None, ['False', 'True']), ('', ['False', 'True']), ('0', ['False', 'True']),
                                              ('1', ['True', 'False'])])
@@ -53,7 +56,7 @@ def test_sequential_selector():
     assert not selector.get_map()
 
 
-@pytest.mark.parametrize('no_select', [False, True])
+@pytest.mark.parametrize('no_select', NO_SELECT_MODES)
 def test_read_streams_all_events(monkeypatch, no_select):
     """Every event of every pipe is read, multiplexed or (no select) one stream after the other."""
     monkeypatch.setattr(event_stream, 'NO_SELECT', no_select)
@@ -74,7 +77,7 @@ def test_read_streams_all_events(monkeypatch, no_select):
     assert sorted(got) == ids[0] + ids[1]
 
 
-@pytest.mark.parametrize('no_select', [False, True])
+@pytest.mark.parametrize('no_select', NO_SELECT_MODES)
 def test_write_mv_to_stream(monkeypatch, no_select):
     monkeypatch.setattr(event_stream, 'select_streams', event_stream._select_no_wait if no_select else select.select)
     r, w = os.pipe()

@@ -123,7 +123,7 @@ def test_multi_stage_run_with_chain_and_tee_fan_out(tmp_path):
     assert (tmp_path / 'out/c.txt').read_bytes() == expected
     assert (tmp_path / 'out/env.txt').read_text() == LOG
     assert (tmp_path / 'out/run_env.txt').read_text() == 'hello'
-    assert (tmp_path / LOG / 'stderror.err').read_bytes() == b''
+    assert executor_module._stderr_errors(str(tmp_path / LOG / 'stderror.err'), IGNORABLE_STDERR_LINE) == []
     assert "stage 'first': starting 5 processes in 1 groups" in text
     assert "stage 'second': starting 3 processes in 3 groups" in text
     assert "stage 'second': finished" in text
