@@ -105,7 +105,7 @@ jobs:
       - name: Orchestrator tests - kernel run without bash
         shell: bash
         run: |
-          python -m pip install pytest hypothesis
+          python -m pip install pytest hypothesis -r optional-package.in
           python -m pytest -q \
             tests/pytools/common/test_stream_ref.py \
             tests/pytools/common/test_no_select.py \
