@@ -10,7 +10,7 @@ from oasislmf.execution.runner import rerun
 
 class RerunTestCase(TestCase):
     """rerun() replays a single failing event outside numba. It parses the
-    gul command straight out of run_kernel.sh, which still carries that
+    gul command straight out of run_ktools.sh, which still carries that
     run's own output redirect (e.g. to a fifo whose reader has already
     exited). That stale redirect must be stripped before rerun() appends
     its own `-o` output flag, otherwise the replayed command blocks
@@ -27,7 +27,7 @@ class RerunTestCase(TestCase):
         with open("event_error.json", "w") as f:
             json.dump({"event_id": "1"}, f)
 
-        with open("run_kernel.sh", "w") as f:
+        with open("run_ktools.sh", "w") as f:
             f.write(
                 "( ( eve 1 2 | getmodel | gulcalc -S100 -L100 -r -a1 -i - "
                 "> /tmp/xyz123/fifo/gul_P1 ) | fmcalc -a2 -o /tmp/il_P1 ) "
@@ -56,7 +56,7 @@ class RerunTestCase(TestCase):
         # a non-trailing redirect (e.g. the stderr guard appended around the whole
         # pipeline) must survive untouched: only the genuinely trailing output
         # redirect on the gul segment itself should be stripped.
-        with open("run_kernel.sh", "w") as f:
+        with open("run_ktools.sh", "w") as f:
             f.write(
                 "( ( eve 1 2 | getmodel | gulcalc -S100 -L100 -r -a1 -i - "
                 "2>> log/gul_stderror.err > /tmp/xyz123/fifo/gul_P1 ) | fmcalc -a2 > /tmp/il_P1 ) "
@@ -77,7 +77,7 @@ class RerunTestCase(TestCase):
         # fifo consumed by the original run) and must be stripped before rerun()
         # points it at its own output file, otherwise it hangs the same way the
         # gul segment used to.
-        with open("run_kernel.sh", "w") as f:
+        with open("run_ktools.sh", "w") as f:
             f.write(
                 "( ( eve 1 2 | getmodel | gulcalc -S100 -L100 -r -a1 -i - "
                 "> /tmp/xyz123/fifo/gul_P1 ) | fmcalc -a2 > /tmp/il_P1 ) "
