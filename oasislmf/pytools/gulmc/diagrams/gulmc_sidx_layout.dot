@@ -1,0 +1,29 @@
+// The records one item writes, for N=2 buildings and S=3 samples.
+// Render: dot -Tsvg gulmc_sidx_layout.dot -o gulmc_sidx_layout.svg
+digraph sidx_layout {
+    rankdir=TB;
+    bgcolor="transparent";
+    ranksep=0.45;
+    node [shape=record, style=filled, fontname="Helvetica", fontsize=9,
+          fillcolor="#eef3fb", color="#4a6fa5"];
+    edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+    title [shape=plaintext, fillcolor="transparent",
+           label="one item, N = 2 buildings, S = 3 samples"];
+
+    sep [label="{ header\nevent_id, item_id | { building 1 | -1 mean | -2 std | -3 tiv | -4 chance | -5 max | 1 | 2 | 3 } | { building 2 | -6 mean | -7 std | -8 tiv | -9 chance | -10 max | 4 | 5 | 6 } | 0\ndelim }",
+         fillcolor="#fdf0e0", color="#c8863c"];
+
+    summ [label="{ header\nevent_id, item_id | { all buildings | -1 mean | -2 std | -3 tiv | -4 chance | -5 max | 1 | 2 | 3 } | 0\ndelim }",
+          fillcolor="#e3ecfa", color="#2f5596"];
+
+    lsep [shape=plaintext, fillcolor="transparent", fontsize=10,
+          label="packed_buildings = -2   KEEP SEPARATE\lsample:  sidx = (b-1)*S + s\lspecial: sidx = local - (b-1)*5\lone header and one delimiter for the whole item\l"];
+    lsum [shape=plaintext, fillcolor="transparent", fontsize=10,
+          label="packed_buildings = +2   SUMMED AT SOURCE\lindistinguishable from an unpacked item\lthe reader discriminates on the sidx range alone,\lso only one of the two forms may be emitted\l"];
+
+    title -> lsep [style=invis];
+    lsep -> sep [style=invis];
+    sep -> lsum [style=invis];
+    lsum -> summ [style=invis];
+}

@@ -103,7 +103,10 @@ def oasis_log(*args, **kwargs):
             args_name = getargspec(func)[0]
             args_dict = dict(zip(args_name, args))
 
-            if logger.level <= logging.DEBUG:
+            # isEnabledFor, not logger.level: an unconfigured logger has level 0 (NOTSET), which
+            # passes a level check while debug is off, and formatting a DataFrame argument costs
+            # more than many of the calls it decorates.
+            if logger.isEnabledFor(logging.DEBUG):
                 for key, value in args_dict.items():
                     if key == "self":
                         continue

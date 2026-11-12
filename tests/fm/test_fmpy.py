@@ -7,6 +7,7 @@ from unittest import TestCase
 import pytest
 
 from oasislmf.manager import OasisManager
+from oasislmf.utils.defaults import DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES
 
 
 @pytest.fixture(scope="class")
@@ -28,7 +29,8 @@ class FmAcceptanceTests(TestCase):
     def setUp(self):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation')
 
-    def run_test(self, test_case, model_perils_covered, fmpy=False, expected_dir="expected"):
+    def run_test(self, test_case, model_perils_covered, fmpy=False, expected_dir="expected",
+                 disaggregation=DISAGGREGATION_ITEMS, compare_files=None):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
 
             run_dir = tmp_run_dir
@@ -49,8 +51,27 @@ class FmAcceptanceTests(TestCase):
                 fmpy_sort_output=True,
                 test_tolerance=0.001,
                 expected_output_dir=expected_dir,
+                disaggregation=disaggregation,
+                compare_files=compare_files,
             )
         self.assertTrue(result)
+
+    def test_building_packing(self):
+        self.run_test('building_packing', ['BBF'], fmpy=True)
+
+    def test_building_packing_samples_matches_items(self):
+        """Packing a location's buildings into the sample dimension must not change the loss.
+
+        ``items`` and ``samples`` are two encodings of the same four-building risk, so the unit's
+        ``expected/`` -- generated under ``items`` -- is the reference for both. This runs the same
+        case packed and compares against it.
+
+        Only ``loc_summary.csv`` is compared: the per-item files say where the buildings live,
+        which is exactly what the two modes disagree about by design.
+        """
+        self.run_test('building_packing', ['BBF'], fmpy=True,
+                      disaggregation=DISAGGREGATION_SAMPLES,
+                      compare_files=['loc_summary.csv'])
 
     def test_insurance_conditions(self):
         self.run_test('insurance_conditions', model_perils_covered=['WTC'], fmpy=True)

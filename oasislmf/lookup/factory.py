@@ -8,7 +8,6 @@ import csv
 import json
 import os
 import types
-import warnings
 
 from collections import OrderedDict
 from contextlib import ExitStack
@@ -19,6 +18,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ..utils.data import get_json
+from ..utils.deprecation import warn_deprecated
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.multiproc import run_multiproc
@@ -72,9 +72,9 @@ class KeyServerFactory(object):
     def update_deprecated_args(cls, config_dir, config,
                                complex_lookup_config_fp, model_keys_data_path, model_version_file_path, lookup_module_path):
         if (complex_lookup_config_fp or model_keys_data_path or model_version_file_path or lookup_module_path):
-            warnings.warn('usage of complex_lookup_config_fp, model_keys_data_path, '
-                          'model_version_file_path and lookup_module_path is now deprecated'
-                          'those variables now need to be set in lookup config see (key server documentation)')
+            warn_deprecated('usage of complex_lookup_config_fp, model_keys_data_path, '
+                            'model_version_file_path and lookup_module_path is now deprecated'
+                            'those variables now need to be set in lookup config see (key server documentation)')
 
         if complex_lookup_config_fp and not isinstance(complex_lookup_config_fp, dict):
             config_dir, config = cls.get_config(complex_lookup_config_fp)
@@ -300,10 +300,10 @@ class BasicKeyServer:
                               user_data_dir=user_data_dir,
                               output_dir=output_dir)
         elif lookup_interface_version == '0':
-            warnings.warn('OasisLookupInterface (or OasisBaseKeysLookup) is now deprecated'
-                          ' Interface for lookup is now lookup.interface.LookupInterface'
-                          ' for similar functionality use lookup.base.AbstractBasicKeyLookup'
-                          ' for multiprocess implementation add lookup.base.MultiprocLookupMixin')
+            warn_deprecated('OasisLookupInterface (or OasisBaseKeysLookup) is now deprecated'
+                            ' Interface for lookup is now lookup.interface.LookupInterface'
+                            ' for similar functionality use lookup.base.AbstractBasicKeyLookup'
+                            ' for multiprocess implementation add lookup.base.MultiprocLookupMixin')
             if not (config and output_dir):
                 return lookup_cls(
                     keys_data_directory=config.get('keys_data_path'),
