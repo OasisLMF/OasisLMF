@@ -238,6 +238,70 @@ def test_build_rtree_reprojects_non_4326_geometries(target_crs, rtree_locations_
     )
 
 
+@pytest.fixture
+def overlapping_sections_path(tmp_path):
+    """Three overlapping squares; id 10 checks the ids are sorted as numbers, not as strings."""
+    gpd = pytest.importorskip("geopandas")
+    from shapely.geometry import box
+    gdf = gpd.GeoDataFrame(
+        {"section_id": [2, 1, 10]},
+        geometry=[box(1, 0, 3, 2), box(0, 0, 2, 2), box(1, 1, 3, 3)],
+        crs="EPSG:4326",
+    )
+    path = tmp_path / "sections.parquet"
+    gdf.to_parquet(path)
+    return path.as_posix()
+
+
+@pytest.fixture
+def overlapping_sections_locations():
+    return pd.DataFrame(columns=["longitude", "latitude", "locname"], data=[
+        [0.5, 0.5, "one"],
+        [1.5, 0.5, "two"],
+        [1.5, 1.5, "three"],
+        [5.0, 5.0, "none"],
+        [None, None, "no_coordinates"],
+    ])
+
+
+def test_build_rtree_keeps_one_row_per_match(overlapping_sections_path, overlapping_sections_locations):
+    rtree = Lookup(config={}).build_rtree(
+        file_path=overlapping_sections_path, file_type="parquet", id_columns="section_id",
+    )
+    output = rtree(overlapping_sections_locations)
+    assert sorted(output.loc[output["locname"] == "three", "section_id"]) == [1, 2, 10]
+    assert len(output) == 1 + 2 + 3 + 1 + 1
+
+
+@pytest.mark.parametrize("id_columns", [["section_id"], []], ids=["section_id an id column", "not listed"])
+def test_process_locations_fails_a_location_in_no_section(overlapping_sections_path, overlapping_sections_locations, id_columns):
+    """A location the section step cannot place is a keys error, not a success with no section."""
+    config = {
+        "step_definition": {
+            "section": {
+                "type": "rtree",
+                "columns": ["latitude", "longitude"],
+                "parameters": {"file_path": overlapping_sections_path, "file_type": "parquet", "id_columns": id_columns},
+            },
+            "pivot": {
+                "type": "simple_pivot",
+                "parameters": {"pivots": [{"new_cols": {
+                    "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]},
+            },
+        },
+        "strategy": ["section", "pivot"],
+    }
+    locations = overlapping_sections_locations.assign(loc_id=range(1, 6))
+
+    keys = Lookup(config=config).process_locations(locations)
+
+    success = keys[keys["status"] == OASIS_KEYS_STATUS["success"]["id"]]
+    assert sorted(success["section_id"]) == [1, 1, 1, 2, 2, 10]
+    failed = keys[keys["status"] == OASIS_KEYS_STATUS["fail"]["id"]].set_index("loc_id")
+    assert sorted(failed.index) == [4, 5]
+    assert set(failed["message"]) == {"section_id has an unknown id"}
+
+
 @pytest.mark.parametrize("preparations, values, expected", [
     ({"min": 5}, [1, 5, 7], [5, 5, 7]),           # values below min are raised to min
     ({"max": 10}, [7, 10, 20], [7, 10, 10]),      # values above max are lowered to max

@@ -401,6 +401,32 @@ class TestGenFiles(ComputationChecker):
             self.assertEqual(fm_summary_map['acc_idx'].tolist(), [0])
             self.assertEqual(fm_summary_map['layer_id'].tolist(), [1])
 
+    def generate_with_section_keys(self, t_dir, section_ids):
+        """Generate files from keys giving each of N2_LOC's two locations one row per section_id."""
+        keys_file = self.tmp_files.get('keys_data_path').name
+        self.write_str(self.tmp_files.get('keys_data_path'), "LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID,section_id\n" + "".join(
+            f"{loc_id},WTC,1,54,2,{section}\n" for loc_id, sections in ((1, section_ids[0]), (2, section_ids[1])) for section in sections))
+        return self.manager.generate_files(**{
+            **self.min_args,
+            'oed_location_csv': self.tmp_files.get('oed_location_csv__2r').name,
+            'oasis_files_dir': t_dir,
+            'keys_data_path': keys_file,
+            'keys_errors_path': self.tmp_files.get('keys_errors_path').name,
+        })
+
+    def test_files__keys_csv__section_ids_are_read_as_written(self):
+        # one row per section, a value listing two, and a float id from a key server that writes them
+        with self.tmp_dir() as t_dir:
+            self.generate_with_section_keys(t_dir, [['3', '5'], ['1;2', '3.0']])
+            sections = pd.read_csv(os.path.join(t_dir, 'sections.csv'))
+        self.assertEqual(sorted(sections['section_id']), [1, 2, 3, 5])
+
+    def test_files__keys_csv__blank_section_id__error_is_raised(self):
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                self.generate_with_section_keys(t_dir, [['3'], ['']])
+        self.assertIn('section_id value(s) are missing or not whole numbers, e.g. loc_id 2 peril WTC', str(context.exception))
+
     def test_files__keys_csv__missing_loc_id__error_is_raised(self):
         keys_file = self.tmp_files.get('keys_data_path').name
         keys_err_file = self.tmp_files.get('keys_errors_path').name

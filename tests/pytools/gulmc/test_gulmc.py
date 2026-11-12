@@ -603,3 +603,18 @@ def test_dynamic_footprint_incomplete_save_is_not_used(tmp_path, monkeypatch):
     with Footprint.load(storage, shared_dir=shared_dir) as footprint:
         assert footprint.shared_hazard is None and footprint.df_hazard_case is not None
         np.testing.assert_array_equal(footprint.get_event(1), shared_event)
+
+
+def test_dynamic_footprint_structures_build_from_a_relative_run_directory(tmp_path, monkeypatch):
+    """A run directory given relative to the working directory must still find the model data.
+
+    The footprint is loaded with the run directory as working directory (a dynamic footprint reads
+    input/sections.csv from there), so a model storage root left relative would be resolved a
+    second time below it, run_dir/run_dir/static, and the hazard case would not be found.
+    """
+    from oasislmf.pytools.gulmc.structure import build_structures
+
+    make_dynamic_test_model(tmp_path / 'run')
+    monkeypatch.chdir(tmp_path)
+    structures = build_structures('run', set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
+    assert len(structures['vuln_array'])

@@ -23,6 +23,7 @@ from oasislmf.warmup import (
     _compile_fmpy, _compile_modelpy_gulpy_gulmc,
     _compile_summarypy, _compile_eltpy, _compile_pltpy,
     _compile_aalpy, _compile_lecpy, _compile_katpy, _compile_plapy,
+    _compile_dynamic_footprint,
 )
 
 # Skip entire module when JIT is disabled (e.g. NUMBA_DISABLE_JIT=1 for coverage runs)
@@ -96,3 +97,8 @@ def test_jit_katpy():
 def test_jit_plapy():
     """plapy — post-loss amplification."""
     _compile_plapy()
+
+
+def test_jit_dynamic_footprint():
+    """Dynamic footprint kernels: bracket interpolation and every section merge."""
+    _compile_dynamic_footprint()

@@ -84,12 +84,12 @@ def check_has_loc_id(df, name):
 
 
 def merge_item_key_rows(gul_inputs_df):
-    """Combine the keys rows that share an item_id before the item is reduced to one row.
+    """Reduce the keys rows of each item to one row, combining their sections.
 
     A key server may return several rows for the same (location, peril, coverage type,
-    building), one per section the location falls in. Only one row per item is kept, so
-    the sections of the other rows are joined into the kept row's ``section_id`` with
-    ``;``, the format ``prepare_sections_df`` splits when building sections.csv.
+    building), one per section the location falls in. Only the first row of each item is
+    kept, with the sections of all its rows joined into its ``section_id`` with ``;``, the
+    format ``prepare_sections_df`` splits when building sections.csv.
 
     Rows of one item that also differ in a key field (areaperil, vulnerability,
     amplification, intensity adjustment, return period or model data) cannot be combined
@@ -100,66 +100,75 @@ def merge_item_key_rows(gul_inputs_df):
         gul_inputs_df (pandas.DataFrame): GUL inputs with an ``item_id`` column
 
     Returns:
-        pandas.DataFrame: ``gul_inputs_df`` with ``section_id`` combined across the rows
-        of each item
+        pandas.DataFrame: the first row of each item, with ``section_id`` holding the
+        sections of the item's rows
 
     Raises:
-        OasisException: if an item with several keys rows has a missing or non-numeric
-        ``section_id``
+        OasisException: if a ``section_id`` is missing or not a whole number
     """
     dup_mask = gul_inputs_df.duplicated(subset='item_id', keep=False).to_numpy()
-    if not dup_mask.any():
-        return gul_inputs_df
+    contributing = np.ones(len(gul_inputs_df), dtype=bool)
 
-    dups = gul_inputs_df.loc[dup_mask]
+    if dup_mask.any():
+        dups = gul_inputs_df.loc[dup_mask]
+        key_cols = [col for col in ITEM_KEY_COLS if col in dups]
+        if key_cols:
+            key_group = dups.groupby(['item_id'] + key_cols, sort=False, dropna=False).ngroup()
+            matches_first = (key_group == key_group.groupby(dups['item_id'].to_numpy()).transform('first')).to_numpy()
+            conflict_items = dups.loc[~matches_first, 'item_id'].unique()
+            if len(conflict_items):
+                first_rows = dups.drop_duplicates('item_id').set_index('item_id')
+                examples = dups[dups['item_id'].isin(conflict_items[:5])]
+                n_values = examples.groupby('item_id', sort=False)[key_cols].nunique(dropna=False)
+                detail = "; ".join(
+                    f"loc_id {first_rows.at[item, 'loc_id']} peril {first_rows.at[item, 'peril_id']} "
+                    f"coverage type {first_rows.at[item, 'coverage_type_id']} "
+                    f"building {first_rows.at[item, 'building_id']}: differing "
+                    f"{', '.join(col for col in key_cols if n_values.at[item, col] > 1)}"
+                    for item in conflict_items[:5])
+                logger.warning(
+                    "keys: %d item(s) have several keys rows that differ in more than section_id; only "
+                    "the first row of each and the rows with the same key fields are used, so the "
+                    "others' areaperil/vulnerability and sections are ignored. "
+                    "Check the lookup for these items (%s)", len(conflict_items), detail)
+                contributing[dup_mask] = matches_first
 
-    key_cols = [col for col in ITEM_KEY_COLS if col in dups]
-    if key_cols:
-        key_group = dups.groupby(['item_id'] + key_cols, sort=False, dropna=False).ngroup()
-        matches_first = (key_group == key_group.groupby(dups['item_id'].to_numpy()).transform('first')).to_numpy()
-        conflict_items = dups.loc[~matches_first, 'item_id'].unique()
-        if len(conflict_items):
-            first_rows = dups.drop_duplicates('item_id').set_index('item_id')
-            examples = dups[dups['item_id'].isin(conflict_items[:5])]
-            n_values = examples.groupby('item_id', sort=False)[key_cols].nunique(dropna=False)
-            detail = "; ".join(
-                f"loc_id {first_rows.at[item, 'loc_id']} peril {first_rows.at[item, 'peril_id']} "
-                f"coverage type {first_rows.at[item, 'coverage_type_id']} "
-                f"building {first_rows.at[item, 'building_id']}: differing "
-                f"{', '.join(col for col in key_cols if n_values.at[item, col] > 1)}"
-                for item in conflict_items[:5])
-            logger.warning(
-                "keys: %d item(s) have several keys rows that differ in more than section_id; only "
-                "the first row of each and the rows with the same key fields are used, so the "
-                "others' areaperil/vulnerability and sections are ignored. "
-                "Check the lookup for these items (%s)", len(conflict_items), detail)
-        section_rows = dups.loc[matches_first]
-    else:
-        section_rows = dups
+    merged = gul_inputs_df.drop_duplicates(subset='item_id')
+    if 'section_id' in gul_inputs_df:
+        combined = combine_item_sections(gul_inputs_df.loc[contributing])
+        merged = merged.assign(section_id=merged['item_id'].map(combined).to_numpy())
+    return merged
 
-    if 'section_id' in dups:
-        sections = (
-            section_rows[['item_id']]
-            .assign(section_id=section_rows['section_id'].astype(str).str.split(';'))
-            .explode('section_id')
-        )
-        numeric = pd.to_numeric(sections['section_id'], errors='coerce')
-        invalid = numeric.isna()
-        if invalid.any():
-            bad = sections.loc[invalid].drop_duplicates()
-            raise OasisException(
-                f"keys: {invalid.sum()} section_id value(s) are missing or not integers for items with "
-                f"several keys rows, e.g. "
-                f"{', '.join(f'item {i}: {v!r}' for i, v in bad.head(5).itertuples(index=False))}")
-        sections['section_id'] = numeric.astype('int64')
-        sections = sections.drop_duplicates().sort_values(['item_id', 'section_id'], kind='stable')
-        combined = (sections['section_id'].astype(str)
-                    .groupby(sections['item_id'], sort=False).agg(';'.join))
-        section_ids = gul_inputs_df['section_id'].astype(str)
-        section_ids.loc[dup_mask] = dups['item_id'].map(combined).to_numpy()
-        gul_inputs_df = gul_inputs_df.assign(section_id=section_ids)
 
-    return gul_inputs_df
+def combine_item_sections(rows):
+    """Map each item to its rows' sections, as sorted ``;``-separated text without repeats.
+
+    ``section_id`` is read from keys.csv as text, and a value may already list several
+    sections (``3001;3002``). A key server that writes its ids as floats gives ``3.0``,
+    which is section 3. A blank is a lookup failure, which belongs in keys-errors.csv.
+    """
+    sections = (rows[['item_id', 'loc_id', 'peril_id']]
+                .assign(section_id=rows['section_id'].astype(str).str.split(';'))
+                .explode('section_id'))
+    numeric = pd.to_numeric(sections['section_id'].str.strip(), errors='coerce')
+    invalid = (numeric.isna() | (numeric % 1 != 0)).to_numpy()
+    if invalid.any():
+        bad = sections[invalid].drop_duplicates()
+        raise OasisException(
+            f"keys: {invalid.sum()} section_id value(s) are missing or not whole numbers, e.g. "
+            f"{', '.join(f'loc_id {loc} peril {peril}: {v!r}' for _, loc, peril, v in bad.head(5).itertuples(index=False))}. "
+            "A location the lookup could not place in a section should be a keys error")
+
+    sections = (pd.DataFrame({'item_id': sections['item_id'].to_numpy(), 'section_id': numeric.to_numpy().astype('int64')})
+                .drop_duplicates()
+                .sort_values(['item_id', 'section_id'], kind='stable'))
+    text = sections['section_id'].astype(str)
+    single = ~sections['item_id'].duplicated(keep=False).to_numpy()
+    # most items have one section: only the others need a per-item join
+    return pd.concat([
+        pd.Series(text.to_numpy()[single], index=sections['item_id'].to_numpy()[single]),
+        text[~single].groupby(sections['item_id'].to_numpy()[~single], sort=False).agg(';'.join),
+    ])
 
 
 def prepare_sections_df(gul_inputs_df):
@@ -866,7 +875,6 @@ def get_gul_input_items(
 
     gul_inputs_df = (
         merge_item_key_rows(gul_inputs_df[usecols])
-        .drop_duplicates(subset='item_id')
         .sort_values("item_id", kind='stable')
         .reset_index()
     )
