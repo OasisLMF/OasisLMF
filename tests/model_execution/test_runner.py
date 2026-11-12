@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from oasislmf.execution import runner
 from oasislmf.execution.resource_monitor import ResourceMonitor
-from oasislmf.execution.bash import bash_params
+from oasislmf.execution.bash import bash_params, get_complex_model_cmd
 from oasislmf.execution.orchestrator.build import Run
 from oasislmf.execution.orchestrator.model import Process, Stage
 from oasislmf.execution.runner import rerun
@@ -242,6 +242,38 @@ class TestBashParamsCustomGulcalcMarkers(TestCase):
     def test_markers_set_without_custom_gulcalc_cmd(self):
         params = bash_params(dict(GUL_OUTPUT), custom_gulcalc_log_start='start', custom_gulcalc_log_finish='finish')
         self.assertEqual(('start', 'finish'), (params['custom_gulcalc_log_start'], params['custom_gulcalc_log_finish']))
+
+
+class TestCustomGulcalcCommand(TestCase):
+    """The loss stream of a custom gulcalc binary goes to stdout: no ``-i`` is passed."""
+
+    ITEM_OUTPUT = ' | tee fifo/gul_P1'
+
+    def _args(self, item_output):
+        return dict(number_of_samples=10, gul_threshold=0, use_random_number_file=False, item_output=item_output,
+                    process_id=2, max_process_id=8, gul_alloc_rule=0, stderr_guard=False)
+
+    def _assert_command(self, get_cmd):
+        binary_cmd = f"my_gulcalc -e 2 8 -a {os.path.abspath('analysis_settings.json')} -p input"
+        self.assertEqual(get_cmd(**self._args(self.ITEM_OUTPUT)), binary_cmd + self.ITEM_OUTPUT)
+        self.assertEqual(get_cmd(**self._args('')), binary_cmd)
+
+    def test_bash_params_command(self):
+        with mock.patch('oasislmf.execution.bash.shutil.which', return_value='/usr/bin/my_gulcalc'):
+            self._assert_command(get_complex_model_cmd('my_gulcalc', {}))
+
+    def test_run_command(self):
+        proc = mock.Mock(pid=1, returncode=0)
+        proc.communicate.return_value = (b'', None)
+        with TemporaryDirectory() as tmp_dir, \
+                mock.patch('oasislmf.execution.runner.shutil.which', return_value='/usr/bin/my_gulcalc'), \
+                mock.patch('oasislmf.execution.runner.check_custom_gulcalc_can_read_inputs'), \
+                mock.patch('oasislmf.execution.runner.genbash') as genbash, \
+                mock.patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc), \
+                mock.patch('oasislmf.execution.runner._ensure_pytool_logs_complete'):
+            runner.run({}, filename=os.path.join(tmp_dir, 'run_kernel.sh'), custom_gulcalc_cmd='my_gulcalc',
+                       disable_resource_report=True)
+        self._assert_command(genbash.call_args.kwargs['_get_getmodel_cmd'])
 
 
 class TestEnsurePytoolLogsComplete(TestCase):
