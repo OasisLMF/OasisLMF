@@ -84,3 +84,4 @@ jobs:
       pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml"
       worker_api_ver: 'v2'
       storage_suffix: '_platform2'
+      pytest_opts: '-k all_outputs'
