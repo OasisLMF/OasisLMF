@@ -665,7 +665,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             bash_trace=self.verbose,
             stderr_guard=not self.kernel_disable_guard,
             fifo_tmp_dir=not self.kernel_fifo_relative,
-            remove_working_file=self.remove_working_file,
+            remove_working_files=self.remove_working_file,
             max_process_id=self.max_process_id,
             model_run_dir=model_run_fp,
         )
