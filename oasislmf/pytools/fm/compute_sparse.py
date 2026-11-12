@@ -55,7 +55,7 @@ def first_time_layer(profile_len, base_children_len, temp_children_queue, comput
                      loss_indptr, loss_val
                      ):
     """
-    first time there is a back allocation with multiple layer, we duplicate loss and extra from layer 1 to the other layers
+    first time there is a back allocation with multiple layers, we copy loss from layer 0 to the other layers
     """
     for base_child_i in range(base_children_len):
         child = nodes_array[temp_children_queue[base_child_i]]
@@ -75,7 +75,7 @@ def first_time_layer_extra(profile_len, base_children_len, temp_children_queue, 
                            extras_indptr, extras_val,
                            ):
     """
-    first time there is a back allocation with multiple layer, we duplicate loss and extra from layer 1 to the other layers
+    first time there is a back allocation with multiple layers, we copy loss and extras from layer 0 to the other layers
 
     Every new layer gets a copy of layer 0's extras, whether the base child is the node itself
     (a single base child) or one of the items under it (several): each layer holds the whole

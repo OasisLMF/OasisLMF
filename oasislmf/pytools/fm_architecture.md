@@ -147,7 +147,7 @@ layer 2 enters with loss 1.9M and deductible 100k
   max ded: total 100k > 30k   -> 70k given back   -> 1.97M
   layer:   (1.97M - 200k) * 0.5                     = 885,000   correct
 
-with the items' layer 2 extras at zero (before #2235):
+with the items' layer 2 extras at zero (stable/2.4.x, 2.5.8 and earlier):
   the items get none of the 70k: 1.9M * 885k / 1.97M = 853,553   wrong
 ```
 
