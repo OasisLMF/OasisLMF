@@ -589,6 +589,12 @@ dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupa
 
 ``**kwargs``: additional keyword arguments forwarded to the pandas read function.
 
+The file is read once and indexed by its join columns, so each chunk of locations is merged only with the rows it
+can match instead of the whole file. When keys are generated with several processes, the file is read and indexed
+in the parent process before the worker processes start, and all workers share that one copy. The index built there
+is on ``join_columns``, or else on the file's columns listed in the step's ``columns``; listing every column the
+join uses in ``columns`` lets the workers share the index too, instead of each building its own.
+
 |
 
 * **simple_pivot**

@@ -123,9 +123,10 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 
 EARTH_RADIUS_M = 6371000
 
-# rtree geometries loaded by Lookup.multiproc_shared_data before the lookup worker processes are
-# forked, so that the workers share one copy instead of each loading the whole file.
-_RTREE_SHARED_DATA = {}
+# Data of the 'rtree' and 'merge' steps loaded by Lookup.multiproc_shared_data before the lookup
+# worker processes are forked, so that the workers share one copy instead of each loading the whole
+# file. Keyed by _shared_data_key.
+_SHARED_STEP_DATA = {}
 
 
 class _RtreeGeometries:
@@ -149,16 +150,16 @@ class _RtreeGeometries:
                 leaf_size=15, metric='haversine')
 
 
-def _rtree_data_key(abs_path, file_type, file_read_params, nearest_neighbor):
-    """Identify the geometries loaded from a file, including its version so an edited file
-    is never matched to stale shared data.
+def _shared_data_key(step_type, abs_path, *settings):
+    """Identify the data a step loaded from a file with given settings, including the file's
+    version so an edited file is never matched to stale shared data.
     """
     try:
         stat = os.stat(abs_path)
         version = (stat.st_size, stat.st_mtime_ns)
     except (OSError, TypeError, ValueError):
         version = None
-    return abs_path, file_type, repr(file_read_params), bool(nearest_neighbor), version
+    return (step_type, abs_path, version) + tuple(repr(setting) for setting in settings)
 
 
 def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nearest_neighbor):
@@ -267,6 +268,52 @@ def _rtree_join(located, geometries, nearest_neighbor_max_distance):
 
     attributes.index = joined.index
     return pd.concat([joined, attributes], axis=1)
+
+
+class _MergeTable:
+    """The table of a 'merge' step (columns lower-cased), with an index of its rows by join key.
+
+    Merging each chunk of locations with the whole table makes pandas hash the join keys of
+    every row of the table again for every chunk. Instead, the index is built once per set of
+    join columns, each chunk looks up the rows its keys can match, and only those rows are
+    merged, with the same pandas merge as before so matching and dtypes are unchanged.
+    """
+
+    def __init__(self, df):
+        self.df = df
+        self._indexes = {}
+
+    def key_index(self, file_keys):
+        """MultiIndex of the table's file_keys columns, with its lookup hash table built."""
+        index = self._indexes.get(file_keys)
+        if index is None:
+            start = time.perf_counter()
+            index = pd.MultiIndex.from_frame(self.df[list(file_keys)])
+            index.get_indexer_non_unique(index[:1])  # builds the hash table now, not on the first chunk
+            self._indexes[file_keys] = index
+            logger.info("merge step: indexed %d rows on %s in %.1fs", len(index), list(file_keys),
+                        time.perf_counter() - start)
+        return index
+
+    def rows_matching(self, file_keys, location_keys):
+        """The table rows whose file_keys values are a row of location_keys, in table order.
+
+        location_keys holds the locations' join columns, in file_keys order. Rows the merge
+        would not match may be included, but every row it would match is.
+        """
+        try:
+            positions, _ = self.key_index(file_keys).get_indexer_non_unique(
+                pd.MultiIndex.from_frame(location_keys.drop_duplicates()))
+        except (TypeError, ValueError) as error:  # keys that can't be looked up: merge with the whole table
+            logger.debug("merge step: merging with the whole table, key lookup failed: %s", error)
+            return self.df
+        positions = np.unique(positions[positions >= 0])
+        if positions.size == 0:
+            # No row matches, so any row can be merged without matching. Merging with an empty
+            # table instead could change the dtype pandas gives the join columns (e.g. for a
+            # categorical key), so the result would differ from merging with the whole table.
+            positions = np.arange(min(1, len(self.df)))
+        return self.df.iloc[positions]
 
 
 # GeoTransform indexes, https://gdal.org/en/stable/tutorials/geotransforms_tut.html
@@ -941,8 +988,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             nearest_neighbor_min_distance, nearest_neighbor_max_distance)
         nearest_neighbor = nearest_neighbor_max_distance > 0
 
-        key = _rtree_data_key(abs_path, file_type, file_read_params, nearest_neighbor)
-        per_peril = _RTREE_SHARED_DATA.get(key)
+        key = _shared_data_key('rtree', abs_path, file_type, file_read_params, nearest_neighbor)
+        per_peril = _SHARED_STEP_DATA.get(key)
         if per_peril is None:
             per_peril = _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nearest_neighbor)
         else:
@@ -1018,31 +1065,50 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """Load the data of the lookup steps that worker processes can share, for the duration of the context.
 
         Called in the parent process before the lookup workers are forked (see
-        KeyServer.generate_key_files_multiproc): the geometry files of the 'rtree' steps are read
-        and indexed once here, and each worker's build_rtree reuses that copy (shared copy-on-write)
-        instead of reading the file again.
+        KeyServer.generate_key_files_multiproc). The files of the 'rtree' and 'merge' steps are
+        read and indexed once here, and each worker's build_rtree and build_merge reuse that copy
+        (shared copy-on-write) instead of reading the file again.
         """
         keys = []
         frozen = False
         try:
             used_steps = self._strategy_step_names()
-            # a subclass overriding build_rtree may not use the data loaded here
-            if getattr(type(self), 'build_rtree') is Lookup.build_rtree:
-                for step_name, step_config in (self.config.get('step_definition') or {}).items():
-                    if step_config.get('type') != 'rtree':
-                        continue
-                    if step_name not in used_steps:
-                        logger.debug("rtree: step %s is not in the strategy, its file is not loaded", step_name)
-                        continue
-                    abs_path, file_type, file_read_params, nearest_neighbor_max_distance = self._rtree_settings(
-                        **step_config.get('parameters', {}))
+            for step_name, step_config in (self.config.get('step_definition') or {}).items():
+                step_type = step_config.get('type')
+                if step_type not in ('rtree', 'merge'):
+                    continue
+                if step_name not in used_steps:
+                    logger.debug("%s step %s is not in the strategy, its file is not loaded", step_type, step_name)
+                    continue
+                # a subclass overriding the step's function factory may not use the data loaded here
+                if getattr(type(self), f'build_{step_type}') is not getattr(Lookup, f'build_{step_type}'):
+                    continue
+                parameters = step_config.get('parameters', {})
+                if step_type == 'rtree':
+                    abs_path, file_type, file_read_params, nearest_neighbor_max_distance = self._rtree_settings(**parameters)
                     nearest_neighbor = nearest_neighbor_max_distance > 0
-                    key = _rtree_data_key(abs_path, file_type, file_read_params, nearest_neighbor)
-                    if key not in _RTREE_SHARED_DATA:
+                    key = _shared_data_key('rtree', abs_path, file_type, file_read_params, nearest_neighbor)
+                    if key not in _SHARED_STEP_DATA:
                         logger.info("rtree: loading %s in the parent process, to share with the lookup workers", abs_path)
-                        _RTREE_SHARED_DATA[key] = _load_rtree_geometries(
-                            abs_path, step_config['parameters']['file_path'], file_type, file_read_params, nearest_neighbor)
+                        _SHARED_STEP_DATA[key] = _load_rtree_geometries(
+                            abs_path, parameters['file_path'], file_type, file_read_params, nearest_neighbor)
                         keys.append(key)
+                else:
+                    abs_path, file_type, read_kwargs, join_columns = self._merge_settings(**parameters)
+                    key = _shared_data_key('merge', abs_path, file_type, read_kwargs)
+                    if key not in _SHARED_STEP_DATA:
+                        logger.info("merge step: loading %s in the parent process, to share with the lookup workers", abs_path)
+                        _SHARED_STEP_DATA[key] = self._read_merge_table(abs_path, file_type, read_kwargs)
+                        keys.append(key)
+                    # index the table on the join columns the step most likely uses, so the workers share it too:
+                    # join_columns, or else the file columns among the step's columns (the locations it gets
+                    # have at least those)
+                    table = _SHARED_STEP_DATA[key]
+                    if join_columns is None:
+                        step_columns = {column.lower() for column in step_config.get('columns', [])}
+                        join_columns = [column for column in table.df.columns if column in step_columns]
+                    if join_columns and set(join_columns).issubset(table.df.columns):
+                        table.key_index(tuple(sorted(join_columns)))
             if keys:
                 # Keep the workers' garbage collector from writing to the shared objects' headers,
                 # which would copy their memory pages into every worker.
@@ -1053,7 +1119,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if frozen:
                 gc.unfreeze()
             for key in keys:
-                _RTREE_SHARED_DATA.pop(key, None)
+                _SHARED_STEP_DATA.pop(key, None)
 
     def _strategy_step_names(self):
         """Names of the steps the lookup runs: those in the config's 'strategy', and the steps
@@ -1387,18 +1453,23 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         the file's value.
 
         If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
-        """
-        read_func = getattr(pd, f"read_{file_type}", None)
-        if callable(read_func):
-            df_to_merge = read_func(self.to_abs_filepath(file_path), **kwargs)
-        else:
-            df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
-        df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
 
-        if isinstance(join_columns, str):
-            join_columns = [join_columns]
+        Memory: the file is read once per lookup, and indexed by its join columns. When keys are
+        generated with several processes, it is read in the parent process before the workers
+        are forked (see multiproc_shared_data) and the workers share that copy. Each chunk of
+        locations is merged only with the rows its join keys can match, so it doesn't re-process
+        the whole file.
+        """
+        abs_path, file_type, read_kwargs, join_columns = self._merge_settings(
+            file_path, id_columns, file_type, join_columns, **kwargs)
+        table = _SHARED_STEP_DATA.get(_shared_data_key('merge', abs_path, file_type, read_kwargs))
+        if table is None:
+            table = self._read_merge_table(abs_path, file_type, read_kwargs)
+        else:
+            logger.info("merge step: using the table of %s already loaded by the parent process", abs_path)
+        df_to_merge = table.df
+
         if join_columns is not None:
-            join_columns = [col.lower() for col in join_columns]
             missing_in_file = [col for col in join_columns if col not in df_to_merge.columns]
             if missing_in_file:
                 raise OasisException(
@@ -1416,7 +1487,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"are the names the two have in common.")
             if join_columns is None:
                 logger.debug("merge step: joining on %s", sorted(rename_map.values()))
-                locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
+                file_keys = tuple(sorted(rename_map))
+                rows = table.rows_matching(file_keys, locations[[rename_map[col] for col in file_keys]])
+                logger.debug("merge step: %d locations, %d of the table's %d rows can match",
+                             len(locations), len(rows), len(df_to_merge))
+                locations = locations.merge(rows.rename(columns=rename_map), how='left')
                 return self.set_id_columns(locations, id_columns)
 
             missing_in_locations = [col for col in join_columns if col not in rename_map]
@@ -1430,10 +1505,40 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             from_locations = [col for col in shared if col not in id_columns_lower]
             on = [rename_map[col] for col in join_columns]
             logger.debug("merge step: joining on %s", on)
+            file_keys = tuple(sorted(join_columns))
+            rows = table.rows_matching(file_keys, locations[[rename_map[col] for col in file_keys]])
+            logger.debug("merge step: %d locations, %d of the table's %d rows can match",
+                         len(locations), len(rows), len(df_to_merge))
             locations = locations.drop(columns=[rename_map[col] for col in from_file]).merge(
-                df_to_merge.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
+                rows.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
             return self.set_id_columns(locations, id_columns)
         return merge
+
+    def _merge_settings(self, file_path, id_columns=[], file_type='csv', join_columns=None, **kwargs):
+        """Resolve build_merge's parameters.
+
+        Returns:
+            (abs_path, file_type, read_kwargs, join_columns): join_columns lower-cased, or None.
+        """
+        if isinstance(join_columns, str):
+            join_columns = [join_columns]
+        if join_columns is not None:
+            join_columns = [col.lower() for col in join_columns]
+        return self.to_abs_filepath(file_path), file_type, kwargs, join_columns
+
+    @staticmethod
+    def _read_merge_table(abs_path, file_type, read_kwargs):
+        """Read a merge step's file with pandas.read_<file_type> (read_csv if there is none), lower-casing its columns."""
+        start = time.perf_counter()
+        read_func = getattr(pd, f"read_{file_type}", None)
+        if callable(read_func):
+            df_to_merge = read_func(abs_path, **read_kwargs)
+        else:
+            df_to_merge = pd.read_csv(abs_path, **read_kwargs)
+        df_to_merge = df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns})
+        logger.info("merge step: read %d rows with columns %s from %s in %.1fs",
+                    len(df_to_merge), list(df_to_merge.columns), abs_path, time.perf_counter() - start)
+        return _MergeTable(df_to_merge)
 
     def build_geog_lookup(self, geog_scheme, output_column, slots=30,
                           case_insensitive=True, on_missing='null'):

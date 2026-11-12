@@ -300,20 +300,20 @@ def _rtree_lookup_config(file_path):
 def test_multiproc_shared_data_loads_rtree_file_once(monkeypatch, rtree_locations_all_coordinates):
     """Lookups built while the parent's shared data is loaded (as forked workers are) reuse it
     instead of reading the geometry file again, and it is released when the context exits."""
-    from oasislmf.lookup.builtin import _RTREE_SHARED_DATA
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
     reads = _count_parquet_reads(monkeypatch)
     config = _rtree_lookup_config((FILES_DIR / "rtree_areas.parquet").as_posix())
     params = config["step_definition"]["peril"]["parameters"]
 
     with Lookup(config=config).multiproc_shared_data():
         assert len(reads) == 1
-        assert len(_RTREE_SHARED_DATA) == 1
+        assert len(_SHARED_STEP_DATA) == 1
         for _ in range(2):  # e.g. two workers
             output = Lookup(config=config).build_rtree(**params)(rtree_locations_all_coordinates)
             assert output["poly_id"].tolist() == [1, 2, 1, OASIS_UNKNOWN_ID]
         assert len(reads) == 1
 
-    assert not _RTREE_SHARED_DATA
+    assert not _SHARED_STEP_DATA
     Lookup(config=config).build_rtree(**params)
     assert len(reads) == 2
 
@@ -372,8 +372,9 @@ def test_strategy_step_names_follows_combine_steps():
 
 
 def test_multiproc_shared_data_skips_steps_not_in_strategy(monkeypatch, rtree_locations_all_coordinates):
-    """Only the files of steps the strategy runs, directly or through a 'combine' step, are loaded."""
-    from oasislmf.lookup.builtin import _RTREE_SHARED_DATA
+    """Only the files of steps the strategy runs, directly or through a 'combine' step, are
+    loaded: the unused rtree and merge steps' files don't exist, so loading them would fail."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
     reads = _count_parquet_reads(monkeypatch)
     used_file = (FILES_DIR / "rtree_areas.parquet").as_posix()
     rtree_step = _rtree_lookup_config(used_file)["step_definition"]["peril"]
@@ -381,6 +382,8 @@ def test_multiproc_shared_data_skips_steps_not_in_strategy(monkeypatch, rtree_lo
     config = {
         "step_definition": {
             "unused_peril": unused_step,
+            "unused_vulnerability": {"type": "merge", "columns": ["peril_id"],
+                                     "parameters": {"file_path": "does_not_exist.csv", "id_columns": ["vulnerability_id"]}},
             "used_peril": rtree_step,
             "peril": {"type": "combine", "parameters": {"strategy": ["used_peril"], "id_columns": ["poly_id"]}},
             "unused_combine": {"type": "combine", "parameters": {"strategy": ["unused_peril"]}},
@@ -390,7 +393,115 @@ def test_multiproc_shared_data_skips_steps_not_in_strategy(monkeypatch, rtree_lo
 
     with Lookup(config=config).multiproc_shared_data():
         assert reads == [used_file]
-        assert len(_RTREE_SHARED_DATA) == 1
+        assert len(_SHARED_STEP_DATA) == 1
+
+
+@pytest.fixture
+def merge_table_csv(tmp_path):
+    """A merge table with a duplicated key (two rows for WTC/1/1050), a NaN key and mixed-case
+    column names."""
+    path = tmp_path / "vulnerability.csv"
+    pd.DataFrame({
+        "Peril_ID": ["WTC", "WTC", "WTC", "ORF", "ORF"],
+        "coverage_type": [1, 1, 3, 1, 1],
+        "OccupancyCode": [1050, 1050, 1050, 1100, None],
+        "vulnerability_id": [11, 12, 13, 21, 22],
+    }).to_csv(path, index=False)
+    return path
+
+
+def _whole_table_merge(path, locations, id_columns):
+    """What build_merge did before it looked up the matching rows: merge with the whole table."""
+    table = pd.read_csv(path)
+    table.columns = [col.lower() for col in table.columns]
+    rename_map = {col.lower(): col for col in locations.columns if col.lower() in table.columns}
+    return Lookup.set_id_columns(locations.merge(table.rename(columns=rename_map), how="left"), id_columns)
+
+
+@pytest.mark.parametrize("peril_dtype", ["str", "category"])
+def test_build_merge_matches_whole_table_merge(merge_table_csv, peril_dtype):
+    """Merging each chunk with only the rows it can match gives the whole-table merge result:
+    one row per match for duplicated keys, NaN keys matched, and the same dtypes, including
+    for a chunk that matches nothing (pandas types a categorical key differently when merged
+    with an empty table) and an empty chunk."""
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3, 4, 5],
+        "peril_id": ["WTC", "ORF", "WTC", "ORF", "XXX"],
+        "coverage_type": [1, 1, 3, 1, 1],
+        "occupancycode": [1050, 1100, 1050, None, 1050],
+    }, index=[40, 10, 30, 20, 50]).astype({"peril_id": peril_dtype})
+    merge = Lookup(config={}).build_merge(file_path=str(merge_table_csv), id_columns=["vulnerability_id"])
+
+    for chunk in (locations, locations.iloc[4:], locations.iloc[:0]):
+        pd.testing.assert_frame_equal(merge(chunk), _whole_table_merge(merge_table_csv, chunk, ["vulnerability_id"]))
+    assert merge(locations)["vulnerability_id"].tolist() == [11, 12, 21, 13, 22, OASIS_UNKNOWN_ID]
+
+
+def test_build_merge_join_columns_with_matching_rows(merge_table_csv):
+    """With join_columns, only those columns are looked up; a shared id column takes the file's value."""
+    locations = pd.DataFrame({"peril_id": ["WTC", "ORF"], "coverage_type": [3, 1], "occupancycode": [1050, 1100],
+                              "vulnerability_id": [99, 99]})
+    merge = Lookup(config={}).build_merge(file_path=str(merge_table_csv), id_columns=["vulnerability_id"],
+                                          join_columns=["Peril_ID", "coverage_type"])
+    output = merge(locations)
+    assert output["vulnerability_id"].tolist() == [13, 21, 22]
+    assert output["occupancycode"].tolist() == [1050, 1100, 1100]
+
+
+def _count_csv_reads(monkeypatch):
+    reads = []
+    read_csv = pd.read_csv
+
+    def counting_read_csv(*args, **kwargs):
+        reads.append(args[0])
+        return read_csv(*args, **kwargs)
+    monkeypatch.setattr(pd, "read_csv", counting_read_csv)
+    return reads
+
+
+def _merge_lookup_config(file_path):
+    return {"step_definition": {"vulnerability": {
+        "type": "merge",
+        "columns": ["peril_id", "coverage_type", "occupancycode"],
+        "parameters": {"file_path": file_path, "id_columns": ["vulnerability_id"]},
+    }}, "strategy": ["vulnerability"]}
+
+
+def test_multiproc_shared_data_loads_merge_file_once(monkeypatch, merge_table_csv):
+    """Lookups built while the parent's shared data is loaded (as forked workers are) reuse its
+    table and its index on the step's columns, and it is released when the context exits."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    reads = _count_csv_reads(monkeypatch)
+    config = _merge_lookup_config(str(merge_table_csv))
+    params = config["step_definition"]["vulnerability"]["parameters"]
+    locations = pd.DataFrame({"peril_id": ["WTC", "ORF"], "coverage_type": [3, 1], "occupancycode": [1050, 1100]})
+
+    with Lookup(config=config).multiproc_shared_data():
+        assert len(reads) == 1
+        (table,) = _SHARED_STEP_DATA.values()
+        assert list(table._indexes) == [("coverage_type", "occupancycode", "peril_id")]
+        for _ in range(2):  # e.g. two workers
+            output = Lookup(config=config).build_merge(**params)(locations)
+            assert output["vulnerability_id"].tolist() == [13, 21]
+        assert len(reads) == 1
+        assert len(table._indexes) == 1  # the workers used the parent's index
+
+    assert not _SHARED_STEP_DATA
+    Lookup(config=config).build_merge(**params)
+    assert len(reads) == 2
+
+
+def test_multiproc_shared_data_skips_overridden_build_merge(monkeypatch, merge_table_csv):
+    """A subclass with its own build_merge may not use the data, so none is loaded for it."""
+    reads = _count_csv_reads(monkeypatch)
+
+    class CustomLookup(Lookup):
+        def build_merge(self, **kwargs):
+            return lambda locations: locations
+
+    with CustomLookup(config=_merge_lookup_config(str(merge_table_csv))).multiproc_shared_data():
+        pass
+    assert not reads
 
 
 @pytest.mark.parametrize("preparations, values, expected", [
