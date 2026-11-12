@@ -101,3 +101,15 @@ jobs:
             tests/pytools/converters/test_converters_footprint.py::test_footprint_zip_tobin_independent_of_deflate_implementation \
             tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability \
             tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability_zip_tobin_independent_of_deflate_implementation
+
+      - name: Orchestrator tests - kernel run without bash
+        shell: bash
+        run: |
+          python -m pip install pytest hypothesis
+          python -m pytest -q \
+            tests/pytools/common/test_stream_ref.py \
+            tests/pytools/common/test_no_select.py \
+            tests/model_execution/test_orchestrator_tee.py \
+            tests/model_execution/test_orchestrator_transport.py \
+            tests/model_execution/test_orchestrator_executor.py \
+            tests/computation/test_generate_losses.py::TestGenLosses::test_losses__orchestrator__ri_runs_without_bash

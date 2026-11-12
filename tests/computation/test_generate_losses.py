@@ -611,6 +611,26 @@ class TestGenLosses(ComputationChecker):
         settings = {**RI_AAL_SETTINGS, 'rl_output': True, 'rl_summaries': RI_AAL_SETTINGS['ri_summaries']}
         self._compare_generate_losses(self.args_gen_files_ri, settings, "10033")
 
+    def test_losses__orchestrator__ri_runs_without_bash(self):
+        """Needs no bash, so it is the end-to-end check on systems that have none (Windows CI)."""
+        self.manager.generate_files(**self.args_gen_files_ri)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)
+        with self.tmp_dir() as model_run_dir, patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10036"}):
+            self.manager.generate_losses(**{
+                **self.min_args,
+                'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+                'model_run_dir': model_run_dir,
+                'kernel_num_processes': 2,
+                'orchestrator': True,
+            })
+            self._assert_ran_with(model_run_dir, 'run_kernel.sh', orchestrator=True)
+            outputs = self._output_files(model_run_dir)
+            for runtype in ('gul', 'il', 'ri'):
+                loss_files = [name for name in outputs if name.startswith(f'{runtype}_') and 'summary-info' not in name]
+                self.assertTrue(loss_files, f'no {runtype} output written')
+                for name in loss_files:
+                    self.assertTrue(outputs[name], f'output/{name} is empty')
+
     def test_losses__orchestrator__chunked_workflow_matches_bash(self):
         num_chunks = 3
         self.manager.generate_files(**self.args_gen_files_ri)
