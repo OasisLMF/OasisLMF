@@ -1102,6 +1102,11 @@ def do_ord(
                     cmd = f'{cmd} < {fifo_in_name}'
                     process_counter['pid_monitor_count'] += 1
 
+                    # Opt-in: leave zero-loss rows out of MELT, as pltpy does for MPLT (issue #2168)
+                    ord_output = summary.get('ord_output', {})
+                    if ord_type == 'elt_ord' and ord_output.get('elt_moment') and ord_output.get('elt_moment_exclude_zero_loss'):
+                        cmd = f' -Z{cmd}'
+
                     # Add binary output flag for ELTpy and PLTpy, will be converted to csv during kats
                     cmd = f'{flag_proc["executable"]} -E bin {cmd}'
 
