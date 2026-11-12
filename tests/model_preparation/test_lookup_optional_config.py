@@ -61,7 +61,7 @@ def run_keys(config, tmp_dir, data_subdir=None):
     GenerateKeys(
         oed_location_csv=META_DATA_PATH.joinpath('location.csv'),
         lookup_config_json=config_fp,
-        keys_data_path=str(keys_fp),
+        keys_data_csv=str(keys_fp),
         keys_format='oasis',
     ).run()
     return keys_fp, pathlib.Path(out_dir, 'keys-errors.csv')
