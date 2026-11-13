@@ -11,6 +11,7 @@ import pandas as pd
 from ods_tools.oed import fill_empty, is_empty
 
 try:  # needed for rtree
+    import shapely
     from shapely.geometry import Point
 
     # Hide numerous warnings similar to:
@@ -44,9 +45,16 @@ try:  # needed for h3 lookup
 except ImportError:
     h3 = h3_int = None
 
+import copy
+import gc
 import logging
 import math
+import os
 import re
+import time
+from contextlib import contextmanager
+
+import psutil
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
 from oasislmf.utils.deprecation import warn_deprecated
@@ -115,6 +123,216 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
         closest_points['distance'] = dist * earth_radius
 
     return closest_points
+
+
+EARTH_RADIUS_M = 6371000
+
+# Data of the 'rtree' and 'merge' steps loaded by Lookup.multiproc_shared_data before the lookup
+# worker processes are forked, so that the workers share one copy instead of each loading the whole
+# file. Keyed by _shared_data_key.
+_SHARED_STEP_DATA = {}
+
+
+class _RtreeGeometries:
+    """The geometries of one peril (or of all perils when the file has no peril_id column) and
+    the spatial indexes used to join locations to them.
+
+    It is built once and only read afterwards, so forked worker processes share it without
+    copying it.
+    """
+
+    def __init__(self, geometries, attributes, centers=None):
+        # attributes: the file's non-geometry columns, positionally aligned with geometries
+        self.attributes = attributes.reset_index(drop=True)
+        self.tree = shapely.STRtree(geometries)
+        if centers is None:
+            self.ball_tree = None
+        else:
+            # (longitude, latitude) order, as nearest_neighbor has always used
+            self.ball_tree = BallTree(
+                np.radians(np.column_stack([shapely.get_x(centers), shapely.get_y(centers)])),
+                leaf_size=15, metric='haversine')
+
+
+def _memory_usage():
+    """This process's resident memory, for the logs (pages shared with forked workers count in each of them)."""
+    try:
+        return f"{psutil.Process().memory_info().rss / 2**30:.1f} GiB"
+    except Exception:  # memory use is only logged, it must never fail the lookup
+        return "unknown"
+
+
+def _shared_data_key(step_type, abs_path, *settings):
+    """Identify the data a step loaded from a file with given settings, including the file's
+    version so an edited file is never matched to stale shared data.
+    """
+    try:
+        stat = os.stat(abs_path)
+        version = (stat.st_size, stat.st_mtime_ns)
+    except (OSError, TypeError, ValueError):
+        version = None
+    return (step_type, abs_path, version) + tuple(repr(setting) for setting in settings)
+
+
+def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nearest_neighbor):
+    """Read a geometry file and index it, per peril if it has a peril_id column.
+
+    Returns:
+        dict: {peril_id: _RtreeGeometries}, or {None: _RtreeGeometries} without a peril_id column.
+    """
+    logger.info("rtree: reading geometry file %s", abs_path)
+    start = time.perf_counter()
+    gdf_geometry = getattr(gpd, f"read_{file_type}")(abs_path, **file_read_params)
+    logger.info("rtree: read %d geometries with columns %s in %.1fs, process memory %s",
+                len(gdf_geometry), list(gdf_geometry.columns), time.perf_counter() - start, _memory_usage())
+
+    if gdf_geometry.crs is None:
+        warnings.warn(
+            f"Geometry file '{file_path}' has no CRS metadata — assuming EPSG:4326. "
+            "Re-save the file with a CRS to suppress this warning.",
+            UserWarning,
+        )
+        gdf_geometry = gdf_geometry.set_crs("EPSG:4326")
+    elif gdf_geometry.crs != "EPSG:4326":
+        logger.info("rtree: reprojecting geometries from %s to EPSG:4326", gdf_geometry.crs)
+        gdf_geometry = gdf_geometry.to_crs("EPSG:4326")
+
+    start = time.perf_counter()
+    centers = None
+    if nearest_neighbor:
+        with warnings.catch_warnings():
+            # In the context of a nearest neighbour search, we accept a potentially significant
+            # deviation between the spherical or ellipsoidal distance and the cartesian approximation
+            # that's used here.
+            warnings.filterwarnings('ignore', category=UserWarning, message="Geometry is in a geographic CRS.")
+            centers = np.asarray(gdf_geometry.centroid.array)
+
+    geometries = np.asarray(gdf_geometry.geometry.array)
+    attributes = pd.DataFrame(gdf_geometry.drop(columns=gdf_geometry.geometry.name))
+    del gdf_geometry
+
+    if 'peril_id' not in attributes.columns:
+        per_peril = {None: _RtreeGeometries(geometries, attributes, centers)}
+        logger.info("rtree: indexed %d geometries (no peril_id column, used for all perils)%s in %.1fs, process memory %s",
+                    len(geometries), " with centroids for nearest neighbour" if nearest_neighbor else "",
+                    time.perf_counter() - start, _memory_usage())
+        return per_peril
+
+    peril_ids = attributes['peril_id'].to_numpy()
+    attributes = attributes.drop(columns=['peril_id'])
+    per_peril = {}
+    for peril_id in np.unique(peril_ids):
+        mask = peril_ids == peril_id
+        per_peril[peril_id] = _RtreeGeometries(
+            geometries[mask], attributes[mask], None if centers is None else centers[mask])
+    logger.info("rtree: indexed geometries per peril %s%s in %.1fs, process memory %s",
+                {str(peril_id): len(geometries.attributes) for peril_id, geometries in per_peril.items()},
+                " with centroids for nearest neighbour" if nearest_neighbor else "",
+                time.perf_counter() - start, _memory_usage())
+    return per_peril
+
+
+def _rtree_join(located, geometries, nearest_neighbor_max_distance):
+    """Left spatial join of locations (all with coordinates) to the geometries they intersect.
+
+    Gives the same result as geopandas.sjoin(how='left') followed by the nearest neighbour
+    fallback: one row per (location, intersecting geometry) pair, in location order, keeping
+    the location index; locations that intersect nothing get the nearest geometry centroid
+    within nearest_neighbor_max_distance, or else NaN attributes.
+    """
+    x = located['longitude'].to_numpy(dtype='float64')
+    y = located['latitude'].to_numpy(dtype='float64')
+    loc_pos, geom_pos = geometries.tree.query(shapely.points(x, y), predicate='intersects')
+
+    n_pairs = len(loc_pos)
+    is_unmatched = np.ones(len(located), dtype=bool)
+    is_unmatched[loc_pos] = False
+    unmatched = np.flatnonzero(is_unmatched)
+    n_in_geometry = len(located) - unmatched.size
+
+    if nearest_neighbor_max_distance > 0 and unmatched.size and geometries.ball_tree is not None:
+        distance, nearest = geometries.ball_tree.query(
+            np.radians(np.column_stack([x[unmatched], y[unmatched]])), k=1)
+        close = distance[:, 0] * EARTH_RADIUS_M <= nearest_neighbor_max_distance
+        loc_pos = np.concatenate([loc_pos, unmatched[close]])
+        geom_pos = np.concatenate([geom_pos, nearest[close, 0]])
+        unmatched = unmatched[~close]
+
+    logger.debug("rtree: %d locations: %d in a geometry (%d location-geometry pairs), %d matched by nearest "
+                 "neighbour, %d unmatched", len(located), n_in_geometry, n_pairs,
+                 len(located) - n_in_geometry - unmatched.size, unmatched.size)
+
+    loc_pos = np.concatenate([loc_pos, unmatched])
+    geom_pos = np.concatenate([geom_pos, np.full(unmatched.size, -1, dtype=geom_pos.dtype)])
+    # stable sort by location only: a location's geometries stay in the STRtree's query order,
+    # as with geopandas.sjoin, so the keys' row order is unchanged
+    order = np.argsort(loc_pos, kind='stable')
+    loc_pos, geom_pos = loc_pos[order], geom_pos[order]
+
+    joined = located.iloc[loc_pos]
+    # -1 is not a label of the RangeIndex, so unmatched locations get NaN attributes
+    attributes = geometries.attributes.reindex(geom_pos)
+
+    overlap = joined.columns.intersection(attributes.columns)
+    if len(overlap):  # same suffixes as geopandas.sjoin
+        joined = joined.rename(columns={col: f"{col}_left" for col in overlap})
+        attributes = attributes.rename(columns={col: f"{col}_right" for col in overlap})
+
+    attributes.index = joined.index
+    return pd.concat([joined, attributes], axis=1)
+
+
+class _MergeTable:
+    """The table of a 'merge' step (columns lower-cased), with an index of its rows by join key.
+
+    Merging each chunk of locations with the whole table makes pandas hash the join keys of
+    every row of the table again for every chunk. Instead, the index is built once per set of
+    join columns, each chunk looks up the rows its keys can match, and only those rows are
+    merged, with the same pandas merge as before so matching and dtypes are unchanged.
+    """
+
+    def __init__(self, df):
+        self.df = df
+        self._indexes = {}
+        self._pid = os.getpid()
+
+    def key_index(self, file_keys):
+        """MultiIndex of the table's file_keys columns, with its lookup hash table built."""
+        index = self._indexes.get(file_keys)
+        if index is None:
+            if os.getpid() != self._pid:
+                logger.warning(
+                    "merge step: indexing the table of %d rows on %s in lookup worker process %d. The parent "
+                    "process didn't index it on these columns, so each worker builds and holds its own copy "
+                    "of the index. Set join_columns %s on the step so the parent indexes it once for all workers.",
+                    len(self.df), list(file_keys), os.getpid(), list(file_keys))
+            start = time.perf_counter()
+            index = pd.MultiIndex.from_frame(self.df[list(file_keys)])
+            index.get_indexer_non_unique(index[:1])  # builds the hash table now, not on the first chunk
+            self._indexes[file_keys] = index
+            logger.info("merge step: indexed %d rows on %s in %.1fs, process memory %s", len(index), list(file_keys),
+                        time.perf_counter() - start, _memory_usage())
+        return index
+
+    def rows_matching(self, file_keys, location_keys):
+        """The table rows whose file_keys values are a row of location_keys, in table order.
+
+        location_keys holds the locations' join columns, in file_keys order. Rows the merge
+        would not match may be included, but every row it would match is.
+        """
+        try:
+            positions, _ = self.key_index(file_keys).get_indexer_non_unique(
+                pd.MultiIndex.from_frame(location_keys.drop_duplicates()))
+        except (TypeError, ValueError) as error:  # keys that can't be looked up: merge with the whole table
+            logger.debug("merge step: merging with the whole table, key lookup failed: %s", error)
+            return self.df
+        positions = np.unique(positions[positions >= 0])
+        if positions.size == 0:
+            # No row matches, so any row can be merged without matching. Merging with an empty
+            # table instead could change the dtype pandas gives the join columns (e.g. for a
+            # categorical key), so the result would differ from merging with the whole table.
+            positions = np.arange(min(1, len(self.df)))
+        return self.df.iloc[positions]
 
 
 # GeoTransform indexes, https://gdal.org/en/stable/tutorials/geotransforms_tut.html
@@ -777,6 +995,64 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
+
+        Memory: the file is read and indexed once per lookup. When keys are generated with several
+        processes, it is read once in the parent process before the workers are forked (see
+        multiproc_shared_data) and the workers share that copy. Each chunk of locations is joined
+        with an STRtree query, so the memory it needs grows with the matches, not the file size.
+        To keep only some of the file's columns, pass e.g. {"columns": [...]} in file_read_params.
+        """
+        abs_path, file_type, file_read_params, nearest_neighbor_max_distance = self._rtree_settings(
+            file_path, file_type, area_peril_read_params, file_read_params,
+            nearest_neighbor_min_distance, nearest_neighbor_max_distance)
+        nearest_neighbor = nearest_neighbor_max_distance > 0
+
+        key = _shared_data_key('rtree', abs_path, file_type, file_read_params, nearest_neighbor)
+        per_peril = _SHARED_STEP_DATA.get(key)
+        if per_peril is None:
+            per_peril = _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nearest_neighbor)
+        else:
+            logger.info("rtree: using the geometries of %s already loaded by the parent process", abs_path)
+
+        def get_geometry(locations, geometries):
+            has_coordinates = locations["longitude"].notna() & locations["latitude"].notna()
+            located = locations[has_coordinates]
+            if not has_coordinates.all():
+                logger.debug("rtree: %d locations without coordinates are left unmatched", (~has_coordinates).sum())
+            if located.empty:
+                gdf_loc = locations.copy()
+            else:
+                gdf_loc = _rtree_join(located, geometries, nearest_neighbor_max_distance)
+                if not has_coordinates.all():
+                    gdf_loc = pd.concat([gdf_loc, locations[~has_coordinates]])
+            self.set_id_columns(gdf_loc, id_columns)
+
+            # columns the previous geopandas.sjoin implementation created, kept dropped for compatibility
+            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left', 'geometry', 'center'], errors='ignore')
+
+            return gdf_loc
+
+        def fct(locations):
+            if None in per_peril:
+                return get_geometry(locations, per_peril[None])
+
+            res = [locations[~locations['peril_id'].isin(list(per_peril))]]
+            if len(res[0]):
+                logger.debug("rtree: %d locations have a peril with no geometries, perils %s",
+                             len(res[0]), res[0]['peril_id'].unique().tolist())
+            for peril_id, geometries in per_peril.items():
+                logger.debug("rtree: joining locations for peril %s", peril_id)
+                res.append(get_geometry(locations.loc[locations['peril_id'] == peril_id], geometries))
+
+            return pd.concat(res).reset_index()
+        return fct
+
+    def _rtree_settings(self, file_path, file_type, area_peril_read_params=None, file_read_params=None,
+                        nearest_neighbor_min_distance=-1, nearest_neighbor_max_distance=-1, **kwargs):
+        """Validate build_rtree's parameters and resolve the deprecated ones.
+
+        Returns:
+            (abs_path, file_type, file_read_params, nearest_neighbor_max_distance)
         """
         if nearest_neighbor_min_distance > 0:
             warn_deprecated("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
@@ -794,79 +1070,120 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if Point is None:
             raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
-        if hasattr(gpd, f"read_{file_type}"):
-            if file_read_params is None:
-                file_read_params = {}
-            gdf_geometry = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path), **file_read_params)
-        else:
+        if not hasattr(gpd, f"read_{file_type}"):
             raise OasisException(f"Unrecognised Geopandas read type {file_type}")
 
-        if gdf_geometry.crs is None:
-            warnings.warn(
-                f"Geometry file '{file_path}' has no CRS metadata — assuming EPSG:4326. "
-                "Re-save the file with a CRS to suppress this warning.",
-                UserWarning,
-            )
-            gdf_geometry = gdf_geometry.set_crs("EPSG:4326")
-        elif gdf_geometry.crs != "EPSG:4326":
-            gdf_geometry = gdf_geometry.to_crs("EPSG:4326")
+        if nearest_neighbor_max_distance > 0 and BallTree is None:
+            raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_max_distance, {OPT_INSTALL_MESSAGE}")
 
-        if nearest_neighbor_max_distance > 0:
-            if BallTree is None:
-                raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_max_distance, {OPT_INSTALL_MESSAGE}")
-            with warnings.catch_warnings():
-                # In the context of a nearest neighbour search, we accept a potentially significant
-                # deviation between the spherical or ellipsoidal distance and the cartesian approximation
-                # that's used here.
-                warnings.filterwarnings('ignore', category=UserWarning, message="Geometry is in a geographic CRS.")
-                gdf_geometry['center'] = gdf_geometry.centroid
-            base_geometry_name = gdf_geometry.geometry.name
+        return self.to_abs_filepath(file_path), file_type, file_read_params or {}, nearest_neighbor_max_distance
 
-        def get_geometry(locations, gdf_geometry):
-            # this conversion could be done in a separate step allowing more posibilities for the geometry
-            null_gdf = locations["longitude"].isna() | locations["latitude"].isna()
-            null_gdf_loc = locations[null_gdf]
-            gdf_loc = gpd.GeoDataFrame(
-                locations[~null_gdf], columns=locations.columns,
-                geometry=gpd.points_from_xy(locations.loc[~null_gdf, "longitude"], locations.loc[~null_gdf, "latitude"]),
-                crs="EPSG:4326",
-            )
+    @contextmanager
+    def multiproc_shared_data(self, sample_locations=None):
+        """Load the data of the lookup steps that worker processes can share, for the duration of the context.
 
-            if not gdf_loc.empty:
-                gdf_loc = gpd.sjoin(gdf_loc, gdf_geometry, 'left')
+        Called in the parent process before the lookup workers are forked (see
+        KeyServer.generate_key_files_multiproc). The files of the 'rtree' and 'merge' steps are
+        read and indexed once here, and each worker's build_rtree and build_merge reuse that copy
+        (shared copy-on-write) instead of reading the file again.
 
-                if nearest_neighbor_max_distance > 0:
-                    gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
+        A merge step joins on the columns its file has in common with the locations it gets,
+        and earlier steps can add those columns (e.g. an rtree step adding area_peril_id), so
+        they're only known when the lookup runs. Unless the step sets join_columns, its table
+        is indexed by running the lookup on sample_locations (a few rows of the locations)
+        here, so the workers share that index instead of each building its own.
+        """
+        keys = []
+        frozen = False
+        merge_tables = []
+        try:
+            used_steps = self._strategy_step_names()
+            for step_name, step_config in (self.config.get('step_definition') or {}).items():
+                step_type = step_config.get('type')
+                if step_type not in ('rtree', 'merge'):
+                    continue
+                if step_name not in used_steps:
+                    logger.debug("%s step %s is not in the strategy, its file is not loaded", step_type, step_name)
+                    continue
+                # a subclass overriding the step's function factory may not use the data loaded here
+                if getattr(type(self), f'build_{step_type}') is not getattr(Lookup, f'build_{step_type}'):
+                    continue
+                parameters = step_config.get('parameters', {})
+                if step_type == 'rtree':
+                    abs_path, file_type, file_read_params, nearest_neighbor_max_distance = self._rtree_settings(**parameters)
+                    nearest_neighbor = nearest_neighbor_max_distance > 0
+                    key = _shared_data_key('rtree', abs_path, file_type, file_read_params, nearest_neighbor)
+                    if key not in _SHARED_STEP_DATA:
+                        logger.info("rtree: loading %s in the parent process, to share with the lookup workers", abs_path)
+                        _SHARED_STEP_DATA[key] = _load_rtree_geometries(
+                            abs_path, parameters['file_path'], file_type, file_read_params, nearest_neighbor)
+                        keys.append(key)
+                else:
+                    abs_path, file_type, read_kwargs, join_columns = self._merge_settings(**parameters)
+                    key = _shared_data_key('merge', abs_path, file_type, read_kwargs)
+                    if key not in _SHARED_STEP_DATA:
+                        logger.info("merge step: loading %s in the parent process, to share with the lookup workers", abs_path)
+                        _SHARED_STEP_DATA[key] = self._read_merge_table(abs_path, file_type, read_kwargs)
+                        keys.append(key)
+                    table = _SHARED_STEP_DATA[key]
+                    merge_tables.append(table)
+                    if join_columns and set(join_columns).issubset(table.df.columns):
+                        table.key_index(tuple(sorted(join_columns)))
+            if merge_tables and sample_locations is not None:
+                self._index_merge_tables_on_sample(sample_locations, merge_tables)
+            if keys:
+                # Keep the workers' garbage collector from writing to the shared objects' headers,
+                # which would copy their memory pages into every worker.
+                gc.freeze()
+                frozen = True
+            yield
+        finally:
+            if frozen:
+                gc.unfreeze()
+            for key in keys:
+                _SHARED_STEP_DATA.pop(key, None)
 
-                    if gdf_loc_na.shape[0]:
-                        gdf_geometry.set_geometry('center', inplace=True)
-                        nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_geometry, return_dist=True)
+    def _index_merge_tables_on_sample(self, sample_locations, merge_tables):
+        """Run the lookup on sample_locations, so the merge steps index their shared tables on the
+        columns they actually join on. The results are discarded.
+        """
+        start = time.perf_counter()
+        try:
+            # building the steps changes the config (combine strategies become functions), so the
+            # sample runs on its own copy, leaving the config the workers' lookups are made from as it is
+            sample_lookup = copy.copy(self)
+            sample_lookup.config = copy.deepcopy(self.config)
+            sample_lookup.process_locations(sample_locations)
+        except Exception as error:  # only an optimisation, the tables it didn't index are indexed by the workers
+            logger.warning("merge step: the lookup failed on the %d sample locations used to index the merge tables "
+                           "(%s: %s)", len(sample_locations), type(error).__name__, error)
+        logger.info("merge step: ran the lookup on %d sample locations to index the merge tables in %.1fs, "
+                    "process memory %s", len(sample_locations), time.perf_counter() - start, _memory_usage())
+        for table in merge_tables:
+            if not table._indexes:
+                logger.warning("merge step: the table with columns %s wasn't indexed in the parent process, so each "
+                               "lookup worker that uses it will index it itself. Set join_columns on its step to "
+                               "index it once for all workers.", list(table.df.columns))
 
-                        gdf_geometry.set_geometry(base_geometry_name, inplace=True)
-                        valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_max_distance
-                        common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
-                        gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
-            if not null_gdf_loc.empty:
-                gdf_loc = pd.concat([gdf_loc, null_gdf_loc])
-            self.set_id_columns(gdf_loc, id_columns)
-
-            # index column are created during the sjoin, we can drop them
-            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left', 'geometry', 'center'], errors='ignore')
-
-            return gdf_loc
-
-        def fct(locations):
-            if 'peril_id' in gdf_geometry.columns:
-                peril_id_covered = np.unique(gdf_geometry['peril_id'])
-                res = [locations[~locations['peril_id'].isin(peril_id_covered)]]
-                for peril_id in peril_id_covered:
-                    res.append(get_geometry(locations.loc[locations['peril_id'] == peril_id],
-                                            gdf_geometry.loc[gdf_geometry['peril_id'] == peril_id].drop(columns=['peril_id'])))
-
-                return pd.concat(res).reset_index()
-            else:
-                return get_geometry(locations, gdf_geometry)
-        return fct
+    def _strategy_step_names(self):
+        """Names of the steps the lookup runs: those in the config's 'strategy', and the steps
+        of the 'combine' steps among them, recursively. Other steps in 'step_definition' are
+        never run.
+        """
+        step_definition = self.config.get('step_definition') or {}
+        used = set()
+        to_visit = list(self.config.get('strategy') or [])
+        while to_visit:
+            step = to_visit.pop()
+            # once a combine step is built, its strategy holds {'name': ..., 'function': ...} instead of names
+            name = step['name'] if isinstance(step, dict) else step
+            if name in used:
+                continue
+            used.add(name)
+            step_config = step_definition.get(name) or {}
+            if step_config.get('type') == 'combine':
+                to_visit.extend((step_config.get('parameters') or {}).get('strategy') or [])
+        return used
 
     @staticmethod
     def build_fixed_size_geo_grid_multi_peril(perils_dict):
@@ -1180,18 +1497,23 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         the file's value.
 
         If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
-        """
-        read_func = getattr(pd, f"read_{file_type}", None)
-        if callable(read_func):
-            df_to_merge = read_func(self.to_abs_filepath(file_path), **kwargs)
-        else:
-            df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
-        df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
 
-        if isinstance(join_columns, str):
-            join_columns = [join_columns]
+        Memory: the file is read once per lookup, and indexed by its join columns. When keys are
+        generated with several processes, it is read in the parent process before the workers
+        are forked (see multiproc_shared_data) and the workers share that copy. Each chunk of
+        locations is merged only with the rows its join keys can match, so it doesn't re-process
+        the whole file.
+        """
+        abs_path, file_type, read_kwargs, join_columns = self._merge_settings(
+            file_path, id_columns, file_type, join_columns, **kwargs)
+        table = _SHARED_STEP_DATA.get(_shared_data_key('merge', abs_path, file_type, read_kwargs))
+        if table is None:
+            table = self._read_merge_table(abs_path, file_type, read_kwargs)
+        else:
+            logger.info("merge step: using the table of %s already loaded by the parent process", abs_path)
+        df_to_merge = table.df
+
         if join_columns is not None:
-            join_columns = [col.lower() for col in join_columns]
             missing_in_file = [col for col in join_columns if col not in df_to_merge.columns]
             if missing_in_file:
                 raise OasisException(
@@ -1209,7 +1531,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"are the names the two have in common.")
             if join_columns is None:
                 logger.debug("merge step: joining on %s", sorted(rename_map.values()))
-                locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
+                file_keys = tuple(sorted(rename_map))
+                rows = table.rows_matching(file_keys, locations[[rename_map[col] for col in file_keys]])
+                logger.debug("merge step: %d locations, %d of the table's %d rows can match",
+                             len(locations), len(rows), len(df_to_merge))
+                locations = locations.merge(rows.rename(columns=rename_map), how='left')
                 return self.set_id_columns(locations, id_columns)
 
             missing_in_locations = [col for col in join_columns if col not in rename_map]
@@ -1223,10 +1549,41 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             from_locations = [col for col in shared if col not in id_columns_lower]
             on = [rename_map[col] for col in join_columns]
             logger.debug("merge step: joining on %s", on)
+            file_keys = tuple(sorted(join_columns))
+            rows = table.rows_matching(file_keys, locations[[rename_map[col] for col in file_keys]])
+            logger.debug("merge step: %d locations, %d of the table's %d rows can match",
+                         len(locations), len(rows), len(df_to_merge))
             locations = locations.drop(columns=[rename_map[col] for col in from_file]).merge(
-                df_to_merge.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
+                rows.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
             return self.set_id_columns(locations, id_columns)
         return merge
+
+    def _merge_settings(self, file_path, id_columns=[], file_type='csv', join_columns=None, **kwargs):
+        """Resolve build_merge's parameters.
+
+        Returns:
+            (abs_path, file_type, read_kwargs, join_columns): join_columns lower-cased, or None.
+        """
+        if isinstance(join_columns, str):
+            join_columns = [join_columns]
+        if join_columns is not None:
+            join_columns = [col.lower() for col in join_columns]
+        return self.to_abs_filepath(file_path), file_type, kwargs, join_columns
+
+    @staticmethod
+    def _read_merge_table(abs_path, file_type, read_kwargs):
+        """Read a merge step's file with pandas.read_<file_type> (read_csv if there is none), lower-casing its columns."""
+        start = time.perf_counter()
+        read_func = getattr(pd, f"read_{file_type}", None)
+        if callable(read_func):
+            df_to_merge = read_func(abs_path, **read_kwargs)
+        else:
+            df_to_merge = pd.read_csv(abs_path, **read_kwargs)
+        df_to_merge = df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns})
+        logger.info("merge step: read %d rows with columns %s from %s in %.1fs, process memory %s",
+                    len(df_to_merge), list(df_to_merge.columns), abs_path, time.perf_counter() - start,
+                    _memory_usage())
+        return _MergeTable(df_to_merge)
 
     def build_geog_lookup(self, geog_scheme, output_column, slots=30,
                           case_insensitive=True, on_missing='null'):

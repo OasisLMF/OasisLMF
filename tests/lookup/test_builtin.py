@@ -1,3 +1,4 @@
+import copy
 from collections import OrderedDict
 from pathlib import Path
 
@@ -236,6 +237,317 @@ def test_build_rtree_reprojects_non_4326_geometries(target_crs, rtree_locations_
         expected.sort_values("locname"),
         check_dtype=False,
     )
+
+
+def _overlapping_geometries():
+    """Overlapping squares, so some locations are in several geometries, with extra columns."""
+    gpd = pytest.importorskip("geopandas")
+    shapely = pytest.importorskip("shapely")
+    return gpd.GeoDataFrame(
+        {"poly_id": [1, 2, 3, 4], "factor": [0.1, 0.2, 0.3, 0.4], "label": ["a", "b", "c", "d"]},
+        geometry=[shapely.box(0, 0, 2, 2), shapely.box(1, 1, 3, 3), shapely.box(0.5, 0.5, 1.5, 1.5),
+                  shapely.box(5, 5, 6, 6)],
+        crs="EPSG:4326",
+    )
+
+
+def test_build_rtree_matches_sjoin_with_overlapping_geometries(tmp_path):
+    """A location in several geometries gets one row per geometry, in the order and with the
+    columns geopandas.sjoin(how='left') gives them."""
+    gpd = pytest.importorskip("geopandas")
+    gdf = _overlapping_geometries()
+    gdf.to_parquet(tmp_path / "areas.parquet")
+    locations = pd.DataFrame({
+        "loc_id": [10, 11, 12, 13, 14],
+        "longitude": [1.2, 2.5, 4.0, 5.5, 0.1],
+        "latitude": [1.2, 2.5, 4.0, 5.5, 0.1],
+    }, index=[7, 3, 9, 1, 5])
+
+    rtree = Lookup(config={}).build_rtree(
+        file_path=(tmp_path / "areas.parquet").as_posix(), file_type="parquet", id_columns="poly_id")
+    output = rtree(locations)
+
+    gdf_loc = gpd.GeoDataFrame(locations, geometry=gpd.points_from_xy(locations.longitude, locations.latitude),
+                               crs="EPSG:4326")
+    expected = gpd.sjoin(gdf_loc, gdf, how="left").drop(columns=["geometry", "index_right"])
+    expected = Lookup.set_id_columns(pd.DataFrame(expected), "poly_id")
+
+    pd.testing.assert_frame_equal(output, expected)
+    assert sorted(output.loc[7, "poly_id"]) == [1, 2, 3]
+    assert output.loc[9, "poly_id"] == OASIS_UNKNOWN_ID
+
+
+def _count_parquet_reads(monkeypatch):
+    from oasislmf.lookup import builtin
+    reads = []
+    read_parquet = builtin.gpd.read_parquet
+
+    def counting_read_parquet(*args, **kwargs):
+        reads.append(args[0])
+        return read_parquet(*args, **kwargs)
+    monkeypatch.setattr(builtin.gpd, "read_parquet", counting_read_parquet)
+    return reads
+
+
+def _rtree_lookup_config(file_path):
+    return {"step_definition": {"peril": {
+        "type": "rtree",
+        "columns": ["longitude", "latitude"],
+        "parameters": {"file_path": file_path, "file_type": "parquet", "id_columns": ["poly_id"],
+                       "nearest_neighbor_max_distance": 12000},
+    }}, "strategy": ["peril"]}
+
+
+def test_multiproc_shared_data_loads_rtree_file_once(monkeypatch, rtree_locations_all_coordinates):
+    """Lookups built while the parent's shared data is loaded (as forked workers are) reuse it
+    instead of reading the geometry file again, and it is released when the context exits."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    reads = _count_parquet_reads(monkeypatch)
+    config = _rtree_lookup_config((FILES_DIR / "rtree_areas.parquet").as_posix())
+    params = config["step_definition"]["peril"]["parameters"]
+
+    with Lookup(config=config).multiproc_shared_data():
+        assert len(reads) == 1
+        assert len(_SHARED_STEP_DATA) == 1
+        for _ in range(2):  # e.g. two workers
+            output = Lookup(config=config).build_rtree(**params)(rtree_locations_all_coordinates)
+            assert output["poly_id"].tolist() == [1, 2, 1, OASIS_UNKNOWN_ID]
+        assert len(reads) == 1
+
+    assert not _SHARED_STEP_DATA
+    Lookup(config=config).build_rtree(**params)
+    assert len(reads) == 2
+
+
+def test_multiproc_shared_data_not_used_for_edited_file(monkeypatch, tmp_path, rtree_locations_all_coordinates):
+    """Shared data identifies the file's version, so an edited file is read again."""
+    gpd = pytest.importorskip("geopandas")
+    file_path = tmp_path / "areas.parquet"
+    gdf = gpd.read_parquet(FILES_DIR / "rtree_areas.parquet")
+    gdf.to_parquet(file_path)
+    reads = _count_parquet_reads(monkeypatch)
+    config = _rtree_lookup_config(file_path.as_posix())
+    params = config["step_definition"]["peril"]["parameters"]
+
+    with Lookup(config=config).multiproc_shared_data():
+        gdf.assign(poly_id=gdf["poly_id"] + 10).to_parquet(file_path)
+        output = Lookup(config=config).build_rtree(**params)(rtree_locations_all_coordinates)
+
+    assert len(reads) == 2
+    assert output["poly_id"].tolist() == [11, 12, 11, OASIS_UNKNOWN_ID]
+
+
+def test_multiproc_shared_data_skips_overridden_build_rtree(monkeypatch):
+    """A subclass with its own build_rtree may not use the data, so none is loaded for it."""
+    reads = _count_parquet_reads(monkeypatch)
+
+    class CustomLookup(Lookup):
+        def build_rtree(self, **kwargs):
+            return lambda locations: locations
+
+    config = _rtree_lookup_config((FILES_DIR / "rtree_areas.parquet").as_posix())
+    with CustomLookup(config=config).multiproc_shared_data():
+        pass
+    assert not reads
+
+
+def test_strategy_step_names_follows_combine_steps():
+    """The steps run are those in 'strategy' and, recursively, in its 'combine' steps; a combine
+    step that is defined but not used doesn't count, and a built combine step (whose strategy
+    holds {'name': ..., 'function': ...}) is followed too."""
+    config = {
+        "step_definition": {
+            "a": {"type": "merge"},
+            "b": {"type": "rtree"},
+            "c": {"type": "rtree"},
+            "d": {"type": "rtree"},
+            "e": {"type": "merge"},
+            "f": {"type": "merge"},
+            "comb": {"type": "combine", "parameters": {"strategy": ["b", "comb2"]}},
+            "comb2": {"type": "combine", "parameters": {"strategy": [{"name": "c", "function": None}, "comb"]}},
+            "unused_comb": {"type": "combine", "parameters": {"strategy": ["e"]}},
+        },
+        "strategy": ["a", "comb"],
+    }
+    assert Lookup(config=config)._strategy_step_names() == {"a", "comb", "b", "comb2", "c"}
+
+
+def test_multiproc_shared_data_skips_steps_not_in_strategy(monkeypatch, rtree_locations_all_coordinates):
+    """Only the files of steps the strategy runs, directly or through a 'combine' step, are
+    loaded: the unused rtree and merge steps' files don't exist, so loading them would fail."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    reads = _count_parquet_reads(monkeypatch)
+    used_file = (FILES_DIR / "rtree_areas.parquet").as_posix()
+    rtree_step = _rtree_lookup_config(used_file)["step_definition"]["peril"]
+    unused_step = {**rtree_step, "parameters": {**rtree_step["parameters"], "file_path": "does_not_exist.parquet"}}
+    config = {
+        "step_definition": {
+            "unused_peril": unused_step,
+            "unused_vulnerability": {"type": "merge", "columns": ["peril_id"],
+                                     "parameters": {"file_path": "does_not_exist.csv", "id_columns": ["vulnerability_id"]}},
+            "used_peril": rtree_step,
+            "peril": {"type": "combine", "parameters": {"strategy": ["used_peril"], "id_columns": ["poly_id"]}},
+            "unused_combine": {"type": "combine", "parameters": {"strategy": ["unused_peril"]}},
+        },
+        "strategy": ["peril"],
+    }
+
+    with Lookup(config=config).multiproc_shared_data():
+        assert reads == [used_file]
+        assert len(_SHARED_STEP_DATA) == 1
+
+
+@pytest.fixture
+def merge_table_csv(tmp_path):
+    """A merge table with a duplicated key (two rows for WTC/1/1050), a NaN key and mixed-case
+    column names."""
+    path = tmp_path / "vulnerability.csv"
+    pd.DataFrame({
+        "Peril_ID": ["WTC", "WTC", "WTC", "ORF", "ORF"],
+        "coverage_type": [1, 1, 3, 1, 1],
+        "OccupancyCode": [1050, 1050, 1050, 1100, None],
+        "vulnerability_id": [11, 12, 13, 21, 22],
+    }).to_csv(path, index=False)
+    return path
+
+
+def _whole_table_merge(path, locations, id_columns):
+    """What build_merge did before it looked up the matching rows: merge with the whole table."""
+    table = pd.read_csv(path)
+    table.columns = [col.lower() for col in table.columns]
+    rename_map = {col.lower(): col for col in locations.columns if col.lower() in table.columns}
+    return Lookup.set_id_columns(locations.merge(table.rename(columns=rename_map), how="left"), id_columns)
+
+
+@pytest.mark.parametrize("peril_dtype", ["str", "category"])
+def test_build_merge_matches_whole_table_merge(merge_table_csv, peril_dtype):
+    """Merging each chunk with only the rows it can match gives the whole-table merge result:
+    one row per match for duplicated keys, NaN keys matched, and the same dtypes, including
+    for a chunk that matches nothing (pandas types a categorical key differently when merged
+    with an empty table) and an empty chunk."""
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3, 4, 5],
+        "peril_id": ["WTC", "ORF", "WTC", "ORF", "XXX"],
+        "coverage_type": [1, 1, 3, 1, 1],
+        "occupancycode": [1050, 1100, 1050, None, 1050],
+    }, index=[40, 10, 30, 20, 50]).astype({"peril_id": peril_dtype})
+    merge = Lookup(config={}).build_merge(file_path=str(merge_table_csv), id_columns=["vulnerability_id"])
+
+    for chunk in (locations, locations.iloc[4:], locations.iloc[:0]):
+        pd.testing.assert_frame_equal(merge(chunk), _whole_table_merge(merge_table_csv, chunk, ["vulnerability_id"]))
+    assert merge(locations)["vulnerability_id"].tolist() == [11, 12, 21, 13, 22, OASIS_UNKNOWN_ID]
+
+
+def test_build_merge_join_columns_with_matching_rows(merge_table_csv):
+    """With join_columns, only those columns are looked up; a shared id column takes the file's value."""
+    locations = pd.DataFrame({"peril_id": ["WTC", "ORF"], "coverage_type": [3, 1], "occupancycode": [1050, 1100],
+                              "vulnerability_id": [99, 99]})
+    merge = Lookup(config={}).build_merge(file_path=str(merge_table_csv), id_columns=["vulnerability_id"],
+                                          join_columns=["Peril_ID", "coverage_type"])
+    output = merge(locations)
+    assert output["vulnerability_id"].tolist() == [13, 21, 22]
+    assert output["occupancycode"].tolist() == [1050, 1100, 1100]
+
+
+def _count_csv_reads(monkeypatch):
+    reads = []
+    read_csv = pd.read_csv
+
+    def counting_read_csv(*args, **kwargs):
+        reads.append(args[0])
+        return read_csv(*args, **kwargs)
+    monkeypatch.setattr(pd, "read_csv", counting_read_csv)
+    return reads
+
+
+def _merge_lookup_config(file_path):
+    return {"step_definition": {"vulnerability": {
+        "type": "merge",
+        "columns": ["peril_id", "coverage_type", "occupancycode"],
+        "parameters": {"file_path": file_path, "id_columns": ["vulnerability_id"]},
+    }}, "strategy": ["vulnerability"]}
+
+
+def _merge_after_prepare_config(file_path):
+    """A merge step that joins on peril_id, which an earlier step adds, and that the step's columns don't list
+    (as when an rtree step adds area_peril_id), inside a combine step."""
+    return {"step_definition": {
+        "set_peril": {"type": "prepare", "parameters": {"peril_id": {"default": "WTC"}, "area_peril_id": {"default": 1}}},
+        "vulnerability": {"type": "combine", "columns": [],
+                          "parameters": {"id_columns": ["vulnerability_id"], "strategy": ["vulnerability_merge"]}},
+        "vulnerability_merge": {
+            "type": "merge",
+            "columns": ["coverage_type", "occupancycode"],
+            "parameters": {"file_path": file_path, "id_columns": ["vulnerability_id"]},
+        },
+    }, "strategy": ["set_peril", "vulnerability"]}
+
+
+def test_multiproc_shared_data_loads_merge_file_once(monkeypatch, merge_table_csv):
+    """Lookups built while the parent's shared data is loaded (as forked workers are) reuse its
+    table and its index, built by running the lookup on the sample locations on the columns the
+    step joins on, even one added by an earlier step; it is released when the context exits."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    reads = _count_csv_reads(monkeypatch)
+    config = _merge_after_prepare_config(str(merge_table_csv))
+    parent = Lookup(config=config)
+    config_before = copy.deepcopy(config)
+    locations = pd.DataFrame({"loc_id": [1, 2], "coverage_type": [3, 1], "occupancycode": [1050, 1050]})
+
+    with parent.multiproc_shared_data(sample_locations=locations.head(1)):
+        assert len(reads) == 1
+        (table,) = _SHARED_STEP_DATA.values()
+        assert list(table._indexes) == [("coverage_type", "occupancycode", "peril_id")]
+        assert config == config_before  # the workers' lookups are made from the config as it was
+        for _ in range(2):  # e.g. two workers
+            output = Lookup(config=copy.deepcopy(config)).process_locations(locations)
+            assert output.sort_values("loc_id", kind="stable")["vulnerability_id"].tolist() == [13, 11, 12]
+        assert len(reads) == 1
+        assert len(table._indexes) == 1  # the workers used the parent's index
+
+    assert not _SHARED_STEP_DATA
+    Lookup(config=copy.deepcopy(config)).process_locations(locations)
+    assert len(reads) == 2
+
+
+def test_multiproc_shared_data_indexes_merge_join_columns(merge_table_csv):
+    """With join_columns set, the table is indexed on them without running the lookup on a sample."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    config = _merge_lookup_config(str(merge_table_csv))
+    config["step_definition"]["vulnerability"]["parameters"]["join_columns"] = ["Peril_ID", "coverage_type"]
+    with Lookup(config=config).multiproc_shared_data():
+        (table,) = _SHARED_STEP_DATA.values()
+        assert list(table._indexes) == [("coverage_type", "peril_id")]
+
+
+def test_multiproc_shared_data_sample_failure_leaves_indexing_to_workers(monkeypatch, merge_table_csv, caplog):
+    """If the lookup fails on the sample, the shared data is still loaded and a worker indexes the
+    table itself, with a warning that tells how to avoid it."""
+    from oasislmf.lookup import builtin
+    config = _merge_after_prepare_config(str(merge_table_csv))
+    locations = pd.DataFrame({"loc_id": [1], "coverage_type": [3], "occupancycode": [1050]})
+    with Lookup(config=config).multiproc_shared_data(sample_locations=locations.drop(columns=["coverage_type"])):
+        (table,) = builtin._SHARED_STEP_DATA.values()
+        assert not table._indexes
+        assert "the lookup failed on the 1 sample locations" in caplog.text
+        assert "wasn't indexed in the parent process" in caplog.text
+        monkeypatch.setattr(builtin.os, "getpid", lambda: -1)  # as in a forked worker
+        output = Lookup(config=copy.deepcopy(config)).process_locations(locations)
+        assert output["vulnerability_id"].tolist() == [13]
+        assert "in lookup worker process -1" in caplog.text
+
+
+def test_multiproc_shared_data_skips_overridden_build_merge(monkeypatch, merge_table_csv):
+    """A subclass with its own build_merge may not use the data, so none is loaded for it."""
+    reads = _count_csv_reads(monkeypatch)
+
+    class CustomLookup(Lookup):
+        def build_merge(self, **kwargs):
+            return lambda locations: locations
+
+    with CustomLookup(config=_merge_lookup_config(str(merge_table_csv))).multiproc_shared_data():
+        pass
+    assert not reads
 
 
 @pytest.mark.parametrize("preparations, values, expected", [

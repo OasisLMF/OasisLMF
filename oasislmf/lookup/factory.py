@@ -10,7 +10,7 @@ import os
 import types
 
 from collections import OrderedDict
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 
 import numpy as np
 import pandas as pd
@@ -254,6 +254,9 @@ class BasicKeyServer:
 
     min_bloc_size = int(os.environ.get('OASIS_MIN_BLOC_SIZE', 1000))
     max_bloc_size = int(os.environ.get('OASIS_MAX_BLOC_SIZE', 10000))
+    # rows the lookup runs on in the parent process before forking, so steps can index their shared data
+    # on the columns they actually use (see Lookup.multiproc_shared_data)
+    SHARED_DATA_SAMPLE_SIZE = 100
 
     def __init__(self, config, config_dir=None, user_data_dir=None, output_dir=None):
         self.config = config
@@ -522,21 +525,31 @@ class BasicKeyServer:
                                         self.user_data_dir, self.output_dir, lookup_id)
             return lookup.process_locations_multiproc
 
-        return run_multiproc(
-            _split_locations(loc_df, part_count),
-            make_process_chunk,
-            pool_count,
-            lambda results: self.write_keys_file(
-                results,
-                successes_fp=successes_fp,
-                errors_fp=errors_fp,
-                output_format=output_format,
-                keys_success_msg=keys_success_msg,
-            ),
-            # keys file row order sets item_id downstream, so it must not depend on which
-            # worker finishes first (see #2211)
-            ordered=True,
-        )
+        # Data a lookup loads here, before the workers are forked, is shared by all of them
+        # (copy-on-write) instead of being loaded again by each one.
+        if hasattr(self.lookup_cls, 'multiproc_shared_data'):
+            shared_data = self.create_lookup(self.lookup_cls, self.config, self.config_dir,
+                                             self.user_data_dir, self.output_dir, None).multiproc_shared_data(
+                sample_locations=loc_df.head(self.SHARED_DATA_SAMPLE_SIZE))
+        else:
+            shared_data = nullcontext()
+
+        with shared_data:
+            return run_multiproc(
+                _split_locations(loc_df, part_count),
+                make_process_chunk,
+                pool_count,
+                lambda results: self.write_keys_file(
+                    results,
+                    successes_fp=successes_fp,
+                    errors_fp=errors_fp,
+                    output_format=output_format,
+                    keys_success_msg=keys_success_msg,
+                ),
+                # keys file row order sets item_id downstream, so it must not depend on which
+                # worker finishes first (see #2211)
+                ordered=True,
+            )
 
     @oasis_log()
     def generate_key_files(
