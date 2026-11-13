@@ -5,7 +5,7 @@ __all__ = [
 
 import csv
 import os
-import shutil
+import re
 import tempfile
 from itertools import chain
 
@@ -25,6 +25,28 @@ from oasislmf.utils.defaults import (KTOOLS_ALLOC_FM_MAX,
                                      OASIS_FILES_PREFIXES)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
+
+
+# A whole CSV field holding a number in scientific notation, e.g. 1.7e+06.
+_SCI_NOTATION_FIELD = re.compile(r'(?<![^,\n])[-+]?\d+(?:\.\d+)?e[-+]\d+(?![^,\n])')
+
+
+def write_expected_file(generated, expected):
+    """Copy a generated test output to the expected folder, numbers in plain notation.
+
+    Recent pandas/numpy write float32 columns in their shortest form, which is scientific
+    notation for round values (1700000 -> 1.7e+06), while older versions wrote 1700000.0, so
+    the expected files changed format with whichever version regenerated them. Each such field
+    is rewritten as its float64 repr (1700000.0), which is plain for the values these files
+    hold; very large or very small values (2.5e+16, 1e-05) keep the notation repr gives them.
+    Only whole, unquoted fields with a lowercase e are matched, so IDs and other text are left
+    as they are.
+    """
+    with open(generated) as f:
+        text = f.read()
+    text = _SCI_NOTATION_FIELD.sub(lambda m: repr(float(m.group())), text)
+    with open(expected, 'w') as f:
+        f.write(text)
 
 
 class RunExposure(ComputationStep):
@@ -224,6 +246,10 @@ class RunExposure(ComputationStep):
             all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=group_by_cols)
             all_losses_df = all_losses_df.merge(how='left', right=summary_ri_df, on=group_by_cols)
 
+        # Convert summary cols to strings for formatting. loss_factor_idx is left
+        # numeric so that it can still be compared against the loop index below.
+        all_losses_df[summary_cols] = all_losses_df[summary_cols].astype(str)
+
         for i in range(len(self.loss_factor)):
 
             if include_loss_factor:
@@ -262,17 +288,13 @@ class RunExposure(ComputationStep):
                         self.loss_factor[i],
                         total_gul, total_il, total_ri_ceded)
 
-            # Convert output cols to strings for formatting
-            for c in group_by_cols:
-                all_losses_df[c] = all_losses_df[c].apply(str)
-
             if self.print_summary:
                 cols_to_print = all_loss_cols.copy()
                 if False:
                     cols_to_print.remove('loss_factor_idx')
                 if include_loss_factor:
                     print_dataframe(
-                        all_losses_df[all_losses_df.loss_factor_idx == str(i)],
+                        all_losses_df[all_losses_df.loss_factor_idx == i],
                         frame_header=header,
                         cols=cols_to_print)
                 else:
@@ -445,7 +467,7 @@ class RunFmTest(ComputationStep):
 
             if not os.path.exists(expected):
                 if self.update_expected and os.path.exists(generated):
-                    shutil.copyfile(generated, expected)
+                    write_expected_file(generated, expected)
                 continue
 
             try:
@@ -460,7 +482,7 @@ class RunFmTest(ComputationStep):
                 )
             except AssertionError:
                 if self.update_expected:
-                    shutil.copyfile(generated, expected)
+                    write_expected_file(generated, expected)
                 else:
                     print("Expected:")
                     with open(expected) as f:

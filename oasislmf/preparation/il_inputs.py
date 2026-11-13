@@ -73,7 +73,9 @@ risk_disaggregation_term = {'deductible', 'deductible_min', 'deductible_max', 'a
 fm_term_ids = [fm_term['id'] for fm_term in FM_TERMS.values()]
 
 BITYPE_columns = {"BIWaitingPeriodType", "BIPOIType"}
-BIPOI_default_exeption = "BIPOI"
+default_value_overrides = {
+    'BIPOI': 0.,
+}
 
 
 def prepare_ded_and_limit(level_df):
@@ -335,11 +337,12 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
     coverage_group_map = {}
     fm_group_tiv = {}
     non_zero_default = {}
+    missing_share_default = []
     for ProfileElementName, term_info in level_column_mapper[level_id].items():
         if term_info.get("FMTermType") == "tiv":
             continue
-        if ProfileElementName == BIPOI_default_exeption:
-            default_value = 0.
+        if ProfileElementName in default_value_overrides:
+            default_value = default_value_overrides.get(ProfileElementName)
         else:
             default_value = oed_schema.get_default(ProfileElementName)
 
@@ -385,16 +388,19 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                     if CALCRULE_ASSIGNMENT_METHODS[calcrule_assignment_method][FMTermGroupID]:
                         terms_map[ProfileElementName] = term_info['FMTermType'].lower()
         else:
-            if not (non_default_val).any():
-                continue
-            level_terms.add(term_info['FMTermType'].lower())
-            coverage_type_ids = term_info.get("CoverageTypeID", supp_cov_type_ids)
             FMTermGroupID = term_info.get('FMTermGroupID', 1)
             if step_level:
                 term_key = (FMTermGroupID, 0)
             else:
                 term_key = FMTermGroupID
 
+            if not (non_default_val).any():
+                if term_info['FMTermType'] == 'share':
+                    missing_share_default.append(((term_key, term_info)))
+                continue
+
+            level_terms.add(term_info['FMTermType'].lower())
+            coverage_type_ids = term_info.get("CoverageTypeID", supp_cov_type_ids)
             if isinstance(coverage_type_ids, int):
                 coverage_type_ids = [coverage_type_ids]
             fm_group_tiv[FMTermGroupID] = coverage_type_ids
@@ -412,6 +418,13 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                     coverage_group_map[coverage_group_key] = FMTermGroupID
             terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'} if fm_peril_field else {})[
                 ProfileElementName] = term_info['FMTermType'].lower()
+
+    # Only include missing share if other terms exist ('limit', 'attachment')
+    for term_key, term_info in missing_share_default:
+        if terms_maps.get(term_key):
+            level_terms.add(term_info['FMTermType'].lower())
+            terms_maps[term_key][ProfileElementName] = term_info['FMTermType'].lower()
+
     if level_terms:
         for ProfileElementName, (term, default_value) in non_zero_default.items():
             term_df_source[ProfileElementName] = default_value
@@ -681,9 +694,9 @@ def get_il_input_items(
                         if pd.isna(oed_schema.get_default(term)):
                             term_filter |= ~group_df[term].isna()
                             valid_term_default[terms[term]] = 0
-                        elif term == BIPOI_default_exeption:
-                            term_filter |= (group_df[term] != 0.)
-                            valid_term_default[terms[term]] = 0
+                        elif term in default_value_overrides:
+                            term_filter |= (group_df[term] != default_value_overrides.get(term))
+                            valid_term_default[terms[term]] = default_value_overrides.get(term)
                         else:
                             term_filter |= (group_df[term] != oed_schema.get_default(term))
                             valid_term_default[terms[term]] = oed_schema.get_default(term)
@@ -1045,7 +1058,7 @@ def write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chu
         fm_profile_df = level_df[list(set(level_df.columns).intersection(set(fm_profile_step_headers + ['steptriggertype'])))].copy()
         for col in fm_profile_step_headers + ['steptriggertype']:
             if col not in fm_profile_df.columns:
-                fm_profile_df[col] = 0
+                fm_profile_df[col] = 0.
         for non_step_name, step_name in profile_cols_map.items():
             if step_name not in fm_profile_df.columns:
                 fm_profile_df[step_name] = 0
@@ -1071,7 +1084,7 @@ def write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chu
         fm_profile_df = level_df[list(set(level_df.columns).intersection(set(policytc_cols)))].copy()
         for col in policytc_cols[2:]:
             if col not in fm_profile_df.columns:
-                fm_profile_df[col] = 0.
+                fm_profile_df[col] = 0.0
 
         fm_profile_df = (
             fm_profile_df

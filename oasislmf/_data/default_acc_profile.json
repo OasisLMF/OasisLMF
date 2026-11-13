@@ -804,8 +804,8 @@
         "FMTermGroupID": 12,
         "ProfileType": "Acc"
     },
-    "PolDedLIAB": {
-        "ProfileElementName": "PolDedLIAB",
+    "PolDedLIA": {
+        "ProfileElementName": "PolDedLIA",
         "DeductibleType": "B",
         "CoverageTypeID": 13,
         "FMLevelName": "PolCoverage",
@@ -813,8 +813,8 @@
         "FMTermGroupID": 13,
         "ProfileType": "Acc"
     },
-    "PolLimitLIAB": {
-        "ProfileElementName": "PolLimitLIAB",
+    "PolLimitLIA": {
+        "ProfileElementName": "PolLimitLIA",
         "CoverageTypeID": 13,
         "FMLevelName": "PolCoverage",
         "FMTermType": "Limit",
@@ -855,16 +855,16 @@
         "FMTermGroupID": 15,
         "ProfileType": "Acc"
     },
-    "PolDedCYB": {
-        "ProfileElementName": "PolDedCYB",
+    "PolDed": {
+        "ProfileElementName": "PolDed",
         "FMLevelName": "PolAll",
         "FMTermType": "Deductible",
         "FMTermGroupID": 2,
         "CoverageTypeID": [7,8,9,10,11,12,13,14,15],
         "ProfileType": "Acc"
     },
-    "PolLimitCYB": {
-        "ProfileElementName": "PolLimitCYB",
+    "PolLimit": {
+        "ProfileElementName": "PolLimit",
         "FMLevelName": "PolAll",
         "FMTermType": "Limit",
         "FMTermGroupID": 2,

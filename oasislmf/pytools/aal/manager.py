@@ -122,7 +122,9 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
     sorted_chunk.tofile(temp_file_path)
 
 
-@nb.njit(cache=True, error_model="numpy")
+# Not cached: a disk-cached generator is never registered for lowering, so a jitted
+# consumer (run_aal) that recompiles against it raises KeyError (#1970).
+@nb.njit(error_model="numpy")
 def merge_sorted_chunks(memmaps):
     """
     Merge sorted chunks using a k-way merge algorithm and yield next smallest row

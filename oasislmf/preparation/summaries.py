@@ -32,6 +32,7 @@ from ..utils.data import (
 )
 from ..utils.defaults import (
     SOURCE_IDX,
+    SAR_ID,
     SUMMARY_MAPPING,
     SUMMARY_OUTPUT,
     SUMMARY_TOP_LEVEL_COLS,
@@ -218,12 +219,12 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     # Extract mapped_cols from summary_map_df
     summary_group_df = summary_map_df.loc[:, list(set(tiv_cols).union(mapped_cols))]
 
-    # Search Loc / Acc files and merge in remaing
-    if exposure_cols is not []:
-        # Location file columns
+    # Search Loc / Acc files and merge in remaining
+    if exposure_cols:
+        # Subject-at-risk (location / account) file columns
         exposure_cols_loc = [c for c in exposure_cols if c in exposure_df.columns]
-        exposure_col_df = exposure_df.loc[:, exposure_cols_loc + [SOURCE_IDX['loc']]]
-        summary_group_df = merge_dataframes(summary_group_df, exposure_col_df, join_on=SOURCE_IDX['loc'], how='left')
+        exposure_col_df = exposure_df.loc[:, exposure_cols_loc + [SAR_ID]].drop_duplicates(subset=SAR_ID, keep='first')
+        summary_group_df = merge_dataframes(summary_group_df, exposure_col_df, join_on=SAR_ID, how='left')
 
         # Account file columns
         if isinstance(accounts_df, pd.DataFrame):
@@ -310,6 +311,17 @@ def write_summary_levels(exposure_df, accounts_df, exposure_data, target_dir):
         f.write(json.dumps({**gul_summary_lvl, **il_summary_lvl}, sort_keys=True, ensure_ascii=False, indent=4))
 
 
+def _default_csv_chunksize(n_rows):
+    """Row count to pass as `to_csv`'s `chunksize`.
+
+    pandas' to_csv converts pyarrow-backed columns to NumPy once per chunk before
+    formatting each value, so a small default chunk size (as when chunksize is left
+    unset) pays that conversion many times over for a large frame. Capped at 200k
+    rows so a very large frame isn't held as a single chunk in memory.
+    """
+    return min(2 * 10 ** 5, max(n_rows, 1000))
+
+
 @oasis_log
 def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
     """
@@ -334,8 +346,7 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
         preexists=False
     )
 
-    # Set chunk size for writing the CSV files - default is max 20K, min 1K
-    chunksize = min(2 * 10 ** 5, max(len(sum_inputs_df), 1000))
+    chunksize = _default_csv_chunksize(len(sum_inputs_df))
 
     if is_fm_summary:
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['fm_map_fn'])
@@ -421,7 +432,7 @@ def write_df_to_csv_file(df, target_dir, filename):
     """
     target_dir = as_path(target_dir, 'Input files directory', is_dir=True, preexists=False)
     pathlib.Path(target_dir).mkdir(parents=True, exist_ok=True)
-    chunksize = min(2 * 10 ** 5, max(len(df), 1000))
+    chunksize = _default_csv_chunksize(len(df))
     csv_fp = os.path.join(target_dir, filename)
     try:
         df.to_csv(
@@ -1062,7 +1073,8 @@ def write_gul_errors_map(
         )
     gul_inputs_errors_df['tiv'] = gul_inputs_errors_df['tiv'].fillna(0.0)
 
-    gul_inputs_errors_df[list(set(cols).intersection(gul_inputs_errors_df.columns))].to_csv(gul_error_map_fp, index=False)
+    out_df = gul_inputs_errors_df[[c for c in cols if c in gul_inputs_errors_df.columns]]
+    out_df.to_csv(gul_error_map_fp, index=False, chunksize=_default_csv_chunksize(len(out_df)))
 
 
 @oasis_log

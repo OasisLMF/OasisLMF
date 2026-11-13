@@ -368,6 +368,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return step_function
 
     def process_locations(self, locations):
+        missing = [key for key in ('step_definition', 'strategy') if not self.config.get(key)]
+        if missing:
+            raise OasisException(
+                f"lookup config is missing or has empty required key(s) {missing}. "
+                "A built-in lookup needs 'step_definition' to define its steps and 'strategy' to order them"
+            )
+
         # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
         useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))
@@ -668,6 +675,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         else:
             raise OasisException(f"Unregognised Geopandas read type {file_type}")
 
+        if gdf_area_peril.crs is None:
+            warnings.warn(
+                f"Geometry file '{file_path}' has no CRS metadata — assuming EPSG:4326. "
+                "Re-save the file with a CRS to suppress this warning.",
+                UserWarning,
+            )
+            gdf_area_peril = gdf_area_peril.set_crs("EPSG:4326")
+        elif gdf_area_peril.crs != "EPSG:4326":
+            gdf_area_peril = gdf_area_peril.to_crs("EPSG:4326")
+
         if nearest_neighbor_min_distance > 0:
             if BallTree is None:
                 raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
@@ -687,7 +704,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
                                                         axis=1,
                                                         result_type='reduce')
-                gdf_loc = gdf_loc.set_geometry('loc_geometry')
+                gdf_loc = gdf_loc.set_geometry('loc_geometry', crs="EPSG:4326")
 
                 gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
 

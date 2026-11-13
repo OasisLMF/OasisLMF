@@ -111,6 +111,10 @@ def run(analysis_settings,
     logging.info(bash_trace.decode('utf-8'))
 
 
+# matches a trailing output redirect (e.g. `> /path/to/fifo` or `2>> log/err`)
+STALE_REDIRECT_RE = re.compile(r'\s*\d*>>?\s*\S+$')
+
+
 def rerun():
     """
     A function to find where an error was made and to rerun that part of the script without
@@ -136,6 +140,10 @@ def rerun():
     gul_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('gul'))].pop(0)
     fm_cmds = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('fm'))]
 
+    # strip a trailing output redirect from the extracted command (e.g. to a fifo whose
+    # reader has already exited in the main run) before pointing it at our own output file
+    gul_cmd = STALE_REDIRECT_RE.sub('', gul_cmd).strip()
+
     pipe_output = "/tmp/il_P1"
     summary_output = "/tmp/il_S1_summary_P1"
     gul_output = f"{event_error}_gul.bin"
@@ -146,8 +154,8 @@ def rerun():
 
     fm_input = gul_output
     for i in range(len(fm_cmds)):
-        fm_cmd = re.sub(r"-\s*>\s*\S+", f"-o 64_ri{i+1}.bin", fm_cmds[i])
-        fm_output = f"{event_error}_fm{i+1}.bin"
+        fm_cmd = STALE_REDIRECT_RE.sub('', fm_cmds[i]).strip()
+        fm_output = f"{event_error}_fm{i + 1}.bin"
         fm_pipe = f"{fm_cmd} -o {fm_output} -i {fm_input}"
         with open("fm_errors.log", "a") as error_log:
             subprocess.run(fm_pipe, shell=True, env=env, stderr=error_log)
