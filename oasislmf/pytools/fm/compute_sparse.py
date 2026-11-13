@@ -701,7 +701,7 @@ def compute_event(compute_info,
 
                             child_sidx = sidx_val[child_sidx_start: child_sidx_end]
                             child_loss = loss_val[loss_indptr[child['loss'] + p]: loss_indptr[child['loss'] + p] + child_val_len]
-                            child_net = loss_val[loss_indptr[child['net_loss'] + p]: loss_indptr[child['net_loss'] + p] + child_val_len]
+                            child_net = loss_val[loss_indptr[child['net_loss']]: loss_indptr[child['net_loss']] + child_val_len]
 
                             for i in range(child_val_len):
                                 child_loss[i] = child_net[i] * temp_node_loss[p, child_sidx[i]]

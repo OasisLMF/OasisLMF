@@ -494,6 +494,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         else:
             raise OasisException(f"Unregognised Geopandas read type {file_type}")
 
+        if gdf_area_peril.crs is None:
+            warnings.warn(
+                f"Geometry file '{file_path}' has no CRS metadata — assuming EPSG:4326. "
+                "Re-save the file with a CRS to suppress this warning.",
+                UserWarning,
+            )
+            gdf_area_peril = gdf_area_peril.set_crs("EPSG:4326")
+        elif gdf_area_peril.crs != "EPSG:4326":
+            gdf_area_peril = gdf_area_peril.to_crs("EPSG:4326")
+
         if nearest_neighbor_min_distance > 0:
             if BallTree is None:
                 raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
@@ -513,7 +523,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
                                                         axis=1,
                                                         result_type='reduce')
-                gdf_loc = gdf_loc.set_geometry('loc_geometry')
+                gdf_loc = gdf_loc.set_geometry('loc_geometry', crs="EPSG:4326")
 
                 gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
 
