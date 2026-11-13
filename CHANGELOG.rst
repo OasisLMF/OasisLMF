@@ -1,6 +1,23 @@
 OasisLMF Changelog
 ==================
 
+`2.3.22`_
+ ---------
+* [#1878](https://github.com/OasisLMF/OasisLMF/pull/1878) - Fix error handling and replaced row wise apply in loss computation
+* [#1901](https://github.com/OasisLMF/OasisLMF/pull/1901) - Fix/chardet 7 support
+* [#1930](https://github.com/OasisLMF/OasisLMF/pull/1930) - Set CRS to WGS84 on location coordinates
+* [#1941](https://github.com/OasisLMF/OasisLMF/pull/1941) - Fix #1936: correct UTC timestamps in get_utctimestamp
+* [#1955](https://github.com/OasisLMF/OasisLMF/pull/1955) - improved quadratic interpolation so it evaluates in a way that's robu…
+* [#2018](https://github.com/OasisLMF/OasisLMF/pull/2018) - Fix gulmc crash when no dynamic_model_adjustment step (item_adjustments.csv absent)
+* [#2023](https://github.com/OasisLMF/OasisLMF/pull/2023) - fix(lookup): assume EPSG:4326 when geometry file has no CRS metadata
+* [#2060](https://github.com/OasisLMF/OasisLMF/pull/2060) - fix(pre-analysis): preserve original exposure file format for snapshot saves
+* [#2087](https://github.com/OasisLMF/OasisLMF/pull/2087) - Fix typo: 'vulnerbaility_id' -> 'vulnerability_id' in gul_inputs.py
+* [#2117](https://github.com/OasisLMF/OasisLMF/pull/2117) - Issue 2109 repeated exposure run header issue
+* [#2132](https://github.com/OasisLMF/OasisLMF/pull/2132) - Fix fmpy back-allocation rule 1 for layers above layer 1
+* [#2135](https://github.com/OasisLMF/OasisLMF/pull/2135) -  Pre-analysis hook constructs the user's class twice and prints kwargs
+* [#2138](https://github.com/OasisLMF/OasisLMF/pull/2138) - fix(lookup): reproject vector geometries to EPSG:4326 in build_rtree (#2134)
+.. _`2.3.22`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.21...2.3.22
+
 `2.3.21`_
  ---------
 * [#1927](https://github.com/OasisLMF/OasisLMF/pull/1927) - Ci/automate release branch
