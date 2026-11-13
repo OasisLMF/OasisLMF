@@ -239,6 +239,13 @@ def test_source_line_after_a_warning_is_not_an_error(tmp_path):
     assert executor_module._stderr_errors(stderror, IGNORABLE_STDERR_LINE) == ['  an indented line that follows no warning']
 
 
+def test_error_lines_with_windows_line_endings(tmp_path):
+    stderror = tmp_path / 'stderror.err'
+    stderror.write_bytes(b'C:/py/runpy.py:126: RuntimeWarning: not supported\r\n  __import__(pkg_name)\r\n\r\nan error line\r\n')
+    assert executor_module._stderr_errors(str(stderror), IGNORABLE_STDERR_LINE) == ['an error line']
+    assert executor_module._StderrWatch(str(stderror)).first_error() == 'an error line'
+
+
 def test_gul_stderror_is_not_watched(tmp_path):
     stage = Stage('analysis', processes=[
         Process('gul', [PY, '-c', WRITE_STDERR, 'custom gulcalc chatter\n'], stderr_log='gul_stderror.err')])

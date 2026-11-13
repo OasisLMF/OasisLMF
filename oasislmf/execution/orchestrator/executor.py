@@ -280,7 +280,7 @@ class _StderrWatch:
             lines.append(self.partial)
             self.partial = b''
         for raw in lines:
-            line = raw.decode('utf-8', errors='replace')
+            line = raw.decode('utf-8', errors='replace').rstrip('\r')
             if self.lines.is_error(line):
                 return line
         return None
@@ -291,7 +291,7 @@ def _stderr_errors(path, ignorable):
     if not os.path.isfile(path):
         return []
     with open(path, 'rb') as f:
-        lines = f.read().decode('utf-8', errors='replace').split('\n')
+        lines = [line.rstrip('\r') for line in f.read().decode('utf-8', errors='replace').split('\n')]
     if lines and lines[-1] == '':
         lines.pop()
     error_lines = _ErrorLines(ignorable)
