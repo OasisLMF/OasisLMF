@@ -580,16 +580,27 @@ def occ_max_records_per_event(occ_offsets):
 
 
 @nb.njit(cache=True)
+def occ_range(occ_csr, event_id):
+    """Return the (start, end) index range of event_id's records in ``occ_csr.occ_flat``.
+
+    Returns (0, 0) if the event is not in the occurrence file. Prefer this to ``occ_get`` in
+    per-value loops: indexing ``occ_flat`` over the range creates no array view (see the refcount note in common/event_stream.py).
+    """
+    i = _id_index_get_idx(occ_csr.event_id_index, nb.int32(event_id))
+    if i == _OCC_IDX_NOT_FOUND:
+        return 0, 0
+    return occ_csr.occ_offsets[i], occ_csr.occ_offsets[i + 1]
+
+
+@nb.njit(cache=True)
 def occ_get(occ_csr, event_id):
     """Return the occ_flat slice for event_id, or an empty slice on miss.
 
     The caller iterates the result directly; the loop body is skipped if the
     event is not present in the occurrence file.
     """
-    i = _id_index_get_idx(occ_csr.event_id_index, nb.int32(event_id))
-    if i == _OCC_IDX_NOT_FOUND:
-        return occ_csr.occ_flat[0:0]
-    return occ_csr.occ_flat[occ_csr.occ_offsets[i]:occ_csr.occ_offsets[i + 1]]
+    start, end = occ_range(occ_csr, event_id)
+    return occ_csr.occ_flat[start:end]
 
 
 @nb.njit(cache=True)
