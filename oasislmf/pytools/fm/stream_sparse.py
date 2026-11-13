@@ -87,29 +87,6 @@ def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
         sidx_indptr[compute_idx['next_compute_i']] += 1
 
 
-@nb.jit(cache=True, nopython=True)
-def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
-    """Append a (sidx, loss) pair to the node being read. Always O(1).
-
-    Inserting in sorted position instead is quadratic on a packed item: each new building's
-    specials sort below everything already stored, so every one shifts the whole array --
-    7.8e12 element moves at 630,510 buildings. The producer emits an item ascending instead,
-    and ``check_item_order`` verifies it at the delimiter.
-
-    Args:
-        sidx: Sample index to append.
-        loss: Loss value for this sample.
-        compute_i: Current computation index (node being populated).
-        sidx_indptr: CSR pointers into sidx_val.
-        sidx_val: Sample index values.
-        loss_val: Loss values.
-    """
-    insert_i = sidx_indptr[compute_i]
-    sidx_val[insert_i] = sidx
-    loss_val[insert_i] = loss
-    sidx_indptr[compute_i] += 1
-
-
 @nb.njit(cache=True, fastmath=True)
 def check_item_order(compute_i, sidx_indptr, sidx_val):
     """Check the item just read is in ascending sidx order.
@@ -155,11 +132,15 @@ def flush_collapsed_item(compute_i, sidx_indptr, sidx_val, loss_val, building_su
     the item ascending, specials first. The item takes one sample row of the arena whatever its
     building count, which is all the arena budgets for when the stream is collapsed on read.
     """
+    end = sidx_indptr[compute_i]
     for j in range(building_sum.shape[0]):
         if building_seen[j]:
-            add_new_loss(j - NUM_SPECIAL_SIDX, building_sum[j], compute_i, sidx_indptr, sidx_val, loss_val)
+            sidx_val[end] = j - NUM_SPECIAL_SIDX
+            loss_val[end] = building_sum[j]
+            end += 1
             building_sum[j] = 0
             building_seen[j] = 0
+    sidx_indptr[compute_i] = end
 
 
 def event_log_msg(event_id, sidx_indptr, len_array, node_count):
@@ -290,8 +271,11 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                         building_sum[local_sidx + NUM_SPECIAL_SIDX] += loss
                         building_seen[local_sidx + NUM_SPECIAL_SIDX] = 1
                     else:
-                        # Regular sample or special index, at its packed sidx where packed. Appended
-                        # inline, not through add_new_loss, to avoid refcounting the arrays once per pair.
+                        # Regular sample or special index, at its packed sidx where packed. Appended, not
+                        # inserted in sorted position: that is quadratic on a packed item, whose every
+                        # building's specials sort below what is already stored. The producer emits an
+                        # item ascending and check_item_order verifies it at the delimiter. Written
+                        # inline rather than as a call, to avoid refcounting the arrays once per pair.
                         compute_i = compute_idx['next_compute_i']
                         end = sidx_indptr[compute_i]
                         sidx_val[end] = sidx

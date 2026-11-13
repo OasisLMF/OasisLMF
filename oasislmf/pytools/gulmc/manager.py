@@ -906,8 +906,8 @@ def build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, Ndamage_bins_max,
     For a single (non-aggregate) vulnerability the pdf is read straight out of ``vuln_array``.
     For an aggregate vulnerability the weighted sum of the member vulnerabilities is built from
     the jagged arrays; bins with no probability collapse to 100% no-loss in the first damage bin,
-    and the result is normalised by the total weight (or by the member count when all weights are
-    zero).
+    and the result is normalised by the total weight. When no member has a positive weight, each
+    counts once and the result is their plain average.
 
     The pdf is written to rows ``[:Nhaz_bins]`` of ``vuln_pdf_empty`` with explicit loops rather
     than through views or row slices (see the refcount note in common/event_stream.py).
