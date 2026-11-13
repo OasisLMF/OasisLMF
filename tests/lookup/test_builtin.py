@@ -1,3 +1,4 @@
+import copy
 from collections import OrderedDict
 from pathlib import Path
 
@@ -467,28 +468,73 @@ def _merge_lookup_config(file_path):
     }}, "strategy": ["vulnerability"]}
 
 
+def _merge_after_prepare_config(file_path):
+    """A merge step that joins on peril_id, which an earlier step adds, and that the step's columns don't list
+    (as when an rtree step adds area_peril_id), inside a combine step."""
+    return {"step_definition": {
+        "set_peril": {"type": "prepare", "parameters": {"peril_id": {"default": "WTC"}, "area_peril_id": {"default": 1}}},
+        "vulnerability": {"type": "combine", "columns": [],
+                          "parameters": {"id_columns": ["vulnerability_id"], "strategy": ["vulnerability_merge"]}},
+        "vulnerability_merge": {
+            "type": "merge",
+            "columns": ["coverage_type", "occupancycode"],
+            "parameters": {"file_path": file_path, "id_columns": ["vulnerability_id"]},
+        },
+    }, "strategy": ["set_peril", "vulnerability"]}
+
+
 def test_multiproc_shared_data_loads_merge_file_once(monkeypatch, merge_table_csv):
     """Lookups built while the parent's shared data is loaded (as forked workers are) reuse its
-    table and its index on the step's columns, and it is released when the context exits."""
+    table and its index, built by running the lookup on the sample locations on the columns the
+    step joins on, even one added by an earlier step; it is released when the context exits."""
     from oasislmf.lookup.builtin import _SHARED_STEP_DATA
     reads = _count_csv_reads(monkeypatch)
-    config = _merge_lookup_config(str(merge_table_csv))
-    params = config["step_definition"]["vulnerability"]["parameters"]
-    locations = pd.DataFrame({"peril_id": ["WTC", "ORF"], "coverage_type": [3, 1], "occupancycode": [1050, 1100]})
+    config = _merge_after_prepare_config(str(merge_table_csv))
+    parent = Lookup(config=config)
+    config_before = copy.deepcopy(config)
+    locations = pd.DataFrame({"loc_id": [1, 2], "coverage_type": [3, 1], "occupancycode": [1050, 1050]})
 
-    with Lookup(config=config).multiproc_shared_data():
+    with parent.multiproc_shared_data(sample_locations=locations.head(1)):
         assert len(reads) == 1
         (table,) = _SHARED_STEP_DATA.values()
         assert list(table._indexes) == [("coverage_type", "occupancycode", "peril_id")]
+        assert config == config_before  # the workers' lookups are made from the config as it was
         for _ in range(2):  # e.g. two workers
-            output = Lookup(config=config).build_merge(**params)(locations)
-            assert output["vulnerability_id"].tolist() == [13, 21]
+            output = Lookup(config=copy.deepcopy(config)).process_locations(locations)
+            assert output.sort_values("loc_id", kind="stable")["vulnerability_id"].tolist() == [13, 11, 12]
         assert len(reads) == 1
         assert len(table._indexes) == 1  # the workers used the parent's index
 
     assert not _SHARED_STEP_DATA
-    Lookup(config=config).build_merge(**params)
+    Lookup(config=copy.deepcopy(config)).process_locations(locations)
     assert len(reads) == 2
+
+
+def test_multiproc_shared_data_indexes_merge_join_columns(merge_table_csv):
+    """With join_columns set, the table is indexed on them without running the lookup on a sample."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    config = _merge_lookup_config(str(merge_table_csv))
+    config["step_definition"]["vulnerability"]["parameters"]["join_columns"] = ["Peril_ID", "coverage_type"]
+    with Lookup(config=config).multiproc_shared_data():
+        (table,) = _SHARED_STEP_DATA.values()
+        assert list(table._indexes) == [("coverage_type", "peril_id")]
+
+
+def test_multiproc_shared_data_sample_failure_leaves_indexing_to_workers(monkeypatch, merge_table_csv, caplog):
+    """If the lookup fails on the sample, the shared data is still loaded and a worker indexes the
+    table itself, with a warning that tells how to avoid it."""
+    from oasislmf.lookup import builtin
+    config = _merge_after_prepare_config(str(merge_table_csv))
+    locations = pd.DataFrame({"loc_id": [1], "coverage_type": [3], "occupancycode": [1050]})
+    with Lookup(config=config).multiproc_shared_data(sample_locations=locations.drop(columns=["coverage_type"])):
+        (table,) = builtin._SHARED_STEP_DATA.values()
+        assert not table._indexes
+        assert "the lookup failed on the 1 sample locations" in caplog.text
+        assert "wasn't indexed in the parent process" in caplog.text
+        monkeypatch.setattr(builtin.os, "getpid", lambda: -1)  # as in a forked worker
+        output = Lookup(config=copy.deepcopy(config)).process_locations(locations)
+        assert output["vulnerability_id"].tolist() == [13]
+        assert "in lookup worker process -1" in caplog.text
 
 
 def test_multiproc_shared_data_skips_overridden_build_merge(monkeypatch, merge_table_csv):

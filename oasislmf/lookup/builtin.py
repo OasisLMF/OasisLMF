@@ -45,6 +45,7 @@ try:  # needed for h3 lookup
 except ImportError:
     h3 = h3_int = None
 
+import copy
 import gc
 import logging
 import math
@@ -52,6 +53,8 @@ import os
 import re
 import time
 from contextlib import contextmanager
+
+import psutil
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
 from oasislmf.utils.exceptions import OasisException
@@ -150,6 +153,14 @@ class _RtreeGeometries:
                 leaf_size=15, metric='haversine')
 
 
+def _memory_usage():
+    """This process's resident memory, for the logs (pages shared with forked workers count in each of them)."""
+    try:
+        return f"{psutil.Process().memory_info().rss / 2**30:.1f} GiB"
+    except Exception:  # memory use is only logged, it must never fail the lookup
+        return "unknown"
+
+
 def _shared_data_key(step_type, abs_path, *settings):
     """Identify the data a step loaded from a file with given settings, including the file's
     version so an edited file is never matched to stale shared data.
@@ -171,8 +182,8 @@ def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nea
     logger.info("rtree: reading geometry file %s", abs_path)
     start = time.perf_counter()
     gdf_geometry = getattr(gpd, f"read_{file_type}")(abs_path, **file_read_params)
-    logger.info("rtree: read %d geometries with columns %s in %.1fs",
-                len(gdf_geometry), list(gdf_geometry.columns), time.perf_counter() - start)
+    logger.info("rtree: read %d geometries with columns %s in %.1fs, process memory %s",
+                len(gdf_geometry), list(gdf_geometry.columns), time.perf_counter() - start, _memory_usage())
 
     if gdf_geometry.crs is None:
         warnings.warn(
@@ -201,9 +212,9 @@ def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nea
 
     if 'peril_id' not in attributes.columns:
         per_peril = {None: _RtreeGeometries(geometries, attributes, centers)}
-        logger.info("rtree: indexed %d geometries (no peril_id column, used for all perils)%s in %.1fs",
+        logger.info("rtree: indexed %d geometries (no peril_id column, used for all perils)%s in %.1fs, process memory %s",
                     len(geometries), " with centroids for nearest neighbour" if nearest_neighbor else "",
-                    time.perf_counter() - start)
+                    time.perf_counter() - start, _memory_usage())
         return per_peril
 
     peril_ids = attributes['peril_id'].to_numpy()
@@ -213,10 +224,10 @@ def _load_rtree_geometries(abs_path, file_path, file_type, file_read_params, nea
         mask = peril_ids == peril_id
         per_peril[peril_id] = _RtreeGeometries(
             geometries[mask], attributes[mask], None if centers is None else centers[mask])
-    logger.info("rtree: indexed geometries per peril %s%s in %.1fs",
+    logger.info("rtree: indexed geometries per peril %s%s in %.1fs, process memory %s",
                 {str(peril_id): len(geometries.attributes) for peril_id, geometries in per_peril.items()},
                 " with centroids for nearest neighbour" if nearest_neighbor else "",
-                time.perf_counter() - start)
+                time.perf_counter() - start, _memory_usage())
     return per_peril
 
 
@@ -282,17 +293,24 @@ class _MergeTable:
     def __init__(self, df):
         self.df = df
         self._indexes = {}
+        self._pid = os.getpid()
 
     def key_index(self, file_keys):
         """MultiIndex of the table's file_keys columns, with its lookup hash table built."""
         index = self._indexes.get(file_keys)
         if index is None:
+            if os.getpid() != self._pid:
+                logger.warning(
+                    "merge step: indexing the table of %d rows on %s in lookup worker process %d. The parent "
+                    "process didn't index it on these columns, so each worker builds and holds its own copy "
+                    "of the index. Set join_columns %s on the step so the parent indexes it once for all workers.",
+                    len(self.df), list(file_keys), os.getpid(), list(file_keys))
             start = time.perf_counter()
             index = pd.MultiIndex.from_frame(self.df[list(file_keys)])
             index.get_indexer_non_unique(index[:1])  # builds the hash table now, not on the first chunk
             self._indexes[file_keys] = index
-            logger.info("merge step: indexed %d rows on %s in %.1fs", len(index), list(file_keys),
-                        time.perf_counter() - start)
+            logger.info("merge step: indexed %d rows on %s in %.1fs, process memory %s", len(index), list(file_keys),
+                        time.perf_counter() - start, _memory_usage())
         return index
 
     def rows_matching(self, file_keys, location_keys):
@@ -1061,16 +1079,23 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return self.to_abs_filepath(file_path), file_type, file_read_params or {}, nearest_neighbor_max_distance
 
     @contextmanager
-    def multiproc_shared_data(self):
+    def multiproc_shared_data(self, sample_locations=None):
         """Load the data of the lookup steps that worker processes can share, for the duration of the context.
 
         Called in the parent process before the lookup workers are forked (see
         KeyServer.generate_key_files_multiproc). The files of the 'rtree' and 'merge' steps are
         read and indexed once here, and each worker's build_rtree and build_merge reuse that copy
         (shared copy-on-write) instead of reading the file again.
+
+        A merge step joins on the columns its file has in common with the locations it gets,
+        and earlier steps can add those columns (e.g. an rtree step adding area_peril_id), so
+        they're only known when the lookup runs. Unless the step sets join_columns, its table
+        is indexed by running the lookup on sample_locations (a few rows of the locations)
+        here, so the workers share that index instead of each building its own.
         """
         keys = []
         frozen = False
+        merge_tables = []
         try:
             used_steps = self._strategy_step_names()
             for step_name, step_config in (self.config.get('step_definition') or {}).items():
@@ -1100,15 +1125,12 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                         logger.info("merge step: loading %s in the parent process, to share with the lookup workers", abs_path)
                         _SHARED_STEP_DATA[key] = self._read_merge_table(abs_path, file_type, read_kwargs)
                         keys.append(key)
-                    # index the table on the join columns the step most likely uses, so the workers share it too:
-                    # join_columns, or else the file columns among the step's columns (the locations it gets
-                    # have at least those)
                     table = _SHARED_STEP_DATA[key]
-                    if join_columns is None:
-                        step_columns = {column.lower() for column in step_config.get('columns', [])}
-                        join_columns = [column for column in table.df.columns if column in step_columns]
+                    merge_tables.append(table)
                     if join_columns and set(join_columns).issubset(table.df.columns):
                         table.key_index(tuple(sorted(join_columns)))
+            if merge_tables and sample_locations is not None:
+                self._index_merge_tables_on_sample(sample_locations, merge_tables)
             if keys:
                 # Keep the workers' garbage collector from writing to the shared objects' headers,
                 # which would copy their memory pages into every worker.
@@ -1120,6 +1142,28 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 gc.unfreeze()
             for key in keys:
                 _SHARED_STEP_DATA.pop(key, None)
+
+    def _index_merge_tables_on_sample(self, sample_locations, merge_tables):
+        """Run the lookup on sample_locations, so the merge steps index their shared tables on the
+        columns they actually join on. The results are discarded.
+        """
+        start = time.perf_counter()
+        try:
+            # building the steps changes the config (combine strategies become functions), so the
+            # sample runs on its own copy, leaving the config the workers' lookups are made from as it is
+            sample_lookup = copy.copy(self)
+            sample_lookup.config = copy.deepcopy(self.config)
+            sample_lookup.process_locations(sample_locations)
+        except Exception as error:  # only an optimisation, the tables it didn't index are indexed by the workers
+            logger.warning("merge step: the lookup failed on the %d sample locations used to index the merge tables "
+                           "(%s: %s)", len(sample_locations), type(error).__name__, error)
+        logger.info("merge step: ran the lookup on %d sample locations to index the merge tables in %.1fs, "
+                    "process memory %s", len(sample_locations), time.perf_counter() - start, _memory_usage())
+        for table in merge_tables:
+            if not table._indexes:
+                logger.warning("merge step: the table with columns %s wasn't indexed in the parent process, so each "
+                               "lookup worker that uses it will index it itself. Set join_columns on its step to "
+                               "index it once for all workers.", list(table.df.columns))
 
     def _strategy_step_names(self):
         """Names of the steps the lookup runs: those in the config's 'strategy', and the steps
@@ -1536,8 +1580,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         else:
             df_to_merge = pd.read_csv(abs_path, **read_kwargs)
         df_to_merge = df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns})
-        logger.info("merge step: read %d rows with columns %s from %s in %.1fs",
-                    len(df_to_merge), list(df_to_merge.columns), abs_path, time.perf_counter() - start)
+        logger.info("merge step: read %d rows with columns %s from %s in %.1fs, process memory %s",
+                    len(df_to_merge), list(df_to_merge.columns), abs_path, time.perf_counter() - start,
+                    _memory_usage())
         return _MergeTable(df_to_merge)
 
     def build_geog_lookup(self, geog_scheme, output_column, slots=30,

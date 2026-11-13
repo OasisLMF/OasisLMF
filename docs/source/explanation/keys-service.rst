@@ -591,9 +591,11 @@ dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupa
 
 The file is read once and indexed by its join columns, so each chunk of locations is merged only with the rows it
 can match instead of the whole file. When keys are generated with several processes, the file is read and indexed
-in the parent process before the worker processes start, and all workers share that one copy. The index built there
-is on ``join_columns``, or else on the file's columns listed in the step's ``columns``; listing every column the
-join uses in ``columns`` lets the workers share the index too, instead of each building its own.
+in the parent process before the worker processes start, and all workers share that one copy. Without
+``join_columns``, the join columns can depend on columns that earlier steps add (for example an ``rtree`` step adding
+``area_peril_id``), so the parent finds them by running the lookup on the first few locations. If that run fails,
+each worker builds its own index of the file, which for a large file needs a lot of memory; a warning in the log
+says so. Setting ``join_columns`` avoids this, as the parent then indexes the file on them directly.
 
 |
 
