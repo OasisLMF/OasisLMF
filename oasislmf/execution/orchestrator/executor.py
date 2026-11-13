@@ -18,13 +18,16 @@ Nothing here is POSIX-only: process trees are handled with ``psutil`` and stream
 transport returned by :func:`~.transport.get_transport`.
 """
 
+import contextlib
 import glob
 import json
 import logging
 import os
 import re
 import shutil
+import signal
 import subprocess
+import threading
 import time
 
 import psutil
@@ -225,17 +228,41 @@ def prepare_log_dir(log_dir):
     open(os.path.join(log_dir, STDERR_LOG), 'ab').close()
 
 
+WARNING_LINE = re.compile(r'.+:[0-9]+: [A-Za-z]+Warning:')
+
+
+class _ErrorLines:
+    """Decides, line by line, which lines of ``stderror.err`` are errors.
+
+    A line is an error unless it matches ``ignorable`` (blank lines and Python warnings, the
+    ``oasis_exec_monitor.sh`` grep). Python prints the source line that raised a warning,
+    indented, on the line after it; that line belongs to the warning and is not an error either,
+    whatever its text.
+    """
+
+    def __init__(self, ignorable):
+        self.ignorable = re.compile(ignorable)
+        self.after_warning = False
+
+    def is_error(self, line):
+        if self.after_warning and line[:1] in (' ', '\t'):
+            self.after_warning = False
+            return False
+        self.after_warning = bool(WARNING_LINE.search(line))
+        return not self.ignorable.search(line)
+
+
 class _StderrWatch:
-    """Incremental reader of ``stderror.err`` applying the ``oasis_exec_monitor.sh`` grep."""
+    """Incremental reader of ``stderror.err`` reporting its first error line (see :class:`_ErrorLines`)."""
 
     def __init__(self, path, ignorable=IGNORABLE_STDERR_LINE):
         self.path = path
-        self.ignorable = re.compile(ignorable)
+        self.lines = _ErrorLines(ignorable)
         self.offset = 0
         self.partial = b''
 
     def first_error(self, final=False):
-        """Return the first non-ignorable line written since the last call, or None.
+        """Return the first error line written since the last call, or None.
 
         Only complete lines are judged, unless ``final`` is set (all writers have exited).
         """
@@ -254,21 +281,21 @@ class _StderrWatch:
             self.partial = b''
         for raw in lines:
             line = raw.decode('utf-8', errors='replace')
-            if not self.ignorable.search(line):
+            if self.lines.is_error(line):
                 return line
         return None
 
 
 def _stderr_errors(path, ignorable):
-    """Every non-ignorable line of ``path`` (the chunk footer's grep), or [] if it does not exist."""
+    """Every error line of ``path`` (see :class:`_ErrorLines`), or [] if it does not exist."""
     if not os.path.isfile(path):
         return []
-    pattern = re.compile(ignorable)
     with open(path, 'rb') as f:
         lines = f.read().decode('utf-8', errors='replace').split('\n')
     if lines and lines[-1] == '':
         lines.pop()
-    return [line for line in lines if not pattern.search(line)]
+    error_lines = _ErrorLines(ignorable)
+    return [line for line in lines if error_lines.is_error(line)]
 
 
 def _describe(process, returncode=None):
@@ -278,24 +305,33 @@ def _describe(process, returncode=None):
     return text
 
 
+def _descendants(pids):
+    """Every process descending from ``pids``, found from one snapshot of the process table.
+
+    Asking each process for its children scans the whole table once per process, which delays the
+    first terminate by seconds when a stage has hundreds of them.
+    """
+    children = {}
+    for proc in psutil.process_iter(['ppid']):
+        children.setdefault(proc.info['ppid'], []).append(proc)
+    found, pending = [], list(pids)
+    while pending:
+        for child in children.get(pending.pop(), []):
+            found.append(child)
+            pending.append(child.pid)
+    return found
+
+
 def _terminate(popens, grace):
     """Terminate every process of ``popens`` still running, with its descendants.
 
     Politely first; whatever is still alive after ``grace`` seconds is killed. Direct children are
     reaped through their ``Popen`` so their return code stays consistent.
     """
-    direct, descendants = [], []
-    for popen in popens:
-        if popen.poll() is not None:
-            continue
-        try:
-            proc = psutil.Process(popen.pid)
-            descendants.extend(proc.children(recursive=True))
-        except psutil.NoSuchProcess:
-            pass
-        direct.append(popen)
-    if not direct and not descendants:
+    direct = [popen for popen in popens if popen.poll() is None]
+    if not direct:
         return
+    descendants = _descendants([popen.pid for popen in direct])
     for popen in direct:
         try:
             popen.terminate()
@@ -477,6 +513,28 @@ class _Executor:
         self.report.add('Chunk output check [OK]')
 
 
+@contextlib.contextmanager
+def _terminate_signal_raises():
+    """Make SIGTERM raise ``SystemExit`` for the duration of a run, so that :func:`execute` cleans up.
+
+    By default SIGTERM ends the Python process at once and its children carry on without a
+    supervisor. Nothing is changed when a handler is already installed (a Celery pool worker has
+    one that raises ``SystemExit`` itself) or outside the main thread, where handlers cannot be set.
+    """
+    if threading.current_thread() is not threading.main_thread() or signal.getsignal(signal.SIGTERM) is not signal.SIG_DFL:
+        yield
+        return
+
+    def handler(signum, _frame):
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, handler)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
+
 def execute(run, log_dir, manifest_path=None, stderr_guard=True, poll_interval=STDERR_POLL_INTERVAL, kill_grace=KILL_GRACE):
     """Run ``run`` in the current working directory and return a text log of what happened.
 
@@ -493,7 +551,8 @@ def execute(run, log_dir, manifest_path=None, stderr_guard=True, poll_interval=S
     ``stderr_guard``) ``<log_dir>/stderror.err`` contains a line that is neither blank nor a Python
     warning, or when the chunk check fails. Every process still running, background ones included,
     is then terminated with its descendants, and the same happens on any other exception
-    (``KeyboardInterrupt`` included), which is re-raised.
+    (``KeyboardInterrupt`` included), which is re-raised. SIGTERM is turned into ``SystemExit`` while
+    the run lasts, so a terminated run cleans up too (see :func:`_terminate_signal_raises`).
 
     Args:
         run: the :class:`~.build.Run` to execute.
@@ -523,11 +582,12 @@ def execute(run, log_dir, manifest_path=None, stderr_guard=True, poll_interval=S
     env['OASIS_PYTOOLS_LOG_DIR'] = log_dir
     executor = _Executor(log_dir, env, stderr_guard, poll_interval, kill_grace, report)
     try:
-        executor.start_background(run.background)
-        for stage in run.stages:
-            executor.run_stage(stage)
-        if run.chunk_check is not None:
-            executor.chunk_check(run.chunk_check)
+        with _terminate_signal_raises():
+            executor.start_background(run.background)
+            for stage in run.stages:
+                executor.run_stage(stage)
+            if run.chunk_check is not None:
+                executor.chunk_check(run.chunk_check)
     except _RunFailed as failure:
         executor.terminate_running()
         executor.stop_background()

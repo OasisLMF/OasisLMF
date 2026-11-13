@@ -1,5 +1,6 @@
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -17,6 +18,7 @@ from oasislmf.execution.orchestrator.model import Process, Stage, Stream, Stream
 PY = sys.executable
 TEEPY = [PY, '-m', 'oasislmf.execution.orchestrator.tee']
 TIMEOUT = 60
+BASELINE_CHILDREN = set()
 LOG = 'log'
 
 WRITE_STDOUT = 'import sys; sys.stdout.buffer.write(sys.argv[1].encode() * int(sys.argv[2]))'
@@ -65,9 +67,17 @@ def call(*args, **kwargs):
     return result['value']
 
 
+@pytest.fixture(autouse=True)
+def children_before_test():
+    """Children this process already had (left by other tests of a full run), for :func:`assert_no_children`."""
+    BASELINE_CHILDREN.clear()
+    BASELINE_CHILDREN.update(child.pid for child in psutil.Process().children(recursive=True))
+    yield
+
+
 def assert_no_children():
     children = psutil.Process().children(recursive=True)
-    alive = [c for c in children if c.is_running() and c.status() != psutil.STATUS_ZOMBIE]
+    alive = [c for c in children if c.pid not in BASELINE_CHILDREN and c.is_running() and c.status() != psutil.STATUS_ZOMBIE]
     assert alive == []
 
 
@@ -168,8 +178,9 @@ def test_reader_failure_is_reported_not_the_killed_writer(tmp_path):
         call(Run(stages=[stage]), LOG, kill_grace=1)
     assert error.value.returncode == 5
     reason = error.value.output.decode().split('Kernel execution error:')[1]
-    assert "'reader'" in reason
-    assert 'writer' not in reason
+    first_failure = reason.split('; also exited non-zero')[0]
+    assert "'reader'" in first_failure
+    assert 'writer' not in first_failure
     assert_no_children()
 
 
@@ -213,6 +224,19 @@ def test_python_warning_on_stderr_does_not_fail(tmp_path):
     stage = Stage('analysis', processes=[Process('warner', [PY, '-c', WRITE_STDERR, PYTHON_WARNING])])
     call(Run(stages=[stage]), LOG, poll_interval=0.1)
     assert (tmp_path / LOG / 'stderror.err').read_text() == PYTHON_WARNING
+
+
+def test_source_line_after_a_warning_is_not_an_error(tmp_path):
+    """Python prints the line that raised a warning under it; only a real error line stops the run."""
+    warning_with_source = ('import sys\n'
+                           'sys.stderr.write("C:/py/lib/runpy.py:126: RuntimeWarning: not supported\\n  __import__(pkg_name)\\n")')
+    run = Run(stages=[Stage('s', processes=[Process('warner', [PY, '-c', warning_with_source])])])
+    call(run, LOG)
+    stderror = str(tmp_path / LOG / 'stderror.err')
+    assert executor_module._stderr_errors(stderror, IGNORABLE_STDERR_LINE) == []
+    with open(stderror, 'a') as f:
+        f.write('  an indented line that follows no warning\n')
+    assert executor_module._stderr_errors(stderror, IGNORABLE_STDERR_LINE) == ['  an indented line that follows no warning']
 
 
 def test_gul_stderror_is_not_watched(tmp_path):
@@ -285,6 +309,53 @@ def test_keyboard_interrupt_cleans_up(tmp_path, monkeypatch):
         call(Run(stages=[stage]), LOG, kill_grace=1)
     assert_dead(int(open(pid_file).read()))
     assert_no_children()
+
+
+EXECUTE_SLEEPER = (
+    'import sys\n'
+    'from oasislmf.execution.orchestrator.build import Run\n'
+    'from oasislmf.execution.orchestrator.executor import execute\n'
+    'from oasislmf.execution.orchestrator.model import Process, Stage\n'
+    'sleeper = [sys.executable, "-c", sys.argv[1], sys.argv[2]]\n'
+    'execute(Run(stages=[Stage("analysis", processes=[Process("sleeper", sleeper)])]), "log", kill_grace=1)\n'
+)
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='terminating a process on Windows gives it no chance to clean up')
+def test_terminate_signal_cleans_up(tmp_path):
+    pid_file = str(tmp_path / 'sleeper.pid')
+    runner = subprocess.Popen([PY, '-c', EXECUTE_SLEEPER, WRITE_PID_AND_SLEEP, pid_file], cwd=tmp_path)
+    try:
+        deadline = time.monotonic() + TIMEOUT
+        while not os.path.exists(pid_file) or not open(pid_file).read():
+            assert time.monotonic() < deadline, 'the sleeper never started'
+            time.sleep(0.05)
+        runner.send_signal(signal.SIGTERM)
+        assert runner.wait(TIMEOUT) == 128 + signal.SIGTERM
+    finally:
+        if runner.poll() is None:
+            runner.kill()
+    assert_dead(int(open(pid_file).read()))
+
+
+def test_existing_terminate_handler_is_left_alone():
+    def handler(signum, frame):
+        raise SystemExit('from the existing handler')
+
+    previous = signal.signal(signal.SIGTERM, handler)
+    try:
+        with executor_module._terminate_signal_raises():
+            assert signal.getsignal(signal.SIGTERM) is handler
+        assert signal.getsignal(signal.SIGTERM) is handler
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+def test_terminate_handler_is_restored():
+    assert signal.getsignal(signal.SIGTERM) is signal.SIG_DFL
+    with executor_module._terminate_signal_raises():
+        assert signal.getsignal(signal.SIGTERM) is not signal.SIG_DFL
+    assert signal.getsignal(signal.SIGTERM) is signal.SIG_DFL
 
 
 def make_tree(root, files):
