@@ -14,15 +14,18 @@ import pandas as pd
 
 from oasislmf.computation.base import DISAGGREGATION_HELP, ComputationStep
 from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
+                                                            CorrelationsFile,
                                                             CoveragesFile,
                                                             DamageBinDictFile,
                                                             EventsFile,
                                                             FMPolicyTCFile,
                                                             FMProfileFile,
                                                             FMProgrammeFile,
+                                                            FMSummaryMapFile,
                                                             FMSummaryXrefFile,
                                                             FMXrefFile,
                                                             FootprintBinFile,
+                                                            GULSummaryMapFile,
                                                             GULSummaryXrefFile,
                                                             ItemsFile,
                                                             LossFactorsFile,
@@ -709,7 +712,8 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
 
     def _get_gul_file_objects(self):
 
-        # coverages.bin, items.bin and gulsummaryxref.bin
+        # coverages.bin, items.bin, correlations.bin, gulsummaryxref.bin and
+        # gul_summary_map.csv
         self.gul_files = [
             CoveragesFile(
                 self.num_locations, self.coverages_per_location,
@@ -720,7 +724,13 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
                 self.num_areaperils, self.num_vulnerabilities,
                 self.random_seed, self.input_dir
             ),
+            CorrelationsFile(
+                self.num_locations, self.coverages_per_location, self.input_dir
+            ),
             GULSummaryXrefFile(
+                self.num_locations, self.coverages_per_location, self.input_dir
+            ),
+            GULSummaryMapFile(
                 self.num_locations, self.coverages_per_location, self.input_dir
             )
         ]
@@ -734,8 +744,8 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
 
     def _get_fm_file_objects(self):
 
-        # fm_programme.bin, fm_policytc.bin, fm_profile.bin, fm_xref.bin and
-        # fmsummaryxref.bin
+        # fm_programme.bin, fm_policytc.bin, fm_profile.bin, fm_xref.bin,
+        # fmsummaryxref.bin and fm_summary_map.csv
         self.fm_files = [
             FMProgrammeFile(
                 self.num_locations, self.coverages_per_location, self.input_dir
@@ -750,6 +760,10 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
                 self.num_layers, self.input_dir
             ),
             FMSummaryXrefFile(
+                self.num_locations, self.coverages_per_location,
+                self.num_layers, self.input_dir
+            ),
+            FMSummaryMapFile(
                 self.num_locations, self.coverages_per_location,
                 self.num_layers, self.input_dir
             )
