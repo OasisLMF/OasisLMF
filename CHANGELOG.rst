@@ -1,6 +1,36 @@
 OasisLMF Changelog
 ==================
 
+`2.4.14`_
+ ---------
+* [#1866](https://github.com/OasisLMF/OasisLMF/pull/1866) - Fix typos and incorrect CLI docstrings
+* [#1872](https://github.com/OasisLMF/OasisLMF/pull/1872) - fix/lecpy_outofbounds
+* [#1878](https://github.com/OasisLMF/OasisLMF/pull/1878) - Fix error handling and replaced row wise apply in loss computation
+* [#1901](https://github.com/OasisLMF/OasisLMF/pull/1901) - Fix/chardet 7 support
+* [#1912](https://github.com/OasisLMF/OasisLMF/pull/1912) - fix additional_fields pa_dtype keyerror issue
+* [#1916](https://github.com/OasisLMF/OasisLMF/pull/1916) - fix/cyber account profile to match OED spec
+* [#1930](https://github.com/OasisLMF/OasisLMF/pull/1930) - Set CRS to WGS84 on location coordinates
+* [#1948](https://github.com/OasisLMF/OasisLMF/pull/1948) - fix/nonzero default fm profile
+* [#1951](https://github.com/OasisLMF/OasisLMF/pull/1951) - fix/join-summary-info-bugs
+* [#1956](https://github.com/OasisLMF/OasisLMF/pull/1956) - fix: reduce memory usage in FootprintBin/FootprintBinZ and skip footprint load when data_server active
+* [#2023](https://github.com/OasisLMF/OasisLMF/pull/2023) - fix(lookup): assume EPSG:4326 when geometry file has no CRS metadata
+* [#2060](https://github.com/OasisLMF/OasisLMF/pull/2060) - fix(pre-analysis): preserve original exposure file format for snapshot saves
+* [#2085](https://github.com/OasisLMF/OasisLMF/pull/2085) - Issue 2084 cyber loc_idx bug
+* [#2087](https://github.com/OasisLMF/OasisLMF/pull/2087) - Fix typo: 'vulnerbaility_id' -> 'vulnerability_id' in gul_inputs.py
+* [#2106](https://github.com/OasisLMF/OasisLMF/pull/2106) - Fix for flaky test
+* [#2117](https://github.com/OasisLMF/OasisLMF/pull/2117) - Issue 2109 repeated exposure run header issue
+* [#2132](https://github.com/OasisLMF/OasisLMF/pull/2132) - Fix fmpy back-allocation rule 1 for layers above layer 1
+* [#2135](https://github.com/OasisLMF/OasisLMF/pull/2135) -  Pre-analysis hook constructs the user's class twice and prints kwargs
+* [#2138](https://github.com/OasisLMF/OasisLMF/pull/2138) - fix(lookup): reproject vector geometries to EPSG:4326 in build_rtree (#2134)
+* [#2142](https://github.com/OasisLMF/OasisLMF/pull/2142) - fix/rerun-stale-fifo-redirect
+* [#2148](https://github.com/OasisLMF/OasisLMF/pull/2148) - Make optional arguments not required
+* [#2167](https://github.com/OasisLMF/OasisLMF/pull/2167) - fix/gul_error_csv_write
+* [#2173](https://github.com/OasisLMF/OasisLMF/pull/2173) - Fix FootprintCsv crashing on a bare pd.read_csv() call
+* [#2183](https://github.com/OasisLMF/OasisLMF/pull/2183) - Fix integer computation settings schema type
+* [#2184](https://github.com/OasisLMF/OasisLMF/pull/2184) - Stop caching the merge_sorted_chunks generator; cache get_array (#1970)
+* [#2214](https://github.com/OasisLMF/OasisLMF/pull/2214) - fm: merge per-layer extras by maximum, not sum (2.4.x)
+.. _`2.4.14`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.13...2.4.14
+
 `2.4.13`_
  ---------
 * [#1924](https://github.com/OasisLMF/OasisLMF/pull/1924) - fix: in special condition remove necessity for dummy layer with multiple cond peril
