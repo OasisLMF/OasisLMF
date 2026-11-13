@@ -207,7 +207,7 @@ class MultiConversionTest(TestCase):
                  file_type="gul",
                  filename="raw_guls",
                  sub_dir="envdtype",
-                 kwarg_file="gul_fm_args.json",
+                 kwarg_file="gul_args.json",
                  ),
             dict(converter="bintocsv",
                  filename="raw_guls",

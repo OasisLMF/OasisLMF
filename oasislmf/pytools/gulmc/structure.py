@@ -9,16 +9,18 @@ Follows the same pattern as ``oasislmf.pytools.fm.financial_structure``:
 """
 import logging
 import os
+import shutil
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import numba as nb
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, oasis_float)
+from oasislmf.pytools.common.data import (building_count_dtype, load_as_ndarray, oasis_int, oasis_float)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
-from oasislmf.pytools.getmodel.footprint import Footprint
+from oasislmf.pytools.gul.structure import coverage_building_counts
+from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
 from oasislmf.pytools.getmodel.manager import (
     get_damage_bins, get_vulns, get_intensity_bin_dict, read_conditional_vulnerability,
 )
@@ -43,8 +45,13 @@ from oasislmf.utils.path import setcwd
 logger = logging.getLogger(__name__)
 
 STRUCTURE_DIR = 'gulmc_structure'
+# the dynamic footprint's hazard, saved once for every gulmc process to memory-map
+DYNAMIC_FOOTPRINT_DIR = 'dynamic_footprint'
 
 # (variable_name, filename) pairs for all arrays that are saved/loaded.
+# number of scalars load_gulmc_structure reads out of metadata.npy
+N_METADATA_FIELDS = 3
+
 ARRAY_FILES = [
     'items',
     'coverages',
@@ -382,11 +389,41 @@ def _structure_path(run_dir):
 
 
 def gulmc_structure_exists(run_dir):
-    """Check whether pre-computed gulmc structures exist."""
-    return os.path.isfile(os.path.join(_structure_path(run_dir), 'metadata.npy'))
+    """Check whether a usable pre-computed gulmc structure cache is present.
+
+    Built once per run and memory-mapped by every parallel gulmc process, so it is always written
+    and read by the same version. What can happen is a partially written cache, if the build was
+    interrupted; the caller falls back to building the structures itself, so anything unreadable
+    counts as absent and is rebuilt.
+
+    The metadata width is checked because it is read positionally: a short one would be an
+    IndexError at load rather than a fallback.
+
+    Args:
+        run_dir (str): path to the run directory.
+
+    Returns:
+        bool: True when a usable cache is present.
+    """
+    metadata_path = os.path.join(_structure_path(run_dir), 'metadata.npy')
+    if not os.path.isfile(metadata_path):
+        return False
+    try:
+        if np.load(metadata_path).shape[0] < N_METADATA_FIELDS:
+            logger.info('pre-computed gulmc structures are incomplete: rebuilding')
+            return False
+    except Exception:
+        logger.info('pre-computed gulmc structures are unreadable: rebuilding')
+        return False
+    return True
 
 
-def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint, model_df_engine):
+def dynamic_footprint_path(run_dir):
+    return os.path.join(_structure_path(run_dir), DYNAMIC_FOOTPRINT_DIR)
+
+
+def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint, model_df_engine,
+                     dynamic_footprint_dir=None):
     """Build all read-only gulmc data structures from input files.
 
     This extracts the preparation logic from ``manager.run()`` into a
@@ -400,6 +437,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         peril_filter (list): list of perils to include (empty = all).
         dynamic_footprint (bool): whether to apply dynamic footprint logic.
         model_df_engine (str): engine for loading model dataframes.
+        dynamic_footprint_dir (str, optional): if given and the model has a dynamic footprint, save
+            its hazard there for the gulmc processes to memory-map. Defaults to None.
 
     Returns:
         dict: mapping variable names to numpy arrays / scalars.
@@ -429,9 +468,10 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
 
     # --- coverages -------------------------------------------------------------
     logger.debug('import coverages')
-    coverages_tb = read_coverages(input_path, ignore_file_type)
-    coverages = np.zeros(coverages_tb.shape[0] + 1, coverage_type)
-    coverages[1:]['tiv'] = coverages_tb
+    coverages_tiv = read_coverages(input_path, ignore_file_type)
+    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
+    coverages[1:]['tiv'] = coverages_tiv
+    n_building_by_coverage = coverage_building_counts(input_path, ignore_file_type, coverages_tiv.shape[0])
 
     # --- aggregate vulnerability -----------------------------------------------
     logger.debug('import aggregate vulnerability definitions and vulnerability weights')
@@ -469,8 +509,22 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     items = rfn.merge_arrays((items,
                               np.empty(items.shape,
                                        dtype=nb.from_dtype(np.dtype([("vulnerability_idx", oasis_int),
-                                                                     ("areaperil_agg_vuln_idx", oasis_int)])))),
+                                                                     ("areaperil_agg_vuln_idx", oasis_int),
+                                                                     ("packed_buildings", building_count_dtype)])))),
                              flatten=True)
+    # building-packing, signed: magnitude is the number of buildings multiplexed into each item's
+    # sample dimension, a negative sign marks the ones that must reach the financial module as
+    # separate blocks. Carried signed all the way to the compute and unpacked into locals there.
+    # 1 == one building per item (legacy / disaggregation). It is a property of the LOCATION, so it
+    # arrives on the coverage and every item of a coverage inherits the same value.
+    if items.shape[0]:
+        cov_i = items['coverage_id'] - 1
+        if cov_i.min() < 0 or cov_i.max() >= n_building_by_coverage.shape[0]:
+            raise OasisException(
+                f"items.bin references coverage_id outside 1..{n_building_by_coverage.shape[0]} "
+                f"covered by coverages.bin; the two files must be regenerated together."
+            )
+        items['packed_buildings'] = n_building_by_coverage[cov_i]
     items['areaperil_agg_vuln_idx'] = -1
     # generate_item_map only assigns vulnerability_idx for non-aggregate items; initialise it so an
     # aggregate item never carries uninitialised memory into an array index
@@ -549,6 +603,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                                          df_engine=model_df_engine,
                                          areaperil_ids=item_map_ja_areaperil_ids) as footprint_obj:
         num_intensity_bins = footprint_obj.num_intensity_bins
+        if dynamic_footprint_dir is not None and isinstance(footprint_obj, FootprintParquetDynamic):
+            if footprint_obj.save_shared(dynamic_footprint_dir):
+                logger.info(f"dynamic footprint saved to {dynamic_footprint_dir}")
 
     # --- vulnerabilities -------------------------------------------------------
     logger.debug('import vulnerabilities')
@@ -632,10 +689,13 @@ def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
         dynamic_footprint (bool): whether to apply dynamic footprint logic.
         model_df_engine (str): engine for loading model dataframes.
     """
-    structures = build_structures(run_dir, ignore_file_type, peril_filter,
-                                  dynamic_footprint, model_df_engine)
-
     structure_path = _structure_path(run_dir)
+    # a footprint saved for an earlier portfolio in this run directory must not be used for this one
+    shutil.rmtree(dynamic_footprint_path(run_dir), ignore_errors=True)
+    structures = build_structures(run_dir, ignore_file_type, peril_filter,
+                                  dynamic_footprint, model_df_engine,
+                                  dynamic_footprint_dir=dynamic_footprint_path(run_dir))
+
     os.makedirs(structure_path, exist_ok=True)
 
     # save all numpy arrays

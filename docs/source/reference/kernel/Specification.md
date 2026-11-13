@@ -51,6 +51,7 @@ Reserved stream_ids;
 |	 1     |     1        |  gul - Oasis format item level ground up loss sample output (deprecated, superseded by 2/1 loss) |
 |    1     |     2        |  gul - Oasis format coverage level ground up loss sample output (deprecated, superseded by 2/1 loss) |
 |    2     |     1        |  loss -  Oasis format loss sample output (any loss perspective)                  |
+|    2     |     3        |  loss -  as 2/1, but with a location's buildings multiplexed into the sample dimension (see *Building-packed loss streams*) |
 |    3     |     1        |  summary - Oasis format summary level loss sample output                         |
 
 The supported standard input and output streams of the reference model components are summarized here;
@@ -131,6 +132,44 @@ There are five values of sidx with special meaning as follows;
 |   -1   | numerical integration mean loss               |   required         |
 
 sidx -5 to -1 must come at the beginning of the data packet before the other samples in ascending order (-5 to -1).  
+
+#### Building-packed loss streams
+
+A loss stream declaring stream_id **2/3** carries the same record layout as 2/1. What differs is
+the **range of `sidx`**: a location's buildings are multiplexed into the sample dimension of one
+item, so a reader that assumes `sidx` lies in `[-5, no_of_samples]` will index past the end of its
+sample array. `no_of_samples` in the header remains the **logical** sample count `S` -- the number
+of samples per building, not the number of records.
+
+For building `b` (1-based) and local sample `s`, where `B` is the number of buildings the item
+carries:
+
+| record           | sidx                  | range          |
+|:-----------------|:----------------------|:---------------|
+| sample           | `(b - 1) * S + s`     | `1 .. B * S`   |
+| special (-5..-1) | `local - (b - 1) * 5` | `-5 * B .. -1` |
+
+Building 1 is the identity encoding, so an item carrying one building is byte-for-byte an ordinary
+2/1 item, and a stream is declared 2/3 only when it can actually emit a block for a second
+building.
+
+To recover the pair from a packed `sidx`:
+
+```
+if sidx > 0:  b = (sidx - 1) // S + 1    ;  s = (sidx - 1) % S + 1
+else:         b = (-sidx - 1) // 5 + 1   ;  s = -((-sidx - 1) % 5) - 1
+```
+
+Records are written in ascending `sidx` across the whole item: every building's specials first
+(building `B` down to building 1, since a higher building encodes a more negative special), then
+every building's samples (building 1 up to building `B`). One delimiter terminates the whole
+multi-building item.
+
+**A reader that does not implement this must reject stream_id 2/3** rather than treat it as 2/1.
+The two are indistinguishable record by record, so the declared aggregation type is the only
+signal, and mis-reading one as the other silently attributes a building's loss to the wrong
+sample.
+
 
 
 ### summary stream
