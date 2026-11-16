@@ -17,6 +17,10 @@ def add_custom_args(file_type, parser):
     if file_type == "fm" or file_type == "gul":
         parser.add_argument('-t', '--stream_type', type=int, default=LOSS_STREAM_ID, help=f'Stream Type. Default LOSS_STREAM_ID = {LOSS_STREAM_ID}')
         parser.add_argument('-S', '--max_sample_index', type=int, required=True, help='Maximum sample index')
+    if file_type == "gul":
+        parser.add_argument('--no_packing', dest='packed', action='store_false',
+                            help='Write an item stream and drop rows whose sidx exceeds -S. By default the stream is '
+                                 'building-packed: every row is kept and -S is the per-building sample size in the header')
     if file_type == "footprint":
         parser.add_argument('-x', '--idx_file_out', required=True, type=str, help='Output index file path')
         parser.add_argument('-z', '--zip_files', action='store_true', help='Zip output files flag')
