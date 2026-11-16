@@ -26,6 +26,7 @@ from oasislmf.execution.bin import (
     check_inputs_directory,
     cleanup_bin_directory,
     create_binary_tar_file,
+    move_bin,
     prepare_run_directory,
     prepare_run_inputs,
     set_footprint_set,
@@ -37,8 +38,41 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from oasislmf.pytools.getmodel.common import hazard_case_filename
+from oasislmf.pytools.common.data import FM_STRUCTURE_INFO_FILE
 
 from tests.data import il_input_files, tar_file_targets
+
+TEST_COMMON_INPUT_DIR = Path(__file__).parent.parent.joinpath('assets', 'test_common', 'input')
+
+
+class MoveBinStructureInfo(TestCase):
+    def test_structure_info_moves_with_the_binaries(self):
+        """move_bin stages what the kernel reads, and the financial module reads this too.
+
+        It is not a binary, so it is not in INPUT_FILES and was left behind -- which turns
+        building packing silently off on the deterministic path, since fmpy then reads the
+        staged folder and finds no structure info.
+        """
+        with TemporaryDirectory() as src, TemporaryDirectory() as dst:
+            for name in ('items.bin', FM_STRUCTURE_INFO_FILE):
+                with io.open(os.path.join(src, name), 'w', encoding='utf-8') as f:
+                    f.write('data')
+
+            move_bin(src, dst)
+
+            self.assertTrue(os.path.isfile(os.path.join(dst, 'items.bin')))
+            self.assertTrue(os.path.isfile(os.path.join(dst, FM_STRUCTURE_INFO_FILE)))
+
+    def test_absent_structure_info_is_not_an_error(self):
+        """Every input set generated before building packing has none."""
+        with TemporaryDirectory() as src, TemporaryDirectory() as dst:
+            with io.open(os.path.join(src, 'items.bin'), 'w', encoding='utf-8') as f:
+                f.write('data')
+
+            move_bin(src, dst)
+
+            self.assertTrue(os.path.isfile(os.path.join(dst, 'items.bin')))
+            self.assertFalse(os.path.exists(os.path.join(dst, FM_STRUCTURE_INFO_FILE)))
 
 
 class CreateBinaryTarFile(TestCase):
@@ -51,6 +85,30 @@ class CreateBinaryTarFile(TestCase):
 
             with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
                 self.assertEqual(0, len(tar.getnames()))
+
+    def test_building_packing_structure_info_is_included_at_every_depth(self):
+        """It is not a binary, but the financial module reads it from beside them and sizes its
+        arrays from it, so it has to travel in the tar.
+
+        Both depths matter and the top level matters most: the primary, non-reinsurance structure
+        info sits directly in the input directory, and a reinsurance layer gets its own one level
+        down. Losing the top-level one turns building packing silently off, or makes fmpy reject
+        a packed stream outright.
+        """
+        with TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, 'RI_1'))
+            for path in ('items.bin', FM_STRUCTURE_INFO_FILE,
+                         os.path.join('RI_1', 'items.bin'),
+                         os.path.join('RI_1', FM_STRUCTURE_INFO_FILE)):
+                with io.open(os.path.join(d, path), 'w', encoding='utf-8') as f:
+                    f.write('data')
+
+            create_binary_tar_file(d)
+
+            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
+                names = set(tar.getnames())
+            self.assertIn(FM_STRUCTURE_INFO_FILE, names)
+            self.assertIn(f'RI_1/{FM_STRUCTURE_INFO_FILE}', names)
 
     @given(tar_file_targets(min_size=1))
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -660,6 +718,20 @@ class PrepareRunInputs(TestCase):
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
+
+    def test_occurrence_bin_copied___occurrence_index_not_built(self):
+        """The index is built by GenerateLossesDir, so model validation, which also calls
+        prepare_run_inputs, doesn't write one it never uses."""
+        settings = {"gul_summaries": [{"ord_output": {"ept_full_uncertainty_aep": True}}]}
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+            shutil.copy(Path(TEST_COMMON_INPUT_DIR, 'occurrence.bin'), os.path.join(d, 'static', 'occurrence.bin'))
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
+
+            prepare_run_inputs(settings, d, model_storage)
+
+            self.assertTrue(Path(d, 'input', 'occurrence.bin').exists())
+            self.assertFalse(Path(d, 'input', 'occurrence_index').exists())
 
     def test_ord_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:

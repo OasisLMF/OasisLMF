@@ -3,7 +3,10 @@
 # The CSV is read in fixed-size chunks (iter_csv_as_ndarray), so memory usage is
 # O(chunk_size + max_rows_per_event) regardless of file size. Events spanning chunk
 # boundaries are buffered in partial_chunks and flushed once their final rows arrive.
-# Input must be sorted by event_id.
+# Rows are grouped by contiguous runs of equal event_id (like ktools' own line-by-line
+# grouping), not by sort order: event_id need not be ascending, it only needs each
+# event's rows together — the runtime reads (event_id, amplification_id) pairs into a
+# dict, so the same event_id may legally appear in more than one block.
 # For each complete event an 8-byte header (event_id, count) is written followed by
 # the amp_factor body as a contiguous structured-array block.
 
@@ -39,7 +42,10 @@ def lossfactors_tobin(stack, file_in, file_out, file_type):
         pos = 0
 
         if partial_event_id is not None:
-            end = int(np.searchsorted(event_ids, partial_event_id, side='right'))
+            # How many leading rows of this chunk continue the previous chunk's open event —
+            # a plain equality scan, not searchsorted, so it doesn't assume event_ids is sorted.
+            mismatch = np.flatnonzero(event_ids != partial_event_id)
+            end = int(mismatch[0]) if mismatch.size else len(event_ids)
             partial_chunks.append(chunk[:end])
             pos = end
             if pos == len(chunk):

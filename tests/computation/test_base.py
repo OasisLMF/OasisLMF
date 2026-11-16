@@ -193,6 +193,8 @@ class DummySchemaStep(DummyComputationStep):
     step_params = [
         {'name': 'some_flag', 'default': False, 'help': 'A boolean flag'},
         {'name': 'some_choice', 'choices': ['a', 'b']},
+        {'name': 'some_count', 'type': int},
+        {'name': 'some_ratio', 'type': float},
         {'name': 'some_settings_json', 'is_path': True},
     ]
     settings_params = [{'name': 'some_settings_json', 'loader': json.load}]
@@ -210,3 +212,5 @@ def test_computation_settings_json_schema():
     assert properties['verbose'] == {'type': 'boolean'}
     assert properties['some_flag'] == {'type': 'boolean', 'description': 'A boolean flag'}
     assert properties['some_choice'] == {'type': 'string', 'enum': ['a', 'b']}
+    assert properties['some_count'] == {'type': 'integer'}
+    assert properties['some_ratio'] == {'type': 'number'}

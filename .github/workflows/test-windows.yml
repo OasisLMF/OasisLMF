@@ -2,6 +2,8 @@
 #
 # This runs on every PR and push to main to catch Windows-specific regressions.
 # It is intentionally lightweight — install + smoke test only — to keep CI costs low.
+# The one exception is the zipped-converter tests: python.org Python 3.14+ on Windows bundles
+# zlib-ng, which compresses differently from classic zlib (#2236), and no other job covers that.
 
 name: Windows Smoke Test
 
@@ -25,7 +27,7 @@ jobs:
     needs: [build]
     strategy:
       matrix:
-        python-version: ["3.10", "3.12"]
+        python-version: ["3.10", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v4
 
@@ -88,3 +90,14 @@ jobs:
           print(f'pyarrow {pyarrow.__version__}, fastparquet {fastparquet.__version__}')
           print('Core numerical stack works on Windows x86_64')
           "
+
+      - name: Converter tests - zipped footprint / vulnerability
+        shell: bash
+        run: |
+          python -c "import zlib; print(f'zlib runtime: {zlib.ZLIB_RUNTIME_VERSION}')"
+          python -m pip install pytest
+          python -m pytest -q \
+            tests/pytools/converters/test_converters_footprint.py::test_footprint \
+            tests/pytools/converters/test_converters_footprint.py::test_footprint_zip_tobin_independent_of_deflate_implementation \
+            tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability \
+            tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability_zip_tobin_independent_of_deflate_implementation

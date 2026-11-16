@@ -15,8 +15,10 @@ from ..hooks.pre_analysis import ExposurePreAnalysis
 from ..hooks.post_analysis import PostAnalysis
 from ..hooks.post_file_gen import PostFileGen
 from ..hooks.pre_loss import PreLoss
+from .check import CheckModel
 
 from ...utils.data import get_exposure_data
+from ...utils.inputs import str2bool
 from ...utils.path import empty_dir
 
 
@@ -34,7 +36,10 @@ class RunModel(ComputationStep):
         {'name': 'pre_loss_module', 'required': False, 'is_path': True,
          'pre_exist': True, 'help': 'pre-loss hook module path'},
         {'name': 'post_file_gen_module', 'required': False, 'is_path': True,
-         'pre_exist': True, 'help': 'post-file gen hook module path'}
+         'pre_exist': True, 'help': 'post-file gen hook module path'},
+        {'name': 'model_check', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'Check the generated Oasis files against the model data (as `oasislmf model check`) before generating losses, '
+                 'stopping the run on errors'},
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [
@@ -44,6 +49,7 @@ class RunModel(ComputationStep):
         GenerateFiles,
         ExposurePreAnalysis,
         PostAnalysis,
+        CheckModel,
     ]
 
     def get_exposure_data_config(self):
@@ -85,6 +91,8 @@ class RunModel(ComputationStep):
             cmds += [(PostFileGen, self.kwargs)]
         if self.pre_loss_module:
             cmds += [(PreLoss, self.kwargs)]
+        if self.model_check:
+            cmds += [(CheckModel, {**self.kwargs, 'check_inputs_dir': self.oasis_files_dir})]
         cmds += [(GenerateLosses, self.kwargs)]
         if self.post_analysis_module:
             cmds += [(PostAnalysis, self.kwargs)]

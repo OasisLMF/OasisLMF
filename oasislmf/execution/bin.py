@@ -14,7 +14,8 @@ __all__ = [
     'set_footprint_set',
     'set_vulnerability_set',
     'set_loss_factors_set',
-    'set_hazard_case_set'
+    'set_hazard_case_set',
+    'OPTIONAL_MODEL_SETS',
 ]
 
 import pathlib
@@ -548,6 +549,14 @@ def set_hazard_case_set(setting_val, run_dir):
     os.symlink(hazard_case_fp, hazard_case_target_fp)
 
 
+OPTIONAL_MODEL_SETS = {
+    'footprint_set': set_footprint_set,
+    'vulnerability_set': set_vulnerability_set,
+    'pla_loss_factors_set': set_loss_factors_set,
+    'hazard_case_set': set_hazard_case_set,
+}
+
+
 @oasis_log
 def check_inputs_directory(directory_to_check, il=False, ri=False, check_binaries=True):
     """Check that all the required files are present in the directory.
@@ -675,7 +684,9 @@ def check_conversion_tools(il=False):
         input_files = (f for f in INPUT_FILES.values() if f['type'] != 'il')
 
     for input_file in input_files:
-        tool = input_file['conversion_tool']
+        tool = input_file.get('conversion_tool')
+        if tool is None:  # binary-only input, nothing to convert from
+            continue
         if shutil.which(tool) is None:
             error_message = "Failed to find conversion tool: {}".format(tool)
             logging.error(error_message)

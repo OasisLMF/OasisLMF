@@ -8,6 +8,7 @@ import pytest
 
 from oasislmf.lookup.builtin import (
     Lookup,
+    PerilCoveredDeterministicLookup,
     create_lat_lon_id_functions,
     get_step,
     jit_geo_grid_lookup,
@@ -187,7 +188,7 @@ def test_build_rtree_associates_correctly(locations_by_name, expected_ids, reque
 
 def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinates):
     """Test that the rtree builtin still works with the deprecated parameter."""
-    with pytest.warns(DeprecationWarning):
+    with pytest.warns(FutureWarning):
         rtree = Lookup(config={}).build_rtree(
             file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
             file_type="parquet",
@@ -283,6 +284,50 @@ def test_split_loc_perils_covered_not_covered_status_restores_previous_behaviour
     not_covered = result[result["loc_id"] == 2]
     assert len(not_covered) == 1
     assert not_covered["status"].iloc[0] == OASIS_KEYS_STATUS["notatrisk"]["id"]
+
+
+def test_split_loc_perils_covered_group_listed_with_its_perils_gives_each_peril_once():
+    """OO1 is the group {ORF, OSF}: listing it with ORF and OSF must not give those perils twice."""
+    fct = Lookup(config={}).build_split_loc_perils_covered()
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "LocPerilsCovered": ["OO1;ORF;OSF", "ORF;OSF"],
+    })
+
+    result = fct(locations)
+
+    perils = result.groupby("loc_id")["peril_id"].apply(sorted)
+    assert perils[1] == perils[2] == ["ORF", "OSF"]
+    assert "peril_group_id" not in locations
+
+
+@pytest.mark.parametrize("perils_covered, expected_group", [("OO1;ORF", "OO1"), ("ORF;OO1", "ORF")])
+def test_split_loc_perils_covered_peril_in_several_groups_keeps_the_first_listed(perils_covered, expected_group):
+    """A peril reached through several listed groups keeps the first listed group as peril_group_id."""
+    fct = Lookup(config={}).build_split_loc_perils_covered()
+
+    result = fct(pd.DataFrame({"loc_id": [1], "LocPerilsCovered": [perils_covered]}))
+
+    orf = result[result["peril_id"] == "ORF"]
+    assert len(orf) == 1
+    assert orf["peril_group_id"].iloc[0] == expected_group
+
+
+def test_peril_covered_deterministic_lookup_group_listed_with_its_perils_gives_each_peril_once():
+    lookup = PerilCoveredDeterministicLookup(config={
+        "model_perils_covered": ["OO1"],
+        "supported_oed_coverage_types": [1, 3],
+    })
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "LocPerilsCovered": ["OO1;ORF;OSF", "ORF;OSF"],
+    })
+
+    keys_df = lookup.process_locations(locations)
+
+    assert not keys_df.duplicated(["loc_id", "peril_id", "coverage_type"]).any()
+    assert (keys_df["loc_id"].value_counts() == 4).all()  # 2 perils x 2 coverage types each
+    assert "peril_group_id" not in locations
 
 
 def test_split_loc_perils_covered_rejects_unknown_not_covered_status():
@@ -504,3 +549,157 @@ def test_geog_lookup_sparse_and_null_slots():
     result = fct(locations)
     assert result["w3w"].tolist()[:2] == ["a.b.c", "d.e.f"]
     assert pd.isna(result["w3w"].iloc[2])
+
+
+@pytest.fixture
+def vulnerability_dict_path(tmp_path):
+    """A vulnerability dict reused from a French model: it still carries the FR
+    'countrycode' it was built with, which German locations won't match on."""
+    path = tmp_path / "vulnerability_dict.csv"
+    pd.DataFrame({
+        "peril_id": ["WTC", "WTC"],
+        "coverage_type": [1, 3],
+        "occupancycode": [1000, 1000],
+        "countrycode": ["FR", "FR"],
+        "vulnerability_id": [10, 30],
+    }).to_csv(path, index=False)
+    return path
+
+
+def _vulnerability_merge_config(vulnerability_dict_path, join_columns=None):
+    parameters = {"file_path": str(vulnerability_dict_path), "file_type": "csv", "id_columns": ["vulnerability_id"]}
+    if join_columns is not None:
+        parameters["join_columns"] = join_columns
+    return {
+        "strategy": ["areaperil", "vulnerability"],
+        "step_definition": {
+            "areaperil": {
+                "type": "prepare",
+                "columns": ["countrycode"],
+                "parameters": {"area_peril_id": {"default": 1}},
+            },
+            "vulnerability": {
+                "type": "merge",
+                "columns": ["peril_id", "coverage_type", "occupancycode"],
+                "parameters": parameters,
+            },
+        },
+    }
+
+
+@pytest.fixture
+def german_locations():
+    return pd.DataFrame({
+        "loc_id": [1, 2],
+        "peril_id": ["WTC", "WTC"],
+        "coverage_type": [1, 3],
+        "occupancycode": [1000, 1000],
+        "countrycode": ["DE", "DE"],
+    })
+
+
+def test_process_locations_merge_without_join_columns_joins_on_every_shared_column(vulnerability_dict_path, german_locations):
+    """By default the merge also joins on 'countrycode' (needed by the 'areaperil' step),
+    so the FR dict matches none of the DE locations."""
+    config = _vulnerability_merge_config(vulnerability_dict_path)
+    result = Lookup(config=config).process_locations(german_locations)
+    assert (result["vulnerability_id"] == OASIS_UNKNOWN_ID).all()
+
+
+def test_process_locations_merge_join_columns_ignores_other_shared_columns(vulnerability_dict_path, german_locations):
+    """With join_columns, the dict file's leftover 'countrycode' is not a join key and the merge succeeds."""
+    config = _vulnerability_merge_config(vulnerability_dict_path, join_columns=["peril_id", "coverage_type", "occupancycode"])
+    result = Lookup(config=config).process_locations(german_locations)
+    assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, 30]
+    assert (result["area_peril_id"] == 1).all()
+    assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()
+
+
+def test_merge_join_columns_keeps_locations_value_for_other_shared_columns(vulnerability_dict_path, german_locations):
+    """A non-key column in both the file and the locations keeps its locations value (no _x/_y suffixes),
+    and join_columns are matched case-insensitively."""
+    merge = Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), id_columns=["vulnerability_id"],
+                                          join_columns=["Peril_ID", "Coverage_Type", "OccupancyCode"])
+    result = merge(german_locations.rename(columns={"countrycode": "CountryCode"}))
+    assert result["CountryCode"].tolist() == ["DE", "DE"]
+    assert "countrycode" not in result.columns
+    assert result["vulnerability_id"].tolist() == [10, 30]
+
+
+def test_merge_join_columns_takes_id_columns_from_file(vulnerability_dict_path, german_locations):
+    """An id column already in the locations (e.g. reset to -1 by an earlier step) is replaced by the file's value."""
+    merge = Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), id_columns=["vulnerability_id"],
+                                          join_columns=["peril_id", "coverage_type", "occupancycode"])
+    result = merge(german_locations.assign(vulnerability_id=OASIS_UNKNOWN_ID))
+    assert result["vulnerability_id"].tolist() == [10, 30]
+    assert not any(col.endswith(("_x", "_y")) for col in result.columns)
+
+
+def test_merge_join_columns_missing_from_file_raises(vulnerability_dict_path):
+    with pytest.raises(OasisException, match="not found in"):
+        Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), join_columns=["postalcode"])
+
+
+def test_merge_join_columns_missing_from_locations_raises(vulnerability_dict_path, german_locations):
+    merge = Lookup(config={}).build_merge(file_path=str(vulnerability_dict_path), join_columns=["peril_id", "countrycode"])
+    with pytest.raises(OasisException, match="not found in the locations"):
+        merge(german_locations.drop(columns="countrycode"))
+
+
+def test_combine_skips_child_whose_own_columns_are_missing(caplog):
+    """A combine child is skipped when the columns *it* declares are absent from the
+    exposure, so the next child can act as a fallback (rather than the child crashing)."""
+    class PostcodeLookup(Lookup):
+        def build_by_postcode(self):
+            return lambda locations: locations.assign(
+                vulnerability_id=locations["postalcode"].map({"AB1": 5}).fillna(OASIS_UNKNOWN_ID).astype(int))
+
+    config = {
+        "strategy": ["areaperil", "vulnerability"],
+        "step_definition": {
+            "areaperil": {"type": "prepare", "parameters": {"area_peril_id": {"default": 1}}},
+            "vulnerability": {
+                "type": "combine",
+                "columns": ["peril_id", "coverage_type"],
+                "parameters": {"id_columns": ["vulnerability_id"], "strategy": ["by_postcode", "fallback"]},
+            },
+            "by_postcode": {"type": "by_postcode", "columns": ["postalcode"], "parameters": {}},
+            "fallback": {"type": "prepare", "columns": ["peril_id"], "parameters": {"vulnerability_id": {"default": 7}}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no PostalCode
+    with caplog.at_level("WARNING", logger="oasislmf.lookup.builtin"):
+        result = PostcodeLookup(config=config).process_locations(locations)
+    assert result["vulnerability_id"].tolist() == [7]
+    assert "skipping step by_postcode" in caplog.text
+    assert (result["status"] == OASIS_KEYS_STATUS["success"]["id"]).all()
+
+
+def test_combine_and_raises_when_child_columns_are_missing():
+    """Unlike 'or', every child of an 'and' combine is required, so a child whose columns
+    are absent must raise rather than be skipped and let the location succeed without it."""
+    class AutoLookup(Lookup):
+        def build_by_autocode(self):
+            return lambda locations: locations.assign(
+                coverage_ok=locations["autocode"].map({1: 1}).fillna(OASIS_UNKNOWN_ID).astype(int))
+
+    config = {
+        "strategy": ["areaperil", "vulnerability"],
+        "step_definition": {
+            "areaperil": {"type": "prepare", "parameters": {"area_peril_id": {"default": 1}}},
+            "vulnerability": {
+                "type": "combine",
+                "columns": ["peril_id", "coverage_type"],
+                "parameters": {
+                    "logical_type": "and",
+                    "id_columns": [["coverage_ok"], ["vulnerability_id"]],
+                    "strategy": ["by_autocode", "default_vuln"],
+                },
+            },
+            "by_autocode": {"type": "by_autocode", "columns": ["autocode"], "parameters": {}},
+            "default_vuln": {"type": "prepare", "columns": ["peril_id"], "parameters": {"vulnerability_id": {"default": 7}}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no AutoCode
+    with pytest.raises(OasisException, match="by_autocode"):
+        AutoLookup(config=config).process_locations(locations)

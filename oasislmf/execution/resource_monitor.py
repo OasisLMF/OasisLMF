@@ -28,7 +28,7 @@ import psutil
 
 logger = logging.getLogger(__name__)
 
-# Full list of pytools tool names to monitor (from check_complete in bash.py)
+# Full list of pytools tool names to monitor
 MONITORED_TOOLS = frozenset([
     'evepy', 'modelpy', 'gulpy', 'fmpy', 'gulmc',
     'summarypy', 'plapy', 'katpy', 'eltpy', 'pltpy', 'aalpy', 'lecpy',
@@ -69,10 +69,13 @@ class ResourceMonitor:
         log_root (str): Directory whose immediate sub-directories are scanned for
             resource_monitor.csv files, so several monitors can be combined into one report written
             to log_root/resource_report/. When None only this monitor's own CSV is reported on.
+        enabled (bool): When False, start() and stop() do nothing: no CSV is written and no report
+            is generated (default True).
     """
 
-    def __init__(self, output_dir, poll_interval=1.0, generate_report=True, log_root=None):
+    def __init__(self, output_dir, poll_interval=1.0, generate_report=True, log_root=None, enabled=True):
         self.output_dir = output_dir
+        self.enabled = enabled
         self.poll_interval = max(0.1, float(poll_interval))
         self.generate_report = generate_report
         self.log_root = log_root
@@ -87,6 +90,8 @@ class ResourceMonitor:
         Args:
             bash_pid (int): PID of the bash process running the kernel script.
         """
+        if not self.enabled:
+            return
         self._bash_pid = bash_pid
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
@@ -518,18 +523,20 @@ def _plot_cpu_time(rows, out_dir, plt, ticker):
     """
     t0 = min(r["ts"] for r in rows)
 
-    # Collect all unique timestamps and sort them
-    all_ts = sorted(set(r["ts"] for r in rows))
-
     # Group rows by (tool, ts, pid) and keep max cpu_time per pid
     # Build: tool -> {pid -> best_cpu_time} updated over time
     tool_ts_map = defaultdict(list)  # tool -> [(t_rel, total_cpu_time)]
     tool_pid_hwm = defaultdict(dict)  # tool -> {pid -> max(user+sys)}
 
-    for ts in all_ts:
+    # Group rows by timestamp once up front; filtering the full row list per
+    # timestamp is O(T*N) and dominates report generation on long runs.
+    rows_by_ts = defaultdict(list)
+    for r in rows:
+        rows_by_ts[r["ts"]].append(r)
+
+    for ts in sorted(rows_by_ts):
         # Update high-water marks from rows at this timestamp
-        ts_rows = [r for r in rows if r["ts"] == ts]
-        for r in ts_rows:
+        for r in rows_by_ts[ts]:
             cpu_total = r["cpu_user"] + r["cpu_sys"]
             tool = r["tool"]
             pid = r["pid"]

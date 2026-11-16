@@ -10,6 +10,7 @@ __all__ = [
     'get_xref_df',
     'write_summary_levels',
     'write_mapping_file',
+    'get_summary_map_fp',
     'calculated_summary_cols'
 ]
 
@@ -45,7 +46,7 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
-from oasislmf.pytools.common.data import gul_summary_xref_dtype, fm_summary_xref_dtype
+from oasislmf.pytools.common.data import building_count_dtype, gul_summary_xref_dtype, fm_summary_xref_dtype
 from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
 
@@ -64,9 +65,49 @@ MAP_SUMMARY_DTYPES = {
     'tiv': 'float',
     'building_id': 'int',
     'risk_id': 'int',
+    # Needed by _location_tiv_total: a packed location contributes one row standing for N
+    # buildings, and the map is filtered to these columns before that sum is taken. Dropping it
+    # here silently reports one building's share as the location's TIV. Maps written before
+    # building packing do not carry it, hence the intersection at every read site.
+    # by name: set_dataframe_column_dtypes looks these up as strings in PANDAS_BASIC_DTYPES
+    'number_of_buildings': building_count_dtype.name,
 }
 
 logger = logging.getLogger(__name__)
+
+
+def _building_count(df):
+    """Per-row building count, as a multiplier for a row's one-building ``tiv``.
+
+    The column is absent from a summary map written before building packing existed, and from a
+    map assembled by hand. Absent means no packing, so the count is 1 and every sum below is
+    what it was.
+
+    Args:
+        df (pandas.DataFrame): a summary map, or a frame derived from one.
+
+    Returns:
+        pandas.Series | int: the per-row count, or 1 when the map does not carry it.
+    """
+    return df['number_of_buildings'] if 'number_of_buildings' in df.columns else 1
+
+
+def _location_tiv_total(map_df):
+    """Total insured value across a summary map, counting each location's buildings once.
+
+    ``tiv`` on the map is one building's share. Under row disaggregation the buildings are
+    separate rows and de-duplication keeps them all; under building packing one row stands for
+    ``number_of_buildings`` of them, so the count has to be multiplied back in. It is 1 in every
+    other mode, which makes this the same sum as before.
+
+    Args:
+        map_df (pandas.DataFrame): a gul or fm summary map.
+
+    Returns:
+        float: the total insured value.
+    """
+    deduped = map_df.drop_duplicates(['building_id', 'loc_id', 'coverage_type_id'], keep='first')
+    return (deduped['tiv'] * _building_count(deduped)).sum()
 
 
 def get_useful_summary_cols(oed_hierarchy):
@@ -87,6 +128,7 @@ def get_useful_summary_cols(oed_hierarchy):
         'coverage_type_id',
         'tiv',
         'building_id',
+        'number_of_buildings',
         'risk_id',
         'intensity_adjustment',
         'return_period'
@@ -150,7 +192,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
         **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
         **{t: 'uint8' for t in ['coverage_type_id']},
         **{t: 'uint32' for t in [SOURCE_IDX['loc'], SOURCE_IDX['acc'], 'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id',
-                                 'building_id', 'risk_id']},
+                                 'building_id', 'number_of_buildings', 'risk_id']},
         **{t: 'float64' for t in ['tiv']}
     }
     summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
@@ -211,6 +253,8 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     to_calculate_column = [c for c in oed_cols if c in calculated_summary_cols]
 
     tiv_cols = ['tiv', 'loc_id', 'building_id', 'coverage_type_id']
+    if 'number_of_buildings' in summary_map_df.columns:
+        tiv_cols.append('number_of_buildings')
 
     # Extract mapped_cols from summary_map_df
     summary_group_df = summary_map_df.loc[:, list(set(tiv_cols).union(mapped_cols))]
@@ -235,8 +279,14 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True, kind='stable')
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
+    # A row's tiv is one building's share, and under building packing a location contributes ONE
+    # row standing for number_of_buildings of them -- de-duplication cannot recover the rest, as it
+    # does under row disaggregation where each building is its own row. Multiplying restores the
+    # location total in every mode; the count is 1 unless the buildings are packed.
     summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'building_id', 'coverage_type_id'] + oed_col_group,
-                                                   keep='first').groupby(oed_col_group, observed=True).agg({'tiv': "sum"})
+                                                   keep='first').copy()
+    summary_tiv['tiv'] = summary_tiv['tiv'] * _building_count(summary_tiv)
+    summary_tiv = summary_tiv.groupby(oed_col_group, observed=True).agg({'tiv': "sum"})
 
     return summary_ids[0], summary_ids[1], summary_tiv
 
@@ -318,16 +368,17 @@ def _default_csv_chunksize(n_rows):
 
 
 @oasis_log
-def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
+def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False, intermediary_csv=False):
     """Writes a summary map file, used to build summarycalc xref files.
 
     Args:
         sum_inputs_df (pandas.DataFrame): dataframe return from get_summary_mapping
         target_dir (str): directory the summary map file is written to
         is_fm_summary (bool): Indicates whether an FM summary mapping is required
+        intermediary_csv (bool): If True, also write a csv copy of the summary map
 
     Returns:
-        str: Summary xref file path
+        str: Summary map file path
     """
     target_dir = as_path(
         target_dir,
@@ -336,24 +387,35 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
         preexists=False
     )
 
-    chunksize = _default_csv_chunksize(len(sum_inputs_df))
-
-    if is_fm_summary:
-        sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['fm_map_fn'])
+    map_fn = SUMMARY_MAPPING['fm_map_fn'] if is_fm_summary else SUMMARY_MAPPING['gul_map_fn']
+    if map_fn.endswith('.parquet'):
+        sum_mapping_fp = write_df_to_parquet_file(sum_inputs_df, target_dir, map_fn)
+        if intermediary_csv:
+            write_df_to_csv_file(sum_inputs_df, target_dir, pathlib.Path(map_fn).with_suffix('.csv').name)
     else:
-        sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['gul_map_fn'])
-    try:
-        sum_inputs_df.to_csv(
-            path_or_buf=sum_mapping_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(sum_mapping_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
-    except (IOError, OSError) as e:
-        raise OasisException("Exception raised in 'write_mapping_file'", e)
+        sum_mapping_fp = write_df_to_csv_file(sum_inputs_df, target_dir, map_fn)
 
     return sum_mapping_fp
+
+
+def get_summary_map_fp(input_dir, map_fn):
+    """Return the path of a summary map file, falling back to the same file
+    in the other supported format (parquet or csv) if it is not present,
+    e.g. inputs generated by older versions of oasislmf.
+
+    Args:
+        input_dir (str): directory containing the summary map file
+        map_fn (str): summary map file name, from SUMMARY_MAPPING
+
+    Returns:
+        str: Summary map file path
+    """
+    map_fp = pathlib.Path(input_dir, map_fn)
+    if not map_fp.exists():
+        alt_fp = map_fp.with_suffix('.csv' if map_fp.suffix == '.parquet' else '.parquet')
+        if alt_fp.exists():
+            return str(alt_fp)
+    return str(map_fp)
 
 
 def get_column_selection(summary_set):
@@ -589,7 +651,7 @@ def get_summary_xref_df(
             summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
             summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv',
-                                          value=map_df.drop_duplicates(['building_id', 'loc_id', 'coverage_type_id'], keep='first').tiv.sum())
+                                          value=_location_tiv_total(map_df))
         else:
             (
                 summary_set_df['summary_id'],
@@ -658,7 +720,7 @@ def generate_summaryxref_files(
     ])
 
     # Verify account file + il_map file
-    il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
+    il_map_fp = get_summary_map_fp(os.path.join(model_run_fp, 'input'), SUMMARY_MAPPING['fm_map_fn'])
     if il_summaries or ri_summaries or rl_summaries:
         if account_df is None:
             raise OasisException('No account file found.')
@@ -681,7 +743,7 @@ def generate_summaryxref_files(
             gul_map_df['item_id'] = gul_map_df['agg_id']
 
     elif gul_summaries:
-        gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
+        gul_map_fp = get_summary_map_fp(os.path.join(model_run_fp, 'input'), SUMMARY_MAPPING['gul_map_fn'])
         gul_map_df = get_dataframe(
             src_fp=gul_map_fp,
             lowercase_cols=False,
@@ -715,7 +777,7 @@ def generate_summaryxref_files(
 
     if il_summaries:
         # Load FM summary map
-        il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
+        il_map_fp = get_summary_map_fp(os.path.join(model_run_fp, 'input'), SUMMARY_MAPPING['fm_map_fn'])
         il_map_df = get_dataframe(
             src_fp=il_map_fp,
             lowercase_cols=False,
@@ -745,7 +807,7 @@ def generate_summaryxref_files(
 
     if ri_summaries or rl_summaries:
         if ('il_summaries' not in analysis_settings) or (not il_summaries):
-            il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
+            il_map_fp = get_summary_map_fp(os.path.join(model_run_fp, 'input'), SUMMARY_MAPPING['fm_map_fn'])
             il_map_df = get_dataframe(
                 src_fp=il_map_fp,
                 lowercase_cols=False,
@@ -1118,17 +1180,21 @@ def write_gul_errors_map(
         exposure_df,
         keys_errors_df,
         exposure_profile,
+        intermediary_csv=False,
 ):
-    """Create csv file to help map keys errors back to original exposures.
+    """Create parquet file to help map keys errors back to original exposures.
 
     Args:
-        target_dir (str): directory on disk to write csv file
+        target_dir (str): directory on disk to write parquet file
         exposure_df (pandas.DataFrame): source exposure dataframe
         keys_errors_df (pandas.DataFrame): keys errors dataframe
         exposure_profile (dict): profile defining exposure file
+        intermediary_csv (bool): If True, also write a csv copy of the errors map
+
+    Returns:
+        str: gul errors map file path
     """
     cols = ['loc_id', 'PortNumber', 'AccNumber', 'LocNumber', 'peril_id', 'coverage_type_id', 'tiv', 'status', 'message']
-    gul_error_map_fp = os.path.join(target_dir, 'gul_errors_map.csv')
 
     exposure_id_cols = ['loc_id', 'PortNumber', 'AccNumber', 'LocNumber']
     keys_error_cols = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
@@ -1153,8 +1219,16 @@ def write_gul_errors_map(
         )
     gul_inputs_errors_df['tiv'] = gul_inputs_errors_df['tiv'].fillna(0.0)
 
-    out_df = gul_inputs_errors_df[[c for c in cols if c in gul_inputs_errors_df.columns]]
-    out_df.to_csv(gul_error_map_fp, index=False, chunksize=_default_csv_chunksize(len(out_df)))
+    out_df = gul_inputs_errors_df[[c for c in cols if c in gul_inputs_errors_df.columns]].copy()
+    # OED id columns can hold mixed types, which parquet cannot store in a single column.
+    # Only cast non-null values: astype(str) turns NaN/None into 'nan'/'None' on pandas < 3
+    str_cols = [c for c in ['PortNumber', 'AccNumber', 'LocNumber', 'peril_id', 'status', 'message'] if c in out_df.columns]
+    for c in str_cols:
+        out_df[c] = out_df[c].where(out_df[c].isna(), out_df[c].astype(str))
+    gul_error_map_fp = write_df_to_parquet_file(out_df, target_dir, 'gul_errors_map.parquet')
+    if intermediary_csv:
+        write_df_to_csv_file(out_df, target_dir, 'gul_errors_map.csv')
+    return gul_error_map_fp
 
 
 @oasis_log
@@ -1164,7 +1238,8 @@ def write_exposure_summary(
         keys_fp,
         keys_errors_fp,
         exposure_profile,
-        additional_fields=[]
+        additional_fields=[],
+        intermediary_csv=False,
 ):
     """Create exposure summary as dictionary of TIVs and number of locations
     grouped by peril and validity respectively. Writes dictionary as json file
@@ -1177,6 +1252,7 @@ def write_exposure_summary(
         keys_errors_fp (str): file path to keys errors file
         exposure_profile (dict): profile defining exposure file
         additional_fields (list[str]): list of additional OED fields to add to exposure summary file
+        intermediary_csv (bool): If True, also write a csv copy of the gul errors map
 
     Returns:
         str: Exposure summary file path
@@ -1204,7 +1280,7 @@ def write_exposure_summary(
         else:
             keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
         if not keys_errors_df.empty:
-            write_gul_errors_map(target_dir, exposure_df, keys_errors_df, exposure_profile)
+            write_gul_errors_map(target_dir, exposure_df, keys_errors_df, exposure_profile, intermediary_csv=intermediary_csv)
 
     # concatinate keys responses & run
     df_keys = pd.concat([keys_success_df, keys_errors_df])

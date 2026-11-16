@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import zlib
 import numba as nb
 import numpy as np
 
@@ -31,9 +32,54 @@ null_index = oasis_int.type(-1)
 # A default buffer size for nd arrays to be initialised to
 DEFAULT_BUFFER_SIZE = int(os.environ.get('OASIS_DEFAULT_BUFFER_SIZE', 1_000_000))
 
+# Written beside the fm input files by IL generation, read by the financial module. Absent means
+# no packed buildings. A .bin so the *.bin globs that stage and tar the fm inputs pick it up.
+FM_STRUCTURE_INFO_FILE = 'fm_structure_info.bin'
+
 # Mean type numbers for outputs (SampleType)
 MEAN_TYPE_ANALYTICAL = 1
 MEAN_TYPE_SAMPLE = 2
+
+
+def is_first_entry_zlib_compressed(data, index):
+    """Whether the first entry decompresses cleanly with zlib, as csvtobin writes when zipping
+    data under uncompressed file names (footprint and vulnerability both use this to detect it).
+    Checked on the first entry only: a complete zlib stream (header, deflate data and adler32
+    checksum) cannot realistically occur in uncompressed data.
+
+    Args:
+        data: bytes-like object (mmap.mmap or an np.ndarray of bytes) holding the file's data
+        index (np.ndarray): index entries, each with 'offset' and 'size' fields
+
+    Returns: (bool) True if the first entry is zlib compressed
+    """
+    if len(index) == 0:
+        return False
+    first = index[0]
+    try:
+        zlib.decompress(bytes(data[int(first['offset']): int(first['offset']) + int(first['size'])]))
+    except zlib.error:
+        return False
+    return True
+
+
+def memmap_or_empty(file_obj, dtype):
+    """Memory-map an open file as `dtype`, or return a 0-length array of that dtype for a 0-byte
+    file -- np.memmap raises "cannot mmap an empty file" for one (e.g. an idx file written for
+    zero rows/events).
+    """
+    if os.fstat(file_obj.fileno()).st_size == 0:
+        return np.empty(0, dtype=dtype)
+    return np.memmap(file_obj, dtype=dtype, mode='r')
+
+
+def memmap_or_empty_path(path, dtype):
+    """Path-based variant of memmap_or_empty, for callers that memory-map a path directly
+    instead of an open file object.
+    """
+    if os.path.getsize(path) == 0:
+        return np.empty(0, dtype=dtype)
+    return np.memmap(path, dtype=dtype, mode='r')
 
 
 def generate_output_metadata(output):
@@ -92,7 +138,7 @@ deductible1 = ("deductible1", oasis_float, "%f")
 deductible2 = ("deductible2", oasis_float, "%f")
 deductible3 = ("deductible3", oasis_float, "%f")
 event_id = ("event_id", 'i4', "%d")
-factor = ("factor", 'f4', "%.2f")  # Amplification factor
+factor = ("factor", 'f4', "%f")  # Amplification factor
 from_agg_id = ("from_agg_id", 'i4', "%d")
 group_id = ("group_id", 'u4', "%u")
 hazard_correlation_value = ("hazard_correlation_value", oasis_float, "%f")
@@ -108,6 +154,18 @@ limit1 = ("limit1", oasis_float, "%f")
 limit2 = ("limit2", oasis_float, "%f")
 loss = ("loss", oasis_float, "%.2f")
 model_data_len = ("model_data_len", 'u4', "%u")
+# A building count, wherever one is held: coverage_buildings and fm_structure_info on disk, the
+# summary maps, generation's frames, and the per-item arrays of gulpy, gulmc, fmpy and summarypy.
+# Every one of them takes its type from here, so they cannot drift apart. Fixed rather than
+# oasis_int because it is part of on-disk records whose layout must not follow OASIS_INT.
+number_of_buildings = ("number_of_buildings", 'i4', "%d")
+building_count_dtype = np.dtype(number_of_buildings[DTYPE_IDX])
+# signed: magnitude is the building count, negative means the buildings stay separate. Lives on
+# the coverage because that is where it is true -- buildings belong to the LOCATION, so every
+# coverage of one, and every item of those coverages, carries the same value.
+n_building = ("n_building", number_of_buildings[DTYPE_IDX], "%d")
+site_collapse_level = ("site_collapse_level", 'i4', "%d")
+max_buildings = ("max_buildings", number_of_buildings[DTYPE_IDX], "%d")
 occ_date_id = ("occ_date_id", 'i4', "%d")
 occ_date_id_granular = ("occ_date_id", 'i8', "%d")
 output_id = ("output_id", 'i4', "%d")
@@ -189,11 +247,56 @@ correlations_output = [
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
 
+# One record. site_collapse_level is the last fm level whose aggregation key includes risk_id --
+# packed buildings collapse after it, and 0 means there is no such level. max_buildings sizes the
+# computation arrays.
+total_packed_buildings = ("total_packed_buildings", number_of_buildings[DTYPE_IDX], "%d")
+# The arena's packed allowance, summed over the packable levels at generation time where the
+# per-node building counts exist. 0 means "not recorded" and the reader falls back to the
+# total-times-levels bound, which over-reserves by about 2-3x on an aggregate-heavy book.
+packed_node_slots = ("packed_node_slots", 'i8', "%d")
+fm_structure_info_output = [
+    site_collapse_level,
+    max_buildings,
+    total_packed_buildings,
+    packed_node_slots,
+]
+fm_structure_info_headers, fm_structure_info_dtype, fm_structure_info_fmt = generate_output_metadata(
+    fm_structure_info_output)
+
 coverages_output = [
     coverage_id,
     tiv,
 ]
 coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(coverages_output)
+
+# The per-coverage building count, in a file of its OWN rather than a field on coverages.bin.
+#
+# coverages.bin is a published input format: it is documented as internal data for gulpy and
+# fmpy, and third-party models read it directly -- PiWindComplexModel does, as a bare float32
+# array. Widening its record would have gone unnoticed by every such reader, which would then
+# take alternate words as TIVs. It carries no magic and coverage_id is positional, so there is
+# nowhere to put a version marker either. So the count lives beside it.
+#
+# coverage_id is stored rather than implied, unlike coverages.bin: it costs 4 bytes a coverage
+# and makes a truncated or mis-ordered file detectable, where a positional file would silently
+# shift every record after the gap.
+#
+# n_building is SIGNED. The magnitude is how many buildings the coverage's location carries; a
+# negative sign means they must reach the financial module as separate blocks, and 1 is the
+# unpacked identity. Never use it raw as a bound -- range() over a negative silently does
+# nothing.
+#
+# coverages.bin's tiv is ONE building's share in every mode but none; a location's TIV is
+# tiv * |n_building|. See "Building Packing > TIV" in pytools/fm/TECHNICAL.md for which nodes
+# owe which.
+COVERAGE_BUILDINGS_FILE = 'coverage_buildings'
+coverage_buildings_output = [
+    coverage_id,
+    n_building,
+]
+(coverage_buildings_headers, coverage_buildings_dtype,
+ coverage_buildings_fmt) = generate_output_metadata(coverage_buildings_output)
 
 damagebin_output = [
     bin_index,
@@ -409,21 +512,34 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     useful for multi-columns files
 
     Args:
-        dir_path: path to the directory where the binary or csv file is stored
+        dir_path: path to the directory where the binary, parquet or csv file is stored
         name: name of the file
         _dtype: np.dtype
         must_exist: raise FileNotFoundError if no file is present
-        col_map: name re-mapping to change name of csv columns
+        col_map: name re-mapping to change name of csv or parquet columns
     Returns:
         numpy ndarray
     """
+    if col_map is None:
+        col_map = {}
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
         return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
+    elif os.path.isfile(os.path.join(dir_path, name + '.parquet')):
+        import pyarrow.parquet as pq
+        filepath = os.path.join(dir_path, name + '.parquet')
+        file_cols = set(pq.read_schema(filepath).names)
+        read_cols = {field_name: col_map.get(field_name, field_name) for field_name in _dtype.names}
+        missing = [col for col in read_cols.values() if col not in file_cols]
+        if missing:
+            raise OasisException(f"columns expected in {filepath} but not found: {missing}")
+        df = pq.read_table(filepath, columns=list(set(read_cols.values()))).to_pandas()
+        result = np.empty(len(df), dtype=_dtype)
+        for field_name, col in read_cols.items():
+            result[field_name] = df[col].to_numpy()
+        return result
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
         # in csv column can be out of order and have different name,
         # col_map maps {dtype_field_name: csv_header_name}
-        if col_map is None:
-            col_map = {}
         filepath = os.path.join(dir_path, name + '.csv')
         with open(filepath) as file_in:
             header = {h.strip(): i for i, h in enumerate(file_in.readline().split(','))}

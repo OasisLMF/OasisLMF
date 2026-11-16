@@ -10,18 +10,22 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
-from oasislmf.pytools.common.data import (correlations_headers, correlations_dtype, amplifications_dtype, items_dtype,
+from oasislmf.pytools.common.data import (building_count_dtype, correlations_headers, correlations_dtype, amplifications_dtype, items_dtype,
+                                          COVERAGE_BUILDINGS_FILE, coverage_buildings_dtype,
+                                          coverage_buildings_headers,
                                           coverages_dtype, item_adjustment_dtype,
                                           complex_items_meta_dtype,
                                           item_id, coverage_id, group_id, section_id,
                                           DTYPE_IDX)
 from oasislmf.pytools.converters.csvtobin.utils import complex_items_write_bin, amplifications_write_bin
 from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
-from oasislmf.utils.data import assign_risk_ids, merge_dataframes, structured_dtype_to_pandas
-from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
+from oasislmf.utils.data import (assign_risk_ids, merge_dataframes, resolve_disaggregation,
+                                 structured_dtype_to_pandas)
+from oasislmf.utils.defaults import (CORRELATION_GROUP_ID, DISAGGREGATION_ITEMS,
+                                     DISAGGREGATION_NONE, DISAGGREGATION_SAMPLES,
                                      DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
-                                     OASIS_FILES_PREFIXES, SOURCE_IDX,
+                                     OASIS_FILES_PREFIXES, SOURCE_IDX, WRITE_CHUNKSIZE,
                                      get_default_exposure_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
@@ -30,7 +34,6 @@ from oasislmf.utils.path import as_path
 from oasislmf.utils.profiles import get_grouped_fm_profile_by_level_and_term_group, get_oed_hierarchy
 
 pd.options.mode.chained_assignment = None
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,118 @@ VALID_OASIS_GROUP_COLS = [
 
 PERIL_CORRELATION_GROUP_COL = 'peril_correlation_group'
 
+ITEM_KEY_COLS = [
+    'areaperil_id',
+    'vulnerability_id',
+    'amplification_id',
+    'intensity_adjustment',
+    'return_period',
+    'model_data',
+]
+
+KEYS_COLUMN_RENAME = {
+    'perilid': 'peril_id',
+    'coveragetypeid': 'coverage_type_id',
+    'areaperilid': 'areaperil_id',
+    'vulnerabilityid': 'vulnerability_id',
+    'amplificationid': 'amplification_id',
+    'modeldata': 'model_data',
+    'intensityadjustment': 'intensity_adjustment',
+    'returnperiod': 'return_period'
+}
+
+
+def check_has_loc_id(df, name):
+    """Raise if ``df`` has no ``loc_id`` column to join the keys and locations on.
+
+    Args:
+        df (pandas.DataFrame): the keys or location dataframe
+        name (str): which of the two ``df`` is, for the error message
+    """
+    if 'loc_id' not in df:
+        raise OasisException(
+            f"The {name} dataframe has no 'loc_id' column to join the keys and locations on. "
+            f"Columns found: {sorted(df.columns)}")
+
+
+def merge_item_key_rows(gul_inputs_df):
+    """Combine the keys rows that share an item_id before the item is reduced to one row.
+
+    A key server may return several rows for the same (location, peril, coverage type,
+    building), one per section the location falls in. Only one row per item is kept, so
+    the sections of the other rows are joined into the kept row's ``section_id`` with
+    ``;``, the format ``prepare_sections_df`` splits when building sections.csv.
+
+    Rows of one item that also differ in a key field (areaperil, vulnerability,
+    amplification, intensity adjustment, return period or model data) cannot be combined
+    into one item. They are reported in a warning and only the rows matching the first
+    row's key fields contribute sections.
+
+    Args:
+        gul_inputs_df (pandas.DataFrame): GUL inputs with an ``item_id`` column
+
+    Returns:
+        pandas.DataFrame: ``gul_inputs_df`` with ``section_id`` combined across the rows
+        of each item
+
+    Raises:
+        OasisException: if an item with several keys rows has a missing or non-numeric
+        ``section_id``
+    """
+    dup_mask = gul_inputs_df.duplicated(subset='item_id', keep=False).to_numpy()
+    if not dup_mask.any():
+        return gul_inputs_df
+
+    dups = gul_inputs_df.loc[dup_mask]
+
+    key_cols = [col for col in ITEM_KEY_COLS if col in dups]
+    if key_cols:
+        key_group = dups.groupby(['item_id'] + key_cols, sort=False, dropna=False).ngroup()
+        matches_first = (key_group == key_group.groupby(dups['item_id'].to_numpy()).transform('first')).to_numpy()
+        conflict_items = dups.loc[~matches_first, 'item_id'].unique()
+        if len(conflict_items):
+            first_rows = dups.drop_duplicates('item_id').set_index('item_id')
+            examples = dups[dups['item_id'].isin(conflict_items[:5])]
+            n_values = examples.groupby('item_id', sort=False)[key_cols].nunique(dropna=False)
+            detail = "; ".join(
+                f"loc_id {first_rows.at[item, 'loc_id']} peril {first_rows.at[item, 'peril_id']} "
+                f"coverage type {first_rows.at[item, 'coverage_type_id']} "
+                f"building {first_rows.at[item, 'building_id']}: differing "
+                f"{', '.join(col for col in key_cols if n_values.at[item, col] > 1)}"
+                for item in conflict_items[:5])
+            logger.warning(
+                "keys: %d item(s) have several keys rows that differ in more than section_id; only "
+                "the first row of each and the rows with the same key fields are used, so the "
+                "others' areaperil/vulnerability and sections are ignored. "
+                "Check the lookup for these items (%s)", len(conflict_items), detail)
+        section_rows = dups.loc[matches_first]
+    else:
+        section_rows = dups
+
+    if 'section_id' in dups:
+        sections = (
+            section_rows[['item_id']]
+            .assign(section_id=section_rows['section_id'].astype(str).str.split(';'))
+            .explode('section_id')
+        )
+        numeric = pd.to_numeric(sections['section_id'], errors='coerce')
+        invalid = numeric.isna()
+        if invalid.any():
+            bad = sections.loc[invalid].drop_duplicates()
+            raise OasisException(
+                f"keys: {invalid.sum()} section_id value(s) are missing or not integers for items with "
+                f"several keys rows, e.g. "
+                f"{', '.join(f'item {i}: {v!r}' for i, v in bad.head(5).itertuples(index=False))}")
+        sections['section_id'] = numeric.astype('int64')
+        sections = sections.drop_duplicates().sort_values(['item_id', 'section_id'], kind='stable')
+        combined = (sections['section_id'].astype(str)
+                    .groupby(sections['item_id'], sort=False).agg(';'.join))
+        section_ids = gul_inputs_df['section_id'].astype(str)
+        section_ids.loc[dup_mask] = dups['item_id'].map(combined).to_numpy()
+        gul_inputs_df = gul_inputs_df.assign(section_id=section_ids)
+
+    return gul_inputs_df
+
 
 def prepare_sections_df(gul_inputs_df):
     sections = gul_inputs_df.loc[:, ['section_id']].drop_duplicates()
@@ -56,7 +171,51 @@ def prepare_sections_df(gul_inputs_df):
 
 
 def coverages_write_gul_bin(data, file_path, dtype):
-    df_to_ndarray(data, dtype)["tiv"].tofile(file_path)
+    """Write coverages.bin: one tiv per coverage, in coverage_id order.
+
+    coverage_id is the record's POSITION rather than a stored field, so a coverage missing from
+    the frame would silently shift every record after it and every reader would take the wrong
+    tiv. The file is a published format that third-party models parse directly, so it holds the
+    tiv and nothing else -- the building count goes to coverage_buildings, see
+    write_coverage_buildings.
+    """
+    df_to_ndarray(data, dtype)['tiv'].tofile(file_path)
+
+
+def write_coverage_buildings(gul_inputs_df, target_dir, intermediary_csv=False, chunksize=WRITE_CHUNKSIZE):
+    """Write the per-coverage building count, when there is anything to say.
+
+    Written only when some coverage carries more than one building: an unpacked input set has
+    nothing to record, and emitting an all-ones file for every model would make a file that is
+    almost always noise. The readers treat absence as all-ones, which is the same path packing
+    takes with N == 1.
+
+    coverage_id is stored rather than positional here, unlike coverages.bin -- 4 bytes a coverage
+    to make a truncated file detectable rather than silently shifted.
+
+    Args:
+        gul_inputs_df (pd.DataFrame): the GUL inputs frame, carrying coverage_id and n_building.
+        target_dir (str): directory to write into.
+        intermediary_csv (bool): also write the csv form.
+        chunksize (int): chunk size for writing the csv.
+
+    Returns:
+        str | None: the path written, or None when there was nothing to write.
+    """
+    if 'n_building' not in gul_inputs_df.columns:
+        return None
+    data = (gul_inputs_df[list(coverage_buildings_headers)]
+            .drop_duplicates(subset='coverage_id')
+            .sort_values('coverage_id'))
+    if data.empty or int(data['n_building'].abs().max()) <= 1:
+        return None
+
+    file_path = os.path.join(target_dir, f'{COVERAGE_BUILDINGS_FILE}.bin')
+    df_to_ndarray(data, coverage_buildings_dtype).tofile(file_path)
+    if intermediary_csv:
+        write_file(data, os.path.join(target_dir, f'{COVERAGE_BUILDINGS_FILE}.csv'),
+                   structured_dtype_to_pandas(coverage_buildings_dtype), chunksize=chunksize)
+    return file_path
 
 
 def complex_items_write_gul_bin(data, file_path, dtype):
@@ -92,7 +251,7 @@ files_write_info = {
                  "prepare_data": prepare_sections_df,
                  "required_col": {'section_id'}},
     'item_adjustments': {"csv_dtype": structured_dtype_to_pandas(item_adjustment_dtype),
-                         "required_col": {'intensity_adjustment'}}
+                         "required_col": {'intensity_adjustment'}},
 }
 
 
@@ -120,6 +279,40 @@ def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_gr
         group_id_cols.append(PERIL_CORRELATION_GROUP_COL)
 
     return group_id_cols
+
+
+BUILDING_LEVEL_GROUP_COLS = ('building_id', 'risk_id')
+
+
+def warn_if_building_group_cols_are_inert(damage_group_id_cols, hazard_group_id_cols, disaggregation):
+    """Warn when a building-level group field cannot do anything in the chosen mode.
+
+    Under ``samples`` a location keeps one item and ``building_id`` is pinned to 1, so a
+    building-level field is consumed by the hash and changes nothing. The buildings are already
+    independent -- each draws its own random block -- which is the opposite of what a reader of
+    the setting expects it to be arranging. Silence here is the dangerous outcome: the run
+    succeeds, the losses look reasonable, and a correlation assumption the modeller configured
+    has quietly stopped applying.
+
+    A warning rather than an error. The run is correct; it is the setting that has become
+    meaningless, and a model carrying it for ``items`` use must keep working.
+
+    Args:
+        damage_group_id_cols (list[str] | None): resolved damage group columns.
+        hazard_group_id_cols (list[str] | None): resolved hazard group columns.
+        disaggregation (str | None): the resolved disaggregation mode.
+    """
+    if disaggregation != DISAGGREGATION_SAMPLES:
+        return
+    for name, cols in (('damage', damage_group_id_cols), ('hazard', hazard_group_id_cols)):
+        inert = sorted(set(cols or ()).intersection(BUILDING_LEVEL_GROUP_COLS))
+        if inert:
+            warnings.warn(
+                f"{', '.join(inert)} in the {name} group fields has no effect under "
+                f"--disaggregation samples: a location keeps one item and its buildings already "
+                f"draw independently of each other. Use --disaggregation items to group on "
+                f"buildings, or --disaggregation none for buildings that move together."
+            )
 
 
 def resolve_zero_tiv_dependency_sources(gul_inputs_df, coverage_dependency_settings):
@@ -204,6 +397,42 @@ def validate_single_source_per_coverage(gul_inputs_df):
         )
 
 
+def validate_source_and_dependent_building_counts(gul_inputs_df):
+    """Check that a dependent item and its source pack the same number of buildings.
+
+    gulmc drives building b of a dependent from building b of its source, so the pairing is only
+    meaningful if the two items carry the same count. A dependent and its source share a location,
+    so this holds by construction; a mismatch means the link was resolved across locations, and the
+    per-building correspondence would be silently wrong rather than detectably so.
+
+    Args:
+        gul_inputs_df (pandas.DataFrame): GUL input items, carrying columns source_item_id, item_id
+            and (when disaggregation packs buildings) number_of_buildings.
+
+    Raises:
+        OasisException: if any linked item's building count differs from its source's.
+    """
+    if 'number_of_buildings' not in gul_inputs_df.columns:
+        return
+    linked_mask = gul_inputs_df['source_item_id'] > 0
+    if not linked_mask.any():
+        return
+    # first-occurrence view: duplicate item_id labels cannot be reindexed against
+    item_to_buildings = gul_inputs_df.drop_duplicates(subset='item_id').set_index('item_id')['number_of_buildings']
+    linked = gul_inputs_df.loc[linked_mask, ['item_id', 'source_item_id', 'number_of_buildings']]
+    source_buildings = item_to_buildings.reindex(linked['source_item_id'].to_numpy()).to_numpy()
+    # a source_item_id with no matching item is a different fault; leave it to whatever owns that
+    known = ~pd.isna(source_buildings)
+    mismatch = known & (source_buildings != linked['number_of_buildings'].to_numpy())
+    if mismatch.any():
+        sample = linked.loc[mismatch, ['item_id', 'source_item_id']].head(5).to_dict('records')
+        raise OasisException(
+            f"coverage dependency: {int(mismatch.sum())} item(s) pack a different number of "
+            f"buildings than the source item they depend on, so building b of the dependent has "
+            f"no building b in the source. First few: {sample}."
+        )
+
+
 @oasis_log
 def get_gul_input_items(
     location_df,
@@ -213,7 +442,7 @@ def get_gul_input_items(
     exposure_profile=get_default_exposure_profile(),
     damage_group_id_cols=None,
     hazard_group_id_cols=None,
-    do_disaggregation=True,
+    disaggregation=None,
     coverage_dependency_settings=None
 ):
     """Generates GUL (Ground-Up Loss) input items by combining location and keys data.
@@ -250,7 +479,7 @@ def get_gul_input_items(
 
     Disaggregation:
     ==============
-    When do_disaggregation=True and NumberOfBuildings > 1:
+    When disaggregation=DISAGGREGATION_ITEMS and NumberOfBuildings > 1:
     - TIV is divided by NumberOfBuildings
     - Rows are repeated NumberOfBuildings times
     - Each repeated row gets a unique building_id (1 to NumberOfBuildings)
@@ -270,8 +499,12 @@ def get_gul_input_items(
             via hashing. Default: ['loc_id', 'peril_correlation_group'].
         hazard_group_id_cols (list[str], optional): Columns used to compute hazard_group_id
             via hashing. Default: ['loc_id'].
-        do_disaggregation (bool, optional): If True, split aggregate locations by
-            NumberOfBuildings. Default True.
+        disaggregation (str, optional): where a location's NumberOfBuildings is separated.
+            ``DISAGGREGATION_NONE`` keeps one item holding the whole location;
+            ``DISAGGREGATION_ITEMS`` expands one item per building; ``DISAGGREGATION_SAMPLES``
+            keeps one item per (location, peril, coverage_type) holding TIV / NumberOfBuildings,
+            with the count in a ``number_of_buildings`` column that write_coverage_buildings must
+            write, or the losses come out divided by it. Default ``DISAGGREGATION_SAMPLES``.
         coverage_dependency_settings (list[tuple[int, int]], optional): coverage dependency pairs
             as (source_coverage_type, dependent_coverage_type), from
             model_settings.coverage_dependency_settings. Each dependent item is linked to the
@@ -288,6 +521,8 @@ def get_gul_input_items(
         OasisException: If merge of location and keys data produces empty result.
         OasisException: If all rows have zero TIV after filtering.
     """
+    disaggregation = resolve_disaggregation(disaggregation)
+
     # =========================================================================
     # SETUP PHASE: Load profiles and extract configuration
     # =========================================================================
@@ -320,7 +555,7 @@ def get_gul_input_items(
     tiv_cols = list(set(tiv_col for tiv_col in tiv_terms.values() if tiv_col in location_df.columns))
 
     # Create the basic GUL inputs dataframe from merging the exposure and
-    # keys dataframes on loc. number/loc. ID; filter out any rows with
+    # keys dataframes on loc_id; filter out any rows with
     # zeros for TIVs for all coverage types, and replace any nulls in the
     # cond.num. and TIV columns with zeros
 
@@ -336,9 +571,21 @@ def get_gul_input_items(
     else:
         location_df['NumberOfBuildings'] = location_df['NumberOfBuildings'].fillna(1)
 
+    # Whether a location's buildings must stay separate downstream. The site fm levels aggregate on
+    # ('loc_id', 'risk_id') and assign_risk_ids only gives a building its own risk_id when
+    # IsAggregate == 1, so only then does each building get its own site node carrying
+    # term/NumberOfRisks. Otherwise they share one node and are summed before any term applies, so
+    # the building dimension is already dead and the ground-up tool sums them at source.
+    if disaggregation == DISAGGREGATION_SAMPLES:
+        location_df['keep_buildings_separate'] = (
+            (location_df['IsAggregate'] == 1) & (location_df['NumberOfBuildings'] > 1)
+        ).astype('int8')
+
     # Select only the columns required. This reduces memory use significantly for portfolios
     # that include many OED columns.
     exposure_df_gul_inputs_cols = ['loc_id', portfolio_num, acc_num, loc_num, 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] + tiv_cols
+    if disaggregation == DISAGGREGATION_SAMPLES:
+        exposure_df_gul_inputs_cols.append('keep_buildings_separate')
     if SOURCE_IDX['loc'] in location_df:
         exposure_df_gul_inputs_cols += [SOURCE_IDX['loc']]
 
@@ -376,6 +623,9 @@ def get_gul_input_items(
         elif col not in exposure_df_gul_inputs_cols:
             exposure_df_gul_inputs_cols.append(col)
 
+    # Both lists are resolved by here, so the mode can be checked against them once.
+    warn_if_building_group_cols_are_inert(damage_group_id_cols, hazard_group_id_cols, disaggregation)
+
     # Check if correlation group field is used to drive damage group id
     # and test that it's present and populated with integers
 
@@ -391,6 +641,7 @@ def get_gul_input_items(
     location_df[actual_tiv_cols] = location_df[actual_tiv_cols].fillna(0.0)
     location_df = location_df[(location_df[actual_tiv_cols] != 0).any(axis=1)]
 
+    check_has_loc_id(location_df, 'location')
     gul_inputs_df = (location_df[list(set(exposure_df_gul_inputs_cols).intersection(location_df.columns))]
                      .drop_duplicates('loc_id', ignore_index=True))
 
@@ -398,21 +649,13 @@ def get_gul_input_items(
     # MERGE PHASE: Join location data with model keys
     # =========================================================================
     # Keys file uses camelCase headers; rename to snake_case for consistency
+    keys_df.columns = keys_df.columns.str.lower()
     keys_df.rename(
-        columns={
-            'locid': 'loc_id' if 'loc_id' not in keys_df else 'locid',
-            'perilid': 'peril_id',
-            'coveragetypeid': 'coverage_type_id',
-            'areaperilid': 'areaperil_id',
-            'vulnerabilityid': 'vulnerability_id',
-            'amplificationid': 'amplification_id',
-            'modeldata': 'model_data',
-            'intensityadjustment': 'intensity_adjustment',
-            'returnperiod': 'return_period'
-        },
+        columns={'locid': 'loc_id' if 'loc_id' not in keys_df else 'locid', **KEYS_COLUMN_RENAME},
         inplace=True,
         copy=False  # Pandas copies column data by default on rename
     )
+    check_has_loc_id(keys_df, 'keys')
 
     # If the keys file relates to a complex/custom model then look for a
     # ``modeldata`` column in the keys file, and ignore the area peril
@@ -428,12 +671,10 @@ def get_gul_input_items(
     )
     if gul_inputs_df.empty:
         raise OasisException(
-            'Inner merge of the exposure file dataframe '
-            'and the keys file dataframe on loc. number/loc. ID '
-            'is empty - '
-            'please check that the loc. number and loc. ID columns '
-            'in the exposure and keys files respectively have a non-empty '
-            'intersection'
+            "Joining the keys and locations on 'loc_id' matched no row. A keys row joins a "
+            "location when its LocID equals the location's loc_id. Sample keys loc_id values: "
+            f"{keys_df['loc_id'].drop_duplicates().head(5).tolist()}, sample location loc_id values: "
+            f"{location_df['loc_id'].drop_duplicates().head(5).tolist()}"
         )
 
     # Free memory after merge, before memory-intensive restructuring of data
@@ -450,8 +691,10 @@ def get_gul_input_items(
             'tiv_col': tiv_col
         }
 
-    # If disaggregating, divide TIV by NumberOfBuildings before assigning
-    if do_disaggregation:
+    # If disaggregating (or packing), divide TIV by NumberOfBuildings so each building
+    # carries an equal share. In packing mode the single item holds the per-building TIV
+    # and gulmc replicates it across the N building blocks it generates.
+    if disaggregation != DISAGGREGATION_NONE:
         # split TIV
         gul_inputs_df[tiv_cols] = gul_inputs_df[tiv_cols].div(np.maximum(1, gul_inputs_df['NumberOfBuildings']), axis=0)
 
@@ -474,8 +717,16 @@ def get_gul_input_items(
     # =========================================================================
     # For aggregate locations (NumberOfBuildings > 1), create one row per building
     # Each building gets a unique building_id and its share of the TIV
-    if do_disaggregation:
-        repeat_counts = np.maximum(1, gul_inputs_df['NumberOfBuildings'].values).astype(int)
+    if disaggregation == DISAGGREGATION_SAMPLES:
+        # One item per (loc, peril, coverage_type); the buildings ride in the sample dimension
+        # downstream and the per-item count goes to coverage_buildings. building_id stays 1,
+        # so listing it in the group_id columns no longer separates a location's buildings.
+        gul_inputs_df = gul_inputs_df.copy()
+        gul_inputs_df['number_of_buildings'] = np.maximum(
+            1, gul_inputs_df['NumberOfBuildings'].values).astype(building_count_dtype)
+        gul_inputs_df['building_id'] = 1
+    elif disaggregation == DISAGGREGATION_ITEMS:
+        repeat_counts = np.maximum(1, gul_inputs_df['NumberOfBuildings'].values).astype(building_count_dtype)
         # Repeat rows using np.repeat + iloc (faster than iterative expansion)
         gul_inputs_df = gul_inputs_df.iloc[np.repeat(np.arange(len(gul_inputs_df)), repeat_counts)].reset_index(drop=True)
         # Assign building_id: 1, 2, ..., n for each location, by numbering the repeated rows
@@ -485,6 +736,23 @@ def get_gul_input_items(
     else:
         gul_inputs_df = gul_inputs_df.copy()
         gul_inputs_df['building_id'] = 1
+
+    # Both must exist on every path -- il_inputs reads them separately to split the terms.
+    # Outside packing each item is a single building.
+    if 'number_of_buildings' not in gul_inputs_df.columns:
+        gul_inputs_df['number_of_buildings'] = building_count_dtype.type(1)
+    if 'keep_buildings_separate' not in gul_inputs_df.columns:
+        gul_inputs_df['keep_buildings_separate'] = np.int8(0)
+
+    # The wire form for coverages.bin: the two columns above folded into one signed field, so the
+    # count and the keep-separate flag cannot be read apart from each other downstream. A plain
+    # single-building coverage stays +1, exactly as before packing existed. It sits on the COVERAGE
+    # because buildings belong to the location, so every coverage of one carries the same value.
+    gul_inputs_df['n_building'] = np.where(
+        gul_inputs_df['keep_buildings_separate'] == 1,
+        -gul_inputs_df['number_of_buildings'],
+        gul_inputs_df['number_of_buildings'],
+    ).astype('i4')
 
     # =========================================================================
     # ID ASSIGNMENT: Compute item_id, coverage_id, group_id, hazard_group_id
@@ -543,6 +811,7 @@ def get_gul_input_items(
         gul_inputs_df.loc[dep_mask, 'source_item_id'] = merged['_src_item_id'].fillna(0).to_numpy().astype('int32')
 
     validate_single_source_per_coverage(gul_inputs_df)
+    validate_source_and_dependent_building_counts(gul_inputs_df)
 
     # group_id and hazard_group_id: Correlation groups for damage/hazard sampling
     # If the group id is set according to the correlation group field then map this field
@@ -585,6 +854,9 @@ def get_gul_input_items(
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
         # disagg_id is needed for fm_summary_map
         ['group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] +
+        (['number_of_buildings'] if 'number_of_buildings' in gul_inputs_df else []) +
+        (['keep_buildings_separate'] if 'keep_buildings_separate' in gul_inputs_df else []) +
+        ['n_building'] +
         tiv_cols +
         ["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value",
          "source_item_id"]
@@ -593,8 +865,7 @@ def get_gul_input_items(
     usecols = [col for col in usecols if col in gul_inputs_df]
 
     gul_inputs_df = (
-        gul_inputs_df
-        [usecols]
+        merge_item_key_rows(gul_inputs_df[usecols])
         .drop_duplicates(subset='item_id')
         .sort_values("item_id", kind='stable')
         .reset_index()
@@ -617,6 +888,22 @@ def write_file(gul_inputs_df, file_path, file_dtype, chunksize=100000):
         raise OasisException(f"Exception raised while writing {file_path} {file_dtype}", e)
 
     return file_path
+
+
+def build_correlations_frame(gul_inputs_df):
+    """Select the correlations columns.
+
+    The building count used to ride here as a signed ``packed_buildings`` field. It lives on
+    coverages.bin now -- buildings belong to the LOCATION, so the coverage is where the value is
+    actually true, and it keeps the count out of a table that is otherwise about correlation.
+
+    Args:
+        gul_inputs_df (pd.DataFrame): the GUL inputs frame.
+
+    Returns:
+        pd.DataFrame: the correlations columns.
+    """
+    return gul_inputs_df[list(correlations_headers)].copy()
 
 
 @oasis_log
@@ -659,8 +946,9 @@ def write_gul_input_files(
     # write the correlations to a binary file
     if correlations_df is None:
         correlations_df = pd.DataFrame(columns=correlations_headers)
-    correlations_df.to_csv(f"{output_dir}/correlations.csv", index=False)
     df_to_ndarray(correlations_df, correlations_dtype).tofile(f"{output_dir}/correlations.bin")
+    if intermediary_csv:
+        correlations_df.to_csv(f"{output_dir}/correlations.csv", index=False)
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size
@@ -691,5 +979,9 @@ def write_gul_input_files(
             file_path = os.path.join(target_dir, f"{file_name}.csv")
             gul_input_files[fm_name] = file_path
             write_file(data, file_path, file_write_info['csv_dtype'], chunksize=chunksize)
+
+    buildings_path = write_coverage_buildings(gul_inputs_df, target_dir, intermediary_csv, chunksize)
+    if buildings_path is not None:
+        gul_input_files[COVERAGE_BUILDINGS_FILE] = buildings_path
 
     return gul_input_files

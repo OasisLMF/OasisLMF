@@ -177,6 +177,16 @@ def _compile_summarypy():
             files_in=[_DATA_DIR / "input" / "gul.bin"],
             summary_sets_output=["-1", str(Path(tmpdir) / 'gul_S1_summary.bin')]
         )
+        manager.main(
+            create_summarypy_files=False,
+            low_memory=False,
+            output_zeros=False,
+            static_path=_DATA_DIR / "summarypy" / "single_summary_set",
+            run_type="gul",
+            files_in=[_DATA_DIR / "input" / "gul.bin"],
+            summary_sets_output=["-1", str(Path(tmpdir) / 'gul_S1_summary.csv')],
+            ext='csv'
+        )
 
 
 def _compile_eltpy():

@@ -11,6 +11,9 @@ from zlib import decompress
 import numpy as np
 import pandas as pd
 import numba as nb
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
 
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from oasis_data_manager.df_reader.reader import OasisReader
@@ -25,15 +28,50 @@ from .common import (
     parquetfootprint_chunked_dir,
     parquetfootprint_chunked_lookup, footprint_bin_lookup
 )
-from oasislmf.pytools.common.data import footprint_event_dtype, areaperil_int
+from oasislmf.pytools.common.data import (
+    footprint_event_dtype, areaperil_int, memmap_or_empty, is_first_entry_zlib_compressed
+)
 
 logger = logging.getLogger(__name__)
+
+# files of a dynamic footprint's hazard saved for sharing between processes, see FootprintParquetDynamic.save_shared
+SHARED_MANIFEST = 'manifest.json'
+# (required, optional) columns the footprint build uses, the only ones saved; other columns are not needed
+SHARED_HAZARD_CASE_COLUMNS = (['section_id', 'areaperil_id', 'return_period', 'intensity'], ['probability'])
+SHARED_EVENT_DEFINITION_COLUMNS = (['event_id', 'section_id', 'rp_from', 'rp_to', 'interpolation'], [])
 
 uncompressedMask = 1 << 1
 intensityMask = 1
 
 
 CURRENT_DIRECTORY = str(os.getcwd())
+
+
+def select_row_groups(metadata, sorted_areaperil_ids):
+    """Indices of the row groups in a parquet file that may hold one of sorted_areaperil_ids.
+
+    A row group is skipped only if its areaperil_id min/max statistics show it holds none of them.
+    Row groups without statistics are always kept.
+
+    Args:
+        metadata (pyarrow.parquet.FileMetaData): the parquet file's metadata
+        sorted_areaperil_ids (np.array): sorted, unique areaperil_ids being looked for
+
+    Returns: (list[int]) row group indices, in file order
+    """
+    if 'areaperil_id' not in metadata.schema.names:
+        return list(range(metadata.num_row_groups))
+    column = metadata.schema.names.index('areaperil_id')
+    keep = []
+    for i in range(metadata.num_row_groups):
+        stats = metadata.row_group(i).column(column).statistics
+        if stats is None or not stats.has_min_max:
+            keep.append(i)
+            continue
+        j = np.searchsorted(sorted_areaperil_ids, stats.min)
+        if j < len(sorted_areaperil_ids) and sorted_areaperil_ids[j] <= stats.max:
+            keep.append(i)
+    return keep
 
 
 @nb.njit(cache=True)
@@ -147,6 +185,7 @@ class Footprint:
         ignore_file_type=set(),
         df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         areaperil_ids=None,
+        shared_dir=None,
         **kwargs
     ):
         """Loads the loading classes defined in this file checking to see if the files are in the static path
@@ -174,6 +213,9 @@ class Footprint:
 
             df_engine (str): the engine to use when loading dataframes
             areaperil_ids (list): areaperil_ids to filter the loaded footprint to
+            shared_dir (str or None): directory where a dynamic footprint's hazard was saved by
+                FootprintParquetDynamic.save_shared, memory-mapped instead of read from the model data
+                when present. Ignored by the other footprint formats.
             **kwargs: additional keyword arguments, accepted and ignored so that callers can
                 forward a wider parameter dict
 
@@ -189,6 +231,9 @@ class Footprint:
             if valid:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {filename}")
+                if footprint_class is FootprintParquetDynamic:
+                    return footprint_class(storage, df_engine=df_engine, areaperil_ids=areaperil_ids,
+                                           shared_dir=shared_dir)
                 return footprint_class(storage, df_engine=df_engine, areaperil_ids=areaperil_ids)
         else:
             if storage.isfile("footprint.parquet"):
@@ -282,6 +327,7 @@ class FootprintBin(Footprint):
         num_intensity_bins (int): number of intensity bins in the data
         has_intensity_uncertainty (bool): if the data has uncertainty
         footprint_index (dict): map of footprint IDs with the index in the data
+        compressed (bool): if the events are zlib compressed despite the uncompressed file names
     """
     footprint_filenames = [footprint_filename, footprint_index_filename]
 
@@ -294,11 +340,16 @@ class FootprintBin(Footprint):
 
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'].item())
         self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'].item() & intensityMask)
+        # the idx entries carry the decompressed size when the header says so, even uncompressed
+        uncompressed_size = int((footprint_header['has_intensity_uncertainty'].item() & uncompressedMask) >> 1)
 
         f = self.stack.enter_context(self.storage.with_fileno(footprint_index_filename))
-        footprint_mmap = np.memmap(f, dtype=EventIndexBin, mode='r')
-
-        self.footprint_index = np.array(footprint_mmap)
+        idx_dtype = EventIndexBinZ if uncompressed_size else EventIndexBin
+        self.footprint_index = np.array(memmap_or_empty(f, idx_dtype))
+        self.compressed = self._is_compressed()
+        if self.compressed:
+            logger.warning(f"{footprint_filename} holds zlib compressed events, reading it as a compressed footprint. "
+                           f"Compressed footprints should be named {zfootprint_filename} and {zfootprint_index_filename}")
         try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
             with lookup_file as f:
@@ -313,6 +364,14 @@ class FootprintBin(Footprint):
             self.events_dict = None
 
         return self
+
+    def _is_compressed(self):
+        """Whether the events are zlib compressed, as csvtobin writes them when zipping under the
+        uncompressed file names.
+
+        Returns: (bool) True if the events are compressed
+        """
+        return is_first_entry_zlib_compressed(self.footprint, self.footprint_index)
 
     def get_event(self, event_id):
         """Gets the event from self.footprint based off the event ID passed in.
@@ -330,7 +389,10 @@ class FootprintBin(Footprint):
         if idx >= len(self.footprint_index) or self.footprint_index['event_id'][idx] != event_id:
             return None
         event_info = self.footprint_index[idx]
-        return np.frombuffer(self.footprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])], Event)
+        data = self.footprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])]
+        if self.compressed:
+            data = decompress(data)
+        return np.frombuffer(data, Event)
 
 
 class FootprintBinZ(Footprint):
@@ -362,9 +424,7 @@ class FootprintBinZ(Footprint):
             self.index_dtype = EventIndexBin
 
         f = self.stack.enter_context(self.storage.with_fileno(zfootprint_index_filename))
-
-        zfootprint_mmap = np.memmap(f, dtype=self.index_dtype, mode='r')
-        self.footprint_index = np.array(zfootprint_mmap)
+        self.footprint_index = np.array(memmap_or_empty(f, self.index_dtype))
 
         try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
@@ -420,6 +480,7 @@ class FootprintParquet(Footprint):
 
         if self.areaperil_ids is not None:
             self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
+            self.sorted_areaperil_ids = np.unique(self.areaperil_ids)
         else:
             self.areaperil_ids_filter = None
 
@@ -434,12 +495,47 @@ class FootprintParquet(Footprint):
         Returns: (np.array[Event]) the event that was extracted
         """
         dir_path = f"footprint.parquet/event_id={event_id}/"
-        if self.storage.exists(dir_path):
-            reader = self.get_df_reader(dir_path, filters=self.areaperil_ids_filter)
-            numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
-            return numpy_data
-        else:
+        if not self.storage.exists(dir_path):
             return np.empty(0, dtype=Event)
+        if self.areaperil_ids is None:
+            reader = self.get_df_reader(dir_path)
+            return self.prepare_df_data(data_frame=reader.as_pandas())
+        return self.get_event_row_groups(dir_path)
+
+    def get_event_row_groups(self, dir_path):
+        """Reads only the row groups that may hold one of self.areaperil_ids, then keeps only the
+        rows with one of those areaperil_ids.
+
+        pyarrow doesn't use row group statistics to skip data for an "in" filter, so filtering
+        with one still decompresses every row of the event. Selecting row groups from their
+        areaperil_id min/max statistics first skips most of the event when its rows are sorted by
+        areaperil_id; if they aren't, every row group overlaps and the whole event is read, as
+        before. The rows returned are the same either way.
+
+        Args:
+            dir_path (str): the event's directory in footprint.parquet
+
+        Returns: (np.array[Event]) the event's rows with one of self.areaperil_ids
+        """
+        parts = []
+        for file_path in sorted(self.storage.listdir(dir_path)):
+            if os.path.basename(file_path).startswith(('.', '_')):  # not data files, as for pyarrow datasets
+                continue
+            with self.storage.open(file_path, 'rb') as f:
+                parquet_file = pq.ParquetFile(f)
+                row_groups = select_row_groups(parquet_file.metadata, self.sorted_areaperil_ids)
+                if row_groups:
+                    # filter in arrow before converting, so only the kept rows are ever copied to numpy
+                    table = parquet_file.read_row_groups(row_groups, columns=list(Event.fields))
+                    value_set = pa.array(self.sorted_areaperil_ids, type=table.schema.field('areaperil_id').type)
+                    table = table.filter(pc.is_in(table['areaperil_id'], value_set=value_set))
+                    part = np.empty(table.num_rows, dtype=Event)
+                    for column in Event.fields:
+                        part[column] = table[column].to_numpy()
+                    parts.append(part)
+        if not parts:
+            return np.empty(0, dtype=Event)
+        return np.concatenate(parts) if len(parts) > 1 else parts[0]
 
 
 class FootprintParquetChunk(Footprint):
@@ -515,9 +611,11 @@ class FootprintParquetDynamic(Footprint):
 
     __enter__ reads only the metadata, so opening the footprint just for num_intensity_bins
     is cheap. The first get_event call bulk-loads the hazard case for this portfolio's
-    sections and areaperils, which is all get_event ever needs of it. The event definition
-    is bulk-loaded too when it is partitioned, giving indexed per-event lookups; when it is
-    unpartitioned it is instead filtered to the event per get_event call.
+    sections and areaperils, which is all get_event ever needs of it. Every process loading it
+    holds its own copy, so it can be saved once with save_shared and memory-mapped by each
+    process instead (shared_dir), in which case __enter__ maps it straight away. The event
+    definition is bulk-loaded too when it is partitioned, giving indexed per-event lookups;
+    when it is unpartitioned it is instead filtered to the event per get_event call.
 
     Both files may also be sparse: a section that is absent from the event definition has no
     events affecting it, and a section absent from the hazard case is unaffected by the
@@ -535,6 +633,21 @@ class FootprintParquetDynamic(Footprint):
     # (about 8x on local disk, more on remote storage), so partitions are only opened one by one
     # when the portfolio needs at most this share of them
     partition_read_max_share = 1 / 8
+
+    def __init__(self, storage: BaseStorage, df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+                 areaperil_ids=None, shared_dir=None) -> None:
+        """The constructor for the FootprintParquetDynamic class.
+
+        Args:
+            storage (BaseStorage): the storage object used to lookup files
+            df_engine (str): the engine to use when loading dataframes
+            areaperil_ids (list): areaperil_ids that will be useful
+            shared_dir (str or None): directory written by save_shared. When it holds a complete save,
+                the hazard case and partitioned event definition are memory-mapped from it rather than
+                read from the model data.
+        """
+        super().__init__(storage, df_engine=df_engine, areaperil_ids=areaperil_ids)
+        self.shared_dir = shared_dir
 
     def _section_partitions(self, filename):
         """List the section_ids a parquet file is partitioned into.
@@ -576,28 +689,37 @@ class FootprintParquetDynamic(Footprint):
         self.df_event_definition = None
         self.df_hazard_case = None
         self.event_set = set()
+        self.shared_hazard = None
+
+        if self.shared_dir is not None and self._load_shared():
+            return self
 
         self.get_event = self._load_and_get_event
         return self
 
     def _load_and_get_event(self, event_id):
-        """First get_event call: load the portfolio's sections, then hand get_event to the layout's path.
+        """First get_event call: load the portfolio's sections, then answer through the layout's path."""
+        self._load()
+        return self.get_event(event_id)
+
+    def _load(self):
+        """Load the portfolio's sections from the model data and hand get_event to the layout's path.
 
         get_event is only handed over once every load has succeeded, so a load that raises is
         retried by the next call rather than leaving every later event silently empty.
         """
         event_definition_partitions = self._section_partitions(event_defintion_filename)
+        self.event_definition_partitioned = event_definition_partitions is not None
         if event_definition_partitions is None:
             get_event = self._get_event_flat
         else:
             get_event = self._get_event_partitioned
             if not self._load_event_definitions(event_definition_partitions):
                 self.get_event = get_event
-                return None
+                return
 
         self._load_hazard_case(self._section_partitions(hazard_case_filename))
         self.get_event = get_event
-        return get_event(event_id)
 
     def _report_absent_sections(self, filename, absent):
         reported = self.absent_sections_reported.setdefault(filename, set())
@@ -698,6 +820,100 @@ class FootprintParquetDynamic(Footprint):
 
         self.df_hazard_case = df_hazard_case.set_index('section_id').sort_index(kind='stable')
 
+    def save_shared(self, shared_dir):
+        """Save the loaded hazard case, and the event definition if partitioned, for other processes
+        to memory-map (see shared_dir).
+
+        Each column the footprint build uses (SHARED_HAZARD_CASE_COLUMNS, SHARED_EVENT_DEFINITION_COLUMNS)
+        is saved as its own .npy file in the order the footprint build walks it, with the
+        row offsets of each section. The manifest is written last, so a save that did not finish is
+        not used.
+
+        Args:
+            shared_dir (str): the directory to save into
+
+        Returns: (bool) True if saved; False if there is nothing to share (no event or hazard affects
+            the portfolio) or a column it uses is missing or not numeric, in which case each process reads
+            the model data
+        """
+        if self.get_event == self._load_and_get_event:
+            self._load()
+        if self.df_hazard_case is None or (self.event_definition_partitioned and self.df_event_definition is None):
+            return False
+
+        tables = {'hazard_case': (self.df_hazard_case.reset_index(), SHARED_HAZARD_CASE_COLUMNS)}
+        if self.event_definition_partitioned:
+            tables['event_definition'] = (self.df_event_definition.reset_index(), SHARED_EVENT_DEFINITION_COLUMNS)
+        for name, (df, (required, optional)) in tables.items():
+            missing = [column for column in required if column not in df.columns]
+            columns = required + [column for column in optional if column in df.columns]
+            not_numeric = [column for column in columns if column in df.columns and df[column].dtype.kind not in 'biuf']
+            if missing or not_numeric:
+                logger.warning(f"dynamic footprint not shared between processes, each process reads the model data: "
+                               f"{name} column(s) missing {missing}, not numeric {not_numeric}")
+                return False
+            tables[name] = (df, columns)
+
+        manifest_path = os.path.join(shared_dir, SHARED_MANIFEST)
+        if os.path.exists(manifest_path):
+            os.remove(manifest_path)
+        os.makedirs(shared_dir, exist_ok=True)
+
+        for name, (df, columns) in tables.items():
+            for column in columns:
+                np.save(os.path.join(shared_dir, f'{name}.{column}.npy'), df[column].to_numpy())
+        section_id = tables['hazard_case'][0]['section_id'].to_numpy()
+        starts = np.flatnonzero(np.diff(section_id)) + 1
+        np.save(os.path.join(shared_dir, 'hazard_case_sections.npy'), section_id[np.concatenate(([0], starts))])
+        np.save(os.path.join(shared_dir, 'hazard_case_offsets.npy'),
+                np.concatenate(([0], starts, [len(section_id)])).astype(np.int64))
+
+        manifest = {'event_definition_partitioned': self.event_definition_partitioned,
+                    'columns': {name: columns for name, (df, columns) in tables.items()}}
+        with open(manifest_path, 'w') as f:
+            json.dump(manifest, f)
+        return True
+
+    def _load_shared(self):
+        """Memory-map the hazard case, and the event definition if partitioned, saved by save_shared.
+
+        Returns: (bool) False if shared_dir holds no complete save for this model data's layout
+        """
+        manifest_path = os.path.join(self.shared_dir, SHARED_MANIFEST)
+        if not os.path.isfile(manifest_path):
+            return False
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        event_definition_partitioned = self._section_partitions(event_defintion_filename) is not None
+        if manifest['event_definition_partitioned'] != event_definition_partitioned:
+            return False
+        self.event_definition_partitioned = event_definition_partitioned
+
+        def load(name):
+            return np.load(os.path.join(self.shared_dir, f'{name}.npy'), mmap_mode='r')
+
+        self.shared_hazard = {column: load(f'hazard_case.{column}') for column in manifest['columns']['hazard_case']}
+        self.shared_hazard_sections = load('hazard_case_sections')
+        self.shared_hazard_offsets = load('hazard_case_offsets')
+        if self.event_definition_partitioned:
+            self.shared_event_definition = {column: load(f'event_definition.{column}')
+                                            for column in manifest['columns']['event_definition']}
+            self.get_event = self._get_event_shared
+        else:
+            self.get_event = self._get_event_flat
+        logger.info(f"dynamic footprint memory-mapped from {self.shared_dir}")
+        return True
+
+    def _get_event_shared(self, event_id):
+        """Shared path: the event definition is memory-mapped and sorted by event_id."""
+        event_ids = self.shared_event_definition['event_id']
+        start, end = np.searchsorted(event_ids, event_id, 'left'), np.searchsorted(event_ids, event_id, 'right')
+        if start == end:
+            return None
+
+        return self._build_event(pd.DataFrame(
+            {column: np.array(values[start:end]) for column, values in self.shared_event_definition.items()}))
+
     def _get_event_partitioned(self, event_id):
         """Fast path: the event definition is indexed in memory, so look the event up."""
         if event_id not in self.event_set:
@@ -725,14 +941,23 @@ class FootprintParquetDynamic(Footprint):
             with its index drops both the sections outside the portfolio and those the
             modelled perils leave unaffected.
         """
-        if self.df_hazard_case is None:
-            return None
+        if self.shared_hazard is not None:
+            sections = np.intersect1d(self.shared_hazard_sections, df_event_definition['section_id'].unique())
+            if len(sections) == 0:
+                return None
 
-        sections = self.df_hazard_case.index.intersection(df_event_definition['section_id'].unique())
-        if sections.empty:
+            at = np.searchsorted(self.shared_hazard_sections, sections)
+            rows = np.concatenate([np.arange(self.shared_hazard_offsets[i], self.shared_hazard_offsets[i + 1])
+                                   for i in at])
+            df_hazard_case = pd.DataFrame({column: values[rows] for column, values in self.shared_hazard.items()})
+        elif self.df_hazard_case is None:
             return None
+        else:
+            sections = self.df_hazard_case.index.intersection(df_event_definition['section_id'].unique())
+            if sections.empty:
+                return None
 
-        df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
+            df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
         df_event_definition = df_event_definition[df_event_definition['section_id'].isin(sections)]
 
         return self._build_footprint(df_hazard_case, df_event_definition)

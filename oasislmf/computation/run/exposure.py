@@ -12,21 +12,24 @@ from itertools import chain
 
 import pandas as pd
 
-from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.base import DISAGGREGATION_HELP, ComputationStep
 from oasislmf.computation.generate.files import GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
 from oasislmf.computation.hooks.pre_analysis import ExposurePreAnalysis
 from oasislmf.preparation.il_inputs import get_oed_hierarchy
-from oasislmf.preparation.summaries import calculated_summary_cols
+from oasislmf.preparation.summaries import calculated_summary_cols, get_summary_map_fp
 from oasislmf.pytools.fm.portfolio_complexity import (
     compute_portfolio_complexity, format_complexity_report)
-from oasislmf.utils.data import (get_dataframe, get_exposure_data,
+from oasislmf.utils.data import (get_dataframe, get_exposure_data, resolve_disaggregation,
                                  print_dataframe)
-from oasislmf.utils.defaults import (KERNEL_ALLOC_FM_MAX,
+from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_MODES,
+                                     DISAGGREGATION_NONE,
+                                     KERNEL_ALLOC_FM_MAX,
                                      KERNEL_ALLOC_IL_DEFAULT,
                                      KERNEL_ALLOC_RI_DEFAULT,
                                      OASIS_FILES_PREFIXES,
+                                     SUMMARY_MAPPING,
                                      find_exposure_fp)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
@@ -65,8 +68,19 @@ class RunExposure(ComputationStep):
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
-        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
-         'help': 'if True run the oasis disaggregation.'},
+        # 'none' here, not the 'samples' that generation defaults to. A deterministic run exists to
+        # show what the terms do to a known loss, and splitting a location's TIV across buildings
+        # changes those numbers for reasons that have nothing to do with the policy under test.
+        # All three modes work; the other two are opt-in.
+        # The default is applied in run(), not here: the platform worker fills every parameter
+        # with its default and then sets only do_disaggregation, so a 'none' here would beat it.
+        {'name': 'disaggregation', 'type': str, 'default': None, 'choices': DISAGGREGATION_MODES,
+         'help': DISAGGREGATION_HELP + " Defaults to 'none' here rather than the 'samples' that "
+                 "generation defaults to, so a deterministic run reports the location's own TIV "
+                 "unless you ask for the buildings to be separated."},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
+         'help': "DEPRECATED, and ignored when --disaggregation is given. Use --disaggregation items to split a location's "
+                 "buildings into separate items."},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
@@ -121,6 +135,8 @@ class RunExposure(ComputationStep):
 
         include_loss_factor = not (len(self.loss_factor) == 1)
 
+        disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation, default=DISAGGREGATION_NONE)
+
         self._check_alloc_rules()
 
         self.oasis_files_dir = src_dir
@@ -150,7 +166,8 @@ class RunExposure(ComputationStep):
             oasis_files_dir=run_dir,
             exposure_data=exposure_data,
             keys_data_path=keys_fp,
-            do_disaggregation=self.do_disaggregation,
+            # the resolved mode, not the deprecated boolean, which would warn again downstream
+            disaggregation=disaggregation,
             intermediary_csv=self.intermediary_csv,
         ).run()
 
@@ -186,7 +203,13 @@ class RunExposure(ComputationStep):
         rils_df = losses['ri']
 
         # Read in the summary map
-        summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'), lowercase_cols=False)
+        summaries_df = get_dataframe(src_fp=get_summary_map_fp(run_dir, SUMMARY_MAPPING['fm_map_fn']), lowercase_cols=False)
+        # parquet keeps OED ids such as LocNumber as str, convert numeric ones as pandas does when reading csv,
+        # so the summaries below keep the same row order (numeric rather than lexicographic)
+        for col in summaries_df.select_dtypes(include='object').columns:
+            numeric_col = pd.to_numeric(summaries_df[col], errors='coerce')
+            if numeric_col.notna().all():
+                summaries_df[col] = numeric_col
 
         guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
         guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True)
@@ -367,6 +390,20 @@ class RunFmTest(ComputationStep):
         {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected', 'default': False},
         {'name': 'expected_output_dir', 'default': "expected"},
+        # Pinned to 'items', not RunExposure's 'none' default: the expected results of every unit
+        # with NumberOfBuildings > 1 were generated with the buildings split, and a test case means
+        # the mode it was written under. 'samples' packs them into the sample dimension instead,
+        # which is what a real model run does.
+        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_ITEMS,
+         'choices': DISAGGREGATION_MODES,
+         'help': "How a location's NumberOfBuildings is separated when running the test case."},
+        # Running a case under a different disaggregation mode is the reason this exists: the
+        # per-item files (items, coverages, the fm structure, the summary maps) describe where the
+        # buildings live and so differ by mode on purpose, while loc_summary.csv is the same risk
+        # either way. Comparing the full set across modes would report those by-design differences
+        # as failures.
+        {'name': 'compare_files', 'nargs': '+', 'default': None,
+         'help': 'Only compare these files against the expected directory, instead of all of them.'},
     ]
 
     def search_test_cases(self):
@@ -464,6 +501,7 @@ class RunFmTest(ComputationStep):
             fmpy_sort_output=self.fmpy_sort_output,
             keys_format='oasis',
             intermediary_csv=True,
+            disaggregation=self.disaggregation,
         ).run()
 
         expected_data_dir = os.path.join(test_dir, self.expected_output_dir)
@@ -479,16 +517,19 @@ class RunFmTest(ComputationStep):
                     'set of GUL, IL and optionally the RI loss files'
                 )
 
-        files = ['keys.csv', 'loc_summary.csv']
-        files += [
-            '{}.csv'.format(fn)
-            for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
-        ]
-        files += ['gul_summary_map.csv', 'guls.csv']
-        if il:
-            files += ['fm_summary_map.csv', 'ils.csv']
-        if ril:
-            files += ['rils.csv']
+        if self.compare_files:
+            files = list(self.compare_files)
+        else:
+            files = ['keys.csv', 'loc_summary.csv']
+            files += [
+                '{}.csv'.format(fn)
+                for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
+            ]
+            files += ['gul_summary_map.csv', 'guls.csv']
+            if il:
+                files += ['fm_summary_map.csv', 'ils.csv']
+            if ril:
+                files += ['rils.csv']
 
         test_result = True
         for f in files:

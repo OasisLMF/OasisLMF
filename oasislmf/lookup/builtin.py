@@ -49,6 +49,7 @@ import math
 import re
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
+from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.peril import get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
@@ -241,9 +242,11 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
                                          .merge(peril_groups_df)['peril_id'])
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
-        locations['peril_group_id'] = locations[peril_covered_column].astype(str).str.split(';')
-        keys_df = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)[['loc_id', 'peril_id']]
-        locations.drop(columns='peril_group_id')
+        # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
+        # de-duplicate after expanding the groups, ignoring which group a peril came from
+        keys_df = (locations.assign(peril_group_id=locations[peril_covered_column].astype(str).str.split(';'))
+                   .explode('peril_group_id').merge(peril_groups_df))
+        keys_df = keys_df.drop_duplicates(subset=keys_df.columns.drop('peril_group_id'))[['loc_id', 'peril_id']]
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
         keys_df = keys_df.merge(coverage_df, how="cross").sort_values(['loc_id', 'peril_id', 'coverage_type'], kind='stable')
@@ -382,11 +385,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
                 functions = []
                 for child_step_name in step_config["parameters"]['strategy']:
+                    child_step_config = self.config['step_definition'][child_step_name]
                     child_fct = self.set_step_function(
                         step_name=child_step_name,
-                        step_config=self.config['step_definition'][child_step_name],
+                        step_config=child_step_config,
                         function_being_set=function_being_set)
-                    functions.append({'function': child_fct, 'columns': set(step_config.get("columns", []))})
+                    functions.append({'name': child_step_name, 'function': child_fct,
+                                      'columns': set(child_step_config.get("columns", []))})
                 step_config['parameters']['strategy'] = functions
 
             step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
@@ -552,7 +557,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             strategy (list): list of strategy to apply
             logical_type: if 'or' apply the next strategy only on invalid id_columns;
                 if 'and' apply the next strategy only on valid id_columns (id_columns needs to be
-                a list of list of columns so that each sublist is checked sequentially)
+                a list of list of columns so that each sublist is checked sequentially).
+                With 'or', a strategy whose own ``columns`` are missing is skipped; with 'and',
+                it raises an OasisException since every strategy is required.
 
         Returns:
             function: function combining all strategies
@@ -561,8 +568,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             def fct(locations):
                 initial_columns = locations.columns
                 result = []
-                for child_strategy in strategy:
+                for i, child_strategy in enumerate(strategy):
                     if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
+                        logger.warning("combine: skipping step %s, missing columns %s",
+                                       child_strategy.get('name', i),
+                                       sorted(child_strategy['columns'].difference(locations.columns)))
                         continue
                     locations = child_strategy['function'](locations)
                     locations = Lookup.set_id_columns(locations, id_columns)
@@ -579,8 +589,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 initial_columns = locations.columns
                 result = []
                 for i, child_strategy in enumerate(strategy):
-                    if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
-                        continue
+                    # every strategy is required in 'and', so a missing column can't fall back to the next one
+                    if not child_strategy['columns'].issubset(locations.columns):
+                        raise OasisException(
+                            f"Key Server Issue: missing columns {child_strategy['columns'].difference(locations.columns)} "
+                            f"for step {child_strategy.get('name', i)} of 'and' combine")
                     locations = child_strategy['function'](locations)
                     locations = Lookup.set_id_columns(locations, id_columns[i])
                     is_valid = (locations[id_columns[i]] != OASIS_UNKNOWN_ID).any(axis=1)
@@ -600,6 +613,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     def build_split_loc_perils_covered(model_perils_covered=None, not_covered_status='notmodelled'):
         """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
+
+        Each peril gives one row per location. When it is reached through more than one listed
+        group (e.g. ``OO1;ORF``), the row kept has as ``peril_group_id`` the first listed group
+        that contains it.
 
         Useful inspirational code:
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
@@ -629,9 +646,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing PerilsCovered column in location')
 
-            locations['peril_group_id'] = locations[perils_covered_column].astype(str).str.split(';')
-            peril_locations = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)
-            locations.drop(columns='peril_group_id')
+            # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
+            # de-duplicate after expanding the groups, ignoring which group a peril came from
+            peril_locations = (locations.assign(peril_group_id=locations[perils_covered_column].astype(str).str.split(';'))
+                               .explode('peril_group_id').merge(peril_groups_df))
+            peril_locations = peril_locations.drop_duplicates(subset=peril_locations.columns.drop('peril_group_id'))
 
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
@@ -760,16 +779,15 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             removed in a future version.
         """
         if nearest_neighbor_min_distance > 0:
-            warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
-                          "removed in a future version. Please use `nearest_neighbor_max_distance` "
-                          "instead.",
-                          DeprecationWarning)
+            warn_deprecated("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
+                            "removed in a future version. Please use `nearest_neighbor_max_distance` "
+                            "instead.")
             if not nearest_neighbor_max_distance > 0:
                 nearest_neighbor_max_distance = nearest_neighbor_min_distance
 
         if area_peril_read_params:
-            warnings.warn("Parameter `area_peril_read_params` is deprecated and may be removed in a "
-                          "future version. Please use `file_read_params` instead.", DeprecationWarning)
+            warn_deprecated("Parameter `area_peril_read_params` is deprecated and may be removed in a "
+                            "future version. Please use `file_read_params` instead.")
             if not file_read_params:
                 file_read_params = area_peril_read_params
 
@@ -1148,11 +1166,18 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         return h3_lookup
 
-    def build_merge(self, file_path, id_columns=[], file_type='csv', **kwargs):
+    def build_merge(self, file_path, id_columns=[], file_type='csv', join_columns=None, **kwargs):
         """Merges the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
 
         this is an efficient way to map a combination of column that have a finite scope to an idea.
+
+        By default the join is on every column name the file and the locations have in common
+        (matched case-insensitively). Set ``join_columns`` to join only on those columns instead,
+        e.g. to reuse a file that carries a column (such as ``CountryCode``) the locations also
+        have but that must not be matched on. With ``join_columns``, any other column in both
+        the file and the locations keeps its locations value, except ``id_columns``, which take
+        the file's value.
 
         If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
         """
@@ -1163,6 +1188,17 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
         df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
 
+        if isinstance(join_columns, str):
+            join_columns = [join_columns]
+        if join_columns is not None:
+            join_columns = [col.lower() for col in join_columns]
+            missing_in_file = [col for col in join_columns if col not in df_to_merge.columns]
+            if missing_in_file:
+                raise OasisException(
+                    f"merge step: join_columns {missing_in_file} not found in '{file_path}'. "
+                    f"Table columns: {sorted(df_to_merge.columns)}")
+            id_columns_lower = {col.lower() for col in id_columns}
+
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
             if not rename_map:
@@ -1171,8 +1207,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"name (matched case-insensitively). Table columns: {sorted(df_to_merge.columns)}. "
                     f"Location columns available to this step: {sorted(locations.columns)}. The join keys "
                     f"are the names the two have in common.")
-            logger.debug("merge step: joining on %s", sorted(rename_map.values()))
-            locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
+            if join_columns is None:
+                logger.debug("merge step: joining on %s", sorted(rename_map.values()))
+                locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
+                return self.set_id_columns(locations, id_columns)
+
+            missing_in_locations = [col for col in join_columns if col not in rename_map]
+            if missing_in_locations:
+                raise OasisException(
+                    f"merge step: join_columns {missing_in_locations} not found in the locations. "
+                    f"Location columns available to this step: {sorted(locations.columns)}")
+            # columns in both that aren't join keys: id_columns come from the file, the rest stay as in locations
+            shared = [col for col in rename_map if col not in join_columns]
+            from_file = [col for col in shared if col in id_columns_lower]
+            from_locations = [col for col in shared if col not in id_columns_lower]
+            on = [rename_map[col] for col in join_columns]
+            logger.debug("merge step: joining on %s", on)
+            locations = locations.drop(columns=[rename_map[col] for col in from_file]).merge(
+                df_to_merge.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
             return self.set_id_columns(locations, id_columns)
         return merge
 

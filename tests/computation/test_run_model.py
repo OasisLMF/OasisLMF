@@ -27,6 +27,7 @@ class TestRunModel(ComputationChecker):
         cls.pre_loss_args = cls.manager._params_pre_loss()
         cls.gen_loss_args = cls.manager._params_generate_losses()
         cls.post_hook_args = cls.manager._params_post_analysis()
+        cls.check_model_args = cls.manager._params_check_model()
 
     def setUp(self):
         # Tempfiles
@@ -51,12 +52,14 @@ class TestRunModel(ComputationChecker):
 
     def test_args__default_combine(self):
         expt_combined_args = self.combine_args([
+            {'model_check': False},
             self.pre_hook_args,
             self.gen_files_args,
             self.post_file_gen_args,
             self.pre_loss_args,
             self.gen_loss_args,
-            self.post_hook_args
+            self.post_hook_args,
+            self.check_model_args,
         ])
         self.assertEqual(expt_combined_args, self.default_args)
 

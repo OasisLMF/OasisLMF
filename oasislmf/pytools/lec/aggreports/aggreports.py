@@ -2,7 +2,6 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
-import pyarrow as pa
 
 from oasislmf.pytools.common.data import oasis_float, periods_dtype, write_ndarray_to_fmt_csv
 from oasislmf.pytools.lec.aggreports.outputs.full_uncertainty import output_full_uncertainty
@@ -54,9 +53,7 @@ def make_output_fn(outmap, output_binary, output_parquet):
         if output_binary:
             data.tofile(outmap[out_type]["file"])
         elif output_parquet:
-            arrays = [pa.array(data[name]) for name in data.dtype.names]
-            data_table = pa.Table.from_arrays(arrays, schema=outmap[out_type]["schema"])
-            outmap[out_type]["file"].write_table(data_table)
+            outmap[out_type]["file"].write(data)
         else:
             write_ndarray_to_fmt_csv(
                 outmap[out_type]["file"],

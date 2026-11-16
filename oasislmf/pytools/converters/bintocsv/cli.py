@@ -7,7 +7,10 @@ from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV
 
 def add_custom_args(file_type, parser):
     if file_type == "cdf":
-        parser.add_argument('-d', '--run_dir', help='path to the run directory (default: ".")', default='.')
+        parser.add_argument('-d', '--run_dir',
+                            help='path to the run directory, which must already contain '
+                                 'input/items.bin and input/coverages.bin (default: ".")',
+                            default='.')
     if file_type == "footprint":
         parser.add_argument('-x', '--idx_file_in', required=True, type=str, help='Input index file path')
         parser.add_argument('-z', '--zip_files', action='store_true', help='Zip input files flag')
