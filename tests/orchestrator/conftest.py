@@ -10,6 +10,11 @@ The run directory is built from what is in this repository, in a few seconds:
   over the dummy model's, and ``GenerateFiles`` writes the Oasis input files;
 * the fmpy financial structure files are written for the IL step and every RI step.
 
+Full-kernel references (gul, il and ri with summaries and every ORD output, work files kept) are
+produced with ``tools/kernel_reference.py`` from a pristine checkout named by the
+``OASIS_ORCH_REF_SOURCE`` environment variable, by default ``~/GitHub/OasisLMF-ref`` when that
+exists, else (or with ``OASIS_ORCH_REF_SOURCE=installed``) by the installed ``oasislmf``.
+
 Reference streams are produced with ``tools/reference_streams.py``: by the tools of the running
 interpreter, or by those in the directory named by the ``OASIS_ORCH_REF_TOOLS`` environment
 variable (for example wrappers around a pristine checkout of main).
@@ -24,6 +29,7 @@ import pytest
 
 from oasislmf.computation.generate.files import GenerateDummyModelFiles, GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
+from tests.orchestrator.tools.kernel_reference import full_ord_settings, make_kernel_reference, prepare_run_dir, resolve_source
 from tests.orchestrator.tools.reference_streams import (DEFAULT_GUL_ARGS, DEFAULT_IL_ALLOC_RULE, DEFAULT_RI_ALLOC_RULE,
                                                         DEFAULT_RI_LAYERS, DEFAULT_SAMPLES, make_reference_streams,
                                                         prepare_financial_structures, resolve_tools)
@@ -150,6 +156,55 @@ def kernel_reference(kernel_run, tmp_path_factory):
             out_dir = tmp_path_factory.mktemp(f'kernel_ref_K{n_chunks}')
             make_reference_streams(kernel_run.run_dir, n_chunks, out_dir, tools=kernel_run.ref_tools, **options)
             cache[key] = out_dir
+        return cache[key]
+
+    return make
+
+
+FULL_KERNEL_SAMPLES = 10
+FULL_KERNEL_QUANTILES = [0.0, 0.2, 0.5, 0.8, 1.0]
+FULL_KERNEL_RETURN_PERIODS = [1, 2, 5, 10]
+
+
+@pytest.fixture(scope='session')
+def full_kernel_run(kernel_run, tmp_path_factory):
+    """The kernel run prepared for a full-kernel bash run: summary xrefs, every ORD output switched on.
+
+    The pristine ``GenerateLossesDir`` step (from the checkout ``resolve_source`` picks) makes the
+    run directory from the kernel run's Oasis files and model data, with
+    ``full_ord_settings``: summary set 1 for gul, il and ri, set 2 (by AccNumber) for gul and il,
+    the parquet set 3 for il; quantiles and return periods given in the settings. The tool
+    wrappers the references run with are in ``bin/``.
+
+    Returns:
+        Path: the prepared run directory.
+    """
+    settings = full_ord_settings(FULL_KERNEL_SAMPLES, quantiles=FULL_KERNEL_QUANTILES, return_periods=FULL_KERNEL_RETURN_PERIODS)
+    source = resolve_source()
+    return prepare_run_dir(kernel_run.run_dir / 'input', kernel_run.run_dir / 'static', settings,
+                           tmp_path_factory.mktemp('full_kernel_run'), source=source)
+
+
+@pytest.fixture(scope='session')
+def full_kernel_reference(full_kernel_run, tmp_path_factory):
+    """Factory for full-kernel bash references of the kernel run, made once per set of arguments in a session.
+
+    Call it as ``full_kernel_reference(n_chunks, samples=None, **genbash_options)``. It returns a
+    reference directory (see ``tools/kernel_reference.py``) holding ``work/`` (every
+    ``work/kat/*_P<k>`` and ``work/*_summary_*/P<k>.bin``), ``output/``, ``run_kernel.sh`` and
+    ``bash_params.json`` of a K-process run of the pristine kernel script.
+
+    Returns:
+        callable: ``make(n_chunks, samples=None, **options) -> Path``.
+    """
+    cache = {}
+    source = resolve_source()
+
+    def make(n_chunks, samples=None, **options):
+        key = (n_chunks, samples, tuple(sorted(options.items())))
+        if key not in cache:
+            out_dir = tmp_path_factory.mktemp(f'full_kernel_ref_K{n_chunks}')
+            cache[key] = make_kernel_reference(full_kernel_run, n_chunks, out_dir, samples=samples, source=source, **options)
         return cache[key]
 
     return make
