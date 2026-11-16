@@ -114,7 +114,7 @@ class LegacyLookup:
 def test_deprecated_lookup_interface_gets_the_legacy_arguments(output_dir, user_data_dir, expected_extra):
     config = {'model': MODEL, 'keys_data_path': 'keys'}
 
-    with pytest.warns(UserWarning, match='deprecated'):
+    with pytest.warns(FutureWarning, match='deprecated'):
         lookup = BasicKeyServer.create_lookup(LegacyLookup, config, 'cfg', user_data_dir, output_dir, lookup_id=0)
 
     assert lookup.kwargs == {'keys_data_directory': 'keys', 'supplier': 'Acme', 'model_name': 'Quake',
