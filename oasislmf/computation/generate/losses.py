@@ -533,6 +533,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             process_number=self.process_number,
             max_process_id=self.max_process_id,
             modelpy=self.modelpy,
+            model_run_dir=model_run_fp,
             peril_filter=self._get_peril_filter(self.settings),
             summarypy=self.summarypy,
             join_summary_info=self.join_summary_info,
@@ -617,6 +618,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             fifo_tmp_dir=not self.ktools_fifo_relative,
             remove_working_file=self.remove_working_file,
             max_process_id=self.max_process_id,
+            model_run_dir=model_run_fp,
         )
         with setcwd(model_run_fp):
             try:
@@ -1014,7 +1016,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
                         ri_layer_bin_fp = f"ri{layer}.bin"
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
-                        net_flag = "-n" if self.net_ri else ""
+                        net_flag = "-n"
                         cmd = '{} {} -p {} {} -a {} {} {} | tee {} > /dev/null'.format(
                             _input,
                             get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
@@ -1044,9 +1046,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         return rils
 
                     for i in range(1, ri_layers + 1):
-                        rils = run_ri_layer(i)
-                        if i in [1, ri_layers]:
-                            losses['ri'] = rils
+                        losses['ri'] = run_ri_layer(i)
 
         return losses
 
