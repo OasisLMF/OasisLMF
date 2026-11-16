@@ -213,10 +213,16 @@ def is_planned(args):
 
 
 def resolve_taps(args):
-    """The taps to write: ``--taps``, else gul, il and ri, or none when the chain comes from the planner."""
+    """The taps to write.
+
+    ``--taps`` if given, else none when the chain comes from the planner, else gul and il, plus ri when
+    ``--ri-layers`` is at least 1.
+    """
     if args.taps is not None:
         return list(args.taps)
-    return [] if is_planned(args) else list(TAPS)
+    if is_planned(args):
+        return []
+    return [tap for tap in TAPS if tap != 'ri' or args.ri_layers >= 1]
 
 
 def load_plan(args):

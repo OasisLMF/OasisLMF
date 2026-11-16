@@ -106,6 +106,8 @@ def test_cli_args_to_spec_piwind():
     ]
     assert cli.resolve_taps(args) == TAPS
     assert cli.resolve_taps(cli.build_parser().parse_args(['--plan', 'p.json'])) == []
+    assert cli.resolve_taps(cli.build_parser().parse_args([])) == ['gul', 'il']
+    assert cli.resolve_taps(cli.build_parser().parse_args(['--ri-layers', '2'])) == ['gul', 'il', 'ri']
     assert args.executor == 'inline'
     assert args.chunks == 12
 
@@ -153,6 +155,14 @@ def test_cli_main_inline_with_fake_stages(tmp_path, run_dir, monkeypatch):
                       '--taps', 'gul,il,ri', '--stats-json', str(stats_json), *PIWIND_ARGS])
     check_outputs(out_dir, make_chunks(np.arange(1, 31, dtype=np.int32), 3), fake_headers())
     assert json.loads(stats_json.read_text())['events'] == stats['events'] == 30
+
+
+def test_cli_main_default_taps_without_ri_layers(tmp_path, run_dir, monkeypatch):
+    monkeypatch.setattr(chain_module, 'default_factories', lambda: dict(FACTORIES))
+    out_dir = tmp_path / 'out'
+    no_ri_args = [a for a in PIWIND_ARGS if a not in ('--ri-layers', '1')]
+    cli.main(['--executor', 'inline', '--run-dir', str(run_dir), '--chunks', '2', '--out-dir', str(out_dir), *no_ri_args])
+    check_outputs(out_dir, make_chunks(np.arange(1, 31, dtype=np.int32), 2), fake_headers(), taps=['gul', 'il'])
 
 
 def test_cli_does_not_import_unselected_executors():
