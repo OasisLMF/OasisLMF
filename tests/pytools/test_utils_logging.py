@@ -132,3 +132,20 @@ def test_oasislmf_records_reach_the_log_file_when_the_logger_already_has_a_handl
         assert 'record from a module logger' in log_text
     finally:
         logger.removeHandler(host_handler)
+
+
+def test_engine_run_leaves_a_configured_oasislmf_logger_as_it_was(tmp_path):
+    """A caller that configured an 'oasislmf.*' logger itself gets that configuration back, not
+    the defaults: the run puts back what it found."""
+    logger = logging.getLogger('oasislmf.tests.configured_by_the_caller')
+    own_handler = logging.NullHandler()
+    logger.addHandler(own_handler)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+    try:
+        redirect_logging(exec_name='probe', log_dir=str(tmp_path))(lambda: None)()
+        assert (logger.level, logger.propagate, logger.handlers) == (logging.DEBUG, False, [own_handler])
+    finally:
+        logger.handlers.clear()
+        logger.setLevel(logging.NOTSET)
+        logger.propagate = True

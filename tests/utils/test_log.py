@@ -22,6 +22,9 @@ class MockLogger(object):
         self.debug = Mock()
         self.info = Mock()
 
+    def isEnabledFor(self, level):
+        return level >= self.level
+
 
 def create_callable(result=None):
     def _callable(*args, **kwargs):
@@ -104,6 +107,28 @@ class OasisLog(TestCase):
             for args in logger_mock.debug.call_args_list:
                 if 'self' in args[0][0]:
                     self.fail('"self" was logged')
+
+    def test_debug_off_on_an_unconfigured_logger___args_are_not_formatted(self):
+        # An unset level (NOTSET) defers to the root logger, where debug is off; the arguments, often
+        # whole DataFrames, must not be turned into strings for a message nobody sees.
+        formatted = []
+
+        class Expensive(object):
+            def __str__(self):
+                formatted.append(1)
+                return 'expensive'
+
+        logger = logging.getLogger('oasislmf')
+        saved = logger.level, logging.getLogger().level
+        logger.setLevel(logging.NOTSET)
+        logging.getLogger().setLevel(logging.WARNING)
+        try:
+            oasis_log(create_callable())(Expensive(), second=Expensive())
+        finally:
+            logger.setLevel(saved[0])
+            logging.getLogger().setLevel(saved[1])
+
+        self.assertEqual([], formatted)
 
 
 class ReadLogConfig(TestCase):
