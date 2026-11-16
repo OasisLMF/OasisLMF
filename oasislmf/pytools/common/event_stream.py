@@ -604,6 +604,34 @@ class EventReader:
         finally:
             main_selector.close()
 
+    def read_block(self, byte_mv, n=None):
+        """Read an in-memory block of whole events, yield each event id and load its values as read_streams does.
+
+        The block is parsed by the subclass's ``read_buffer`` exactly as ``read_streams`` parses what is
+        left in its buffer once a stream is exhausted: an event ends when a new event id is read or the
+        data ends, and ``item_exit``, ``event_read_log`` and ``finalize_event`` are called before each
+        event id is yielded.
+
+        Args:
+            byte_mv (np.ndarray): 1-D int8 array holding one or more whole events of the stream, without
+                the stream header. It is only read, so it may be read-only.
+            n (int, optional): number of valid bytes at the start of ``byte_mv``. Defaults to its length.
+
+        Yields:
+            int: each event id read from the block, in order
+        """
+        valid_buff = byte_mv.shape[0] if n is None else n
+        cursor = 0
+        yield_event = True
+        while yield_event:
+            cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, 0, 0, file_idx=0)
+
+            if event_id:
+                self.item_exit()
+                self.event_read_log(event_id)
+                self.finalize_event()
+                yield event_id
+
     def read_event(self, stream_in, main_selector, stream_selector, mv, byte_mv, cursor, valid_buff, file_idx):
         """Read one event from stream_in
         close and remove the stream from main_selector when all is read
