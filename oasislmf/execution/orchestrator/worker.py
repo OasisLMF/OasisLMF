@@ -6,7 +6,7 @@ process list):
 
 * ``address`` (``[host, port]``) and ``authkey`` (hex) of the orchestrator's ``multiprocessing.connection.Listener``;
 * ``worker``: the worker number the orchestrator gave it;
-* ``spec``: the ``ChainSpec`` as a dict, ``factories``: ``{'gul'|'fm': 'package.module:attribute'}`` or None;
+* ``spec``: the ``ChainSpec`` as a dict, ``factories``: ``{'gul'|'fm'|...: 'package.module:attribute'}`` or None;
 * ``out_dir`` (absolute) and ``taps``;
 * ``sys_path``: the orchestrator's ``sys.path``, whose entries the worker appends to its own so that factories
   importable in the orchestrator are importable here.
@@ -14,12 +14,16 @@ process list):
 Protocol, every message a dict with a ``type``:
 
 * worker -> orchestrator: ``hello`` (``worker``, ``pid``) once connected; ``ready`` (``chain_seconds``) when it
-  can take a chunk; ``done`` (``chunk``, ``events``, ``seconds``) after each chunk, followed by ``ready``; ``error``
-  (``stage``, ``chunk``, ``event``, ``error``, ``traceback``) when setting up the chain or running a chunk fails,
-  after which the worker exits with status 1.
-* orchestrator -> worker: ``chunk`` (``chunk``, ``events``) in reply to ``ready``, or ``stop``, after which the
-  worker closes its chain and exits with status 0.
+  can take a chunk; ``done`` (``chunk``, ``events``, ``seconds``) after each chunk and ``done`` (``job``,
+  ``seconds``) after each output job, followed by ``ready``; ``error`` (``stage``, ``chunk``, ``event``, ``job``,
+  ``error``, ``traceback``) when setting up the chain, running a chunk or running a job fails, after which the
+  worker exits with status 1.
+* orchestrator -> worker: ``chunk`` (``chunk``, ``events``) or ``job`` (``job``: its index, ``tool``, ``kwargs``)
+  in reply to ``ready``, or ``stop``, after which the worker closes its chain and exits with status 0. Jobs come
+  only after every chunk of the run is done, so the worker closes its chain before the first one to give the
+  memory back.
 """
+import gc
 import json
 import os
 import sys
@@ -29,6 +33,7 @@ from multiprocessing.connection import Client
 
 from .chain import Chain, ChainSpec
 from .chunks import ChunkWriter
+from .outputs import JobError, run_job
 
 EXIT_ERROR = 1
 
@@ -58,31 +63,31 @@ def failing_stage(chain, tb):
         tb (types.TracebackType): traceback of the exception.
 
     Returns:
-        str | None: the stage's name (see ``stage_name``), None when no stage is on the traceback.
+        str | None: the stage's name (see ``Chain.stages``), None when no stage is on the traceback.
     """
-    stages = {id(chain.gul): None, **{id(stage): i for i, stage in enumerate(chain.fm_steps)}}
+    stages = {id(stage): name for name, stage in chain.stages()}
     while tb is not None:
         owner = tb.tb_frame.f_locals.get('self')
         if owner is not None and id(owner) in stages:
-            return stage_name(chain, stages[id(owner)])
+            return stages[id(owner)]
         tb = tb.tb_next
     return None
 
 
-def error_message(exc, stage, chunk=None, event=None):
+def error_message(exc, stage, chunk=None, event=None, job=None):
     """Build the ``error`` message describing an exception."""
     return {
-        'type': 'error', 'stage': stage, 'chunk': chunk, 'event': event,
+        'type': 'error', 'stage': stage, 'chunk': chunk, 'event': event, 'job': job,
         'error': f'{type(exc).__name__}: {exc}',
         'traceback': ''.join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
     }
 
 
 def run_chunk(chain, out_dir, taps, chunk_number, events):
-    """Run one chunk through the chain and write its streams.
+    """Run one chunk through the chain and write its tap streams and the chain's files.
 
     Args:
-        chain (Chain): the chain, reset first.
+        chain (Chain): the chain; the chunk runs between its ``start_chunk`` and ``finish_chunk``.
         out_dir (str): output directory.
         taps (list[str]): taps to write.
         chunk_number (int): 1-based chunk number.
@@ -97,11 +102,13 @@ def run_chunk(chain, out_dir, taps, chunk_number, events):
     t_start = time.perf_counter()
     event_id = None
     try:
-        chain.reset()
+        chain.start_chunk(chunk_number)
         with ChunkWriter(out_dir, chunk_number, chain.headers, taps) as writer:
             sinks = writer.sinks
             for event_id in events:
                 chain.run_event(event_id, sinks)
+        event_id = None
+        chain.finish_chunk()
     except Exception as exc:
         raise ChunkError(event_id) from exc
     return {'type': 'done', 'chunk': chunk_number, 'events': len(events), 'seconds': time.perf_counter() - t_start}
@@ -115,8 +122,25 @@ class ChunkError(Exception):
         self.event_id = None if event_id is None else int(event_id)
 
 
+def run_output_job(message, run_dir):
+    """Run the output job of a ``job`` message.
+
+    Args:
+        message (dict): the message: ``job`` (index), ``tool`` and ``kwargs``.
+        run_dir (str): the run directory, the job's working directory.
+
+    Returns:
+        dict: the ``done`` message.
+
+    Raises:
+        JobError: the tool failed.
+    """
+    result = run_job({'tool': message['tool'], 'kwargs': message['kwargs']}, run_dir, index=message['job'])
+    return {'type': 'done', 'job': message['job'], 'seconds': result['seconds']}
+
+
 def serve(conn, config):
-    """Build the chain, then answer chunks until told to stop.
+    """Build the chain, then answer chunks and output jobs until told to stop.
 
     Args:
         conn (multiprocessing.connection.Connection): connection to the orchestrator.
@@ -134,12 +158,26 @@ def serve(conn, config):
         return EXIT_ERROR
     taps = list(config['taps'])
     out_dir = config['out_dir']
+    run_dir = chain.spec.run_dir
     try:
         conn.send({'type': 'ready', 'chain_seconds': time.perf_counter() - t_setup})
         while True:
             message = conn.recv()
             if message['type'] == 'stop':
                 return 0
+            if message['type'] == 'job':
+                if chain is not None:
+                    chain.close()
+                    chain = None
+                    gc.collect()
+                try:
+                    done = run_output_job(message, run_dir)
+                except JobError as exc:
+                    conn.send(error_message(exc.__cause__, exc.job.tool, job=message['job']))
+                    return EXIT_ERROR
+                conn.send(done)
+                conn.send({'type': 'ready'})
+                continue
             chunk_number = message['chunk']
             try:
                 done = run_chunk(chain, out_dir, taps, chunk_number, message['events'])
@@ -151,7 +189,8 @@ def serve(conn, config):
             conn.send(done)
             conn.send({'type': 'ready'})
     finally:
-        chain.close()
+        if chain is not None:
+            chain.close()
 
 
 def main():

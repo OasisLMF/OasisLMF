@@ -630,3 +630,12 @@ bytes|rows` compares two run directories.
 
 Result so far: the pool executor, 4 workers, `--plan ref/K4_S10/bash_params.json`, writes all
 216 per-partition work files byte-identical to the reference.
+
+Output stage, as built (package 11): executors take `output_jobs`; after the last chunk the
+pool answers `ready` with `job` messages (index, tool, kwargs), and a worker closes its chain
+before its first job to free the chain's memory. `outputs.run_job` calls the tool's `main()`
+in-process with the run directory as cwd and logging isolated per job. `check_independent`
+rejects jobs that share outputs, read each other's outputs or share a `work/` subfolder,
+before any chunk runs. Stats gain `jobs`, `output_seconds` and per-worker `job_seconds`.
+PiWind K4 through the pool, 4 workers: `work/` and `output/` byte-identical to `ref/K4_S10`
+(288 files); 54 output jobs take 1.3 s.

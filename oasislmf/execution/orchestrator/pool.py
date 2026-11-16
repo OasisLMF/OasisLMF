@@ -9,9 +9,14 @@ Elasticity is a mechanism of ``WorkerPool``: ``spawn()`` adds a worker at any ti
 pulling; ``retire()`` answers the next ``ready`` of a worker with ``stop``. ``run_chunks`` uses the simplest policy,
 W = min(n_workers, K) from the start; a ``policy`` callable may be passed to change the pool during the run.
 
+Output jobs (``output_jobs``: the katpy/aalpy/lecpy runs of the plan, see ``outputs.py``) are handed out on the same
+pool once every chunk is done: a worker whose ``ready`` arrives while the last chunks are still running waits for
+them, then gets a ``job``. The jobs are independent (``outputs.check_independent``), so any free worker takes the
+next one.
+
 Any failure stops the run: a worker that reports an exception, exits or closes its connection before it was told
 to stop. The remaining workers are terminated with their process trees and ``WorkerError`` is raised, naming the
-stage, chunk and event when known, with the tail of the worker's stderr.
+stage, chunk and event when known, or the output job (tool and output files), with the tail of the worker's stderr.
 """
 import collections
 import dataclasses
@@ -29,6 +34,8 @@ from multiprocessing.connection import Client, Listener, wait
 import psutil
 
 import oasislmf
+
+from .outputs import as_job, check_independent, job_label, job_outputs, prepare_output_dirs
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +57,12 @@ class WorkerError(RuntimeError):
         event (int | None): event id the worker was processing, when reported.
         returncode (int | None): exit status of the worker, None if it was still running.
         stderr_tail (str): last lines of the worker's stderr.
+        job (int | None): index of the output job the worker was running.
+        job_label (str | None): that job's tool and output files (``outputs.job_label``).
     """
 
-    def __init__(self, message, worker=None, stage=None, chunk=None, event=None, returncode=None, stderr_tail=''):
+    def __init__(self, message, worker=None, stage=None, chunk=None, event=None, returncode=None, stderr_tail='', job=None,
+                 job_label=None):
         super().__init__(message)
         self.worker = worker
         self.stage = stage
@@ -60,6 +70,8 @@ class WorkerError(RuntimeError):
         self.event = event
         self.returncode = returncode
         self.stderr_tail = stderr_tail
+        self.job = job
+        self.job_label = job_label
 
 
 def _descendants(pids):
@@ -142,6 +154,10 @@ class Worker:
     chunk: int = None
     chunks: int = 0
     busy_seconds: float = 0.0
+    job: int = None
+    jobs: int = 0
+    job_seconds: float = 0.0
+    waiting: bool = False
     retire: bool = False
     stopped: bool = False
     t_stop: float = None
@@ -161,7 +177,7 @@ class WorkerPool:
     """
 
     def __init__(self, spec, chunks, out_dir, taps, factories=None, policy=None, progress=None, python=None, env=None,
-                 kill_grace=KILL_GRACE):
+                 kill_grace=KILL_GRACE, output_jobs=None):
         """Open the listener; no worker is started yet.
 
         Args:
@@ -169,7 +185,7 @@ class WorkerPool:
             chunks (Sequence[array-like]): event ids of each chunk; chunk k (1-based) is ``chunks[k - 1]``.
             out_dir (str): absolute output directory.
             taps (list[str]): taps to write.
-            factories (dict, optional): ``{'gul'|'fm': 'package.module:attribute'}`` replacing the real stages in
+            factories (dict, optional): ``{'gul'|'fm'|'summary'|'elt'|'plt': 'package.module:attribute'}`` replacing the real stages in
                 the workers. Only import strings can be sent to a spawned process.
             policy (callable, optional): ``policy(pool)`` called after every message handled, to ``spawn`` or
                 ``retire`` workers.
@@ -177,6 +193,8 @@ class WorkerPool:
             python (str, optional): interpreter for the workers, ``sys.executable`` by default.
             env (dict, optional): environment of the workers, ``os.environ`` by default.
             kill_grace (float): seconds a terminated worker has before it is killed.
+            output_jobs (Sequence[OutputJob | dict], optional): run once every chunk is done; they must be
+                independent (``outputs.check_independent``).
         """
         if factories is not None:
             not_strings = sorted(key for key, value in factories.items() if not isinstance(value, str))
@@ -193,8 +211,14 @@ class WorkerPool:
         self.env = env
         self.kill_grace = kill_grace
 
+        self.output_jobs = [as_job(job) for job in output_jobs or []]
+        check_independent(self.output_jobs)
         self.pending = collections.deque(range(1, len(self.chunks) + 1))
         self.chunk_stats = {}
+        self.pending_jobs = collections.deque(range(len(self.output_jobs)))
+        self.job_stats = {}
+        self.t_jobs_start = None
+        self.t_jobs_end = None
         self.events_total = sum(len(chunk) for chunk in self.chunks)
         self.events_done = 0
         self.workers = []
@@ -221,6 +245,11 @@ class WorkerPool:
                 conn.close()
                 return
             self._accepted.put(conn)
+
+    @property
+    def chunks_done(self):
+        """True when every chunk has been reported done."""
+        return len(self.chunk_stats) == len(self.chunks)
 
     @property
     def remaining(self):
@@ -291,10 +320,14 @@ class WorkerPool:
         stage, chunk, event = message.get('stage'), message.get('chunk', worker.chunk), message.get('event')
         if chunk is None:
             chunk = worker.chunk
+        job = message.get('job', worker.job)
+        if job is None:
+            job = worker.job
+        label = job_label(self.output_jobs[job]) if job is not None else None
         returncode = worker.popen.poll()
         stderr_tail = _tail(worker.log_path)
         where = [f'stage {stage}' if stage else None, f'chunk {chunk}' if chunk is not None else None,
-                 f'event {event}' if event is not None else None]
+                 f'event {event}' if event is not None else None, f'output job {label}' if label else None]
         where = ', '.join(w for w in where if w)
         text = f'pool worker {worker.number} (pid {worker.popen.pid}) {reason}'
         if where:
@@ -308,7 +341,7 @@ class WorkerPool:
         if stderr_tail:
             text += '\nworker stderr (last lines):\n' + stderr_tail
         return WorkerError(text, worker=worker.number, stage=stage, chunk=chunk, event=event, returncode=returncode,
-                           stderr_tail=stderr_tail)
+                           stderr_tail=stderr_tail, job=job, job_label=label)
 
     def _register(self, conn):
         """Attach a new connection to its worker from the ``hello`` it sends first."""
@@ -332,15 +365,38 @@ class WorkerPool:
         worker.pid = hello.get('pid')
 
     def _dispatch(self, worker):
-        """Answer a ``ready``: the next chunk, or ``stop`` when there is none or the worker is retiring."""
-        if worker.retire or not self.pending:
-            worker.conn.send({'type': 'stop'})
-            worker.stopped = True
-            worker.t_stop = time.perf_counter()
+        """Answer a ``ready``: the next chunk; once every chunk is done the next output job; else ``stop``.
+
+        A worker asking while chunks are still running and jobs are left waits (``waiting``) and is answered by
+        ``_dispatch_waiting`` when the last chunk is done.
+        """
+        worker.waiting = False
+        if not worker.retire and self.pending:
+            k = self.pending.popleft()
+            worker.chunk = k
+            worker.conn.send({'type': 'chunk', 'chunk': k, 'events': self.chunks[k - 1]})
             return
-        k = self.pending.popleft()
-        worker.chunk = k
-        worker.conn.send({'type': 'chunk', 'chunk': k, 'events': self.chunks[k - 1]})
+        if not worker.retire and self.pending_jobs:
+            if not self.chunks_done:
+                worker.waiting = True
+                return
+            i = self.pending_jobs.popleft()
+            if self.t_jobs_start is None:
+                self.t_jobs_start = time.perf_counter()
+            worker.job = i
+            worker.conn.send({'type': 'job', 'job': i, **self.output_jobs[i].to_dict()})
+            return
+        worker.conn.send({'type': 'stop'})
+        worker.stopped = True
+        worker.t_stop = time.perf_counter()
+
+    def _dispatch_waiting(self):
+        """Answer the workers waiting for the last chunks, once those are done."""
+        if not self.chunks_done:
+            return
+        for worker in self.workers:
+            if worker.waiting and not worker.stopped:
+                self._dispatch(worker)
 
     def _handle(self, worker, message):
         """Handle one message of a worker; raise ``WorkerError`` when it reports a failure."""
@@ -350,6 +406,15 @@ class WorkerPool:
                 worker.setup_seconds = time.perf_counter() - worker.t_spawn
                 worker.chain_seconds = message.get('chain_seconds')
             self._dispatch(worker)
+        elif kind == 'done' and 'job' in message:
+            i = message['job']
+            self.job_stats[i] = {'job': i, 'tool': self.output_jobs[i].tool, 'outputs': job_outputs(self.output_jobs[i]),
+                                 'seconds': message['seconds'], 'worker': worker.number}
+            worker.jobs += 1
+            worker.job_seconds += message['seconds']
+            worker.job = None
+            if len(self.job_stats) == len(self.output_jobs):
+                self.t_jobs_end = time.perf_counter()
         elif kind == 'done':
             k = message['chunk']
             self.chunk_stats[k] = {'chunk': k, 'events': message['events'], 'seconds': message['seconds'], 'worker': worker.number}
@@ -359,6 +424,7 @@ class WorkerPool:
             self.events_done += message['events']
             if self.progress is not None:
                 self.progress(self.events_done, self.events_total)
+            self._dispatch_waiting()
         elif kind == 'error':
             raise self._fail(worker, 'failed', message)
         else:
@@ -403,7 +469,7 @@ class WorkerPool:
 
     def _finished(self):
         """True when every chunk is done and every worker has been stopped and has exited."""
-        return (not self.pending and len(self.chunk_stats) == len(self.chunks)
+        return (not self.pending and self.chunks_done and not self.pending_jobs and len(self.job_stats) == len(self.output_jobs)
                 and all(w.stopped and w.popen.poll() is not None for w in self.workers))
 
     def run(self):
@@ -442,12 +508,15 @@ class WorkerPool:
                 if not conns:
                     time.sleep(POLL_INTERVAL)
                 self._check_exits()
-                if not any(not w.stopped for w in self.workers) and (self.pending or len(self.chunk_stats) < len(self.chunks)):
+                work_left = (self.pending or not self.chunks_done or self.pending_jobs
+                             or len(self.job_stats) < len(self.output_jobs))
+                if not any(not w.stopped for w in self.workers) and work_left:
                     if self.policy is not None:
                         self.policy(self)
                     if not any(not w.stopped for w in self.workers):
                         self.terminate()
-                        raise WorkerError(f'every worker was stopped with {len(self.pending)} chunks left')
+                        raise WorkerError(f'every worker was stopped with {len(self.pending)} chunks left and '
+                                          f'{len(self.pending_jobs)} output jobs left')
         except BaseException:
             self.terminate()
             raise
@@ -462,8 +531,11 @@ class WorkerPool:
             'setup_seconds': max(setups) if setups else 0.0,
             'events': sum(c['events'] for c in self.chunk_stats.values()),
             'chunks': [self.chunk_stats[k] for k in sorted(self.chunk_stats)],
+            'jobs': [self.job_stats[i] for i in sorted(self.job_stats)],
+            'output_seconds': (self.t_jobs_end - self.t_jobs_start) if self.t_jobs_end is not None else 0.0,
             'workers': [{'worker': w.number, 'pid': w.popen.pid, 'chunks': w.chunks, 'setup_seconds': w.setup_seconds,
-                         'chain_seconds': w.chain_seconds, 'busy_seconds': w.busy_seconds} for w in self.workers],
+                         'chain_seconds': w.chain_seconds, 'busy_seconds': w.busy_seconds, 'jobs': w.jobs,
+                         'job_seconds': w.job_seconds} for w in self.workers],
         }
 
     def terminate(self):
@@ -504,7 +576,9 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     """Run the chunks on a pool of worker processes and write ``<out_dir>/<tap>_P<k>.bin`` for each.
 
     Starts W = min(n_workers, K) workers. Each builds one ``Chain`` with the run directory as working directory and
-    calls ``Chain.reset()`` at the start of every chunk.
+    runs every chunk between ``Chain.start_chunk(k)`` and ``Chain.finish_chunk()``. Once every chunk is done the
+    workers close their chain and run the ``output_jobs``, each tool's ``main`` called in-process with the run
+    directory as working directory (``outputs.run_job``).
 
     Args:
         spec (ChainSpec): the chain to run.
@@ -512,14 +586,17 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
         out_dir (str | os.PathLike): output directory, relative to the current working directory.
         taps (Iterable[str]): taps to write.
         n_workers (int): maximum number of workers.
-        **options: ``factories`` (``{'gul'|'fm': 'package.module:attribute'}``), ``policy``, ``progress``,
-            ``python``, ``env`` and ``kill_grace``, see ``WorkerPool``; other options are ignored.
+        **options: ``factories`` (``{'gul'|'fm'|'summary'|'elt'|'plt': 'package.module:attribute'}``), ``policy``, ``progress``,
+            ``python``, ``env``, ``kill_grace`` and ``output_jobs`` (Sequence[OutputJob | dict]), see ``WorkerPool``;
+            other options are ignored.
 
     Returns:
         dict: statistics: ``executor`` ('pool'), ``n_workers``, ``wall_seconds``, ``setup_seconds`` (the longest time
         from starting a worker to its first ``ready``), ``events``, ``chunks`` (one ``{'chunk', 'events',
-        'seconds', 'worker'}`` per chunk) and ``workers`` (one ``{'worker', 'pid', 'chunks', 'setup_seconds',
-        'chain_seconds', 'busy_seconds'}`` per worker).
+        'seconds', 'worker'}`` per chunk), ``jobs`` (one ``{'job', 'tool', 'outputs', 'seconds', 'worker'}`` per output
+        job, by index), ``output_seconds`` (from handing out the first job to the last one done) and ``workers`` (one
+        ``{'worker', 'pid', 'chunks', 'setup_seconds', 'chain_seconds', 'busy_seconds', 'jobs', 'job_seconds'}`` per
+        worker; ``busy_seconds`` counts chunks only).
 
     Raises:
         WorkerError: a worker failed; every worker has been terminated.
@@ -532,8 +609,11 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     if n_workers <= 0:
         raise ValueError(f'n_workers must be positive, got {n_workers}')
     os.makedirs(out_dir, exist_ok=True)
-    n = min(n_workers, len(chunks))
+    output_jobs = [as_job(job) for job in options.get('output_jobs') or []]
+    n = min(n_workers, len(chunks) or len(output_jobs))
+    prepare_output_dirs(output_jobs, spec.run_dir)
     pool_options = {key: options[key] for key in ('factories', 'policy', 'progress', 'python', 'env', 'kill_grace') if key in options}
+    pool_options['output_jobs'] = output_jobs
     with WorkerPool(spec, chunks, out_dir, taps, **pool_options) as pool:
         for _ in range(n):
             pool.spawn()

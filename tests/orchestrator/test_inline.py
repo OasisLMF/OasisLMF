@@ -12,7 +12,8 @@ from oasislmf.execution.orchestrator.chain import Chain
 from oasislmf.execution.orchestrator.chunks import ChunkWriter, make_chunks
 from tests.orchestrator.tools.compare_streams import compare_dirs_bytes
 
-from .test_chain import FACTORIES, FakeFm, FakeGul, expected_streams, make_spec
+from .test_chain import (FACTORIES, TREE_FACTORIES, FakeFm, FakeGul, expected_streams, expected_tree_files, make_spec, make_tree_spec,
+                         read_tree_files)
 
 TAPS = ['gul', 'il', 'ri']
 PIWIND_ARGS = ['--random-generator=2', '--model-df-engine=oasis_data_manager.df_reader.reader.OasisPandasReader',
@@ -103,7 +104,8 @@ def test_cli_args_to_spec_piwind():
         {'allocation_rule': 2, 'static_path': 'input', 'name': 'il', 'feeds_next': 'gross', **fm_common},
         {'allocation_rule': 3, 'static_path': os.path.join('input', 'RI_1'), 'name': 'ri', 'feeds_next': None, **fm_common},
     ]
-    assert args.taps == TAPS
+    assert cli.resolve_taps(args) == TAPS
+    assert cli.resolve_taps(cli.build_parser().parse_args(['--plan', 'p.json'])) == []
     assert args.executor == 'inline'
     assert args.chunks == 12
 
@@ -240,3 +242,13 @@ def test_inline_one_chain_in_scrambled_chunk_order_matches_fresh_chains_and_bash
         results = compare_dirs_bytes(expected, one_chain, taps=TAPS)
         assert len(results) == n_chunks * len(TAPS)
         assert all(r.ok for r in results), [r for r in results if not r.ok]
+
+
+def test_inline_tree_writes_chunk_files_and_taps(tmp_path, run_dir):
+    events = np.arange(1, 31, dtype=np.int32)
+    chunks = make_chunks(events, 3) + [np.array([], dtype=np.int32)]
+    out_dir = tmp_path / 'out'
+    inline.run_chunks(make_tree_spec(str(run_dir), n_ri=1), chunks, out_dir, TAPS, factories=TREE_FACTORIES, chunk_order=[4, 2, 1, 3])
+    check_outputs(out_dir, chunks, fake_headers())
+    for k, chunk in enumerate(chunks, 1):
+        assert read_tree_files(run_dir, k) == expected_tree_files([int(e) for e in chunk], n_ri=1, k=k), k

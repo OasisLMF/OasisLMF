@@ -5,22 +5,38 @@ k in one go, with the executor chosen by ``--executor``, and writes ``<out-dir>/
 
     python -m oasislmf.execution.orchestrator.cli --executor inline --run-dir RUN --chunks 12 --out-dir OUT --taps gul,il,ri
         -S10 -L0 -a1 --random-generator 2 --vuln-cache-size 200 --il-alloc-rule 2 --ri-layers 1 --ri-alloc-rule 3
+
+With ``--plan bash_params.json`` (the dict ``genbash`` consumes) or ``--analysis-settings`` the chain is built by
+the planner instead: the gul and fm options are ignored, and every chunk writes the work files bash's partition k
+writes (``work/kat/*_P<k>``, ``work/*_summary*/P<k>.bin``), in the run directory; once every chunk is done the
+katpy/aalpy/lecpy output jobs write ``output/``, on the same executor (``--no-output-jobs`` skips them). A plan the
+orchestrator does not support exits with status 3 and the reason::
+
+    python -m oasislmf.execution.orchestrator.cli --executor pool --run-dir RUN --plan RUN/bash_params.json --workers 8
 """
 import argparse
 import importlib
 import json
 import logging
 import os
+import shutil
 import sys
 
 import numpy as np
 
+from oasislmf.execution.bash import bash_params as make_bash_params
+from oasislmf.utils.data import get_json
+
 from .chain import TAPS, build_chain_spec
 from .chunks import make_chunks, read_events
+from .outputs import jobs_for_chunks
+from .plan import Unsupported, plan_from_bash_params
 
 EXECUTORS_PACKAGE = 'oasislmf.execution.orchestrator'
 EXECUTORS = {'inline': '.inline', 'pool': '.pool'}
 EVENTS_FILE = os.path.join('input', 'events.bin')
+RI_LAYERS_FILE = os.path.join('input', 'ri_layers.json')
+EXIT_UNSUPPORTED = 3
 
 logger = logging.getLogger(__name__)
 
@@ -102,11 +118,24 @@ def build_parser():
     )
     run = parser.add_argument_group('run')
     run.add_argument('--executor', choices=sorted(EXECUTORS), default='inline', help='executor. Default: inline')
-    run.add_argument('--run-dir', default='.', help='run directory (with input/events.bin). Default: "."')
-    run.add_argument('--chunks', type=int, default=1, help='number of chunks K; chunk k holds the events of `evepy k K`. Default: 1')
+    run.add_argument('--run-dir', default=None,
+                     help='run directory (with input/events.bin). Default: "." (with --plan: model_run_dir of the plan, else ".")')
+    run.add_argument('--chunks', type=int, default=None,
+                     help='number of chunks K; chunk k holds the events of `evepy k K`. Default: 1 (with --plan: max_process_id)')
     run.add_argument('--workers', type=int, default=1, help='number of workers. Default: 1')
-    run.add_argument('--out-dir', required=True, help='output directory for <tap>_P<k>.bin, relative to the current directory')
-    run.add_argument('--taps', type=parse_taps, default=['gul', 'il', 'ri'], help='comma-separated taps among gul,il,ri. Default: gul,il,ri')
+    run.add_argument('--out-dir', default=None, help='output directory for <tap>_P<k>.bin, relative to the current directory;\n'
+                                                     'required when taps are written')
+    run.add_argument('--taps', type=parse_taps, default=None,
+                     help='comma-separated taps among gul,il,ri. Default: gul,il,ri (with --plan: none)')
+    run.add_argument('--plan', default=None, metavar='BASH_PARAMS_JSON',
+                     help='build the chain with the planner from this bash_params JSON (as genbash consumes it)')
+    run.add_argument('--analysis-settings', default=None, metavar='JSON',
+                     help='build the chain with the planner from bash_params made from these analysis settings with the\n'
+                          'genbash defaults (RI layers from input/ri_layers.json, K = --chunks)')
+    run.add_argument('--keep-work', action='store_true',
+                     help='with --plan/--analysis-settings: do not empty the work directories the chunks write into first')
+    run.add_argument('--no-output-jobs', action='store_true',
+                     help='with --plan/--analysis-settings: run the chunks only, not the katpy/aalpy/lecpy output jobs')
     run.add_argument('--chunk-order', type=parse_chunk_order, default=None,
                      help='inline executor only, for testing: order the chunks are run in, as reverse, shuffle:<seed> or\n'
                           'a comma-separated permutation of 1..K. Output file names do not change. Default: 1..K')
@@ -175,7 +204,59 @@ def spec_from_args(args):
     il = {'allocation_rule': args.il_alloc_rule, 'static_path': 'input', **fm_common}
     ri = [{'allocation_rule': args.ri_alloc_rule, 'static_path': os.path.join('input', f'RI_{i}'), **fm_common}
           for i in range(1, args.ri_layers + 1)]
-    return build_chain_spec(os.path.abspath(args.run_dir), gul, il=il, ri=ri)
+    return build_chain_spec(os.path.abspath(args.run_dir or '.'), gul, il=il, ri=ri)
+
+
+def is_planned(args):
+    """True when the chain comes from the planner (``--plan`` or ``--analysis-settings``)."""
+    return bool(args.plan or args.analysis_settings)
+
+
+def resolve_taps(args):
+    """The taps to write: ``--taps``, else gul, il and ri, or none when the chain comes from the planner."""
+    if args.taps is not None:
+        return list(args.taps)
+    return [] if is_planned(args) else list(TAPS)
+
+
+def load_plan(args):
+    """Build the plan of ``--plan`` or ``--analysis-settings``.
+
+    Args:
+        args (argparse.Namespace): parsed arguments.
+
+    Returns:
+        Plan: the plan.
+
+    Raises:
+        Unsupported: the planner does not cover the run.
+    """
+    if args.plan:
+        with open(args.plan) as f:
+            params = json.load(f)
+        return plan_from_bash_params(params, run_dir=args.run_dir)
+    run_dir = os.path.abspath(args.run_dir or '.')
+    analysis_settings = get_json(args.analysis_settings)
+    n_ri = 0
+    if analysis_settings.get('ri_output') or analysis_settings.get('rl_output'):
+        n_ri = len(get_json(os.path.join(run_dir, RI_LAYERS_FILE)))
+    params = make_bash_params(analysis_settings, max_process_id=args.chunks or -1, num_reinsurance_iterations=n_ri,
+                              fifo_tmp_dir=False, model_run_dir='',
+                              peril_filter=[p.upper() for p in analysis_settings.get('peril_filter') or []])
+    return plan_from_bash_params(params, run_dir=run_dir)
+
+
+def clear_work_dirs(plan):
+    """Empty the directories the chunks of a plan write into, as bash empties ``work/`` before a run.
+
+    Args:
+        plan (Plan): the plan; relative directories are taken in its run directory.
+    """
+    run_dir = os.path.abspath(plan.spec.run_dir)
+    for directory in plan.work_dirs():
+        path = os.path.abspath(os.path.join(run_dir, directory))
+        if path != run_dir and os.path.isdir(path):
+            shutil.rmtree(path)
 
 
 def main(argv=None):
@@ -189,29 +270,54 @@ def main(argv=None):
     """
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.chunks <= 0:
+    planned = is_planned(args)
+    if args.plan and args.analysis_settings:
+        parser.error('--plan and --analysis-settings are exclusive')
+    if args.chunks is not None and args.chunks <= 0:
         parser.error('--chunks must be positive')
     if args.workers <= 0:
         parser.error('--workers must be positive')
     if args.ri_layers < 0:
         parser.error('--ri-layers must not be negative')
-    if 'ri' in args.taps and args.ri_layers == 0:
+    taps = resolve_taps(args)
+    if taps and not args.out_dir:
+        parser.error('--out-dir is required when taps are written')
+    if not planned and 'ri' in taps and args.ri_layers == 0:
         parser.error("tap 'ri' needs --ri-layers >= 1")
-    chunk_order = resolve_chunk_order(args.chunk_order, args.chunks)
+    logging.basicConfig(level=args.logging_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    if planned:
+        try:
+            plan = load_plan(args)
+        except Unsupported as exc:
+            parser.exit(EXIT_UNSUPPORTED, f'{parser.prog}: unsupported by the orchestrator, run with bash: {exc.reason}\n')
+        spec = plan.spec
+        n_chunks = args.chunks or plan.n_chunks
+    else:
+        spec = spec_from_args(args)
+        n_chunks = args.chunks or 1
+    chunk_order = resolve_chunk_order(args.chunk_order, n_chunks)
     if chunk_order is not None:
         if args.executor != 'inline':
             parser.error('--chunk-order is only supported by the inline executor')
-        if sorted(chunk_order) != list(range(1, args.chunks + 1)):
-            parser.error(f'--chunk-order must be a permutation of 1..{args.chunks}')
-    logging.basicConfig(level=args.logging_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        if sorted(chunk_order) != list(range(1, n_chunks + 1)):
+            parser.error(f'--chunk-order must be a permutation of 1..{n_chunks}')
 
-    spec = spec_from_args(args)
     events = read_events(os.path.join(spec.run_dir, EVENTS_FILE))
-    chunks = make_chunks(events, args.chunks)
+    if planned:
+        chunks = plan.make_chunks(events, n_chunks)
+        if not args.keep_work:
+            clear_work_dirs(plan)
+    else:
+        chunks = make_chunks(events, n_chunks)
+    out_dir = args.out_dir or os.path.join(spec.run_dir, 'work')
     executor = get_executor(args.executor)
     options = {'chunk_order': chunk_order} if chunk_order is not None else {}
-    stats = executor.run_chunks(spec, chunks, args.out_dir, args.taps, args.workers, **options)
-    logger.info("executor %s: %d events in %d chunks, %.2f s", args.executor, len(events), args.chunks, stats.get('wall_seconds', 0.0))
+    if planned and not args.no_output_jobs:
+        options['output_jobs'] = jobs_for_chunks(plan.output_jobs, n_chunks)
+    stats = executor.run_chunks(spec, chunks, out_dir, taps, args.workers, **options)
+    logger.info("executor %s: %d events in %d chunks, %d output jobs, %.2f s (output jobs %.2f s)", args.executor, len(events),
+                n_chunks, len(stats.get('jobs', [])), stats.get('wall_seconds', 0.0), stats.get('output_seconds', 0.0))
     if args.stats_json:
         with open(args.stats_json, 'w') as f:
             json.dump(stats, f, indent=2, default=str)

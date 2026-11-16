@@ -15,7 +15,7 @@ from oasislmf.execution.orchestrator.chain import Chain
 from oasislmf.execution.orchestrator.chunks import make_chunks
 from oasislmf.execution.orchestrator.worker import stage_name
 
-from .test_chain import FakeFm, FakeGul, expected_streams, make_spec
+from .test_chain import FakeFm, FakeGul, FakeSummary, expected_streams, expected_tree_files, make_spec, make_tree_spec, read_tree_files
 from .tools.compare_streams import compare_dirs_bytes
 from .tools.reference_streams import DEFAULT_GUL_ARGS
 
@@ -320,4 +320,36 @@ def test_pool_kernel_byte_identical_to_reference_and_inline(kernel_run, kernel_r
     inline.run_chunks(spec, chunks, tmp_path / 'inline', TAPS)
     assert_same_streams(tmp_path / 'pool', tmp_path / 'inline', n_chunks)
     check_stats_shape(stats, chunks, min(n_workers, n_chunks))
+    assert descendants() == []
+
+
+TREE_FACTORY_STRINGS = {**FAKE_FACTORIES, 'summary': 'tests.orchestrator.test_chain:FakeSummary',
+                        'elt': 'tests.orchestrator.test_chain:FakeElt', 'plt': 'tests.orchestrator.test_chain:FakePlt'}
+
+
+class RaisingSummary(FakeSummary):
+    def process_block(self, block, outs, idx_outs=None):
+        if self.run_type == 'il' and np.frombuffer(block.tobytes(), dtype=np.int32)[0] == 2 * FM_RAISE_EVENT + 2:
+            raise ValueError('summary failed')
+        super().process_block(block, outs, idx_outs)
+
+
+@pytest.mark.parametrize('n_chunks, n_workers', [(5, 2), (3, 3)])
+def test_pool_tree_writes_chunk_files_and_taps(tmp_path, run_dir, n_chunks, n_workers):
+    chunks = make_chunks(np.arange(1, 31, dtype=np.int32), n_chunks)
+    out_dir = tmp_path / 'out'
+    run_pool(make_tree_spec(str(run_dir), n_ri=1), chunks, out_dir, TAPS, n_workers, factories=TREE_FACTORY_STRINGS)
+    check_fake_outputs(out_dir, chunks)
+    for k, chunk in enumerate(chunks, 1):
+        assert read_tree_files(run_dir, k) == expected_tree_files([int(e) for e in chunk], n_ri=1, k=k), k
+
+
+def test_pool_summary_exception_names_summary_stage(tmp_path, run_dir):
+    chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 3)
+    with pytest.raises(pool.WorkerError) as info:
+        run_pool(make_tree_spec(str(run_dir)), chunks, tmp_path / 'out', [], 2,
+                 factories={**TREE_FACTORY_STRINGS, 'summary': f'{THIS}:RaisingSummary'})
+    assert info.value.stage == 'summary il'
+    assert info.value.event == FM_RAISE_EVENT
+    assert 'summary failed' in str(info.value)
     assert descendants() == []
