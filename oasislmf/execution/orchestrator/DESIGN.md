@@ -548,3 +548,85 @@ gul -> fm(il) -> fm(ri)
 
 7, 8 and 9 run in parallel once the 9.2 interfaces are written into section 8; 10 starts
 against fake stages.
+
+### 9.5 Interface contract for phase 3
+
+Same rules as section 8: a package may add to its own module but must not change a signature
+below without updating this section. Blocks and sinks are as in 8.1.
+
+```python
+# oasislmf/pytools/summary/stage.py                                             (package 8)
+class SummaryStage:
+    def __init__(self, input_header, static_path, run_type, summary_set_ids, low_memory=False,
+                 output_zeros=False, **kwargs): ...
+    headers: dict                                  # summary_set_id -> the 12-byte header summarypy
+                                                   # writes to that set (it carries the set id);
+                                                   # `header` works only with a single set
+    def process_block(self, block, outs, idx_outs=None, row_writers=None): ...
+                                                   # outs: dict summary_set_id -> sink; for each
+                                                   # event, the bytes summarypy writes to set n.
+                                                   # idx_outs: the .idx sinks, required with
+                                                   # low_memory (summarypy -m, used by bash when
+                                                   # summarypy_low_memory is set). row_writers:
+                                                   # csv/parquet SELT rows instead of outs.
+    def reset(self): ...                           # restarts the .idx offsets: call per output
+                                                   # file. No cross-event state in the losses.
+    def close(self): ...
+
+# oasislmf/pytools/elt/stage.py                                                 (package 9)
+class EltStage:
+    def __init__(self, run_dir, input_header, selt=False, melt=False, qelt=False,
+                 output_format='bin', noheader=False): ...
+    def start_chunk(self, paths): ...              # paths: dict 'selt'|'melt'|'qelt' -> file for this
+                                                   # chunk; opens them and writes headers as eltpy does
+    def process_block(self, block): ...            # summary block in, rows appended to the open files
+    def finish_chunk(self): ...                    # flush and close: files equal eltpy's, byte for byte
+    def close(self): ...
+
+# oasislmf/pytools/plt/stage.py                                                 (package 9)
+class PltStage:                                    # as EltStage, with 'splt'|'mplt'|'qplt'
+    def __init__(self, run_dir, input_header, splt=False, mplt=False, qplt=False,
+                 output_format='bin', noheader=False): ...
+    def start_chunk(self, paths): ...
+    def process_block(self, block): ...
+    def finish_chunk(self): ...
+    def close(self): ...
+
+# oasislmf/execution/orchestrator/plan.py                                       (package 10)
+def plan_from_bash_params(bash_params) -> 'Plan': ...   # raises Unsupported(reason) when a
+                                                        # setting needs the bash path
+@dataclass
+class Plan:
+    spec: ChainSpec        # gains 'summaries': one node per summarypy invocation (run type and
+                           # inuring priority), mirroring bash: its source (gul, fm step gross
+                           # or net), SummaryStage kwargs, and per summary set the Elt/Plt stage
+                           # kwargs, plain work files and .idx files, as path templates
+                           # containing '{k}' that equal the names bash uses
+    output_jobs: list      # OutputJob(tool, kwargs): katpy/aalpy/lecpy runs, in any order
+```
+
+- `Chain` gains `start_chunk(k)` and `finish_chunk()`. `start_chunk(k)` resets every stage that
+  has `reset()` and calls `start_chunk(paths)` on every file-owning stage with its templates
+  filled in for chunk k; `finish_chunk()` calls theirs. Executors call these two instead of the
+  bare `Chain.reset()`, which is the only change the inline and pool executors need.
+- The palt and leccalc work files are plain file sinks fed with the summary stream exactly as
+  `tee` writes them: the summary header, then the blocks.
+- The gul/il/ri taps of 8.3 stay, for testing.
+- Output jobs run after every chunk is done (package 11); the pool sends them as `job` messages
+  and the worker calls the tool's `run()` with the job's kwargs, the run directory as cwd.
+
+### 9.6 Full-kernel reference data
+
+`~/GitHub/runs/orch-bench-piwind-full` holds the same PiWind portfolio prepared for a full
+kernel with every ORD output (summary sets S1 to S3, ELT, PLT, ALT, mean-only ALT, EPT/PSEPT,
+parquet for one set). `make_refs.sh K S` writes `ref/K<K>_S<S>/` with pristine `main`; each
+reference is a runnable run directory with its `bash_params.json`, `run_kernel.sh`, `work/`
+and `output/`. `ref/K4_S10` exists (K = 4 because a bash full kernel starts about 15 Python
+processes per partition; K4 peaks at 8.5 GB). bash runs gulmc there with `-a0`, so these
+references are not interchangeable with the stream references of 8.4 (`-a1`). A run with
+`summarypy_low_memory` needs a low-memory reference: lecpy sums differently when `.idx` files
+exist and EPT/PSEPT differ in the last digits. `tests/orchestrator/tools/compare_outputs.py
+bytes|rows` compares two run directories.
+
+Result so far: the pool executor, 4 workers, `--plan ref/K4_S10/bash_params.json`, writes all
+216 per-partition work files byte-identical to the reference.
