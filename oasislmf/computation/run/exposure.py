@@ -39,7 +39,9 @@ from oasislmf.utils.inputs import str2bool
 _SCI_NOTATION_FIELD = re.compile(r'(?<![^,\n])[-+]?\d+(?:\.\d+)?e[-+]\d+(?![^,\n])')
 
 
-def write_expected_file(generated, expected):
+# Test tooling: only runs when RunFmTest regenerates expected results (--update-expected),
+# which CI never does, so it is excluded from coverage rather than given a test of its own.
+def write_expected_file(generated, expected):  # pragma: no cover
     """Copy a generated test output to the expected folder, numbers in plain notation.
 
     Recent pandas/numpy write float32 columns in their shortest form, which is scientific
