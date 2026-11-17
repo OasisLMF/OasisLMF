@@ -6,6 +6,7 @@ import csv
 import glob
 import heapq
 import logging
+import os
 import numba as nb
 import numpy as np
 import shutil
@@ -495,6 +496,63 @@ def parquet_concat_sorted(
         writer.close()
 
 
+def bin_to_tabular(bin_file, out_file_path, out_type, to_csv, to_parquet):
+    """Convert a concatenated katpy binary file to csv and/or parquet.
+
+    Kept in its own function so the memory map over ``bin_file`` is released when it returns:
+    Windows refuses to delete a file that is still mapped or open.
+
+    Args:
+        bin_file (Path): concatenated binary file
+        out_file_path (Path): csv or parquet file to write
+        out_type (int): katpy output table type (index into KAT_MAP)
+        to_csv (bool): write a csv file
+        to_parquet (bool): write a parquet file
+    """
+    headers = KAT_MAP[out_type]["headers"]
+    fmt = KAT_MAP[out_type]["fmt"]
+    dtype = KAT_MAP[out_type]["dtype"]
+    out_size = bin_file.stat().st_size
+    if out_size % dtype.itemsize != 0:
+        logger.warning(f"Output binary size {out_size} is not a multiple of record size {dtype.itemsize}, treating as empty")
+    if out_size == 0 or out_size % dtype.itemsize != 0:
+        if to_csv:
+            with open(out_file_path, "w") as csv_out_file:
+                csv_out_file.write(",".join(headers) + "\n")
+        if to_parquet:
+            schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
+            empty_arrays = [pa.array([], type=schema.field(name).type) for name in dtype.names]
+            pq.write_table(pa.Table.from_arrays(empty_arrays, schema=schema), out_file_path)
+    else:
+        data = np.memmap(bin_file, dtype=dtype)
+        num_rows = data.shape[0]
+        if to_csv:
+            csv_out_file = open(out_file_path, "w")
+            csv_out_file.write(",".join(headers) + "\n")
+
+            buffer_size = DEFAULT_BUFFER_SIZE
+            for start in range(0, num_rows, buffer_size):
+                end = min(start + buffer_size, num_rows)
+                buffer_data = data[start:end]
+                write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
+            csv_out_file.close()
+        if to_parquet:
+            schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
+            parquet_writer = None
+            buffer_size = DEFAULT_BUFFER_SIZE
+            for start in range(0, num_rows, buffer_size):
+                end = min(start + buffer_size, num_rows)
+                buffer_data = data[start:end]
+                arrays = [pa.array(buffer_data[name]) for name in dtype.names]
+                table = pa.Table.from_arrays(arrays, schema=schema)
+                if parquet_writer is None:
+                    parquet_writer = pq.ParquetWriter(out_file_path, schema)
+                parquet_writer.write_table(table)
+
+            if parquet_writer is not None:
+                parquet_writer.close()
+
+
 def run(
     out_file,
     file_type=None,
@@ -573,8 +631,9 @@ def run(
             if output_type not in [".csv", ".parquet"]:
                 raise RuntimeError(f"ERROR: katpy does not support concatenating input files of type {input_type} to output type {output_type}")
             final_out_file_path = out_file
-            temp_file = tempfile.NamedTemporaryFile(suffix=input_type, delete=False)
-            out_file = Path(temp_file.name)
+            temp_fd, temp_name = tempfile.mkstemp(suffix=input_type)
+            os.close(temp_fd)
+            out_file = Path(temp_name)
             bin_to_csv = output_type == ".csv"
             bin_to_parquet = output_type == ".parquet"
         else:
@@ -654,48 +713,7 @@ def run(
 
     if bin_to_csv or bin_to_parquet:
         try:
-            headers = KAT_MAP[out_type]["headers"]
-            fmt = KAT_MAP[out_type]["fmt"]
-            dtype = KAT_MAP[out_type]["dtype"]
-            out_size = out_file.stat().st_size
-            if out_size % dtype.itemsize != 0:
-                logger.warning(f"Output binary size {out_size} is not a multiple of record size {dtype.itemsize}, treating as empty")
-            if out_size == 0 or out_size % dtype.itemsize != 0:
-                if bin_to_csv:
-                    with open(final_out_file_path, "w") as csv_out_file:
-                        csv_out_file.write(",".join(headers) + "\n")
-                if bin_to_parquet:
-                    schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
-                    empty_arrays = [pa.array([], type=schema.field(name).type) for name in dtype.names]
-                    pq.write_table(pa.Table.from_arrays(empty_arrays, schema=schema), final_out_file_path)
-            else:
-                data = np.memmap(out_file, dtype=dtype)
-                num_rows = data.shape[0]
-                if bin_to_csv:
-                    csv_out_file = open(final_out_file_path, "w")
-                    csv_out_file.write(",".join(headers) + "\n")
-
-                    buffer_size = DEFAULT_BUFFER_SIZE
-                    for start in range(0, num_rows, buffer_size):
-                        end = min(start + buffer_size, num_rows)
-                        buffer_data = data[start:end]
-                        write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
-                    csv_out_file.close()
-                if bin_to_parquet:
-                    schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
-                    parquet_writer = None
-                    buffer_size = DEFAULT_BUFFER_SIZE
-                    for start in range(0, num_rows, buffer_size):
-                        end = min(start + buffer_size, num_rows)
-                        buffer_data = data[start:end]
-                        arrays = [pa.array(buffer_data[name]) for name in dtype.names]
-                        table = pa.Table.from_arrays(arrays, schema=schema)
-                        if parquet_writer is None:
-                            parquet_writer = pq.ParquetWriter(final_out_file_path, schema)
-                        parquet_writer.write_table(table)
-
-                    if parquet_writer is not None:
-                        parquet_writer.close()
+            bin_to_tabular(out_file, final_out_file_path, out_type, bin_to_csv, bin_to_parquet)
         finally:
             out_file.unlink(missing_ok=True)
 
