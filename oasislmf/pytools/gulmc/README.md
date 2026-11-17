@@ -112,8 +112,17 @@ order of first placement; `item_areaperil_ja_offsets[item_idx] + j` is its j-th.
 areaperil whose placements are all `areaperil_id = 0` has none, and its items never produce a
 loss.
 
-Per-sample placement is not implemented yet, so `run()` refuses a model with any blended
-areaperil of more than one placement rather than read only the first.
+Placement is drawn once per run, when the structure is built: one Latin Hypercube block of S
+uniforms per (location, building), keyed on the location's OED identifiers and not on the event, so
+a building stands in the same place in every event of a sample. Each blended item stores the
+areaperil_j its every (building, sample) reads in `item_placement_ja_areaperil_j` (-1 when no
+areaperil covers the placement); an item of one placement stores nothing and reads j = 0.
+
+Per event, `compute_event_losses` resolves the CDFs of all an item's live areaperils before
+sampling, so each sample reads the one its placement falls on. The analytic values are the mixture
+over the areaperils, weighted by `blended_areaperil_ja_probabilities`: dead areaperils, uncovered
+placements and a float weight shortfall carry no loss. A blend table is not yet supported with a
+dynamic footprint.
 
 | Array | Indexed by | Holds |
 |---|---|---|
