@@ -197,6 +197,32 @@ def test_pool_without_jobs_reports_empty_job_stats(tmp_path, run_dir):
     assert all(w['jobs'] == 0 for w in stats['workers'])
 
 
+class CountingGul(FakeGul):
+    """FakeGul that appends its process id to ``gul_built.txt`` in the working directory (the run directory)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        with open('gul_built.txt', 'a') as f:
+            f.write(f'{os.getpid()}\n')
+
+
+@pytest.mark.parametrize('chunks, n_workers, expected_workers', [([[1]], 3, 3), ([[1]], 8, 5), ([[1], [2]], 1, 1), ([], 2, 2)])
+def test_pool_job_only_workers_for_more_jobs_than_chunks(tmp_path, run_dir, chunks, n_workers, expected_workers):
+    factories = {**FAKE_FACTORIES, 'gul': f'{__name__}:CountingGul'}
+    stats = run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, n_workers, factories=factories,
+                     output_jobs=[job.to_dict() for job in SELT_JOBS])
+    n_chain = min(n_workers, len(chunks))
+    assert stats['n_workers'] == expected_workers
+    assert [w['jobs_only'] for w in stats['workers']] == [False] * n_chain + [True] * (expected_workers - n_chain)
+    assert all(w['chunks'] == 0 for w in stats['workers'] if w['jobs_only'])
+    built = (run_dir / 'gul_built.txt').read_text().split() if chunks else []
+    assert len(built) == n_chain
+    for i in range(5):
+        assert (run_dir / 'output' / f's{i}.csv').read_text() == expected_selt(3, 1, 2)
+    check_job_stats(stats, SELT_JOBS, expected_workers)
+    assert descendants() == []
+
+
 @pytest.mark.parametrize('n_workers', [1, 2])
 def test_pool_failing_job_is_reported_and_stops_the_run(tmp_path, run_dir, n_workers):
     jobs = [selt_job('output/ok.csv', 'work/a.csv'), failing_job(), *SELT_JOBS[1:]]

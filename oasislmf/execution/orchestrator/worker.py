@@ -8,6 +8,7 @@ process list):
 * ``worker``: the worker number the orchestrator gave it;
 * ``spec``: the ``ChainSpec`` as a dict, ``factories``: ``{'gul'|'fm'|...: 'package.module:attribute'}`` or None;
 * ``out_dir`` (absolute) and ``taps``;
+* ``jobs_only``: build no chain and take only output jobs (the pool adds such workers for the job phase);
 * ``sys_path``: the orchestrator's ``sys.path``, whose entries the worker appends to its own so that factories
   importable in the orchestrator are importable here.
 
@@ -151,14 +152,17 @@ def serve(conn, config):
     """
     conn.send({'type': 'hello', 'worker': config['worker'], 'pid': os.getpid()})
     t_setup = time.perf_counter()
-    try:
-        chain = Chain(ChainSpec.from_dict(config['spec']), factories=config.get('factories'))
-    except Exception as exc:
-        conn.send(error_message(exc, 'setup'))
-        return EXIT_ERROR
+    spec = ChainSpec.from_dict(config['spec'])
+    chain = None
+    if not config.get('jobs_only'):
+        try:
+            chain = Chain(spec, factories=config.get('factories'))
+        except Exception as exc:
+            conn.send(error_message(exc, 'setup'))
+            return EXIT_ERROR
     taps = list(config['taps'])
     out_dir = config['out_dir']
-    run_dir = chain.spec.run_dir
+    run_dir = spec.run_dir
     try:
         conn.send({'type': 'ready', 'chain_seconds': time.perf_counter() - t_setup})
         while True:
@@ -179,6 +183,9 @@ def serve(conn, config):
                 conn.send({'type': 'ready'})
                 continue
             chunk_number = message['chunk']
+            if chain is None:
+                conn.send(error_message(RuntimeError('chunk sent to a worker without a chain'), 'chain', chunk_number))
+                return EXIT_ERROR
             try:
                 done = run_chunk(chain, out_dir, taps, chunk_number, message['events'])
             except ChunkError as exc:

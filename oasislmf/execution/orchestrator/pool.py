@@ -164,6 +164,7 @@ class Worker:
     t_stop: float = None
     killed: bool = False
     log_file: object = None
+    jobs_only: bool = False
 
 
 class WorkerPool:
@@ -178,7 +179,7 @@ class WorkerPool:
     """
 
     def __init__(self, spec, chunks, out_dir, taps, factories=None, policy=None, progress=None, python=None, env=None,
-                 kill_grace=KILL_GRACE, output_jobs=None):
+                 kill_grace=KILL_GRACE, output_jobs=None, job_workers=0):
         """Open the listener; no worker is started yet.
 
         Args:
@@ -196,6 +197,8 @@ class WorkerPool:
             kill_grace (float): seconds a terminated worker has before it is killed.
             output_jobs (Sequence[OutputJob | dict], optional): run once every chunk is done; they must be
                 independent (``outputs.check_independent``).
+            job_workers (int): when the output jobs start, job-only workers (``spawn(jobs_only=True)``) are added
+                until this many workers are active, but never more than there are jobs.
         """
         if factories is not None:
             not_strings = sorted(key for key, value in factories.items() if not isinstance(value, str))
@@ -211,6 +214,8 @@ class WorkerPool:
         self.python = python or sys.executable
         self.env = env
         self.kill_grace = kill_grace
+        self.job_workers = job_workers
+        self._job_phase_started = False
 
         self.output_jobs = [as_job(job) for job in output_jobs or []]
         check_independent(self.output_jobs)
@@ -268,8 +273,11 @@ class WorkerPool:
         env['PYTHONPATH'] = os.pathsep.join(p for p in (PACKAGE_ROOT, env.get('PYTHONPATH')) if p)
         return env
 
-    def spawn(self):
+    def spawn(self, jobs_only=False):
         """Start one more worker; it connects and starts pulling chunks when it is ready.
+
+        Args:
+            jobs_only (bool): the worker builds no chain and only takes output jobs.
 
         Returns:
             Worker: the new worker.
@@ -280,7 +288,7 @@ class WorkerPool:
         config = {
             'address': list(self._listener.address), 'authkey': self._authkey.hex(), 'worker': number,
             'spec': self.spec.to_dict(), 'factories': self.factories, 'out_dir': self.out_dir, 'taps': self.taps,
-            'sys_path': [p for p in sys.path if p],
+            'sys_path': [p for p in sys.path if p], 'jobs_only': jobs_only,
         }
         try:
             popen = subprocess.Popen([self.python, '-m', WORKER_MODULE], stdin=subprocess.PIPE, stdout=log_file, stderr=log_file,
@@ -288,7 +296,8 @@ class WorkerPool:
         except BaseException:
             log_file.close()
             raise
-        worker = Worker(number=number, popen=popen, log_path=log_path, t_spawn=time.perf_counter(), log_file=log_file)
+        worker = Worker(number=number, popen=popen, log_path=log_path, t_spawn=time.perf_counter(), log_file=log_file,
+                        jobs_only=jobs_only)
         self.workers.append(worker)
         try:
             popen.stdin.write(json.dumps(config).encode())
@@ -372,7 +381,7 @@ class WorkerPool:
         ``_dispatch_waiting`` when the last chunk is done.
         """
         worker.waiting = False
-        if not worker.retire and self.pending:
+        if not worker.retire and self.pending and not worker.jobs_only:
             k = self.pending.popleft()
             worker.chunk = k
             worker.conn.send({'type': 'chunk', 'chunk': k, 'events': self.chunks[k - 1]})
@@ -391,10 +400,20 @@ class WorkerPool:
         worker.stopped = True
         worker.t_stop = time.perf_counter()
 
+    def _start_job_phase(self):
+        """Once every chunk is done, add job-only workers up to ``job_workers`` (at most one per job); once only."""
+        if self._job_phase_started or not self.chunks_done or not self.pending_jobs:
+            return
+        self._job_phase_started = True
+        target = min(self.job_workers, len(self.output_jobs))
+        for _ in range(target - len(self.active)):
+            self.spawn(jobs_only=True)
+
     def _dispatch_waiting(self):
         """Answer the workers waiting for the last chunks, once those are done."""
         if not self.chunks_done:
             return
+        self._start_job_phase()
         for worker in self.workers:
             if worker.waiting and not worker.stopped:
                 self._dispatch(worker)
@@ -484,6 +503,7 @@ class WorkerPool:
         """
         try:
             while not self._finished():
+                self._start_job_phase()
                 while True:
                     try:
                         self._register(self._accepted.get_nowait())
@@ -525,7 +545,7 @@ class WorkerPool:
 
     def stats(self):
         """Statistics of the run so far, see ``run_chunks``."""
-        setups = [w.setup_seconds for w in self.workers if w.setup_seconds is not None]
+        setups = [w.setup_seconds for w in self.workers if w.setup_seconds is not None and not w.jobs_only]
         return {
             'executor': 'pool',
             'n_workers': len(self.workers),
@@ -536,7 +556,7 @@ class WorkerPool:
             'output_seconds': (self.t_jobs_end - self.t_jobs_start) if self.t_jobs_end is not None else 0.0,
             'workers': [{'worker': w.number, 'pid': w.popen.pid, 'chunks': w.chunks, 'setup_seconds': w.setup_seconds,
                          'chain_seconds': w.chain_seconds, 'busy_seconds': w.busy_seconds, 'jobs': w.jobs,
-                         'job_seconds': w.job_seconds} for w in self.workers],
+                         'job_seconds': w.job_seconds, 'jobs_only': w.jobs_only} for w in self.workers],
         }
 
     def terminate(self):
@@ -579,7 +599,8 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     Starts W = min(n_workers, K) workers. Each builds one ``Chain`` with the run directory as working directory and
     runs every chunk between ``Chain.start_chunk(k)`` and ``Chain.finish_chunk()``. Once every chunk is done the
     workers close their chain and run the ``output_jobs``, each tool's ``main`` called in-process with the run
-    directory as working directory (``outputs.run_job``).
+    directory as working directory (``outputs.run_job``). When there are more jobs than chunks, job-only workers,
+    which build no chain, are added then, up to min(n_workers, number of jobs) workers in all.
 
     Args:
         spec (ChainSpec): the chain to run.
@@ -593,11 +614,11 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
 
     Returns:
         dict: statistics: ``executor`` ('pool'), ``n_workers``, ``wall_seconds``, ``setup_seconds`` (the longest time
-        from starting a worker to its first ``ready``), ``events``, ``chunks`` (one ``{'chunk', 'events',
+        from starting a chain-building worker to its first ``ready``), ``events``, ``chunks`` (one ``{'chunk', 'events',
         'seconds', 'worker'}`` per chunk), ``jobs`` (one ``{'job', 'tool', 'outputs', 'seconds', 'worker'}`` per output
         job, by index), ``output_seconds`` (from handing out the first job to the last one done) and ``workers`` (one
-        ``{'worker', 'pid', 'chunks', 'setup_seconds', 'chain_seconds', 'busy_seconds', 'jobs', 'job_seconds'}`` per
-        worker; ``busy_seconds`` counts chunks only).
+        ``{'worker', 'pid', 'chunks', 'setup_seconds', 'chain_seconds', 'busy_seconds', 'jobs', 'job_seconds',
+        'jobs_only'}`` per worker; ``busy_seconds`` counts chunks only).
 
     Raises:
         WorkerError: a worker failed; every worker has been terminated.
@@ -611,10 +632,11 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
         raise ValueError(f'n_workers must be positive, got {n_workers}')
     os.makedirs(out_dir, exist_ok=True)
     output_jobs = [as_job(job) for job in options.get('output_jobs') or []]
-    n = min(n_workers, len(chunks) or len(output_jobs))
+    n = min(n_workers, len(chunks))
     prepare_output_dirs(output_jobs, spec.run_dir)
     pool_options = {key: options[key] for key in ('factories', 'policy', 'progress', 'python', 'env', 'kill_grace') if key in options}
     pool_options['output_jobs'] = output_jobs
+    pool_options['job_workers'] = min(n_workers, max(len(chunks), len(output_jobs)))
     with WorkerPool(spec, chunks, out_dir, taps, **pool_options) as pool:
         for _ in range(n):
             pool.spawn()
