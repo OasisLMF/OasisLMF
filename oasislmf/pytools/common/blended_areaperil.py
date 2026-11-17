@@ -431,10 +431,17 @@ def build_blended_areaperils(items, blend=None):
         cum_weights = np.cumsum(rows['weight'], dtype=np.float64)
         scale = placement_scale(cum_weights)
         probabilities = np.array([rows['weight'][areaperil_j == j].sum() for j in range(distinct.shape[0])],
-                                 dtype=np.float64) / scale if scale > 0 else np.zeros(distinct.shape[0])
+                                 dtype=np.float64) / scale
+        if cum_weights[-1] < 1.:
+            # Float weights falling short of 1: the shortfall is a placement of its own, covered by
+            # no areaperil, so it is drawn like any other -- even when the scheme has a single real
+            # placement. Its index is the one the search returns past the last real placement, so
+            # the draws are the same as without it.
+            cum_weights = np.append(cum_weights, 1.)
+            areaperil_j = np.append(areaperil_j, np.int32(-1))
         blended_parts[b] = (distinct, probabilities, cum_weights, areaperil_j, scale)
         k[b] = distinct.shape[0]
-        n_placements[b] = rows.shape[0]
+        n_placements[b] = cum_weights.shape[0]
 
     blended_areaperil_ja_offsets = np.zeros(n_blended + 1, dtype=oasis_int)
     np.cumsum(k, out=blended_areaperil_ja_offsets[1:])

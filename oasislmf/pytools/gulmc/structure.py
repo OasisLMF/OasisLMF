@@ -419,7 +419,10 @@ def item_location_placement_keys(input_path, items):
     if os.path.exists(parquet_path):
         summary_map = pd.read_parquet(parquet_path, columns=columns)
     else:
-        summary_map = pd.read_csv(os.path.join(input_path, 'gul_summary_map.csv'), usecols=columns)
+        # as text, as parquet holds them: inferred types would turn LocNumber '001' into 1, the same
+        # as LocNumber '1', and a csv run would draw other placements than a parquet one
+        summary_map = pd.read_csv(os.path.join(input_path, 'gul_summary_map.csv'), usecols=columns,
+                                  dtype={'PortNumber': str, 'AccNumber': str, 'LocNumber': str})
     summary_map = summary_map.drop_duplicates('item_id').set_index('item_id')
     missing = ~np.isin(items['item_id'], summary_map.index)
     if missing.any():
@@ -719,8 +722,12 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # (Ndamage_bins_max), which the vulnerability file — not the damage_bin_dict — determines.
     conditional_vuln_array = align_conditional_damage_axis(conditional_vuln_array, vuln_array.shape[1])
 
+    # an item with no item areaperil (every placement uncovered) is never computed and was never
+    # given a vulnerability_idx, so it must not scatter into the mapping
+    computed = np.diff(item_areaperil_ja_offsets) > 0
     vuln_idx_to_cond_idx = build_vuln_idx_to_cond_idx(
-        items, item_is_aggregate_vuln(item_areaperil_ja_offsets, item_areaperil_ja_areaperil_agg_vuln_idxs),
+        items[computed],
+        item_is_aggregate_vuln(item_areaperil_ja_offsets, item_areaperil_ja_areaperil_agg_vuln_idxs)[computed],
         cond_vuln_ids, vuln_array.shape[0])
 
     # --- Gaussian lookup tables (deterministic constants) ----------------------

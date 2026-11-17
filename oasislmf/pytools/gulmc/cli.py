@@ -89,6 +89,7 @@ def main():
             dynamic_footprint=kwargs.get('dynamic_footprint', False),
             model_df_engine=kwargs.get('model_df_engine',
                                        'oasis_data_manager.df_reader.reader.OasisPandasReader'),
+            sample_size=kwargs.get('sample_size'),
         )
     else:
         manager.run(**kwargs)

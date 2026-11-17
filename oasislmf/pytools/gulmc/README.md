@@ -120,8 +120,10 @@ all the location's items, which is why every blended areaperil of a location mus
 placement scheme (checked when the structure is built). An item with more than one placement finds
 its run through `placement_item_ind` (an id_index over those items only) and `placement_item_starts`,
 and maps each placement to its own areaperil_j through `blended_areaperil_placement_ja_areaperil_j`
-(-1 when no areaperil covers it). An item of one placement, which is every item of a portfolio
-without blending, never looks one up and reads j = 0, so these arrays are empty there.
+(-1 when no areaperil covers it). Float weights falling short of 1 get one more placement, covered
+by no areaperil, so a shortfall is drawn even when a scheme has a single real placement. An item
+whose blended areaperil has one placement of weight 1, which is every item of a portfolio without
+blending, never looks one up and reads j = 0, so these arrays are empty there.
 
 Size: one byte per (location, building, sample) of the blended locations, so it grows with S. At
 S = 1000, 250k single-building blended locations take 250 MB, memory-mapped and shared by the gulmc
@@ -129,7 +131,10 @@ processes.
 
 Per event, `compute_event_losses` resolves the CDFs of all an item's live areaperils before
 sampling, so each sample reads the one its placement falls on. The analytic values are the mixture
-over the areaperils, weighted by `blended_areaperil_ja_probabilities`. Dead areaperils, uncovered
+over the areaperils, weighted by `blended_areaperil_ja_probabilities`, for every item that does not
+stand on its one areaperil with certainty (one areaperil read with probability below 1 is mixed
+too). A coverage-dependency dependent is live or dead per placement like any item, and shares one set
+of CDFs across them, since its CDFs come from its source's damage. Dead areaperils, uncovered
 placements and a float weight shortfall carry no loss: in the mixed effective damage cdf
 (`mix_effective_damage_cdfs`, shared with getmodel) their probability sits on damage bin 0, which
 must be the zero-loss bin of the damage bin dictionary. Under a dynamic footprint the event's return

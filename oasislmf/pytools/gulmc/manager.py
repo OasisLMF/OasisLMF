@@ -285,8 +285,11 @@ def run(run_dir,
         if do_coverage_dependency or conditional_vuln_array.shape[0] > 0:
             if do_coverage_dependency:
                 logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
+            # items with no item areaperil (every placement uncovered) are never computed
+            computed = np.diff(item_areaperil_ja_offsets) > 0
             validate_coverage_dependency(
-                items, item_is_aggregate_vuln(item_areaperil_ja_offsets, item_areaperil_ja_areaperil_agg_vuln_idxs),
+                items[computed],
+                item_is_aggregate_vuln(item_areaperil_ja_offsets, item_areaperil_ja_areaperil_agg_vuln_idxs)[computed],
                 vuln_idx_to_cond_idx)
 
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
@@ -1184,7 +1187,7 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
         hazard_rng_index (int): index into hazard random values, or < 0 if hazard deterministic.
         haz_z_unif (np.array[float]): hazard random values for this building.
         vuln_z_unif (np.array[float]): damage random values for this building.
-        areaperil_j_of_sample (np.array[int8|int16]): per sample, the item areaperil read, -1 for none.
+        areaperil_j_of_sample (np.array[int32]): per sample, the item areaperil read, -1 for none.
         areaperil_j_live (np.array[bool]): per item areaperil, whether it has hazard this event.
         areaperil_j_to_haz_start (np.array[int64]): per item areaperil, its first row in the haz buffers.
         areaperil_j_to_Nhaz_bins (np.array[int64]): per item areaperil, its number of hazard bins.
@@ -1491,11 +1494,13 @@ def compute_event_losses(compute_info,
             # an item is dependent only if it resolved to a source item (< 0 means it did not)
             is_dependent = coverage_is_dependent and item_event_data['source_item_j'] >= 0
             item_areaperil_start = item_areaperil_ja_offsets[item_idx]
-            # A dependent reads its source's damage, not the footprint, so where the building stands
-            # does not enter: its source shares its areaperils and placement, and a dead placement
-            # leaves the source undamaged. It is resolved once, through its first item areaperil.
-            n_areaperils = 1 if is_dependent else item_areaperil_ja_offsets[item_idx + 1] - item_areaperil_start
+            n_areaperils = item_areaperil_ja_offsets[item_idx + 1] - item_areaperil_start
             blended_start = blended_areaperil_ja_offsets[item['blended_areaperil_idx']]
+            # An item that stands on its one areaperil with certainty -- every ordinary item --
+            # keeps that areaperil's analytic values as they are. Any other item reports the mixture
+            # of its marginal, including one areaperil read with probability below 1 (the rest of the
+            # placements uncovered, or a float weight shortfall).
+            mixing = n_areaperils > 1 or blended_areaperil_ja_probabilities[blended_start] < 1.
             agg_block = item_areaperil_ja_areaperil_agg_vuln_idxs[item_areaperil_start]
             intensity_adjustment = item['intensity_adjustment'] if dynamic_footprint is not None else nb_oasis_int(0)
 
@@ -1510,17 +1515,57 @@ def compute_event_losses(compute_info,
             # within the item's protection. Dead areaperils and uncovered placements carry no loss.
             n_live = 0
             haz_used = 0
+            first_live_j = -1
             for areaperil_j in range(n_areaperils):
                 item_areaperil_idx = item_areaperil_start + areaperil_j
                 areaperil_j_live[areaperil_j] = False
-                if not is_dependent:
-                    haz_arr_i = item_areaperil_haz_arr_i[item_areaperil_idx]
-                    if haz_arr_i < 0:
-                        continue
+                haz_arr_i = item_areaperil_haz_arr_i[item_areaperil_idx]
+                if haz_arr_i < 0:
+                    continue
                 # protection applies to a dependent too: protected, its coverage takes no loss
-                # whatever its source suffered
+                # whatever its source suffered. The return period is read only for an areaperil with
+                # hazard this event, which is when reconstruct_coverages wrote it.
                 if dynamic_footprint is not None and item_event_data['return_period'] > 0 \
                         and item_areaperil_event_rp[item_areaperil_idx] < item_event_data['return_period']:
+                    continue
+
+                if is_dependent and first_live_j >= 0:
+                    # A dependent's CDFs come from its source's damage, not from this areaperil's
+                    # hazard, so they are the same on every placement it is live on: share the first
+                    # one's. Which placements are live (hazard, protection) still differs.
+                    Nhaz_bins = areaperil_j_to_Nhaz_bins[first_live_j]
+                    Neff_damage_bins = areaperil_j_to_Neff_damage_bins[first_live_j]
+                    damage_bin_scaling = areaperil_j_to_damage_bin_scaling[first_live_j]
+                    areaperil_j_to_eff_damage_cdf[areaperil_j, :Neff_damage_bins] = \
+                        areaperil_j_to_eff_damage_cdf[first_live_j, :Neff_damage_bins]
+                    eff_damage_cdf = areaperil_j_to_eff_damage_cdf[areaperil_j, :Neff_damage_bins]
+                    areaperil_j_to_haz_start[areaperil_j] = areaperil_j_to_haz_start[first_live_j]
+                    areaperil_j_live[areaperil_j] = True
+                    areaperil_j_to_Nhaz_bins[areaperil_j] = Nhaz_bins
+                    areaperil_j_to_Neff_damage_bins[areaperil_j] = Neff_damage_bins
+                    areaperil_j_to_damage_bin_scaling[areaperil_j] = damage_bin_scaling
+                    n_live += 1
+                    p_areaperil = blended_areaperil_ja_probabilities[blended_start + areaperil_j]
+                    if do_hermite:
+                        # the shared curves, weighted by this placement's probability
+                        if compute_info['effective_damageability']:
+                            accumulate_hermite_coeffs(
+                                damage_bin_scaling, eff_damage_cdf, damage_bins['interpolation'],
+                                Neff_damage_bins, p_areaperil * 1., norm_inv_parameters['x_min'],
+                                norm_inv_parameters['inv_factor'], norm_inv_cdf, hermite_coeffs)
+                        else:
+                            # a dependent's hazard pdf is its source's damage pmf, and its per-bin
+                            # curves are the first live placement's rows of the shared buffers
+                            shared_start = areaperil_j_to_haz_start[first_live_j]
+                            for haz_i in range(Nhaz_bins):
+                                haz_weight = source_damage_pmf_empty[haz_i]
+                                if haz_weight <= 0.:
+                                    continue
+                                accumulate_hermite_coeffs(
+                                    damage_bin_scaling, haz_i_to_vuln_cdf_buf[shared_start + haz_i],
+                                    damage_bins['interpolation'], haz_i_to_Ndamage_bins_buf[shared_start + haz_i],
+                                    p_areaperil * haz_weight, norm_inv_parameters['x_min'],
+                                    norm_inv_parameters['inv_factor'], norm_inv_cdf, hermite_coeffs)
                     continue
 
                 if haz_used + max_haz_bins > haz_cdf_buf.shape[0]:
@@ -1588,8 +1633,10 @@ def compute_event_losses(compute_info,
                 areaperil_j_to_damage_bin_scaling[areaperil_j] = damage_bin_scaling
                 haz_used += Nhaz_bins
                 n_live += 1
+                if first_live_j < 0:
+                    first_live_j = areaperil_j
 
-                if n_areaperils == 1:
+                if not mixing:
                     # compute mean loss values; a blended item's come from its mixed cdf, below
                     gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
                         damage_bin_scaling,
@@ -1598,8 +1645,9 @@ def compute_event_losses(compute_info,
                         Neff_damage_bins,
                         damage_bins[Neff_damage_bins - 1]['bin_to'],
                     )
-                # the probability the building stands on this areaperil, 1 for an item of one
-                p_areaperil = 1. if n_areaperils == 1 else blended_areaperil_ja_probabilities[blended_start + areaperil_j]
+                # the probability the building stands on this areaperil, 1 for an item that stands
+                # on its one areaperil with certainty
+                p_areaperil = blended_areaperil_ja_probabilities[blended_start + areaperil_j] if mixing else 1.
 
                 # Only a SUMMED item reports the spread of a sum, and only then does the correlation
                 # between two buildings' losses matter. Everything else keeps 0 and pays nothing.
@@ -1645,7 +1693,7 @@ def compute_event_losses(compute_info,
                     source_eff_damage_cdf_len_stack[depth, item_j] = 1
                 continue
 
-            if n_areaperils > 1:
+            if mixing:
                 # a blended item's analytic values are those of its marginal: the areaperils'
                 # effective cdfs mixed by probability, the mass no live areaperil carries on bin 0.
                 # This is the cdf getmodel streams to gulpy for the same item.
@@ -1681,7 +1729,7 @@ def compute_event_losses(compute_info,
                 # this item reads them through its own blended areaperil's placement -> j map
                 item_placement_start = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx']]
                 n_placements = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx'] + 1] - item_placement_start
-                has_placements = n_placements > 1 and not is_dependent
+                has_placements = n_placements > 1
                 if has_placements:
                     location_start = placement_item_starts[id_index_get_idx(placement_item_ind, item_idx)]
                 else:
@@ -1764,7 +1812,7 @@ def compute_event_losses(compute_info,
             # effective damageability: record the eff-damage CDF instead, for a dependent below
             # to build its damage pmf from; a blended source records its mixed cdf
             if has_dependents_below:
-                if n_areaperils == 1:
+                if not mixing:
                     num_damage_bins = areaperil_j_to_Neff_damage_bins[0]
                     source_eff_damage_cdf_stack[depth, item_j, :num_damage_bins] = \
                         areaperil_j_to_eff_damage_cdf[0, :num_damage_bins]
