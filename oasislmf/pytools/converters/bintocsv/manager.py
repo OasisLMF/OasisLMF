@@ -8,6 +8,7 @@ import numpy as np
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, write_ndarray_to_fmt_csv
 from oasislmf.pytools.converters.bintocsv.utils import (
     amplifications_tocsv,
+    blended_areaperil_tocsv,
     cdf_tocsv,
     complex_items_tocsv,
     coverages_tocsv,
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 TOCSV_FUNC_MAP = {
     "amplifications": amplifications_tocsv,
+    "blended_areaperil": blended_areaperil_tocsv,
     "cdf": cdf_tocsv,
     "complex_items": complex_items_tocsv,
     "coverages": coverages_tocsv,

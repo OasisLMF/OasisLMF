@@ -1,5 +1,6 @@
 __all__ = [
     "amplifications_tocsv",
+    "blended_areaperil_tocsv",
     "cdf_tocsv",
     "complex_items_tocsv",
     "coverages_tocsv",
@@ -12,6 +13,7 @@ __all__ = [
 ]
 
 from .amplifications import amplifications_tocsv
+from .blended_areaperil import blended_areaperil_tocsv
 from .cdf import cdf_tocsv
 from .complex_items import complex_items_tocsv
 from .coverages import coverages_tocsv
