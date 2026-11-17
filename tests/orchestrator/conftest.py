@@ -19,14 +19,16 @@ Reference streams are produced with ``tools/reference_streams.py``: by the tools
 interpreter, or by those in the directory named by the ``OASIS_ORCH_REF_TOOLS`` environment
 variable (for example wrappers around a pristine checkout of main).
 """
+import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
-from ods_tools.oed import OedExposure
+from ods_tools.oed import OedExposure, OedSchema
 
 from oasislmf.computation.generate.files import GenerateDummyModelFiles, GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
@@ -95,6 +97,27 @@ def oed_case_exposure(*oed_types):
     return exposure
 
 
+def portable_exposure_config(oasis_files_dir):
+    """Record the OED schema of ``exposure_info.json`` as its version, not as the bundled schema's path.
+
+    ``OedExposure.save_config`` stores the schema's full path, which ``OedSchema.from_oed_schema_info``
+    first formats into its default schema path as if it were a version. On POSIX that file does not
+    exist and it falls back to the path; on Windows the ``C:`` in the middle of the file name raises
+    ``OSError`` (EINVAL) rather than ``FileNotFoundError``, so the fallback is never reached and no
+    step can reload the config.
+
+    Args:
+        oasis_files_dir (Path): directory holding the ``exposure_info.json`` ``GenerateFiles`` wrote.
+    """
+    config_path = Path(oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME)
+    config = json.loads(config_path.read_text())
+    schema_file = re.escape(OedSchema.DEFAULT_ODS_SCHEMA_FILE).replace(re.escape('{}'), '(.+)')
+    match = re.fullmatch(schema_file, os.path.basename(str(config.get('oed_schema_info') or '')))
+    if match:
+        config['oed_schema_info'] = match.group(1)
+        config_path.write_text(json.dumps(config, indent=2))
+
+
 def build_kernel_run_dir(run_dir, tools=None):
     """Write a small GUL + IL + RI run directory.
 
@@ -129,6 +152,7 @@ def build_kernel_run_dir(run_dir, tools=None):
         oed_info_csv=str(OED_CASE_DIR / 'ri_info.csv'), oed_scope_csv=str(OED_CASE_DIR / 'ri_scope.csv'),
         exposure_data=oed_case_exposure(*OED_FILES),
     ).run()
+    portable_exposure_config(input_dir)
     prepare_financial_structures(run_dir, tools, DEFAULT_IL_ALLOC_RULE, DEFAULT_RI_ALLOC_RULE, RI_LAYERS_AVAILABLE)
     return run_dir
 
