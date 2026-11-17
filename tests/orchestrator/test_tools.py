@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import sys
 
@@ -262,8 +263,8 @@ def test_pipeline_commands():
         (None, ['eve', '2', '5']),
         ('gul', ['gul', '-S7', '-a1']),
         ('il', ['fm', '-a2']),
-        (None, ['fm', '-a3', '-p', 'input/RI_1', '-n', '-']),
-        ('ri', ['fm', '-a3', '-p', 'input/RI_2', '-n', '-']),
+        (None, ['fm', '-a3', '-p', os.path.join('input', 'RI_1'), '-n', '-']),
+        ('ri', ['fm', '-a3', '-p', os.path.join('input', 'RI_2'), '-n', '-']),
     ]
     assert [tap for tap, _ in reference_streams.pipeline_commands(1, 1, tools, ri_layers=0)] == [None, 'gul', 'il']
     assert [tap for tap, _ in reference_streams.pipeline_commands(1, 1, tools, il_alloc_rule=None)] == [None, 'gul']
@@ -275,7 +276,8 @@ def test_make_reference_streams_with_fake_tools(tmp_path):
     assert sorted(results) == ['gul', 'il', 'ri'] and all(len(paths) == 3 for paths in results.values())
     assert (tmp_path / 'out' / 'gul_P2.bin').read_bytes() == b'E2/3|gulmc:-S10 -a1'
     assert (tmp_path / 'out' / 'il_P2.bin').read_bytes() == b'E2/3|gulmc:-S10 -a1|fmpy:-a2'
-    assert (tmp_path / 'out' / 'ri_P3.bin').read_bytes() == b'E3/3|gulmc:-S10 -a1|fmpy:-a2|fmpy:-a3 -p input/RI_1 -n -'
+    ri_1 = os.path.join('input', 'RI_1')
+    assert (tmp_path / 'out' / 'ri_P3.bin').read_bytes() == f'E3/3|gulmc:-S10 -a1|fmpy:-a2|fmpy:-a3 -p {ri_1} -n -'.encode()
 
 
 def test_make_reference_streams_reports_failures(tmp_path):

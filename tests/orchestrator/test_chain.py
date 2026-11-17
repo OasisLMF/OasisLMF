@@ -2,6 +2,7 @@ import io
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -91,9 +92,14 @@ def expected_streams(event_ids, il_rule=2, ri_rules=(3,)):
     return out
 
 
+def ri_path(i):
+    """Static path of RI step i, as the cli and the planner build it (os.sep)."""
+    return os.path.join('input', f'RI_{i}')
+
+
 def make_spec(run_dir='.', n_ri=1):
     il = {'allocation_rule': 2, 'static_path': 'input'}
-    ri = [{'allocation_rule': 3, 'static_path': f'input/RI_{i}'} for i in range(1, n_ri + 1)]
+    ri = [{'allocation_rule': 3, 'static_path': ri_path(i)} for i in range(1, n_ri + 1)]
     return build_chain_spec(run_dir, {'sample_size': 10, 'loss_threshold': 0.0}, il=il, ri=ri)
 
 
@@ -108,7 +114,7 @@ def test_build_chain_spec_wiring():
     spec = make_spec('/run', n_ri=2)
     assert spec.run_dir == '/run'
     assert [(s['name'], s['feeds_next'], s['static_path']) for s in spec.fm] == [
-        ('il', 'gross', 'input'), ('ri', 'net', 'input/RI_1'), ('ri', None, 'input/RI_2')]
+        ('il', 'gross', 'input'), ('ri', 'net', ri_path(1)), ('ri', None, ri_path(2))]
     assert build_chain_spec('/run', {}, il={'allocation_rule': 2}).fm == [{'allocation_rule': 2, 'name': 'il', 'feeds_next': None}]
 
 
@@ -129,7 +135,7 @@ def test_chain_builds_stages_with_upstream_headers():
     assert il.input_header == chain.gul.header
     assert ri1.input_header == il.header
     assert ri2.input_header == ri1.header
-    assert [s.static_path for s in chain.fm_steps] == ['input', 'input/RI_1', 'input/RI_2']
+    assert [s.static_path for s in chain.fm_steps] == ['input', ri_path(1), ri_path(2)]
     assert all('name' not in s.kwargs and 'feeds_next' not in s.kwargs for s in chain.fm_steps)
     assert [(s.gross, s.net) for s in chain.fm_steps] == [(True, False), (False, True), (False, True)]
     assert chain.headers == {'gul': chain.gul.header, 'il': il.header, 'ri': ri2.header}
@@ -255,12 +261,12 @@ def test_chain_reset_calls_stages_that_have_reset():
 
     chain = Chain(make_spec(n_ri=2), factories={'gul': ResettingGul, 'fm': ResettingFm})
     chain.reset()
-    assert log == ['gul', 'input', 'input/RI_1', 'input/RI_2']
+    assert log == ['gul', 'input', ri_path(1), ri_path(2)]
 
     chain = Chain(make_spec(), factories={'gul': FakeGul, 'fm': ResettingFm})
     log.clear()
     chain.reset()
-    assert log == ['input', 'input/RI_1']
+    assert log == ['input', ri_path(1)]
 
     Chain(make_spec(), factories=FACTORIES).reset()
 
@@ -409,14 +415,13 @@ def expected_tree_files(event_ids, n_ri=2, k=1):
 
 
 def read_tree_files(root, k=1):
-    root = str(root)
+    """Chunk k's files under ``<root>/work``, keyed by their POSIX path relative to root."""
+    root = Path(root)
     found = {}
-    for dirpath, _dirs, names in os.walk(os.path.join(root, 'work')):
-        for name in names:
-            path = os.path.relpath(os.path.join(dirpath, name), root)
-            if path.endswith(f'_P{k}') or path.endswith(f'/P{k}.bin'):
-                with open(os.path.join(root, path), 'rb') as f:
-                    found[path] = f.read()
+    for path in (root / 'work').rglob('*'):
+        rel = path.relative_to(root).as_posix()
+        if path.is_file() and (rel.endswith(f'_P{k}') or rel.endswith(f'/P{k}.bin')):
+            found[rel] = path.read_bytes()
     return found
 
 
@@ -475,7 +480,7 @@ def test_chain_start_finish_chunk_order_reset_and_empty_chunk(tmp_path, monkeypa
     chain = Chain(make_tree_spec(), factories={**TREE_FACTORIES, 'fm': ResettingFm})
     gul_table = chain.summary_nodes[0].tables[1][1][0]
     chain.start_chunk(4)
-    assert log == [('reset', 'input'), ('reset', 'input/RI_1'), ('reset', 'input/RI_2')]
+    assert log == [('reset', 'input'), ('reset', ri_path(1)), ('reset', ri_path(2))]
     assert gul_table.log == ['reset', ('start', {'qelt': 'work/kat/gul_S1_elt_quantile_P4', 'melt': 'work/kat/gul_S1_elt_moment_P4'})]
     with pytest.raises(ValueError, match='still open'):
         chain.start_chunk(5)

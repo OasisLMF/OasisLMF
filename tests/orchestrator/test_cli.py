@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 import types
 
 import numpy as np
@@ -148,7 +149,7 @@ def test_analysis_settings_option(tmp_path, run_dir, recorded_runs):
     (run_dir / 'input' / 'ri_layers.json').write_text(json.dumps({'1': {}, '2': {}}))
     cli.main(['--analysis-settings', str(run_dir / 'analysis_settings.json'), '--run-dir', str(run_dir), '--chunks', '2'])
     call, = recorded_runs
-    assert [s['static_path'] for s in call['spec'].fm] == ['input', 'input/RI_1', 'input/RI_2']
+    assert [s['static_path'] for s in call['spec'].fm] == ['input', os.path.join('input', 'RI_1'), os.path.join('input', 'RI_2')]
     assert [n['runtype'] for n in call['spec'].summaries] == ['gul', 'il', 'ri']
     assert len(call['chunks']) == 2
 

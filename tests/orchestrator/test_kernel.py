@@ -78,7 +78,7 @@ def test_remove_previous_outputs_keeps_summary_info_and_json(tmp_path):
     for name in ('gul_S1_summary-info.csv', 'analysis_settings.json', 'gul_S1_selt.csv', 'sub/x.parquet', 'sub/y.json'):
         (out / name).write_text('x')
     kernel.remove_previous_outputs(str(out))
-    assert sorted(str(p.relative_to(out)) for p in out.rglob('*') if p.is_file()) == [
+    assert sorted(p.relative_to(out).as_posix() for p in out.rglob('*') if p.is_file()) == [
         'analysis_settings.json', 'gul_S1_summary-info.csv', 'sub/y.json']
 
 

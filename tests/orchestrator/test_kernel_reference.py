@@ -107,7 +107,8 @@ def test_compare_trees_bytes_on_synthetic_runs(tmp_path):
     a = write_tree(tmp_path / 'a', files)
     b = write_tree(tmp_path / 'b', {**files, 'work/il_S1_summaryleccalc/lec_files/scratch.bdat': b'2'})
     (a / 'input').symlink_to(tmp_path, target_is_directory=True)
-    os.mkfifo(a / 'work' / 'kat' / 'fifo_P1')
+    if hasattr(os, 'mkfifo'):
+        os.mkfifo(a / 'work' / 'kat' / 'fifo_P1')
     report = compare_trees_bytes(a, b)
     assert report.ok and report.compared == 3, report.summary()
 

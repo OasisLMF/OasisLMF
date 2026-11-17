@@ -14,7 +14,7 @@ from tests.bash_support import bash_available
 from tests.orchestrator.tools.compare_streams import compare_dirs_bytes
 
 from .test_chain import (FACTORIES, TREE_FACTORIES, FakeFm, FakeGul, expected_streams, expected_tree_files, make_spec, make_tree_spec,
-                         read_tree_files)
+                         read_tree_files, ri_path)
 
 TAPS = ['gul', 'il', 'ri']
 PIWIND_ARGS = ['--random-generator=2', '--model-df-engine=oasis_data_manager.df_reader.reader.OasisPandasReader',
@@ -93,7 +93,7 @@ def test_inline_relative_paths_and_cwd_restored_on_error(tmp_path, run_dir, monk
 def test_cli_args_to_spec_piwind():
     args = cli.build_parser().parse_args(['--run-dir', '/run', '--chunks', '12', '--out-dir', 'o', *PIWIND_ARGS])
     spec = cli.spec_from_args(args)
-    assert spec.run_dir == '/run'
+    assert spec.run_dir == os.path.abspath('/run')
     assert spec.gul == {
         'sample_size': 10, 'loss_threshold': 0.0, 'alloc_rule': 1, 'debug': 0, 'random_generator': 2,
         'ignore_file_type': [], 'peril_filter': [], 'data_server': False, 'ignore_correlation': False,
@@ -186,7 +186,7 @@ def test_inline_resets_chain_before_each_chunk(tmp_path, run_dir):
 
     chunks = [np.array([3, 1], dtype=np.int32), np.array([], dtype=np.int32), np.array([2], dtype=np.int32)]
     inline.run_chunks(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, factories={'gul': LoggingGul, 'fm': ResettingFm})
-    reset = [('reset', 'input'), ('reset', 'input/RI_1')]
+    reset = [('reset', 'input'), ('reset', ri_path(1))]
     assert log == [*reset, 3, 1, *reset, *reset, 2]
     check_outputs(tmp_path / 'out', chunks, fake_headers())
 

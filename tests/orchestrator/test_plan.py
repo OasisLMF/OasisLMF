@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shlex
+import sys
 from collections import Counter
 
 import numpy as np
@@ -21,7 +22,7 @@ from oasislmf.pytools.eve.manager import run as evepy_run
 from oasislmf.utils.defaults import EVE_FISHER_YATES, EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE
 from tests.orchestrator.tools.compare_outputs import compare_trees_bytes
 
-from .test_chain import TREE_FACTORIES
+from .test_chain import TREE_FACTORIES, ri_path
 from .test_pool import TREE_FACTORY_STRINGS
 
 ALL_ORD = {
@@ -105,6 +106,14 @@ def normalise(argv, fifo_dir='fifo/'):
     return tuple(out)
 
 
+def split_words(line):
+    """Shell words of a script line, backslashes kept: genbash joins paths with os.sep, a backslash on Windows."""
+    lexer = shlex.shlex(line, posix=True)
+    lexer.whitespace_split = True
+    lexer.escape = ''
+    return list(lexer)
+
+
 def script_commands(script, fifo_dir='fifo/'):
     """The pipeline, summary, ORD and output commands of a generated script, normalised, as a Counter."""
     found = Counter()
@@ -114,7 +123,7 @@ def script_commands(script, fifo_dir='fifo/'):
             words = line.lstrip('( ').split(maxsplit=1)
             if not words or words[0] not in KINDS:
                 continue
-            argv = normalise(shlex.split(line), fifo_dir)
+            argv = normalise(split_words(line), fifo_dir)
             if argv and argv[0] in KINDS:
                 found[argv] += 1
     return found
@@ -209,15 +218,15 @@ def test_plan_tree_shape(tmp_path):
                         'effective_damageability': False, 'max_cached_vuln_cdf_size_MB': 200,
                         'model_df_engine': 'oasis_data_manager.df_reader.reader.OasisPandasReader', 'dynamic_footprint': False}
     assert [(s['name'], s['static_path'], s['allocation_rule'], s['gross'], s['net'], s['feeds_next']) for s in spec.fm] == [
-        ('il', 'input', 2, True, False, 'gross'), ('ri', 'input/RI_1', 3, True, True, 'net'), ('ri', 'input/RI_2', 3, True, True, None)]
+        ('il', 'input', 2, True, False, 'gross'), ('ri', ri_path(1), 3, True, True, 'net'), ('ri', ri_path(2), 3, True, True, None)]
     assert [(n['runtype'], n['inuring_priority'], n['source']['step'], n['source']['output'], n['stage']['run_type'],
              n['stage']['static_path'], n['stage']['summary_set_ids']) for n in spec.summaries] == [
         ('gul', '', None, None, 'gul', 'input', [1]),
         ('il', '', 0, 'gross', 'il', 'input', [1, 2]),
-        ('ri', 'IP1_', 1, 'net', 'ri', 'input/RI_1', [1]),
-        ('ri', '', 2, 'net', 'ri', 'input/RI_2', [1]),
-        ('rl', 'IP1_', 1, 'gross', 'ri', 'input/RI_1', [1]),
-        ('rl', 'IP2_', 2, 'gross', 'ri', 'input/RI_2', [1]),
+        ('ri', 'IP1_', 1, 'net', 'ri', ri_path(1), [1]),
+        ('ri', '', 2, 'net', 'ri', ri_path(2), [1]),
+        ('rl', 'IP1_', 1, 'gross', 'ri', ri_path(1), [1]),
+        ('rl', 'IP2_', 2, 'gross', 'ri', ri_path(2), [1]),
     ]
     gul_set = spec.summaries[0]['sets'][0]
     assert gul_set['outputs'] == [
@@ -339,7 +348,7 @@ BASE = {'number_of_samples': 1, 'gul_threshold': 0, 'gul_output': True, 'gul_sum
     ({**BASE, 'gul_summaries': [{'id': 1, 'lec_output': True, 'leccalc': {'full_uncertainty_aep': True}}]}, {}, 'legacy'),
 ])
 def test_unsupported(tmp_path, monkeypatch, settings, options, reason):
-    gulcalc = tmp_path / 'bin' / 'supplier_model_gulcalc'
+    gulcalc = tmp_path / 'bin' / ('supplier_model_gulcalc.bat' if sys.platform == 'win32' else 'supplier_model_gulcalc')
     gulcalc.parent.mkdir()
     gulcalc.write_text('#!/bin/sh\n')
     gulcalc.chmod(0o755)
