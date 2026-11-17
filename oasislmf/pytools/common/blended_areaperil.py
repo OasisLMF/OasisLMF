@@ -288,7 +288,7 @@ def validate(blend, label='blended areaperil table'):
     Not checked, deliberately: that an ``areaperil_id`` exists in the model. A cell the footprint
     does not provide behaves as no hazard, which a model may use on purpose, and the engine only
     loads the footprint rows a run needs. Nor that a location's blended ids share a scheme: the
-    table has no locations in it.
+    table has no locations in it, so gulmc checks that when it builds its structures.
 
     Args:
         blend (BlendTable): table as read, in any row order.

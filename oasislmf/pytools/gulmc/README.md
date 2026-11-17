@@ -129,7 +129,7 @@ processes.
 
 Per event, `compute_event_losses` resolves the CDFs of all an item's live areaperils before
 sampling, so each sample reads the one its placement falls on. The analytic values are the mixture
-over the areaperils, weighted by `blended_areaperil_ja_probabilities`: dead areaperils, uncovered
+over the areaperils, weighted by `blended_areaperil_ja_probabilities`. Dead areaperils, uncovered
 placements and a float weight shortfall carry no loss: in the mixed effective damage cdf
 (`mix_effective_damage_cdfs`, shared with getmodel) their probability sits on damage bin 0, which
 must be the zero-loss bin of the damage bin dictionary. Under a dynamic footprint the event's return
@@ -143,6 +143,8 @@ location.
 | `items['blended_areaperil_idx']` | item | dense blended areaperil index |
 | `blended_areaperil_ja_offsets` / `_ja_probabilities` | blended areaperil | its K areaperils, and the probability the building is on each. Their footprint ids (`_ja_areaperil_ids`) are used while the structures are built and not kept: the event loop works with areaperil_j |
 | `blended_areaperil_placement_ja_offsets` / `_ja_cum_weights` / `_ja_areaperil_j` | blended areaperil | placements: running weight, and which areaperil j covers each (-1 none). The uniform is scaled by `max(1, total weight)`, which is 1 for float weights and the total for counts |
+| `location_placements` | (location, building, sample) | placement index, shared by the location's items; the placement count means unplaced |
+| `placement_item_ind` / `placement_item_starts` | item with more than one placement | where its first building's samples start in `location_placements` |
 | `item_areaperil_ja_offsets` | item | its run of item areaperils |
 | `item_areaperil_ja_cdf_group_idxs` | item areaperil | CDF group, the cache key (one per areaperil, vulnerability and, under a dynamic footprint, intensity adjustment) |
 | `item_areaperil_ja_areaperil_agg_vuln_idxs` | item areaperil | aggregate vulnerability block, -1 when not aggregate |

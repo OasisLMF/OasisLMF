@@ -405,7 +405,7 @@ def item_location_placement_keys(input_path, items):
 
     The key is a 64-bit hash of the location's OED identifiers (PortNumber, AccNumber, LocNumber),
     not of the generated loc_id, so a building keeps its placements when the portfolio is reordered
-    or split. It carries no event, because a building does not move between events (D8).
+    or split. It carries no event, because a building does not move between events.
 
     Args:
         input_path (str): the run's input directory.

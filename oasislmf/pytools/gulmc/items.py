@@ -56,7 +56,7 @@ def build_item_placements(items, item_location_keys, item_building_ids,
                           sample_size):
     """Draw every building's placement for every sample, once per run, shared by its location's items.
 
-    Placement is where a building stands, which does not change from one event to the next (D8),
+    Placement is where a building stands, which does not change from one event to the next,
     so it is drawn once rather than per event: one Latin Hypercube block of ``sample_size``
     uniforms per (location, building), from a key that has no event in it, mapped to a placement
     index through the location's cumulative weights. A location's items -- its perils and coverage
@@ -65,7 +65,7 @@ def build_item_placements(items, item_location_keys, item_building_ids,
     where the building stands, and the placement is stored once per location rather than per item.
 
     That needs one set of weights per location: every blended item of a location must use the
-    same placement scheme (D9), which is checked here.
+    same placement scheme, which is checked here.
 
     Only items whose blended areaperil has more than one placement are listed; every other item
     reads areaperil_j 0 throughout and costs nothing here.
