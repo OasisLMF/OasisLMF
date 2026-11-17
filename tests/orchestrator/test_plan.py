@@ -12,13 +12,16 @@ import pytest
 
 from oasislmf.execution import bash
 from oasislmf.execution.orchestrator import inline, pool
-from oasislmf.execution.orchestrator.chain import ChainSpec
+from oasislmf.execution.orchestrator.chain import ChainSpec, spec_for_taps
 from oasislmf.execution.orchestrator.chunks import read_events
 from oasislmf.execution.orchestrator.plan import (OutputJob, Plan, Unsupported, partition_events, plan_from_bash_params,
                                                   render_chunk_commands)
 from oasislmf.pytools.eve.manager import run as evepy_run
 from oasislmf.utils.defaults import EVE_FISHER_YATES, EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE
 from tests.orchestrator.tools.compare_outputs import compare_trees_bytes
+
+from .test_chain import TREE_FACTORIES
+from .test_pool import TREE_FACTORY_STRINGS
 
 ALL_ORD = {
     'plt_sample': True, 'plt_quantile': True, 'plt_moment': True,
@@ -221,6 +224,31 @@ def test_plan_output_jobs_kwargs(tmp_path):
         'occ_wheatsheaf': True}
     assert len(jobs) == 6 + 2 + 1
     assert OutputJob('katpy', {}).entry_point == 'oasislmf.pytools.kat.manager:main'
+
+
+def test_spec_for_taps_switches_on_the_outputs_taps_read(tmp_path):
+    settings, options = CASES['rl_only']
+    run_dir, params = generate(tmp_path, settings, options, 2)
+    spec = plan_from_bash_params(params, run_dir=str(run_dir)).spec
+    assert [(s['gross'], s['net']) for s in spec.fm] == [(True, False), (True, True), (True, False)]
+    assert [(s['gross'], s['net']) for s in spec_for_taps(spec, ['gul', 'il', 'ri']).fm] == [(True, False), (True, True), (True, True)]
+    assert spec_for_taps(spec, ['gul']).to_json() == spec.to_json()
+    assert spec.fm[2]['net'] is False
+    without_flags = ChainSpec(run_dir='.', fm=[{'name': 'il', 'allocation_rule': 2, 'feeds_next': None}])
+    assert spec_for_taps(without_flags, ['il', 'ri']).fm == without_flags.fm
+
+
+@pytest.mark.parametrize('executor', ['inline', 'pool'])
+def test_planned_run_with_ri_tap_and_rl_output_only(tmp_path, executor):
+    settings, options = CASES['rl_only']
+    run_dir, params = generate(tmp_path, settings, options, 2)
+    plan = plan_from_bash_params(params, run_dir=str(run_dir))
+    chunks = plan.make_chunks(np.arange(1, 11, dtype=np.int32))
+    factories = TREE_FACTORIES if executor == 'inline' else TREE_FACTORY_STRINGS
+    module = inline if executor == 'inline' else pool
+    module.run_chunks(plan.spec, chunks, tmp_path / 'out', ['ri'], 2, factories=factories)
+    assert sorted(os.listdir(tmp_path / 'out')) == ['ri_P1.bin', 'ri_P2.bin']
+    assert all(os.path.getsize(tmp_path / 'out' / name) > 0 for name in os.listdir(tmp_path / 'out'))
 
 
 def test_plan_chunk_paths_and_work_dirs(tmp_path):

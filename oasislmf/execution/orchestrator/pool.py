@@ -35,6 +35,7 @@ import psutil
 
 import oasislmf
 
+from .chain import spec_for_taps
 from .outputs import as_job, check_independent, job_label, job_outputs, prepare_output_dirs
 
 logger = logging.getLogger(__name__)
@@ -604,7 +605,7 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     t_start = time.perf_counter()
     taps = list(taps)
     out_dir = os.path.abspath(out_dir)
-    spec = dataclasses.replace(spec, run_dir=os.path.abspath(spec.run_dir))
+    spec = dataclasses.replace(spec_for_taps(spec, taps), run_dir=os.path.abspath(spec.run_dir))
     chunks = list(chunks)
     if n_workers <= 0:
         raise ValueError(f'n_workers must be positive, got {n_workers}')

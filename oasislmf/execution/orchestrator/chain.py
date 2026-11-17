@@ -110,6 +110,36 @@ def build_chain_spec(run_dir, gul, il=None, ri=(), summaries=()):
     return ChainSpec(run_dir=run_dir, gul=dict(gul), fm=steps, summaries=[dict(node) for node in summaries])
 
 
+def spec_for_taps(spec, taps):
+    """Return a copy of a spec whose fm steps are built to produce the outputs the taps read.
+
+    A step's ``gross`` and ``net`` default to what the chain can ask of it, taps included, but a spec may set
+    them explicitly (the planner does, from the summaries bash runs). A tap reading an output its step was not
+    built for would then fail on the first event, so the outputs the taps read are switched on here: the gross
+    of the ``il`` step for ``il`` and the net of the last ``ri`` step for ``ri``. Taps whose step does not exist
+    are left for ``Chain`` to reject.
+
+    Args:
+        spec (ChainSpec): the spec.
+        taps (Iterable[str]): requested tap names.
+
+    Returns:
+        ChainSpec: a new spec; ``spec`` is not modified.
+    """
+    spec = ChainSpec.from_dict(spec.to_dict())
+    names = [step.get('name') for step in spec.fm]
+    taps = set(taps)
+    if 'il' in taps and 'il' in names:
+        step = spec.fm[names.index('il')]
+        if 'gross' in step:
+            step['gross'] = True
+    if 'ri' in taps and 'ri' in names:
+        step = spec.fm[len(names) - 1 - names[::-1].index('ri')]
+        if 'net' in step:
+            step['net'] = True
+    return spec
+
+
 def _resolve(factory):
     """Return ``factory``, importing it first when given as ``'package.module:attribute'``."""
     if isinstance(factory, str):

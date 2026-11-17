@@ -3,7 +3,7 @@ import dataclasses
 import os
 import time
 
-from .chain import Chain
+from .chain import Chain, spec_for_taps
 from .chunks import ChunkWriter
 from .outputs import as_job, check_independent, run_jobs
 
@@ -46,7 +46,7 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     output_jobs = [as_job(job) for job in options.get('output_jobs') or []]
     check_independent(output_jobs)
     out_dir = os.path.abspath(out_dir)
-    spec = dataclasses.replace(spec, run_dir=os.path.abspath(spec.run_dir))
+    spec = dataclasses.replace(spec_for_taps(spec, taps), run_dir=os.path.abspath(spec.run_dir))
     chunk_stats = []
     cwd = os.getcwd()
     os.chdir(spec.run_dir)
