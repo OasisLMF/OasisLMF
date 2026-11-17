@@ -106,6 +106,8 @@ jobs:
       # The orchestrator suites without the tests that need bash or pytools pipelines over OS pipes
       # (marker requires_bash, skipped on Windows anyway): planner, chunking, inline and pool executors
       # on the test fixture with real stages, runner and chunked runs with the orchestrator option.
+      # Not test_generate_losses.py: its fixtures give generate_files OED paths as strings, which
+      # oasis_data_manager opens as file://<path>, a URL with an empty path on Windows.
       - name: Orchestrator tests
         if: matrix.python-version == '3.12'
         timeout-minutes: 60
@@ -116,4 +118,3 @@ jobs:
             tests/orchestrator \
             tests/model_execution/test_resource_monitor.py \
             tests/model_execution/test_runner.py::TestRunWithOrchestrator
-          python -m pytest -q -m "not requires_bash" -k orchestrator tests/computation/test_generate_losses.py

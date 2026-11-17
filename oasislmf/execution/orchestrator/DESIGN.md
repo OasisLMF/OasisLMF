@@ -800,7 +800,9 @@ manifest.
   Python 3.10 to 3.14 (JIT on) and 3.12 (JIT off). macOS and Windows: an `Orchestrator tests`
   step in `test-macos.yml` and `test-windows.yml` (Python 3.12, against the built wheel):
   `tests/orchestrator`, `test_resource_monitor.py`, `test_runner.py::TestRunWithOrchestrator`
-  and `test_generate_losses.py -k orchestrator`, with `-m "not requires_bash"`.
+  and (macOS only) `test_generate_losses.py -k orchestrator`, with `-m "not requires_bash"`. Not on
+  Windows: those tests give `generate_files` OED paths as strings, which `oasis_data_manager`
+  opens as `file://<path>`, a URL with an empty path on Windows (10.4).
 - **Windows by reading.** Workers are started with `subprocess` (no fork), connect over
   `multiprocessing.connection` on 127.0.0.1 (sockets, which `wait` supports on Windows), read
   their configuration from a stdin pipe, and are terminated with their process trees through
@@ -818,6 +820,11 @@ manifest.
   passes an `OedExposure` read from Path objects); the leftover-process check seeing
   multiprocessing's resource tracker, which tqdm's lock starts under spawn; and psutil denying
   the USS on macOS, which emptied `resource_monitor.csv` (now the RSS stands in).
+- **OED paths on Windows (not fixed here).** `LocalStorage.get_storage_url` in
+  `oasis_data_manager` returns `f"file://{Path(root_dir, filename)}"`, which on Windows is
+  `file://C:\...`: urllib takes `C:` as the host and opens an empty path (`URLError`, WinError 3).
+  Every OED file given to a computation step as a string goes through it, so `generate-files` and
+  `generate-keys` fail on Windows. `Path.as_uri()` would fix it there.
 - **pytools on macOS (not fixed here).** `write_mv_to_stream` selects on its output for
   exceptional conditions too, and macOS reports one on every regular file, so a pytool whose
   output is a regular file (`fmpy ... > file`, and likely summarypy's `-1 <file>` of a chunk
