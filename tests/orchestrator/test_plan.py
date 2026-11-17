@@ -161,6 +161,33 @@ def test_plan_renders_exactly_the_genbash_commands(tmp_path, case, n_chunks, std
     assert plan.n_chunks == n_chunks
 
 
+@pytest.mark.parametrize('k', [1, 3])
+@pytest.mark.parametrize('case', ['gul_il_ri_low_memory', 'gul_il_ri_rl_intermediate', 'il_ri_options'])
+def test_plan_of_a_distributed_chunk_renders_the_chunk_script_commands(tmp_path, case, k):
+    """generate-losses-chunk k of 3: the plan's chunk k is the analysis script bash writes for process_number k."""
+    settings, options = CASES[case]
+    run_dir = tmp_path / 'run'
+    (run_dir / 'input').mkdir(parents=True)
+    if case == 'il_ri_options':
+        (run_dir / 'input' / 'fm_profile.csv').write_text('profile_id,calcrule_id,step_id\n1,12,1\n')
+    script = run_dir / f'{k}.run_analysis.sh'
+    params = bash.bash_params(analysis_settings=copy.deepcopy(settings), max_process_id=3, process_number=k, fifo_tmp_dir=False,
+                              filename=str(script), **options)
+    cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        with bash.bash_wrapper(str(script), False, True, log_sub_dir=k, process_number=k):
+            bash.create_bash_analysis(**copy.deepcopy(params))
+    finally:
+        os.chdir(cwd)
+    plan = plan_from_bash_params(params, run_dir=str(run_dir))
+    assert plan.chunk_numbers == [k]
+    got = Counter(normalise(argv) for argv in render_chunk_commands(plan.spec, k, plan.n_chunks, plan.event_shuffle))
+    expected = script_commands(script)
+    assert got == expected, (sorted(set(got) - set(expected)), sorted(set(expected) - set(got)))
+    assert all(path.startswith(f'{k}.work/') for path in plan.chunk_paths(k))
+
+
 def test_plan_from_bash_params_json_round_trip(tmp_path):
     settings, options = CASES['gul_il_ri_rl_intermediate']
     run_dir, params = generate(tmp_path, settings, options, 2)
@@ -306,7 +333,6 @@ BASE = {'number_of_samples': 1, 'gul_threshold': 0, 'gul_output': True, 'gul_sum
     (BASE, {'join_summary_info': True}, 'join-summary-info'),
     ({**BASE, 'join_summary_info': True}, {}, 'join-summary-info'),
     ({**BASE, 'pla': True}, {}, 'plapy'),
-    (BASE, {'process_number': 2}, 'distributed chunk'),
     (BASE, {'custom_args': {'x': 1}}, 'custom_args'),
     ({**BASE, 'il_output': True, 'il_summaries': [{'id': 1}]}, {'num_gul_per_lb': 1, 'num_fm_per_lb': 1}, 'load balancer'),
     ({**BASE, 'gul_summaries': [{'id': 1, 'eltcalc': True}]}, {}, 'legacy'),

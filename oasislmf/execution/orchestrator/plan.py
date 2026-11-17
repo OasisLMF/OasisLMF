@@ -10,6 +10,11 @@ directory of an orchestrated run is interchangeable with a bash one. ``render_ch
 ``OutputJob.command`` turn a plan back into the bash commands it stands for; the tests compare them with the
 script ``genbash`` writes, which is what ties the planner to ``genbash``.
 
+In a distributed run (``process_number`` k of ``max_process_id``) bash runs partition k alone, writing its work files in
+``k.work/`` (the ``work_dir`` of bash_params); the plan's templates name the same files and ``Plan.chunk_numbers`` is
+``[k]``. Such a run does not run the output jobs: the outputs step plans from its own bash_params, without
+``process_number``, so its jobs read ``work/``, where the platform gathers the work files of every chunk.
+
 Settings the stages do not cover raise ``Unsupported`` with the reason, and the run falls back to bash.
 """
 import csv
@@ -141,11 +146,21 @@ class Plan:
         output_jobs (list[OutputJob]): the katpy/aalpy/lecpy runs after the last chunk, in any order.
         n_chunks (int): the partition count bash would use (``max_process_id``).
         event_shuffle (int): evepy partitioning rule (``EVE_*`` of ``oasislmf.utils.defaults``).
+        process_number (int | None): in a distributed run, the one partition this run computes (bash's
+            ``process_number``); its work files are in ``<process_number>.work/`` as bash names them. None for all.
     """
     spec: ChainSpec
     output_jobs: list = field(default_factory=list)
     n_chunks: int = 1
     event_shuffle: int = EVE_DEFAULT_SHUFFLE
+    process_number: int = None
+
+    @property
+    def chunk_numbers(self):
+        """list[int]: the 1-based numbers of the chunks this run computes: ``process_number`` alone, or 1 to ``n_chunks``."""
+        if self.process_number is not None:
+            return [self.process_number]
+        return list(range(1, self.n_chunks + 1))
 
     def make_chunks(self, events, n_chunks=None):
         """Split events into chunks as ``evepy`` partitions them with this plan's shuffle rule.
@@ -170,13 +185,13 @@ class Plan:
     def to_dict(self):
         """Return the plan as a plain JSON-serialisable dict."""
         return {'spec': self.spec.to_dict(), 'output_jobs': [job.to_dict() for job in self.output_jobs],
-                'n_chunks': self.n_chunks, 'event_shuffle': self.event_shuffle}
+                'n_chunks': self.n_chunks, 'event_shuffle': self.event_shuffle, 'process_number': self.process_number}
 
     @classmethod
     def from_dict(cls, data):
         """Build a plan from the output of ``to_dict``."""
         return cls(spec=ChainSpec.from_dict(data['spec']), output_jobs=[OutputJob.from_dict(j) for j in data['output_jobs']],
-                   n_chunks=data['n_chunks'], event_shuffle=data['event_shuffle'])
+                   n_chunks=data['n_chunks'], event_shuffle=data['event_shuffle'], process_number=data.get('process_number'))
 
     def to_json(self):
         """Return the plan as a JSON string."""
@@ -198,8 +213,6 @@ def _check_supported(bash_params, analysis_settings, run_dir):
         raise Unsupported('full correlation output (only produced with gulpy)')
     if bash_params.get('custom_args'):
         raise Unsupported(f"custom_args {sorted(bash_params['custom_args'])} are passed to the getmodel command")
-    if bash_params.get('process_number') is not None:
-        raise Unsupported('distributed chunk mode (process_number): the script runs a single partition in its own work dir')
     if bash_params.get('model_py_server'):
         raise Unsupported('the model data server (servedata, gulmc --data-server)')
     if bash_params.get('join_summary_info') or analysis_settings.get('join_summary_info'):
@@ -207,7 +220,8 @@ def _check_supported(bash_params, analysis_settings, run_dir):
     if analysis_settings.get('pla'):
         raise Unsupported('post loss amplification (plapy)')
     il_or_ri = bash_params.get('il_output') or bash_params.get('ri_output')
-    if bash_params.get('num_gul_per_lb') and bash_params.get('num_fm_per_lb') and il_or_ri:
+    distributed = bash_params.get('process_number') is not None
+    if bash_params.get('num_gul_per_lb') and bash_params.get('num_fm_per_lb') and il_or_ri and not distributed:
         raise Unsupported('load balancer (num_gul_per_lb / num_fm_per_lb) between gul and fm')
     event_shuffle = bash_params.get('event_shuffle', EVE_DEFAULT_SHUFFLE)
     if event_shuffle not in EVE_FLAGS:
@@ -396,8 +410,13 @@ def plan_from_bash_params(bash_params, run_dir=None):
 
     spec = ChainSpec(run_dir=run_dir, gul=gul, fm=fm, summaries=nodes)
     n_chunks = int(bash_params.get('max_process_id') or 1)
+    process_number = bash_params.get('process_number')
+    if process_number is not None:
+        process_number = int(process_number)
+        if not 1 <= process_number <= n_chunks:
+            raise ValueError(f'process_number {process_number} is not a partition of 1..{n_chunks}')
     return Plan(spec=spec, output_jobs=_output_jobs(bash_params, analysis_settings, nodes, n_chunks), n_chunks=n_chunks,
-                event_shuffle=bash_params.get('event_shuffle', EVE_DEFAULT_SHUFFLE))
+                event_shuffle=bash_params.get('event_shuffle', EVE_DEFAULT_SHUFFLE), process_number=process_number)
 
 
 def _fifo(fifo_dir, runtype, k, consumer=''):
