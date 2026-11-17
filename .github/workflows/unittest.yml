@@ -13,6 +13,11 @@ on:
       ods_branch:
         description: "Git install ods_tools branch before tests: [git ref]"
         required: false
+      kernel_output_change:
+        description: "Compare the orchestrator with bash of this checkout, not of the base branch (kernel output changes)"
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   ods_tools:
@@ -75,7 +80,12 @@ jobs:
       # The orchestrator tests check the new stages byte for byte against bash runs of the pytools of the base
       # branch. Without a checkout of it the harness would make those references with this checkout's code and
       # compare it with itself; OASIS_ORCH_REQUIRE_REF makes that a failure.
+      # A PR that changes kernel output bytes on purpose opts out with the 'kernel-output-change' label (or the
+      # kernel_output_change dispatch input): the references are then made by this checkout's bash, so the
+      # orchestrator is still compared with bash, of the same code. The label is read from the event payload, so
+      # after adding or removing it push a commit or close and reopen the PR; "Re-run jobs" reuses the old labels.
       - name: Pristine reference checkout for the orchestrator tests
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'kernel-output-change') && !inputs.kernel_output_change }}
         run: |
           ref_dir="$RUNNER_TEMP/oasislmf-ref"
           git fetch --no-tags --depth=1 origin "${{ github.base_ref || 'main' }}"
@@ -84,6 +94,13 @@ jobs:
           echo "OASIS_ORCH_REF_SOURCE=$ref_dir" >> "$GITHUB_ENV"
           echo "OASIS_ORCH_REF_TOOLS=$ref_dir-bin" >> "$GITHUB_ENV"
           echo "OASIS_ORCH_REQUIRE_REF=1" >> "$GITHUB_ENV"
+          echo "::notice::Orchestrator references: bash of base branch ${{ github.base_ref || 'main' }} (pristine checkout)"
+
+      - name: Same-checkout references for the orchestrator tests (kernel-output-change)
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'kernel-output-change') || inputs.kernel_output_change }}
+        run: |
+          echo "OASIS_ORCH_REF_SOURCE=installed" >> "$GITHUB_ENV"
+          echo "::notice::Orchestrator references: bash of this checkout (kernel-output-change opt-out, base branch not compared)"
 
       # NUMBA_BOUNDSCHECK must be set here as well as on the test run. numba's on-disk cache key
       # does not include the flag, so a cache warmed without it is reused by a checked run and the

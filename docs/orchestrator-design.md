@@ -805,6 +805,15 @@ manifest.
   and (macOS only) `test_generate_losses.py -k orchestrator`, with `-m "not requires_bash"`. Not on
   Windows: those tests give `generate_files` OED paths as strings, which `oasis_data_manager`
   opens as `file://<path>`, a URL with an empty path on Windows (10.4).
+- **Base-branch references and the opt-out.** On Linux `unittest.yml` makes the bash references
+  with a worktree of the PR's base branch (`OASIS_ORCH_REF_SOURCE`, `OASIS_ORCH_REF_TOOLS`) and sets
+  `OASIS_ORCH_REQUIRE_REF=1`, so a refactor is checked against the code it replaces. A PR that
+  changes kernel output bytes on purpose (a pytools kernel or a genbash command) carries the
+  `kernel-output-change` label, or a manual run sets the `kernel_output_change` input: the step is
+  skipped, `OASIS_ORCH_REF_SOURCE=installed` is set instead, and the orchestrator is compared with
+  bash of the same checkout, the invariant that outlasts the refactor. The log's
+  `orchestrator tests:` lines and a workflow notice say which mode ran. Labels are read from the
+  event payload: after changing the label push a commit or close and reopen the PR.
 - **Windows by reading.** Workers are started with `subprocess` (no fork), connect over
   `multiprocessing.connection` on 127.0.0.1 (sockets, which `wait` supports on Windows), read
   their configuration from a stdin pipe, and are terminated with their process trees through

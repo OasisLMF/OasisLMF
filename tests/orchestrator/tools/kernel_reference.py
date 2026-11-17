@@ -180,7 +180,8 @@ def describe_source(source):
         str: the checkout and its commit, or the running ``oasislmf``'s location.
     """
     if source is None:
-        return f'installed oasislmf {oasislmf.__version__} at {RUNNING_CHECKOUT} (the code under test)'
+        return (f'installed oasislmf {oasislmf.__version__} at {RUNNING_CHECKOUT} (the code under test: same-checkout '
+                f'comparison, orchestrator against bash of this checkout, not of the base branch)')
     proc = subprocess.run(['git', '-C', str(source), 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True)
     commit = proc.stdout.strip() if proc.returncode == 0 else 'unknown commit'
     return f'pristine checkout {source} ({commit})'
