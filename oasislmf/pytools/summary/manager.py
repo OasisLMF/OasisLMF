@@ -16,7 +16,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
-from oasislmf.pytools.common.event_stream import init_streams_in, stream_info_to_bytes, write_mv_to_stream
+from oasislmf.pytools.common.event_stream import init_streams_in, stream_info_to_bytes
+from oasislmf.pytools.common.stage import StreamSink
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS  # noqa: F401
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_fmt, SELT_headers, VALID_EXT
 from oasislmf.pytools.summary.stage import (SPECIAL_SIDX_COUNT, SUMMARY_HEADER_SIZE, SUMMARY_META_SIZE, SIDX_LOSS_WRITE_SIZE,  # noqa: F401
@@ -77,25 +78,6 @@ class SummaryRowWriter:
             write_ndarray_to_fmt_csv(self.file, data, SELT_headers, SELT_fmt)
         self.row_i = 0
 
-
-
-class StreamSink:
-    """Sink writing a numpy byte view to an open stream (a file or a fifo) with ``write_mv_to_stream``.
-
-    ``write_mv_to_stream`` waits with select until the stream is writable and loops on partial writes, so a
-    slow consumer of a fifo applies back-pressure.
-    """
-
-    def __init__(self, stream):
-        self.stream = stream
-
-    def write(self, data):
-        """Write a numpy byte view to the stream in full.
-
-        Args:
-            data (np.ndarray): 1-D int8 array to write.
-        """
-        write_mv_to_stream(self.stream, data, data.shape[0])
 
 
 def run(files_in, static_path, run_type, low_memory, output_zeros, output_format='bin', **kwargs):

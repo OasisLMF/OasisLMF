@@ -6,7 +6,7 @@ keeps what it is given in memory so that the next stage can read it as a block.
 """
 import numpy as np
 
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, write_mv_to_stream
 
 
 class EventBlock:
@@ -94,3 +94,22 @@ class EventBlock:
 
     def __len__(self):
         return self.size
+
+
+class StreamSink:
+    """Sink writing to a real stream (stdout, a pipe, a fifo or a file) with ``write_mv_to_stream``.
+
+    ``write_mv_to_stream`` waits with select until the stream is writable and loops on partial writes, so a slow
+    consumer applies back-pressure instead of the writes failing on a non-blocking pipe.
+    """
+
+    def __init__(self, stream):
+        self.stream = stream
+
+    def write(self, data):
+        """Write a numpy byte view to the stream in full.
+
+        Args:
+            data (np.ndarray): 1-D int8 array to write.
+        """
+        write_mv_to_stream(self.stream, data, data.shape[0])

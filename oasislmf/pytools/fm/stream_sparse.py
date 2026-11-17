@@ -52,7 +52,7 @@ import logging
 from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY, EventReader,
                                                   MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, MEAN_IDX, NUM_SPECIAL_SIDX,
                                                   decode_local_sidx,
-                                                  mv_read, mv_write_item_header, mv_write_sidx_loss, write_mv_to_stream)
+                                                  mv_read, mv_write_item_header, mv_write_sidx_loss)
 from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, loss_pair_dtype, loss_pair_size,
                                           def_to_type_and_size)
 
@@ -451,25 +451,6 @@ def load_event(byte_mv, event_id, nodes_array,
         node_id = computes[compute_idx['level_start_compute_i']]
 
     return cursor, node_id, 0, val_i
-
-
-class StreamSink:
-    """Sink writing to a real stream (stdout, a pipe or a file) with ``write_mv_to_stream``.
-
-    ``write_mv_to_stream`` waits with select until the stream is writable, so a slow consumer
-    applies back-pressure instead of the writes failing on a non-blocking pipe.
-    """
-
-    def __init__(self, stream):
-        self.stream = stream
-
-    def write(self, data):
-        """Write a numpy byte view to the stream.
-
-        Args:
-            data (np.ndarray): 1-D int8 array to write in full.
-        """
-        write_mv_to_stream(self.stream, data, data.shape[0])
 
 
 class EventWriterSparse:

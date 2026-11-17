@@ -6,7 +6,7 @@ import numpy as np
 
 from .financial_structure import create_financial_structure
 from .stage import FmStage, resolve_allocation_rule, _dump_fm_profile  # noqa: F401
-from .stream_sparse import StreamSink
+from oasislmf.pytools.common.stage import StreamSink
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.pytools.common.event_stream import init_streams_in, stream_info_to_bytes
 
