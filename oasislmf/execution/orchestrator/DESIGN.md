@@ -664,7 +664,7 @@ reusing workers' setup, are the next things to try.
 | # | Package | Files | State |
 |---|---|---|---|
 | 13 | `orchestrator` option on the generate-losses steps; `runner` builds the plan from the same `bash_params` and runs it with the pool executor (W = K = `max_process_id`), falling back to bash with a logged warning on `Unsupported`; chunked platform runs (`process_number` = one chunk, outputs step = the output jobs); progress pings from the orchestrator; logs and exit codes as bash | `computation/generate/losses.py`, `execution/runner.py`, `execution/bash.py`, `execution/orchestrator/{kernel,progress}.py` | done |
-| 14 | CI: the orchestrator suites on Linux, Windows and macOS | `.github/workflows/` | to do |
+| 14 | CI: the orchestrator suites on Linux, Windows and macOS; stderr guard, chunk output check and resource monitor mirrored | `.github/workflows/`, `tests/`, `execution/orchestrator/{pool,kernel}.py`, `execution/resource_monitor.py` | done, CI unverified (10.4) |
 | 15 | Manifest for `rerun`, if still needed once 13 exists | - | not needed so far, see 10.3 |
 
 Ported from `feature/kernel-orchestrator`: the option and fallback wiring in `runner.py` and
@@ -703,13 +703,13 @@ manifest.
   the misspelt `remove_working_file`, which #2292 fixes on main; the bash_params value is what
   counts).
 - **Logs.** In the step's log directory (`log`, `log/<k>`, `log/out`):
-  `orchestrator_worker_<n>.log` (each worker's stdout and stderr, kept: pool option
-  `log_dir`), `orchestrator.log` (the run log, also returned as the script's stdout would be:
+  `orchestrator_worker_<n>.log` and `orchestrator_worker_<n>.err` (each worker's stdout and
+  stderr, kept: pool option `log_dir`), `orchestrator.log` (the run log, also returned as the script's stdout would be:
   per chunk events/seconds/worker, per output job, totals), `stderror.err` (created empty as the
   script's redirections do; a failure is appended to it), and the output jobs' pytools logs
   (`OASIS_PYTOOLS_LOG_DIR` and `OASIS_PYTOOLS_LOG_LEVEL` set for the workers). The
-  `ResourceMonitor` is started and stopped around the run as for bash (it finds no pytools
-  processes, see 10.3).
+  `ResourceMonitor` is started and stopped around the run as for bash; it reports the pool
+  workers as one tool, `orchestrator` (10.3).
 - **Errors.** Any executor exception (`WorkerError` naming stage, chunk, event or output job,
   with the worker's stderr tail) becomes `subprocess.CalledProcessError(1,
   ['oasislmf-orchestrator', mode, script], output=<run log>)`, so `GenerateLosses*` print
@@ -756,24 +756,72 @@ manifest.
   directory is `phase4/K4_S10`: the reference's `input` and `static`, its summary-info files, and
   `runner.run(settings, number_of_processes=4, num_reinsurance_iterations=1, orchestrator=True)`.
 
-### 10.3 What remains
+### 10.3 What was built (package 14 and the package 13 gaps)
 
-- **Package 14, CI.** Run `tests/orchestrator` and the orchestrator tests of
-  `tests/computation` and `tests/model_execution` on Linux, Windows and macOS. The fixture's
-  full-kernel references and the on/off comparisons need bash; on Windows only the
-  orchestrator side can run (compare against stored outputs or skip the bash half).
+- **Stderr guard.** bash's guard (`stderr_guard`, off with `kernel_disable_guard`) appends every
+  guarded command's stderr to `stderror.err`; `oasis_exec_monitor.sh` checks that file every 2 s
+  and kills the script (exit status 143 through the trap) when it holds a line other than a blank
+  line, a Python warning header (`<file>:<line>: <Category>Warning:`) or an indented
+  `warnings.warn` source line, and a chunk script checks it once more before it exits (exit 1,
+  `Error detected in $LOG_DIR/stderror.err`). The orchestrator now does the same with the pool:
+  each worker's stderr goes to `orchestrator_worker_<n>.err`, the pool checks those files every
+  2 s and once after the last worker exits with the same pattern (`pool.stderr_errors`), and a
+  line it keeps fails the run (`WorkerError`, "pool worker n wrote to stderr: <line>", with the
+  stderr tail). `run_plan` appends the workers' stderr to `stderror.err` in worker order, before
+  the failure line, so `GenerateLosses*` print what bash would have printed there.
+- **Chunk output check.** A distributed chunk script fails (exit 1, `Chunk output error: File
+  '<path>' is empty`) when a `P<k>.bin` under `<k>.work` is empty. `run_plan` checks the same
+  files after an `analysis` step with `process_number` and the guard on. An orchestrated chunk
+  writes the summary header into every such file at `start_chunk`, so this only fires if a stage
+  never started; it is there to keep the contract.
+- **Deviations.** Exit status 1 for every failure (bash: 143 for a monitor kill, 1 for the chunk
+  checks), and the message is in `stderror.err` and the run log, not on stdout. The check is also
+  made at the end of a whole run (bash only checks at the end of a chunk script, so a whole run
+  could finish before the monitor's next poll). The inline executor runs in-process and has no
+  stderr of its own: the guard applies to the pool only. Workers' stdout is not checked (bash
+  does not check it either).
+- **Resource monitor.** `monitored_tool` reports a process whose command line has the module
+  `oasislmf.execution.orchestrator.worker` as `orchestrator`; the stages run in-process, so
+  there is no per-tool split. `MONITORED_TOOLS` is unchanged, so the pytools-log completeness
+  check does not look at `orchestrator_worker_<n>.log`.
+- **Tests without bash.** Marker `requires_bash` (`setup.cfg`, `tests/bash_support.py`,
+  `tests/conftest.py`): tests that run bash scripts or pytools pipelines over OS pipes (the tools
+  `select` on them, which Windows only allows on sockets), applied explicitly or through the
+  fixtures `kernel_reference`, `full_kernel_reference` and `bash_whole_run`, and skipped on
+  Windows or with `OASIS_TEST_NO_BASH` set. 18 of the 324 tests in the CI selection are marked.
+  Still run without bash: the runner's orchestrated whole run and a fully orchestrated chunked run
+  compared with it, pool against inline streams with real stages, plans from `bash_params`,
+  chunking, fake-stage executor tests. The fixture's run directory no longer needs the bash tool
+  wrappers, and links `input`/`static` or copies them where symbolic links are not allowed.
+- **CI.** Linux: `unittest.yml` already runs every test, the bash comparisons included, on
+  Python 3.10 to 3.14 (JIT on) and 3.12 (JIT off). macOS and Windows: an `Orchestrator tests`
+  step in `test-macos.yml` and `test-windows.yml` (Python 3.12, against the built wheel):
+  `tests/orchestrator`, `test_resource_monitor.py`, `test_runner.py::TestRunWithOrchestrator`
+  and `test_generate_losses.py -k orchestrator`, with `-m "not requires_bash"`; macOS adds the
+  bash comparisons when dispatched with `orchestrator_bash_tests` (a K = 2 full-kernel bash run
+  of the fixture peaks at about 4.5 GB, the macOS runner has 7 GB, and its bash may be 3.2).
+- **Windows by reading.** Workers are started with `subprocess` (no fork), connect over
+  `multiprocessing.connection` on 127.0.0.1 (sockets, which `wait` supports on Windows), read
+  their configuration from a stdin pipe, and are terminated with their process trees through
+  psutil (`TerminateProcess`); every data file is opened in binary mode and is a plain file (no
+  FIFO, `/dev/shm` or `select`). Nothing found needed a change in the executor; the test fixture
+  did (bash wrappers, symbolic links), as above. ELT/PLT CSVs are written in text mode, so on
+  Windows they end lines with CRLF, as the pytools CLIs there do.
+
+### 10.4 What remains
+
+- **CI not yet run.** The macOS and Windows steps were validated (YAML, actionlint) and the
+  Windows selection collected here with `OASIS_TEST_NO_BASH=1` (the changed test files also
+  run that way), but nothing has run on those platforms: path separators in path assertions, symbolic links, Numba compile time in the
+  workers and the wheel's optional dependencies are the likely failure points.
+- **Memory on the default path.** The bash comparisons in `unittest.yml` each run the fixture's
+  full kernel with bash at K = 2 (about 4.5 GB, 74 processes); fine on the 16 GB Linux runner,
+  but they could move behind a dispatch input as on macOS if that is too much.
 - **Package 15, manifest.** Not needed for `rerun()` (the script is written). Left open only if
   a record of what the orchestrator ran (plan JSON, worker count) is wanted in the run directory;
   `orchestrator.log` holds the per-chunk and per-job summary.
 - **Platform.** OasisPlatform must pass `orchestrator` in the params of
   `generate_losses_chunk` / `generate_losses_output` (or `run_analysis`) to use it; nothing in
   OasisLMF changes for that. Mixed chunks are interchangeable, so a partial rollout is safe.
-- **Resource monitor.** It recognises pytools processes by command line, so the pool workers
-  (`python -m oasislmf.execution.orchestrator.worker`) are not in its report. Teach
-  `MONITORED_TOOLS`/`_TOOL_RE` the worker if the report is wanted for orchestrated runs.
-- **Bash-only checks not mirrored.** The chunk script's "non-empty `P<k>.bin`" check (an
-  orchestrated chunk always writes headers) and the stderr-guard's "anything on stderr is an
-  error" rule: a worker that writes warnings to stderr does not fail the run; only exceptions
-  and non-zero exits do. `kernel_disable_guard` therefore has no effect with the orchestrator.
 - **W for local runs.** W = K = `max_process_id` as bash; section 9.7 suggests K a few times W
   (dynamic balancing) once outputs compared as sorted rows are acceptable.
