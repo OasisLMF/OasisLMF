@@ -18,6 +18,9 @@ Logs go where the script's would: the workers' stdout and stderr to ``<log_dir>/
 pytools logs of the output jobs (``OASIS_PYTOOLS_LOG_DIR``) to ``<log_dir>``, and a run log, the counterpart of the
 script's stdout, to ``<log_dir>/orchestrator.log``. A failure is appended to ``<log_dir>/stderror.err``, where the
 script's error trap writes, and raised as ``subprocess.CalledProcessError`` as a failed script is.
+
+Progress is reported while the chunks run as ``gulmc --socket-server`` reports it in the script: pings to the platform
+when bash_params has an ``analysis_pk``, else the local progress bar (``progress.ProgressReporter``).
 """
 import fnmatch
 import os
@@ -25,8 +28,11 @@ import shutil
 import subprocess
 import time
 
+from oasislmf.utils.defaults import SERVER_UPDATE_TIME
+
 from . import inline, pool
 from .chunks import read_events
+from .progress import ProgressReporter
 
 EXECUTORS = {'pool': pool, 'inline': inline}
 MODES = ('all', 'analysis', 'outputs')
@@ -94,14 +100,15 @@ def _run_log(plan, mode, stats, chunk_numbers, n_workers, error=None):
     return '\n'.join(lines) + '\n'
 
 
-def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_workers=None, monitor=None):
+def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_workers=None, progress_interval=SERVER_UPDATE_TIME,
+             monitor=None):
     """Run one kernel step of a plan, with the side effects its bash script has.
 
     Args:
         plan (Plan): from ``plan_from_bash_params(bash_params)``; its ``spec.run_dir`` is the directory the script
             would run in, and relative paths are taken in it.
         bash_params (dict): the dict the plan was made from; ``work_dir``, ``work_kat_dir``, ``output_dir``,
-            ``remove_working_files`` and ``log_level`` are read.
+            ``remove_working_files``, ``analysis_pk``, ``socket_server_size`` and ``log_level`` are read.
         mode (str): ``all``, ``analysis`` or ``outputs`` (see the module docstring).
         log_dir (str): the step's log directory (``log``, ``log/<process_number>`` or ``log/out``), relative to the
             run directory or absolute.
@@ -109,6 +116,7 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
         executor (str): ``pool`` (default) or ``inline``.
         n_workers (int, optional): worker processes; by default one per chunk computed (``max_process_id``, or 1 for
             a single distributed chunk), and for the outputs step one per partition.
+        progress_interval (float): seconds between two progress reports of a worker.
         monitor (ResourceMonitor, optional): started with this process's id once the log directory is emptied, and
             stopped when the run ends.
 
@@ -144,13 +152,18 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
         'chunk_numbers': chunk_numbers,
         'env': _worker_env(log_dir, bash_params.get('log_level')),
         'log_dir': log_dir,
+        'progress_interval': progress_interval,
     }
     run_log_path = os.path.join(log_dir, RUN_LOG)
+    analysis_pk = bash_params.get('analysis_pk')
+    bar_total = bash_params.get('socket_server_size') if run_chunks else None
     t_start = time.perf_counter()
     if monitor is not None:
         monitor.start(os.getpid())
     try:
-        stats = EXECUTORS[executor].run_chunks(plan.spec, chunks, log_dir, [], max(n_workers, 1), **options)
+        with ProgressReporter(analysis_pk=analysis_pk if run_chunks else None, bar_total=bar_total) as reporter:
+            options['progress'] = lambda done, _total: reporter.update(done)
+            stats = EXECUTORS[executor].run_chunks(plan.spec, chunks, log_dir, [], max(n_workers, 1), **options)
     except Exception as exc:
         message = f'{type(exc).__name__}: {exc}'
         text = _run_log(plan, mode, None, chunk_numbers, n_workers, error=message)

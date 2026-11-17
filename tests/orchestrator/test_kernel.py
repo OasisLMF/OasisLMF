@@ -1,7 +1,7 @@
 """Phase 4: kernel steps run by the orchestrator through ``execution/runner.py``, against bash on the same run.
 
-Unit tests of ``kernel.run_plan``'s side effects and errors use fake stages; the executors' chunk subsets and
-progress messages are tested in ``test_pool.py``. The end-to-end tests run the full
+Unit tests of the pieces (the progress reporter, ``kernel.run_plan``'s side effects and errors) use fake stages;
+the executors' chunk subsets and progress messages are tested in ``test_pool.py``. The end-to-end tests run the full
 kernel of the test fixture with the runner, orchestrator on and off, as ``generate-losses`` does, and as the
 platform's chunked steps do.
 """
@@ -17,7 +17,9 @@ import pytest
 from oasislmf.execution import runner
 from oasislmf.execution.bash import bash_params
 from oasislmf.execution.orchestrator import kernel
+from oasislmf.execution.orchestrator.chunks import make_chunks, read_events
 from oasislmf.execution.orchestrator.plan import Plan, plan_from_bash_params
+from oasislmf.execution.orchestrator.progress import ProgressReporter
 from tests.orchestrator.tools.compare_outputs import compare_trees_bytes, list_files
 
 from .test_chain import make_spec
@@ -32,6 +34,39 @@ def run_dir(tmp_path):
     path = tmp_path / 'run'
     (path / 'input').mkdir(parents=True)
     return path
+
+
+def test_progress_reporter_pings_new_events_and_retries_failures():
+    sent = []
+    answers = iter([False, True, True, True])
+
+    def ping(data):
+        sent.append(dict(data))
+        return next(answers)
+
+    reporter = ProgressReporter(analysis_pk=7, interval=3600, ping=ping)
+    reporter.update(5)
+    assert not reporter._send()
+    reporter.update(8)
+    reporter.update(6)
+    assert reporter._send()
+    assert reporter._send()
+    reporter.update(10)
+    reporter.close()
+    assert sent == [{'events_complete': 5, 'analysis_pk': 7}, {'events_complete': 8, 'analysis_pk': 7},
+                    {'events_complete': 2, 'analysis_pk': 7}]
+    assert reporter.sent == 10
+
+
+def test_progress_reporter_bar_or_nothing_without_analysis_pk(capsys):
+    calls = []
+    with ProgressReporter(bar_total=4, ping=lambda data: calls.append(data)) as reporter:
+        reporter.update(2)
+        reporter.update(4)
+    assert 'Gul events completed' in capsys.readouterr().err
+    with ProgressReporter(ping=lambda data: calls.append(data)) as reporter:
+        reporter.update(3)
+    assert calls == [] and capsys.readouterr().err == ''
 
 
 def test_remove_previous_outputs_keeps_summary_info_and_json(tmp_path):
@@ -196,7 +231,9 @@ def run_chunked(full_kernel_run, path, chunk_engines, outputs_orchestrator, remo
     return run
 
 
-def test_chunked_runs_mixed_bash_and_orchestrator_match_the_whole_run(full_kernel_run, whole_runs, tmp_path):
+def test_chunked_runs_mixed_bash_and_orchestrator_match_the_whole_run(full_kernel_run, whole_runs, tmp_path, monkeypatch):
+    pinged = []
+    monkeypatch.setattr('oasislmf.execution.orchestrator.progress.oasis_ping', lambda data: pinged.append(data) or True)
     run_a = run_chunked(full_kernel_run, tmp_path / 'a', [False, True], outputs_orchestrator=True, remove_working_files=False)
     run_b = run_chunked(full_kernel_run, tmp_path / 'b', [True, False], outputs_orchestrator=False, remove_working_files=True)
 
@@ -214,6 +251,11 @@ def test_chunked_runs_mixed_bash_and_orchestrator_match_the_whole_run(full_kerne
     assert (run_a / 'log' / 'out' / kernel.RUN_LOG).is_file()
     assert list((run_a / 'work').rglob('*.bin'))
     assert os.listdir(run_b / 'work') == []
+
+    events = read_events(str(full_kernel_run / 'input' / 'events.bin'))
+    chunks = make_chunks(events, K)
+    assert {p['analysis_pk'] for p in pinged} == {7}
+    assert sum(p['events_complete'] for p in pinged) == len(chunks[0]) + len(chunks[1])
 
 
 def test_unsupported_run_falls_back_to_bash(full_kernel_run, tmp_path, caplog):
