@@ -13,7 +13,7 @@ from tests.orchestrator.conftest import REPO_ROOT
 from tests.orchestrator.tools import compare_outputs
 from tests.orchestrator.tools.compare_outputs import compare_outputs_rows, compare_trees_bytes, first_difference, list_files
 from tests.orchestrator.tools.kernel_reference import (ALL_ORD_OUTPUTS, BASH_PARAMS_FILE, CONSOLE_SCRIPTS, MONITOR_SCRIPT,
-                                                       SCRIPT_NAME, full_ord_settings, make_kernel_reference,
+                                                       REQUIRE_REF_ENV, SCRIPT_NAME, full_ord_settings, make_kernel_reference,
                                                        resolve_source, write_tool_wrappers)
 
 K = 2
@@ -73,7 +73,8 @@ def test_full_ord_settings_switch_on_every_output_genbash_knows():
 
 
 @pytest.mark.requires_bash
-def test_write_tool_wrappers(tmp_path):
+def test_write_tool_wrappers(tmp_path, monkeypatch):
+    monkeypatch.delenv(REQUIRE_REF_ENV, raising=False)
     bin_dir = write_tool_wrappers(tmp_path / 'bin', source=REPO_ROOT)
     for name, module in CONSOLE_SCRIPTS.items():
         text = (bin_dir / name).read_text()
