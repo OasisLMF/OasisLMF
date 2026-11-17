@@ -366,9 +366,9 @@ class ResourceManager:
         if self.available < self.margin:
             n = 1
             self._warn(f'available memory {_gb(self.available)} is below the margin {_gb(self.margin)}: starting one worker')
+        self._record('start', 0, n, f'initial workers, maximum {self.max_workers}')
         self._spawn(pool, n)
         self.max_live = max(self.max_live, len(self._live(pool)))
-        self._record('start', 0, n, f'initial workers, maximum {self.max_workers}')
 
     def _sample(self, pool):
         """Measure the memory and every live worker; update the peaks and the estimate."""

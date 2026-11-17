@@ -442,6 +442,16 @@ def worker_logs(log_dir):
     return ''.join(p.read_text() for p in sorted(log_dir.glob('orchestrator_worker_*_*_*.log')))
 
 
+def test_worker_warning_filters_silence_only_the_windows_import_warning():
+    """Workers do not repeat the platform warning importing oasislmf gives on Windows, and keep every other warning."""
+    code = ('import warnings\n'
+            'warnings.warn("oasislmf is not supported on Windows and may not function correctly.", RuntimeWarning)\n'
+            'warnings.warn("another runtime warning", RuntimeWarning)\n')
+    proc = subprocess.run([sys.executable, *pool.WORKER_WARNING_FILTERS, '-c', code], capture_output=True, text=True, check=True)
+    assert 'not supported on Windows' not in proc.stderr
+    assert 'another runtime warning' in proc.stderr
+
+
 @pytest.mark.parametrize('gul', ['WarningGul', 'CallerWarningGul'])
 def test_pool_stderr_guard_ignores_warnings(tmp_path, run_dir, gul):
     chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 3)

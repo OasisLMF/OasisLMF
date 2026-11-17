@@ -134,6 +134,22 @@ def test_starts_initial_workers_and_waits_for_a_measurement():
     assert m.decisions[0].action == 'start'
 
 
+def test_start_decision_is_timed_before_the_workers_are_spawned():
+    """Starting a worker takes a while (long on Windows); the start decision is at time 0 whatever it takes."""
+    probe, clock = FakeProbe(), FakeClock()
+
+    class SlowSpawnPool(FakePool):
+        def spawn(self, jobs_only=False):
+            clock.t += 0.5
+            return super().spawn(jobs_only)
+
+    p = SlowSpawnPool()
+    m = manager(probe, clock=clock)
+    m.start(p)
+    assert len(p.workers) == 2
+    assert m.decisions[0].text().startswith('0.0 s: start 0 -> 2 workers')
+
+
 def test_grows_to_the_hard_maximum():
     probe, clock, p = FakeProbe(), FakeClock(), FakePool()
     m = manager(probe, max_workers=8, clock=clock)

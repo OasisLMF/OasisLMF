@@ -51,6 +51,9 @@ from .resources import ResourceManager, process_descendants
 logger = logging.getLogger(__name__)
 
 WORKER_MODULE = 'oasislmf.execution.orchestrator.worker'
+# Importing oasislmf on Windows warns that the platform is unsupported; the run's own process has already said so,
+# and each worker repeating it on its stderr would end up in the run's stderr log.
+WORKER_WARNING_FILTERS = ['-W', 'ignore:oasislmf is not supported on Windows:RuntimeWarning']
 PACKAGE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(oasislmf.__file__)))
 POLL_INTERVAL = 0.1
 KILL_GRACE = 5.0
@@ -348,8 +351,8 @@ class WorkerPool:
             'log_dir': self.log_dir,
         }
         try:
-            popen = subprocess.Popen([self.python, '-m', WORKER_MODULE], stdin=subprocess.PIPE, stdout=log_file, stderr=err_file,
-                                     cwd=self.spec.run_dir, env=self._worker_env())
+            popen = subprocess.Popen([self.python, *WORKER_WARNING_FILTERS, '-m', WORKER_MODULE], stdin=subprocess.PIPE,
+                                     stdout=log_file, stderr=err_file, cwd=self.spec.run_dir, env=self._worker_env())
         except BaseException:
             log_file.close()
             err_file.close()
