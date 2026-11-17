@@ -61,19 +61,28 @@ class MyImport(MetaPathFinder):
         }
 
     def find_spec(self, fullname, path=None, target=None):
-        import_path = fullname.split(".", 1)
-        if fullname.startswith("oasislmf") and len(import_path) > 1:
-            import_path = import_path[1]
-            for deprecated in self.deprecated_modules:
-                if deprecated == import_path or import_path.startswith(deprecated + '.'):
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("always")
-                        warnings.warn(
-                            f"imports from 'oasislmf.{deprecated}' are deprecated. Import by using 'oasislmf.{self.deprecated_modules[deprecated]}' instead."
-                        )
-                    import_path = import_path.replace(deprecated, self.deprecated_modules[deprecated])
+        """Return a spec aliasing ``fullname`` to its new module, or None if it is not deprecated.
 
-            return spec_from_loader(fullname, MyLoader(import_path))
+        The finder sits first on ``sys.meta_path``: an alias's sub-module (``oasislmf.model_execution.bash``)
+        must not reach the path finder, which would find ``execution/bash.py`` through the aliased
+        package's ``__path__`` and load a second copy of it under the alias name.
+        """
+        package, _, import_path = fullname.partition(".")
+        if package != "oasislmf" or not import_path:
+            return None
+        aliased = False
+        for deprecated, new in self.deprecated_modules.items():
+            if deprecated == import_path or import_path.startswith(deprecated + '.'):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("always")
+                    warnings.warn(
+                        f"imports from 'oasislmf.{deprecated}' are deprecated. Import by using 'oasislmf.{new}' instead."
+                    )
+                import_path = new + import_path[len(deprecated):]
+                aliased = True
+        if not aliased:
+            return None
+        return spec_from_loader(fullname, MyLoader(import_path))
 
 
-sys.meta_path.append(MyImport())
+sys.meta_path.insert(0, MyImport())
