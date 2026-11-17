@@ -38,8 +38,8 @@ class FakeProbe:
     def cpu_count(self):
         return self.cpus
 
-    def process_memory(self, pid):
-        return self.sizes.get(pid, self.worker_memory)
+    def processes_memory(self, pids):
+        return {pid: self.sizes.get(pid, self.worker_memory) for pid in pids}
 
     def busy_cpus(self, exclude_pids=()):
         return self.busy
@@ -294,14 +294,24 @@ def test_spawns_one_when_no_worker_is_left_with_work():
 
 def test_samples_at_most_every_interval_unless_a_worker_changes():
     probe, clock, p = FakeProbe(), FakeClock(), FakePool()
-    m = manager(probe, clock=clock, sample_interval=1.0)
+    m = manager(probe, max_workers=2, clock=clock, sample_interval=1.0)
     m.start(p)
     m(p)
     m(p)
     assert m.samples == 1
     p.ready_all()
     m(p)
+    assert m.samples == 1, 'a change within MIN_SAMPLE_GAP waits'
+    clock.t += 0.3
+    m(p)
     assert m.samples == 2
+    p.workers[0].jobs = 5
+    clock.t += 0.3
+    m(p)
+    assert m.samples == 2, 'output jobs do not trigger a measurement'
+    clock.t += 1.0
+    m(p)
+    assert m.samples == 3
 
 
 def test_rejects_bad_settings():
@@ -339,8 +349,9 @@ def test_system_probe_reads_this_machine():
     available, total = probe.memory()
     assert 0 < available <= total
     assert probe.cpu_count() >= 1
-    assert probe.process_memory(os.getpid()) > MB
-    assert probe.process_memory(2 ** 22 + 12345) is None
+    gone = 2 ** 22 + 12345
+    sizes = probe.processes_memory([os.getpid(), gone])
+    assert sizes[os.getpid()] > MB and gone not in sizes
     assert probe.busy_cpus([os.getpid()]) >= 0.0
 
 

@@ -1,7 +1,7 @@
 """Resource manager of the fused pool: sizes the pool from measured memory and CPU so a run does not exhaust memory.
 
-``ResourceManager`` is a ``WorkerPool`` policy. It starts a few workers, measures what each one uses (the unique set
-size of the worker's process tree, sampled every ``sample_interval`` seconds, its peak kept) and grows the pool while
+``ResourceManager`` is a ``WorkerPool`` policy. It starts a few workers, measures what each one uses (the private
+memory of the worker's process tree, ``private_memory``, sampled every ``sample_interval`` seconds, its peak kept) and grows the pool while
 the available memory, less a safety margin and less what the workers still setting up are expected to add, holds one
 more worker of the largest size seen. Under memory pressure it retires workers at their next chunk boundary (their
 next ``ready`` is answered with ``stop``), never below one; a worker is never killed for memory. When even one worker
@@ -30,6 +30,7 @@ DEFAULT_MARGIN_MIN = 1 * GB
 DEFAULT_MARGIN_FRACTION = 0.10
 DEFAULT_UNMEASURED_FACTOR = 2.0
 DEFAULT_SAMPLE_INTERVAL = 1.0
+MIN_SAMPLE_GAP = 0.2
 DEFAULT_GROW_COOLDOWN = 10.0
 CGROUP_V2_ROOT = '/sys/fs/cgroup'
 CGROUP_V1_MEMORY = '/sys/fs/cgroup/memory'
@@ -136,28 +137,36 @@ class SystemProbe:
         """CPUs the workers may use."""
         return available_cpus()
 
-    def process_memory(self, pid):
-        """Memory of a process and its descendants.
+    def processes_memory(self, pids):
+        """Memory of processes, each with its descendants (found from one snapshot of the process table).
+
+        Args:
+            pids (Iterable[int]): process ids.
 
         Returns:
-            int | None: the sum of their unique set sizes (resident sizes where the unique set size cannot be read),
-            None when the process is gone.
+            dict[int, int]: ``private_memory`` of each process still running and its descendants, by pid.
         """
-        try:
-            procs = [psutil.Process(pid)]
-            procs += procs[0].children(recursive=True)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            return None
-        total = 0
-        for proc in procs:
-            try:
+        pids = list(pids)
+        children = {}
+        for proc in psutil.process_iter(['ppid']):
+            children.setdefault(proc.info['ppid'], []).append(proc.pid)
+        result = {}
+        for pid in pids:
+            tree, pending = [], [pid]
+            while pending:
+                current = pending.pop()
+                tree.append(current)
+                pending.extend(children.get(current, []))
+            total, alive = 0, False
+            for member in tree:
                 try:
-                    total += proc.memory_full_info().uss
-                except (psutil.AccessDenied, AttributeError):
-                    total += proc.memory_info().rss
-            except (psutil.NoSuchProcess, psutil.ZombieProcess):
-                continue
-        return total
+                    total += private_memory(psutil.Process(member))
+                    alive = alive or member == pid
+                except (psutil.NoSuchProcess, psutil.ZombieProcess, psutil.AccessDenied):
+                    continue
+            if alive:
+                result[pid] = total
+        return result
 
     def busy_cpus(self, exclude_pids=()):
         """CPUs kept busy by other processes since the previous call: system-wide use less that of ``exclude_pids``.
@@ -175,6 +184,21 @@ class SystemProbe:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 self._procs.pop(pid, None)
         return max(system - own, 0.0)
+
+
+def private_memory(proc):
+    """Memory a process holds for itself, what one more such process costs.
+
+    Resident memory less its file-backed shared part on Linux (libraries and memory-mapped model files stay in the
+    page cache, shared by every worker and reclaimable), the private bytes on Windows, the resident size elsewhere.
+    Read from ``memory_info``, which is cheap; the unique set size would need a walk of every mapping.
+    """
+    info = proc.memory_info()
+    if hasattr(info, 'shared'):
+        return max(info.rss - info.shared, 0)
+    if hasattr(info, 'private'):
+        return info.private
+    return info.rss
 
 
 def default_margin(total, margin_min=DEFAULT_MARGIN_MIN, fraction=DEFAULT_MARGIN_FRACTION):
@@ -208,8 +232,9 @@ class ResourceManager:
     """Pool policy sizing the pool from measured memory and CPU (see the module docstring).
 
     ``start(pool)`` spawns the first workers; the pool then calls the manager (``manager(pool)``) after every message
-    and on every pass of its loop. Decisions are taken on fresh measurements only: at most every ``sample_interval``
-    seconds, and as soon as a worker becomes ready or finishes a chunk or job.
+    and on every pass of its loop. Decisions are taken on fresh measurements only: every ``sample_interval``
+    seconds, and as soon as a worker becomes ready or finishes a chunk (but not within ``MIN_SAMPLE_GAP`` seconds of
+    the previous measurement).
 
     Growth: one more worker is spawned when chunks (or, once every chunk is done, output jobs) are left for it, the
     hard maximum and the CPUs allow it, and ``available - margin - reserve >= estimate``, where ``estimate`` is the
@@ -335,8 +360,10 @@ class ResourceManager:
         self._measure()
         self.samples += 1
         self.current = {}
-        for w in self._live(pool):
-            used = self.probe.process_memory(w.popen.pid)
+        live = self._live(pool)
+        sizes = self.probe.processes_memory([w.popen.pid for w in live])
+        for w in live:
+            used = sizes.get(w.popen.pid)
             if used is None:
                 continue
             self.current[w.number] = used
@@ -347,10 +374,12 @@ class ResourceManager:
         self.estimate = int(peak if proven else peak * self.unmeasured_factor)
 
     def _due(self, pool):
-        signature = (sum(1 for w in pool.workers if w.setup_seconds is not None),
-                     sum(w.chunks + w.jobs for w in pool.workers), len(pool.workers))
+        signature = (sum(1 for w in pool.workers if w.setup_seconds is not None), sum(w.chunks for w in pool.workers),
+                     len(pool.workers))
         now = self.clock()
-        if signature != self._signature or self._t_sample is None or now - self._t_sample >= self.sample_interval:
+        since = None if self._t_sample is None else now - self._t_sample
+        changed = signature != self._signature and (since is None or since >= min(self.sample_interval, MIN_SAMPLE_GAP))
+        if changed or since is None or since >= self.sample_interval:
             self._signature = signature
             self._t_sample = now
             return True
