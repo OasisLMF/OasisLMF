@@ -196,3 +196,17 @@ def test_output_jobs_not_passed_without_a_plan(tmp_path, run_dir, recorded):
     run_main(run_dir, tmp_path, '--no-output-jobs')
     run_main(run_dir, tmp_path)
     assert [c['options'] for c in recorded] == [{}, {}]
+
+
+@pytest.mark.parametrize('argv, error', [
+    (['--chunks', '0'], '--chunks must be positive'),
+    (['--workers', '0'], '--workers must be positive'),
+    (['--ri-layers', '-1'], '--ri-layers must not be negative'),
+    (['--taps', ','], 'no tap given'),
+    (['--chunk-order', '1,x'], 'expected reverse, shuffle:<seed> or chunk numbers'),
+])
+def test_rejects_bad_values(tmp_path, run_dir, recorded, capsys, argv, error):
+    with pytest.raises(SystemExit):
+        run_main(run_dir, tmp_path, *argv)
+    assert recorded == []
+    assert error in capsys.readouterr().err

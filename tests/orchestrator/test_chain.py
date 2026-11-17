@@ -551,3 +551,28 @@ def test_chain_tree_low_memory_idx_files(tmp_path, monkeypatch):
     assert (tmp_path / 'work/il_S1_summary_palt/P2.idx').read_bytes() == idx
     assert (tmp_path / 'work/il_S1_summaryleccalc/P2.idx').read_bytes() == idx
     assert (tmp_path / 'work/il_S2_summary_palt/P2.bin').read_bytes()[:4] == b'SUM\x02'
+
+
+def test_chain_start_chunk_failure_closes_what_it_opened(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    fail = {'on': True}
+
+    class FailingPlt(FakePlt):
+        def start_chunk(self, paths):
+            if fail['on'] and any('/ri_' in path for path in paths.values()):
+                raise OSError('no space left')
+            super().start_chunk(paths)
+
+    chain = Chain(make_tree_spec(), factories={**TREE_FACTORIES, 'plt': FailingPlt})
+    with pytest.raises(OSError, match='no space left'):
+        chain.start_chunk(1)
+    assert chain.chunk is None
+    gul_elt = chain.summary_nodes[0].tables[1][1][0]
+    assert gul_elt.log[-1] == 'finish' and gul_elt.files is None
+    assert all(node.open_files[n] == [] and node.open_idx_files[n] == [] for node in chain.summary_nodes for n in node.set_ids)
+    fail['on'] = False
+    chain.start_chunk(1)
+    run(chain, [1, 2, 3], [])
+    chain.finish_chunk()
+    chain.close()
+    assert read_tree_files(tmp_path, 1) == expected_tree_files([1, 2, 3])

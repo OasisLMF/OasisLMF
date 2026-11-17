@@ -1,5 +1,8 @@
 """FmStage fed in-memory blocks must write exactly what fmpy (run_synchronous) writes for the same input."""
 import io
+import json
+import os
+import tempfile
 
 import numpy as np
 import pytest
@@ -7,6 +10,7 @@ import pytest
 from oasislmf.pytools.common.event_stream import LOSS_STREAM_ID, PIPE_CAPACITY, SUMMARY_STREAM_ID, ITEM_STREAM, stream_info_to_bytes
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.fm import manager
+from oasislmf.pytools.fm import stage as fm_stage
 from oasislmf.pytools.fm.stage import FmStage
 
 # two items in one aggregation, one level, two layers limited to 3000 and 1000
@@ -220,3 +224,55 @@ def test_reset_clears_chance_of_loss_carried_from_earlier_events(fm_dir):
     fresh = second_event_output(first=False, do_reset=False)
     assert second_event_output(first=True, do_reset=False) != fresh
     assert second_event_output(first=True, do_reset=True) == fresh
+
+
+def test_stage_needs_gross_or_net_and_cleans_up_a_failed_setup(fm_dir, tmp_path, monkeypatch):
+    header = stream_info_to_bytes(LOSS_STREAM_ID, ITEM_STREAM) + np.int32(3).tobytes()
+    with pytest.raises(ValueError, match='at least one of gross or net'):
+        FmStage(header, 2, str(fm_dir), gross=False, net=False)
+    made = []
+    real_tempdir = tempfile.TemporaryDirectory
+
+    def recording_tempdir(*args, **kwargs):
+        tempdir = real_tempdir(*args, **kwargs)
+        made.append(tempdir.name)
+        return tempdir
+
+    monkeypatch.setattr(tempfile, 'TemporaryDirectory', recording_tempdir)
+    with pytest.raises(OSError):
+        FmStage(header, 2, str(tmp_path / 'missing'))
+    assert len(made) == 1 and not os.path.exists(made[0])
+
+
+def test_stage_debug_profile_is_written_on_close(fm_dir, monkeypatch):
+    profile = fm_dir / 'profile.tsv'
+    monkeypatch.setattr(fm_stage, 'DEBUG_PROFILE', True)
+    monkeypatch.setenv('FM_PROFILE_OUT', str(profile))
+    raw = write_gul(fm_dir, n_events=3, n_samples=2).read_bytes()
+    with FmStage(raw[:8], 2, str(fm_dir)) as stage:
+        stage.process_block(np.frombuffer(raw[8:], dtype=np.int8), gross_out=io.BytesIO())
+    assert profile.read_text().splitlines()[0].startswith('PHASE\tread=') and 'events=3' in profile.read_text()
+
+
+def test_stage_failure_writes_event_error_and_no_profile(fm_dir, monkeypatch):
+    monkeypatch.chdir(fm_dir)
+    profile = fm_dir / 'profile.tsv'
+    monkeypatch.setattr(fm_stage, 'DEBUG_PROFILE', True)
+    monkeypatch.setenv('FM_PROFILE_OUT', str(profile))
+    real_compute = fm_stage.compute_event_sparse
+    calls = []
+
+    def failing_compute(*args):
+        calls.append(1)
+        if len(calls) == 2:
+            raise ZeroDivisionError('boom')
+        return real_compute(*args)
+
+    monkeypatch.setattr(fm_stage, 'compute_event_sparse', failing_compute)
+    raw = write_gul(fm_dir, n_events=3, n_samples=2).read_bytes()
+    with FmStage(raw[:8], 2, str(fm_dir)) as stage:
+        with pytest.raises(ZeroDivisionError):
+            stage.process_block(np.frombuffer(raw[8:], dtype=np.int8), gross_out=io.BytesIO())
+    error = json.loads((fm_dir / 'event_error.json').read_text())
+    assert str(error['event_id']) == '2' and error['event_index'] == 1
+    assert not profile.exists()

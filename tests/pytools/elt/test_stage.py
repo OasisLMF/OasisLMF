@@ -250,3 +250,20 @@ def test_start_chunk_checks_paths(elt_run_dir, tmp_path):
         with pytest.raises(ValueError, match="already open"):
             stage.start_chunk({"selt": tmp_path / "c.csv", "qelt": tmp_path / "d.csv"})
     assert (tmp_path / "a.csv").read_text().startswith("EventId,SummaryId,SampleId")
+
+
+def test_stage_lifecycle_errors(elt_run_dir, tmp_path):
+    header = SUMMARY_STREAM.read_bytes()[:SUMMARY_HEADER_SIZE]
+    stage = make_stage(elt_run_dir, header, ("selt", "qelt"), "csv")
+    with pytest.raises(ValueError, match="no chunk is open"):
+        stage.process_streams([])
+    with pytest.raises(ValueError, match="no chunk is open"):
+        stage.finish_chunk()
+    with pytest.raises(FileNotFoundError):
+        stage.start_chunk({"selt": tmp_path / "a.csv", "qelt": tmp_path / "missing" / "b.csv"})
+    stage.start_chunk({"selt": tmp_path / "a.csv", "qelt": tmp_path / "b.csv"})
+    stage.finish_chunk()
+    stage.close()
+    stage.close()
+    with pytest.raises(ValueError, match="stage is closed"):
+        stage.start_chunk({"selt": tmp_path / "c.csv", "qelt": tmp_path / "d.csv"})

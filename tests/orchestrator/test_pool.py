@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import warnings
+from multiprocessing import Pipe
 
 import numpy as np
 import psutil
@@ -628,3 +629,128 @@ def test_pool_progress_messages_count_every_event_once(tmp_path, run_dir):
     assert len(calls) > len(chunks)
     assert sorted(os.listdir(tmp_path / 'logs')) == sorted(f'orchestrator_worker_{w["worker"]}.{ext}'
                                                            for w in stats['workers'] for ext in ('err', 'out'))
+
+
+class ExitedPopen:
+    """Stands for a worker process that has exited with ``returncode``."""
+
+    def __init__(self, returncode):
+        self.returncode = returncode
+        self.pid = 4242
+        self.stdin = None
+
+    def poll(self):
+        return self.returncode
+
+
+@contextlib.contextmanager
+def bare_pool(tmp_path, run_dir, *workers, **options):
+    """A pool with no process started, holding ``workers``; closed afterwards.
+
+    Yields:
+        pool.WorkerPool: the pool.
+    """
+    p = pool.WorkerPool(make_spec(str(run_dir)), [[1], [2]], str(tmp_path / 'out'), TAPS, log_dir=str(tmp_path / 'log'), **options)
+    p.workers.extend(workers)
+    try:
+        yield p
+    finally:
+        p.workers.clear()
+        p.close()
+
+
+def exited_worker(tmp_path, returncode, **state):
+    return pool.Worker(number=0, popen=ExitedPopen(returncode), log_path='', err_path=str(tmp_path / 'no.err'), t_spawn=0.0, **state)
+
+
+@pytest.mark.parametrize('hello', ['eof', 'silent', 'not a dict', {'type': 'ready'}, {'type': 'hello', 'worker': 5},
+                                   {'type': 'hello', 'worker': '0'}, 'taken'])
+def test_pool_ignores_connections_without_a_valid_hello(tmp_path, run_dir, hello):
+    worker = pool.Worker(number=0, popen=None, log_path='', err_path='', t_spawn=0.0)
+    taken = object()
+    if hello == 'taken':
+        worker.conn = taken
+        hello = {'type': 'hello', 'worker': 0, 'pid': 1}
+    ours, theirs = Pipe()
+    if hello == 'eof':
+        theirs.close()
+    elif hello != 'silent':
+        theirs.send(hello)
+    with bare_pool(tmp_path, run_dir, worker, kill_grace=0.1) as p:
+        p._register(ours)
+        assert ours.closed
+        assert worker.conn in (None, taken) and worker.pid is None
+
+
+def test_pool_registers_a_worker_from_its_hello(tmp_path, run_dir):
+    worker = pool.Worker(number=1, popen=None, log_path='', err_path='', t_spawn=0.0)
+    ours, theirs = Pipe()
+    theirs.send({'type': 'hello', 'worker': 1, 'pid': 99})
+    with bare_pool(tmp_path, run_dir, pool.Worker(number=0, popen=None, log_path='', err_path='', t_spawn=0.0), worker) as p:
+        p._register(ours)
+        assert worker.conn is ours and worker.pid == 99 and p.workers[0].conn is None
+    ours.close()
+    theirs.close()
+
+
+def test_pool_worker_exit_raises_the_error_it_sent_before_registering(tmp_path, run_dir):
+    worker = exited_worker(tmp_path, 1, chunk=2)
+    ours, theirs = Pipe()
+    theirs.send({'type': 'hello', 'worker': 0, 'pid': 4242})
+    theirs.send({'type': 'error', 'stage': 'gul', 'chunk': 2, 'event': 7, 'error': 'ValueError: bad', 'traceback': 'Traceback'})
+    with bare_pool(tmp_path, run_dir, worker) as p:
+        p._accepted.put(ours)
+        with pytest.raises(pool.WorkerError) as info:
+            p._check_exits()
+    assert (info.value.stage, info.value.chunk, info.value.event, info.value.returncode) == ('gul', 2, 7, 1)
+    assert 'ValueError: bad' in str(info.value) and info.value.stderr_tail == ''
+    ours.close()
+    theirs.close()
+
+
+@pytest.mark.parametrize('returncode, stopped, killed, error', [(0, False, False, 'exited before it was told to stop'),
+                                                                (3, True, False, 'exited'), (0, True, False, None),
+                                                                (-9, False, True, None)])
+def test_pool_check_exits(tmp_path, run_dir, returncode, stopped, killed, error):
+    worker = exited_worker(tmp_path, returncode, stopped=stopped, killed=killed)
+    with bare_pool(tmp_path, run_dir, worker) as p:
+        if error is None:
+            p._check_exits()
+        else:
+            with pytest.raises(pool.WorkerError, match=error):
+                p._check_exits()
+
+
+def test_pool_unexpected_message_is_a_worker_error(tmp_path, run_dir):
+    with bare_pool(tmp_path, run_dir, exited_worker(tmp_path, 0)) as p:
+        with pytest.raises(pool.WorkerError, match='unexpected message'):
+            p._handle(p.workers[0], {'type': 'bogus'})
+
+
+def test_pool_terminates_a_stopped_worker_that_does_not_exit(tmp_path, run_dir):
+    popen = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(600)'])
+    worker = pool.Worker(number=0, popen=popen, log_path='', err_path='', t_spawn=0.0, stopped=True,
+                         t_stop=time.perf_counter() - pool.STOP_TIMEOUT - 1)
+    with bare_pool(tmp_path, run_dir, worker, kill_grace=2.0) as p:
+        p._check_exits()
+        assert worker.killed and popen.poll() is not None
+        p._check_exits()
+
+
+IGNORE_TERM = 'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); '
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='SIGTERM cannot be ignored on Windows')
+def test_terminate_kills_processes_that_ignore_sigterm(tmp_path):
+    grandchild = IGNORE_TERM + 'print(flush=True); time.sleep(600)'
+    child = (IGNORE_TERM + 'import subprocess, sys; '
+             f'g = subprocess.Popen([sys.executable, "-c", {grandchild!r}], stdout=subprocess.PIPE); '
+             'g.stdout.readline(); print(g.pid, flush=True); time.sleep(600)')
+    popen = subprocess.Popen([sys.executable, '-c', child], stdout=subprocess.PIPE)
+    grandchild_pid = int(popen.stdout.readline())
+    popen.stdout.close()
+    t_start = time.monotonic()
+    pool._terminate([popen], grace=0.5)
+    assert popen.returncode == -signal.SIGKILL
+    assert not psutil.pid_exists(grandchild_pid) or psutil.Process(grandchild_pid).status() == psutil.STATUS_ZOMBIE
+    assert time.monotonic() - t_start < 10

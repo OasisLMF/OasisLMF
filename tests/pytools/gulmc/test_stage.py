@@ -157,3 +157,17 @@ def test_stage_raises_when_the_kernel_makes_no_progress(tmp_path, monkeypatch):
     with make_stage(TEST_MODEL_DIRS[0], 10, 1, 1) as stage:
         with pytest.raises(RuntimeError, match="made no progress"):
             stage.process_event(int(read_event_ids(TEST_MODEL_DIRS[0])[0]), io.BytesIO())
+
+
+def test_stage_writes_nothing_for_an_event_without_footprint_or_items(tmp_path, monkeypatch):
+    """An event missing from the footprint is skipped (True); one touching no item is skipped (False), as gulmc does."""
+    monkeypatch.chdir(tmp_path)
+    event_ids = read_event_ids(TEST_MODEL_DIRS[0])
+    with make_stage(TEST_MODEL_DIRS[0], 10, 1, 1) as stage:
+        out = io.BytesIO()
+        assert stage.process_event(int(event_ids.max()) + 1000, out) is True
+        assert out.getvalue() == b''
+        monkeypatch.setattr(gulmc_manager, 'process_areaperils_in_footprint', lambda *args: (0, None))
+        out = io.BytesIO()
+        assert stage.process_event(int(event_ids[0]), out) is False
+        assert out.getvalue() == b''

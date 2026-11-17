@@ -8,6 +8,7 @@ platform's chunked steps do.
 import contextlib
 import functools
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -465,3 +466,25 @@ def test_runner_resource_manager_finer_chunks_rows_equal(full_kernel_run, orches
     assert report.ok, report.summary()
     assert report.compared > 20
     assert os.listdir(run / 'work') == []
+
+
+def test_progress_reporter_retries_a_ping_that_raises(caplog):
+    answers = iter([ConnectionError('server gone'), True])
+    sent = []
+
+    def ping(data):
+        sent.append(dict(data))
+        answer = next(answers)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    reporter = ProgressReporter(analysis_pk=3, interval=3600, ping=ping)
+    reporter.update(4)
+    with caplog.at_level(logging.WARNING, logger='oasislmf.execution.orchestrator.progress'):
+        assert not reporter._send()
+    assert 'progress ping failed: server gone' in caplog.text
+    assert reporter.sent == 0
+    assert reporter._send()
+    assert sent == [{'events_complete': 4, 'analysis_pk': 3}] * 2 and reporter.sent == 4
+    reporter.close()

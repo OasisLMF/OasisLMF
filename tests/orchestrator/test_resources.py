@@ -11,7 +11,7 @@ import types
 import numpy as np
 import pytest
 
-from oasislmf.execution.orchestrator import pool
+from oasislmf.execution.orchestrator import pool, resources
 from oasislmf.execution.orchestrator.chunks import make_chunks
 from oasislmf.execution.orchestrator.resources import (GB, MB, ResourceManager, SystemProbe, cgroup_memory, default_margin)
 
@@ -428,3 +428,29 @@ def test_pool_rejects_manager_and_policy_together(tmp_path, run_dir):
     with pytest.raises(ValueError, match='exclusive'):
         pool.run_chunks(make_spec(str(run_dir)), [[1]], tmp_path / 'out', TAPS, 1, factories=FAKE_FACTORIES,
                         resource_manager=True, policy=lambda p: None)
+
+
+def test_cgroup_memory_v1_memory_controller(tmp_path):
+    write(tmp_path / 'proc_cgroup', '5:cpu,cpuacct:/x\n4:memory:/x\n')
+    v1 = tmp_path / 'memory'
+    write(v1 / 'memory.limit_in_bytes', str(2 * GB))
+    write(v1 / 'memory.usage_in_bytes', str(GB + GB // 2))
+    write(v1 / 'memory.stat', f'cache 5\ntotal_inactive_file {GB // 2}\n')
+    assert cgroup_memory(str(tmp_path / 'proc_cgroup'), str(tmp_path / 'cg'), str(v1)) == (2 * GB, GB)
+    write(v1 / 'memory.stat', 'total_inactive_file lots\n')
+    assert cgroup_memory(str(tmp_path / 'proc_cgroup'), str(tmp_path / 'cg'), str(v1)) == (2 * GB, GB // 2)
+    write(v1 / 'memory.limit_in_bytes', str(2 ** 63 - 4096))
+    assert cgroup_memory(str(tmp_path / 'proc_cgroup'), str(tmp_path / 'cg'), str(v1)) is None
+
+
+def test_system_probe_memory_is_capped_by_the_cgroup(monkeypatch):
+    monkeypatch.setattr(resources, 'cgroup_memory', lambda: (GB, 100 * MB))
+    available, total = SystemProbe().memory()
+    assert total <= GB and available <= 100 * MB
+
+
+def test_system_probe_busy_cpus_forgets_processes_that_are_gone():
+    probe = SystemProbe()
+    gone = 2 ** 22 + 12345
+    assert probe.busy_cpus([os.getpid(), gone]) >= 0.0
+    assert gone not in probe._procs and os.getpid() in probe._procs

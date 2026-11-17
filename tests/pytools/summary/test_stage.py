@@ -209,3 +209,16 @@ def test_low_memory_requires_idx_outs():
     stage = SummaryStage(header, str(STATIC), 'gul', [1], low_memory=True)
     with pytest.raises(ValueError, match='idx_outs'):
         stage.process_block(np.frombuffer(body, dtype=np.int8), {1: io.BytesIO()})
+
+
+def test_unsupported_run_type():
+    header, _ = read_input('gul')
+    with pytest.raises(Exception, match='not in supported list'):
+        SummaryStage(header, str(STATIC), 'xx', [1])
+
+
+def test_binary_output_requires_outs():
+    header, body = read_input('gul')
+    stage = SummaryStage(header, str(STATIC), 'gul', [1])
+    with pytest.raises(ValueError, match='outs is required'):
+        stage.process_block(np.frombuffer(body, dtype=np.int8), None)
