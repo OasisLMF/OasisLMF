@@ -4,6 +4,8 @@ import pathlib
 import os
 import logging
 import shutil
+import types
+import warnings
 import numpy as np
 
 from unittest.mock import patch, Mock
@@ -14,6 +16,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.computation.generate.losses import GenerateLosses
 from oasislmf.manager import OasisManager
 from oasislmf.pytools.common.input_files import read_coverage_buildings
 from oasislmf.utils.log import LoggingContext
@@ -666,6 +669,52 @@ class TestGenLosses(ComputationChecker):
                 mock_run_func.reset_mock()
                 self.manager.generate_losses(**{**self.min_args, 'model_run_dir': model_run_dir, 'orchestrator': orchestrator})
                 self.assertEqual(orchestrator, mock_run_func.call_args.kwargs.get('orchestrator', False))
+
+    @patch('oasislmf.execution.runner.run', side_effect=TypeError('planner bug'))
+    def test_losses__orchestrator__type_error_in_the_run_is_not_a_signature_fallback(self, mock_run_func):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        with self.tmp_dir() as model_run_dir, warnings.catch_warnings(record=True) as caught, \
+                self.assertRaisesRegex(TypeError, 'planner bug'):
+            warnings.simplefilter('always')
+            self.manager.generate_losses(**{**self.min_args, 'model_run_dir': model_run_dir, 'orchestrator': True})
+        mock_run_func.assert_called_once()
+        self.assertTrue(mock_run_func.call_args.kwargs['orchestrator'])
+        self.assertFalse(any("doesn't accept new runner arguments" in str(w.message) for w in caught))
+
+    def _run_with_supplier_runner(self, run):
+        """generate_losses with the orchestrator on and ``run`` as the supplier model runner's ``run``."""
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        module = types.SimpleNamespace(run=run)
+        with self.tmp_dir() as model_run_dir, warnings.catch_warnings(record=True) as caught, \
+                patch.object(GenerateLosses, '_get_model_runner', return_value=(module, 'supplier')):
+            warnings.simplefilter('always')
+            self.manager.generate_losses(**{**self.min_args, 'model_run_dir': model_run_dir, 'orchestrator': True})
+        return [str(w.message) for w in caught]
+
+    def test_losses__orchestrator__passes_through_a_supplier_runner_with_kwargs(self):
+        calls = []
+
+        def run(analysis_settings, **params):
+            calls.append(params)
+
+        messages = self._run_with_supplier_runner(run)
+        self.assertEqual(1, len(calls))
+        self.assertTrue(calls[0]['orchestrator'])
+        self.assertFalse(any("doesn't accept new runner arguments" in m for m in messages))
+
+    def test_losses__orchestrator__old_supplier_runner_falls_back_to_the_old_arguments(self):
+        calls = []
+
+        def run(analysis_settings, number_of_processes, filename, num_reinsurance_iterations, run_debug, stderr_guard,
+                gul_legacy_stream, set_alloc_rule_gul=None, set_alloc_rule_il=None, set_alloc_rule_ri=None, fifo_tmp_dir=True,
+                custom_gulcalc_cmd=None):
+            calls.append(filename)
+
+        messages = self._run_with_supplier_runner(run)
+        self.assertEqual(1, len(calls))
+        self.assertTrue(any("supplier.supplier_model_runner doesn't accept new runner arguments" in m for m in messages))
 
     @patch('oasislmf.execution.runner.run_outputs')
     @patch('oasislmf.execution.runner.run_analysis')

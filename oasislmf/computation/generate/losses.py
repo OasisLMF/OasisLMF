@@ -8,6 +8,7 @@ __all__ = [
 ]
 
 import importlib
+import inspect
 import io
 import json
 import multiprocessing
@@ -237,6 +238,23 @@ class GenerateLossesBase(ComputationStep):
             'Killing all processes. To disable this automated check run with `--kernel-disable-guard`.\n'
             'Logs stored in: {}'.format(run_log_fp)
         )
+
+
+def accepts_arguments(func, *args, **kwargs):
+    """True when the signature of ``func`` accepts these arguments; also True when it has no signature to check.
+
+    Only the binding is checked, ``func`` is not called, so a TypeError raised while it runs is never taken for a
+    signature mismatch.
+    """
+    try:
+        signature = inspect.signature(func)
+    except (TypeError, ValueError):
+        return True
+    try:
+        signature.bind(*args, **kwargs)
+    except TypeError:
+        return False
+    return True
 
 
 class GenerateLossesDir(GenerateLossesBase):
@@ -802,47 +820,45 @@ class GenerateLosses(GenerateLossesDir):
                 socket_preferred_port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', SERVER_DEFAULT_PORT))
                 socket_server_port = self._find_available_port(socket_host, socket_preferred_port)
             try:
-                try:
-                    run_args = dict(
-                        number_of_processes=self.kernel_num_processes,
-                        filename=script_fp,
-                        num_reinsurance_iterations=ri_layers,
-                        set_alloc_rule_gul=self.kernel_alloc_rule_gul,
-                        set_alloc_rule_il=self.kernel_alloc_rule_il,
-                        set_alloc_rule_ri=self.kernel_alloc_rule_ri,
-                        num_gul_per_lb=self.kernel_num_gul_per_lb,
-                        num_fm_per_lb=self.kernel_num_fm_per_lb,
-                        run_debug=self.verbose,
-                        stderr_guard=not self.kernel_disable_guard,
-                        fifo_tmp_dir=not self.kernel_fifo_relative,
-                        custom_gulcalc_cmd=self.model_custom_gulcalc,
-                        custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
-                        custom_gulcalc_log_finish=self.model_custom_gulcalc_log_finish,
-                        custom_gulcalc_supports_packing=self.custom_gulcalc_supports_packing,
-                        gulmc=(self.gulmc and not self.model_custom_gulcalc),
-                        gul_random_generator=self.gul_random_generator,
-                        gulmc_effective_damageability=self.gulmc_effective_damageability,
-                        gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
-                        fmpy_low_memory=self.fmpy_low_memory,
-                        fmpy_sort_output=self.fmpy_sort_output,
-                        summarypy_low_memory=self.summarypy_low_memory,
-                        event_shuffle=self.kernel_event_shuffle,
-                        model_py_server=self.model_py_server,
-                        peril_filter=self._get_peril_filter(self.settings),
-                        join_summary_info=self.join_summary_info,
-                        model_df_engine=self.model_df_engine or self.base_df_engine,
-                        dynamic_footprint=self.dynamic_footprint,
-                        analysis_pk=self.kwargs.get('analysis_pk', None),
-                        socket_server_size=socket_server_size,
-                        socket_server_port=socket_server_port,
-                        resource_monitor_interval=self.resource_monitor_interval,
-                        disable_resource_report=self.disable_resource_report,
-                        log_level=self.logger.getEffectiveLevel(),
-                    )
-                    if self.orchestrator:
-                        run_args['orchestrator'] = True
-                    model_runner_module.run(self.settings, **run_args)
-                except TypeError:
+                run_args = dict(
+                    number_of_processes=self.kernel_num_processes,
+                    filename=script_fp,
+                    num_reinsurance_iterations=ri_layers,
+                    set_alloc_rule_gul=self.kernel_alloc_rule_gul,
+                    set_alloc_rule_il=self.kernel_alloc_rule_il,
+                    set_alloc_rule_ri=self.kernel_alloc_rule_ri,
+                    num_gul_per_lb=self.kernel_num_gul_per_lb,
+                    num_fm_per_lb=self.kernel_num_fm_per_lb,
+                    run_debug=self.verbose,
+                    stderr_guard=not self.kernel_disable_guard,
+                    fifo_tmp_dir=not self.kernel_fifo_relative,
+                    custom_gulcalc_cmd=self.model_custom_gulcalc,
+                    custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
+                    custom_gulcalc_log_finish=self.model_custom_gulcalc_log_finish,
+                    custom_gulcalc_supports_packing=self.custom_gulcalc_supports_packing,
+                    gulmc=(self.gulmc and not self.model_custom_gulcalc),
+                    gul_random_generator=self.gul_random_generator,
+                    gulmc_effective_damageability=self.gulmc_effective_damageability,
+                    gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
+                    fmpy_low_memory=self.fmpy_low_memory,
+                    fmpy_sort_output=self.fmpy_sort_output,
+                    summarypy_low_memory=self.summarypy_low_memory,
+                    event_shuffle=self.kernel_event_shuffle,
+                    model_py_server=self.model_py_server,
+                    peril_filter=self._get_peril_filter(self.settings),
+                    join_summary_info=self.join_summary_info,
+                    model_df_engine=self.model_df_engine or self.base_df_engine,
+                    dynamic_footprint=self.dynamic_footprint,
+                    analysis_pk=self.kwargs.get('analysis_pk', None),
+                    socket_server_size=socket_server_size,
+                    socket_server_port=socket_server_port,
+                    resource_monitor_interval=self.resource_monitor_interval,
+                    disable_resource_report=self.disable_resource_report,
+                    log_level=self.logger.getEffectiveLevel(),
+                )
+                if self.orchestrator:
+                    run_args['orchestrator'] = True
+                if not accepts_arguments(model_runner_module.run, self.settings, **run_args):
                     warnings.warn(
                         f"{package_name}.supplier_model_runner doesn't accept new runner arguments, please add **kwargs to the run function signature")
                     run_args = dict(
@@ -858,7 +874,7 @@ class GenerateLosses(GenerateLossesDir):
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         gul_legacy_stream=False,
                     )
-                    model_runner_module.run(self.settings, **run_args)
+                model_runner_module.run(self.settings, **run_args)
 
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
