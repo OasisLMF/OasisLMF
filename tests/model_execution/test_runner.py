@@ -1,3 +1,4 @@
+import importlib
 import json
 import os
 import subprocess
@@ -11,6 +12,10 @@ from oasislmf.execution.resource_monitor import ResourceMonitor
 from oasislmf.execution.bash import bash_params, genbash, genbash_params
 from oasislmf.execution.runner import rerun
 from oasislmf.utils.exceptions import OasisException
+
+# The deprecated oasislmf.model_execution alias loads a second copy of bash.py and rebinds the
+# oasislmf.execution.bash attribute to it, which Python 3.10's patch() resolves by attribute.
+bash_module = importlib.import_module('oasislmf.execution.bash')
 
 
 class TestSnapshotLogDir(TestCase):
@@ -559,7 +564,7 @@ class TestGenbashParams(TestCase):
             params = genbash_params(2, dict(GUL_OUTPUT), **kwargs)
             self.assertEqual((4, 30, 1234, 2), (params['analysis_pk'], params['socket_server_size'], params['socket_server_port'],
                                                 params['max_process_id']))
-            with patch('oasislmf.execution.bash.create_bash_analysis') as analysis, \
-                    patch('oasislmf.execution.bash.create_bash_outputs'):
+            with patch.object(bash_module, 'create_bash_analysis') as analysis, \
+                    patch.object(bash_module, 'create_bash_outputs'):
                 genbash(2, dict(GUL_OUTPUT), **kwargs)
             self.assertEqual(params, analysis.call_args.kwargs)
