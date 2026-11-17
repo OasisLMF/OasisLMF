@@ -1,8 +1,10 @@
 """Contain all common function and attribute to help read the event stream containing the losses"""
 
 from oasislmf.utils.exceptions import OasisStreamException
+import os
 import selectors
 from select import select
+import stat
 import sys
 
 import numpy as np
@@ -712,9 +714,28 @@ class EventReader:
 #     return cursor, event_id, item_id, 0
 
 
+def stream_is_selectable(stream):
+    """Whether ``select`` can wait on ``stream``: a pipe or a socket, except pipes on Windows.
+
+    A regular file is always ready, and ``select`` on one is not portable: macOS reports an
+    exceptional condition on it, and Windows only accepts sockets.
+
+    Args:
+        stream: stream to test
+
+    Returns:
+        bool: True if ``select`` should be used to wait for ``stream`` to be writable
+    """
+    try:
+        mode = os.fstat(stream.fileno()).st_mode
+    except (AttributeError, OSError, ValueError):
+        return False
+    return stat.S_ISSOCK(mode) or (stat.S_ISFIFO(mode) and sys.platform != 'win32')
+
+
 def write_mv_to_stream(stream, byte_mv, cursor):
     """Write numpy byte array view to stream
-    - use select to handle forward pressure
+    - use select to handle forward pressure on pipes and sockets
     - use a while loop in case the stream is non-blocking (meaning the ammount of byte written is not guarantied to be cursor len)
 
     Args:
@@ -722,9 +743,11 @@ def write_mv_to_stream(stream, byte_mv, cursor):
         byte_mv: numpy byte view of the buffer to write
         cursor: ammount of byte to write
     """
+    use_select = stream_is_selectable(stream)
     written = 0
     while written < cursor:
-        _, writable, exceptional = select([], [stream], [stream])
-        if exceptional:
-            raise IOError(f'error with input stream, {exceptional}')
+        if use_select:
+            _, writable, exceptional = select([], [stream], [stream])
+            if exceptional:
+                raise IOError(f'error with input stream, {exceptional}')
         written += stream.write(byte_mv[written:cursor].tobytes())
