@@ -443,7 +443,8 @@ class Chain:
     def close(self): ...
 
 # oasislmf/execution/orchestrator/chunks.py                                     (package 1)
-def make_chunks(events, n_chunks): ...   # list of arrays; chunk k (1-based) holds exactly the
+def make_chunks(events, n_chunks, event_shuffle=EVE_DEFAULT_SHUFFLE): ...
+                                         # list of arrays; chunk k (1-based) holds exactly the
                                          # events `evepy k n_chunks` emits, in the same order
 class ChunkWriter: ...                   # writes <out_dir>/<tap>_P<k>.bin = header + blocks
 ```

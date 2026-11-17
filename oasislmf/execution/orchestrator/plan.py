@@ -17,17 +17,14 @@ import json
 import os
 from dataclasses import asdict, dataclass, field
 
-import numpy as np
-
 from oasislmf.execution.bash import (ORD_ALT_MEANONLY_OUTPUT_SWITCHES, ORD_ALT_OUTPUT_SWITCHES,
                                      ORD_EPT_OUTPUT_SWITCHES, ORD_LECCALC, ORD_PSEPT_OUTPUT_SWITCHES, OUTPUT_SWITCHES,
                                      get_ri_inuring_priorities, get_rl_inuring_priorities, ord_enabled)
-from oasislmf.pytools.eve.manager import (event_id_dtype, partition_events__no_shuffle, partition_events__random,
-                                          partition_events__random_builtin, partition_events__round_robin)
 from oasislmf.utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES, EVE_NO_SHUFFLE, EVE_ROUND_ROBIN,
                                      EVE_STD_SHUFFLE)
 
-from .chain import CHUNK_KEY, ChainSpec, fill_chunk
+from .chain import CHUNK_KEY, ChainSpec, chunk_path_templates, fill_chunk
+from .chunks import make_chunks
 
 __all__ = ['Unsupported', 'OutputJob', 'Plan', 'plan_from_bash_params', 'render_chunk_commands', 'fill_chunk']
 
@@ -160,26 +157,11 @@ class Plan:
         Returns:
             list[np.ndarray]: element ``k - 1`` holds the events ``evepy k n_chunks`` emits, in the same order.
         """
-        n_chunks = self.n_chunks if n_chunks is None else n_chunks
-        if n_chunks <= 0:
-            raise ValueError(f"n_chunks must be positive, got {n_chunks}")
-        events = np.asarray(events, dtype=event_id_dtype)
-        if self.event_shuffle == EVE_FISHER_YATES:
-            return partition_events__fisher_yates_all(events, n_chunks)
-        return [partition_events(events, k, n_chunks, self.event_shuffle) for k in range(1, n_chunks + 1)]
+        return make_chunks(events, self.n_chunks if n_chunks is None else n_chunks, self.event_shuffle)
 
     def chunk_paths(self, k):
         """Every file chunk k writes (its work and kat files), relative to the run directory as bash names them."""
-        paths = []
-        for node in self.spec.summaries:
-            for summary_set in node['sets']:
-                for consumer in summary_set['outputs']:
-                    if consumer['kind'] == 'file':
-                        paths.append(fill_chunk(consumer['path'], k))
-                    else:
-                        paths.extend(fill_chunk(p, k) for p in consumer['paths'].values())
-                paths.extend(fill_chunk(p, k) for p in summary_set.get('idx_paths', []))
-        return paths
+        return [fill_chunk(template, k) for template in chunk_path_templates(self.spec.summaries)]
 
     def work_dirs(self):
         """The directories the chunks write into, sorted."""
@@ -204,42 +186,6 @@ class Plan:
     def from_json(cls, text):
         """Build a plan from the output of ``to_json``."""
         return cls.from_dict(json.loads(text))
-
-
-def partition_events__fisher_yates_all(events, n_chunks):
-    """Every partition ``evepy -r`` emits, from a single shuffle.
-
-    ``partition_events__random`` seeds its generator with a constant and draws the same numbers whatever the
-    partition, so every partition sees the same shuffle. Its loop fixes position i of the array at step i and
-    emits it, descending from the last position, when ``(i - k) % n_chunks == 0``, then position 0 when
-    ``k % n_chunks == 0``. So partition k is the fully shuffled array at the positions congruent to k modulo
-    n_chunks, in descending order. The shuffle itself is evepy's generator, run to the end once.
-
-    Args:
-        events (np.ndarray): event ids, in the order they are held in ``events.bin``.
-        n_chunks (int): number of partitions.
-
-    Returns:
-        list[np.ndarray]: element ``k - 1`` holds the events ``evepy -r k n_chunks`` emits, in the same order.
-    """
-    shuffled = events.copy()
-    for _ in partition_events__random(shuffled, 1, 1):
-        pass
-    positions = np.arange(len(shuffled) - 1, -1, -1)
-    return [shuffled[positions[(positions - k) % n_chunks == 0]] for k in range(1, n_chunks + 1)]
-
-
-def partition_events(events, k, n_chunks, event_shuffle=EVE_DEFAULT_SHUFFLE):
-    """The events ``evepy`` emits for partition k of n_chunks with a shuffle rule, as an array."""
-    if event_shuffle == EVE_ROUND_ROBIN:
-        return partition_events__round_robin(events, k, n_chunks)
-    if event_shuffle == EVE_NO_SHUFFLE:
-        return partition_events__no_shuffle(events, k, n_chunks)
-    if event_shuffle == EVE_FISHER_YATES:
-        return np.fromiter(partition_events__random(events.copy(), k, n_chunks), dtype=event_id_dtype)
-    if event_shuffle == EVE_STD_SHUFFLE:
-        return partition_events__random_builtin(events.copy(), k, n_chunks)
-    raise ValueError(f'unknown event shuffle rule {event_shuffle!r}')
 
 
 def _check_supported(bash_params, analysis_settings, run_dir):

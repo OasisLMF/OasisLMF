@@ -13,8 +13,8 @@ import pytest
 from oasislmf.execution import bash
 from oasislmf.execution.orchestrator import inline, pool
 from oasislmf.execution.orchestrator.chain import ChainSpec, spec_for_taps
-from oasislmf.execution.orchestrator.chunks import read_events
-from oasislmf.execution.orchestrator.plan import (OutputJob, Plan, Unsupported, partition_events, plan_from_bash_params,
+from oasislmf.execution.orchestrator.chunks import partition_events, read_events
+from oasislmf.execution.orchestrator.plan import (OutputJob, Plan, Unsupported, plan_from_bash_params,
                                                   render_chunk_commands)
 from oasislmf.pytools.eve.manager import event_id_dtype, partition_events__random
 from oasislmf.pytools.eve.manager import run as evepy_run

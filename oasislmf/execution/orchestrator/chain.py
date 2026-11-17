@@ -158,6 +158,27 @@ def fill_chunk(template, k):
     return template.replace(CHUNK_KEY, str(k))
 
 
+def chunk_path_templates(summaries):
+    """Every per-chunk path template of the summary nodes of a spec (``ChainSpec.summaries``).
+
+    Args:
+        summaries (list[dict]): the summary nodes.
+
+    Returns:
+        list[str]: the templates of the plt/elt tables, plain files and ``.idx`` files, node by node and set by set.
+    """
+    templates = []
+    for node in summaries:
+        for summary_set in node.get('sets', []):
+            for out in summary_set.get('outputs', []):
+                if out['kind'] == 'file':
+                    templates.append(out['path'])
+                else:
+                    templates.extend(out['paths'].values())
+            templates.extend(summary_set.get('idx_paths', []))
+    return templates
+
+
 def summary_set_header(stage, summary_set_id):
     """The stream header a summary stage writes before the first event of one summary set.
 
@@ -464,14 +485,7 @@ class Chain:
 
     def chunk_paths(self, k):
         """Every file the summary tree writes for chunk k, as paths relative to the run directory."""
-        paths = []
-        for node in self.summary_nodes:
-            for n in node.set_ids:
-                for _table, templates in node.tables[n]:
-                    paths.extend(fill_chunk(t, k) for t in templates.values())
-                paths.extend(fill_chunk(t, k) for t in node.files[n])
-                paths.extend(fill_chunk(t, k) for t in node.idx_files[n])
-        return paths
+        return [fill_chunk(template, k) for template in chunk_path_templates(self.spec.summaries)]
 
     def start_chunk(self, k):
         """Start chunk k: reset every stage, then open the chunk's files of the summary tree.
