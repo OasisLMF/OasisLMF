@@ -282,6 +282,43 @@ def test_pool_workers_pull_and_policy_can_spawn_and_retire(tmp_path, run_dir):
     assert descendants() == []
 
 
+class RecordingConn:
+    def __init__(self):
+        self.sent = []
+
+    def send(self, message):
+        self.sent.append(message)
+
+
+def parked_pool(tmp_path, run_dir, states):
+    """A pool with no process behind its workers, in the given states: 'waiting', 'idle' or 'busy'."""
+    p = pool.WorkerPool(make_spec(str(run_dir)), [[1], [2]], str(tmp_path / 'out'), TAPS, output_jobs=[], log_dir=str(tmp_path / 'log'))
+    p.pending_jobs.append(0)
+    for number, state in enumerate(states):
+        worker = pool.Worker(number=number, popen=None, log_path='', err_path='', t_spawn=0.0, conn=RecordingConn())
+        worker.waiting = state == 'waiting'
+        worker.chunk = 1 if state == 'busy' else None
+        p.workers.append(worker)
+    return p
+
+
+@pytest.mark.parametrize('states, expected', [(['busy', 'waiting', 'busy'], 1), (['idle', 'busy', 'busy'], 0),
+                                              (['busy', 'idle', 'waiting', 'busy'], 2), (['busy', 'busy'], 1)])
+def test_pool_retire_prefers_idle_workers_and_stops_a_waiting_one_at_once(tmp_path, run_dir, states, expected):
+    p = parked_pool(tmp_path, run_dir, states)
+    try:
+        worker = p.retire()
+        assert worker.number == expected and worker.retire
+        if states[expected] == 'waiting':
+            assert worker.conn.sent == [{'type': 'stop'}] and worker.stopped and not worker.waiting
+        else:
+            assert worker.conn.sent == [] and not worker.stopped
+        assert all(w.conn.sent == [] for w in p.workers if w is not worker)
+    finally:
+        p.workers.clear()
+        p.close()
+
+
 def test_pool_retiring_every_worker_with_chunks_left_is_an_error(tmp_path, run_dir):
     def policy(p):
         for w in p.workers:

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import shutil
+import time
 
 import numpy as np
 import pytest
@@ -313,3 +314,34 @@ def test_pool_output_jobs_without_chunks(tmp_path, run_dir):
     assert stats['chunks'] == []
     assert len(stats['jobs']) == 1 and stats['n_workers'] == 1
     assert (run_dir / 'output' / 'out.csv').read_text() == expected_selt(3, 1)
+
+
+class SlowSecondChunkGul(FakeGul):
+    """FakeGul that takes a while over the events of the second chunk, so that the other worker waits for it."""
+
+    def process_event(self, event_id, out):
+        if event_id > 5:
+            time.sleep(0.3)
+        super().process_event(event_id, out)
+
+
+def test_pool_retired_waiting_worker_stops_before_the_last_chunk_and_jobs_still_run(tmp_path, run_dir):
+    retired = []
+
+    def policy(p):
+        if not retired and any(w.waiting for w in p.workers):
+            waiting = [w.number for w in p.workers if w.waiting]
+            worker = p.retire()
+            retired.append((worker.number, worker.stopped, p.chunks_done, waiting))
+
+    factories = {**FAKE_FACTORIES, 'gul': f'{__name__}:SlowSecondChunkGul'}
+    chunks = [np.arange(1, 6, dtype=np.int32), np.arange(6, 11, dtype=np.int32)]
+    stats = run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2, factories=factories, policy=policy,
+                     output_jobs=[job.to_dict() for job in SELT_JOBS])
+    [(number, stopped, chunks_done, waiting)] = retired
+    assert waiting == [number] and stopped and not chunks_done
+    assert stats['workers'][number]['jobs'] == 0
+    for i in range(5):
+        assert (run_dir / 'output' / f's{i}.csv').read_text() == expected_selt(3, 1, 2)
+    check_job_stats(stats, SELT_JOBS, 2)
+    assert descendants() == []

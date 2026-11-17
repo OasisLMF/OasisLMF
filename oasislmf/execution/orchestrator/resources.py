@@ -243,8 +243,9 @@ class ResourceManager:
     grow to that estimate. Nothing grows until a worker has finished setting up (its chain is built), nor for
     ``grow_cooldown`` seconds after a retirement.
 
-    Back-off: when ``available < margin``, enough of the newest active workers are retired to cover the deficit at
-    ``estimate`` each (less the workers already retiring), keeping one; each stops at its next chunk boundary.
+    Back-off: when ``available < margin``, enough active workers are retired to cover the deficit at ``estimate`` each
+    (less the workers already retiring), keeping one: idle ones first (``WorkerPool.retire``), which stop at once when
+    they are waiting for the last chunks, then the newest, each stopping at its next chunk boundary.
     """
 
     def __init__(self, max_workers, probe=None, initial_workers=DEFAULT_INITIAL_WORKERS, margin=None,

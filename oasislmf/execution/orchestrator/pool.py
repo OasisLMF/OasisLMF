@@ -6,7 +6,8 @@ builds one ``Chain`` and asks for chunks; see ``worker.py`` for the protocol. Be
 ones take the most chunks.
 
 Elasticity is a mechanism of ``WorkerPool``: ``spawn()`` adds a worker at any time, it connects and starts
-pulling; ``retire()`` answers the next ``ready`` of a worker with ``stop``. ``run_chunks`` either uses the simplest
+pulling; ``retire()`` answers the next ``ready`` of a worker with ``stop``, or stops at once a worker waiting for the
+last chunks. ``run_chunks`` either uses the simplest
 policy, W = min(n_workers, K) from the start, or with ``resource_manager`` sizes the pool from measured memory and CPU
 (``resources.ResourceManager``, n_workers being the hard maximum); a ``policy`` callable may also be passed to change
 the pool during the run.
@@ -360,10 +361,12 @@ class WorkerPool:
         return worker
 
     def retire(self, worker=None):
-        """Retire a worker: its next ``ready`` is answered with ``stop``.
+        """Retire a worker: stopped at once if it is waiting for the last chunks, else its next ``ready`` is answered with ``stop``.
 
         Args:
-            worker (Worker, optional): the worker; the most recently started active one by default.
+            worker (Worker, optional): the worker. By default an active one doing no work, as it gives its memory
+                back soonest: one waiting for the last chunks first, then one with no chunk or job (still setting
+                up); else the most recently started active one.
 
         Returns:
             Worker | None: the worker retired, None if none is active.
@@ -372,8 +375,10 @@ class WorkerPool:
             active = self.active
             if not active:
                 return None
-            worker = active[-1]
+            worker = max(active, key=lambda w: (w.waiting, w.chunk is None and w.job is None, w.number))
         worker.retire = True
+        if worker.waiting and not worker.stopped:
+            self._dispatch(worker)
         return worker
 
     def _fail(self, worker, reason, message=None):
