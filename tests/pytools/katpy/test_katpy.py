@@ -4,6 +4,8 @@ import shutil
 from tempfile import TemporaryDirectory
 
 import numpy as np
+import psutil
+import pytest
 from oasislmf.pytools.kat.manager import main
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_katpy")
@@ -130,3 +132,31 @@ def test_katpy_bin_unsorted():
 def test_katpy_parquet_unsorted():
     """Test katpy with parquet inputs (using QPLT) unsorted"""
     case_runner("pqplt", "upkatpy_qplt.parquet", False)
+
+
+@pytest.mark.parametrize("out_name", ["katpy_qplt.csv", "katpy_qplt.parquet"])
+def test_bin_to_tabular_releases_temp_file(monkeypatch, tmp_path, out_name):
+    """The temporary .bin of a bin to csv/parquet run is closed and unmapped before it is deleted.
+
+    Windows refuses to delete a file that is still open or memory mapped (WinError 32); deleting
+    such a file is made to fail the same way here, and the temporary directory must end up empty.
+    """
+    temp_dir = tmp_path / "tmp"
+    temp_dir.mkdir()
+    monkeypatch.setattr("tempfile.tempdir", str(temp_dir))
+    real_unlink = Path.unlink
+
+    def windows_unlink(self, *args, **kwargs):
+        process = psutil.Process()
+        in_use = {Path(f.path) for f in process.open_files()} | {Path(m.path) for m in process.memory_maps() if m.path}
+        if Path(self).resolve() in in_use:
+            raise PermissionError(f"[WinError 32] The process cannot access the file because it is being used by another process: '{self}'")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", windows_unlink)
+
+    out_file = tmp_path / out_name
+    main(dir_in=Path(TESTS_ASSETS_DIR, "bqplt"), qplt=True, out=out_file, unsorted=False)
+
+    assert out_file.stat().st_size > 0
+    assert list(temp_dir.iterdir()) == []
