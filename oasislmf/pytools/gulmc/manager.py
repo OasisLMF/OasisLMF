@@ -235,8 +235,7 @@ def run(run_dir,
                 os.path.join(run_dir, 'input'), structures['items'],
                 structures['blended_areaperil_placement_ja_offsets'],
                 structures['blended_areaperil_placement_ja_cum_weights'],
-                structures['blended_areaperil_placement_ja_areaperil_j'],
-                structures['blended_areaperil_placement_scale'], sample_size)
+                structures['blended_areaperil_placement_ja_areaperil_j'], sample_size)
 
         items = structures['items']
         # coverages needs a writable copy: reconstruct_coverages writes cur_items / start_items per event

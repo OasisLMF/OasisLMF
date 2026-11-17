@@ -132,9 +132,8 @@ location.
 | Array | Indexed by | Holds |
 |---|---|---|
 | `items['blended_areaperil_idx']` | item | dense blended areaperil index |
-| `blended_areaperil_ja_offsets` / `_ja_areaperil_ids` / `_ja_probabilities` | blended areaperil | its K footprint areaperils, and the probability the building is on each |
-| `blended_areaperil_placement_ja_offsets` / `_ja_cum_weights` / `_ja_areaperil_j` | blended areaperil | placements: running weight, and which areaperil j covers each (-1 none) |
-| `blended_areaperil_placement_scale` | blended areaperil | what the placement uniform is scaled by: 1.0 for float weights, the total otherwise |
+| `blended_areaperil_ja_offsets` / `_ja_probabilities` | blended areaperil | its K areaperils, and the probability the building is on each. Their footprint ids (`_ja_areaperil_ids`) are used while the structures are built and not kept: the event loop works with areaperil_j |
+| `blended_areaperil_placement_ja_offsets` / `_ja_cum_weights` / `_ja_areaperil_j` | blended areaperil | placements: running weight, and which areaperil j covers each (-1 none). The uniform is scaled by `max(1, total weight)`, which is 1 for float weights and the total for counts |
 | `item_areaperil_ja_offsets` | item | its run of item areaperils |
 | `item_areaperil_ja_cdf_group_idxs` | item areaperil | CDF group, the cache key (one per areaperil, vulnerability and, under a dynamic footprint, intensity adjustment) |
 | `item_areaperil_ja_areaperil_agg_vuln_idxs` | item areaperil | aggregate vulnerability block, -1 when not aggregate |

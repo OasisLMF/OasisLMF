@@ -52,8 +52,7 @@ def read_items(input_path, ignore_file_type=set()):
 
 def build_item_placements(items, item_location_keys, item_building_ids,
                           blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-                          blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale,
-                          sample_size):
+                          blended_areaperil_placement_ja_areaperil_j, sample_size):
     """Draw each building's placement for every sample, and record which areaperil each item reads.
 
     Placement is where a building stands, which does not change from one event to the next (D8),
@@ -74,7 +73,6 @@ def build_item_placements(items, item_location_keys, item_building_ids,
         blended_areaperil_placement_ja_offsets (np.ndarray[oasis_int]): placements per blended areaperil.
         blended_areaperil_placement_ja_cum_weights (np.ndarray[float64]): running placement weight.
         blended_areaperil_placement_ja_areaperil_j (np.ndarray[int32]): placement -> j, -1 uncovered.
-        blended_areaperil_placement_scale (np.ndarray[float64]): what the uniform is scaled by.
         sample_size (int): number of samples S.
 
     Returns:
@@ -99,15 +97,14 @@ def build_item_placements(items, item_location_keys, item_building_ids,
         _fill_item_placements(blended_idx, n_buildings, item_location_keys,
                               item_building_ids.astype(np.int64), item_placement_ja_offsets,
                               blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-                              blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale,
-                              sample_size, item_placement_ja_areaperil_j)
+                              blended_areaperil_placement_ja_areaperil_j, sample_size, item_placement_ja_areaperil_j)
     return item_placement_ja_offsets, item_placement_ja_areaperil_j
 
 
 @nb.njit(cache=True)
 def _fill_item_placements(blended_idx, n_buildings, item_location_keys, item_building_ids,
                           item_placement_ja_offsets,
-                          placement_ja_offsets, placement_ja_cum_weights, placement_ja_areaperil_j, placement_scale,
+                          placement_ja_offsets, placement_ja_cum_weights, placement_ja_areaperil_j,
                           sample_size, item_placement_ja_areaperil_j):
     """Kernel of ``build_item_placements``: one Philox block per (item, building), mapped to j."""
     uniforms = np.empty(sample_size, dtype=np.float64)
@@ -129,7 +126,7 @@ def _fill_item_placements(blended_idx, n_buildings, item_location_keys, item_bui
             _lh_philox_block(k0, k1, item_building_ids[item_idx] - 1 + b, sample_size, perm_scratch, uniforms)
             out = start + b * sample_size
             for s in range(sample_size):
-                p = select_placement(cum_weights, placement_scale[b_idx], uniforms[s])
+                p = select_placement(cum_weights, uniforms[s])
                 item_placement_ja_areaperil_j[out + s] = placement_ja_areaperil_j[p_start + p] if p < p_end - p_start else -1
 
 

@@ -13,12 +13,13 @@ row per (blended id, position)::
 
 Weight types
 ------------
-A model writes weights in whichever form it holds, and all three select through the same rule
-(``placement_cumulative`` and ``select_placement``):
+A model writes weights in whichever form it holds, and all three select through the same rule:
+the uniform is scaled by ``max(1, total weight)`` and searched in the running weights
+(``placement_scale`` and ``select_placement``):
 
 ``WEIGHT_FLOAT``
     probabilities. They may sum to less than 1, and the shortfall is the chance the building is
-    outside every modelled position: the uniform is scaled by **1.0**, never by the sum.
+    outside every modelled position. They total at most 1, so the scale is **1.0**, never the sum.
 ``WEIGHT_COUNT``
     non-negative integer counts (address points, pixels, buildings). Scaled by their total, so
     there is no shortfall; "not at risk" is a row with ``areaperil_id = 0``.
@@ -395,7 +396,8 @@ def build_blended_areaperils(items, blend=None):
         blended areaperil arrays: ``blended_areaperil_ja_offsets``,
         ``blended_areaperil_ja_areaperil_ids``, ``blended_areaperil_ja_probabilities``,
         ``blended_areaperil_placement_ja_offsets``, ``blended_areaperil_placement_ja_cum_weights``,
-        ``blended_areaperil_placement_ja_areaperil_j`` and ``blended_areaperil_placement_scale``.
+        and ``blended_areaperil_placement_ja_areaperil_j``. The ids are needed only while the
+        structures are built; the event loop works with areaperil_j.
     """
     blended_ids, items_blended_areaperil_idx = np.unique(items['areaperil_id'], return_inverse=True)
     n_blended = blended_ids.shape[0]
@@ -427,7 +429,7 @@ def build_blended_areaperils(items, blend=None):
         for j, areaperil_id in enumerate(distinct):
             areaperil_j[areaperil_ids == areaperil_id] = j
         cum_weights = np.cumsum(rows['weight'], dtype=np.float64)
-        scale = placement_scale(cum_weights, blend.weight_type)
+        scale = placement_scale(cum_weights)
         probabilities = np.array([rows['weight'][areaperil_j == j].sum() for j in range(distinct.shape[0])],
                                  dtype=np.float64) / scale if scale > 0 else np.zeros(distinct.shape[0])
         blended_parts[b] = (distinct, probabilities, cum_weights, areaperil_j, scale)
@@ -444,7 +446,6 @@ def build_blended_areaperils(items, blend=None):
     blended_areaperil_ja_probabilities = np.ones(blended_areaperil_ja_offsets[-1], dtype=np.float64)
     blended_areaperil_placement_ja_cum_weights = np.ones(blended_areaperil_placement_ja_offsets[-1], dtype=np.float64)
     blended_areaperil_placement_ja_areaperil_j = np.zeros(blended_areaperil_placement_ja_offsets[-1], dtype=np.int32)
-    blended_areaperil_placement_scale = np.ones(n_blended, dtype=np.float64)
     base = ~is_blended
     blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[:-1][base]] = blended_ids[base]
 
@@ -455,7 +456,6 @@ def build_blended_areaperils(items, blend=None):
         blended_areaperil_ja_probabilities[ap] = probabilities
         blended_areaperil_placement_ja_cum_weights[pl] = cum_weights
         blended_areaperil_placement_ja_areaperil_j[pl] = areaperil_j
-        blended_areaperil_placement_scale[b] = scale
 
     return (items_blended_areaperil_idx.astype(oasis_int),
             blended_areaperil_ja_offsets,
@@ -463,41 +463,36 @@ def build_blended_areaperils(items, blend=None):
             blended_areaperil_ja_probabilities,
             blended_areaperil_placement_ja_offsets,
             blended_areaperil_placement_ja_cum_weights,
-            blended_areaperil_placement_ja_areaperil_j,
-            blended_areaperil_placement_scale)
+            blended_areaperil_placement_ja_areaperil_j)
 
 
 # ---------------------------------------------------------------------------------------------
 # Selection
 # ---------------------------------------------------------------------------------------------
 
-def placement_cumulative(weights, weight_type):
-    """Cumulative weights of one scheme's positions and the scale to apply to the uniform.
+@nb.njit(cache=True)
+def placement_scale(cumulative):
+    """What the placement uniform is multiplied by: the total weight, but never less than 1.
 
-    Returns:
-        tuple(np.ndarray[f8], float): the running sum in placement order, and the scale --
-        1.0 for float weights, so a sum below 1 leaves samples unplaced; the total otherwise.
+    That one rule serves every weight type. Counts and equal weights total at least 1, so they
+    scale by their total. Float weights sum to at most 1 (the load validation refuses more, within
+    its tolerance), so they scale by 1: a sum below 1 then leaves that share of samples unplaced,
+    which is how a model says part of a location is outside every modelled position. Scaling float
+    weights by their sum instead would silently normalise that shortfall away.
     """
-    cumulative = np.cumsum(weights, dtype=np.float64)
-    return cumulative, placement_scale(cumulative, weight_type)
-
-
-def placement_scale(cumulative, weight_type):
-    """What the placement uniform is multiplied by: 1.0 for float weights, the total otherwise.
-
-    Float weights keep 1.0 even when they sum below 1, so the shortfall leaves samples unplaced;
-    scaling by their total would silently normalise it away.
-    """
-    return 1.0 if weight_type == WEIGHT_FLOAT else float(cumulative[-1])
+    return max(1.0, cumulative[-1])
 
 
 @nb.njit(cache=True)
-def select_placement(cumulative, scale, u):
+def select_placement(cumulative, u):
     """Position selected by uniform ``u`` in [0, 1], or ``len(cumulative)`` when unplaced.
 
-    Unplaced happens only for float weights summing to less than 1, and means the building is
-    outside every modelled position for that sample. Positions of zero weight are never selected.
+    ``cumulative`` is the running weight of the positions in placement order, scaled as
+    ``placement_scale`` says. Unplaced happens only for float weights summing to less than 1, and
+    means the building is outside every modelled position for that sample. Positions of zero weight
+    are never selected.
     """
+    scale = placement_scale(cumulative)
     x = u * scale
     if x >= scale:
         # The Latin Hypercube generator returns values in (0, 1], so u can be exactly 1; and u just

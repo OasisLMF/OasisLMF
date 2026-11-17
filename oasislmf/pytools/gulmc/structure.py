@@ -70,12 +70,10 @@ ARRAY_FILES = [
     'item_areaperil_ja_cdf_group_idxs',
     'item_areaperil_ja_areaperil_agg_vuln_idxs',
     'blended_areaperil_ja_offsets',
-    'blended_areaperil_ja_areaperil_ids',
     'blended_areaperil_ja_probabilities',
     'blended_areaperil_placement_ja_offsets',
     'blended_areaperil_placement_ja_cum_weights',
     'blended_areaperil_placement_ja_areaperil_j',
-    'blended_areaperil_placement_scale',
     'item_placement_ja_offsets',
     'item_placement_ja_areaperil_j',
     'areaperil_agg_vuln_idx_ja_offsets',
@@ -437,7 +435,7 @@ def item_location_placement_keys(input_path, items):
 
 
 def build_placements(input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-                     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale, sample_size):
+                     blended_areaperil_placement_ja_areaperil_j, sample_size):
     """Draw the placements, when the model has a blended areaperil of more than one placement.
 
     Returns:
@@ -454,7 +452,7 @@ def build_placements(input_path, items, blended_areaperil_placement_ja_offsets, 
     item_placement_ja_offsets, item_placement_ja_areaperil_j = build_item_placements(
         items, item_location_keys, item_building_ids,
         blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-        blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale, sample_size)
+        blended_areaperil_placement_ja_areaperil_j, sample_size)
     return item_placement_ja_offsets, item_placement_ja_areaperil_j, int(sample_size)
 
 
@@ -646,14 +644,14 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     (items['blended_areaperil_idx'],
      blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_ja_probabilities,
      blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale) = build_blended_areaperils(items, blend)
+     blended_areaperil_placement_ja_areaperil_j) = build_blended_areaperils(items, blend)
     (item_areaperil_ja_offsets, entry_areaperil_ids, entry_vuln_ids, entry_item_idxs,
      entry_item_areaperil_idxs) = build_item_areaperils(items, blended_areaperil_ja_offsets,
                                                         blended_areaperil_ja_areaperil_ids)
     n_item_areaperils = int(item_areaperil_ja_offsets[-1])
     item_placement_ja_offsets, item_placement_ja_areaperil_j, placement_sample_size = build_placements(
         input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-        blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale, sample_size)
+        blended_areaperil_placement_ja_areaperil_j, sample_size)
     # an item counts once in its coverage however many areaperils it reads
     np.add.at(coverages['max_items'], items['coverage_id'], 1)
 
@@ -754,12 +752,10 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'item_areaperil_ja_cdf_group_idxs': item_areaperil_ja_cdf_group_idxs,
         'item_areaperil_ja_areaperil_agg_vuln_idxs': item_areaperil_ja_areaperil_agg_vuln_idxs,
         'blended_areaperil_ja_offsets': blended_areaperil_ja_offsets,
-        'blended_areaperil_ja_areaperil_ids': blended_areaperil_ja_areaperil_ids,
         'blended_areaperil_ja_probabilities': blended_areaperil_ja_probabilities,
         'blended_areaperil_placement_ja_offsets': blended_areaperil_placement_ja_offsets,
         'blended_areaperil_placement_ja_cum_weights': blended_areaperil_placement_ja_cum_weights,
         'blended_areaperil_placement_ja_areaperil_j': blended_areaperil_placement_ja_areaperil_j,
-        'blended_areaperil_placement_scale': blended_areaperil_placement_scale,
         'item_placement_ja_offsets': item_placement_ja_offsets,
         'item_placement_ja_areaperil_j': item_placement_ja_areaperil_j,
         'areaperil_agg_vuln_idx_ja_offsets': areaperil_agg_vuln_idx_ja_offsets,
