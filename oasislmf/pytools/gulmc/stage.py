@@ -207,7 +207,6 @@ class GulmcStage:
         if max_buildings > 1:
             logger.info(f"building-packing ENABLED: up to {max_buildings} buildings packed per item.")
 
-        # import array to store the coverages to be computed
         # coverages are numbered from 1, therefore skip element 0.
         self.compute = np.zeros(coverages.shape[0] + 1, items_dtype['coverage_id'])
 
@@ -271,17 +270,13 @@ class GulmcStage:
             ITEM_PACKED_STREAM if max_emitted_blocks(items['packed_buildings']) > 1 else ITEM_STREAM
         ) + np.int32(sample_size).tobytes()
 
-        # set the random generator function
         self.generate_rndm = get_random_generator(random_generator)
-        # create the array to store the seeds
         self.haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         self.vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
         # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts)
         self.group_seq_rng_index = np.empty(n_unique_groups, dtype=np.int64)
         self.hazard_group_seq_rng_index = np.empty(n_unique_haz_groups, dtype=np.int64)
-        # haz correlation
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
-            # there will be some hazard correlation
             do_haz_correlation = True
             haz_peril_correlation_groups = unique_peril_correlation_groups
             haz_corr_seeds = np.zeros(np.max(haz_peril_correlation_groups) + 1, dtype='int64')
@@ -297,7 +292,6 @@ class GulmcStage:
                             "0 peril correlation groups were detected or "
                             "the hazard correlation value is zero for all peril correlation groups.")
 
-        # damage correlation
         if not ignore_correlation and Nperil_correlation_groups > 0 and any(items['damage_correlation_value'] > 0):
             do_correlation = True
             damage_peril_correlation_groups = unique_peril_correlation_groups
@@ -324,7 +318,6 @@ class GulmcStage:
             norm_inv_parameters = np.array((0., 0., 0, 0., 0., 0., 0.), dtype=NormInversionParameters)
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
 
-        # buffer to be re-used to store all the correlated random values
         self.vuln_z_unif = np.zeros(sample_size, dtype='float64')
         self.haz_z_unif = np.zeros(sample_size, dtype='float64')
 
@@ -334,7 +327,6 @@ class GulmcStage:
             logger.info("effective_damageability is False: gulmc will perform the full Monte Carlo sampling: "
                         "sample the hazard intensity first, then sample the damage from the corresponding vulnerability function.")
 
-        # create buffers to be reused when computing losses
         self.byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
         self.losses = np.zeros((sample_size + NUM_IDX + 1, max_items_per_coverage), dtype=oasis_float)
 
@@ -363,10 +355,8 @@ class GulmcStage:
         max_bytes_per_block = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
         max_bytes_per_item = max_bytes_per_block * max_emitted_blocks(items['packed_buildings'])
 
-        # define vulnerability cdf cache size
-        max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cache size in bytes
-        max_Nnumbers_cached_vuln_cdf = max_cached_vuln_cdf_size_bytes // oasis_float.itemsize  # total numbers that can fit in the cache
-        # max number of vulnerability functions that can be stored in cache
+        max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024
+        max_Nnumbers_cached_vuln_cdf = max_cached_vuln_cdf_size_bytes // oasis_float.itemsize
         max_Nvulnerability_cached_vuln_cdf = max_Nnumbers_cached_vuln_cdf // Ndamage_bins_max
         # number of vulnerability functions to be cached, rounded up to power of two for bitwise masking.
         # The cache must fit at least one full multi-block write for a single item — that is
@@ -465,7 +455,6 @@ class GulmcStage:
         """
         compute_info = self.compute_info
         event_id = np.int32(event_id)
-        # get the next event_id from the input stream
         compute_info['event_id'] = event_id
         event_footprint = self.event_footprint_obj.get_event(event_id)
 
@@ -481,7 +470,6 @@ class GulmcStage:
             self.fp_event_rps,
             self.fp_haz_arr_ptr)
         if Nhaz_arr_this_event == 0:
-            # no items to be computed for this event
             logger.info(f"event {event_id} SKIPPED - no items")
             return False
 
@@ -598,7 +586,7 @@ class GulmcStage:
                 with open("event_error.json", "w") as f:
                     json.dump(data, f, default=str)
 
-                logger.error(f"event id={event_id} failed in summary")
+                logger.error(f"event id={event_id} failed in gulmc")
                 raise
             # A call that asks to be resumed must have advanced the resume point. It
             # only stops because the buffer is full, and the buffer is empty on entry, so
