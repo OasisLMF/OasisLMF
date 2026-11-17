@@ -16,6 +16,7 @@ from oasislmf.execution.orchestrator.chain import ChainSpec, spec_for_taps
 from oasislmf.execution.orchestrator.chunks import read_events
 from oasislmf.execution.orchestrator.plan import (OutputJob, Plan, Unsupported, partition_events, plan_from_bash_params,
                                                   render_chunk_commands)
+from oasislmf.pytools.eve.manager import event_id_dtype, partition_events__random
 from oasislmf.pytools.eve.manager import run as evepy_run
 from oasislmf.utils.defaults import EVE_FISHER_YATES, EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE
 from tests.orchestrator.tools.compare_outputs import compare_trees_bytes
@@ -249,6 +250,19 @@ def test_planned_run_with_ri_tap_and_rl_output_only(tmp_path, executor):
     module.run_chunks(plan.spec, chunks, tmp_path / 'out', ['ri'], 2, factories=factories)
     assert sorted(os.listdir(tmp_path / 'out')) == ['ri_P1.bin', 'ri_P2.bin']
     assert all(os.path.getsize(tmp_path / 'out' / name) > 0 for name in os.listdir(tmp_path / 'out'))
+
+
+@pytest.mark.parametrize('n_events', [1, 2, 7, 100, 1001])
+@pytest.mark.parametrize('n_chunks', [1, 2, 3, 12, 150])
+def test_fisher_yates_chunks_equal_evepy_per_partition(n_events, n_chunks):
+    events = np.arange(3, 3 + 2 * n_events, 2, dtype=event_id_dtype)
+    chunks = Plan(spec=ChainSpec(run_dir='.'), output_jobs=[], event_shuffle=EVE_FISHER_YATES).make_chunks(events, n_chunks)
+    assert len(chunks) == n_chunks
+    for k, chunk in enumerate(chunks, 1):
+        expected = list(partition_events__random(events.copy(), k, n_chunks))
+        assert chunk.dtype == event_id_dtype
+        assert chunk.tolist() == [int(e) for e in expected], k
+    assert sorted(np.concatenate(chunks).tolist()) == events.tolist()
 
 
 def test_plan_chunk_paths_and_work_dirs(tmp_path):

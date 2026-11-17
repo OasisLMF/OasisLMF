@@ -164,6 +164,8 @@ class Plan:
         if n_chunks <= 0:
             raise ValueError(f"n_chunks must be positive, got {n_chunks}")
         events = np.asarray(events, dtype=event_id_dtype)
+        if self.event_shuffle == EVE_FISHER_YATES:
+            return partition_events__fisher_yates_all(events, n_chunks)
         return [partition_events(events, k, n_chunks, self.event_shuffle) for k in range(1, n_chunks + 1)]
 
     def chunk_paths(self, k):
@@ -202,6 +204,29 @@ class Plan:
     def from_json(cls, text):
         """Build a plan from the output of ``to_json``."""
         return cls.from_dict(json.loads(text))
+
+
+def partition_events__fisher_yates_all(events, n_chunks):
+    """Every partition ``evepy -r`` emits, from a single shuffle.
+
+    ``partition_events__random`` seeds its generator with a constant and draws the same numbers whatever the
+    partition, so every partition sees the same shuffle. Its loop fixes position i of the array at step i and
+    emits it, descending from the last position, when ``(i - k) % n_chunks == 0``, then position 0 when
+    ``k % n_chunks == 0``. So partition k is the fully shuffled array at the positions congruent to k modulo
+    n_chunks, in descending order. The shuffle itself is evepy's generator, run to the end once.
+
+    Args:
+        events (np.ndarray): event ids, in the order they are held in ``events.bin``.
+        n_chunks (int): number of partitions.
+
+    Returns:
+        list[np.ndarray]: element ``k - 1`` holds the events ``evepy -r k n_chunks`` emits, in the same order.
+    """
+    shuffled = events.copy()
+    for _ in partition_events__random(shuffled, 1, 1):
+        pass
+    positions = np.arange(len(shuffled) - 1, -1, -1)
+    return [shuffled[positions[(positions - k) % n_chunks == 0]] for k in range(1, n_chunks + 1)]
 
 
 def partition_events(events, k, n_chunks, event_shuffle=EVE_DEFAULT_SHUFFLE):
