@@ -46,7 +46,7 @@ import oasislmf
 
 from .chain import spec_for_taps
 from .outputs import as_job, check_independent, job_label, job_outputs, prepare_output_dirs
-from .resources import ResourceManager
+from .resources import ResourceManager, process_descendants
 
 logger = logging.getLogger(__name__)
 
@@ -105,19 +105,6 @@ class WorkerError(RuntimeError):
         self.job_label = job_label
 
 
-def _descendants(pids):
-    """Every process descending from ``pids``, found from one snapshot of the process table."""
-    children = {}
-    for proc in psutil.process_iter(['ppid']):
-        children.setdefault(proc.info['ppid'], []).append(proc)
-    found, pending = [], list(pids)
-    while pending:
-        for child in children.get(pending.pop(), []):
-            found.append(child)
-            pending.append(child.pid)
-    return found
-
-
 def _terminate(popens, grace=KILL_GRACE):
     """Terminate every process of ``popens`` still running, with its descendants.
 
@@ -127,7 +114,7 @@ def _terminate(popens, grace=KILL_GRACE):
     direct = [popen for popen in popens if popen.poll() is None]
     if not direct:
         return
-    descendants = _descendants([popen.pid for popen in direct])
+    descendants = [proc for found in process_descendants([popen.pid for popen in direct]).values() for proc in found]
     for popen in direct:
         try:
             popen.terminate()

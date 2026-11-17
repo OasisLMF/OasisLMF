@@ -715,7 +715,7 @@ manifest.
   workers as one tool, `orchestrator` (10.3).
 - **Errors.** Any executor exception (`WorkerError` naming stage, chunk, event or output job,
   with the worker's stderr tail) becomes `subprocess.CalledProcessError(1,
-  ['oasislmf-orchestrator', mode, script], output=<run log>)`, so `GenerateLosses*` print
+  ['oasislmf.execution.orchestrator.kernel.run_plan', mode, script], output=<run log>)`, so `GenerateLosses*` print
   `log/.../stderror.err` and raise the same `OasisException` as for a failed script, and
   `runner.run`'s caller calls `rerun()` as before. The pytools-log completeness check runs after
   an orchestrated step too.

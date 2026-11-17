@@ -67,6 +67,12 @@ IL_RULE_0_UNDER_RI = (
     "of 1, 2 or 3 with reinsurance.")
 
 
+ORCHESTRATOR_PARAM = {'name': 'orchestrator', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+                      'help': 'Run the kernel with the event-worker orchestrator (a pool of Python workers) instead of the generated '
+                              'bash script. Runs it does not support fall back to the bash script with a warning'}
+"""The ``orchestrator`` step parameter of the generate-losses steps that run the kernel."""
+
+
 # outputs whose processes (pltpy, aalpy, lecpy) read the occurrence file
 OCCURRENCE_OUTPUT_SWITCHES = {
     **bash.ORD_PLT_OUTPUT_SWITCHES,
@@ -531,9 +537,7 @@ class GenerateLossesPartial(GenerateLossesDir):
          'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'kernel_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
-        {'name': 'orchestrator', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'Run the kernel with the event-worker orchestrator (a pool of Python workers) instead of the generated bash '
-                 'script. Runs it does not support fall back to the bash script with a warning'},
+        ORCHESTRATOR_PARAM,
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gul_random_generator', 'default': 2, 'type': int,
@@ -652,9 +656,7 @@ class GenerateLossesOutput(GenerateLossesDir):
          'help': 'Number of kernel calculation processes to use'},
         {'name': 'kernel_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
-        {'name': 'orchestrator', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'Run the kernel with the event-worker orchestrator (a pool of Python workers) instead of the generated bash '
-                 'script. Runs it does not support fall back to the bash script with a warning'},
+        ORCHESTRATOR_PARAM,
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
 
@@ -756,9 +758,7 @@ class GenerateLosses(GenerateLossesDir):
          'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'kernel_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
-        {'name': 'orchestrator', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'Run the kernel with the event-worker orchestrator (a pool of Python workers) instead of the generated bash '
-                 'script. Runs it does not support fall back to the bash script with a warning'},
+        ORCHESTRATOR_PARAM,
         {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gul_random_generator', 'default': 2, 'type': int,

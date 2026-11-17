@@ -57,11 +57,16 @@ EVENTS_FILE = os.path.join('input', 'events.bin')
 RUN_LOG = 'orchestrator.log'
 STDERR_LOG = 'stderror.err'
 KEPT_OUTPUTS = ('*summary-info*', '*.json')
+RUN_PLAN = 'oasislmf.execution.orchestrator.kernel.run_plan'
 
 
 def command(mode, script):
-    """The command a ``CalledProcessError`` of an orchestrated step names, in place of ``['bash', script]``."""
-    return ['oasislmf-orchestrator', mode, script]
+    """The command a ``CalledProcessError`` of an orchestrated step names, in place of ``['bash', script]``.
+
+    The step runs in this process, not as a command: it is named by the function that ran it, so that nobody looks
+    for an executable of that name.
+    """
+    return [RUN_PLAN, mode, script]
 
 
 def _resolve(run_dir, path):

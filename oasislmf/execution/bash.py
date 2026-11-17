@@ -49,6 +49,7 @@ Entry points:
 """
 
 import contextlib
+import inspect
 import io
 import json
 import logging
@@ -2995,8 +2996,51 @@ def genbash_params(
 ):
     """The parameters ``genbash`` writes its script from, without writing anything.
 
-    Takes the arguments of :func:`genbash`. The orchestrator plans a run from this dict, so that it runs exactly
-    what the script would.
+    The orchestrator plans a run from this dict, so that it runs exactly what the script would.
+
+    Args:
+        max_process_id (int): The number of processes to create
+        analysis_settings (dict): The analysis settings
+        num_reinsurance_iterations (int): The number of reinsurance iterations
+        fifo_tmp_dir (bool): When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
+        gul_alloc_rule (Int): Allocation rule (None or 1) for gulcalc, if not set default to coverage stream
+        il_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc
+        ri_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc
+        num_gul_per_lb (int): number of gul streams per load balancer
+        num_fm_per_lb (int): number of fm streams per load balancer
+        stderr_guard (bool): Wrap commands with stderr redirection.
+        bash_trace (bool): Enable bash ``-x`` tracing.
+        filename (str): The output file name
+        _get_getmodel_cmd (callable): Method for getting the getmodel command, by default
+            ``GenerateLossesCmd.get_getmodel_cmd`` is used.
+        custom_gulcalc_log_start (str or None): Log message produced when the custom gulcalc
+            binary process starts.
+        custom_gulcalc_log_finish (str or None): Log message produced when the custom gulcalc
+            binary process ends.
+        custom_args (dict): Extra arguments forwarded to downstream functions.
+        fmpy_low_memory (bool): use memory map instead of RAM to store the loss array.
+        fmpy_sort_output (bool): order fmpy output by item_id.
+        summarypy_low_memory (bool): Pass ``-m`` to ``summarypy`` so it writes a ``.idx``
+            side-file, consumed by the legacy ktools leccalc/aalcalc binaries.
+        event_shuffle (int or None): Event shuffle rule override.
+        gulmc (bool): use the full Monte Carlo gulcalc python version.
+        gul_random_generator (int): random number generator to use in gulmc or gulpy
+            (0: Mersenne-Twister, 1: Latin Hypercube, 2: Latin Hypercube on Philox4x32-7).
+        gulmc_effective_damageability (bool): use the effective damageability to draw loss samples
+            instead of the full Monte Carlo method.
+        gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations.
+        model_py_server (bool): run the data server for modelpy.
+        peril_filter (list): list of perils to include (all included if empty).
+        join_summary_info (bool): join summary id information to outputcalc csvs.
+        base_df_engine (str): The engine to use when loading dataframes.
+        model_df_engine (str): The engine to use when loading model dataframes.
+        dynamic_footprint (bool): Enable dynamic footprint mode.
+        analysis_pk (int or None): analysis primary key reported with progress pings. When set,
+            no local socket-server is started.
+        socket_server_size (int or None): total number of events, passed to the local
+            socket-server that reports run progress.
+        socket_server_port (int or None): port the local socket-server listens on.
+        log_level (int or None): Enable logging of pytools subprocesses.
 
     Returns:
         dict: the :func:`bash_params` dict, with ``analysis_pk``, ``socket_server_size`` and ``socket_server_port``.
@@ -3042,133 +3086,24 @@ def genbash_params(
     return params
 
 
-def genbash(
-    max_process_id,
-    analysis_settings,
-    num_reinsurance_iterations=0,
-    fifo_tmp_dir=True,
-    gul_alloc_rule=None,
-    il_alloc_rule=None,
-    ri_alloc_rule=None,
-    num_gul_per_lb=None,
-    num_fm_per_lb=None,
-    stderr_guard=True,
-    bash_trace=False,
-    filename='run_kools.sh',
-    _get_getmodel_cmd=None,
-    custom_gulcalc_log_start=None,
-    custom_gulcalc_log_finish=None,
-    custom_args={},
-    fmpy_low_memory=False,
-    fmpy_sort_output=False,
-    summarypy_low_memory=False,
-    event_shuffle=None,
-    gulmc=True,
-    gul_random_generator=2,
-    gulmc_effective_damageability=False,
-    gulmc_vuln_cache_size=200,
-    model_py_server=False,
-    peril_filter=[],
-    join_summary_info=False,
-    base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
-    model_df_engine=None,
-    dynamic_footprint=False,
-    analysis_pk=None,
-    socket_server_size=None,
-    socket_server_port=None,
-    log_level=None
-):
+def genbash(*args, **kwargs):
     """Generates a bash script containing pytools calculation instructions for an
     Oasis model.
 
-    Args:
-        max_process_id (int): The number of processes to create
-        analysis_settings (dict): The analysis settings
-        num_reinsurance_iterations (int): The number of reinsurance iterations
-        fifo_tmp_dir (bool): When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
-        gul_alloc_rule (Int): Allocation rule (None or 1) for gulcalc, if not set default to coverage stream
-        il_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc
-        ri_alloc_rule (Int): Allocation rule (0, 1 or 2) for fmcalc
-        num_gul_per_lb (int): number of gul streams per load balancer
-        num_fm_per_lb (int): number of fm streams per load balancer
-        stderr_guard (bool): Wrap commands with stderr redirection.
-        bash_trace (bool): Enable bash ``-x`` tracing.
-        filename (str): The output file name
-        _get_getmodel_cmd (callable): Method for getting the getmodel command, by default
-            ``GenerateLossesCmd.get_getmodel_cmd`` is used.
-        custom_gulcalc_log_start (str or None): Log message produced when the custom gulcalc
-            binary process starts.
-        custom_gulcalc_log_finish (str or None): Log message produced when the custom gulcalc
-            binary process ends.
-        custom_args (dict): Extra arguments forwarded to downstream functions.
-        fmpy_low_memory (bool): use memory map instead of RAM to store the loss array.
-        fmpy_sort_output (bool): order fmpy output by item_id.
-        summarypy_low_memory (bool): Pass ``-m`` to ``summarypy`` so it writes a ``.idx``
-            side-file, consumed by the legacy ktools leccalc/aalcalc binaries.
-        event_shuffle (int or None): Event shuffle rule override.
-        gulmc (bool): use the full Monte Carlo gulcalc python version.
-        gul_random_generator (int): random number generator to use in gulmc or gulpy
-            (0: Mersenne-Twister, 1: Latin Hypercube, 2: Latin Hypercube on Philox4x32-7).
-        gulmc_effective_damageability (bool): use the effective damageability to draw loss samples
-            instead of the full Monte Carlo method.
-        gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations.
-        model_py_server (bool): run the data server for modelpy.
-        peril_filter (list): list of perils to include (all included if empty).
-        join_summary_info (bool): join summary id information to outputcalc csvs.
-        base_df_engine (str): The engine to use when loading dataframes.
-        model_df_engine (str): The engine to use when loading model dataframes.
-        dynamic_footprint (bool): Enable dynamic footprint mode.
-        analysis_pk (int or None): analysis primary key reported with progress pings. When set,
-            no local socket-server is started.
-        socket_server_size (int or None): total number of events, passed to the local
-            socket-server that reports run progress.
-        socket_server_port (int or None): port the local socket-server listens on.
-        log_level (int or None): Enable logging of pytools subprocesses.
+    Takes the arguments of :func:`genbash_params` (same signature), which computes the script's parameters.
     """
-    params = genbash_params(
-        max_process_id=max_process_id,
-        analysis_settings=analysis_settings,
-        num_reinsurance_iterations=num_reinsurance_iterations,
-        fifo_tmp_dir=fifo_tmp_dir,
-        gul_alloc_rule=gul_alloc_rule,
-        il_alloc_rule=il_alloc_rule,
-        ri_alloc_rule=ri_alloc_rule,
-        num_gul_per_lb=num_gul_per_lb,
-        num_fm_per_lb=num_fm_per_lb,
-        stderr_guard=stderr_guard,
-        bash_trace=bash_trace,
-        filename=filename,
-        _get_getmodel_cmd=_get_getmodel_cmd,
-        custom_gulcalc_log_start=custom_gulcalc_log_start,
-        custom_gulcalc_log_finish=custom_gulcalc_log_finish,
-        custom_args=custom_args,
-        fmpy_low_memory=fmpy_low_memory,
-        fmpy_sort_output=fmpy_sort_output,
-        summarypy_low_memory=summarypy_low_memory,
-        event_shuffle=event_shuffle,
-        gulmc=gulmc,
-        gul_random_generator=gul_random_generator,
-        gulmc_effective_damageability=gulmc_effective_damageability,
-        gulmc_vuln_cache_size=gulmc_vuln_cache_size,
-        model_py_server=model_py_server,
-        peril_filter=peril_filter,
-        join_summary_info=join_summary_info,
-        base_df_engine=base_df_engine,
-        model_df_engine=model_df_engine,
-        dynamic_footprint=dynamic_footprint,
-        analysis_pk=analysis_pk,
-        socket_server_size=socket_server_size,
-        socket_server_port=socket_server_port,
-        log_level=log_level,
-    )
+    params = genbash_params(*args, **kwargs)
 
     # remove the file if it already exists
-    if os.path.exists(filename):
-        os.remove(filename)
+    if os.path.exists(params['filename']):
+        os.remove(params['filename'])
 
-    with bash_wrapper(filename, bash_trace, stderr_guard):
+    with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard']):
         create_bash_analysis(**params)
         create_bash_outputs(**params)
+
+
+genbash.__signature__ = inspect.signature(genbash_params)
 
 
 def add_server_call(call, analysis_pk=None, socket_server_port=None):

@@ -104,7 +104,7 @@ def test_run_plan_failure_is_a_called_process_error_with_the_logs(tmp_path, run_
     params = {'work_dir': 'work/', 'work_kat_dir': 'work/kat/', 'output_dir': 'output/'}
     with pytest.raises(subprocess.CalledProcessError) as info:
         kernel.run_plan(fake_plan(run_dir), params, 'analysis', 'log', str(run_dir / 'run_kernel.sh'))
-    assert info.value.cmd == ['oasislmf-orchestrator', 'analysis', str(run_dir / 'run_kernel.sh')]
+    assert info.value.cmd == ['oasislmf.execution.orchestrator.kernel.run_plan', 'analysis', str(run_dir / 'run_kernel.sh')]
     assert b'FAILED' in info.value.output
     logs = sorted(os.listdir(run_dir / 'log'))
     assert 'old.log' not in logs and 'stderror.err' in logs and kernel.RUN_LOG in logs

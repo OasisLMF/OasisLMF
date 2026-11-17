@@ -146,19 +146,10 @@ class SystemProbe:
         Returns:
             dict[int, int]: ``private_memory`` of each process still running and its descendants, by pid.
         """
-        pids = list(pids)
-        children = {}
-        for proc in psutil.process_iter(['ppid']):
-            children.setdefault(proc.info['ppid'], []).append(proc.pid)
         result = {}
-        for pid in pids:
-            tree, pending = [], [pid]
-            while pending:
-                current = pending.pop()
-                tree.append(current)
-                pending.extend(children.get(current, []))
+        for pid, found in process_descendants(pids).items():
             total, alive = 0, False
-            for member in tree:
+            for member in [pid] + [proc.pid for proc in found]:
                 try:
                     total += private_memory(psutil.Process(member))
                     alive = alive or member == pid
@@ -184,6 +175,29 @@ class SystemProbe:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 self._procs.pop(pid, None)
         return max(system - own, 0.0)
+
+
+def process_descendants(pids):
+    """The descendants of each process of ``pids``, found from one snapshot of the process table.
+
+    Args:
+        pids (Iterable[int]): process ids.
+
+    Returns:
+        dict[int, list[psutil.Process]]: by pid, every process descending from it.
+    """
+    children = {}
+    for proc in psutil.process_iter(['ppid']):
+        children.setdefault(proc.info['ppid'], []).append(proc)
+    result = {}
+    for pid in pids:
+        found, pending = [], [pid]
+        while pending:
+            for child in children.get(pending.pop(), []):
+                found.append(child)
+                pending.append(child.pid)
+        result[pid] = found
+    return result
 
 
 def private_memory(proc):

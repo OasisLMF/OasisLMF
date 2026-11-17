@@ -489,7 +489,7 @@ class TestRunWithOrchestrator(TestCase):
         self.assertIn('custom gulcalc', logs.output[0])
 
     def test_orchestrator_failure_surfaces_as_called_process_error(self):
-        error = subprocess.CalledProcessError(1, ['oasislmf-orchestrator', 'all', self.script], output=b'FAILED')
+        error = subprocess.CalledProcessError(1, ['oasislmf.execution.orchestrator.kernel.run_plan', 'all', self.script], output=b'FAILED')
         with patch('oasislmf.execution.runner.genbash'), \
                 patch('oasislmf.execution.runner.run_plan', side_effect=error), \
                 self.assertRaises(subprocess.CalledProcessError) as ctx:
@@ -501,7 +501,7 @@ class TestRunWithOrchestrator(TestCase):
         self.ensure_pytool_logs_complete.side_effect = OasisException('katpy (1 lost)')
         with self.assertRaises(subprocess.CalledProcessError) as ctx:
             self._run(orchestrator=True)
-        self.assertEqual(['oasislmf-orchestrator', 'all', self.script], ctx.exception.cmd)
+        self.assertEqual(['oasislmf.execution.orchestrator.kernel.run_plan', 'all', self.script], ctx.exception.cmd)
         self.assertIn(b'orchestrator output', ctx.exception.output)
         self.assertIn(b'katpy (1 lost)', ctx.exception.output)
 
