@@ -7,6 +7,7 @@ Follows the same pattern as ``oasislmf.pytools.fm.financial_structure``:
     allowing multiple gulmc processes to share physical memory pages through
     the OS page cache.
 """
+import hashlib
 import logging
 import os
 import shutil
@@ -14,6 +15,7 @@ import shutil
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import numba as nb
+import pandas as pd
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import (building_count_dtype, load_as_ndarray, oasis_int, oasis_float)
 from oasislmf.utils.exceptions import OasisException
@@ -38,7 +40,7 @@ from oasislmf.pytools.gulmc.common import (
     NormInversionParameters, coverage_type,
 )
 from oasislmf.pytools.gulmc.items import (
-    read_items, build_blended_areaperils, build_item_areaperils, generate_item_map,
+    read_items, build_blended_areaperils, build_item_areaperils, build_item_placements, generate_item_map,
     build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln,
 )
 from oasislmf.utils.path import setcwd
@@ -51,7 +53,10 @@ DYNAMIC_FOOTPRINT_DIR = 'dynamic_footprint'
 
 # (variable_name, filename) pairs for all arrays that are saved/loaded.
 # number of scalars load_gulmc_structure reads out of metadata.npy
-N_METADATA_FIELDS = 3
+N_METADATA_FIELDS = 4
+# metadata value for "no placements were drawn": the model has no blended areaperil of more than one
+# placement, so the structure is valid for any sample size
+NO_PLACEMENT_SAMPLE_SIZE = -1
 
 ARRAY_FILES = [
     'items',
@@ -71,6 +76,8 @@ ARRAY_FILES = [
     'blended_areaperil_placement_ja_cum_weights',
     'blended_areaperil_placement_ja_areaperil_j',
     'blended_areaperil_placement_scale',
+    'item_placement_ja_offsets',
+    'item_placement_ja_areaperil_j',
     'areaperil_agg_vuln_idx_ja_offsets',
     'areaperil_agg_vuln_idx_ja_data',
     'damage_bins',
@@ -394,6 +401,63 @@ def build_vuln_idx_to_cond_idx(items, item_is_aggregate, cond_vuln_ids, n_vulns)
     return vuln_idx_to_cond_idx
 
 
+def item_location_placement_keys(input_path, items):
+    """Per item, its location's placement key and its building_id, from gul_summary_map.
+
+    The key is a 64-bit hash of the location's OED identifiers (PortNumber, AccNumber, LocNumber),
+    not of the generated loc_id, so a building keeps its placements when the portfolio is reordered
+    or split. It carries no event, because a building does not move between events (D8).
+
+    Args:
+        input_path (str): the run's input directory.
+        items (np.ndarray): items table with 'item_id'.
+
+    Returns:
+        tuple(np.ndarray[uint64], np.ndarray[int64]): key and building_id per item.
+    """
+    columns = ['item_id', 'PortNumber', 'AccNumber', 'LocNumber', 'building_id']
+    parquet_path = os.path.join(input_path, 'gul_summary_map.parquet')
+    if os.path.exists(parquet_path):
+        summary_map = pd.read_parquet(parquet_path, columns=columns)
+    else:
+        summary_map = pd.read_csv(os.path.join(input_path, 'gul_summary_map.csv'), usecols=columns)
+    summary_map = summary_map.drop_duplicates('item_id').set_index('item_id')
+    missing = ~np.isin(items['item_id'], summary_map.index)
+    if missing.any():
+        raise OasisException(
+            f"blended areaperils: item_id {items['item_id'][missing][:5].tolist()} missing from gul_summary_map, "
+            f"which gives each item's location for its placement draw")
+    rows = summary_map.loc[items['item_id']]
+    locations = (rows['PortNumber'].astype(str) + '\x1f' + rows['AccNumber'].astype(str) + '\x1f'
+                 + rows['LocNumber'].astype(str)).to_numpy()
+    unique_locations, location_idx = np.unique(locations, return_inverse=True)
+    keys = np.array([int.from_bytes(hashlib.blake2b(f'placement\x1f{loc}'.encode(), digest_size=8).digest(), 'little')
+                     for loc in unique_locations], dtype=np.uint64)
+    return keys[location_idx], rows['building_id'].to_numpy(dtype=np.int64)
+
+
+def build_placements(input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+                     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale, sample_size):
+    """Draw the placements, when the model has a blended areaperil of more than one placement.
+
+    Returns:
+        tuple: ``item_placement_ja_offsets``, ``item_placement_ja_areaperil_j`` (see
+        ``build_item_placements``), and the sample size they were drawn for, or
+        ``NO_PLACEMENT_SAMPLE_SIZE`` when no item needs one.
+    """
+    if np.diff(blended_areaperil_placement_ja_offsets).max(initial=1) <= 1:
+        return (np.zeros(items.shape[0] + 1, dtype=np.int64), np.empty(0, dtype=np.int8),
+                NO_PLACEMENT_SAMPLE_SIZE)
+    if sample_size is None:
+        raise OasisException("blended areaperils: the sample size is needed to draw placements when the gulmc structure is built")
+    item_location_keys, item_building_ids = item_location_placement_keys(input_path, items)
+    item_placement_ja_offsets, item_placement_ja_areaperil_j = build_item_placements(
+        items, item_location_keys, item_building_ids,
+        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+        blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale, sample_size)
+    return item_placement_ja_offsets, item_placement_ja_areaperil_j, int(sample_size)
+
+
 def _structure_path(run_dir):
     return os.path.join(run_dir, 'input', STRUCTURE_DIR)
 
@@ -433,7 +497,7 @@ def dynamic_footprint_path(run_dir):
 
 
 def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint, model_df_engine,
-                     dynamic_footprint_dir=None):
+                     dynamic_footprint_dir=None, sample_size=None):
     """Build all read-only gulmc data structures from input files.
 
     This extracts the preparation logic from ``manager.run()`` into a
@@ -449,6 +513,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         model_df_engine (str): engine for loading model dataframes.
         dynamic_footprint_dir (str, optional): if given and the model has a dynamic footprint, save
             its hazard there for the gulmc processes to memory-map. Defaults to None.
+        sample_size (int, optional): number of samples. Only needed, and then required, when the
+            model has a blended areaperil of more than one placement: placements are drawn here,
+            once for the run. Defaults to None.
 
     Returns:
         dict: mapping variable names to numpy arrays / scalars.
@@ -587,6 +654,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
      entry_item_areaperil_idxs) = build_item_areaperils(items, blended_areaperil_ja_offsets,
                                                         blended_areaperil_ja_areaperil_ids)
     n_item_areaperils = int(item_areaperil_ja_offsets[-1])
+    item_placement_ja_offsets, item_placement_ja_areaperil_j, placement_sample_size = build_placements(
+        input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+        blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale, sample_size)
     # an item counts once in its coverage however many areaperils it reads
     np.add.at(coverages['max_items'], items['coverage_id'], 1)
 
@@ -693,6 +763,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'blended_areaperil_placement_ja_cum_weights': blended_areaperil_placement_ja_cum_weights,
         'blended_areaperil_placement_ja_areaperil_j': blended_areaperil_placement_ja_areaperil_j,
         'blended_areaperil_placement_scale': blended_areaperil_placement_scale,
+        'item_placement_ja_offsets': item_placement_ja_offsets,
+        'item_placement_ja_areaperil_j': item_placement_ja_areaperil_j,
         'areaperil_agg_vuln_idx_ja_offsets': areaperil_agg_vuln_idx_ja_offsets,
         'areaperil_agg_vuln_idx_ja_data': areaperil_agg_vuln_idx_ja_data,
         'damage_bins': damage_bins,
@@ -714,11 +786,12 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'n_cdf_groups': n_cdf_groups,
         'n_unique_groups': n_unique_groups,
         'n_unique_haz_groups': n_unique_haz_groups,
+        'placement_sample_size': placement_sample_size,
     }
 
 
 def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
-                           dynamic_footprint, model_df_engine):
+                           dynamic_footprint, model_df_engine, sample_size=None):
     """Build and save all read-only gulmc data structures as ``.npy`` files.
 
     Args:
@@ -727,13 +800,16 @@ def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
         peril_filter (list): list of perils to include (empty = all).
         dynamic_footprint (bool): whether to apply dynamic footprint logic.
         model_df_engine (str): engine for loading model dataframes.
+        sample_size (int, optional): number of samples, required when the model has blended
+            areaperils (see ``build_structures``). Defaults to None.
     """
     structure_path = _structure_path(run_dir)
     # a footprint saved for an earlier portfolio in this run directory must not be used for this one
     shutil.rmtree(dynamic_footprint_path(run_dir), ignore_errors=True)
     structures = build_structures(run_dir, ignore_file_type, peril_filter,
                                   dynamic_footprint, model_df_engine,
-                                  dynamic_footprint_dir=dynamic_footprint_path(run_dir))
+                                  dynamic_footprint_dir=dynamic_footprint_path(run_dir),
+                                  sample_size=sample_size)
 
     os.makedirs(structure_path, exist_ok=True)
 
@@ -746,6 +822,7 @@ def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
         structures['n_cdf_groups'],
         structures['n_unique_groups'],
         structures['n_unique_haz_groups'],
+        structures['placement_sample_size'],
     ], dtype=np.int64)
     np.save(os.path.join(structure_path, 'metadata'), metadata)
 
@@ -778,5 +855,6 @@ def load_gulmc_structure(run_dir):
     result['n_cdf_groups'] = int(metadata[0])
     result['n_unique_groups'] = int(metadata[1])
     result['n_unique_haz_groups'] = int(metadata[2])
+    result['placement_sample_size'] = int(metadata[3])
 
     return result

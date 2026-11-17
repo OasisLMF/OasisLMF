@@ -384,14 +384,15 @@ def placement_scale(cumulative, weight_type):
 
 @nb.njit(cache=True)
 def select_placement(cumulative, scale, u):
-    """Position selected by uniform ``u`` in [0, 1), or ``len(cumulative)`` when unplaced.
+    """Position selected by uniform ``u`` in [0, 1], or ``len(cumulative)`` when unplaced.
 
     Unplaced happens only for float weights summing to less than 1, and means the building is
     outside every modelled position for that sample. Positions of zero weight are never selected.
     """
     x = u * scale
     if x >= scale:
-        # u just below 1 can round u * scale up to the total. Unreachable for float weights,
-        # where scale is 1.0 and u * 1.0 is exact.
+        # The Latin Hypercube generator returns values in (0, 1], so u can be exactly 1; and u just
+        # below 1 can round u * scale up to the total. Either way it belongs to the top of the
+        # range, which is the last position, or unplaced when float weights fall short of 1.
         x = np.nextafter(scale, 0.0)
     return np.searchsorted(cumulative, x, side='right')

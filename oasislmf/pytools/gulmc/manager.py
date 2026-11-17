@@ -39,6 +39,7 @@ from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, genera
                                          _lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.items import item_is_aggregate_vuln
+from oasislmf.pytools.gulmc.structure import NO_PLACEMENT_SAMPLE_SIZE
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
                                            DAMAGE_TYPE_RELATIVE,
@@ -211,6 +212,7 @@ def run(run_dir,
         # --- load or build read-only structures --------------------------------
         from oasislmf.pytools.gulmc.structure import (
             gulmc_structure_exists, load_gulmc_structure, build_structures, dynamic_footprint_path,
+            build_placements,
         )
         # the dynamic footprint's hazard is memory-mapped when create_gulmc_structure saved it
         footprint_shared_dir = None
@@ -221,7 +223,19 @@ def run(run_dir,
         else:
             logger.info("building gulmc structures from input files")
             structures = build_structures(run_dir, ignore_file_type, peril_filter,
-                                          dynamic_footprint, model_df_engine)
+                                          dynamic_footprint, model_df_engine, sample_size=sample_size)
+        if structures['placement_sample_size'] not in (NO_PLACEMENT_SAMPLE_SIZE, sample_size):
+            # placements are drawn per sample when the structure is built; a run with another
+            # sample size redraws them rather than read past, or short of, each item's run
+            logger.info(f"redrawing placements for {sample_size} samples "
+                        f"(the structure drew them for {structures['placement_sample_size']})")
+            (structures['item_placement_ja_offsets'], structures['item_placement_ja_areaperil_j'],
+             structures['placement_sample_size']) = build_placements(
+                os.path.join(run_dir, 'input'), structures['items'],
+                structures['blended_areaperil_placement_ja_offsets'],
+                structures['blended_areaperil_placement_ja_cum_weights'],
+                structures['blended_areaperil_placement_ja_areaperil_j'],
+                structures['blended_areaperil_placement_scale'], sample_size)
 
         items = structures['items']
         # coverages needs a writable copy: reconstruct_coverages writes cur_items / start_items per event
