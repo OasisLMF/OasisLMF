@@ -39,6 +39,7 @@ from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, genera
                                          _lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.items import item_is_aggregate_vuln
+from oasislmf.pytools.common.blended_areaperil import mix_effective_damage_cdfs
 from oasislmf.pytools.gulmc.structure import NO_PLACEMENT_SAMPLE_SIZE
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
@@ -1424,6 +1425,8 @@ def compute_event_losses(compute_info,
     haz_cdf_buf = np.empty(max_haz_bins, dtype=oasis_float)
     haz_i_to_Ndamage_bins_buf = np.empty(max_haz_bins, dtype=oasis_int)
     haz_i_to_vuln_cdf_buf = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
+    # the effective damage cdf of a blended item: its areaperils mixed by probability
+    mixed_eff_damage_cdf = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
     # an item of a single placement reads areaperil 0 in every sample
     areaperil_j_single = np.zeros(max(sample_size, 1), dtype=item_placement_ja_areaperil_j.dtype)
     # the source's damage pmf plays the role of the hazard pdf for a dependent
@@ -1489,16 +1492,11 @@ def compute_event_losses(compute_info,
                 for k in range(HERMITE_TERMS):
                     hermite_coeffs[k] = 0.
 
-            # --- resolve each item areaperil: its hazard and CDFs, and its share of the analytic values.
-            # An areaperil is dead when it has no hazard this event, or (dynamic footprint) when the
-            # event's return period there is within the item's protection. Dead areaperils and
-            # uncovered placements carry no loss: they enter the mixture as missing probability.
+            # --- resolve each item areaperil: its hazard and CDFs. An areaperil is dead when it has
+            # no hazard this event, or (dynamic footprint) when the event's return period there is
+            # within the item's protection. Dead areaperils and uncovered placements carry no loss.
             n_live = 0
             haz_used = 0
-            mix_mean = 0.
-            mix_second_moment = 0.
-            mix_chance_of_loss = 0.
-            mix_max_loss = 0.
             for areaperil_j in range(n_areaperils):
                 item_areaperil_idx = item_areaperil_start + areaperil_j
                 areaperil_j_live[areaperil_j] = False
@@ -1578,21 +1576,17 @@ def compute_event_losses(compute_info,
                 haz_used += Nhaz_bins
                 n_live += 1
 
-                # compute mean loss values
-                gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                    damage_bin_scaling,
-                    eff_damage_cdf,
-                    damage_bins['interpolation'],
-                    Neff_damage_bins,
-                    damage_bins[Neff_damage_bins - 1]['bin_to'],
-                )
-                # the probability the building stands on this areaperil; 1 for an item of one
-                # areaperil, whose values are then used as they are
+                if n_areaperils == 1:
+                    # compute mean loss values; a blended item's come from its mixed cdf, below
+                    gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
+                        damage_bin_scaling,
+                        eff_damage_cdf,
+                        damage_bins['interpolation'],
+                        Neff_damage_bins,
+                        damage_bins[Neff_damage_bins - 1]['bin_to'],
+                    )
+                # the probability the building stands on this areaperil, 1 for an item of one
                 p_areaperil = 1. if n_areaperils == 1 else blended_areaperil_ja_probabilities[blended_start + areaperil_j]
-                mix_mean += p_areaperil * gul_mean
-                mix_second_moment += p_areaperil * (std_dev * std_dev + gul_mean * gul_mean)
-                mix_chance_of_loss += p_areaperil * chance_of_loss
-                mix_max_loss = max(mix_max_loss, max_loss)
 
                 # Only a SUMMED item reports the spread of a sum, and only then does the correlation
                 # between two buildings' losses matter. Everything else keeps 0 and pays nothing.
@@ -1638,12 +1632,21 @@ def compute_event_losses(compute_info,
                     source_eff_damage_cdf_len_stack[depth, item_j] = 1
                 continue
 
-            # one areaperil keeps its own values exactly as they came, not a mixture of one
             if n_areaperils > 1:
-                gul_mean = mix_mean
-                std_dev = np.sqrt(max(mix_second_moment - mix_mean * mix_mean, 0.))
-                chance_of_loss = mix_chance_of_loss
-                max_loss = mix_max_loss
+                # a blended item's analytic values are those of its marginal: the areaperils'
+                # effective cdfs mixed by probability, the mass no live areaperil carries on bin 0.
+                # This is the cdf getmodel streams to gulpy for the same item.
+                n_mixed = mix_effective_damage_cdfs(
+                    areaperil_j_to_eff_damage_cdf[:n_areaperils], areaperil_j_to_Neff_damage_bins[:n_areaperils],
+                    blended_areaperil_ja_probabilities[blended_start:blended_start + n_areaperils],
+                    areaperil_j_live[:n_areaperils], mixed_eff_damage_cdf)
+                gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
+                    compute_damage_bin_scaling(damage_bins, n_mixed, tiv),
+                    mixed_eff_damage_cdf[:n_mixed],
+                    damage_bins['interpolation'],
+                    n_mixed,
+                    damage_bins[n_mixed - 1]['bin_to'],
+                )
 
             losses[MAX_LOSS_IDX, item_j] = max_loss
             losses[CHANCE_OF_LOSS_IDX, item_j] = chance_of_loss
@@ -1735,29 +1738,15 @@ def compute_event_losses(compute_info,
                                        is_dependent, src_bin_out, parent_bins)
 
             # effective damageability: record the eff-damage CDF instead, for a dependent below
-            # to build its damage pmf from. A blended source records its mixture: each live
-            # areaperil weighted by its probability, the rest of the mass on damage bin 0.
+            # to build its damage pmf from; a blended source records its mixed cdf
             if has_dependents_below:
                 if n_areaperils == 1:
                     num_damage_bins = areaperil_j_to_Neff_damage_bins[0]
                     source_eff_damage_cdf_stack[depth, item_j, :num_damage_bins] = \
                         areaperil_j_to_eff_damage_cdf[0, :num_damage_bins]
                 else:
-                    num_damage_bins = areaperil_j_to_Neff_damage_bins[:n_areaperils].max()
-                    live_probability = 0.
-                    for k in range(num_damage_bins):
-                        source_eff_damage_cdf_stack[depth, item_j, k] = 0.
-                    for areaperil_j in range(n_areaperils):
-                        if not areaperil_j_live[areaperil_j]:
-                            continue
-                        p_areaperil = blended_areaperil_ja_probabilities[blended_start + areaperil_j]
-                        live_probability += p_areaperil
-                        n_j = areaperil_j_to_Neff_damage_bins[areaperil_j]
-                        for k in range(num_damage_bins):
-                            source_eff_damage_cdf_stack[depth, item_j, k] += \
-                                p_areaperil * areaperil_j_to_eff_damage_cdf[areaperil_j, min(k, n_j - 1)]
-                    for k in range(num_damage_bins):
-                        source_eff_damage_cdf_stack[depth, item_j, k] += 1. - live_probability
+                    num_damage_bins = n_mixed
+                    source_eff_damage_cdf_stack[depth, item_j, :num_damage_bins] = mixed_eff_damage_cdf[:num_damage_bins]
                 source_eff_damage_cdf_len_stack[depth, item_j] = num_damage_bins
 
         # write the losses to the output memoryview. A zero-TIV coverage (an uninsured dependency
