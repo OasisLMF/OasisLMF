@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import time
+import warnings
 
 import numpy as np
 import psutil
@@ -28,6 +29,7 @@ CRASH_EVENT = 17
 HANG_EVENT = 2
 FM_RAISE_EVENT = 22
 TIMEOUT = 120
+STDERR_EVENT = 5
 
 
 class RaisingGul(FakeGul):
@@ -47,6 +49,26 @@ class CrashingGul(FakeGul):
             sys.stderr.write('about to crash\n')
             sys.stderr.flush()
             os._exit(3)
+        super().process_event(event_id, out)
+
+
+class StderrGul(FakeGul):
+    """Writes an error line to stderr on STDERR_EVENT and carries on."""
+
+    def process_event(self, event_id, out):
+        if event_id == STDERR_EVENT:
+            sys.stderr.write('ERROR: something went wrong\n')
+            sys.stderr.flush()
+        super().process_event(event_id, out)
+
+
+class WarningGul(FakeGul):
+    """Issues a Python warning on STDERR_EVENT, which the stderr guard ignores."""
+
+    def process_event(self, event_id, out):
+        if event_id == STDERR_EVENT:
+            warnings.warn('this is only a warning', UserWarning)
+            sys.stderr.flush()
         super().process_event(event_id, out)
 
 
@@ -273,6 +295,40 @@ def test_pool_worker_crash_reports_chunk_exit_code_and_stderr(tmp_path, run_dir)
     assert descendants() == []
 
 
+def test_stderr_errors_ignores_blank_lines_and_python_warnings():
+    text = ('\n   \n/x/y.py:12: UserWarning: careful\n  warnings.warn("careful")\n'
+            '/x/z.py:3: NumbaPerformanceWarning: slow\nTraceback (most recent call last):\nERROR here\n')
+    assert pool.stderr_errors(text) == ['Traceback (most recent call last):', 'ERROR here']
+    assert pool.stderr_errors('') == []
+
+
+def test_pool_stderr_guard_fails_on_an_error_line(tmp_path, run_dir):
+    chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 3)
+    factories = {'gul': f'{THIS}:StderrGul', 'fm': FAKE_FACTORIES['fm']}
+    with pytest.raises(pool.WorkerError) as info:
+        run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2, factories=factories, stderr_guard=True,
+                 log_dir=str(tmp_path / 'log'))
+    assert 'wrote to stderr: ERROR: something went wrong' in str(info.value)
+    assert 'ERROR: something went wrong' in info.value.stderr_tail
+    assert descendants() == []
+    logs = sorted(os.listdir(tmp_path / 'log'))
+    assert 'orchestrator_worker_0.err' in logs and 'orchestrator_worker_0.log' in logs
+
+    stats = run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out2', TAPS, 2, factories=factories, stderr_guard=False)
+    check_fake_outputs(tmp_path / 'out2', chunks)
+    assert stats['events'] == 30
+
+
+def test_pool_stderr_guard_ignores_warnings(tmp_path, run_dir):
+    chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 3)
+    log_dir = tmp_path / 'log'
+    run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2, stderr_guard=True, log_dir=str(log_dir),
+             factories={'gul': f'{THIS}:WarningGul', 'fm': FAKE_FACTORIES['fm']})
+    check_fake_outputs(tmp_path / 'out', chunks)
+    stderr = ''.join(p.read_text() for p in log_dir.glob('orchestrator_worker_*.err'))
+    assert 'UserWarning: this is only a warning' in stderr
+
+
 def test_pool_failure_terminates_hanging_workers_and_their_children(tmp_path, run_dir):
     chunks = [np.array([1, HANG_EVENT, 3], dtype=np.int32), np.array([4, RAISE_EVENT], dtype=np.int32)]
     t_start = time.monotonic()
@@ -395,4 +451,5 @@ def test_pool_progress_messages_count_every_event_once(tmp_path, run_dir):
     assert calls[-1] == (30, 30)
     assert [d for d, _ in calls] == sorted(d for d, _ in calls)
     assert len(calls) > len(chunks)
-    assert sorted(os.listdir(tmp_path / 'logs')) == [f'orchestrator_worker_{w["worker"]}.log' for w in stats['workers']]
+    assert sorted(os.listdir(tmp_path / 'logs')) == sorted(f'orchestrator_worker_{w["worker"]}.{ext}'
+                                                           for w in stats['workers'] for ext in ('err', 'log'))

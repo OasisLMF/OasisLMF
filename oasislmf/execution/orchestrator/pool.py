@@ -17,6 +17,10 @@ next one.
 Any failure stops the run: a worker that reports an exception, exits or closes its connection before it was told
 to stop. The remaining workers are terminated with their process trees and ``WorkerError`` is raised, naming the
 stage, chunk and event when known, or the output job (tool and output files), with the tail of the worker's stderr.
+
+With ``stderr_guard`` a worker that writes anything but Python warnings to its stderr also fails the run, as bash's
+stderr guard (``oasis_exec_monitor.sh`` and the chunk script's last check) fails a script whose ``stderror.err`` has
+such lines: the workers' stderr files are checked every ``STDERR_POLL_INTERVAL`` seconds and once more at the end.
 """
 import collections
 import dataclasses
@@ -24,6 +28,7 @@ import json
 import logging
 import os
 import queue
+import re
 import subprocess
 import sys
 import tempfile
@@ -46,6 +51,17 @@ POLL_INTERVAL = 0.1
 KILL_GRACE = 5.0
 STDERR_TAIL_LINES = 40
 STOP_TIMEOUT = 30.0
+STDERR_POLL_INTERVAL = 2.0
+STDERR_IGNORED = re.compile(r'(^\s*$|.+:[0-9]+: [A-Za-z]+Warning:|^\s+warnings\.warn)')
+
+
+def stderr_errors(text):
+    """The lines of ``text`` bash's stderr guard counts as errors.
+
+    Every line but blank ones, Python warning headers (``<file>:<line>: <Category>Warning:``) and indented
+    ``warnings.warn`` source lines, the pattern ``oasis_exec_monitor.sh`` and the chunk script give ``grep -v``.
+    """
+    return [line for line in text.splitlines() if not STDERR_IGNORED.search(line)]
 
 
 class WorkerError(RuntimeError):
@@ -147,6 +163,7 @@ class Worker:
     number: int
     popen: subprocess.Popen
     log_path: str
+    err_path: str
     t_spawn: float
     conn: object = None
     pid: int = None
@@ -164,6 +181,7 @@ class Worker:
     t_stop: float = None
     killed: bool = False
     log_file: object = None
+    err_file: object = None
     jobs_only: bool = False
 
 
@@ -179,7 +197,8 @@ class WorkerPool:
     """
 
     def __init__(self, spec, chunks, out_dir, taps, factories=None, policy=None, progress=None, python=None, env=None,
-                 kill_grace=KILL_GRACE, output_jobs=None, job_workers=0, chunk_numbers=None, log_dir=None, progress_interval=None):
+                 kill_grace=KILL_GRACE, output_jobs=None, job_workers=0, chunk_numbers=None, log_dir=None, progress_interval=None,
+                 stderr_guard=False):
         """Open the listener; no worker is started yet.
 
         Args:
@@ -203,9 +222,11 @@ class WorkerPool:
             chunk_numbers (Sequence[int], optional): the 1-based numbers of the chunks to run, all by default. The others
                 are not run and write nothing (a distributed run hands each chunk to a different machine).
             log_dir (str, optional): directory the workers' stdout and stderr are written to, as
-                ``orchestrator_worker_<n>.log``, and kept; by default a temporary directory removed by ``close``.
+                ``orchestrator_worker_<n>.log`` and ``orchestrator_worker_<n>.err``, and kept; by default a temporary
+                directory removed by ``close``.
             progress_interval (float, optional): workers report the events done in their current chunk at most every
                 this many seconds, and ``progress`` is called with them; by default they report whole chunks only.
+            stderr_guard (bool): fail the run when a worker writes to its stderr anything ``stderr_errors`` keeps.
         """
         if factories is not None:
             not_strings = sorted(key for key, value in factories.items() if not isinstance(value, str))
@@ -231,6 +252,8 @@ class WorkerPool:
         if unknown or len(set(self.chunk_numbers)) != len(self.chunk_numbers):
             raise ValueError(f'chunk_numbers must be distinct chunk numbers in 1..{len(self.chunks)}, got {self.chunk_numbers}')
         self.progress_interval = progress_interval
+        self.stderr_guard = stderr_guard
+        self._t_stderr_check = time.perf_counter()
         self.pending = collections.deque(self.chunk_numbers)
         self.chunk_stats = {}
         self.pending_jobs = collections.deque(range(len(self.output_jobs)))
@@ -302,20 +325,27 @@ class WorkerPool:
         """
         number = len(self.workers)
         log_path = os.path.join(self.log_dir, f'orchestrator_worker_{number}.log')
+        err_path = os.path.join(self.log_dir, f'orchestrator_worker_{number}.err')
         log_file = open(log_path, 'wb')
+        try:
+            err_file = open(err_path, 'wb')
+        except BaseException:
+            log_file.close()
+            raise
         config = {
             'address': list(self._listener.address), 'authkey': self._authkey.hex(), 'worker': number,
             'spec': self.spec.to_dict(), 'factories': self.factories, 'out_dir': self.out_dir, 'taps': self.taps,
             'sys_path': [p for p in sys.path if p], 'jobs_only': jobs_only, 'progress_interval': self.progress_interval,
         }
         try:
-            popen = subprocess.Popen([self.python, '-m', WORKER_MODULE], stdin=subprocess.PIPE, stdout=log_file, stderr=log_file,
+            popen = subprocess.Popen([self.python, '-m', WORKER_MODULE], stdin=subprocess.PIPE, stdout=log_file, stderr=err_file,
                                      cwd=self.spec.run_dir, env=self._worker_env())
         except BaseException:
             log_file.close()
+            err_file.close()
             raise
-        worker = Worker(number=number, popen=popen, log_path=log_path, t_spawn=time.perf_counter(), log_file=log_file,
-                        jobs_only=jobs_only)
+        worker = Worker(number=number, popen=popen, log_path=log_path, err_path=err_path, t_spawn=time.perf_counter(),
+                        log_file=log_file, err_file=err_file, jobs_only=jobs_only)
         self.workers.append(worker)
         try:
             popen.stdin.write(json.dumps(config).encode())
@@ -353,7 +383,7 @@ class WorkerPool:
             job = worker.job
         label = job_label(self.output_jobs[job]) if job is not None else None
         returncode = worker.popen.poll()
-        stderr_tail = _tail(worker.log_path)
+        stderr_tail = _tail(worker.err_path)
         where = [f'stage {stage}' if stage else None, f'chunk {chunk}' if chunk is not None else None,
                  f'event {event}' if event is not None else None, f'output job {label}' if label else None]
         where = ', '.join(w for w in where if w)
@@ -493,6 +523,28 @@ class WorkerPool:
                 self._drain(worker)
                 raise self._fail(worker, 'exited before it was told to stop')
 
+    def _check_stderr(self, force=False):
+        """With ``stderr_guard``, raise ``WorkerError`` for the first worker whose stderr has an error line.
+
+        Checked at most every ``STDERR_POLL_INTERVAL`` seconds unless ``force``.
+        """
+        if not self.stderr_guard:
+            return
+        now = time.perf_counter()
+        if not force and now - self._t_stderr_check < STDERR_POLL_INTERVAL:
+            return
+        self._t_stderr_check = now
+        for worker in self.workers:
+            try:
+                if os.path.getsize(worker.err_path) == 0:
+                    continue
+                with open(worker.err_path, 'rb') as f:
+                    errors = stderr_errors(f.read().decode(errors='replace'))
+            except OSError:
+                continue
+            if errors:
+                raise self._fail(worker, 'wrote to stderr', {'error': errors[0]})
+
     def _drain(self, worker):
         """Handle what a worker sent before it exited, so that a reported error is raised with its details."""
         if worker.conn is None:
@@ -553,6 +605,7 @@ class WorkerPool:
                 if not conns:
                     time.sleep(POLL_INTERVAL)
                 self._check_exits()
+                self._check_stderr()
                 work_left = (self.pending or not self.chunks_done or self.pending_jobs
                              or len(self.job_stats) < len(self.output_jobs))
                 if not any(not w.stopped for w in self.workers) and work_left:
@@ -562,6 +615,7 @@ class WorkerPool:
                         self.terminate()
                         raise WorkerError(f'every worker was stopped with {len(self.pending)} chunks left and '
                                           f'{len(self.pending_jobs)} output jobs left')
+            self._check_stderr(force=True)
         except BaseException:
             self.terminate()
             raise
@@ -608,6 +662,7 @@ class WorkerPool:
             if worker.popen.stdin is not None and not worker.popen.stdin.closed:
                 worker.popen.stdin.close()
             worker.log_file.close()
+            worker.err_file.close()
         if self._tmp_log_dir is not None:
             self._tmp_log_dir.cleanup()
 
@@ -635,8 +690,8 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
         taps (Iterable[str]): taps to write.
         n_workers (int): maximum number of workers.
         **options: ``factories`` (``{'gul'|'fm'|'summary'|'elt'|'plt': 'package.module:attribute'}``), ``policy``, ``progress``,
-            ``python``, ``env``, ``kill_grace``, ``output_jobs`` (Sequence[OutputJob | dict]), ``chunk_numbers``, ``log_dir``
-            and ``progress_interval``, see ``WorkerPool``; other options are ignored.
+            ``python``, ``env``, ``kill_grace``, ``output_jobs`` (Sequence[OutputJob | dict]), ``chunk_numbers``, ``log_dir``,
+            ``progress_interval`` and ``stderr_guard``, see ``WorkerPool``; other options are ignored.
 
     Returns:
         dict: statistics: ``executor`` ('pool'), ``n_workers``, ``wall_seconds``, ``setup_seconds`` (the longest time
@@ -662,7 +717,7 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     n = min(n_workers, len(chunks) if chunk_numbers is None else len(chunk_numbers))
     prepare_output_dirs(output_jobs, spec.run_dir)
     pool_options = {key: options[key] for key in ('factories', 'policy', 'progress', 'python', 'env', 'kill_grace', 'chunk_numbers',
-                                                  'log_dir', 'progress_interval') if key in options}
+                                                  'log_dir', 'progress_interval', 'stderr_guard') if key in options}
     pool_options['output_jobs'] = output_jobs
     pool_options['job_workers'] = min(n_workers, max(n, len(output_jobs)))
     with WorkerPool(spec, chunks, out_dir, taps, **pool_options) as pool:

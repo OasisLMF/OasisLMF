@@ -110,6 +110,73 @@ def test_run_plan_failure_is_a_called_process_error_with_the_logs(tmp_path, run_
     assert descendants() == []
 
 
+class FakeExecutor:
+    """Stands in for the pool: writes what its workers would have written to stderr and the chunk files."""
+
+    def __init__(self, stderr=(), files=(), error=None):
+        self.stderr = stderr
+        self.files = files
+        self.error = error
+        self.options = None
+
+    def run_chunks(self, spec, chunks, out_dir, taps, n_workers, **options):
+        self.options = options
+        for n, text in enumerate(self.stderr):
+            with open(os.path.join(options['log_dir'], f'orchestrator_worker_{n}.err'), 'w') as f:
+                f.write(text)
+        for path, content in self.files:
+            path = os.path.join(spec.run_dir, path)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'wb') as f:
+                f.write(content)
+        if self.error is not None:
+            raise self.error
+        return {'chunks': [], 'jobs': []}
+
+
+def run_fake(run_dir, monkeypatch, executor, params, mode='analysis', process_number=None):
+    np.arange(1, 5, dtype=np.int32).tofile(run_dir / 'input' / 'events.bin')
+    monkeypatch.setitem(kernel.EXECUTORS, 'pool', executor)
+    params = {'work_dir': 'work/', 'work_kat_dir': 'work/kat/', 'output_dir': 'output/', **params}
+    return kernel.run_plan(fake_plan(run_dir, process_number=process_number), params, mode, 'log', 'run_kernel.sh')
+
+
+def test_run_plan_stderr_guard_appends_worker_stderr(run_dir, monkeypatch):
+    executor = FakeExecutor(stderr=['/a.py:1: UserWarning: w\n', '', 'x.py:2: FutureWarning: f\n'])
+    run_fake(run_dir, monkeypatch, executor, {})
+    assert executor.options['stderr_guard'] is True
+    assert (run_dir / 'log' / 'stderror.err').read_text() == '/a.py:1: UserWarning: w\nx.py:2: FutureWarning: f\n'
+
+
+def test_run_plan_stderr_guard_off(run_dir, monkeypatch):
+    executor = FakeExecutor(stderr=['ERROR\n'], files=[('1.work/gul_S1_summary/P1.bin', b'')])
+    run_fake(run_dir, monkeypatch, executor, {'stderr_guard': False, 'process_number': 1}, process_number=1)
+    assert executor.options['stderr_guard'] is False
+    assert (run_dir / 'log' / 'stderror.err').read_text() == ''
+
+
+def test_run_plan_failure_keeps_worker_stderr_before_the_failure(run_dir, monkeypatch):
+    executor = FakeExecutor(stderr=['Traceback\nERROR\n'], error=RuntimeError('pool worker 0 wrote to stderr: Traceback'))
+    with pytest.raises(subprocess.CalledProcessError) as info:
+        run_fake(run_dir, monkeypatch, executor, {'stderr_guard': True})
+    assert info.value.returncode == 1
+    text = (run_dir / 'log' / 'stderror.err').read_text()
+    assert text.startswith('Traceback\nERROR\norchestrator analysis failed')
+    assert 'wrote to stderr' in text
+
+
+def test_run_plan_chunk_fails_on_an_empty_chunk_file(run_dir, monkeypatch):
+    files = [('2.work/gul_S1_summary/P2.bin', b'header'), ('2.work/il_S1_summary/P2.bin', b''), ('2.work/kat/x_P2', b'')]
+    with pytest.raises(subprocess.CalledProcessError) as info:
+        run_fake(run_dir, monkeypatch, FakeExecutor(files=files), {'process_number': 2, 'work_dir': '2.work/'}, process_number=2)
+    expected = "Chunk output error: File '" + os.path.join('2.work', 'il_S1_summary', 'P2.bin') + "' is empty"
+    assert expected.encode() in info.value.output
+    assert expected in (run_dir / 'log' / 'stderror.err').read_text()
+
+    files[1] = ('2.work/il_S1_summary/P2.bin', b'header')
+    run_fake(run_dir, monkeypatch, FakeExecutor(files=files), {'process_number': 2, 'work_dir': '2.work/'}, process_number=2)
+
+
 def test_run_plan_rejects_unknown_mode_and_executor(run_dir):
     with pytest.raises(ValueError, match='mode'):
         kernel.run_plan(fake_plan(run_dir), {}, 'everything', 'log', 'x.sh')

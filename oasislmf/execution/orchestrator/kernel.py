@@ -19,10 +19,17 @@ pytools logs of the output jobs (``OASIS_PYTOOLS_LOG_DIR``) to ``<log_dir>``, an
 script's stdout, to ``<log_dir>/orchestrator.log``. A failure is appended to ``<log_dir>/stderror.err``, where the
 script's error trap writes, and raised as ``subprocess.CalledProcessError`` as a failed script is.
 
+bash's stderr guard (``stderr_guard`` in bash_params, off with ``kernel_disable_guard``) is mirrored with the pool
+executor: the workers' stderr (``orchestrator_worker_<n>.err``) is appended to ``stderror.err`` as the guarded
+commands' ``2>> $LOG_DIR/stderror.err`` appends theirs, and a line that is not a Python warning fails the run
+(``pool.stderr_errors``). A distributed chunk also fails, as its script does, when one of its ``P<k>.bin`` work files
+is empty. The inline executor runs in this process and has no stderr of its own to check.
+
 Progress is reported while the chunks run as ``gulmc --socket-server`` reports it in the script: pings to the platform
 when bash_params has an ``analysis_pk``, else the local progress bar (``progress.ProgressReporter``).
 """
 import fnmatch
+import glob
 import os
 import shutil
 import subprocess
@@ -83,6 +90,26 @@ def _worker_env(log_dir, log_level):
     return env
 
 
+def append_worker_stderr(log_dir):
+    """Append the workers' stderr files to ``<log_dir>/stderror.err``, in worker order."""
+    paths = sorted(glob.glob(os.path.join(log_dir, 'orchestrator_worker_*.err')),
+                   key=lambda path: int(os.path.basename(path).split('_')[-1].split('.')[0]))
+    with open(os.path.join(log_dir, STDERR_LOG), 'ab') as out:
+        for path in paths:
+            with open(path, 'rb') as f:
+                shutil.copyfileobj(f, out)
+
+
+def empty_chunk_outputs(run_dir, process_number):
+    """The empty ``P<k>.bin`` files under ``<k>.work``, the files the chunk script requires to be non-empty."""
+    name = f'P{process_number}.bin'
+    empty = []
+    for root, _dirs, files in os.walk(os.path.join(run_dir, f'{process_number}.work')):
+        if name in files and os.path.getsize(os.path.join(root, name)) == 0:
+            empty.append(os.path.relpath(os.path.join(root, name), run_dir))
+    return sorted(empty)
+
+
 def _run_log(plan, mode, stats, chunk_numbers, n_workers, error=None):
     """The lines of the run log."""
     lines = [f'orchestrator: {mode}, executor {stats.get("executor", "pool") if stats else "pool"}, {n_workers} workers, '
@@ -100,6 +127,16 @@ def _run_log(plan, mode, stats, chunk_numbers, n_workers, error=None):
     return '\n'.join(lines) + '\n'
 
 
+def _failure(plan, mode, stats, chunk_numbers, n_workers, message, log_dir, script, t_start):
+    """Write a failed run's run log and ``stderror.err`` line; the ``CalledProcessError`` to raise."""
+    text = _run_log(plan, mode, stats, chunk_numbers, n_workers, error=message)
+    with open(os.path.join(log_dir, RUN_LOG), 'w') as f:
+        f.write(text)
+    with open(os.path.join(log_dir, STDERR_LOG), 'a') as f:
+        f.write(f'orchestrator {mode} failed after {time.perf_counter() - t_start:.2f} s\n{message}\n')
+    return subprocess.CalledProcessError(1, command(mode, script), output=text.encode('utf-8'))
+
+
 def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_workers=None, progress_interval=SERVER_UPDATE_TIME,
              monitor=None):
     """Run one kernel step of a plan, with the side effects its bash script has.
@@ -108,7 +145,8 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
         plan (Plan): from ``plan_from_bash_params(bash_params)``; its ``spec.run_dir`` is the directory the script
             would run in, and relative paths are taken in it.
         bash_params (dict): the dict the plan was made from; ``work_dir``, ``work_kat_dir``, ``output_dir``,
-            ``remove_working_files``, ``analysis_pk``, ``socket_server_size`` and ``log_level`` are read.
+            ``remove_working_files``, ``analysis_pk``, ``socket_server_size``, ``log_level``, ``stderr_guard`` and
+            ``process_number`` are read.
         mode (str): ``all``, ``analysis`` or ``outputs`` (see the module docstring).
         log_dir (str): the step's log directory (``log``, ``log/<process_number>`` or ``log/out``), relative to the
             run directory or absolute.
@@ -146,6 +184,7 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
         empty_dir(work_dir)
         os.makedirs(_resolve(run_dir, bash_params.get('work_kat_dir', 'work/kat/')), exist_ok=True)
 
+    stderr_guard = bool(bash_params.get('stderr_guard', True))
     chunks = plan.make_chunks(read_events(os.path.join(run_dir, EVENTS_FILE))) if run_chunks else []
     options = {
         'output_jobs': plan.output_jobs if run_outputs else [],
@@ -153,6 +192,7 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
         'env': _worker_env(log_dir, bash_params.get('log_level')),
         'log_dir': log_dir,
         'progress_interval': progress_interval,
+        'stderr_guard': stderr_guard,
     }
     run_log_path = os.path.join(log_dir, RUN_LOG)
     analysis_pk = bash_params.get('analysis_pk')
@@ -165,16 +205,22 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
             options['progress'] = lambda done, _total: reporter.update(done)
             stats = EXECUTORS[executor].run_chunks(plan.spec, chunks, log_dir, [], max(n_workers, 1), **options)
     except Exception as exc:
-        message = f'{type(exc).__name__}: {exc}'
-        text = _run_log(plan, mode, None, chunk_numbers, n_workers, error=message)
-        with open(run_log_path, 'w') as f:
-            f.write(text)
-        with open(os.path.join(log_dir, STDERR_LOG), 'a') as f:
-            f.write(f'orchestrator {mode} failed after {time.perf_counter() - t_start:.2f} s\n{message}\n')
-        raise subprocess.CalledProcessError(1, command(mode, script), output=text.encode('utf-8')) from exc
+        if stderr_guard:
+            append_worker_stderr(log_dir)
+        raise _failure(plan, mode, None, chunk_numbers, n_workers, f'{type(exc).__name__}: {exc}', log_dir, script,
+                       t_start) from exc
     finally:
         if monitor is not None:
             monitor.stop()
+
+    if stderr_guard:
+        append_worker_stderr(log_dir)
+        process_number = bash_params.get('process_number')
+        if mode == 'analysis' and process_number:
+            empty = empty_chunk_outputs(run_dir, process_number)
+            if empty:
+                raise _failure(plan, mode, stats, chunk_numbers, n_workers, f"Chunk output error: File '{empty[0]}' is empty",
+                               log_dir, script, t_start)
 
     if run_outputs and bash_params.get('remove_working_files'):
         empty_dir(work_dir, create=False)
