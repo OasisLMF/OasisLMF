@@ -370,8 +370,16 @@ def placement_cumulative(weights, weight_type):
         1.0 for float weights, so a sum below 1 leaves samples unplaced; the total otherwise.
     """
     cumulative = np.cumsum(weights, dtype=np.float64)
-    scale = 1.0 if weight_type == WEIGHT_FLOAT else float(cumulative[-1])
-    return cumulative, scale
+    return cumulative, placement_scale(cumulative, weight_type)
+
+
+def placement_scale(cumulative, weight_type):
+    """What the placement uniform is multiplied by: 1.0 for float weights, the total otherwise.
+
+    Float weights keep 1.0 even when they sum below 1, so the shortfall leaves samples unplaced;
+    scaling by their total would silently normalise it away.
+    """
+    return 1.0 if weight_type == WEIGHT_FLOAT else float(cumulative[-1])
 
 
 @nb.njit(cache=True)

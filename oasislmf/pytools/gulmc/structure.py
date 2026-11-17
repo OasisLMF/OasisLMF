@@ -18,6 +18,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import (building_count_dtype, load_as_ndarray, oasis_int, oasis_float)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
+from oasislmf.pytools.common.blended_areaperil import read_blended_areaperil
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
 from oasislmf.pytools.gul.structure import coverage_building_counts
 from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
@@ -572,12 +573,16 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     items.sort(order=['areaperil_id', 'vulnerability_id'])
 
     # --- blended areaperils and item areaperils -----------------------------------
-    # Every item reads its hazard through a blended areaperil; without a blend table each is
-    # the size-1 case, so every item has K = 1 item areaperil.
+    # Every item reads its hazard through a blended areaperil: the ids listed in the model's blend
+    # table carry their placements, and every other id is the size-1 case (K = 1).
+    blend = read_blended_areaperil(model_storage, ignore_file_type)
+    if blend is not None and dynamic_footprint:
+        # FootprintParquetDynamic takes its areaperils from keys.csv, which holds blended ids
+        raise OasisException("blended areaperils are not supported with a dynamic footprint yet")
     (items['blended_areaperil_idx'],
      blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_ja_probabilities,
      blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale) = build_blended_areaperils(items)
+     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale) = build_blended_areaperils(items, blend)
     (item_areaperil_ja_offsets, entry_areaperil_ids, entry_vuln_ids, entry_item_idxs,
      entry_item_areaperil_idxs) = build_item_areaperils(items, blended_areaperil_ja_offsets,
                                                         blended_areaperil_ja_areaperil_ids)

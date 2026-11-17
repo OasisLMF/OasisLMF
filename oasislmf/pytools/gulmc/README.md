@@ -104,10 +104,16 @@ item's areaperil, of which an item can have several. See [Item areaperils](#item
 ### Item areaperils
 
 An item's `areaperil_id` names a **blended areaperil**: weighted placements, each read through
-one footprint areaperil. A base areaperil is the size-1 case, one placement of weight 1 read
-through the id itself, and without a blend table every item has exactly that. The item reads
-one **item areaperil** per distinct footprint areaperil of its blended areaperil;
-`item_areaperil_ja_offsets[item_idx] + j` is its j-th.
+one footprint areaperil. Ids listed in the model's `blended_areaperil_id` table (see
+`pytools/common/blended_areaperil.py`) take their placements from it. Every other id is a base
+areaperil, the size-1 case: one placement of weight 1, read through the id itself. The item reads
+one **item areaperil** per distinct non-zero footprint areaperil of its blended areaperil, in
+order of first placement; `item_areaperil_ja_offsets[item_idx] + j` is its j-th. A blended
+areaperil whose placements are all `areaperil_id = 0` has none, and its items never produce a
+loss.
+
+Per-sample placement is not implemented yet, so `run()` refuses a model with any blended
+areaperil of more than one placement rather than read only the first.
 
 | Array | Indexed by | Holds |
 |---|---|---|

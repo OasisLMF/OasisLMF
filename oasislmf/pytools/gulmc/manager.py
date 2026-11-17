@@ -234,6 +234,7 @@ def run(run_dir,
         item_areaperil_ja_offsets = structures['item_areaperil_ja_offsets']
         item_areaperil_ja_cdf_group_idxs = structures['item_areaperil_ja_cdf_group_idxs']
         item_areaperil_ja_areaperil_agg_vuln_idxs = structures['item_areaperil_ja_areaperil_agg_vuln_idxs']
+        blended_areaperil_placement_ja_offsets = structures['blended_areaperil_placement_ja_offsets']
         n_cdf_groups = structures['n_cdf_groups']
         areaperil_agg_vuln_idx_ja_offsets = structures['areaperil_agg_vuln_idx_ja_offsets']
         areaperil_agg_vuln_idx_ja_data = structures['areaperil_agg_vuln_idx_ja_data']
@@ -255,6 +256,14 @@ def run(run_dir,
         n_unique_groups = structures['n_unique_groups']
         n_unique_haz_groups = structures['n_unique_haz_groups']
         del structures
+
+        # The loop reads each item's first item areaperil only. A blended areaperil with several
+        # placements needs the per-sample placement draw, which is not implemented yet: refuse it
+        # rather than compute every sample as if the building stood at the first placement.
+        if np.diff(blended_areaperil_placement_ja_offsets).max(initial=1) > 1:
+            raise OasisException(
+                "this model has blended areaperils (blended_areaperil_id in the model data), which gulmc "
+                "cannot compute yet: per-sample placement is not implemented")
 
         do_coverage_dependency = bool(coverage_dependents_ja_data.shape[0] > 0)
 
