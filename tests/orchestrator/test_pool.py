@@ -1,6 +1,7 @@
 import contextlib
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -353,3 +354,45 @@ def test_pool_summary_exception_names_summary_stage(tmp_path, run_dir):
     assert info.value.event == FM_RAISE_EVENT
     assert 'summary failed' in str(info.value)
     assert descendants() == []
+
+
+@pytest.mark.parametrize('executor', ['inline', 'pool'])
+def test_chunk_numbers_run_only_those_chunks(tmp_path, run_dir, executor):
+    chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 4)
+    out_dir = tmp_path / 'out'
+    if executor == 'pool':
+        stats = run_pool(make_spec(str(run_dir)), chunks, out_dir, TAPS, 4, factories=FAKE_FACTORIES, chunk_numbers=[3, 1])
+        assert stats['n_workers'] == 2
+        assert descendants() == []
+    else:
+        stats = inline.run_chunks(make_spec(str(run_dir)), chunks, out_dir, TAPS, factories={'gul': FakeGul, 'fm': FakeFm},
+                                  chunk_numbers=[3, 1])
+    assert sorted(c['chunk'] for c in stats['chunks']) == [1, 3]
+    assert stats['events'] == len(chunks[0]) + len(chunks[2])
+    assert sorted(os.listdir(out_dir)) == sorted(f'{tap}_P{k}.bin' for tap in TAPS for k in (1, 3))
+    selected = tmp_path / 'selected'
+    selected.mkdir()
+    for name in os.listdir(out_dir):
+        shutil.copy(out_dir / name, selected / name.replace('_P3', '_P2'))
+    check_fake_outputs(selected, [chunks[0], chunks[2]])
+
+
+@pytest.mark.parametrize('chunk_numbers', [[0], [5], [1, 1]])
+def test_chunk_numbers_are_checked(tmp_path, run_dir, chunk_numbers):
+    chunks = make_chunks(np.arange(1, 9, dtype=np.int32), 4)
+    with pytest.raises(ValueError, match='chunk_numbers'):
+        run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 1, factories=FAKE_FACTORIES, chunk_numbers=chunk_numbers)
+    with pytest.raises(ValueError, match='chunk_numbers'):
+        inline.run_chunks(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, factories={'gul': FakeGul, 'fm': FakeFm},
+                          chunk_numbers=chunk_numbers)
+
+
+def test_pool_progress_messages_count_every_event_once(tmp_path, run_dir):
+    chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 3)
+    calls = []
+    stats = run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2, factories=FAKE_FACTORIES, progress_interval=0,
+                     progress=lambda done, total: calls.append((done, total)), log_dir=str(tmp_path / 'logs'))
+    assert calls[-1] == (30, 30)
+    assert [d for d, _ in calls] == sorted(d for d, _ in calls)
+    assert len(calls) > len(chunks)
+    assert sorted(os.listdir(tmp_path / 'logs')) == [f'orchestrator_worker_{w["worker"]}.log' for w in stats['workers']]

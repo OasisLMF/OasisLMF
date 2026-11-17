@@ -304,3 +304,12 @@ def test_orchestrated_low_memory_run_byte_identical_to_its_bash_reference(full_k
     assert report.ok, report.summary()
     assert any(rel.endswith('.idx') for rel in list_files(tmp_path / 'run', subdirs=('work',)))
     assert len(stats['jobs']) == len(plan.output_jobs)
+
+
+def test_pool_output_jobs_without_chunks(tmp_path, run_dir):
+    write_selt_csv(run_dir / 'work' / 'a.csv', 3, 1)
+    stats = run_pool(make_spec(str(run_dir)), [], tmp_path / 'out', [], 3, factories=FAKE_FACTORIES,
+                     output_jobs=[selt_job('output/out.csv', 'work/a.csv')])
+    assert stats['chunks'] == []
+    assert len(stats['jobs']) == 1 and stats['n_workers'] == 1
+    assert (run_dir / 'output' / 'out.csv').read_text() == expected_selt(3, 1)

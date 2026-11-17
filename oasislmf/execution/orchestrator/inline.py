@@ -24,8 +24,9 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
         n_workers (int): ignored, there is always one worker.
         **options: ``factories`` is passed to ``Chain``. ``chunk_order`` (Sequence[int], optional) is the order the
             chunks are run in, as 1-based chunk numbers, a permutation of ``1..len(chunks)``; it changes only the
-            processing order, never which file a chunk writes. ``output_jobs`` (Sequence[OutputJob | dict]) are run
-            after the chunks. Other options are ignored.
+            processing order, never which file a chunk writes. ``chunk_numbers`` (Sequence[int], optional) are the
+            1-based numbers of the chunks to run, all by default; ``chunk_order`` must then be a permutation of them.
+            ``output_jobs`` (Sequence[OutputJob | dict]) are run after the chunks. Other options are ignored.
 
     Returns:
         dict: statistics: ``executor``, ``n_workers``, ``wall_seconds``, ``setup_seconds``, ``events``,
@@ -33,16 +34,20 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
         'outputs', 'seconds', 'worker'}`` per output job, in order), ``output_seconds`` and ``workers`` (one entry).
 
     Raises:
-        ValueError: if ``chunk_order`` is not a permutation of ``1..len(chunks)``, or the output jobs are not
+        ValueError: if ``chunk_order`` is not a permutation of the chunks to run, or the output jobs are not
             independent.
         JobError: an output job failed; the jobs after it were not run.
     """
     t_start = time.perf_counter()
     taps = list(taps)
+    chunk_numbers = options.get('chunk_numbers')
+    chunk_numbers = list(range(1, len(chunks) + 1)) if chunk_numbers is None else [int(k) for k in chunk_numbers]
+    if any(not 1 <= k <= len(chunks) for k in chunk_numbers) or len(set(chunk_numbers)) != len(chunk_numbers):
+        raise ValueError(f'chunk_numbers must be distinct chunk numbers in 1..{len(chunks)}, got {chunk_numbers}')
     chunk_order = options.get('chunk_order')
-    chunk_order = list(range(1, len(chunks) + 1)) if chunk_order is None else [int(k) for k in chunk_order]
-    if sorted(chunk_order) != list(range(1, len(chunks) + 1)):
-        raise ValueError(f"chunk_order must be a permutation of 1..{len(chunks)}, got {chunk_order}")
+    chunk_order = chunk_numbers if chunk_order is None else [int(k) for k in chunk_order]
+    if sorted(chunk_order) != sorted(chunk_numbers):
+        raise ValueError(f"chunk_order must be a permutation of {sorted(chunk_numbers)}, got {chunk_order}")
     output_jobs = [as_job(job) for job in options.get('output_jobs') or []]
     check_independent(output_jobs)
     out_dir = os.path.abspath(out_dir)

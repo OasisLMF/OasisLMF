@@ -179,7 +179,7 @@ class WorkerPool:
     """
 
     def __init__(self, spec, chunks, out_dir, taps, factories=None, policy=None, progress=None, python=None, env=None,
-                 kill_grace=KILL_GRACE, output_jobs=None, job_workers=0):
+                 kill_grace=KILL_GRACE, output_jobs=None, job_workers=0, chunk_numbers=None, log_dir=None, progress_interval=None):
         """Open the listener; no worker is started yet.
 
         Args:
@@ -191,7 +191,8 @@ class WorkerPool:
                 the workers. Only import strings can be sent to a spawned process.
             policy (callable, optional): ``policy(pool)`` called after every message handled, to ``spawn`` or
                 ``retire`` workers.
-            progress (callable, optional): ``progress(events_done, events_total)`` called after every chunk.
+            progress (callable, optional): ``progress(events_done, events_total)`` called after every chunk, and on every
+                ``progress`` message of a worker when ``progress_interval`` is set.
             python (str, optional): interpreter for the workers, ``sys.executable`` by default.
             env (dict, optional): environment of the workers, ``os.environ`` by default.
             kill_grace (float): seconds a terminated worker has before it is killed.
@@ -199,6 +200,12 @@ class WorkerPool:
                 independent (``outputs.check_independent``).
             job_workers (int): when the output jobs start, job-only workers (``spawn(jobs_only=True)``) are added
                 until this many workers are active, but never more than there are jobs.
+            chunk_numbers (Sequence[int], optional): the 1-based numbers of the chunks to run, all by default. The others
+                are not run and write nothing (a distributed run hands each chunk to a different machine).
+            log_dir (str, optional): directory the workers' stdout and stderr are written to, as
+                ``orchestrator_worker_<n>.log``, and kept; by default a temporary directory removed by ``close``.
+            progress_interval (float, optional): workers report the events done in their current chunk at most every
+                this many seconds, and ``progress`` is called with them; by default they report whole chunks only.
         """
         if factories is not None:
             not_strings = sorted(key for key, value in factories.items() if not isinstance(value, str))
@@ -219,14 +226,20 @@ class WorkerPool:
 
         self.output_jobs = [as_job(job) for job in output_jobs or []]
         check_independent(self.output_jobs)
-        self.pending = collections.deque(range(1, len(self.chunks) + 1))
+        self.chunk_numbers = list(range(1, len(self.chunks) + 1)) if chunk_numbers is None else [int(k) for k in chunk_numbers]
+        unknown = [k for k in self.chunk_numbers if not 1 <= k <= len(self.chunks)]
+        if unknown or len(set(self.chunk_numbers)) != len(self.chunk_numbers):
+            raise ValueError(f'chunk_numbers must be distinct chunk numbers in 1..{len(self.chunks)}, got {self.chunk_numbers}')
+        self.progress_interval = progress_interval
+        self.pending = collections.deque(self.chunk_numbers)
         self.chunk_stats = {}
         self.pending_jobs = collections.deque(range(len(self.output_jobs)))
         self.job_stats = {}
         self.t_jobs_start = None
         self.t_jobs_end = None
-        self.events_total = sum(len(chunk) for chunk in self.chunks)
+        self.events_total = sum(len(self.chunks[k - 1]) for k in self.chunk_numbers)
         self.events_done = 0
+        self._events_reported = {}
         self.workers = []
         self._authkey = os.urandom(32)
         self._listener = Listener(('127.0.0.1', 0), family='AF_INET', authkey=self._authkey)
@@ -234,7 +247,12 @@ class WorkerPool:
         self._closing = False
         self._accept_thread = threading.Thread(target=self._accept_loop, name='pool-accept', daemon=True)
         self._accept_thread.start()
-        self._log_dir = tempfile.TemporaryDirectory(prefix='oasis-pool-')
+        self._tmp_log_dir = None
+        if log_dir is None:
+            self._tmp_log_dir = tempfile.TemporaryDirectory(prefix='oasis-pool-')
+            log_dir = self._tmp_log_dir.name
+        os.makedirs(log_dir, exist_ok=True)
+        self.log_dir = log_dir
 
     def _accept_loop(self):
         """Accept worker connections until the pool closes; a failed handshake is ignored."""
@@ -255,7 +273,7 @@ class WorkerPool:
     @property
     def chunks_done(self):
         """True when every chunk has been reported done."""
-        return len(self.chunk_stats) == len(self.chunks)
+        return len(self.chunk_stats) == len(self.chunk_numbers)
 
     @property
     def remaining(self):
@@ -283,12 +301,12 @@ class WorkerPool:
             Worker: the new worker.
         """
         number = len(self.workers)
-        log_path = os.path.join(self._log_dir.name, f'worker_{number}.log')
+        log_path = os.path.join(self.log_dir, f'orchestrator_worker_{number}.log')
         log_file = open(log_path, 'wb')
         config = {
             'address': list(self._listener.address), 'authkey': self._authkey.hex(), 'worker': number,
             'spec': self.spec.to_dict(), 'factories': self.factories, 'out_dir': self.out_dir, 'taps': self.taps,
-            'sys_path': [p for p in sys.path if p], 'jobs_only': jobs_only,
+            'sys_path': [p for p in sys.path if p], 'jobs_only': jobs_only, 'progress_interval': self.progress_interval,
         }
         try:
             popen = subprocess.Popen([self.python, '-m', WORKER_MODULE], stdin=subprocess.PIPE, stdout=log_file, stderr=log_file,
@@ -441,10 +459,16 @@ class WorkerPool:
             worker.chunks += 1
             worker.busy_seconds += message['seconds']
             worker.chunk = None
-            self.events_done += message['events']
+            self.events_done += message['events'] - self._events_reported.pop(k, 0)
             if self.progress is not None:
                 self.progress(self.events_done, self.events_total)
             self._dispatch_waiting()
+        elif kind == 'progress':
+            k = message['chunk']
+            self._events_reported[k] = self._events_reported.get(k, 0) + message['events']
+            self.events_done += message['events']
+            if self.progress is not None:
+                self.progress(self.events_done, self.events_total)
         elif kind == 'error':
             raise self._fail(worker, 'failed', message)
         else:
@@ -584,7 +608,8 @@ class WorkerPool:
             if worker.popen.stdin is not None and not worker.popen.stdin.closed:
                 worker.popen.stdin.close()
             worker.log_file.close()
-        self._log_dir.cleanup()
+        if self._tmp_log_dir is not None:
+            self._tmp_log_dir.cleanup()
 
     def __enter__(self):
         return self
@@ -596,8 +621,9 @@ class WorkerPool:
 def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     """Run the chunks on a pool of worker processes and write ``<out_dir>/<tap>_P<k>.bin`` for each.
 
-    Starts W = min(n_workers, K) workers. Each builds one ``Chain`` with the run directory as working directory and
-    runs every chunk between ``Chain.start_chunk(k)`` and ``Chain.finish_chunk()``. Once every chunk is done the
+    Starts W = min(n_workers, K) workers, K being the number of chunks to run (``chunk_numbers``, all by default).
+    Each builds one ``Chain`` with the run directory as working directory and runs every chunk between
+    ``Chain.start_chunk(k)`` and ``Chain.finish_chunk()``. Once every chunk is done the
     workers close their chain and run the ``output_jobs``, each tool's ``main`` called in-process with the run
     directory as working directory (``outputs.run_job``). When there are more jobs than chunks, job-only workers,
     which build no chain, are added then, up to min(n_workers, number of jobs) workers in all.
@@ -609,8 +635,8 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
         taps (Iterable[str]): taps to write.
         n_workers (int): maximum number of workers.
         **options: ``factories`` (``{'gul'|'fm'|'summary'|'elt'|'plt': 'package.module:attribute'}``), ``policy``, ``progress``,
-            ``python``, ``env``, ``kill_grace`` and ``output_jobs`` (Sequence[OutputJob | dict]), see ``WorkerPool``;
-            other options are ignored.
+            ``python``, ``env``, ``kill_grace``, ``output_jobs`` (Sequence[OutputJob | dict]), ``chunk_numbers``, ``log_dir``
+            and ``progress_interval``, see ``WorkerPool``; other options are ignored.
 
     Returns:
         dict: statistics: ``executor`` ('pool'), ``n_workers``, ``wall_seconds``, ``setup_seconds`` (the longest time
@@ -632,11 +658,13 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
         raise ValueError(f'n_workers must be positive, got {n_workers}')
     os.makedirs(out_dir, exist_ok=True)
     output_jobs = [as_job(job) for job in options.get('output_jobs') or []]
-    n = min(n_workers, len(chunks))
+    chunk_numbers = options.get('chunk_numbers')
+    n = min(n_workers, len(chunks) if chunk_numbers is None else len(chunk_numbers))
     prepare_output_dirs(output_jobs, spec.run_dir)
-    pool_options = {key: options[key] for key in ('factories', 'policy', 'progress', 'python', 'env', 'kill_grace') if key in options}
+    pool_options = {key: options[key] for key in ('factories', 'policy', 'progress', 'python', 'env', 'kill_grace', 'chunk_numbers',
+                                                  'log_dir', 'progress_interval') if key in options}
     pool_options['output_jobs'] = output_jobs
-    pool_options['job_workers'] = min(n_workers, max(len(chunks), len(output_jobs)))
+    pool_options['job_workers'] = min(n_workers, max(n, len(output_jobs)))
     with WorkerPool(spec, chunks, out_dir, taps, **pool_options) as pool:
         for _ in range(n):
             pool.spawn()

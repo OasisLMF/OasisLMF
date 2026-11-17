@@ -9,13 +9,15 @@ process list):
 * ``spec``: the ``ChainSpec`` as a dict, ``factories``: ``{'gul'|'fm'|...: 'package.module:attribute'}`` or None;
 * ``out_dir`` (absolute) and ``taps``;
 * ``jobs_only``: build no chain and take only output jobs (the pool adds such workers for the job phase);
+* ``progress_interval``: when set, report the events done in the current chunk at most every this many seconds;
 * ``sys_path``: the orchestrator's ``sys.path``, whose entries the worker appends to its own so that factories
   importable in the orchestrator are importable here.
 
 Protocol, every message a dict with a ``type``:
 
 * worker -> orchestrator: ``hello`` (``worker``, ``pid``) once connected; ``ready`` (``chain_seconds``) when it
-  can take a chunk; ``done`` (``chunk``, ``events``, ``seconds``) after each chunk and ``done`` (``job``,
+  can take a chunk; ``progress`` (``chunk``, ``events``: done since the last report) while running a chunk, when
+  ``progress_interval`` is set; ``done`` (``chunk``, ``events``, ``seconds``) after each chunk and ``done`` (``job``,
   ``seconds``) after each output job, followed by ``ready``; ``error`` (``stage``, ``chunk``, ``event``, ``job``,
   ``error``, ``traceback``) when setting up the chain, running a chunk or running a job fails, after which the
   worker exits with status 1.
@@ -84,7 +86,7 @@ def error_message(exc, stage, chunk=None, event=None, job=None):
     }
 
 
-def run_chunk(chain, out_dir, taps, chunk_number, events):
+def run_chunk(chain, out_dir, taps, chunk_number, events, report=None, report_interval=None):
     """Run one chunk through the chain and write its tap streams and the chain's files.
 
     Args:
@@ -93,6 +95,9 @@ def run_chunk(chain, out_dir, taps, chunk_number, events):
         taps (list[str]): taps to write.
         chunk_number (int): 1-based chunk number.
         events (array-like): event ids of the chunk.
+        report (callable, optional): ``report(n)`` called with the number of events done since the previous call, at
+            most every ``report_interval`` seconds; the events not yet reported when the chunk ends are not.
+        report_interval (float, optional): seconds between two calls of ``report``.
 
     Returns:
         dict: the ``done`` message.
@@ -101,6 +106,7 @@ def run_chunk(chain, out_dir, taps, chunk_number, events):
         ChunkError: wrapping whatever a stage raised, with the event id it was processing.
     """
     t_start = time.perf_counter()
+    t_report, unreported = t_start, 0
     event_id = None
     try:
         chain.start_chunk(chunk_number)
@@ -108,6 +114,12 @@ def run_chunk(chain, out_dir, taps, chunk_number, events):
             sinks = writer.sinks
             for event_id in events:
                 chain.run_event(event_id, sinks)
+                if report is not None:
+                    unreported += 1
+                    now = time.perf_counter()
+                    if now - t_report >= report_interval:
+                        report(unreported)
+                        t_report, unreported = now, 0
         event_id = None
         chain.finish_chunk()
     except Exception as exc:
@@ -121,6 +133,13 @@ class ChunkError(Exception):
     def __init__(self, event_id):
         super().__init__(event_id)
         self.event_id = None if event_id is None else int(event_id)
+
+
+def progress_reporter(conn, chunk_number):
+    """The ``report`` callable of ``run_chunk``: sends a ``progress`` message for chunk ``chunk_number``."""
+    def report(n_events):
+        conn.send({'type': 'progress', 'chunk': chunk_number, 'events': n_events})
+    return report
 
 
 def run_output_job(message, run_dir):
@@ -163,6 +182,7 @@ def serve(conn, config):
     taps = list(config['taps'])
     out_dir = config['out_dir']
     run_dir = spec.run_dir
+    progress_interval = config.get('progress_interval')
     try:
         conn.send({'type': 'ready', 'chain_seconds': time.perf_counter() - t_setup})
         while True:
@@ -186,8 +206,9 @@ def serve(conn, config):
             if chain is None:
                 conn.send(error_message(RuntimeError('chunk sent to a worker without a chain'), 'chain', chunk_number))
                 return EXIT_ERROR
+            report = progress_reporter(conn, chunk_number) if progress_interval is not None else None
             try:
-                done = run_chunk(chain, out_dir, taps, chunk_number, message['events'])
+                done = run_chunk(chain, out_dir, taps, chunk_number, message['events'], report=report, report_interval=progress_interval)
             except ChunkError as exc:
                 cause = exc.__cause__
                 stage = failing_stage(chain, cause.__traceback__) or 'chain'
