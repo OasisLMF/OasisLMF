@@ -39,7 +39,9 @@ from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
 from . import inline, pool
 from .chunks import read_events
+from .outputs import jobs_for_chunks
 from .progress import ProgressReporter
+from .resources import GB, ResourceManager
 
 EXECUTORS = {'pool': pool, 'inline': inline}
 MODES = ('all', 'analysis', 'outputs')
@@ -110,10 +112,24 @@ def empty_chunk_outputs(run_dir, process_number):
     return sorted(empty)
 
 
-def _run_log(plan, mode, stats, chunk_numbers, n_workers, error=None):
+def _manager_lines(summary):
+    """The run log's lines on the resource manager: every decision and warning, then the measurements."""
+    if not summary:
+        return []
+    lines = [f"resource manager: {d['text']}" for d in summary['decisions']]
+    lines += [f'resource manager warning: {w}' for w in summary['warnings']]
+    peaks = summary['worker_peak_bytes'].values()
+    lines.append(f"resource manager: at most {summary['max_live_workers']} live workers of {summary['max_workers']}, "
+                 f"margin {(summary['margin_bytes'] or 0) / GB:.2f} GB, estimate {summary['estimate_bytes'] / GB:.2f} GB per worker, "
+                 f"worker peak {max(peaks, default=0) / GB:.2f} GB, {summary['samples']} samples")
+    return lines
+
+
+def _run_log(plan, mode, stats, chunk_numbers, n_workers, error=None, n_chunks=None, manager=None):
     """The lines of the run log."""
-    lines = [f'orchestrator: {mode}, executor {stats.get("executor", "pool") if stats else "pool"}, {n_workers} workers, '
-             f'chunks {chunk_numbers} of {plan.n_chunks}']
+    sizing = f'at most {n_workers} workers (resource manager)' if manager is not None else f'{n_workers} workers'
+    lines = [f'orchestrator: {mode}, executor {stats.get("executor", "pool") if stats else "pool"}, {sizing}, '
+             f'chunks {chunk_numbers} of {plan.n_chunks if n_chunks is None else n_chunks}']
     if stats:
         for chunk in stats.get('chunks', []):
             lines.append(f"chunk {chunk['chunk']}: {chunk['events']} events, {chunk['seconds']:.2f} s, worker {chunk.get('worker', 0)}")
@@ -122,14 +138,16 @@ def _run_log(plan, mode, stats, chunk_numbers, n_workers, error=None):
         lines.append(f"done: {stats.get('events', 0)} events, {len(stats.get('jobs', []))} output jobs, "
                      f"{stats.get('wall_seconds', 0.0):.2f} s (setup {stats.get('setup_seconds', 0.0):.2f} s, "
                      f"output jobs {stats.get('output_seconds', 0.0):.2f} s)")
+    if manager is not None:
+        lines += _manager_lines(manager.summary())
     if error is not None:
         lines.append(f'FAILED: {error}')
     return '\n'.join(lines) + '\n'
 
 
-def _failure(plan, mode, stats, chunk_numbers, n_workers, message, log_dir, script, t_start):
+def _failure(plan, mode, stats, chunk_numbers, n_workers, message, log_dir, script, t_start, n_chunks=None, manager=None):
     """Write a failed run's run log and ``stderror.err`` line; the ``CalledProcessError`` to raise."""
-    text = _run_log(plan, mode, stats, chunk_numbers, n_workers, error=message)
+    text = _run_log(plan, mode, stats, chunk_numbers, n_workers, error=message, n_chunks=n_chunks, manager=manager)
     with open(os.path.join(log_dir, RUN_LOG), 'w') as f:
         f.write(text)
     with open(os.path.join(log_dir, STDERR_LOG), 'a') as f:
@@ -137,8 +155,21 @@ def _failure(plan, mode, stats, chunk_numbers, n_workers, message, log_dir, scri
     return subprocess.CalledProcessError(1, command(mode, script), output=text.encode('utf-8'))
 
 
+def chunk_count(plan, mode, n_events, n_workers, chunk_factor):
+    """The number of chunks K the events of a step are split into.
+
+    The plan's partition count (``max_process_id``), so that every work file is named and filled as bash's, except
+    for a whole run (mode ``all``, no ``process_number``) with ``chunk_factor`` above 1: then ``chunk_factor`` chunks
+    per worker, ``min(n_events, chunk_factor * n_workers)``, but never fewer than the plan's. Nothing outside the run
+    reads its work files, and the output jobs are given the new count (``outputs.jobs_for_chunks``).
+    """
+    if mode != 'all' or plan.process_number is not None or chunk_factor <= 1:
+        return plan.n_chunks
+    return max(plan.n_chunks, min(n_events, int(chunk_factor * n_workers)))
+
+
 def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_workers=None, progress_interval=SERVER_UPDATE_TIME,
-             monitor=None):
+             monitor=None, resource_manager=True, chunk_factor=1, manager_options=None):
     """Run one kernel step of a plan, with the side effects its bash script has.
 
     Args:
@@ -153,7 +184,13 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
         script (str): the script bash would have run, named in errors.
         executor (str): ``pool`` (default) or ``inline``.
         n_workers (int, optional): worker processes; by default one per chunk computed (``max_process_id``, or 1 for
-            a single distributed chunk), and for the outputs step one per partition.
+            a single distributed chunk), and for the outputs step one per partition. With the resource manager, the
+            hard maximum.
+        resource_manager (bool): with the pool executor, size the pool from measured memory and CPU
+            (``resources.ResourceManager``) instead of starting n_workers workers; its decisions are in the run log.
+        chunk_factor (int): for a whole run (mode ``all``), split the events into this many chunks per worker
+            (``chunk_count``); 1, the default, keeps bash's partitions and so bash's work and output files byte for byte.
+        manager_options (dict, optional): keyword arguments of ``ResourceManager`` (``initial_workers``, ``margin``...).
         progress_interval (float): seconds between two progress reports of a worker.
         monitor (ResourceMonitor, optional): started with this process's id once the log directory is emptied, and
             stopped when the run ends.
@@ -185,15 +222,29 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
         os.makedirs(_resolve(run_dir, bash_params.get('work_kat_dir', 'work/kat/')), exist_ok=True)
 
     stderr_guard = bool(bash_params.get('stderr_guard', True))
-    chunks = plan.make_chunks(read_events(os.path.join(run_dir, EVENTS_FILE))) if run_chunks else []
+    n_chunks = plan.n_chunks
+    chunks = []
+    output_jobs = plan.output_jobs if run_outputs else []
+    if run_chunks:
+        events = read_events(os.path.join(run_dir, EVENTS_FILE))
+        n_chunks = chunk_count(plan, mode, len(events), max(n_workers, 1), chunk_factor)
+        chunks = plan.make_chunks(events, n_chunks)
+        if n_chunks != plan.n_chunks:
+            chunk_numbers = list(range(1, n_chunks + 1))
+            output_jobs = jobs_for_chunks(output_jobs, n_chunks)
+    manager = None
+    if resource_manager and executor == 'pool':
+        manager = ResourceManager(max(n_workers, 1), **(manager_options or {}))
     options = {
-        'output_jobs': plan.output_jobs if run_outputs else [],
+        'output_jobs': output_jobs,
         'chunk_numbers': chunk_numbers,
         'env': _worker_env(log_dir, bash_params.get('log_level')),
         'log_dir': log_dir,
         'progress_interval': progress_interval,
         'stderr_guard': stderr_guard,
     }
+    if manager is not None:
+        options['resource_manager'] = manager
     run_log_path = os.path.join(log_dir, RUN_LOG)
     analysis_pk = bash_params.get('analysis_pk')
     bar_total = bash_params.get('socket_server_size') if run_chunks else None
@@ -208,7 +259,7 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
         if stderr_guard:
             append_worker_stderr(log_dir)
         raise _failure(plan, mode, None, chunk_numbers, n_workers, f'{type(exc).__name__}: {exc}', log_dir, script,
-                       t_start) from exc
+                       t_start, n_chunks, manager) from exc
     finally:
         if monitor is not None:
             monitor.stop()
@@ -220,11 +271,11 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
             empty = empty_chunk_outputs(run_dir, process_number)
             if empty:
                 raise _failure(plan, mode, stats, chunk_numbers, n_workers, f"Chunk output error: File '{empty[0]}' is empty",
-                               log_dir, script, t_start)
+                               log_dir, script, t_start, n_chunks, manager)
 
     if run_outputs and bash_params.get('remove_working_files'):
         empty_dir(work_dir, create=False)
-    text = _run_log(plan, mode, stats, chunk_numbers, n_workers)
+    text = _run_log(plan, mode, stats, chunk_numbers, n_workers, n_chunks=n_chunks, manager=manager)
     with open(run_log_path, 'w') as f:
         f.write(text)
     return text

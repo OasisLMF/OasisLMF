@@ -31,6 +31,7 @@ from .chain import TAPS, build_chain_spec
 from .chunks import make_chunks, read_events
 from .outputs import jobs_for_chunks
 from .plan import Unsupported, plan_from_bash_params
+from .resources import MB, ResourceManager
 
 EXECUTORS_PACKAGE = 'oasislmf.execution.orchestrator'
 EXECUTORS = {'inline': '.inline', 'pool': '.pool'}
@@ -122,7 +123,14 @@ def build_parser():
                      help='run directory (with input/events.bin). Default: "." (with --plan: model_run_dir of the plan, else ".")')
     run.add_argument('--chunks', type=int, default=None,
                      help='number of chunks K; chunk k holds the events of `evepy k K`. Default: 1 (with --plan: max_process_id)')
-    run.add_argument('--workers', type=int, default=1, help='number of workers. Default: 1')
+    run.add_argument('--workers', type=int, default=1, help='number of workers (with --resource-manager on, the maximum). Default: 1')
+    run.add_argument('--resource-manager', choices=('on', 'off'), default='off',
+                     help='pool executor: size the pool from measured memory and CPU, starting --initial-workers and\n'
+                          'never above --workers (on), or start --workers workers (off). Default: off')
+    run.add_argument('--initial-workers', type=int, default=None,
+                     help='with --resource-manager on: workers started before anything is measured. Default: 2')
+    run.add_argument('--memory-margin-mb', type=int, default=None,
+                     help='with --resource-manager on: memory kept free, in MB. Default: max(1 GB, 10%% of memory)')
     run.add_argument('--out-dir', default=None, help='output directory for <tap>_P<k>.bin, relative to the current directory;\n'
                                                      'required when taps are written')
     run.add_argument('--taps', type=parse_taps, default=None,
@@ -285,6 +293,13 @@ def main(argv=None):
         parser.error('--workers must be positive')
     if args.ri_layers < 0:
         parser.error('--ri-layers must not be negative')
+    managed = args.resource_manager == 'on'
+    if managed and args.executor != 'pool':
+        parser.error('--resource-manager on needs --executor pool')
+    if not managed and (args.initial_workers is not None or args.memory_margin_mb is not None):
+        parser.error('--initial-workers and --memory-margin-mb need --resource-manager on')
+    if args.initial_workers is not None and args.initial_workers <= 0:
+        parser.error('--initial-workers must be positive')
     taps = resolve_taps(args)
     if taps and not args.out_dir:
         parser.error('--out-dir is required when taps are written')
@@ -321,6 +336,13 @@ def main(argv=None):
     options = {'chunk_order': chunk_order} if chunk_order is not None else {}
     if planned and not args.no_output_jobs:
         options['output_jobs'] = jobs_for_chunks(plan.output_jobs, n_chunks)
+    if managed:
+        manager_options = {}
+        if args.initial_workers is not None:
+            manager_options['initial_workers'] = args.initial_workers
+        if args.memory_margin_mb is not None:
+            manager_options['margin'] = args.memory_margin_mb * MB
+        options['resource_manager'] = ResourceManager(args.workers, **manager_options)
     stats = executor.run_chunks(spec, chunks, out_dir, taps, args.workers, **options)
     logger.info("executor %s: %d events in %d chunks, %d output jobs, %.2f s (output jobs %.2f s)", args.executor, len(events),
                 n_chunks, len(stats.get('jobs', [])), stats.get('wall_seconds', 0.0), stats.get('output_seconds', 0.0))

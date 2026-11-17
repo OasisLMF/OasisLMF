@@ -10,6 +10,7 @@ from oasislmf.execution.orchestrator import chain as chain_module
 from oasislmf.execution.orchestrator import cli
 from oasislmf.execution.orchestrator.chunks import make_chunks
 from oasislmf.execution.orchestrator.plan import plan_from_bash_params
+from oasislmf.execution.orchestrator.resources import MB, ResourceManager
 from oasislmf.utils.defaults import EVE_NO_SHUFFLE
 
 from .test_chain import TREE_FACTORIES
@@ -58,12 +59,25 @@ def test_chunk_order_still_passed_to_inline(tmp_path, run_dir, recorded):
     ['--executor', 'pool', '--chunk-order', 'reverse'],
     ['--executor', 'inline', '--chunk-order', '1,2'],
     ['--executor', 'ray'],
+    ['--executor', 'inline', '--resource-manager', 'on'],
+    ['--executor', 'pool', '--initial-workers', '2'],
+    ['--executor', 'pool', '--memory-margin-mb', '512'],
+    ['--executor', 'pool', '--resource-manager', 'on', '--initial-workers', '0'],
 ])
 def test_rejects_unsupported_arguments(tmp_path, run_dir, recorded, capsys, argv):
     with pytest.raises(SystemExit):
         run_main(run_dir, tmp_path, *argv)
     assert recorded == []
     assert 'error' in capsys.readouterr().err
+
+
+def test_resource_manager_option(tmp_path, run_dir, recorded):
+    run_main(run_dir, tmp_path, '--executor', 'pool', '--resource-manager', 'on', '--initial-workers', '1', '--memory-margin-mb', '512')
+    manager = recorded[0]['options']['resource_manager']
+    assert isinstance(manager, ResourceManager)
+    assert (manager.max_workers, manager.initial_workers, manager.margin) == (4, 1, 512 * MB)
+    run_main(run_dir, tmp_path, '--executor', 'pool', '--resource-manager', 'off')
+    assert recorded[1]['options'] == {}
 
 
 PLAN_SETTINGS = {'number_of_samples': 2, 'gul_threshold': 0, 'gul_output': True, 'il_output': True,

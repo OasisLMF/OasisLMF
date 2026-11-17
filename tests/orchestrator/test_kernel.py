@@ -6,6 +6,7 @@ kernel of the test fixture with the runner, orchestrator on and off, as ``genera
 platform's chunked steps do.
 """
 import contextlib
+import functools
 import json
 import os
 import shutil
@@ -18,9 +19,10 @@ from oasislmf.execution import runner
 from oasislmf.execution.bash import bash_params
 from oasislmf.execution.orchestrator import kernel
 from oasislmf.execution.orchestrator.chunks import make_chunks, read_events
-from oasislmf.execution.orchestrator.plan import Plan, plan_from_bash_params
+from oasislmf.execution.orchestrator.plan import OutputJob, Plan, plan_from_bash_params
 from oasislmf.execution.orchestrator.progress import ProgressReporter
-from tests.orchestrator.tools.compare_outputs import compare_trees_bytes, list_files
+from oasislmf.execution.orchestrator.resources import ResourceManager
+from tests.orchestrator.tools.compare_outputs import compare_outputs_rows, compare_trees_bytes, list_files
 from tests.orchestrator.tools.kernel_reference import link_dir
 
 from .test_chain import make_spec
@@ -183,6 +185,49 @@ def test_run_plan_rejects_unknown_mode_and_executor(run_dir):
         kernel.run_plan(fake_plan(run_dir), {}, 'everything', 'log', 'x.sh')
     with pytest.raises(ValueError, match='executor'):
         kernel.run_plan(fake_plan(run_dir), {}, 'all', 'log', 'x.sh', executor='ray')
+
+
+def test_run_plan_sizes_the_pool_with_the_resource_manager(run_dir, monkeypatch):
+    executor = FakeExecutor()
+    text = run_fake(run_dir, monkeypatch, executor, {}, mode='all')
+    manager = executor.options['resource_manager']
+    assert isinstance(manager, ResourceManager) and manager.max_workers == 2
+    assert 'at most 2 workers (resource manager)' in text
+    assert 'resource manager: at most 0 live workers of 2' in text
+    assert text == (run_dir / 'log' / kernel.RUN_LOG).read_text()
+
+
+def test_run_plan_fixed_pool_without_the_resource_manager(run_dir, monkeypatch):
+    executor = FakeExecutor()
+    np.arange(1, 5, dtype=np.int32).tofile(run_dir / 'input' / 'events.bin')
+    monkeypatch.setitem(kernel.EXECUTORS, 'pool', executor)
+    params = {'work_dir': 'work/', 'work_kat_dir': 'work/kat/', 'output_dir': 'output/'}
+    text = kernel.run_plan(fake_plan(run_dir), params, 'all', 'log', 'run_kernel.sh', resource_manager=False)
+    assert 'resource_manager' not in executor.options
+    assert '2 workers, chunks [1, 2] of 2' in text and 'resource manager' not in text
+
+
+def test_chunk_count():
+    plan = fake_plan('.', 4)
+    assert kernel.chunk_count(plan, 'all', 1000, 4, 1) == 4
+    assert kernel.chunk_count(plan, 'all', 1000, 4, 4) == 16
+    assert kernel.chunk_count(plan, 'all', 10, 4, 4) == 10
+    assert kernel.chunk_count(plan, 'all', 2, 4, 4) == 4, 'never fewer chunks than the plan'
+    assert kernel.chunk_count(plan, 'analysis', 1000, 4, 4) == 4, 'a chunked step keeps the work files the outputs step reads'
+    assert kernel.chunk_count(fake_plan('.', 4, process_number=2), 'all', 1000, 4, 4) == 4
+
+
+def test_run_plan_chunk_factor_splits_a_whole_run_finer(run_dir, monkeypatch):
+    executor = FakeExecutor()
+    np.arange(1, 31, dtype=np.int32).tofile(run_dir / 'input' / 'events.bin')
+    monkeypatch.setitem(kernel.EXECUTORS, 'pool', executor)
+    job = OutputJob('katpy', {'out': 'output/x.csv', 'files_in': ['work/kat/x_P1', 'work/kat/x_P2'], 'selt': True})
+    plan = Plan(spec=make_spec(str(run_dir)), n_chunks=2, output_jobs=[job])
+    params = {'work_dir': 'work/', 'work_kat_dir': 'work/kat/', 'output_dir': 'output/'}
+    text = kernel.run_plan(plan, params, 'all', 'log', 'run_kernel.sh', chunk_factor=3)
+    assert executor.options['chunk_numbers'] == [1, 2, 3, 4, 5, 6]
+    assert executor.options['output_jobs'][0].kwargs['files_in'] == [f'work/kat/x_P{k}' for k in range(1, 7)]
+    assert 'of 6' in text
 
 
 def test_plan_chunk_numbers():
@@ -366,3 +411,31 @@ def test_plan_of_a_chunk_names_the_bash_chunk_files(full_kernel_run, tmp_path):
     plan = plan_from_bash_params(params, run_dir=str(run))
     assert plan.chunk_numbers == [2]
     assert all(p.startswith(str(run / '2.work')) and ('_P2' in p or '/P2.' in p) for p in plan.chunk_paths(2))
+
+
+def run_whole_with(full_kernel_run, path, **run_plan_options):
+    """``run_whole`` with the orchestrator, ``kernel.run_plan`` given ``run_plan_options``."""
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(runner, 'run_plan', functools.partial(kernel.run_plan, **run_plan_options))
+        return run_whole(full_kernel_run, path, True)
+
+
+def test_runner_resource_manager_on_and_off_byte_identical(full_kernel_run, orchestrated_whole_run, tmp_path):
+    fixed = run_whole_with(full_kernel_run, tmp_path / 'fixed', resource_manager=False)
+    report = compare_trees_bytes(orchestrated_whole_run, fixed, subdirs=('output',))
+    assert report.ok, report.summary()
+    assert report.compared > 20
+    managed_log = (orchestrated_whole_run / 'log' / kernel.RUN_LOG).read_text()
+    assert 'resource manager: 0.0 s: start 0 -> 2 workers' in managed_log
+    assert 'resource manager' not in (fixed / 'log' / kernel.RUN_LOG).read_text()
+
+
+def test_runner_resource_manager_finer_chunks_rows_equal(full_kernel_run, orchestrated_whole_run, tmp_path):
+    run = run_whole_with(full_kernel_run, tmp_path / 'finer', chunk_factor=3, manager_options={'initial_workers': 1})
+    text = (run / 'log' / kernel.RUN_LOG).read_text()
+    assert f'of {3 * K}' in text
+    assert 'start 0 -> 1 workers' in text
+    report = compare_outputs_rows(orchestrated_whole_run, run)
+    assert report.ok, report.summary()
+    assert report.compared > 20
+    assert os.listdir(run / 'work') == []
