@@ -231,8 +231,7 @@ def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entr
         item_map_ja_offsets (np.array[oasis_int]): CSR offsets (N_areaperil + 1).
         item_map_ja_item_idxs (np.array[oasis_int]): item index per entry.
         item_map_ja_item_areaperil_idxs (np.array[oasis_int]): item areaperil index per entry.
-        item_areaperil_ja_areaperil_agg_vuln_idxs (np.array[oasis_int]): per item areaperil, its
-            block in ``areaperil_agg_vuln_idx_ja_*``, or -1 when its vulnerability is not aggregate.
+        item_areaperil_ja_areaperil_agg_vuln_idxs (np.array[oasis_int]): aggregate block per item areaperil, -1 if not aggregate.
         vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
         vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids.
         areaperil_agg_vuln_idx_ja_offsets (np.array[oasis_int]): CSR offsets for aggregate vulns.
