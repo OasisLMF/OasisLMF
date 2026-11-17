@@ -21,7 +21,6 @@ import csv
 import logging
 import os
 import re
-import sys
 import threading
 import time
 from collections import defaultdict
@@ -62,9 +61,6 @@ TOOL_COLORS = {
     ORCHESTRATOR_TOOL: "#98df8a",
 }
 
-# PSS is only available on Linux
-_HAS_PSS = sys.platform.startswith('linux')
-
 
 def monitored_tool(cmdline):
     """The tool a process is reported as, from its command line (a list of arguments); None if not monitored."""
@@ -72,6 +68,26 @@ def monitored_tool(cmdline):
         return ORCHESTRATOR_TOOL
     match = _TOOL_RE.search(' '.join(cmdline))
     return match.group(1) if match else None
+
+
+def process_memory(proc):
+    """Memory of a process and its USS in KB, the RSS standing in for the USS where the USS cannot be read.
+
+    On macOS the USS needs ``task_for_pid``, which is denied to an unprivileged user even for its
+    own processes, so ``memory_full_info`` raises AccessDenied there for every monitored process.
+
+    Args:
+        proc (psutil.Process): the process.
+
+    Returns:
+        tuple: (memory info, with ``pss`` when the full info was read on Linux; USS in KB).
+    """
+    try:
+        mem = proc.memory_full_info()
+        return mem, mem.uss // 1024
+    except psutil.AccessDenied:
+        mem = proc.memory_info()
+        return mem, mem.rss // 1024
 
 
 class ResourceMonitor:
@@ -181,10 +197,9 @@ class ResourceMonitor:
 
                 cpu_pct = proc.cpu_percent()
                 cpu_times = proc.cpu_times()
-                mem = proc.memory_full_info()
+                mem, uss_kb = process_memory(proc)
                 rss_kb = mem.rss // 1024
-                uss_kb = mem.uss // 1024
-                pss_kb = (mem.pss // 1024) if _HAS_PSS else -1
+                pss_kb = mem.pss // 1024 if hasattr(mem, 'pss') else -1
 
                 rows.append([
                     ts, tool, proc.pid, cpu_pct,
