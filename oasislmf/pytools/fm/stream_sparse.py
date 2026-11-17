@@ -185,7 +185,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
         - Read (sidx, loss) pairs
         - sidx == 0: delimiter, item complete, return to header state
         - sidx == -2: standard deviation (ignored)
-        - sidx == -4: chance of loss (stored in pass_through)
+        - sidx == -4: chance of loss (stored in pass_through by item_id)
         - other: regular loss sample, add to sparse arrays
 
     The function processes until:
@@ -204,7 +204,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
         sidx_val: Sample index values
         loss_indptr: CSR pointers for loss
         loss_val: Loss values
-        pass_through: Chance-of-loss values per item
+        pass_through: Chance-of-loss value per item, indexed by item_id (the item's node_id).
+            Each slot is cleared when its item header is read.
         computes: Queue of items to compute
         compute_idx: Computation state pointers
         collapse_on_read: whether to sum the buildings away as they are read, storing each record
@@ -282,8 +283,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                     if local_sidx == -2:
                         pass  # Standard deviation - ignored in FM
                     elif local_sidx == -4:
-                        # Chance of loss - store separately for pass-through
-                        pass_through[compute_idx['next_compute_i']] = loss
+                        if item_id < pass_through.shape[0]:
+                            pass_through[item_id] = loss
                     elif collapse_on_read:
                         # No level applies terms per building, so sum them away here and hand the financial
                         # module an ordinary stream; the item is stored at its delimiter.
@@ -313,6 +314,9 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 
             # Initialize storage for this item
             node = nodes_array[item_id]
+            # Only items read this event are written out, so clearing per item replaces a per-event fill.
+            if item_id < pass_through.shape[0]:
+                pass_through[item_id] = 0
             # Map node_id to its position in the compute arrays
             sidx_indexes[node['node_id']] = compute_idx['next_compute_i']
             # Initialize loss pointers for all layers to current position
