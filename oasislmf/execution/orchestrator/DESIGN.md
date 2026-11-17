@@ -789,7 +789,9 @@ manifest.
   `tests/conftest.py`): tests that run bash scripts or pytools pipelines over OS pipes (the tools
   `select` on them, which Windows only allows on sockets), applied explicitly or through the
   fixtures `kernel_reference`, `full_kernel_reference` and `bash_whole_run`, and skipped on
-  Windows or with `OASIS_TEST_NO_BASH` set. 18 of the 324 tests in the CI selection are marked.
+  Windows, on macOS (a pytool whose output is a regular file fails there, 10.4) or with
+  `OASIS_TEST_NO_BASH` set. 18 of the 324 tests in the CI selection are marked; two more ask for
+  `kernel_reference` only when `bash_available()`, so they compare with bash on Linux alone.
   Still run without bash: the runner's orchestrated whole run and a fully orchestrated chunked run
   compared with it, pool against inline streams with real stages, plans from `bash_params`,
   chunking, fake-stage executor tests. The fixture's run directory no longer needs the bash tool
@@ -798,9 +800,7 @@ manifest.
   Python 3.10 to 3.14 (JIT on) and 3.12 (JIT off). macOS and Windows: an `Orchestrator tests`
   step in `test-macos.yml` and `test-windows.yml` (Python 3.12, against the built wheel):
   `tests/orchestrator`, `test_resource_monitor.py`, `test_runner.py::TestRunWithOrchestrator`
-  and `test_generate_losses.py -k orchestrator`, with `-m "not requires_bash"`; macOS adds the
-  bash comparisons when dispatched with `orchestrator_bash_tests` (a K = 2 full-kernel bash run
-  of the fixture peaks at about 4.5 GB, the macOS runner has 7 GB, and its bash may be 3.2).
+  and `test_generate_losses.py -k orchestrator`, with `-m "not requires_bash"`.
 - **Windows by reading.** Workers are started with `subprocess` (no fork), connect over
   `multiprocessing.connection` on 127.0.0.1 (sockets, which `wait` supports on Windows), read
   their configuration from a stdin pipe, and are terminated with their process trees through
@@ -811,13 +811,22 @@ manifest.
 
 ### 10.4 What remains
 
-- **CI not yet run.** The macOS and Windows steps were validated (YAML, actionlint) and the
-  Windows selection collected here with `OASIS_TEST_NO_BASH=1` (the changed test files also
-  run that way), but nothing has run on those platforms: path separators in path assertions, symbolic links, Numba compile time in the
-  workers and the wheel's optional dependencies are the likely failure points.
+- **First macOS and Windows runs.** Everything that failed was in the tests or the test
+  fixture, except the resource monitor on macOS: path separators in path assertions (the cli,
+  the planner and genbash join with `os.sep`); the fixture's OED read through
+  `oasis_data_manager`'s `file://<path>` URL, which has an empty path on Windows (the fixture now
+  passes an `OedExposure` read from Path objects); the leftover-process check seeing
+  multiprocessing's resource tracker, which tqdm's lock starts under spawn; and psutil denying
+  the USS on macOS, which emptied `resource_monitor.csv` (now the RSS stands in).
+- **pytools on macOS (not fixed here).** `write_mv_to_stream` selects on its output for
+  exceptional conditions too, and macOS reports one on every regular file, so a pytool whose
+  output is a regular file (`fmpy ... > file`, and likely summarypy's `-1 <file>` of a chunk
+  script) raises `OSError: error with input stream`. Pipes and FIFOs are not affected, and the
+  orchestrator's stages do not use it. The bash comparisons are skipped on macOS until it is
+  fixed.
 - **Memory on the default path.** The bash comparisons in `unittest.yml` each run the fixture's
   full kernel with bash at K = 2 (about 4.5 GB, 74 processes); fine on the 16 GB Linux runner,
-  but they could move behind a dispatch input as on macOS if that is too much.
+  but they could move behind a dispatch input if that is too much.
 - **Package 15, manifest.** Not needed for `rerun()` (the script is written). Left open only if
   a record of what the orchestrator ran (plan JSON, worker count) is wanted in the run directory;
   `orchestrator.log` holds the per-chunk and per-job summary.

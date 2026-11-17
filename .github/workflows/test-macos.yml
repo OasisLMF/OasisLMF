@@ -13,12 +13,6 @@ on:
       - main
       - stable**
   workflow_dispatch:
-    inputs:
-      orchestrator_bash_tests:
-        description: "Also run the orchestrator tests that compare with bash (each full-kernel bash run peaks at ~4.5 GB)"
-        type: boolean
-        required: false
-        default: false
 
 jobs:
   build:
@@ -114,19 +108,15 @@ jobs:
           print('Core numerical stack works on ARM64')
           "
 
-      # The orchestrator suites. The tests that compare with bash (marker requires_bash) run only when
-      # dispatched with orchestrator_bash_tests: a K=2 full-kernel bash run of the test fixture peaks at
-      # ~4.5 GB on a 7 GB runner, and Linux (unittest.yml) runs them on every PR.
+      # The orchestrator suites without the tests that compare with bash or pytools pipelines (marker
+      # requires_bash, skipped on macOS anyway: tests/bash_support.py); Linux (unittest.yml) runs those.
       - name: Orchestrator tests
         if: matrix.python-version == '3.12'
         timeout-minutes: 60
-        env:
-          MARKERS: ${{ inputs.orchestrator_bash_tests && 'requires_bash or not requires_bash' || 'not requires_bash' }}
         run: |
-          bash --version | head -1
           python -m pip install pytest hypothesis mock -r optional-package.in
-          python -m pytest -q -m "$MARKERS" \
+          python -m pytest -q -m "not requires_bash" \
             tests/orchestrator \
             tests/model_execution/test_resource_monitor.py \
             tests/model_execution/test_runner.py::TestRunWithOrchestrator
-          python -m pytest -q -m "$MARKERS" -k orchestrator tests/computation/test_generate_losses.py
+          python -m pytest -q -m "not requires_bash" -k orchestrator tests/computation/test_generate_losses.py
