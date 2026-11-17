@@ -39,7 +39,9 @@ A reference directory holds ``input`` and ``static`` symlinks to the prepared ru
 
 The pristine checkout is given by ``--source`` or the ``OASIS_ORCH_REF_SOURCE`` environment
 variable, else ``~/GitHub/OasisLMF-ref`` when it exists; otherwise (or with the value
-``installed``) the tools of the running interpreter's ``oasislmf`` are used.
+``installed``) the tools of the running interpreter's ``oasislmf`` are used, with a warning, as the
+references are then made by the code under test. With ``OASIS_ORCH_REQUIRE_REF`` set (CI sets it)
+that is an error instead, as is a checkout that is the running ``oasislmf`` itself.
 
 Command line::
 
@@ -57,6 +59,7 @@ import shutil
 import subprocess
 import sys
 import time
+import warnings
 from collections import Counter
 from pathlib import Path
 
@@ -65,6 +68,8 @@ from oasislmf.computation.generate.losses import GenerateLossesDir
 from oasislmf.execution.bash import bash_params, bash_wrapper, create_bash_analysis, create_bash_outputs
 
 REF_SOURCE_ENV = 'OASIS_ORCH_REF_SOURCE'
+REQUIRE_REF_ENV = 'OASIS_ORCH_REQUIRE_REF'
+RUNNING_CHECKOUT = Path(oasislmf.__file__).resolve().parents[1]
 DEFAULT_REF_SOURCE = Path('~/GitHub/OasisLMF-ref')
 INSTALLED = 'installed'
 SCRIPT_NAME = 'run_kernel.sh'
@@ -113,12 +118,28 @@ class KernelRunError(RuntimeError):
     """The kernel script, or a pristine helper process, failed."""
 
 
+class NoPristineReference(RuntimeError):
+    """A pristine reference is required (``OASIS_ORCH_REQUIRE_REF``) and none is given."""
+
+
+def reference_required():
+    """Whether ``OASIS_ORCH_REQUIRE_REF`` is set to anything but empty, ``0``, ``false`` or ``no``."""
+    return os.environ.get(REQUIRE_REF_ENV, '').strip().lower() not in ('', '0', 'false', 'no')
+
+
+def _not_pristine(reason):
+    message = f'{reason}: the references would be made by the code under test, so it would be compared with itself'
+    if reference_required():
+        raise NoPristineReference(f'{message} ({REQUIRE_REF_ENV} is set; give a checkout of main in {REF_SOURCE_ENV})')
+    warnings.warn(message, stacklevel=3)
+
+
 def resolve_source(source=None):
     """The pristine checkout to run.
 
     In order: ``source``; the ``OASIS_ORCH_REF_SOURCE`` environment variable (the value
     ``installed`` means the running interpreter's ``oasislmf``); ``DEFAULT_REF_SOURCE`` when it is
-    an OasisLMF checkout; otherwise the running interpreter's ``oasislmf``.
+    an OasisLMF checkout; otherwise the running interpreter's ``oasislmf``, with a warning.
 
     Args:
         source (str | Path | None): checkout directory, or None to look further.
@@ -128,17 +149,41 @@ def resolve_source(source=None):
 
     Raises:
         FileNotFoundError: if an explicitly given directory is not an OasisLMF checkout.
+        NoPristineReference: with ``OASIS_ORCH_REQUIRE_REF`` set, if the result would be the running ``oasislmf``.
     """
     source = source or os.environ.get(REF_SOURCE_ENV) or None
     if source == INSTALLED:
+        if reference_required():
+            _not_pristine(f'{REF_SOURCE_ENV}={INSTALLED}')
         return None
     if source is None:
         default = DEFAULT_REF_SOURCE.expanduser()
-        return default.resolve() if (default / 'oasislmf' / '__init__.py').exists() else None
+        if (default / 'oasislmf' / '__init__.py').exists():
+            return default.resolve()
+        _not_pristine(f'no pristine checkout ({REF_SOURCE_ENV} is not set and {default} is not an OasisLMF checkout)')
+        return None
     source = Path(source).expanduser().resolve()
     if not (source / 'oasislmf' / '__init__.py').exists():
         raise FileNotFoundError(f'{source} is not an OasisLMF checkout')
+    if source == RUNNING_CHECKOUT:
+        _not_pristine(f'the reference checkout {source} is the one the running oasislmf is imported from')
     return source
+
+
+def describe_source(source):
+    """Which code a reference is made by, for logs and test reports.
+
+    Args:
+        source (Path | None): a ``resolve_source`` result.
+
+    Returns:
+        str: the checkout and its commit, or the running ``oasislmf``'s location.
+    """
+    if source is None:
+        return f'installed oasislmf {oasislmf.__version__} at {RUNNING_CHECKOUT} (the code under test)'
+    proc = subprocess.run(['git', '-C', str(source), 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True)
+    commit = proc.stdout.strip() if proc.returncode == 0 else 'unknown commit'
+    return f'pristine checkout {source} ({commit})'
 
 
 def source_env(source=None, env=None):
@@ -499,6 +544,7 @@ def main(argv=None):
         p.add_argument('--source', default=None, help=f'pristine checkout (default ${REF_SOURCE_ENV}, else the installed oasislmf)')
     args = parser.parse_args(argv)
     start = time.perf_counter()
+    print(f'reference tools: {describe_source(resolve_source(args.source))}')
     if args.command == 'prepare':
         settings = json.loads(Path(args.settings_json).read_text())
         prepare_run_dir(args.oasis_files_dir, args.model_data_dir, settings, args.run_dir, source=args.source)

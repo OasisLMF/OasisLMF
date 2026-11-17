@@ -2,13 +2,14 @@ import json
 import os
 import shutil
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from oasislmf.pytools.common.data import oasis_float
 from oasislmf.pytools.common.event_stream import ITEM_STREAM, LOSS_STREAM_ID, stream_info_to_bytes
-from tests.orchestrator.tools import compare_streams, profile_kernel, reference_streams
+from tests.orchestrator.tools import compare_streams, kernel_reference, profile_kernel, reference_streams
 from tests.orchestrator.tools.compare_streams import (compare_dirs_bytes, compare_dirs_events, compare_files, decode_event_rows,
                                                       list_stream_files, scan_file)
 
@@ -329,3 +330,39 @@ def test_kernel_reference_fixture(kernel_run, kernel_reference, tmp_path):
 def test_kernel_fm_streams_do_not_depend_on_partitioning(kernel_reference, tap):
     result = compare_dirs_events(kernel_reference(1), kernel_reference(3), taps=[tap])[tap]
     assert result.ok, result.summary(details=3)
+
+
+def test_resolve_source_fails_rather_than_compare_the_code_with_itself_when_a_reference_is_required(tmp_path, monkeypatch):
+    checkout = tmp_path / 'ref'
+    (checkout / 'oasislmf').mkdir(parents=True)
+    (checkout / 'oasislmf' / '__init__.py').write_text('')
+    monkeypatch.setattr(kernel_reference, 'DEFAULT_REF_SOURCE', tmp_path / 'missing')
+    monkeypatch.delenv(kernel_reference.REF_SOURCE_ENV, raising=False)
+
+    monkeypatch.delenv(kernel_reference.REQUIRE_REF_ENV, raising=False)
+    with pytest.warns(UserWarning, match='compared with itself'):
+        assert kernel_reference.resolve_source() is None
+    assert kernel_reference.resolve_source(kernel_reference.INSTALLED) is None
+    assert kernel_reference.resolve_source(checkout) == checkout.resolve()
+
+    monkeypatch.setenv(kernel_reference.REQUIRE_REF_ENV, '1')
+    assert kernel_reference.resolve_source(checkout) == checkout.resolve()
+    for source in (None, kernel_reference.INSTALLED):
+        with pytest.raises(kernel_reference.NoPristineReference):
+            kernel_reference.resolve_source(source)
+    monkeypatch.setattr(kernel_reference, 'RUNNING_CHECKOUT', checkout.resolve())
+    with pytest.raises(kernel_reference.NoPristineReference, match='running oasislmf'):
+        kernel_reference.resolve_source(checkout)
+    monkeypatch.setenv(kernel_reference.REQUIRE_REF_ENV, '0')
+    assert not kernel_reference.reference_required()
+
+
+def test_reference_is_pristine_when_required():
+    """On CI (``OASIS_ORCH_REQUIRE_REF`` set) the bash references are made by a checkout of the base branch."""
+    if not kernel_reference.reference_required():
+        pytest.skip(f'{kernel_reference.REQUIRE_REF_ENV} is not set')
+    source = kernel_reference.resolve_source()
+    assert source is not None and source != kernel_reference.RUNNING_CHECKOUT
+    tools = os.environ.get('OASIS_ORCH_REF_TOOLS')
+    assert tools, 'OASIS_ORCH_REF_TOOLS must name the pristine tool wrappers'
+    assert f'PYTHONPATH={source} ' in (Path(tools) / 'fmpy').read_text()

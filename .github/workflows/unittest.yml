@@ -72,6 +72,19 @@ jobs:
           pip uninstall ods_tools -y
           pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
+      # The orchestrator tests check the new stages byte for byte against bash runs of the pytools of the base
+      # branch. Without a checkout of it the harness would make those references with this checkout's code and
+      # compare it with itself; OASIS_ORCH_REQUIRE_REF makes that a failure.
+      - name: Pristine reference checkout for the orchestrator tests
+        run: |
+          ref_dir="$RUNNER_TEMP/oasislmf-ref"
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref || 'main' }}"
+          git worktree add --detach "$ref_dir" FETCH_HEAD
+          python tests/orchestrator/tools/kernel_reference.py wrappers "$ref_dir-bin" --source "$ref_dir"
+          echo "OASIS_ORCH_REF_SOURCE=$ref_dir" >> "$GITHUB_ENV"
+          echo "OASIS_ORCH_REF_TOOLS=$ref_dir-bin" >> "$GITHUB_ENV"
+          echo "OASIS_ORCH_REQUIRE_REF=1" >> "$GITHUB_ENV"
+
       # NUMBA_BOUNDSCHECK must be set here as well as on the test run. numba's on-disk cache key
       # does not include the flag, so a cache warmed without it is reused by a checked run and the
       # checks silently never happen -- for exactly the hot functions warmup covers.

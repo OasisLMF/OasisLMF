@@ -17,7 +17,12 @@ exists, else (or with ``OASIS_ORCH_REF_SOURCE=installed``) by the installed ``oa
 
 Reference streams are produced with ``tools/reference_streams.py``: by the tools of the running
 interpreter, or by those in the directory named by the ``OASIS_ORCH_REF_TOOLS`` environment
-variable (for example wrappers around a pristine checkout of main).
+variable (for example wrappers around a pristine checkout of main, written by
+``tools/kernel_reference.py wrappers``).
+
+With ``OASIS_ORCH_REQUIRE_REF`` set (CI sets it) both must come from a pristine checkout: a fixture
+that would make them with the code under test fails instead. Which code makes them is written to
+the terminal when the fixture is first set up.
 """
 import json
 import os
@@ -33,7 +38,8 @@ from ods_tools.oed import OedExposure, OedSchema
 from oasislmf.computation.generate.files import GenerateDummyModelFiles, GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.utils.data import DEFAULT_ADDITIONAL_FIELDS, prepare_oed_exposure
-from tests.orchestrator.tools.kernel_reference import full_ord_settings, make_kernel_reference, prepare_run_dir, resolve_source
+from tests.orchestrator.tools.kernel_reference import (REQUIRE_REF_ENV, NoPristineReference, describe_source, full_ord_settings,
+                                                       make_kernel_reference, prepare_run_dir, reference_required, resolve_source)
 from tests.orchestrator.tools.reference_streams import (DEFAULT_GUL_ARGS, DEFAULT_IL_ALLOC_RULE, DEFAULT_RI_ALLOC_RULE,
                                                         DEFAULT_RI_LAYERS, DEFAULT_SAMPLES, make_reference_streams,
                                                         prepare_financial_structures, resolve_tools)
@@ -157,14 +163,28 @@ def build_kernel_run_dir(run_dir, tools=None):
     return run_dir
 
 
+def report_reference(request, line):
+    """Write which code makes the references to the terminal, whatever the capture and verbosity settings."""
+    reporter = request.config.pluginmanager.get_plugin('terminalreporter')
+    if reporter is not None:
+        reporter.write_line(f'orchestrator tests: {line}')
+
+
 @pytest.fixture(scope='session')
-def kernel_run(tmp_path_factory):
+def kernel_run(tmp_path_factory, request):
     """A prepared GUL + IL + RI kernel run directory (30 events, 290 locations, 4 RI inuring priorities).
 
     Returns:
         KernelRun: the run directory and the parameters its references are made with.
+
+    Raises:
+        NoPristineReference: ``OASIS_ORCH_REQUIRE_REF`` is set and ``OASIS_ORCH_REF_TOOLS`` is not.
     """
     ref_tools = os.environ.get(REF_TOOLS_ENV) or None
+    if ref_tools is None and reference_required():
+        raise NoPristineReference(f'{REQUIRE_REF_ENV} is set but {REF_TOOLS_ENV} is not: the reference streams would be made by '
+                                  f'the code under test')
+    report_reference(request, f'reference streams made by {ref_tools or describe_source(None)}')
     run_dir = build_kernel_run_dir(tmp_path_factory.mktemp('kernel_run'), resolve_tools(ref_tools))
     event_ids = np.fromfile(run_dir / 'input' / 'events.bin', dtype='<i4')
     return KernelRun(run_dir=run_dir, event_ids=event_ids, ref_tools=ref_tools)
@@ -214,7 +234,7 @@ FULL_KERNEL_RETURN_PERIODS = [1, 2, 5, 10]
 
 
 @pytest.fixture(scope='session')
-def full_kernel_run(kernel_run, tmp_path_factory):
+def full_kernel_run(kernel_run, tmp_path_factory, request):
     """The kernel run prepared for a full-kernel bash run: summary xrefs, every ORD output switched on.
 
     The pristine ``GenerateLossesDir`` step (from the checkout ``resolve_source`` picks) makes the
@@ -228,6 +248,7 @@ def full_kernel_run(kernel_run, tmp_path_factory):
     """
     settings = full_ord_settings(FULL_KERNEL_SAMPLES, quantiles=FULL_KERNEL_QUANTILES, return_periods=FULL_KERNEL_RETURN_PERIODS)
     source = resolve_source()
+    report_reference(request, f'full-kernel references made by {describe_source(source)}')
     return prepare_run_dir(kernel_run.run_dir / 'input', kernel_run.run_dir / 'static', settings,
                            tmp_path_factory.mktemp('full_kernel_run'), source=source)
 
