@@ -213,8 +213,8 @@ def test_compare_tools_detect_a_changed_byte_and_a_missing_file_in_a_reference(f
     (copy / 'output' / 'gul_S1_ept.csv').unlink()
     report = compare_trees_bytes(ref, copy)
     assert report.different == [f'work/kat/il_S2_elt_sample_P2: first difference at byte 20 '
-                                 f'(sizes {(copy / "work/kat/il_S2_elt_sample_P2").stat().st_size}'
-                                 f' and {(copy / "work/kat/il_S2_elt_sample_P2").stat().st_size})']
+                                f'(sizes {(copy / "work/kat/il_S2_elt_sample_P2").stat().st_size}'
+                                f' and {(copy / "work/kat/il_S2_elt_sample_P2").stat().st_size})']
     assert report.only_in_a == ['output/gul_S1_ept.csv', 'work/ri_S1_summaryleccalc/P2.bin']
     rows = compare_outputs_rows(ref, copy)
     assert rows.only_in_a == ['output/gul_S1_ept.csv'] and not rows.different

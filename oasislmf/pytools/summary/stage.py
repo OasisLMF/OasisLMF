@@ -141,6 +141,7 @@ def get_summary_object(static_path, run_type):
     return (summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id,
             item_id_to_risks_i, risk_i_to_n_buildings)
 
+
 def read_summary_objects(static_path, run_type):
     summary_info = np.load(os.path.join(static_path, run_type, 'summary_info.npy'), mmap_mode='r')
     summary_set_id_to_summary_set_index = np.load(os.path.join(static_path, run_type, 'summary_set_id_to_summary_set_index.npy'), mmap_mode='r')
@@ -426,6 +427,7 @@ def fill_event_rows(rows, row_i, event_id, len_sample, last_loss_summary_index, 
 
         last_sidx = 0
     return row_i, -1, 0
+
 
 class SummaryReader(EventReader):
     """Read an event loss stream and aggregate it into the relevant summary loss streams."""

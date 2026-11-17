@@ -273,7 +273,7 @@ def test_pool_workers_pull_and_policy_can_spawn_and_retire(tmp_path, run_dir):
             seen['retired'] = p.retire(p.workers[0]).number
 
     stats = run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 1, factories=FAKE_FACTORIES,
-                            policy=policy, progress=lambda done, total: progress.append((done, total)))
+                     policy=policy, progress=lambda done, total: progress.append((done, total)))
     check_fake_outputs(tmp_path / 'out', chunks)
     assert stats['n_workers'] == 2
     assert seen['retired'] == 0
@@ -323,7 +323,7 @@ def test_pool_retire_prefers_idle_workers_and_stops_a_waiting_one_at_once(tmp_pa
 @pytest.mark.parametrize('package_root, prepended', [(site.getsitepackages()[0], False), ('checkout', True)])
 @pytest.mark.parametrize('pythonpath', [None, 'other'])
 def test_pool_worker_pythonpath_has_the_package_root_only_for_a_checkout(tmp_path, run_dir, monkeypatch, package_root, prepended,
-                                                                           pythonpath):
+                                                                         pythonpath):
     if package_root == 'checkout':
         package_root = str(tmp_path / 'checkout')
     monkeypatch.setattr(pool, 'PACKAGE_ROOT', package_root)
@@ -350,7 +350,7 @@ def test_pool_retiring_every_worker_with_chunks_left_is_an_error(tmp_path, run_d
 
     with pytest.raises(pool.WorkerError, match='chunks left'):
         run_pool(make_spec(str(run_dir)), make_chunks(np.arange(1, 31, dtype=np.int32), 5), tmp_path / 'out', TAPS, 1,
-                        factories=FAKE_FACTORIES, policy=policy)
+                 factories=FAKE_FACTORIES, policy=policy)
     assert descendants() == []
 
 
@@ -360,7 +360,7 @@ def test_pool_stage_exception_stops_run_with_stage_chunk_event(tmp_path, run_dir
     k = next(i for i, c in enumerate(chunks, 1) if RAISE_EVENT in c)
     with pytest.raises(pool.WorkerError) as info:
         run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, n_workers,
-                        factories={'gul': f'{THIS}:RaisingGul', 'fm': FAKE_FACTORIES['fm']})
+                 factories={'gul': f'{THIS}:RaisingGul', 'fm': FAKE_FACTORIES['fm']})
     error = info.value
     assert (error.stage, error.chunk, error.event) == ('gul', k, RAISE_EVENT)
     assert error.returncode is not None and error.returncode != 0
@@ -375,7 +375,7 @@ def test_pool_fm_exception_names_fm_step(tmp_path, run_dir):
     chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 3)
     with pytest.raises(pool.WorkerError) as info:
         run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2,
-                        factories={'gul': FAKE_FACTORIES['gul'], 'fm': f'{THIS}:RaisingFm'})
+                 factories={'gul': FAKE_FACTORIES['gul'], 'fm': f'{THIS}:RaisingFm'})
     assert info.value.stage == 'il (fm step 1)'
     assert info.value.event == FM_RAISE_EVENT
     assert 'fm kernel failed' in str(info.value)
@@ -385,7 +385,7 @@ def test_pool_fm_exception_names_fm_step(tmp_path, run_dir):
 def test_pool_setup_failure(tmp_path, run_dir):
     with pytest.raises(pool.WorkerError) as info:
         run_pool(make_spec(str(run_dir)), [[1], [2]], tmp_path / 'out', TAPS, 2,
-                        factories={'gul': f'{THIS}:FailingSetupGul', 'fm': FAKE_FACTORIES['fm']})
+                 factories={'gul': f'{THIS}:FailingSetupGul', 'fm': FAKE_FACTORIES['fm']})
     assert info.value.stage == 'setup'
     assert 'cannot open footprint' in str(info.value)
     assert descendants() == []
@@ -396,7 +396,7 @@ def test_pool_worker_crash_reports_chunk_exit_code_and_stderr(tmp_path, run_dir)
     k = next(i for i, c in enumerate(chunks, 1) if CRASH_EVENT in c)
     with pytest.raises(pool.WorkerError) as info:
         run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2,
-                        factories={'gul': f'{THIS}:CrashingGul', 'fm': FAKE_FACTORIES['fm']})
+                 factories={'gul': f'{THIS}:CrashingGul', 'fm': FAKE_FACTORIES['fm']})
     assert info.value.chunk == k
     assert info.value.returncode == 3
     assert 'about to crash' in info.value.stderr_tail
@@ -497,7 +497,7 @@ def test_pool_failure_terminates_hanging_workers_and_their_children(tmp_path, ru
     t_start = time.monotonic()
     with pytest.raises(pool.WorkerError) as info:
         run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2,
-                        factories={'gul': f'{THIS}:HangOrRaiseGul', 'fm': FAKE_FACTORIES['fm']}, kill_grace=2)
+                 factories={'gul': f'{THIS}:HangOrRaiseGul', 'fm': FAKE_FACTORIES['fm']}, kill_grace=2)
     assert time.monotonic() - t_start < 60
     assert (info.value.chunk, info.value.event) == (2, RAISE_EVENT)
     grandchild = int((run_dir / 'grandchild.pid').read_text())

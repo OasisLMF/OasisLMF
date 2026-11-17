@@ -349,7 +349,7 @@ def prepare_run_dir(oasis_files_dir, model_data_dir, analysis_settings, run_dir,
     if bin_dir is None and sys.platform != 'win32':
         bin_dir = write_tool_wrappers(run_dir / 'bin', source)
     steps = [('input', il_alloc_rule)] + [(f'input/RI_{i}', ri_alloc_rule)
-                                         for i in range(1, num_ri_layers(run_dir, analysis_settings) + 1)]
+                                          for i in range(1, num_ri_layers(run_dir, analysis_settings) + 1)]
     for static_path, rule in steps:
         proc = subprocess.run(tool_command('fmpy') + [f'-a{rule}', '--create-financial-structure-files', '-p', static_path],
                               cwd=run_dir, env=source_env(source), capture_output=True, text=True)

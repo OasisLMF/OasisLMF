@@ -79,7 +79,6 @@ class SummaryRowWriter:
         self.row_i = 0
 
 
-
 def run(files_in, static_path, run_type, low_memory, output_zeros, output_format='bin', **kwargs):
     """Run the summary calculation, writing a summary output for each summary set.
 

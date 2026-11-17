@@ -452,8 +452,8 @@ class ResourceManager:
         n = min(by_memory, self.max_workers - len(live), cpus - len(live), self._useful(pool))
         if n > 0:
             self._spawn(pool, n)
-            self._record('spawn', len(live), len(live) + n, f'room for {by_memory} more after reserving {_gb(reserve)} for '
-                                                            f'the live workers')
+            self._record('spawn', len(live), len(live) + n,
+                         f'room for {by_memory} more after reserving {_gb(reserve)} for the live workers')
         elif by_memory <= 0 and len(live) == 1 and self._useful(pool) > 0 and not self._warned_one:
             self._warned_one = True
             self._warn(f'one worker needs about {_gb(self.estimate)} and leaves no room for a second '
