@@ -6,6 +6,9 @@ USS (private memory), and PSS (proportional memory, Linux only).
 Writes raw data to CSV and optionally generates a markdown report with
 plots (requires matplotlib).
 
+Worker processes of the orchestrator (``python -m oasislmf.execution.orchestrator.worker``), which run the
+pytools stages in-process, are reported as one tool, ``orchestrator``.
+
 USS (Unique Set Size) is the primary memory metric — it represents memory
 private to each process and avoids the double-counting problem that RSS has
 with shared memory and memory-mapped files.
@@ -37,6 +40,9 @@ MONITORED_TOOLS = frozenset([
 # Regex to extract a tool name from a process's command-line
 _TOOL_RE = re.compile(r'\b(' + '|'.join(MONITORED_TOOLS) + r')\b')
 
+ORCHESTRATOR_TOOL = 'orchestrator'
+ORCHESTRATOR_WORKER_MODULE = 'oasislmf.execution.orchestrator.worker'
+
 CSV_HEADER = ['timestamp', 'tool', 'pid', 'cpu_pct', 'cpu_user_s', 'cpu_sys_s', 'rss_kb', 'uss_kb', 'pss_kb']
 
 # Consistent colors per tool (for plots)
@@ -53,10 +59,19 @@ TOOL_COLORS = {
     "aalpy": "#9467bd",
     "lecpy": "#8c564b",
     "plapy": "#e377c2",
+    ORCHESTRATOR_TOOL: "#98df8a",
 }
 
 # PSS is only available on Linux
 _HAS_PSS = sys.platform.startswith('linux')
+
+
+def monitored_tool(cmdline):
+    """The tool a process is reported as, from its command line (a list of arguments); None if not monitored."""
+    if ORCHESTRATOR_WORKER_MODULE in cmdline:
+        return ORCHESTRATOR_TOOL
+    match = _TOOL_RE.search(' '.join(cmdline))
+    return match.group(1) if match else None
 
 
 class ResourceMonitor:
@@ -160,12 +175,10 @@ class ResourceMonitor:
                 cmdline = proc.info.get('cmdline')
                 if not cmdline:
                     continue
-                cmdline_str = ' '.join(cmdline)
-                match = _TOOL_RE.search(cmdline_str)
-                if not match:
+                tool = monitored_tool(cmdline)
+                if tool is None:
                     continue
 
-                tool = match.group(1)
                 cpu_pct = proc.cpu_percent()
                 cpu_times = proc.cpu_times()
                 mem = proc.memory_full_info()

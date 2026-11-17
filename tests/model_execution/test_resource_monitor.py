@@ -2,7 +2,7 @@ import time
 from collections import defaultdict
 from unittest import TestCase
 
-from oasislmf.execution.resource_monitor import _plot_cpu_time
+from oasislmf.execution.resource_monitor import _plot_cpu_time, monitored_tool
 
 
 class _StubAxes:
@@ -100,3 +100,10 @@ class PlotCpuTimeTests(TestCase):
 
         self.assertEqual(len(plt.ax.lines["gulmc"][0]), 3600)
         self.assertLess(elapsed, 5)
+
+
+def test_monitored_tool_from_command_line():
+    assert monitored_tool(['/usr/bin/python3', '/home/u/.local/bin/fmpy', '-a2']) == 'fmpy'
+    assert monitored_tool(['python', '-m', 'oasislmf.execution.orchestrator.worker']) == 'orchestrator'
+    assert monitored_tool(['python', '-m', 'oasislmf.execution.orchestrator.cli']) is None
+    assert monitored_tool(['bash', 'run_kernel.sh']) is None

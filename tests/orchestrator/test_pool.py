@@ -1,4 +1,5 @@
 import contextlib
+import csv
 import json
 import os
 import shutil
@@ -13,6 +14,7 @@ import psutil
 import pytest
 
 from oasislmf.execution.orchestrator import cli, inline, pool
+from oasislmf.execution.resource_monitor import ORCHESTRATOR_TOOL, ORCHESTRATOR_WORKER_MODULE, ResourceMonitor
 from oasislmf.execution.orchestrator.chain import Chain
 from oasislmf.execution.orchestrator.chunks import make_chunks
 from oasislmf.execution.orchestrator.worker import stage_name
@@ -69,6 +71,14 @@ class WarningGul(FakeGul):
         if event_id == STDERR_EVENT:
             warnings.warn('this is only a warning', UserWarning)
             sys.stderr.flush()
+        super().process_event(event_id, out)
+
+
+class SlowGul(FakeGul):
+    """Takes a little time per event, so that a resource monitor sees the worker."""
+
+    def process_event(self, event_id, out):
+        time.sleep(0.05)
         super().process_event(event_id, out)
 
 
@@ -327,6 +337,22 @@ def test_pool_stderr_guard_ignores_warnings(tmp_path, run_dir):
     check_fake_outputs(tmp_path / 'out', chunks)
     stderr = ''.join(p.read_text() for p in log_dir.glob('orchestrator_worker_*.err'))
     assert 'UserWarning: this is only a warning' in stderr
+
+
+def test_resource_monitor_reports_pool_workers(tmp_path, run_dir):
+    assert ORCHESTRATOR_WORKER_MODULE == pool.WORKER_MODULE
+    chunks = make_chunks(np.arange(1, 41, dtype=np.int32), 2)
+    monitor = ResourceMonitor(str(tmp_path / 'monitor'), poll_interval=0.1, generate_report=False)
+    monitor.start(os.getpid())
+    try:
+        stats = run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2,
+                         factories={'gul': f'{THIS}:SlowGul', 'fm': FAKE_FACTORIES['fm']})
+    finally:
+        monitor.stop()
+    with open(tmp_path / 'monitor' / 'resource_monitor.csv', newline='') as f:
+        rows = [row for row in csv.DictReader(f) if row['tool'] == ORCHESTRATOR_TOOL]
+    worker_pids = {str(w['pid']) for w in stats['workers']}
+    assert worker_pids <= {row['pid'] for row in rows}
 
 
 def test_pool_failure_terminates_hanging_workers_and_their_children(tmp_path, run_dir):
