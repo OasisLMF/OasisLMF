@@ -163,9 +163,28 @@ def check_fake_outputs(out_dir, chunks, taps=TAPS):
             assert (out_dir / f'{tap}_P{k}.bin').read_bytes() == headers[tap] + expected[tap], (tap, k)
 
 
+INTERPRETER_HELPERS = ('multiprocessing.resource_tracker', 'multiprocessing.forkserver')
+
+
 def descendants():
-    """Live descendants of the test process."""
-    return [p for p in psutil.Process().children(recursive=True) if p.is_running() and p.status() != psutil.STATUS_ZOMBIE]
+    """Live descendants of the test process, other than the interpreter's multiprocessing helpers.
+
+    Where multiprocessing does not start processes by fork (spawn on macOS and Windows, forkserver on
+    Linux from Python 3.14), the first multiprocessing lock the process makes (tqdm makes one for its
+    first progress bar) starts a resource tracker that lives as long as the interpreter. A process that
+    exits during the scan (seen on Windows, where a terminated worker can still be listed) is gone.
+    """
+    alive = []
+    for proc in psutil.Process().children(recursive=True):
+        try:
+            if proc.status() == psutil.STATUS_ZOMBIE or any(helper in ' '.join(proc.cmdline()) for helper in INTERPRETER_HELPERS):
+                continue
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except psutil.AccessDenied:
+            pass
+        alive.append(proc)
+    return alive
 
 
 def check_stats_shape(stats, chunks, n_workers):
