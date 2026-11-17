@@ -18,7 +18,8 @@ Logging. For its whole life the worker has the logging setup a pytool's ``main``
 (``pytools.utils.pytool_logging``): log records of the stages and Python warnings go to
 ``orchestrator_worker_<n>_<pid>_<uuid>.log`` in ``OASIS_PYTOOLS_LOG_DIR`` (else ``log_dir``) at
 ``OASIS_PYTOOLS_LOG_LEVEL``, not to its stderr, so that a warning does not trip the stderr guard where bash's would
-not. The file ends with ``finishing process`` when the worker exits normally.
+not. The stage modules are imported first, so that their loggers are levelled as a pytool's are. The file ends with
+``finishing process`` when the worker exits normally; an error the worker reports is also logged there.
 
 Protocol, every message a dict with a ``type``:
 
@@ -33,8 +34,10 @@ Protocol, every message a dict with a ``type``:
   only after every chunk of the run is done, so the worker closes its chain before the first one to give the
   memory back.
 """
+import contextlib
 import gc
 import json
+import logging
 import os
 import sys
 import time
@@ -43,9 +46,12 @@ from multiprocessing.connection import Client
 
 from oasislmf.pytools.utils import pytool_logging
 
-from .chain import Chain, ChainSpec
+from .chain import Chain, ChainSpec, import_factories
 from .chunks import ChunkWriter
 from .outputs import JobError, run_job
+
+# Not __name__: run as 'python -m', this module is __main__, which pytool_logging would not route to the log file.
+logger = logging.getLogger('oasislmf.execution.orchestrator.worker')
 
 EXIT_ERROR = 1
 LOG_NAME = 'orchestrator_worker_{worker}'
@@ -88,12 +94,15 @@ def failing_stage(chain, tb):
 
 
 def error_message(exc, stage, chunk=None, event=None, job=None):
-    """Build the ``error`` message describing an exception."""
-    return {
+    """Build the ``error`` message describing an exception, and log it."""
+    message = {
         'type': 'error', 'stage': stage, 'chunk': chunk, 'event': event, 'job': job,
         'error': f'{type(exc).__name__}: {exc}',
         'traceback': ''.join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
     }
+    logger.error('stage %s, chunk %s, event %s, job %s failed: %s\n%s', stage, chunk, event, job, message['error'],
+                 message['traceback'].rstrip())
+    return message
 
 
 def run_chunk(chain, out_dir, taps, chunk_number, events, report=None, report_interval=None):
@@ -237,6 +246,10 @@ def main():
     for path in config.get('sys_path', []):
         if path not in sys.path:
             sys.path.append(path)
+    if not config.get('jobs_only'):
+        with contextlib.suppress(Exception):
+            # A factory that fails to import fails again in Chain(), which reports it as a setup error.
+            import_factories(ChainSpec.from_dict(config['spec']), config.get('factories'))
     address = tuple(config['address'])
     with pytool_logging(LOG_NAME.format(worker=config['worker']), config.get('log_dir') or './log') as log:
         log.info('starting process')

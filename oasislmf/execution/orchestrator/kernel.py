@@ -14,9 +14,12 @@ the analysis removes the previous output files and work files as ``create_bash_a
 are removed after the outputs when ``remove_working_files`` is set, as ``create_bash_outputs`` does. The work files
 have the names bash gives them, so a chunk run by bash and one run by the orchestrator are interchangeable.
 
-Logs go where the script's would: the workers' stdout and stderr to ``<log_dir>/orchestrator_worker_<n>.log``, the
-pytools logs of the output jobs (``OASIS_PYTOOLS_LOG_DIR``) to ``<log_dir>``, and a run log, the counterpart of the
-script's stdout, to ``<log_dir>/orchestrator.log``. A failure is appended to ``<log_dir>/stderror.err``, where the
+Logs go where the script's would: the workers' stdout and stderr to ``<log_dir>/orchestrator_worker_<n>.out`` and
+``.err``, the log records and Python warnings of the stages to a pytools-style log file per worker,
+``<log_dir>/orchestrator_worker_<n>_<pid>_<uuid>.log`` at ``log_level`` (``worker.py``), the pytools logs of the output
+jobs (``OASIS_PYTOOLS_LOG_DIR``) to ``<log_dir>``, and a run log, the counterpart of the script's stdout, to
+``<log_dir>/orchestrator.log``. The workers' log files are not named after ``MONITORED_TOOLS``, so the runner's
+pytools-log completeness check does not apply to them; a worker that fails fails the run itself. A failure is appended to ``<log_dir>/stderror.err``, where the
 script's error trap writes, and raised as ``subprocess.CalledProcessError`` as a failed script is.
 
 bash's stderr guard (``stderr_guard`` in bash_params, off with ``kernel_disable_guard``) is mirrored with the pool

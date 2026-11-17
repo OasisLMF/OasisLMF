@@ -153,6 +153,34 @@ def default_factories():
     return dict(importlib.import_module(STAGES_MODULE).FACTORIES)
 
 
+def needed_factories(spec):
+    """The factory keys a chain of ``spec`` uses: ``gul`` and ``fm``, ``summary`` with a summary tree, and its table kinds."""
+    needed = {'gul', 'fm'}
+    if spec.summaries:
+        needed.add('summary')
+    for node in spec.summaries:
+        for summary_set in node.get('sets', []):
+            needed.update(out['kind'] for out in summary_set.get('outputs', []) if out['kind'] in TABLE_KINDS)
+    return needed
+
+
+def import_factories(spec, factories=None):
+    """Import the stage factories a ``Chain(spec, factories)`` uses: those given, the real stages for the rest.
+
+    Args:
+        spec (ChainSpec): the chain.
+        factories (dict, optional): as for ``Chain``.
+
+    Returns:
+        dict: the factories of ``needed_factories(spec)``, imported.
+    """
+    needed = needed_factories(spec)
+    factories = dict(factories or {})
+    if not needed <= set(factories):
+        factories = {**default_factories(), **factories}
+    return {key: _resolve(factories[key]) for key in needed}
+
+
 def fill_chunk(template, k):
     """Fill the ``{k}`` of a per-chunk path template with the 1-based chunk number ``k``."""
     return template.replace(CHUNK_KEY, str(k))
@@ -270,16 +298,7 @@ class Chain:
         self.fm_steps = []
         self.summary_nodes = [SummaryNode(i, node) for i, node in enumerate(spec.summaries)]
 
-        needed = {'gul', 'fm'}
-        if self.summary_nodes:
-            needed.add('summary')
-        for node in spec.summaries:
-            for summary_set in node.get('sets', []):
-                needed.update(out['kind'] for out in summary_set.get('outputs', []) if out['kind'] in TABLE_KINDS)
-        factories = dict(factories or {})
-        if not needed <= set(factories):
-            factories = {**default_factories(), **factories}
-        resolved = {key: _resolve(factories[key]) for key in needed}
+        resolved = import_factories(spec, factories)
 
         self._names = [step.get('name') for step in spec.fm]
         self._feeds = []

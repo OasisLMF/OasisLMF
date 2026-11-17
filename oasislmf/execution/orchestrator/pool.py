@@ -225,7 +225,7 @@ class WorkerPool:
             chunk_numbers (Sequence[int], optional): the 1-based numbers of the chunks to run, all by default. The others
                 are not run and write nothing (a distributed run hands each chunk to a different machine).
             log_dir (str, optional): directory the workers' stdout and stderr are written to, as
-                ``orchestrator_worker_<n>.log`` and ``orchestrator_worker_<n>.err``, and kept; by default a temporary
+                ``orchestrator_worker_<n>.out`` and ``orchestrator_worker_<n>.err``, and kept; by default a temporary
                 directory removed by ``close``. The workers' log files (``orchestrator_worker_<n>_<pid>_<uuid>.log``,
                 see ``worker.py``) go there too unless their ``OASIS_PYTOOLS_LOG_DIR`` names another directory.
             progress_interval (float, optional): workers report the events done in their current chunk at most every
@@ -328,7 +328,7 @@ class WorkerPool:
             Worker: the new worker.
         """
         number = len(self.workers)
-        log_path = os.path.join(self.log_dir, f'orchestrator_worker_{number}.log')
+        log_path = os.path.join(self.log_dir, f'orchestrator_worker_{number}.out')
         err_path = os.path.join(self.log_dir, f'orchestrator_worker_{number}.err')
         log_file = open(log_path, 'wb')
         try:

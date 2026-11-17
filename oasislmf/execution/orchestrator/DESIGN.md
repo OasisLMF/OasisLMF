@@ -704,8 +704,10 @@ manifest.
   the misspelt `remove_working_file`, which #2292 fixes on main; the bash_params value is what
   counts).
 - **Logs.** In the step's log directory (`log`, `log/<k>`, `log/out`):
-  `orchestrator_worker_<n>.log` and `orchestrator_worker_<n>.err` (each worker's stdout and
-  stderr, kept: pool option `log_dir`), `orchestrator.log` (the run log, also returned as the script's stdout would be:
+  `orchestrator_worker_<n>.out` and `orchestrator_worker_<n>.err` (each worker's stdout and
+  stderr, kept: pool option `log_dir`), `orchestrator_worker_<n>_<pid>_<uuid>.log` (each worker's
+  log records and Python warnings at `log_level`: the worker runs inside `pytool_logging`, the
+  setup `redirect_logging` gives a pytool), `orchestrator.log` (the run log, also returned as the script's stdout would be:
   per chunk events/seconds/worker, per output job, totals), `stderror.err` (created empty as the
   script's redirections do; a failure is appended to it), and the output jobs' pytools logs
   (`OASIS_PYTOOLS_LOG_DIR` and `OASIS_PYTOOLS_LOG_LEVEL` set for the workers). The
@@ -784,7 +786,7 @@ manifest.
 - **Resource monitor.** `monitored_tool` reports a process whose command line has the module
   `oasislmf.execution.orchestrator.worker` as `orchestrator`; the stages run in-process, so
   there is no per-tool split. `MONITORED_TOOLS` is unchanged, so the pytools-log completeness
-  check does not look at `orchestrator_worker_<n>.log`.
+  check does not look at the workers' log files (they end with `finishing process` all the same).
 - **Tests without bash.** Marker `requires_bash` (`setup.cfg`, `tests/bash_support.py`,
   `tests/conftest.py`): tests that run bash scripts or pytools pipelines over OS pipes (the tools
   `select` on them, which Windows only allows on sockets), applied explicitly or through the

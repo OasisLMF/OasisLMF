@@ -360,7 +360,7 @@ def test_pool_stderr_guard_fails_on_an_error_line(tmp_path, run_dir):
     assert 'ERROR: something went wrong' in info.value.stderr_tail
     assert descendants() == []
     logs = sorted(os.listdir(tmp_path / 'log'))
-    assert 'orchestrator_worker_0.err' in logs and 'orchestrator_worker_0.log' in logs
+    assert 'orchestrator_worker_0.err' in logs and 'orchestrator_worker_0.out' in logs
 
     stats = run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out2', TAPS, 2, factories=factories, stderr_guard=False)
     check_fake_outputs(tmp_path / 'out2', chunks)
@@ -393,6 +393,26 @@ def test_pool_stderr_guard_ignores_warnings(tmp_path, run_dir, gul):
     logs = worker_logs(log_dir)
     assert 'this is only a warning' in logs or 'FutureWarning: this helper is deprecated' in logs
     assert logs.count('finishing process') == 2
+
+
+@pytest.mark.parametrize('log_level, info_logged', [(None, False), ('INFO', True)])
+def test_pool_worker_log_has_stage_records_at_the_log_level(tmp_path, run_dir, log_level, info_logged):
+    chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 3)
+    log_dir = tmp_path / 'log'
+    run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2, stderr_guard=True, log_dir=str(log_dir),
+             factories={'gul': f'{THIS}:CallerWarningGul', 'fm': FAKE_FACTORIES['fm']}, env=worker_env(log_dir, log_level))
+    logs = worker_logs(log_dir)
+    assert 'oasislmf.pytools.gulmc.manager - WARNING - warning record of the gul stage' in logs
+    assert ('info record of the gul stage' in logs) == info_logged
+
+
+def test_pool_worker_log_has_the_failure(tmp_path, run_dir):
+    chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 3)
+    log_dir = tmp_path / 'log'
+    with pytest.raises(pool.WorkerError):
+        run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 1, log_dir=str(log_dir),
+                 factories={'gul': f'{THIS}:RaisingGul', 'fm': FAKE_FACTORIES['fm']}, env=worker_env(log_dir))
+    assert f'ValueError: bad event {RAISE_EVENT}' in worker_logs(log_dir)
 
 
 def test_resource_monitor_reports_pool_workers(tmp_path, run_dir):
@@ -536,4 +556,4 @@ def test_pool_progress_messages_count_every_event_once(tmp_path, run_dir):
     assert [d for d, _ in calls] == sorted(d for d, _ in calls)
     assert len(calls) > len(chunks)
     assert sorted(os.listdir(tmp_path / 'logs')) == sorted(f'orchestrator_worker_{w["worker"]}.{ext}'
-                                                           for w in stats['workers'] for ext in ('err', 'log'))
+                                                           for w in stats['workers'] for ext in ('err', 'out'))

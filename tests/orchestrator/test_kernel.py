@@ -17,7 +17,7 @@ import pytest
 
 from oasislmf.execution import runner
 from oasislmf.execution.bash import bash_params
-from oasislmf.execution.orchestrator import kernel
+from oasislmf.execution.orchestrator import kernel, pool
 from oasislmf.execution.orchestrator.chunks import make_chunks, read_events
 from oasislmf.execution.orchestrator.plan import OutputJob, Plan, plan_from_bash_params
 from oasislmf.execution.orchestrator.progress import ProgressReporter
@@ -26,7 +26,7 @@ from tests.orchestrator.tools.compare_outputs import compare_outputs_rows, compa
 from tests.orchestrator.tools.kernel_reference import link_dir
 
 from .test_chain import make_spec
-from .test_pool import descendants
+from .test_pool import FAKE_FACTORIES, THIS, descendants
 
 K = 2
 SUMMARY_INFO = '*summary-info*'
@@ -207,6 +207,32 @@ def test_run_plan_fixed_pool_without_the_resource_manager(run_dir, monkeypatch):
     assert '2 workers, chunks [1, 2] of 2' in text and 'resource manager' not in text
 
 
+class FakeStagePool:
+    """The pool executor, with fake stages whose gul warns and logs."""
+
+    @staticmethod
+    def run_chunks(spec, chunks, out_dir, taps, n_workers, **options):
+        factories = {'gul': f'{THIS}:CallerWarningGul', 'fm': FAKE_FACTORIES['fm']}
+        return pool.run_chunks(spec, chunks, out_dir, taps, n_workers, factories=factories, **options)
+
+
+@pytest.mark.parametrize('log_level, info_logged', [(None, False), ('INFO', True)])
+def test_run_plan_worker_logs_have_the_stage_records_at_the_log_level(run_dir, monkeypatch, log_level, info_logged):
+    monkeypatch.delenv('OASIS_PYTEST_REDIRECT_LOGS', raising=False)
+    monkeypatch.delenv('OASIS_PYTOOLS_LOG_LEVEL', raising=False)
+    monkeypatch.setitem(kernel.EXECUTORS, 'pool', FakeStagePool)
+    np.arange(1, 31, dtype=np.int32).tofile(run_dir / 'input' / 'events.bin')
+    params = {'work_dir': 'work/', 'work_kat_dir': 'work/kat/', 'output_dir': 'output/', 'log_level': log_level}
+    kernel.run_plan(fake_plan(run_dir), params, 'analysis', 'log', 'run_kernel.sh', resource_manager=False)
+    log_dir = run_dir / 'log'
+    logs = ''.join(p.read_text() for p in sorted(log_dir.glob('orchestrator_worker_*_*_*.log')))
+    assert 'FutureWarning: this helper is deprecated' in logs
+    assert 'oasislmf.pytools.gulmc.manager - WARNING - warning record of the gul stage' in logs
+    assert ('info record of the gul stage' in logs) == info_logged
+    assert (log_dir / kernel.STDERR_LOG).read_text() == ''
+    assert sorted(p.name for p in log_dir.glob('orchestrator_worker_*.out')) == ['orchestrator_worker_0.out', 'orchestrator_worker_1.out']
+
+
 def test_chunk_count():
     plan = fake_plan('.', 4)
     assert kernel.chunk_count(plan, 'all', 1000, 4, 1) == 4
@@ -309,8 +335,8 @@ def test_runner_orchestrator_run_logs_and_outputs(orchestrated_whole_run):
     assert len(outputs) > 20
     assert (orch_run / 'run_kernel.sh').is_file()
     assert (orch_run / 'log' / kernel.RUN_LOG).is_file()
-    assert sorted(p.name for p in (orch_run / 'log').glob('orchestrator_worker_*.log')) == [
-        f'orchestrator_worker_{w}.log' for w in range(K)]
+    assert sorted(p.name for p in (orch_run / 'log').glob('orchestrator_worker_*.out')) == [
+        f'orchestrator_worker_{w}.out' for w in range(K)]
     assert (orch_run / 'log' / kernel.STDERR_LOG).read_text() == ''
     assert os.listdir(orch_run / 'work') == []
 
