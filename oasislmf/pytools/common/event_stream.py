@@ -14,6 +14,7 @@ from .data import def_to_type_and_size, sidx as sidx_definition
 
 # streams
 PIPE_CAPACITY = 65536  # bytes
+STREAM_HEADER_SIZE = 8  # bytes: stream type and sample count
 
 # stream source type
 CDF_STREAM_ID = 0
@@ -276,6 +277,38 @@ def bytes_to_stream_types(stream_header):
         (stream source type (np.int32), stream aggregation type (np.int32))
     """
     return np.frombuffer(stream_header[3:], 'i1')[0], np.frombuffer(stream_header[:3] + b'\x00', '<i4')[0]
+
+
+def parse_loss_stream_header(input_header, stream_type_error):
+    """Validate the header of a loss stream (gul, il or ri, plain or with packed buildings) and return its sample count.
+
+    Used by the fmpy and summarypy stages, which accept the same streams but word the stream type error
+    differently. An aggregation type that is not defined is refused rather than read as if it were items, which
+    would give a wrong loss and not a failure.
+
+    Args:
+        input_header (bytes): the 8-byte header of the stream.
+        stream_type_error (str): message of the exception raised for a stream type that is not a loss stream,
+            formatted with ``stream_type`` and ``agg_type``.
+
+    Returns:
+        np.int32: the sample count (max sidx) of the stream.
+
+    Raises:
+        ValueError: the header is not ``STREAM_HEADER_SIZE`` bytes long.
+        Exception: the stream type or the aggregation type is not one of a loss stream.
+    """
+    input_header = bytes(input_header)
+    if len(input_header) != STREAM_HEADER_SIZE:
+        raise ValueError(f'stream header must be {STREAM_HEADER_SIZE} bytes, got {len(input_header)}')
+    stream_source_type, stream_agg_type = bytes_to_stream_types(input_header[:4])
+    len_sample = np.frombuffer(input_header[4:], dtype=np.int32)[0]
+    if stream_source_type not in (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID):
+        raise Exception(stream_type_error.format(stream_type=stream_source_type, agg_type=stream_agg_type))
+    if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
+        raise Exception(f"unsupported stream aggregation type {stream_agg_type}, expected one of "
+                        f"{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)")
+    return len_sample
 
 
 def read_stream_info(stream_obj):

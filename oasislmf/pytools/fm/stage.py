@@ -13,8 +13,7 @@ import time
 
 import numpy as np
 
-from oasislmf.pytools.common.event_stream import (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, LOSS_STREAM_AGG_TYPES,
-                                                  bytes_to_stream_types)
+from oasislmf.pytools.common.event_stream import parse_loss_stream_header
 from oasislmf.utils.exceptions import OasisStreamException
 from .compute_sparse import compute_event as compute_event_sparse
 from .compute_sparse import DEBUG_PROFILE, PROFILE_LEVELS, PROFILE_METRICS
@@ -26,7 +25,7 @@ from .stream_sparse import FMReader, EventWriterSparse, EventWriterOrderedOutput
 
 logger = logging.getLogger(__name__)
 
-STREAM_HEADER_SIZE = 8
+STREAM_TYPE_ERROR = 'unsupported stream_type {stream_type} (most probable cause is that the up stream data are incorrect)'
 
 
 def resolve_allocation_rule(allocation_rule, net):
@@ -47,36 +46,6 @@ def resolve_allocation_rule(allocation_rule, net):
     elif allocation_rule == 0 and net:
         raise NotImplementedError("net loss option is not implemented for alloc rule 0")
     return allocation_rule
-
-
-def parse_input_header(input_header):
-    """Validate the header of an fm input stream as fmpy does and return its sample count.
-
-    Args:
-        input_header (bytes): the 8-byte header of the upstream loss stream.
-
-    Returns:
-        np.int32: the sample count (max sidx) of the stream.
-
-    Raises:
-        Exception: the stream type or the aggregation type is not one fm reads.
-    """
-    input_header = bytes(input_header)
-    if len(input_header) != STREAM_HEADER_SIZE:
-        raise ValueError(f'stream header must be {STREAM_HEADER_SIZE} bytes, got {len(input_header)}')
-    stream_source_type, stream_agg_type = bytes_to_stream_types(input_header[:4])
-    max_sidx_val = np.frombuffer(input_header[4:], dtype=np.int32)[0]
-
-    if stream_source_type not in [GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID]:
-        raise Exception(f'unsupported stream_type {stream_source_type} (most probable cause is that the up stream data are incorrect)')
-    # ITEM_PACKED_STREAM is read by the same path: an unpacked item is the one-building case
-    # of the packed encoding. The check is here so an aggregation type we have NOT defined --
-    # a future layout, or a stream from a newer writer -- is refused rather than read as if
-    # it were items, which would be a wrong loss and not a failure.
-    if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
-        raise Exception(f'unsupported stream aggregation type {stream_agg_type}, expected one of '
-                        f'{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)')
-    return max_sidx_val
 
 
 def _dump_fm_profile(stats, phase=None):
@@ -129,7 +98,7 @@ class FmStage:
         if not (gross or net):
             raise ValueError("at least one of gross or net must be requested")
         allocation_rule = resolve_allocation_rule(allocation_rule, net)
-        max_sidx_val = parse_input_header(input_header)
+        max_sidx_val = parse_loss_stream_header(input_header, STREAM_TYPE_ERROR)
         if storage_method != "sparse":
             raise ValueError(f"storage_method {storage_method} is not supported for this version")
 

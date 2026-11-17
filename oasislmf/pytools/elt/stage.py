@@ -18,12 +18,11 @@ from pathlib import Path
 import numpy as np
 
 from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
-from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, bytes_to_stream_types, stream_info_to_bytes
+from oasislmf.pytools.common.event_stream import STREAM_HEADER_SIZE, SUMMARY_STREAM_ID, bytes_to_stream_types, stream_info_to_bytes
 from oasislmf.pytools.common.parquet import BufferedParquetWriter
 from oasislmf.pytools.elt import manager as elt_manager
 from oasislmf.pytools.elt.data import MELT_fmt, MELT_headers, QELT_fmt, QELT_headers, SELT_fmt, SELT_headers
 
-STREAM_HEADER_SIZE = 8
 SUMMARY_STREAM_HEADER_SIZE = 12
 
 

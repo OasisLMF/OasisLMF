@@ -39,17 +39,16 @@ from numpy.lib.recfunctions import repack_fields
 from oasislmf.pytools.common.data import (building_count_dtype, def_to_type_and_size, load_as_ndarray, oasis_int, nb_oasis_int, oasis_float,
                                           null_index, fm_summary_xref_dtype, gul_summary_xref_dtype,
                                           loss_pair_dtype, loss_pair_size, summary_stream_index_dtype)
-from oasislmf.pytools.common.event_stream import (EventReader, bytes_to_stream_types, stream_info_to_bytes,
+from oasislmf.pytools.common.event_stream import (EventReader, parse_loss_stream_header, stream_info_to_bytes,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss,
-                                                  GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
-                                                  LOSS_STREAM_AGG_TYPES,
+                                                  SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX,
                                                   NUM_SPECIAL_SIDX, decode_local_sidx)
 from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
 
 logger = logging.getLogger(__name__)
 
-STREAM_HEADER_SIZE = 8
+STREAM_TYPE_ERROR = "unsupported stream type {stream_type}, {agg_type}"
 
 event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
 item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
@@ -498,35 +497,6 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
     return summary_set_index_to_loss_ptr, item_id_to_summary_id
 
 
-def parse_input_header(input_header):
-    """Validate the header of a summarypy input stream as summarypy does and return its sample count.
-
-    Args:
-        input_header (bytes): the 8-byte header of the upstream loss stream (gul item stream, il/ri loss
-            stream, plain or with packed buildings).
-
-    Returns:
-        np.int32: the sample count (max sidx) of the stream.
-
-    Raises:
-        Exception: the stream type or the aggregation type is not one summarypy reads.
-    """
-    input_header = bytes(input_header)
-    if len(input_header) != STREAM_HEADER_SIZE:
-        raise ValueError(f'stream header must be {STREAM_HEADER_SIZE} bytes, got {len(input_header)}')
-    stream_source_type, stream_agg_type = bytes_to_stream_types(input_header[:4])
-    len_sample = np.frombuffer(input_header[4:], dtype=np.int32)[0]
-
-    if stream_source_type not in (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID):
-        raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
-    # summarypy sums over the sidx it is given, so a packed stream needs no second path -- but
-    # an aggregation type we have not defined must be refused rather than silently summed.
-    if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
-        raise Exception(f"unsupported stream aggregation type {stream_agg_type}, expected one of "
-                        f"{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)")
-    return len_sample
-
-
 class SummaryStage:
     """One summarypy step (one run type), set up once and fed events in memory.
 
@@ -559,7 +529,7 @@ class SummaryStage:
 
     def __init__(self, input_header, static_path, run_type, summary_set_ids, low_memory=False,
                  output_zeros=False, **kwargs):
-        len_sample = parse_input_header(input_header)
+        len_sample = parse_loss_stream_header(input_header, STREAM_TYPE_ERROR)
         summary_sets_id = np.array(list(summary_set_ids))
 
         (summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id,
