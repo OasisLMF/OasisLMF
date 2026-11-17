@@ -321,8 +321,8 @@ def _philox4x32_7(c0, c1, c2, c3, k0, k1):
         hi1 = np.uint32(p1 >> PHILOX_SHIFT32)
         lo1 = np.uint32(p1 & PHILOX_U32_MASK)
         c0, c1, c2, c3 = hi1 ^ c1 ^ k0, lo1, hi0 ^ c3 ^ k1, lo0
-        k0 = np.uint32(k0 + PHILOX_W0)
-        k1 = np.uint32(k1 + PHILOX_W1)
+        k0 = np.uint32((np.uint64(k0) + np.uint64(PHILOX_W0)) & PHILOX_U32_MASK)
+        k1 = np.uint32((np.uint64(k1) + np.uint64(PHILOX_W1)) & PHILOX_U32_MASK)
     return c0, c1, c2, c3
 
 
