@@ -6,8 +6,10 @@ builds one ``Chain`` and asks for chunks; see ``worker.py`` for the protocol. Be
 ones take the most chunks.
 
 Elasticity is a mechanism of ``WorkerPool``: ``spawn()`` adds a worker at any time, it connects and starts
-pulling; ``retire()`` answers the next ``ready`` of a worker with ``stop``. ``run_chunks`` uses the simplest policy,
-W = min(n_workers, K) from the start; a ``policy`` callable may be passed to change the pool during the run.
+pulling; ``retire()`` answers the next ``ready`` of a worker with ``stop``. ``run_chunks`` either uses the simplest
+policy, W = min(n_workers, K) from the start, or with ``resource_manager`` sizes the pool from measured memory and CPU
+(``resources.ResourceManager``, n_workers being the hard maximum); a ``policy`` callable may also be passed to change
+the pool during the run.
 
 Output jobs (``output_jobs``: the katpy/aalpy/lecpy runs of the plan, see ``outputs.py``) are handed out on the same
 pool once every chunk is done: a worker whose ``ready`` arrives while the last chunks are still running waits for
@@ -42,6 +44,7 @@ import oasislmf
 
 from .chain import spec_for_taps
 from .outputs import as_job, check_independent, job_label, job_outputs, prepare_output_dirs
+from .resources import ResourceManager
 
 logger = logging.getLogger(__name__)
 
@@ -208,8 +211,8 @@ class WorkerPool:
             taps (list[str]): taps to write.
             factories (dict, optional): ``{'gul'|'fm'|'summary'|'elt'|'plt': 'package.module:attribute'}`` replacing the real stages in
                 the workers. Only import strings can be sent to a spawned process.
-            policy (callable, optional): ``policy(pool)`` called after every message handled, to ``spawn`` or
-                ``retire`` workers.
+            policy (callable, optional): ``policy(pool)`` called after every message handled and on every pass of the
+                loop (at least every ``POLL_INTERVAL`` seconds), to ``spawn`` or ``retire`` workers.
             progress (callable, optional): ``progress(events_done, events_total)`` called after every chunk, and on every
                 ``progress`` message of a worker when ``progress_interval`` is set.
             python (str, optional): interpreter for the workers, ``sys.executable`` by default.
@@ -602,6 +605,8 @@ class WorkerPool:
                     self._handle(worker, message)
                     if self.policy is not None:
                         self.policy(self)
+                if self.policy is not None:
+                    self.policy(self)
                 if not conns:
                     time.sleep(POLL_INTERVAL)
                 self._check_exits()
@@ -683,6 +688,9 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     directory as working directory (``outputs.run_job``). When there are more jobs than chunks, job-only workers,
     which build no chain, are added then, up to min(n_workers, number of jobs) workers in all.
 
+    With ``resource_manager`` the pool is sized by a ``resources.ResourceManager`` instead: it starts a few workers
+    and grows or shrinks the pool from measured memory and CPU, never above n_workers, adding job-only workers itself.
+
     Args:
         spec (ChainSpec): the chain to run.
         chunks (Sequence[array-like]): event ids of each chunk; chunk k (1-based) is ``chunks[k - 1]``.
@@ -691,13 +699,16 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
         n_workers (int): maximum number of workers.
         **options: ``factories`` (``{'gul'|'fm'|'summary'|'elt'|'plt': 'package.module:attribute'}``), ``policy``, ``progress``,
             ``python``, ``env``, ``kill_grace``, ``output_jobs`` (Sequence[OutputJob | dict]), ``chunk_numbers``, ``log_dir``,
-            ``progress_interval`` and ``stderr_guard``, see ``WorkerPool``; other options are ignored.
+            ``progress_interval`` and ``stderr_guard``, see ``WorkerPool``; ``resource_manager`` (a
+            ``ResourceManager``, or True for one with the defaults and n_workers as maximum; exclusive with ``policy``);
+            other options are ignored.
 
     Returns:
         dict: statistics: ``executor`` ('pool'), ``n_workers``, ``wall_seconds``, ``setup_seconds`` (the longest time
         from starting a chain-building worker to its first ``ready``), ``events``, ``chunks`` (one ``{'chunk', 'events',
         'seconds', 'worker'}`` per chunk), ``jobs`` (one ``{'job', 'tool', 'outputs', 'seconds', 'worker'}`` per output
-        job, by index), ``output_seconds`` (from handing out the first job to the last one done) and ``workers`` (one
+        job, by index), ``output_seconds`` (from handing out the first job to the last one done), ``resource_manager``
+        (``ResourceManager.summary()``, with a resource manager only) and ``workers`` (one
         ``{'worker', 'pid', 'chunks', 'setup_seconds', 'chain_seconds', 'busy_seconds', 'jobs', 'job_seconds',
         'jobs_only'}`` per worker; ``busy_seconds`` counts chunks only).
 
@@ -719,10 +730,24 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     pool_options = {key: options[key] for key in ('factories', 'policy', 'progress', 'python', 'env', 'kill_grace', 'chunk_numbers',
                                                   'log_dir', 'progress_interval', 'stderr_guard') if key in options}
     pool_options['output_jobs'] = output_jobs
-    pool_options['job_workers'] = min(n_workers, max(n, len(output_jobs)))
+    manager = options.get('resource_manager')
+    if manager is True:
+        manager = ResourceManager(n_workers)
+    if manager:
+        if 'policy' in options:
+            raise ValueError('resource_manager and policy are exclusive')
+        pool_options['policy'] = manager
+        pool_options['job_workers'] = 0
+    else:
+        pool_options['job_workers'] = min(n_workers, max(n, len(output_jobs)))
     with WorkerPool(spec, chunks, out_dir, taps, **pool_options) as pool:
-        for _ in range(n):
-            pool.spawn()
+        if manager:
+            manager.start(pool)
+        else:
+            for _ in range(n):
+                pool.spawn()
         stats = pool.run()
+    if manager:
+        stats['resource_manager'] = manager.summary()
     stats['wall_seconds'] = time.perf_counter() - t_start
     return stats
