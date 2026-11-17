@@ -26,9 +26,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from ods_tools.oed import OedExposure
 
 from oasislmf.computation.generate.files import GenerateDummyModelFiles, GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
+from oasislmf.utils.data import DEFAULT_ADDITIONAL_FIELDS, prepare_oed_exposure
 from tests.orchestrator.tools.kernel_reference import full_ord_settings, make_kernel_reference, prepare_run_dir, resolve_source
 from tests.orchestrator.tools.reference_streams import (DEFAULT_GUL_ARGS, DEFAULT_IL_ALLOC_RULE, DEFAULT_RI_ALLOC_RULE,
                                                         DEFAULT_RI_LAYERS, DEFAULT_SAMPLES, make_reference_streams,
@@ -47,6 +49,7 @@ N_DAMAGE_BINS = 10
 MODEL_SEED = 1234
 PERIL = 'WTC'
 RI_LAYERS_AVAILABLE = 4
+OED_FILES = {'location': 'location.csv', 'account': 'account.csv', 'ri_info': 'ri_info.csv', 'ri_scope': 'ri_scope.csv'}
 
 
 @dataclass
@@ -73,6 +76,25 @@ class KernelRun:
     ref_tools: str = field(default_factory=lambda: os.environ.get(REF_TOOLS_ENV) or None)
 
 
+def oed_case_exposure(*oed_types):
+    """The OED of ``OED_CASE_DIR`` as the computation steps would load it, read from Path objects.
+
+    A computation step turns its OED file parameters into strings, which ods_tools reads through
+    ``LocalStorage.get_storage_url`` as ``file://<path>``: on Windows that is ``file://C:\\...``,
+    whose path part is empty. A Path is read by pandas directly, on any OS.
+
+    Args:
+        *oed_types (str): keys of ``OED_FILES`` to load.
+
+    Returns:
+        OedExposure: the exposure with the internal columns added, for a step's ``exposure_data`` argument.
+    """
+    exposure = OedExposure(**{oed_type: OED_CASE_DIR / OED_FILES[oed_type] for oed_type in oed_types},
+                           check_oed=True, use_field=True, backend_dtype='pd_dtype', additional_fields=DEFAULT_ADDITIONAL_FIELDS)
+    prepare_oed_exposure(exposure)
+    return exposure
+
+
 def build_kernel_run_dir(run_dir, tools=None):
     """Write a small GUL + IL + RI run directory.
 
@@ -94,7 +116,7 @@ def build_kernel_run_dir(run_dir, tools=None):
     keys_path = input_dir / 'keys.csv'
     GenerateKeysDeterministic(
         oasis_files_dir=str(input_dir), oed_location_csv=str(OED_CASE_DIR / 'location.csv'), keys_data_path=str(keys_path),
-        keys_format='oasis', model_perils_covered=[PERIL],
+        keys_format='oasis', model_perils_covered=[PERIL], exposure_data=oed_case_exposure('location'),
     ).run()
     keys = pd.read_csv(keys_path)
     keys['AreaPerilID'] = np.arange(len(keys)) % N_AREAPERILS + 1
@@ -105,6 +127,7 @@ def build_kernel_run_dir(run_dir, tools=None):
         oasis_files_dir=str(input_dir), keys_data_path=str(keys_path),
         oed_location_csv=str(OED_CASE_DIR / 'location.csv'), oed_accounts_csv=str(OED_CASE_DIR / 'account.csv'),
         oed_info_csv=str(OED_CASE_DIR / 'ri_info.csv'), oed_scope_csv=str(OED_CASE_DIR / 'ri_scope.csv'),
+        exposure_data=oed_case_exposure(*OED_FILES),
     ).run()
     prepare_financial_structures(run_dir, tools, DEFAULT_IL_ALLOC_RULE, DEFAULT_RI_ALLOC_RULE, RI_LAYERS_AVAILABLE)
     return run_dir
