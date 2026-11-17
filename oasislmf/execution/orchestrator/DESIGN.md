@@ -640,3 +640,20 @@ rejects jobs that share outputs, read each other's outputs or share a `work/` su
 before any chunk runs. Stats gain `jobs`, `output_seconds` and per-worker `job_seconds`.
 PiWind K4 through the pool, 4 workers: `work/` and `output/` byte-identical to `ref/K4_S10`
 (288 files); 54 output jobs take 1.3 s.
+
+### 9.7 Phase 3 result: full PiWind kernel
+
+Package 12 (`~/GitHub/runs/orch-bench-piwind-full/bench/REPORT.md`, 2026-11-17, every run
+capped at 14 GB). Full kernel, S10: the pool with 12 workers and 12 chunks takes 24.0 s,
+218 CPU-s and 2.9 GB, within the 25 to 30 s estimate above; DESIGN section 2's bash K12 took
+73 s and 699 CPU-s. Under the cap bash K8 and K12 run out of memory (about 1.9 GB per
+partition, about 15 Python processes each), so the largest bash that fits is K6: 67.7 s,
+669 CPU-s, 11.7 GB. At S100: pool 66.9 s / 5.3 GB against bash K6 135.1 s / 12.5 GB. At the
+same process count (pool W4 K4 against bash K4) the pool is 1.76x faster at S10 with a
+quarter of the CPU and an eighth of the memory, byte-identical. All checked runs are equal to
+bash (bytes at K4 and K6, sorted rows at K12 and K48).
+
+Remaining time at S10 (24 s): about 8 s fixed cost (driver, then twelve workers importing
+Numba and building chains), 1 s of output jobs, and about 4 s of end-of-run imbalance between
+P- and E-cores. K48 did not remove the imbalance; handing out the largest chunks first, or
+reusing workers' setup, are the next things to try.
