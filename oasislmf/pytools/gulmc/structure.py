@@ -643,9 +643,6 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # Every item reads its hazard through a blended areaperil: the ids listed in the model's blend
     # table carry their placements, and every other id is the size-1 case (K = 1).
     blend = read_blended_areaperil(model_storage, ignore_file_type)
-    if blend is not None and dynamic_footprint:
-        # FootprintParquetDynamic takes its areaperils from keys.csv, which holds blended ids
-        raise OasisException("blended areaperils are not supported with a dynamic footprint yet")
     (items['blended_areaperil_idx'],
      blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_ja_probabilities,
      blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
