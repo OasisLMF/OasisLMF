@@ -91,15 +91,37 @@ Structured array of type `items_MC_data_type`, populated per event by `reconstru
 |---|---|---|
 | `item_id` | int32 | Item identifier |
 | `item_idx` | int32 | Index into the items table |
-| `haz_arr_i` | int32 | Index into haz_arr_ptr for this item's hazard pdf |
 | `rng_index` | int32 | Index into vuln_seeds / vuln_rndms_base |
 | `hazard_rng_index` | int32 | Index into haz_seeds / haz_rndms_base |
 | `intensity_adjustment` | int32 | Dynamic footprint intensity adjustment |
 | `return_period` | int32 | Dynamic footprint return period |
-| `event_rp` | int32 | Dynamic footprint return period of this event at the item's areaperil |
-| `eff_cdf_id` | int32 | Sequential CDF group id for cache key construction (O5) |
 | `source_item_j` | int32 | Coverage dependency: the source item's position within its coverage; < 0 if independent |
 | `packed_buildings` | int32 | The signed building count, carried through from the items table |
+
+The hazard row, the event's return period and the CDF group are not here: they belong to the
+item's areaperil, of which an item can have several. See [Item areaperils](#item-areaperils).
+
+### Item areaperils
+
+An item's `areaperil_id` names a **blended areaperil**: weighted placements, each read through
+one footprint areaperil. A base areaperil is the size-1 case, one placement of weight 1 read
+through the id itself, and without a blend table every item has exactly that. The item reads
+one **item areaperil** per distinct footprint areaperil of its blended areaperil;
+`item_areaperil_ja_offsets[item_idx] + j` is its j-th.
+
+| Array | Indexed by | Holds |
+|---|---|---|
+| `items['blended_areaperil_idx']` | item | dense blended areaperil index |
+| `blended_areaperil_ja_offsets` / `_ja_areaperil_ids` / `_ja_probabilities` | blended areaperil | its K footprint areaperils, and the probability the building is on each |
+| `blended_areaperil_placement_ja_offsets` / `_ja_cum_weights` / `_ja_areaperil_j` | blended areaperil | placements: running weight, and which areaperil j covers each (-1 none) |
+| `blended_areaperil_placement_scale` | blended areaperil | what the placement uniform is scaled by: 1.0 for float weights, the total otherwise |
+| `item_areaperil_ja_offsets` | item | its run of item areaperils |
+| `item_areaperil_ja_cdf_group_idxs` | item areaperil | CDF group, the cache key (one per areaperil, vulnerability and, under a dynamic footprint, intensity adjustment) |
+| `item_areaperil_ja_areaperil_agg_vuln_idxs` | item areaperil | aggregate vulnerability block, -1 when not aggregate |
+| `item_map_ja_id_ind` / `_ja_areaperil_ids` / `_ja_offsets` | footprint areaperil | the item areaperils that read it, as `item_map_ja_item_idxs` / `item_map_ja_item_areaperil_idxs` |
+| `item_areaperil_haz_arr_i` | item areaperil | per event: index into haz_arr_ptr, -1 when its areaperil has no hazard this event |
+| `item_areaperil_event_rp` | item areaperil | per event: the event's return period there (dynamic footprint) |
+| `item_event_tag` | item | per event: the event it was last registered in, so it registers once |
 
 ### Vulnerability CDF Cache
 
@@ -145,11 +167,13 @@ used as the index into `haz_arr_ptr` for accessing the hazard intensity pdf.
 
 ### `reconstruct_coverages(...)`
 
-Per-event preparation phase. Iterates all (areaperil, vulnerability) pairs in the footprint,
-and for each mapped item:
+Per-event preparation phase. Walks the item map for every areaperil in the footprint. The first
+visit to an item registers it:
 - Computes hash-based random seeds (deduplicated by group using array lookups).
 - Maps items to their coverage structures.
-- Assigns `eff_cdf_id` for CDF cache key construction.
+
+Every visit records its item areaperil's hazard row, and gives the item a hazard rng row if that
+areaperil's hazard is non-deterministic.
 
 Uses pre-allocated arrays (`group_seq_rng_index`, `hazard_group_seq_rng_index`) for O(1)
 group deduplication instead of per-event Numba Dict creation.
@@ -157,7 +181,7 @@ group deduplication instead of per-event Numba Dict creation.
 ### `compute_event_losses(...)`
 
 Core loss computation. For each coverage and item:
-1. Retrieves hazard pdf via `haz_arr_i`.
+1. Retrieves hazard pdf via its item areaperil's `item_areaperil_haz_arr_i`.
 2. Looks up or computes the effective damage CDF (and per-bin CDFs when
    `effective_damageability=False`), using the int64 cache key.
 3. Computes mean loss statistics.
@@ -277,7 +301,7 @@ per-areaperil weights from `areaperil_vuln_idx_to_weight`.
 When enabled, intensity values in the hazard footprint are adjusted per item using
 `intensity_adjustment` factors. The adjusted intensity is remapped to intensity_bin_ids
 via `intensity_bin_dict`. Items with different adjustments in the same (areaperil, vuln)
-group receive different `eff_cdf_id` values.
+group receive different CDF groups (`item_areaperil_ja_cdf_group_idxs`).
 
 
 ## Binary I/O Format

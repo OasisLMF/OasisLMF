@@ -37,8 +37,8 @@ from oasislmf.pytools.gulmc.common import (
     NormInversionParameters, coverage_type,
 )
 from oasislmf.pytools.gulmc.items import (
-    read_items, generate_item_map,
-    build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id,
+    read_items, build_blended_areaperils, build_item_areaperils, generate_item_map,
+    build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln,
 )
 from oasislmf.utils.path import setcwd
 
@@ -57,10 +57,19 @@ ARRAY_FILES = [
     'coverages',
     'item_map_ja_areaperil_ids',
     'item_map_ja_offsets',
-    'item_map_ja_vuln_ja_offsets',
-    'item_map_ja_vuln_ja_item_idxs',
+    'item_map_ja_item_idxs',
+    'item_map_ja_item_areaperil_idxs',
     'item_map_ja_id_ind',
-    'item_cdf_group_idx',
+    'item_areaperil_ja_offsets',
+    'item_areaperil_ja_cdf_group_idxs',
+    'item_areaperil_ja_areaperil_agg_vuln_idxs',
+    'blended_areaperil_ja_offsets',
+    'blended_areaperil_ja_areaperil_ids',
+    'blended_areaperil_ja_probabilities',
+    'blended_areaperil_placement_ja_offsets',
+    'blended_areaperil_placement_ja_cum_weights',
+    'blended_areaperil_placement_ja_areaperil_j',
+    'blended_areaperil_placement_scale',
     'areaperil_agg_vuln_idx_ja_offsets',
     'areaperil_agg_vuln_idx_ja_data',
     'damage_bins',
@@ -349,7 +358,7 @@ def align_conditional_damage_axis(conditional_vuln_array, Ndamage_bins_max):
     )
 
 
-def build_vuln_idx_to_cond_idx(items, cond_vuln_ids, n_vulns):
+def build_vuln_idx_to_cond_idx(items, item_is_aggregate, cond_vuln_ids, n_vulns):
     """Map each vulnerability's dense index to its conditional (damage-transition) matrix row.
 
     ``conditional_vuln_array`` is compact (one row per conditional vulnerability), while the kernel
@@ -358,14 +367,14 @@ def build_vuln_idx_to_cond_idx(items, cond_vuln_ids, n_vulns):
     normal hazard-indexed vulnerability.
 
     Only non-aggregate items carry a ``vulnerability_idx`` (``generate_item_map`` assigns it in the
-    non-aggregate branch only, and sets ``areaperil_agg_vuln_idx`` instead for aggregates), so
+    non-aggregate branch only, and records an aggregate block per item areaperil instead), so
     aggregate items are excluded: an aggregate vulnerability id that happens to collide with a
     conditional one must not scatter through an index that was never assigned. A dependent coverage
     may not use an aggregate vulnerability anyway — ``validate_coverage_dependency`` rejects that.
 
     Args:
-        items (np.ndarray): items table with 'vulnerability_id', 'vulnerability_idx' and
-            'areaperil_agg_vuln_idx'.
+        items (np.ndarray): items table with 'vulnerability_id' and 'vulnerability_idx'.
+        item_is_aggregate (np.ndarray[bool]): per item, whether its vulnerability is aggregate.
         cond_vuln_ids (np.ndarray): conditional vulnerability ids, ascending (from ``np.unique``).
         n_vulns (int): number of dense vulnerability indices (``vuln_array.shape[0]``).
 
@@ -377,7 +386,7 @@ def build_vuln_idx_to_cond_idx(items, cond_vuln_ids, n_vulns):
     if cond_vuln_ids.shape[0] == 0:
         return vuln_idx_to_cond_idx
 
-    present = np.isin(items['vulnerability_id'], cond_vuln_ids) & (items['areaperil_agg_vuln_idx'] < 0)
+    present = np.isin(items['vulnerability_id'], cond_vuln_ids) & ~item_is_aggregate
     # cond_vuln_ids is ascending, so searchsorted gives the conditional row
     vuln_idx_to_cond_idx[items['vulnerability_idx'][present]] = \
         np.searchsorted(cond_vuln_ids, items['vulnerability_id'][present]).astype(np.int64)
@@ -509,7 +518,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     items = rfn.merge_arrays((items,
                               np.empty(items.shape,
                                        dtype=nb.from_dtype(np.dtype([("vulnerability_idx", oasis_int),
-                                                                     ("areaperil_agg_vuln_idx", oasis_int),
+                                                                     ("blended_areaperil_idx", oasis_int),
                                                                      ("packed_buildings", building_count_dtype)])))),
                              flatten=True)
     # building-packing, signed: magnitude is the number of buildings multiplexed into each item's
@@ -525,7 +534,6 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                 f"covered by coverages.bin; the two files must be regenerated together."
             )
         items['packed_buildings'] = n_building_by_coverage[cov_i]
-    items['areaperil_agg_vuln_idx'] = -1
     # generate_item_map only assigns vulnerability_idx for non-aggregate items; initialise it so an
     # aggregate item never carries uninitialised memory into an array index
     items['vulnerability_idx'] = 0
@@ -563,22 +571,37 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
 
     items.sort(order=['areaperil_id', 'vulnerability_id'])
 
-    # --- item map (two-level jagged array) -------------------------------------
+    # --- blended areaperils and item areaperils -----------------------------------
+    # Every item reads its hazard through a blended areaperil; without a blend table each is
+    # the size-1 case, so every item has K = 1 item areaperil.
+    (items['blended_areaperil_idx'],
+     blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_ja_probabilities,
+     blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_scale) = build_blended_areaperils(items)
+    (item_areaperil_ja_offsets, entry_areaperil_ids, entry_vuln_ids, entry_item_idxs,
+     entry_item_areaperil_idxs) = build_item_areaperils(items, blended_areaperil_ja_offsets,
+                                                        blended_areaperil_ja_areaperil_ids)
+    n_item_areaperils = int(item_areaperil_ja_offsets[-1])
+    # an item counts once in its coverage however many areaperils it reads
+    np.add.at(coverages['max_items'], items['coverage_id'], 1)
+
+    # --- item map (areaperil -> item areaperils) -------------------------------
     (item_map_ja_areaperil_ids, item_map_ja_offsets,
-     item_map_ja_vuln_ja_offsets,
-     item_map_ja_vuln_ja_item_idxs,
+     item_map_ja_item_idxs, item_map_ja_item_areaperil_idxs,
+     item_areaperil_ja_areaperil_agg_vuln_idxs,
      vuln_map, vuln_map_keys,
      areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
      areaperil_agg_vuln_idx_ja_areaperil_ids) = generate_item_map(
-        items,
-        coverages,
+        entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entry_item_areaperil_idxs,
+        items, n_item_areaperils,
         agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids)
+    del entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entry_item_areaperil_idxs
     item_map_ja_id_ind = id_index_build(item_map_ja_areaperil_ids)
 
     # CDF group indices
-    item_cdf_group_idx, n_cdf_groups = build_cdf_group_indices(
-        item_map_ja_vuln_ja_offsets, item_map_ja_vuln_ja_item_idxs,
-        items, dynamic_footprint if dynamic_footprint else None)
+    item_areaperil_ja_cdf_group_idxs, n_cdf_groups = build_cdf_group_indices(
+        item_map_ja_offsets, item_map_ja_item_idxs, item_map_ja_item_areaperil_idxs,
+        items, n_item_areaperils, dynamic_footprint if dynamic_footprint else None)
 
     if aggregate_weights is not None:
         logger.debug('reconstruct aggregate vulnerability definitions and weights')
@@ -624,7 +647,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # (Ndamage_bins_max), which the vulnerability file — not the damage_bin_dict — determines.
     conditional_vuln_array = align_conditional_damage_axis(conditional_vuln_array, vuln_array.shape[1])
 
-    vuln_idx_to_cond_idx = build_vuln_idx_to_cond_idx(items, cond_vuln_ids, vuln_array.shape[0])
+    vuln_idx_to_cond_idx = build_vuln_idx_to_cond_idx(
+        items, item_is_aggregate_vuln(item_areaperil_ja_offsets, item_areaperil_ja_areaperil_agg_vuln_idxs),
+        cond_vuln_ids, vuln_array.shape[0])
 
     # --- Gaussian lookup tables (deterministic constants) ----------------------
     norm_inv_parameters = np.array(
@@ -650,10 +675,19 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'coverages': coverages,
         'item_map_ja_areaperil_ids': item_map_ja_areaperil_ids,
         'item_map_ja_offsets': item_map_ja_offsets,
-        'item_map_ja_vuln_ja_offsets': item_map_ja_vuln_ja_offsets,
-        'item_map_ja_vuln_ja_item_idxs': item_map_ja_vuln_ja_item_idxs,
+        'item_map_ja_item_idxs': item_map_ja_item_idxs,
+        'item_map_ja_item_areaperil_idxs': item_map_ja_item_areaperil_idxs,
         'item_map_ja_id_ind': item_map_ja_id_ind,
-        'item_cdf_group_idx': item_cdf_group_idx,
+        'item_areaperil_ja_offsets': item_areaperil_ja_offsets,
+        'item_areaperil_ja_cdf_group_idxs': item_areaperil_ja_cdf_group_idxs,
+        'item_areaperil_ja_areaperil_agg_vuln_idxs': item_areaperil_ja_areaperil_agg_vuln_idxs,
+        'blended_areaperil_ja_offsets': blended_areaperil_ja_offsets,
+        'blended_areaperil_ja_areaperil_ids': blended_areaperil_ja_areaperil_ids,
+        'blended_areaperil_ja_probabilities': blended_areaperil_ja_probabilities,
+        'blended_areaperil_placement_ja_offsets': blended_areaperil_placement_ja_offsets,
+        'blended_areaperil_placement_ja_cum_weights': blended_areaperil_placement_ja_cum_weights,
+        'blended_areaperil_placement_ja_areaperil_j': blended_areaperil_placement_ja_areaperil_j,
+        'blended_areaperil_placement_scale': blended_areaperil_placement_scale,
         'areaperil_agg_vuln_idx_ja_offsets': areaperil_agg_vuln_idx_ja_offsets,
         'areaperil_agg_vuln_idx_ja_data': areaperil_agg_vuln_idx_ja_data,
         'damage_bins': damage_bins,

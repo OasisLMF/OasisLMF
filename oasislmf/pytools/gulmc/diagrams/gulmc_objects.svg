@@ -37,7 +37,7 @@
 <title>ied</title>
 <path fill="#fdf0e0" stroke="#c8863c" d="M557,-287C557,-287 371,-287 371,-287 365,-287 359,-281 359,-275 359,-275 359,-258 359,-258 359,-252 365,-246 371,-246 371,-246 557,-246 557,-246 563,-246 569,-252 569,-258 569,-258 569,-275 569,-275 569,-281 563,-287 557,-287"/>
 <text text-anchor="start" x="367" y="-275" font-family="Helvetica,sans-Serif" font-size="10.00">items_event_data &#160;[items present]</text>
-<text text-anchor="start" x="367" y="-264" font-family="Helvetica,sans-Serif" font-size="10.00">rng_index, hazard_rng_index, eff_cdf_id</text>
+<text text-anchor="start" x="367" y="-264" font-family="Helvetica,sans-Serif" font-size="10.00">rng_index, hazard_rng_index</text>
 <text text-anchor="start" x="367" y="-253" font-family="Helvetica,sans-Serif" font-size="10.00">source_item_j, packed_buildings</text>
 </g>
 <!-- items&#45;&gt;ied -->
