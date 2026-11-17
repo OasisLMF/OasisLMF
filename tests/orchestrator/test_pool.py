@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import signal
+import site
 import subprocess
 import sys
 import time
@@ -317,6 +318,29 @@ def test_pool_retire_prefers_idle_workers_and_stops_a_waiting_one_at_once(tmp_pa
     finally:
         p.workers.clear()
         p.close()
+
+
+@pytest.mark.parametrize('package_root, prepended', [(site.getsitepackages()[0], False), ('checkout', True)])
+@pytest.mark.parametrize('pythonpath', [None, 'other'])
+def test_pool_worker_pythonpath_has_the_package_root_only_for_a_checkout(tmp_path, run_dir, monkeypatch, package_root, prepended,
+                                                                           pythonpath):
+    if package_root == 'checkout':
+        package_root = str(tmp_path / 'checkout')
+    monkeypatch.setattr(pool, 'PACKAGE_ROOT', package_root)
+    env = {'X': '1'} if pythonpath is None else {'X': '1', 'PYTHONPATH': pythonpath}
+    p = pool.WorkerPool(make_spec(str(run_dir)), [[1]], str(tmp_path / 'out'), TAPS, env=env, log_dir=str(tmp_path / 'log'))
+    try:
+        worker_env = p._worker_env()
+    finally:
+        p.close()
+    expected = [package_root] if prepended else []
+    if pythonpath is not None:
+        expected.append(pythonpath)
+    if expected:
+        assert worker_env['PYTHONPATH'].split(os.pathsep) == expected
+    else:
+        assert 'PYTHONPATH' not in worker_env
+    assert worker_env['X'] == '1'
 
 
 def test_pool_retiring_every_worker_with_chunks_left_is_an_error(tmp_path, run_dir):

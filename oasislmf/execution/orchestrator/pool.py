@@ -32,6 +32,7 @@ import logging
 import os
 import queue
 import re
+import site
 import subprocess
 import sys
 import tempfile
@@ -57,6 +58,15 @@ STDERR_TAIL_LINES = 40
 STOP_TIMEOUT = 30.0
 STDERR_POLL_INTERVAL = 2.0
 STDERR_IGNORED = re.compile(r'(^\s*$|.+:[0-9]+: [A-Za-z]+Warning:|^\s+warnings\.warn)')
+
+
+def is_site_dir(path):
+    """True when ``path`` is one of this interpreter's site-packages directories, user site included."""
+    site_dirs = list(site.getsitepackages())
+    if site.ENABLE_USER_SITE:
+        site_dirs.append(site.getusersitepackages())
+    key = os.path.normcase(os.path.realpath(path))
+    return any(key == os.path.normcase(os.path.realpath(d)) for d in site_dirs)
 
 
 def stderr_errors(text):
@@ -314,9 +324,16 @@ class WorkerPool:
         return [w for w in self.workers if not w.stopped and not w.retire]
 
     def _worker_env(self):
-        """Environment of the workers: ``env`` or ``os.environ``, with this oasislmf package first on PYTHONPATH."""
+        """Environment of the workers: ``env`` or ``os.environ``, with this oasislmf package first on PYTHONPATH if needed.
+
+        ``PACKAGE_ROOT`` is put first only when it is not a site-packages directory (``is_site_dir``), as for a
+        source checkout, so that the workers import this oasislmf; an installed package is found by the workers
+        from their default path, and putting site-packages before the standard library would let a backport
+        installed there shadow a standard module.
+        """
         env = dict(os.environ if self.env is None else self.env)
-        env['PYTHONPATH'] = os.pathsep.join(p for p in (PACKAGE_ROOT, env.get('PYTHONPATH')) if p)
+        if not is_site_dir(PACKAGE_ROOT):
+            env['PYTHONPATH'] = os.pathsep.join(p for p in (PACKAGE_ROOT, env.get('PYTHONPATH')) if p)
         return env
 
     def spawn(self, jobs_only=False):
