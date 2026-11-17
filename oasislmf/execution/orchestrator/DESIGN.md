@@ -1,6 +1,7 @@
 # Event-worker orchestrator: design plan
 
-Status: plan agreed in outline (see section 7 for what is decided). Nothing is implemented yet.
+Status: phases 1 to 3 built (sections 8 and 9); phase 4 package 13, integration into the
+generate-losses steps, built (section 10); packages 14 and 15 open.
 Branch: `feature/event-worker-orchestrator`, from `main`. PR #2294 is closed; its branch
 `feature/kernel-orchestrator` is kept as a source to port from (section 5, phase 4).
 
@@ -658,14 +659,121 @@ Numba and building chains), 1 s of output jobs, and about 4 s of end-of-run imba
 P- and E-cores. K48 did not remove the imbalance; handing out the largest chunks first, or
 reusing workers' setup, are the next things to try.
 
-## 10. Phase 4 plan: integration
+## 10. Phase 4: integration
 
-| # | Package | Files |
-|---|---|---|
-| 13 | `orchestrator` option on the generate-losses steps; `runner` builds the plan from the same `bash_params` and runs it with the pool executor (W = `ktools_num_processes`, K = W), falling back to bash with a logged warning on `Unsupported`; chunked platform runs (`process_number` = one chunk, outputs step = the output jobs); progress pings from the orchestrator; logs and exit codes as bash | `computation/generate/losses.py`, `execution/runner.py`, `execution/orchestrator/` |
-| 14 | CI: the orchestrator suites on Linux, Windows and macOS | `.github/workflows/` |
-| 15 | Manifest for `rerun`, if still needed once 13 exists | - |
+| # | Package | Files | State |
+|---|---|---|---|
+| 13 | `orchestrator` option on the generate-losses steps; `runner` builds the plan from the same `bash_params` and runs it with the pool executor (W = K = `max_process_id`), falling back to bash with a logged warning on `Unsupported`; chunked platform runs (`process_number` = one chunk, outputs step = the output jobs); progress pings from the orchestrator; logs and exit codes as bash | `computation/generate/losses.py`, `execution/runner.py`, `execution/bash.py`, `execution/orchestrator/{kernel,progress}.py` | done |
+| 14 | CI: the orchestrator suites on Linux, Windows and macOS | `.github/workflows/` | to do |
+| 15 | Manifest for `rerun`, if still needed once 13 exists | - | not needed so far, see 10.3 |
 
-Ported from `feature/kernel-orchestrator` where they fit: the option and fallback wiring in
-`runner.py` and `losses.py`, and their tests. Not ported: `build.py`, the pipe transport,
-`teepy`, `stream_ref`, and `NO_SELECT` (there are no pipes left to select on).
+Ported from `feature/kernel-orchestrator`: the option and fallback wiring in `runner.py` and
+`losses.py` (`genbash_params`, the warning, `CalledProcessError` on failure) and the shape of its
+tests. Not ported: `build.py`, the pipe transport, `teepy`, `stream_ref`, `NO_SELECT`, the
+manifest.
+
+### 10.1 What was built (package 13)
+
+- **Option.** `orchestrator` (default False, `--orchestrator` on the command line) on
+  `GenerateLosses` (so `oasislmf model run` and `model generate-losses`), `GenerateLossesPartial`
+  (`generate-losses-chunk`) and `GenerateLossesOutput` (`generate-losses-output`). It reaches
+  `runner.run(orchestrator=True)`, or `bash_params['orchestrator']` for `run_analysis` and
+  `run_outputs`, only when set, so supplier runners see nothing new.
+- **Same parameters as bash.** `bash.genbash_params` returns the dict `genbash` writes its script
+  from (`genbash` now calls it). `runner.run` builds it with exactly the arguments it gives
+  `genbash`; `run_analysis` and `run_outputs` already receive bash_params. The planner runs on
+  that dict with the script's directory as run directory.
+- **Fallback.** `runner.orchestrator_plan` returns None on `Unsupported` after logging
+  `The orchestrator cannot run this analysis (<reason>): running the kernel with the bash script
+  instead`; the step then runs exactly as without the option. A caller's
+  `custom_get_getmodel_cmd`, a custom gulcalc binary (`model_custom_gulcalc` or an inferred
+  `<supplier>_<model>_gulcalc`) all arrive as `_get_getmodel_cmd` and fall back with the planner's
+  custom gulcalc reason.
+- **The script is still written** (`run_kernel.sh`, `<k>.run_analysis.sh`, `run_outputs.sh`),
+  but not run: it records what ran and `rerun()` keeps working on it unchanged, so package 15's
+  manifest is not needed for that.
+- **Execution** (`orchestrator/kernel.py`, `run_plan(plan, bash_params, mode, log_dir, script)`):
+  mode `all` (every chunk, then the output jobs), `analysis` (every chunk, or chunk
+  `process_number` alone; no jobs) or `outputs` (jobs only, workers are job-only). Pool executor,
+  W = K = `max_process_id`; W = 1 for one distributed chunk; W = `max_process_id` job workers for
+  the outputs step. Side effects as the scripts: the log directory is emptied
+  (`bash_wrapper`), the analysis removes earlier output files except summary-info and JSON and
+  empties its work directory, the outputs empty `work/` afterwards when
+  `remove_working_files` is set (`genbash` always sets it; `GenerateLossesOutput` still passes
+  the misspelt `remove_working_file`, which #2292 fixes on main; the bash_params value is what
+  counts).
+- **Logs.** In the step's log directory (`log`, `log/<k>`, `log/out`):
+  `orchestrator_worker_<n>.log` (each worker's stdout and stderr, kept: pool option
+  `log_dir`), `orchestrator.log` (the run log, also returned as the script's stdout would be:
+  per chunk events/seconds/worker, per output job, totals), `stderror.err` (created empty as the
+  script's redirections do; a failure is appended to it), and the output jobs' pytools logs
+  (`OASIS_PYTOOLS_LOG_DIR` and `OASIS_PYTOOLS_LOG_LEVEL` set for the workers). The
+  `ResourceMonitor` is started and stopped around the run as for bash (it finds no pytools
+  processes, see 10.3).
+- **Errors.** Any executor exception (`WorkerError` naming stage, chunk, event or output job,
+  with the worker's stderr tail) becomes `subprocess.CalledProcessError(1,
+  ['oasislmf-orchestrator', mode, script], output=<run log>)`, so `GenerateLosses*` print
+  `log/.../stderror.err` and raise the same `OasisException` as for a failed script, and
+  `runner.run`'s caller calls `rerun()` as before. The pytools-log completeness check runs after
+  an orchestrated step too.
+- **Distributed chunks.** The planner no longer rejects `process_number`: the plan of
+  generate-losses-chunk k uses bash_params' `work_dir` (`<k>.work/`), so its templates name
+  exactly bash's files for partition k (`<k>.work/kat/*_P<k>`, `<k>.work/*_summary*/P<k>.bin`),
+  and `Plan.chunk_numbers` is `[k]`. The executors take `chunk_numbers` (run only those chunks of
+  the K the events are split into). The load-balancer check is skipped there because the chunk
+  script disables the load balancer too. The outputs step plans from its own bash_params (no
+  `process_number`), so its jobs read `work/`, where the platform merges the chunks' `k.work/`.
+- **Progress** (`orchestrator/progress.py`). bash's `gulmc --socket-server` sends
+  `{"events_complete": <new events>, "analysis_pk": pk}` through `oasis_ping` at most every
+  `SERVER_UPDATE_TIME` s and once at its end; without an `analysis_pk` it pings the local
+  `socket-server`, which draws the "Gul events completed" bar. Workers now send `progress`
+  messages (events done in the current chunk, at most every `progress_interval` s; the pool
+  counts them against the chunk's `done`), and `ProgressReporter` in the orchestrator process
+  sends the same pings from a background thread (a failed ping is retried with the next, so
+  the platform's sum is exact) when bash_params has an `analysis_pk`, or draws the same bar
+  in-process when it has `socket_server_size` (local runs; no socket server is started). The
+  initial `events_total` ping stays in `losses.py`, unchanged.
+
+### 10.2 Results
+
+- Tests: `tests/orchestrator` 298 passed (2 strict xfails, #2300), `tests/model_execution` all
+  pass (two `CheckConversionTools` tests need a `python` executable on PATH, environment only),
+  `tests/computation/test_generate_losses.py` + `test_computation.py` pass except five
+  bash-only `test_losses__run_*` runs at K = CPU count that exceed the 8 GB test cap here.
+- Fixture (tests/orchestrator, K = 2): `runner.run` with the option on and off, `output/`
+  byte-identical (`test_kernel.py`). Chunked: chunk 1 by bash and chunk 2 by the orchestrator,
+  and the reverse, each chunk's `k.work/` byte-identical between the two, outputs (one run's by
+  the orchestrator, the other's by bash, one keeping and one removing `work/`) byte-identical
+  to the whole run; the pings of the orchestrated chunks sum to their event count. The plan of
+  chunk k renders exactly the commands of bash's `<k>.run_analysis.sh` (`test_plan.py`).
+  Through `OasisManager` (`tests/computation/test_generate_losses.py`): generate-losses on and
+  off (RI, RI + RL multi-layer) byte-identical, the 3-chunk platform workflow on and off
+  byte-identical, an unsupported setting falls back with the warning, a failed output job
+  raises the usual kernel `OasisException`.
+- PiWind (`~/GitHub/runs/orch-bench-piwind-full`, full kernel, K = 4, S10): `runner.run` with
+  the option on (4 workers, 4 chunks), `output/` byte-identical to `ref/K4_S10` (72 files),
+  31.9 s for the whole step including 54 output jobs (1.3 s) and 4.6 s of worker setup. The run
+  directory is `phase4/K4_S10`: the reference's `input` and `static`, its summary-info files, and
+  `runner.run(settings, number_of_processes=4, num_reinsurance_iterations=1, orchestrator=True)`.
+
+### 10.3 What remains
+
+- **Package 14, CI.** Run `tests/orchestrator` and the orchestrator tests of
+  `tests/computation` and `tests/model_execution` on Linux, Windows and macOS. The fixture's
+  full-kernel references and the on/off comparisons need bash; on Windows only the
+  orchestrator side can run (compare against stored outputs or skip the bash half).
+- **Package 15, manifest.** Not needed for `rerun()` (the script is written). Left open only if
+  a record of what the orchestrator ran (plan JSON, worker count) is wanted in the run directory;
+  `orchestrator.log` holds the per-chunk and per-job summary.
+- **Platform.** OasisPlatform must pass `orchestrator` in the params of
+  `generate_losses_chunk` / `generate_losses_output` (or `run_analysis`) to use it; nothing in
+  OasisLMF changes for that. Mixed chunks are interchangeable, so a partial rollout is safe.
+- **Resource monitor.** It recognises pytools processes by command line, so the pool workers
+  (`python -m oasislmf.execution.orchestrator.worker`) are not in its report. Teach
+  `MONITORED_TOOLS`/`_TOOL_RE` the worker if the report is wanted for orchestrated runs.
+- **Bash-only checks not mirrored.** The chunk script's "non-empty `P<k>.bin`" check (an
+  orchestrated chunk always writes headers) and the stderr-guard's "anything on stderr is an
+  error" rule: a worker that writes warnings to stderr does not fail the run; only exceptions
+  and non-zero exits do. `kernel_disable_guard` therefore has no effect with the orchestrator.
+- **W for local runs.** W = K = `max_process_id` as bash; section 9.7 suggests K a few times W
+  (dynamic balancing) once outputs compared as sorted rows are acceptable.
