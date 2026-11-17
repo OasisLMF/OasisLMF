@@ -1,4 +1,5 @@
 """General-purpose utilities."""
+import contextlib
 import logging
 import numpy as np
 import os
@@ -102,78 +103,100 @@ def redirect_logging(exec_name, log_dir='./log'):
     """
     def inner(func):
         def wrapper(*args, **kwargs):
-            _tmp_dir = tempfile.mkdtemp(prefix=f'oasis_{exec_name}_', dir=os.environ.get('OASIS_TMPDIR')) \
-                if os.environ.get('OASIS_PYTEST_REDIRECT_LOGS') else None
-            # OASIS_PYTOOLS_LOG_DIR lets the invoking bash script isolate each
-            # chunk's pytool logs into its own directory (e.g. log/<process_number>)
-            # instead of every concurrently-running chunk sharing the same flat
-            # './log', which is what `log_dir` would otherwise always resolve to.
-            _log_dir = _tmp_dir or os.environ.get('OASIS_PYTOOLS_LOG_DIR') or log_dir
-            os.makedirs(_log_dir, exist_ok=True)
-            logging_config = logging.root.manager.loggerDict.keys()
-            logging.captureWarnings(True)
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
+            with pytool_logging(exec_name, log_dir, kwargs.get('logging_level', None)) as logger:
+                try:
+                    logger.info(kwargs)
+                    logger.info('starting process')
 
-            log_level = os.environ.get('OASIS_PYTOOLS_LOG_LEVEL', None)
-            log_level = kwargs.get('logging_level', None) if log_level is None else log_level
-            # convert to int representation
-            if isinstance(log_level, str):
-                if log_level.isdigit():
-                    log_level = int(log_level)
-                else:
-                    log_level = logging.getLevelName(log_level)
-                    log_level = log_level if isinstance(log_level, int) else None
-
-            log_level = logging.WARNING if log_level is None else log_level
-
-            childFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
-            childFileHandler.setLevel(log_level)
-            childFileHandler.setFormatter(formatter)
-
-            rootFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
-            rootFileHandler.setLevel(logging.INFO)
-            rootFileHandler.setFormatter(formatter)
-
-            # Set all logger handlers to level ERROR, keeping what each one looked like
-            previous_by_logger = {
-                lg_name: logging_set_handlers(lg_name, childFileHandler, log_level)
-                for lg_name in logging_config
-            }
-
-            # Set root oasislmf logger to INFO
-            logger = logging.getLogger('oasislmf')
-            logger.setLevel(logging.INFO)
-            logger.addHandler(rootFileHandler)
-
-            # Set warning log handler if not in debug
-            warn_logger = logging.getLogger('py.warnings')
-            warn_logger.addHandler(rootFileHandler)
-
-            # # Debug: print logging tree
-            # import ipdb; ipdb.set_trace()
-            # import logging_tree; logging_tree.printout()
-            try:
-                logger.info(kwargs)
-                logger.info('starting process')
-
-                # Run the wrapped function
-                retval = func(*args, **kwargs)
-                logger.info('finishing process')
-                return retval
-            except Exception as err:
-                logger.exception(err)
-                raise err
-            finally:
-                for lg_name in logging_config:
-                    logging_reset_handlers(lg_name, previous_by_logger.get(lg_name))
-                logger.removeHandler(rootFileHandler)
-                logging.shutdown()
-                logging.captureWarnings(False)
-                if _tmp_dir:
-                    shutil.rmtree(_tmp_dir, ignore_errors=True)
+                    # Run the wrapped function
+                    retval = func(*args, **kwargs)
+                    logger.info('finishing process')
+                    return retval
+                except Exception as err:
+                    logger.exception(err)
+                    raise err
         return wrapper
     return inner
+
+
+@contextlib.contextmanager
+def pytool_logging(exec_name, log_dir='./log', log_level=None):
+    """Redirect the process's logging and Python warnings to a pytools log file while the context is active.
+
+    The setup ``redirect_logging`` gives a pytool's main: warnings are captured (``logging.captureWarnings``),
+    ``oasislmf.*`` loggers that exist on entry write to ``<log dir>/<exec_name>_<pid>_<uuid>.log`` at the log level,
+    the ``oasislmf`` logger (and with it every ``oasislmf.*`` logger created later) and ``py.warnings`` at INFO, and
+    the handlers other loggers had are raised to ERROR. Everything is put back on exit.
+
+    The log directory is a temporary one when ``OASIS_PYTEST_REDIRECT_LOGS`` is set (removed on exit), else
+    ``OASIS_PYTOOLS_LOG_DIR``, else ``log_dir``. The log level is ``OASIS_PYTOOLS_LOG_LEVEL``, else ``log_level``,
+    else WARNING.
+
+    Args:
+        exec_name (str): name of the tool, the start of the log file's name.
+        log_dir (str): log directory when neither environment variable sets one.
+        log_level (int | str, optional): log level when ``OASIS_PYTOOLS_LOG_LEVEL`` is not set.
+
+    Yields:
+        logging.Logger: the ``oasislmf`` logger.
+    """
+    _tmp_dir = tempfile.mkdtemp(prefix=f'oasis_{exec_name}_', dir=os.environ.get('OASIS_TMPDIR')) \
+        if os.environ.get('OASIS_PYTEST_REDIRECT_LOGS') else None
+    # OASIS_PYTOOLS_LOG_DIR lets the invoking bash script isolate each
+    # chunk's pytool logs into its own directory (e.g. log/<process_number>)
+    # instead of every concurrently-running chunk sharing the same flat
+    # './log', which is what `log_dir` would otherwise always resolve to.
+    _log_dir = _tmp_dir or os.environ.get('OASIS_PYTOOLS_LOG_DIR') or log_dir
+    os.makedirs(_log_dir, exist_ok=True)
+    logging_config = logging.root.manager.loggerDict.keys()
+    logging.captureWarnings(True)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
+
+    log_level = os.environ.get('OASIS_PYTOOLS_LOG_LEVEL', log_level)
+    # convert to int representation
+    if isinstance(log_level, str):
+        if log_level.isdigit():
+            log_level = int(log_level)
+        else:
+            log_level = logging.getLevelName(log_level)
+            log_level = log_level if isinstance(log_level, int) else None
+
+    log_level = logging.WARNING if log_level is None else log_level
+
+    childFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
+    childFileHandler.setLevel(log_level)
+    childFileHandler.setFormatter(formatter)
+
+    rootFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
+    rootFileHandler.setLevel(logging.INFO)
+    rootFileHandler.setFormatter(formatter)
+
+    # Set all logger handlers to level ERROR, keeping what each one looked like
+    previous_by_logger = {
+        lg_name: logging_set_handlers(lg_name, childFileHandler, log_level)
+        for lg_name in logging_config
+    }
+
+    # Set root oasislmf logger to INFO
+    logger = logging.getLogger('oasislmf')
+    logger.setLevel(logging.INFO)
+    logger.addHandler(rootFileHandler)
+
+    # Set warning log handler if not in debug
+    warn_logger = logging.getLogger('py.warnings')
+    warn_logger.addHandler(rootFileHandler)
+
+    try:
+        yield logger
+    finally:
+        for lg_name in logging_config:
+            logging_reset_handlers(lg_name, previous_by_logger.get(lg_name))
+        logger.removeHandler(rootFileHandler)
+        logging.shutdown()
+        logging.captureWarnings(False)
+        if _tmp_dir:
+            shutil.rmtree(_tmp_dir, ignore_errors=True)
 
 
 def assert_allclose(x, y, rtol=1e-10, atol=1e-8, x_name="x", y_name="y"):

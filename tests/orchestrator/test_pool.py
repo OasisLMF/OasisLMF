@@ -1,6 +1,7 @@
 import contextlib
 import csv
 import json
+import logging
 import os
 import shutil
 import signal
@@ -73,6 +74,22 @@ class WarningGul(FakeGul):
         if event_id == STDERR_EVENT:
             warnings.warn('this is only a warning', UserWarning)
             sys.stderr.flush()
+        super().process_event(event_id, out)
+
+
+def deprecated_helper():
+    """Warns as library deprecations do, about its caller's line (stacklevel=2)."""
+    warnings.warn('this helper is deprecated', FutureWarning, stacklevel=2)
+
+
+class CallerWarningGul(FakeGul):
+    """Calls a helper that warns with stacklevel=2 on STDERR_EVENT, and logs on the gulmc manager's logger."""
+
+    def process_event(self, event_id, out):
+        if event_id == STDERR_EVENT:
+            deprecated_helper()
+            logging.getLogger('oasislmf.pytools.gulmc.manager').info('info record of the gul stage')
+            logging.getLogger('oasislmf.pytools.gulmc.manager').warning('warning record of the gul stage')
         super().process_event(event_id, out)
 
 
@@ -350,14 +367,32 @@ def test_pool_stderr_guard_fails_on_an_error_line(tmp_path, run_dir):
     assert stats['events'] == 30
 
 
-def test_pool_stderr_guard_ignores_warnings(tmp_path, run_dir):
+def worker_env(log_dir, log_level=None):
+    """The workers' environment as ``kernel.run_plan`` sets it, without the test suite's log redirection."""
+    env = {k: v for k, v in os.environ.items() if k not in ('OASIS_PYTEST_REDIRECT_LOGS', 'OASIS_PYTOOLS_LOG_LEVEL')}
+    env['OASIS_PYTOOLS_LOG_DIR'] = str(log_dir)
+    if log_level is not None:
+        env['OASIS_PYTOOLS_LOG_LEVEL'] = log_level
+    return env
+
+
+def worker_logs(log_dir):
+    """Text of the workers' log files (``orchestrator_worker_<n>_<pid>_<uuid>.log``)."""
+    return ''.join(p.read_text() for p in sorted(log_dir.glob('orchestrator_worker_*_*_*.log')))
+
+
+@pytest.mark.parametrize('gul', ['WarningGul', 'CallerWarningGul'])
+def test_pool_stderr_guard_ignores_warnings(tmp_path, run_dir, gul):
     chunks = make_chunks(np.arange(1, 31, dtype=np.int32), 3)
     log_dir = tmp_path / 'log'
     run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, 2, stderr_guard=True, log_dir=str(log_dir),
-             factories={'gul': f'{THIS}:WarningGul', 'fm': FAKE_FACTORIES['fm']})
+             factories={'gul': f'{THIS}:{gul}', 'fm': FAKE_FACTORIES['fm']}, env=worker_env(log_dir))
     check_fake_outputs(tmp_path / 'out', chunks)
     stderr = ''.join(p.read_text() for p in log_dir.glob('orchestrator_worker_*.err'))
-    assert 'UserWarning: this is only a warning' in stderr
+    assert 'Warning' not in stderr
+    logs = worker_logs(log_dir)
+    assert 'this is only a warning' in logs or 'FutureWarning: this helper is deprecated' in logs
+    assert logs.count('finishing process') == 2
 
 
 def test_resource_monitor_reports_pool_workers(tmp_path, run_dir):

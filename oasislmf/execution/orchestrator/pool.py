@@ -226,7 +226,8 @@ class WorkerPool:
                 are not run and write nothing (a distributed run hands each chunk to a different machine).
             log_dir (str, optional): directory the workers' stdout and stderr are written to, as
                 ``orchestrator_worker_<n>.log`` and ``orchestrator_worker_<n>.err``, and kept; by default a temporary
-                directory removed by ``close``.
+                directory removed by ``close``. The workers' log files (``orchestrator_worker_<n>_<pid>_<uuid>.log``,
+                see ``worker.py``) go there too unless their ``OASIS_PYTOOLS_LOG_DIR`` names another directory.
             progress_interval (float, optional): workers report the events done in their current chunk at most every
                 this many seconds, and ``progress`` is called with them; by default they report whole chunks only.
             stderr_guard (bool): fail the run when a worker writes to its stderr anything ``stderr_errors`` keeps.
@@ -339,6 +340,7 @@ class WorkerPool:
             'address': list(self._listener.address), 'authkey': self._authkey.hex(), 'worker': number,
             'spec': self.spec.to_dict(), 'factories': self.factories, 'out_dir': self.out_dir, 'taps': self.taps,
             'sys_path': [p for p in sys.path if p], 'jobs_only': jobs_only, 'progress_interval': self.progress_interval,
+            'log_dir': self.log_dir,
         }
         try:
             popen = subprocess.Popen([self.python, '-m', WORKER_MODULE], stdin=subprocess.PIPE, stdout=log_file, stderr=err_file,

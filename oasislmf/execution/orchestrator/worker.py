@@ -11,7 +11,14 @@ process list):
 * ``jobs_only``: build no chain and take only output jobs (the pool adds such workers for the job phase);
 * ``progress_interval``: when set, report the events done in the current chunk at most every this many seconds;
 * ``sys_path``: the orchestrator's ``sys.path``, whose entries the worker appends to its own so that factories
-  importable in the orchestrator are importable here.
+  importable in the orchestrator are importable here;
+* ``log_dir``: the directory of the worker's log file when ``OASIS_PYTOOLS_LOG_DIR`` does not set one.
+
+Logging. For its whole life the worker has the logging setup a pytool's ``main`` has under ``redirect_logging``
+(``pytools.utils.pytool_logging``): log records of the stages and Python warnings go to
+``orchestrator_worker_<n>_<pid>_<uuid>.log`` in ``OASIS_PYTOOLS_LOG_DIR`` (else ``log_dir``) at
+``OASIS_PYTOOLS_LOG_LEVEL``, not to its stderr, so that a warning does not trip the stderr guard where bash's would
+not. The file ends with ``finishing process`` when the worker exits normally.
 
 Protocol, every message a dict with a ``type``:
 
@@ -34,11 +41,14 @@ import time
 import traceback
 from multiprocessing.connection import Client
 
+from oasislmf.pytools.utils import pytool_logging
+
 from .chain import Chain, ChainSpec
 from .chunks import ChunkWriter
 from .outputs import JobError, run_job
 
 EXIT_ERROR = 1
+LOG_NAME = 'orchestrator_worker_{worker}'
 
 
 def stage_name(chain, index):
@@ -222,14 +232,18 @@ def serve(conn, config):
 
 
 def main():
-    """Read the configuration from stdin, connect to the orchestrator and serve it."""
+    """Read the configuration from stdin, set up logging, connect to the orchestrator and serve it."""
     config = json.loads(sys.stdin.read())
     for path in config.get('sys_path', []):
         if path not in sys.path:
             sys.path.append(path)
     address = tuple(config['address'])
-    with Client(address, family='AF_INET', authkey=bytes.fromhex(config['authkey'])) as conn:
-        return serve(conn, config)
+    with pytool_logging(LOG_NAME.format(worker=config['worker']), config.get('log_dir') or './log') as log:
+        log.info('starting process')
+        with Client(address, family='AF_INET', authkey=bytes.fromhex(config['authkey'])) as conn:
+            status = serve(conn, config)
+        log.info('finishing process')
+    return status
 
 
 if __name__ == '__main__':
