@@ -25,6 +25,11 @@ commands' ``2>> $LOG_DIR/stderror.err`` appends theirs, and a line that is not a
 (``pool.stderr_errors``). A distributed chunk also fails, as its script does, when one of its ``P<k>.bin`` work files
 is empty. The inline executor runs in this process and has no stderr of its own to check.
 
+The pool is sized by the resource manager (``resources.ResourceManager``) by default: it starts two workers and grows
+or shrinks the pool from measured memory and CPU, never above ``n_workers``; its decisions are in the run log. The
+events are split into ``max_process_id`` chunks as bash's partitions, so the files are bash's whatever the pool size;
+``chunk_factor`` splits a whole run more finely.
+
 Progress is reported while the chunks run as ``gulmc --socket-server`` reports it in the script: pings to the platform
 when bash_params has an ``analysis_pk``, else the local progress bar (``progress.ProgressReporter``).
 """

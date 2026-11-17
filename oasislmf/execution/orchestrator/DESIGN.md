@@ -229,7 +229,7 @@ weaknesses are listed in the table and should be measured, not argued.
 - **Elasticity**: a new worker simply connects and starts pulling; a worker is retired by
   answering its next `ready` with `stop`. The policy starts as "W = min(CPUs, K)". The
   mechanism is in place from the start so that a policy using `psutil` (free memory, idle CPU)
-  can be added without touching workers.
+  can be added without touching workers. That policy is the resource manager of section 10.5.
 - **Progress**: the orchestrator knows how many events are complete, so it sends the progress
   pings itself and gulmc's `--socket-server` flag is not needed.
 - **Failure**: a worker that exits non-zero or reports an exception stops the run. The
@@ -666,6 +666,7 @@ reusing workers' setup, are the next things to try.
 | 13 | `orchestrator` option on the generate-losses steps; `runner` builds the plan from the same `bash_params` and runs it with the pool executor (W = K = `max_process_id`), falling back to bash with a logged warning on `Unsupported`; chunked platform runs (`process_number` = one chunk, outputs step = the output jobs); progress pings from the orchestrator; logs and exit codes as bash | `computation/generate/losses.py`, `execution/runner.py`, `execution/bash.py`, `execution/orchestrator/{kernel,progress}.py` | done |
 | 14 | CI: the orchestrator suites on Linux, Windows and macOS; stderr guard, chunk output check and resource monitor mirrored | `.github/workflows/`, `tests/`, `execution/orchestrator/{pool,kernel}.py`, `execution/resource_monitor.py` | done, CI unverified (10.4) |
 | 15 | Manifest for `rerun`, if still needed once 13 exists | - | not needed so far, see 10.3 |
+| 16 | Resource manager: the pool sized from measured memory and CPU (10.5) | `execution/orchestrator/{resources,pool,kernel,cli}.py` | done |
 
 Ported from `feature/kernel-orchestrator`: the option and fallback wiring in `runner.py` and
 `losses.py` (`genbash_params`, the warning, `CalledProcessError` on failure) and the shape of its
@@ -696,7 +697,7 @@ manifest.
   mode `all` (every chunk, then the output jobs), `analysis` (every chunk, or chunk
   `process_number` alone; no jobs) or `outputs` (jobs only, workers are job-only). Pool executor,
   W = K = `max_process_id`; W = 1 for one distributed chunk; W = `max_process_id` job workers for
-  the outputs step. Side effects as the scripts: the log directory is emptied
+  the outputs step. Since package 16 these W are the hard maximum of the resource manager (10.5). Side effects as the scripts: the log directory is emptied
   (`bash_wrapper`), the analysis removes earlier output files except summary-info and JSON and
   empties its work directory, the outputs empty `work/` afterwards when
   `remove_working_files` is set (`genbash` always sets it; `GenerateLossesOutput` still passes
@@ -823,5 +824,95 @@ manifest.
 - **Platform.** OasisPlatform must pass `orchestrator` in the params of
   `generate_losses_chunk` / `generate_losses_output` (or `run_analysis`) to use it; nothing in
   OasisLMF changes for that. Mixed chunks are interchangeable, so a partial rollout is safe.
-- **W for local runs.** W = K = `max_process_id` as bash; section 9.7 suggests K a few times W
-  (dynamic balancing) once outputs compared as sorted rows are acceptable.
+- **W for local runs.** Done by package 16 (10.5): W is sized by the resource manager, K stays
+  `max_process_id` unless `chunk_factor` is set.
+
+### 10.5 Resource manager (package 16)
+
+Why: this machine (31 GB) ran out of memory twice during the project; a bash full kernel at K12 needs
+about 23 GB (9.7). The pool uses about 240 MB per worker at S10 and 440 MB at S100 on PiWind, but a
+bigger model or portfolio can need far more per worker, and other things run on the machine. So the
+pool is sized from what it measures, not from the CPU count alone.
+
+- **Policy** (`orchestrator/resources.py`, `ResourceManager`, a `WorkerPool` policy). Starts
+  `initial_workers` (2) workers. Samples, every `sample_interval` (1 s) and as soon as a worker
+  becomes ready or finishes a chunk (not within 0.2 s of the previous sample), the available memory
+  and each live worker's private memory (its process tree; see "measurement" below), keeping each
+  worker's peak. The **estimate** is the largest worker peak seen, doubled (`unmeasured_factor`) until
+  some worker has finished a chunk or job, because a worker grows while it runs its first chunk.
+- **Grow** while there is room: n more workers, n the smallest of `(available - margin - reserve) //
+  estimate` (reserve = what the live workers may still grow to the estimate, so workers still setting
+  up are counted at full size), the hard maximum less the live workers, the CPUs (affinity) less the
+  live workers, and the chunks not yet handed out less the workers still setting up (in the job
+  phase: the jobs left; job-only workers are then added by the manager, not by `job_workers`).
+  Nothing grows before a worker has built its chain, nor for `grow_cooldown` (10 s) after a retirement.
+  The margin is `max(1 GB, 10 % of memory)` by default.
+- **Back off** when `available < margin`: retire `ceil(deficit / estimate)` of the newest active
+  workers, less those already retiring, keeping one. A retired worker gets `stop` at its next `ready`,
+  so it always finishes its chunk; nothing is killed for memory. With one worker left and still
+  under the margin, or when one worker plus the margin does not fit, the run carries on with one and
+  logs a warning (once). A pool with no live worker and work left gets one, whatever the memory.
+- **CPU.** Live workers never exceed the CPUs the process may use. `cpu_load=True` (off by default)
+  also counts the CPUs other processes keep busy: memory is what crashes a machine, an
+  oversubscribed CPU only slows the run, and a noisy load reading would shrink pools for nothing.
+- **Measurement** (`SystemProbe`, injectable; tests pass a fake). Available memory is
+  `psutil.virtual_memory().available`, tightened by the cgroup limit when there is one (v2: the
+  tightest of the process's cgroup and its ancestors, `memory.max - (memory.current - inactive_file)`;
+  v1: the memory controller's limit and usage), so a `systemd-run -p MemoryMax=` scope or a container
+  limit is seen. A worker's size is `rss - shared` from `memory_info` on Linux (anonymous memory: the
+  libraries and memory-mapped model files are page cache shared by every worker and reclaimable, so
+  this is what one more worker costs), private bytes on Windows, RSS elsewhere, summed over its
+  descendants found from one snapshot of the process table. The first version used USS
+  (`memory_full_info`) and a `children(recursive=True)` per worker: about 20 ms per worker, which on
+  PiWind slowed the output-job phase from 1.3 to 3.8 s because every finished job triggered a sample.
+- **Where it is used.** `kernel.run_plan` (every orchestrated generate-losses step): on by default
+  (`resource_manager=False` keeps W fixed), with `n_workers` (`max_process_id` = `ktools_num_processes`,
+  the CPU count by default; 1 for a distributed chunk) as the hard maximum. On by default because an
+  out-of-memory crash is the one failure the user cannot recover from, and its cost when memory is
+  plentiful is small (below). The command line tool: `--resource-manager on|off`, default off, since it
+  is the benchmarking tool where a fixed W is the point; `--workers` is then the maximum, with
+  `--initial-workers` and `--memory-margin-mb`. `run_chunks(resource_manager=...)` takes an instance or
+  True; it is exclusive with `policy`. The pool now calls its policy on every pass of its loop, not only
+  after messages, so pressure is seen while every worker is busy in a long chunk.
+- **Logs and statistics.** Every decision goes to the logger and to `orchestrator.log` with what it
+  was based on, e.g. `resource manager: 2.8 s: spawn 2 -> 4 workers (room for 20 more after reserving
+  0.31 GB for the live workers; available 7.58 GB, margin 1.00 GB, estimate 0.31 GB per worker)`,
+  then the warnings and a summary (most live workers, margin, estimate, largest worker peak, samples).
+  The executor statistics get `resource_manager` (`ResourceManager.summary()`).
+
+**K and correctness.** K stays `max_process_id` by default, so the work and output files are bash's
+byte for byte whatever W the manager chooses: chunk k holds `evepy k K`'s events and writes `_P<k>`
+files whichever worker runs it, and every chunk resets its stages (the order chunks run in does not
+matter, 9.3). `chunk_factor > 1` (a `run_plan` argument, not exposed as a run setting) splits a whole
+run (mode `all` only) into `max(max_process_id, min(events, chunk_factor * n_workers))` chunks and gives
+katpy the new file list (`outputs.jobs_for_chunks`; aalpy and lecpy read whatever `P*.bin` their
+directory holds); outputs are then equal as sorted rows (AAL/EPT sums in another order), not bytes. A
+chunked step (`analysis`) always keeps `max_process_id`: the outputs step reads `work/` with its own
+count. Decided against making 4x the default: it would break byte equality with bash on every run, the
+benchmark (9.7) found K48 no faster than K12 at full W, and the gain (finer retirement, less tail when
+the manager holds W below K) only shows on memory-bound runs; those can set it. Largest chunks first was
+not done: round-robin chunks have equal event counts, and per-event cost is not known before the run.
+
+**Tests** (`tests/orchestrator/test_resources.py`, 22): fake pool and probe: start and wait for a
+measurement, grow to the hard maximum, CPU and chunk limits, stop at the memory limit, reserve for
+workers setting up, retire under pressure with the cool-down, never below one with a warning, one worker
+does not fit, start with one when memory is already short, `cpu_load`, job-only workers in the job phase,
+a worker when none is left, sampling rate; cgroup v2 parsing; the real probe. Real pool with fake stages:
+grows and writes every chunk, retires under (faked) pressure and still writes every chunk. `test_kernel.py`:
+the run log and options, `chunk_count`, `chunk_factor` (chunk numbers and katpy inputs), and on the
+fixture's full kernel through `runner.run`: manager on (the default, also what the bash comparison now
+runs) and off byte-identical, `chunk_factor=3` with one initial worker rows-equal. `test_cli.py`: the
+options.
+
+**PiWind** (`~/GitHub/runs/orch-bench-piwind-full/phase4/K4_S10_rm`, as `phase4/K4_S10`: `runner.run`,
+4 processes, 1 RI iteration, orchestrator on, under an 8 GB cap): `output/` byte-identical to
+`ref/K4_S10` (72/72). Decisions: start 2 workers (available 7.89 GB, the cgroup's, margin 1.00 GB);
+at 2.8 s, once the first worker had built its chain (0.15 GB, estimate 0.31 GB doubled), spawn 2 -> 4
+(room for 20 more). Largest worker 0.25 GB. Wall 40.7 s against 31.9 s for the fixed W4 run: about
+2.8 s of the late start of workers 3 and 4, and 2.5 s of the output-job phase slowed by the USS
+sampling fixed afterwards (that fix was not re-run on PiWind; the machine was also busier, load 5 to 6).
+
+Open: expose `resource_manager`/`chunk_factor`/margin as run settings (now `run_plan` arguments only);
+start more workers blind when the machine obviously has room (each later worker costs the first one's
+setup time, about 3 to 5 s); cgroup v2 `cpu.max` quotas are not read; a per-event cost model (footprint
+bytes per event) for largest-chunks-first.
