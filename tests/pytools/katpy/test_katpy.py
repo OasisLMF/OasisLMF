@@ -148,7 +148,9 @@ def test_bin_to_tabular_releases_temp_file(monkeypatch, tmp_path, out_name):
 
     def windows_unlink(self, *args, **kwargs):
         process = psutil.Process()
-        in_use = {Path(f.path) for f in process.open_files()} | {Path(m.path) for m in process.memory_maps() if m.path}
+        in_use = {Path(f.path) for f in process.open_files()}
+        if hasattr(process, "memory_maps"):
+            in_use |= {Path(m.path) for m in process.memory_maps() if m.path}
         if Path(self).resolve() in in_use:
             raise PermissionError(f"[WinError 32] The process cannot access the file because it is being used by another process: '{self}'")
         return real_unlink(self, *args, **kwargs)
