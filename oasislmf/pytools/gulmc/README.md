@@ -121,7 +121,9 @@ areaperil covers the placement); an item of one placement stores nothing and rea
 Per event, `compute_event_losses` resolves the CDFs of all an item's live areaperils before
 sampling, so each sample reads the one its placement falls on. The analytic values are the mixture
 over the areaperils, weighted by `blended_areaperil_ja_probabilities`: dead areaperils, uncovered
-placements and a float weight shortfall carry no loss. Under a dynamic footprint the event's return
+placements and a float weight shortfall carry no loss: in the mixed effective damage cdf
+(`mix_effective_damage_cdfs`, shared with getmodel) their probability sits on damage bin 0, which
+must be the zero-loss bin of the damage bin dictionary. Under a dynamic footprint the event's return
 period is held per item areaperil, so an item's standard of protection is decided per placement: a
 building can be protected where the event is a 1-in-20 and exposed where it is a 1-in-50. The
 sections a blended location spans must be in sections.csv, which is the lookup's job, as for any

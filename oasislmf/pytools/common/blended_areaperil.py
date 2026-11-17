@@ -25,6 +25,15 @@ A model writes weights in whichever form it holds, and all three select through 
 ``WEIGHT_EQUAL``
     no weight column. Every position has weight 1, scaled by the number of positions.
 
+Damage bin 0
+------------
+A sample whose placement has no hazard behind it -- an areaperil with no footprint for the event,
+``areaperil_id = 0``, a float weight shortfall, or (dynamic footprint) an areaperil where the event
+is within the item's standard of protection -- loses nothing. Where that has to be expressed as a
+damage distribution (the analytic mean and std in gulmc, the cdf getmodel streams to gulpy), the
+mass goes to **damage bin 0, which is assumed to be the zero-loss bin** of the damage bin
+dictionary. See ``mix_effective_damage_cdfs``.
+
 The trap is the float scale. One routine that divides every mode by its total looks tidier, and
 silently turns "10% of this postcode is outside the model" into "all of it is inside".
 
@@ -55,6 +64,7 @@ import numpy as np
 import pandas as pd
 
 from oasislmf.pytools.common.data import (
+    areaperil_int, oasis_int,
     blended_areaperil_count_dtype, blended_areaperil_count_fmt, blended_areaperil_count_headers,
     blended_areaperil_equal_dtype, blended_areaperil_equal_fmt, blended_areaperil_equal_headers,
     blended_areaperil_float_dtype, blended_areaperil_float_fmt, blended_areaperil_float_headers,
@@ -356,6 +366,105 @@ def validate(blend, label='blended areaperil table'):
             f"blended ids and real cell ids must not overlap")
 
     return BlendTable(table, weight_type)
+
+
+# ---------------------------------------------------------------------------------------------
+# Blended areaperils of a run
+# ---------------------------------------------------------------------------------------------
+
+def build_blended_areaperils(items, blend=None):
+    """Give every distinct item ``areaperil_id`` its blended areaperil.
+
+    A blended areaperil is what an item's ``areaperil_id`` names: weighted placements, each read
+    through one footprint areaperil. An id listed in the blend table takes its placements from
+    there. Any other id is the size-1 case -- one placement of weight 1, read through the id
+    itself -- so ordinary items take the same path as blended ones with K = 1.
+
+    The K footprint areaperils of a blended areaperil are its distinct non-zero ``areaperil_id``
+    values, in order of first placement, and ``areaperil_j`` maps each placement to one of them
+    (-1 for ``areaperil_id = 0``, a placement this peril does not cover). A blended areaperil whose
+    placements are all uncovered has K = 0: its items read no hazard and never produce a loss.
+
+    Args:
+        items (np.ndarray): items table with 'areaperil_id'.
+        blend (BlendTable, optional): the validated blend table, sorted by (blended id,
+            placement), or None when the model has none.
+
+    Returns:
+        tuple: ``items_blended_areaperil_idx`` (dense blended areaperil index per item), then the
+        blended areaperil arrays: ``blended_areaperil_ja_offsets``,
+        ``blended_areaperil_ja_areaperil_ids``, ``blended_areaperil_ja_probabilities``,
+        ``blended_areaperil_placement_ja_offsets``, ``blended_areaperil_placement_ja_cum_weights``,
+        ``blended_areaperil_placement_ja_areaperil_j`` and ``blended_areaperil_placement_scale``.
+    """
+    blended_ids, items_blended_areaperil_idx = np.unique(items['areaperil_id'], return_inverse=True)
+    n_blended = blended_ids.shape[0]
+
+    # rows of each id in the blend table; an id with none is a base areaperil
+    if blend is None or blend.table.shape[0] == 0:
+        row_start = row_end = np.zeros(n_blended, dtype=np.int64)
+        table = None
+    else:
+        table = blend.table
+        row_start = np.searchsorted(table['blended_areaperil_id'], blended_ids, side='left')
+        row_end = np.searchsorted(table['blended_areaperil_id'], blended_ids, side='right')
+        n_listed = len(np.unique(table['blended_areaperil_id']))
+        n_used = int(np.count_nonzero(row_end > row_start))
+        logger.info(f"blended areaperils: {n_used} of the {n_listed} in the blend table are used by items")
+    is_blended = row_end > row_start
+
+    # per blended areaperil: its areaperils and placements, built as lists for the blended ones
+    k = np.ones(n_blended, dtype=np.int64)
+    n_placements = np.ones(n_blended, dtype=np.int64)
+    blended_parts = {}
+    for b in np.flatnonzero(is_blended):
+        rows = table[row_start[b]:row_end[b]]
+        areaperil_ids = rows['areaperil_id']
+        covered = areaperil_ids != 0
+        _, first_seen = np.unique(areaperil_ids[covered], return_index=True)
+        distinct = areaperil_ids[covered][np.sort(first_seen)]
+        areaperil_j = np.full(rows.shape[0], -1, dtype=np.int32)
+        for j, areaperil_id in enumerate(distinct):
+            areaperil_j[areaperil_ids == areaperil_id] = j
+        cum_weights = np.cumsum(rows['weight'], dtype=np.float64)
+        scale = placement_scale(cum_weights, blend.weight_type)
+        probabilities = np.array([rows['weight'][areaperil_j == j].sum() for j in range(distinct.shape[0])],
+                                 dtype=np.float64) / scale if scale > 0 else np.zeros(distinct.shape[0])
+        blended_parts[b] = (distinct, probabilities, cum_weights, areaperil_j, scale)
+        k[b] = distinct.shape[0]
+        n_placements[b] = rows.shape[0]
+
+    blended_areaperil_ja_offsets = np.zeros(n_blended + 1, dtype=oasis_int)
+    np.cumsum(k, out=blended_areaperil_ja_offsets[1:])
+    blended_areaperil_placement_ja_offsets = np.zeros(n_blended + 1, dtype=oasis_int)
+    np.cumsum(n_placements, out=blended_areaperil_placement_ja_offsets[1:])
+
+    # base areaperils first, all at once: one areaperil (the id itself), one placement of weight 1
+    blended_areaperil_ja_areaperil_ids = np.empty(blended_areaperil_ja_offsets[-1], dtype=areaperil_int)
+    blended_areaperil_ja_probabilities = np.ones(blended_areaperil_ja_offsets[-1], dtype=np.float64)
+    blended_areaperil_placement_ja_cum_weights = np.ones(blended_areaperil_placement_ja_offsets[-1], dtype=np.float64)
+    blended_areaperil_placement_ja_areaperil_j = np.zeros(blended_areaperil_placement_ja_offsets[-1], dtype=np.int32)
+    blended_areaperil_placement_scale = np.ones(n_blended, dtype=np.float64)
+    base = ~is_blended
+    blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[:-1][base]] = blended_ids[base]
+
+    for b, (distinct, probabilities, cum_weights, areaperil_j, scale) in blended_parts.items():
+        ap = slice(blended_areaperil_ja_offsets[b], blended_areaperil_ja_offsets[b + 1])
+        pl = slice(blended_areaperil_placement_ja_offsets[b], blended_areaperil_placement_ja_offsets[b + 1])
+        blended_areaperil_ja_areaperil_ids[ap] = distinct
+        blended_areaperil_ja_probabilities[ap] = probabilities
+        blended_areaperil_placement_ja_cum_weights[pl] = cum_weights
+        blended_areaperil_placement_ja_areaperil_j[pl] = areaperil_j
+        blended_areaperil_placement_scale[b] = scale
+
+    return (items_blended_areaperil_idx.astype(oasis_int),
+            blended_areaperil_ja_offsets,
+            blended_areaperil_ja_areaperil_ids,
+            blended_areaperil_ja_probabilities,
+            blended_areaperil_placement_ja_offsets,
+            blended_areaperil_placement_ja_cum_weights,
+            blended_areaperil_placement_ja_areaperil_j,
+            blended_areaperil_placement_scale)
 
 
 # ---------------------------------------------------------------------------------------------

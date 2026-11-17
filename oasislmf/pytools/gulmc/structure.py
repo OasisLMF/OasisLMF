@@ -20,7 +20,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import (building_count_dtype, load_as_ndarray, oasis_int, oasis_float)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
-from oasislmf.pytools.common.blended_areaperil import read_blended_areaperil
+from oasislmf.pytools.common.blended_areaperil import build_blended_areaperils, read_blended_areaperil
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
 from oasislmf.pytools.gul.structure import coverage_building_counts
 from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
@@ -40,7 +40,7 @@ from oasislmf.pytools.gulmc.common import (
     NormInversionParameters, coverage_type,
 )
 from oasislmf.pytools.gulmc.items import (
-    read_items, build_blended_areaperils, build_item_areaperils, build_item_placements, generate_item_map,
+    read_items, build_item_areaperils, build_item_placements, generate_item_map,
     build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln,
 )
 from oasislmf.utils.path import setcwd
