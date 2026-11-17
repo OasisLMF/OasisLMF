@@ -657,3 +657,15 @@ Remaining time at S10 (24 s): about 8 s fixed cost (driver, then twelve workers 
 Numba and building chains), 1 s of output jobs, and about 4 s of end-of-run imbalance between
 P- and E-cores. K48 did not remove the imbalance; handing out the largest chunks first, or
 reusing workers' setup, are the next things to try.
+
+## 10. Phase 4 plan: integration
+
+| # | Package | Files |
+|---|---|---|
+| 13 | `orchestrator` option on the generate-losses steps; `runner` builds the plan from the same `bash_params` and runs it with the pool executor (W = `ktools_num_processes`, K = W), falling back to bash with a logged warning on `Unsupported`; chunked platform runs (`process_number` = one chunk, outputs step = the output jobs); progress pings from the orchestrator; logs and exit codes as bash | `computation/generate/losses.py`, `execution/runner.py`, `execution/orchestrator/` |
+| 14 | CI: the orchestrator suites on Linux, Windows and macOS | `.github/workflows/` |
+| 15 | Manifest for `rerun`, if still needed once 13 exists | - |
+
+Ported from `feature/kernel-orchestrator` where they fit: the option and fallback wiring in
+`runner.py` and `losses.py`, and their tests. Not ported: `build.py`, the pipe transport,
+`teepy`, `stream_ref`, and `NO_SELECT` (there are no pipes left to select on).
