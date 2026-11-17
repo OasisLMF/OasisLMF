@@ -114,9 +114,18 @@ loss.
 
 Placement is drawn once per run, when the structure is built: one Latin Hypercube block of S
 uniforms per (location, building), keyed on the location's OED identifiers and not on the event, so
-a building stands in the same place in every event of a sample. Each blended item stores the
-areaperil_j its every (building, sample) reads in `item_placement_ja_areaperil_j` (-1 when no
-areaperil covers the placement); an item of one placement stores nothing and reads j = 0.
+a building stands in the same place in every event of a sample. The placement index is stored once
+per (location, building, sample) in `location_placements` (uint8 up to 255 placements), shared by
+all the location's items, which is why every blended areaperil of a location must name the same
+placement scheme (checked when the structure is built). An item with more than one placement finds
+its run through `placement_item_ind` (an id_index over those items only) and `placement_item_starts`,
+and maps each placement to its own areaperil_j through `blended_areaperil_placement_ja_areaperil_j`
+(-1 when no areaperil covers it). An item of one placement, which is every item of a portfolio
+without blending, never looks one up and reads j = 0, so these arrays are empty there.
+
+Size: one byte per (location, building, sample) of the blended locations, so it grows with S. At
+S = 1000, 250k single-building blended locations take 250 MB, memory-mapped and shared by the gulmc
+processes.
 
 Per event, `compute_event_losses` resolves the CDFs of all an item's live areaperils before
 sampling, so each sample reads the one its placement falls on. The analytic values are the mixture

@@ -74,8 +74,9 @@ ARRAY_FILES = [
     'blended_areaperil_placement_ja_offsets',
     'blended_areaperil_placement_ja_cum_weights',
     'blended_areaperil_placement_ja_areaperil_j',
-    'item_placement_ja_offsets',
-    'item_placement_ja_areaperil_j',
+    'placement_item_ind',
+    'placement_item_starts',
+    'location_placements',
     'areaperil_agg_vuln_idx_ja_offsets',
     'areaperil_agg_vuln_idx_ja_data',
     'damage_bins',
@@ -435,25 +436,26 @@ def item_location_placement_keys(input_path, items):
 
 
 def build_placements(input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-                     blended_areaperil_placement_ja_areaperil_j, sample_size):
+                     sample_size):
     """Draw the placements, when the model has a blended areaperil of more than one placement.
 
     Returns:
-        tuple: ``item_placement_ja_offsets``, ``item_placement_ja_areaperil_j`` (see
+        tuple: ``placement_item_ind`` (an id_index from item_idx to its rank among the items that
+        read a placement), ``placement_item_starts`` and ``location_placements`` (see
         ``build_item_placements``), and the sample size they were drawn for, or
-        ``NO_PLACEMENT_SAMPLE_SIZE`` when no item needs one.
+        ``NO_PLACEMENT_SAMPLE_SIZE`` when no item needs one. A portfolio without blending gets
+        empty arrays: its items never look a placement up.
     """
     if np.diff(blended_areaperil_placement_ja_offsets).max(initial=1) <= 1:
-        return (np.zeros(items.shape[0] + 1, dtype=np.int64), np.empty(0, dtype=np.int8),
+        return (id_index_build(np.zeros(0, dtype=np.int32)), np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.uint8),
                 NO_PLACEMENT_SAMPLE_SIZE)
     if sample_size is None:
         raise OasisException("blended areaperils: the sample size is needed to draw placements when the gulmc structure is built")
     item_location_keys, item_building_ids = item_location_placement_keys(input_path, items)
-    item_placement_ja_offsets, item_placement_ja_areaperil_j = build_item_placements(
+    placement_item_idxs, placement_item_starts, location_placements = build_item_placements(
         items, item_location_keys, item_building_ids,
-        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-        blended_areaperil_placement_ja_areaperil_j, sample_size)
-    return item_placement_ja_offsets, item_placement_ja_areaperil_j, int(sample_size)
+        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights, sample_size)
+    return id_index_build(placement_item_idxs), placement_item_starts, location_placements, int(sample_size)
 
 
 def _structure_path(run_dir):
@@ -649,9 +651,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
      entry_item_areaperil_idxs) = build_item_areaperils(items, blended_areaperil_ja_offsets,
                                                         blended_areaperil_ja_areaperil_ids)
     n_item_areaperils = int(item_areaperil_ja_offsets[-1])
-    item_placement_ja_offsets, item_placement_ja_areaperil_j, placement_sample_size = build_placements(
+    placement_item_ind, placement_item_starts, location_placements, placement_sample_size = build_placements(
         input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-        blended_areaperil_placement_ja_areaperil_j, sample_size)
+        sample_size)
     # an item counts once in its coverage however many areaperils it reads
     np.add.at(coverages['max_items'], items['coverage_id'], 1)
 
@@ -756,8 +758,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'blended_areaperil_placement_ja_offsets': blended_areaperil_placement_ja_offsets,
         'blended_areaperil_placement_ja_cum_weights': blended_areaperil_placement_ja_cum_weights,
         'blended_areaperil_placement_ja_areaperil_j': blended_areaperil_placement_ja_areaperil_j,
-        'item_placement_ja_offsets': item_placement_ja_offsets,
-        'item_placement_ja_areaperil_j': item_placement_ja_areaperil_j,
+        'placement_item_ind': placement_item_ind,
+        'placement_item_starts': placement_item_starts,
+        'location_placements': location_placements,
         'areaperil_agg_vuln_idx_ja_offsets': areaperil_agg_vuln_idx_ja_offsets,
         'areaperil_agg_vuln_idx_ja_data': areaperil_agg_vuln_idx_ja_data,
         'damage_bins': damage_bins,

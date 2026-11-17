@@ -16,6 +16,7 @@ from oasislmf.pytools.common.hashmap import (
     HM_INFO_N_VALID,
 )
 from oasislmf.pytools.getmodel.manager import encode_peril_id
+from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.gulmc.common import ItemAdjustment, agg_vuln_idx_weight_dtype
 
 
@@ -52,18 +53,22 @@ def read_items(input_path, ignore_file_type=set()):
 
 def build_item_placements(items, item_location_keys, item_building_ids,
                           blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-                          blended_areaperil_placement_ja_areaperil_j, sample_size):
-    """Draw each building's placement for every sample, and record which areaperil each item reads.
+                          sample_size):
+    """Draw every building's placement for every sample, once per run, shared by its location's items.
 
     Placement is where a building stands, which does not change from one event to the next (D8),
-    so it is drawn once per run rather than per event: one Latin Hypercube block of ``sample_size``
-    uniforms per (location, building), from a key that has no event in it. Every item of the
-    building maps the same uniforms through its own blended areaperil, whose cumulative weights the
-    load validation guarantees are identical across the location's perils -- so a building's wind
-    and surge items always agree on the placement, and only the areaperil each reads differs.
+    so it is drawn once rather than per event: one Latin Hypercube block of ``sample_size``
+    uniforms per (location, building), from a key that has no event in it, mapped to a placement
+    index through the location's cumulative weights. A location's items -- its perils and coverage
+    types -- all read that one placement, each through its own blended areaperil's map to the
+    areaperil it covers (``blended_areaperil_placement_ja_areaperil_j``). So they always agree on
+    where the building stands, and the placement is stored once per location rather than per item.
 
-    Only items whose blended areaperil has more than one placement get a run; every other item has
-    an empty one, which reads as areaperil_j 0 for every sample.
+    That needs one set of weights per location: every blended item of a location must use the
+    same placement scheme (D9), which is checked here.
+
+    Only items whose blended areaperil has more than one placement are listed; every other item
+    reads areaperil_j 0 throughout and costs nothing here.
 
     Args:
         items (np.ndarray): items table with 'blended_areaperil_idx' and 'packed_buildings'.
@@ -72,62 +77,84 @@ def build_item_placements(items, item_location_keys, item_building_ids,
             was disaggregated into one item per building).
         blended_areaperil_placement_ja_offsets (np.ndarray[oasis_int]): placements per blended areaperil.
         blended_areaperil_placement_ja_cum_weights (np.ndarray[float64]): running placement weight.
-        blended_areaperil_placement_ja_areaperil_j (np.ndarray[int32]): placement -> j, -1 uncovered.
         sample_size (int): number of samples S.
 
     Returns:
-        tuple: ``item_placement_ja_offsets`` (N_items + 1, int64) and
-        ``item_placement_ja_areaperil_j`` (flat, int8 or int16): per item, per building b and sample
-        s at ``offsets[item_idx] + (b - 1) * S + (s - 1)``, the j of the item areaperil it reads, or
-        -1 when no areaperil covers the placement (or float weights leave it unplaced).
+        tuple: ``placement_item_idxs`` (int32, ascending): the items that read a placement;
+        ``placement_item_starts`` (int64): for each, where its first building's samples start in
+        ``location_placements``, building b and sample s being at ``start + (b - 1) * S + (s - 1)``;
+        and ``location_placements``: per (location, building, sample) the placement index, equal
+        to the number of placements when float weights leave the building unplaced. Its dtype is
+        the narrowest unsigned type that holds that index.
     """
-    n_items = items.shape[0]
     blended_idx = items['blended_areaperil_idx']
     n_placements = (blended_areaperil_placement_ja_offsets[blended_idx + 1]
-                    - blended_areaperil_placement_ja_offsets[blended_idx])
-    n_buildings = np.abs(items['packed_buildings']).astype(np.int64)
-    run_length = np.where(n_placements > 1, n_buildings * sample_size, 0)
-    item_placement_ja_offsets = np.zeros(n_items + 1, dtype=np.int64)
-    np.cumsum(run_length, out=item_placement_ja_offsets[1:])
+                    - blended_areaperil_placement_ja_offsets[blended_idx]).astype(np.int64)
+    placement_item_idxs = np.flatnonzero(n_placements > 1).astype(np.int32)
+    if placement_item_idxs.shape[0] == 0:
+        return placement_item_idxs, np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.uint8)
 
-    max_j = int(blended_areaperil_placement_ja_areaperil_j.max(initial=0))
-    j_dtype = np.int8 if max_j < np.iinfo(np.int8).max else np.int16
-    item_placement_ja_areaperil_j = np.empty(item_placement_ja_offsets[-1], dtype=j_dtype)
-    if item_placement_ja_offsets[-1] > 0:
-        _fill_item_placements(blended_idx, n_buildings, item_location_keys,
-                              item_building_ids.astype(np.int64), item_placement_ja_offsets,
+    item_blended_idx = blended_idx[placement_item_idxs]
+    first_building = item_building_ids[placement_item_idxs].astype(np.int64)
+    n_buildings = np.abs(items['packed_buildings'][placement_item_idxs]).astype(np.int64)
+    location_keys, item_location = np.unique(item_location_keys[placement_item_idxs], return_inverse=True)
+    n_locations = location_keys.shape[0]
+
+    # one scheme per location: its blended areaperils (one per peril or coverage type) must place by
+    # the same weights, or its items could not share one placement
+    scheme_signature = {}
+    signatures = np.empty(placement_item_idxs.shape[0], dtype=np.int64)
+    for k, b_idx in enumerate(item_blended_idx):
+        cum = blended_areaperil_placement_ja_cum_weights[blended_areaperil_placement_ja_offsets[b_idx]:
+                                                         blended_areaperil_placement_ja_offsets[b_idx + 1]]
+        signatures[k] = scheme_signature.setdefault(cum.tobytes(), len(scheme_signature))
+    location_signature = np.full(n_locations, -1, dtype=np.int64)
+    location_signature[item_location] = signatures
+    if np.any(location_signature[item_location] != signatures):
+        bad = np.unique(item_location[location_signature[item_location] != signatures])
+        raise OasisException(
+            f"blended areaperils: {len(bad)} location(s) read blended areaperils with different placement "
+            f"weights (placement keys {location_keys[bad][:5].tolist()}); every blended areaperil of a location must "
+            f"name the same placement scheme")
+
+    # a location's run covers its building numbers 1..n, the most any of its items reaches
+    location_n_buildings = np.zeros(n_locations, dtype=np.int64)
+    np.maximum.at(location_n_buildings, item_location, first_building - 1 + n_buildings)
+    location_starts = np.zeros(n_locations + 1, dtype=np.int64)
+    np.cumsum(location_n_buildings * sample_size, out=location_starts[1:])
+    placement_item_starts = location_starts[item_location] + (first_building - 1) * sample_size
+
+    location_blended_idx = np.empty(n_locations, dtype=item_blended_idx.dtype)
+    location_blended_idx[item_location] = item_blended_idx
+    max_index = int(n_placements.max())  # the unplaced index equals the placement count
+    placement_dtype = np.uint8 if max_index <= np.iinfo(np.uint8).max else (
+        np.uint16 if max_index <= np.iinfo(np.uint16).max else np.int32)
+    location_placements = np.empty(location_starts[-1], dtype=placement_dtype)
+    _fill_location_placements(location_keys, location_n_buildings, location_starts, location_blended_idx,
                               blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-                              blended_areaperil_placement_ja_areaperil_j, sample_size, item_placement_ja_areaperil_j)
-    return item_placement_ja_offsets, item_placement_ja_areaperil_j
+                              sample_size, location_placements)
+    return placement_item_idxs, placement_item_starts, location_placements
 
 
 @nb.njit(cache=True)
-def _fill_item_placements(blended_idx, n_buildings, item_location_keys, item_building_ids,
-                          item_placement_ja_offsets,
-                          placement_ja_offsets, placement_ja_cum_weights, placement_ja_areaperil_j,
-                          sample_size, item_placement_ja_areaperil_j):
-    """Kernel of ``build_item_placements``: one Philox block per (item, building), mapped to j."""
+def _fill_location_placements(location_keys, location_n_buildings, location_starts, location_blended_idx,
+                              placement_ja_offsets, placement_ja_cum_weights, sample_size, location_placements):
+    """Kernel of ``build_item_placements``: one Philox block per (location, building), mapped to a placement."""
     uniforms = np.empty(sample_size, dtype=np.float64)
     perm_scratch = np.empty(sample_size, dtype=np.float64)
-    for item_idx in range(blended_idx.shape[0]):
-        start = item_placement_ja_offsets[item_idx]
-        if item_placement_ja_offsets[item_idx + 1] == start:
-            continue
-        b_idx = blended_idx[item_idx]
-        p_start = placement_ja_offsets[b_idx]
-        p_end = placement_ja_offsets[b_idx + 1]
-        cum_weights = placement_ja_cum_weights[p_start:p_end]
-        key = item_location_keys[item_idx]
+    for loc in range(location_keys.shape[0]):
+        b_idx = location_blended_idx[loc]
+        cum_weights = placement_ja_cum_weights[placement_ja_offsets[b_idx]:placement_ja_offsets[b_idx + 1]]
+        key = location_keys[loc]
         k0 = np.uint32(key & PHILOX_U32_MASK)
         k1 = np.uint32(key >> PHILOX_SHIFT32)
-        for b in range(n_buildings[item_idx]):
-            # the building's number within its location: building_id for one item per building,
-            # the packed building index for one item carrying them all
-            _lh_philox_block(k0, k1, item_building_ids[item_idx] - 1 + b, sample_size, perm_scratch, uniforms)
-            out = start + b * sample_size
+        for building in range(location_n_buildings[loc]):
+            # the building's number within its location is the block coordinate: building_id for one
+            # item per building, the packed building index for one item carrying them all
+            _lh_philox_block(k0, k1, building, sample_size, perm_scratch, uniforms)
+            out = location_starts[loc] + building * sample_size
             for s in range(sample_size):
-                p = select_placement(cum_weights, uniforms[s])
-                item_placement_ja_areaperil_j[out + s] = placement_ja_areaperil_j[p_start + p] if p < p_end - p_start else -1
+                location_placements[out + s] = select_placement(cum_weights, uniforms[s])
 
 
 def build_item_areaperils(items, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids):

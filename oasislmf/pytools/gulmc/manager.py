@@ -230,12 +230,11 @@ def run(run_dir,
             # sample size redraws them rather than read past, or short of, each item's run
             logger.info(f"redrawing placements for {sample_size} samples "
                         f"(the structure drew them for {structures['placement_sample_size']})")
-            (structures['item_placement_ja_offsets'], structures['item_placement_ja_areaperil_j'],
+            (structures['placement_item_ind'], structures['placement_item_starts'], structures['location_placements'],
              structures['placement_sample_size']) = build_placements(
                 os.path.join(run_dir, 'input'), structures['items'],
                 structures['blended_areaperil_placement_ja_offsets'],
-                structures['blended_areaperil_placement_ja_cum_weights'],
-                structures['blended_areaperil_placement_ja_areaperil_j'], sample_size)
+                structures['blended_areaperil_placement_ja_cum_weights'], sample_size)
 
         items = structures['items']
         # coverages needs a writable copy: reconstruct_coverages writes cur_items / start_items per event
@@ -248,8 +247,11 @@ def run(run_dir,
         item_areaperil_ja_offsets = structures['item_areaperil_ja_offsets']
         item_areaperil_ja_cdf_group_idxs = structures['item_areaperil_ja_cdf_group_idxs']
         item_areaperil_ja_areaperil_agg_vuln_idxs = structures['item_areaperil_ja_areaperil_agg_vuln_idxs']
-        item_placement_ja_offsets = structures['item_placement_ja_offsets']
-        item_placement_ja_areaperil_j = structures['item_placement_ja_areaperil_j']
+        placement_item_ind = structures['placement_item_ind']
+        placement_item_starts = structures['placement_item_starts']
+        location_placements = structures['location_placements']
+        blended_areaperil_placement_ja_offsets = structures['blended_areaperil_placement_ja_offsets']
+        blended_areaperil_placement_ja_areaperil_j = structures['blended_areaperil_placement_ja_areaperil_j']
         blended_areaperil_ja_offsets = structures['blended_areaperil_ja_offsets']
         blended_areaperil_ja_probabilities = structures['blended_areaperil_ja_probabilities']
         # the most areaperils one item reads, sizing the per-areaperil scratch; at least 1
@@ -651,8 +653,11 @@ def run(run_dir,
                             item_areaperil_ja_areaperil_agg_vuln_idxs,
                             item_areaperil_haz_arr_i,
                             item_areaperil_event_rp,
-                            item_placement_ja_offsets,
-                            item_placement_ja_areaperil_j,
+                            placement_item_ind,
+                            placement_item_starts,
+                            location_placements,
+                            blended_areaperil_placement_ja_offsets,
+                            blended_areaperil_placement_ja_areaperil_j,
                             blended_areaperil_ja_offsets,
                             blended_areaperil_ja_probabilities,
                             max_areaperils_per_item,
@@ -1254,8 +1259,11 @@ def compute_event_losses(compute_info,
                          item_areaperil_ja_areaperil_agg_vuln_idxs,
                          item_areaperil_haz_arr_i,
                          item_areaperil_event_rp,
-                         item_placement_ja_offsets,
-                         item_placement_ja_areaperil_j,
+                         placement_item_ind,
+                         placement_item_starts,
+                         location_placements,
+                         blended_areaperil_placement_ja_offsets,
+                         blended_areaperil_placement_ja_areaperil_j,
                          blended_areaperil_ja_offsets,
                          blended_areaperil_ja_probabilities,
                          max_areaperils_per_item,
@@ -1333,11 +1341,15 @@ def compute_event_losses(compute_info,
           areaperil, -1 when its areaperil has no hazard this event.
         item_areaperil_event_rp (np.array[int32]): this event's return period per item areaperil
           (dynamic footprint only).
-        item_placement_ja_offsets (np.array[int64]): per item, its run of per-(building, sample)
-          areaperil_j; empty for an item of one placement, which reads j = 0 throughout.
-        item_placement_ja_areaperil_j (np.array[int8|int16]): the areaperil_j each (building,
-          sample) reads, at ``offsets[item_idx] + (b - 1) * S + (s - 1)``; -1 when no areaperil
-          covers the placement.
+        placement_item_ind (np.array): id_index from item_idx to its rank among the items that
+          read a placement; looked up only for an item whose blended areaperil has more than one.
+        placement_item_starts (np.array[int64]): per such item, where its first building's samples
+          start in ``location_placements``.
+        location_placements (np.array[uint8|uint16|int32]): per (location, building, sample) the
+          placement index, shared by the location's items; the placement count means unplaced.
+        blended_areaperil_placement_ja_offsets (np.array[oasis_int]): placements per blended areaperil.
+        blended_areaperil_placement_ja_areaperil_j (np.array[int32]): placement -> the areaperil_j
+          it reads, -1 when no areaperil covers it.
         blended_areaperil_ja_offsets (np.array[oasis_int]): per blended areaperil, its areaperils.
         blended_areaperil_ja_probabilities (np.array[float64]): probability the building is on
           each areaperil, the weights of the analytic mixture.
@@ -1426,8 +1438,10 @@ def compute_event_losses(compute_info,
     haz_i_to_vuln_cdf_buf = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
     # the effective damage cdf of a blended item: its areaperils mixed by probability
     mixed_eff_damage_cdf = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
-    # an item of a single placement reads areaperil 0 in every sample
-    areaperil_j_single = np.zeros(max(sample_size, 1), dtype=item_placement_ja_areaperil_j.dtype)
+    # an item of a single placement reads areaperil 0 in every sample; a blended item's building
+    # maps its location's placements to its own areaperil_j here
+    areaperil_j_single = np.zeros(max(sample_size, 1), dtype=np.int32)
+    areaperil_j_of_building = np.zeros(max(sample_size, 1), dtype=np.int32)
     # the source's damage pmf plays the role of the hazard pdf for a dependent
     source_damage_pmf_empty = np.empty(n_damage_bins_total, dtype=oasis_float)
 
@@ -1663,8 +1677,15 @@ def compute_event_losses(compute_info,
                 # full Monte Carlo: record this coverage's per-sample damage bin for any dependent
                 # below it in the DFS
                 store_source_bin = has_dependents_below and not compute_info['effective_damageability']
-                placement_start = item_placement_ja_offsets[item_idx]
-                has_placements = item_placement_ja_offsets[item_idx + 1] > placement_start and not is_dependent
+                # placements were drawn per (location, building) when the structure was built;
+                # this item reads them through its own blended areaperil's placement -> j map
+                item_placement_start = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx']]
+                n_placements = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx'] + 1] - item_placement_start
+                has_placements = n_placements > 1 and not is_dependent
+                if has_placements:
+                    location_start = placement_item_starts[id_index_get_idx(placement_item_ind, item_idx)]
+                else:
+                    location_start = nb_int64(0)
 
                 # One block per building; an unpacked item is the N == 1 case, whose single block
                 # is the legacy draw. The two routines below take the random values and the output
@@ -1720,10 +1741,14 @@ def compute_event_losses(compute_info,
                     else:
                         parent_bins = src_bin_out  # unused; keeps the argument type stable
 
-                    # which areaperil each sample of this building reads, drawn when the structure was built
+                    # which areaperil each sample of this building reads
                     if has_placements:
-                        areaperil_j_of_sample = item_placement_ja_areaperil_j[placement_start + bin_off:
-                                                                              placement_start + bin_off + sample_size]
+                        for sample_idx in range(sample_size):
+                            placement = location_placements[location_start + bin_off + sample_idx]
+                            areaperil_j_of_building[sample_idx] = (
+                                blended_areaperil_placement_ja_areaperil_j[item_placement_start + placement]
+                                if placement < n_placements else -1)
+                        areaperil_j_of_sample = areaperil_j_of_building[:sample_size]
                     else:
                         areaperil_j_of_sample = areaperil_j_single[:sample_size]
 
