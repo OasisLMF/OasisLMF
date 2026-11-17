@@ -10,6 +10,7 @@ from oasislmf.execution.orchestrator import chain as chain_module
 from oasislmf.execution.orchestrator import cli, inline
 from oasislmf.execution.orchestrator.chain import Chain
 from oasislmf.execution.orchestrator.chunks import ChunkWriter, make_chunks
+from tests.bash_support import bash_available
 from tests.orchestrator.tools.compare_streams import compare_dirs_bytes
 
 from .test_chain import (FACTORIES, TREE_FACTORIES, FakeFm, FakeGul, expected_streams, expected_tree_files, make_spec, make_tree_spec,
@@ -229,8 +230,8 @@ def test_cli_chunk_order(tmp_path, run_dir, monkeypatch, capsys):
     capsys.readouterr()
 
 
-def test_inline_one_chain_in_scrambled_chunk_order_matches_fresh_chains_and_bash(kernel_run, kernel_reference, tmp_path, monkeypatch):
-    """One chain running the chunks out of order writes the same bytes as a fresh chain per chunk, and as bash."""
+def test_inline_one_chain_in_scrambled_chunk_order_matches_fresh_chains_and_bash(kernel_run, request, tmp_path, monkeypatch):
+    """One chain running the chunks out of order writes the same bytes as a fresh chain per chunk, and as bash where it can run."""
     n_chunks = 5
     args = cli.build_parser().parse_args([
         '--run-dir', str(kernel_run.run_dir), '--out-dir', 'unused', '-S', str(kernel_run.samples), *kernel_run.gul_args,
@@ -248,7 +249,10 @@ def test_inline_one_chain_in_scrambled_chunk_order_matches_fresh_chains_and_bash
             for event_id in chunk:
                 chain.run_event(event_id, writer.sinks)
 
-    for expected in (fresh, kernel_reference(n_chunks)):
+    expected_dirs = [fresh]
+    if bash_available():
+        expected_dirs.append(request.getfixturevalue('kernel_reference')(n_chunks))
+    for expected in expected_dirs:
         results = compare_dirs_bytes(expected, one_chain, taps=TAPS)
         assert len(results) == n_chunks * len(TAPS)
         assert all(r.ok for r in results), [r for r in results if not r.ok]

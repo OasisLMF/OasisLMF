@@ -72,6 +72,7 @@ def test_full_ord_settings_switch_on_every_output_genbash_knows():
         assert any(s['ord_output'].get('parquet_format') for s in summaries) == (3 in sets)
 
 
+@pytest.mark.requires_bash
 def test_write_tool_wrappers(tmp_path):
     bin_dir = write_tool_wrappers(tmp_path / 'bin', source=REPO_ROOT)
     for name, module in CONSOLE_SCRIPTS.items():

@@ -21,6 +21,7 @@ from oasislmf.execution.orchestrator.chunks import make_chunks, read_events
 from oasislmf.execution.orchestrator.plan import Plan, plan_from_bash_params
 from oasislmf.execution.orchestrator.progress import ProgressReporter
 from tests.orchestrator.tools.compare_outputs import compare_trees_bytes, list_files
+from tests.orchestrator.tools.kernel_reference import link_dir
 
 from .test_chain import make_spec
 from .test_pool import descendants
@@ -207,7 +208,7 @@ def new_run_dir(full_kernel_run, path):
     """A run directory as GenerateLossesDir leaves it: the fixture's input and static, its summary-info files, fifo/ and work/."""
     path.mkdir(parents=True)
     for name in ('input', 'static'):
-        (path / name).symlink_to(os.path.realpath(full_kernel_run / name), target_is_directory=True)
+        link_dir(path / name, full_kernel_run / name)
     for subdir in ('fifo', 'output', 'work'):
         (path / subdir).mkdir()
     for src in (full_kernel_run / 'output').glob(SUMMARY_INFO):
@@ -241,17 +242,24 @@ def output_report(run_a, run_b):
 
 
 @pytest.fixture(scope='module')
-def whole_runs(full_kernel_run, tmp_path_factory):
-    """The fixture's full kernel run by ``runner.run`` with K processes, bash and orchestrator."""
-    base = tmp_path_factory.mktemp('whole_runs')
-    return {'bash': run_whole(full_kernel_run, base / 'bash', False),
-            'orchestrator': run_whole(full_kernel_run, base / 'orchestrator', True)}
+def orchestrated_whole_run(full_kernel_run, tmp_path_factory):
+    """The fixture's full kernel run by ``runner.run`` with K processes and the orchestrator."""
+    return run_whole(full_kernel_run, tmp_path_factory.mktemp('whole_runs') / 'orchestrator', True)
 
 
-def test_runner_orchestrator_output_byte_identical_to_bash(whole_runs):
-    bash_run, orch_run = whole_runs['bash'], whole_runs['orchestrator']
-    report = output_report(bash_run, orch_run)
+@pytest.fixture(scope='module')
+def bash_whole_run(full_kernel_run, tmp_path_factory):
+    """The same run by bash (``requires_bash``)."""
+    return run_whole(full_kernel_run, tmp_path_factory.mktemp('whole_runs') / 'bash', False)
+
+
+def test_runner_orchestrator_output_byte_identical_to_bash(bash_whole_run, orchestrated_whole_run):
+    report = output_report(bash_whole_run, orchestrated_whole_run)
     assert report.ok, report.summary()
+
+
+def test_runner_orchestrator_run_logs_and_outputs(orchestrated_whole_run):
+    orch_run = orchestrated_whole_run
     outputs = [rel for rel in list_files(orch_run, subdirs=('output',)) if 'summary-info' not in rel]
     assert len(outputs) > 20
     assert (orch_run / 'run_kernel.sh').is_file()
@@ -298,7 +306,21 @@ def run_chunked(full_kernel_run, path, chunk_engines, outputs_orchestrator, remo
     return run
 
 
-def test_chunked_runs_mixed_bash_and_orchestrator_match_the_whole_run(full_kernel_run, whole_runs, tmp_path, monkeypatch):
+def test_chunked_orchestrated_run_matches_the_whole_run(full_kernel_run, orchestrated_whole_run, tmp_path, monkeypatch):
+    pinged = []
+    monkeypatch.setattr('oasislmf.execution.orchestrator.progress.oasis_ping', lambda data: pinged.append(data) or True)
+    run = run_chunked(full_kernel_run, tmp_path / 'run', [True, True], outputs_orchestrator=True, remove_working_files=True)
+    report = output_report(orchestrated_whole_run, run)
+    assert report.ok, report.summary()
+    assert report.compared > 20
+    for k in range(1, K + 1):
+        assert (run / 'log' / str(k) / kernel.RUN_LOG).is_file()
+        assert (run / 'log' / str(k) / kernel.STDERR_LOG).read_text() == ''
+    assert os.listdir(run / 'work') == []
+    assert sum(p['events_complete'] for p in pinged) == len(read_events(str(full_kernel_run / 'input' / 'events.bin')))
+
+
+def test_chunked_runs_mixed_bash_and_orchestrator_match_the_whole_run(full_kernel_run, bash_whole_run, tmp_path, monkeypatch):
     pinged = []
     monkeypatch.setattr('oasislmf.execution.orchestrator.progress.oasis_ping', lambda data: pinged.append(data) or True)
     run_a = run_chunked(full_kernel_run, tmp_path / 'a', [False, True], outputs_orchestrator=True, remove_working_files=False)
@@ -313,7 +335,7 @@ def test_chunked_runs_mixed_bash_and_orchestrator_match_the_whole_run(full_kerne
         assert list((orchestrated / f'{k}.work').rglob(f'P{k}.bin'))
         assert not list((orchestrated / f'{k}.work').rglob(f'P{3 - k}.bin'))
     for run in (run_a, run_b):
-        report = output_report(whole_runs['bash'], run)
+        report = output_report(bash_whole_run, run)
         assert report.ok, report.summary()
     assert (run_a / 'log' / 'out' / kernel.RUN_LOG).is_file()
     assert list((run_a / 'work').rglob('*.bin'))
@@ -325,6 +347,7 @@ def test_chunked_runs_mixed_bash_and_orchestrator_match_the_whole_run(full_kerne
     assert sum(p['events_complete'] for p in pinged) == len(chunks[0]) + len(chunks[1])
 
 
+@pytest.mark.requires_bash
 def test_unsupported_run_falls_back_to_bash(full_kernel_run, tmp_path, caplog):
     settings = settings_of(full_kernel_run)
     settings = {'number_of_samples': settings['number_of_samples'], 'gul_threshold': 0, 'gul_output': True,

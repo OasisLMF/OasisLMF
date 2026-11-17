@@ -9,6 +9,7 @@ import numpy as np
 from unittest.mock import patch, Mock
 
 import pandas as pd
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -593,15 +594,18 @@ class TestGenLosses(ComputationChecker):
                 self._assert_ran_with(model_run_dir, 'log', orchestrator)
             self._assert_same_outputs(bash_run_dir, orchestrator_run_dir)
 
+    @pytest.mark.requires_bash
     def test_losses__orchestrator__ri_matches_bash(self):
         self._compare_generate_losses(self.args_gen_files_ri, RI_RUN_SETTINGS, "10032")
 
+    @pytest.mark.requires_bash
     def test_losses__orchestrator__ri_and_rl_multi_layer_matches_bash(self):
         self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MULTI_LAYER_INF)
         self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MULTI_LAYER_SCP)
         settings = {**RI_AAL_SETTINGS, 'rl_output': True, 'rl_summaries': RI_AAL_SETTINGS['ri_summaries']}
         self._compare_generate_losses(self.args_gen_files_ri, settings, "10033")
 
+    @pytest.mark.requires_bash
     def test_losses__orchestrator__chunked_workflow_matches_bash(self):
         num_chunks = 3
         self.manager.generate_files(**self.args_gen_files_ri)
@@ -627,6 +631,7 @@ class TestGenLosses(ComputationChecker):
                 self._assert_ran_with(model_run_dir, os.path.join('log', 'out'), orchestrator)
             self._assert_same_outputs(bash_run_dir, orchestrator_run_dir)
 
+    @pytest.mark.requires_bash
     def test_losses__orchestrator__unsupported_config_falls_back_to_bash(self):
         self.manager.generate_files(**self.args_gen_files_gul)
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)

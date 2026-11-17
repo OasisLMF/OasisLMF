@@ -14,10 +14,12 @@ import psutil
 import pytest
 
 from oasislmf.execution.orchestrator import cli, inline, pool
-from oasislmf.execution.resource_monitor import ORCHESTRATOR_TOOL, ORCHESTRATOR_WORKER_MODULE, ResourceMonitor
 from oasislmf.execution.orchestrator.chain import Chain
 from oasislmf.execution.orchestrator.chunks import make_chunks
 from oasislmf.execution.orchestrator.worker import stage_name
+from oasislmf.execution.resource_monitor import ORCHESTRATOR_TOOL, ORCHESTRATOR_WORKER_MODULE, ResourceMonitor
+
+from tests.bash_support import bash_available
 
 from .test_chain import FakeFm, FakeGul, FakeSummary, expected_streams, expected_tree_files, make_spec, make_tree_spec, read_tree_files
 from .tools.compare_streams import compare_dirs_bytes
@@ -395,11 +397,13 @@ def assert_same_streams(dir_a, dir_b, n_chunks):
 
 
 @pytest.mark.parametrize('n_chunks, n_workers', [(1, 1), (3, 1), (3, 2), (2, 4), (5, 3)])
-def test_pool_kernel_byte_identical_to_reference_and_inline(kernel_run, kernel_reference, tmp_path, n_chunks, n_workers):
+def test_pool_kernel_byte_identical_to_reference_and_inline(kernel_run, request, tmp_path, n_chunks, n_workers):
+    """Pool and inline streams are byte-identical, and equal to the pytools pipelines' where those can run."""
     spec = kernel_spec(kernel_run)
     chunks = make_chunks(kernel_run.event_ids, n_chunks)
     stats = run_pool(spec, chunks, tmp_path / 'pool', TAPS, n_workers, timeout=600)
-    assert_same_streams(tmp_path / 'pool', kernel_reference(n_chunks), n_chunks)
+    if bash_available():
+        assert_same_streams(tmp_path / 'pool', request.getfixturevalue('kernel_reference')(n_chunks), n_chunks)
     inline.run_chunks(spec, chunks, tmp_path / 'inline', TAPS)
     assert_same_streams(tmp_path / 'pool', tmp_path / 'inline', n_chunks)
     check_stats_shape(stats, chunks, min(n_workers, n_chunks))

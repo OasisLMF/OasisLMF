@@ -157,6 +157,30 @@ def source_env(source=None, env=None):
     return env
 
 
+def tool_command(name, python=sys.executable):
+    """The command running a pytools console script with an interpreter, as its wrapper does, without bash.
+
+    Args:
+        name (str): console script name, a key of ``CONSOLE_SCRIPTS``.
+        python (str): interpreter to run it with.
+
+    Returns:
+        list[str]: the command; run it with ``source_env(source)`` to use a checkout.
+    """
+    return [python, '-c', f"import sys; from {CONSOLE_SCRIPTS[name]} import main; sys.argv[0] = '{name}'; sys.exit(main())"]
+
+
+def link_dir(link, target):
+    """Make ``link`` a symbolic link to the directory ``target``, or a copy of it where links cannot be made.
+
+    Windows allows symbolic links only with a privilege or developer mode.
+    """
+    try:
+        Path(link).symlink_to(os.path.realpath(target), target_is_directory=True)
+    except OSError:
+        shutil.copytree(target, link)
+
+
 def write_tool_wrappers(bin_dir, source=None, python=sys.executable):
     """Write executables running every pytools console script (and the exec monitor) from a checkout.
 
@@ -306,7 +330,8 @@ def prepare_run_dir(oasis_files_dir, model_data_dir, analysis_settings, run_dir,
             the summary xref files; ORD outputs decide occurrence, quantile and return period files).
         run_dir (str | Path): directory to create.
         source (str | Path | None): pristine checkout, see resolve_source.
-        bin_dir (str | Path | None): wrappers from write_tool_wrappers, written to ``run_dir/bin`` if None.
+        bin_dir (str | Path | None): wrappers from write_tool_wrappers, written to ``run_dir/bin`` if None, but not
+            on Windows, which cannot run them (``make_kernel_reference`` writes them when they are missing).
         il_alloc_rule (int): IL allocation rule of the fm structure files.
         ri_alloc_rule (int): RI allocation rule of the fm structure files.
 
@@ -321,14 +346,13 @@ def prepare_run_dir(oasis_files_dir, model_data_dir, analysis_settings, run_dir,
     _run_helper('_prepare', dict(oasis_files_dir=str(Path(oasis_files_dir).resolve()), model_data_dir=str(Path(model_data_dir).resolve()),
                                  settings_json=str(settings_json), run_dir=str(run_dir), il_alloc_rule=il_alloc_rule,
                                  ri_alloc_rule=ri_alloc_rule), source)
-    if bin_dir is None:
+    if bin_dir is None and sys.platform != 'win32':
         bin_dir = write_tool_wrappers(run_dir / 'bin', source)
-    fmpy = str(Path(bin_dir) / 'fmpy')
     steps = [('input', il_alloc_rule)] + [(f'input/RI_{i}', ri_alloc_rule)
                                          for i in range(1, num_ri_layers(run_dir, analysis_settings) + 1)]
     for static_path, rule in steps:
-        proc = subprocess.run([fmpy, f'-a{rule}', '--create-financial-structure-files', '-p', static_path], cwd=run_dir,
-                              capture_output=True, text=True)
+        proc = subprocess.run(tool_command('fmpy') + [f'-a{rule}', '--create-financial-structure-files', '-p', static_path],
+                              cwd=run_dir, env=source_env(source), capture_output=True, text=True)
         if proc.returncode != 0:
             raise KernelRunError(f'fmpy structure files for {static_path} failed:\n{proc.stderr[-4000:]}')
     return run_dir
