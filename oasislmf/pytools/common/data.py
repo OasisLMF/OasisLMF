@@ -497,6 +497,28 @@ vulnerability_weight_output = [
 ]
 vulnerability_weight_headers, vulnerability_weight_dtype, vulnerability_weight_fmt = generate_output_metadata(vulnerability_weight_output)
 
+# Blended areaperil table (model data): one row per (blended areaperil, candidate position).
+# The weight column depends on the file's weight type, so there is one record layout per type;
+# see pytools/common/blended_areaperil.py for the binary header that says which one a file holds.
+blended_areaperil_id = ("blended_areaperil_id", areaperil_int, "%d")
+placement_scheme_id = ("placement_scheme_id", 'i4', "%d")
+placement_id = ("placement_id", 'i4', "%d")
+# f8, not oasis_float: probabilities are accumulated and compared against a uniform, and an f4
+# running sum drifts enough to move a position boundary. Fixed rather than following OASIS_FLOAT
+# because it is part of an on-disk record.
+placement_weight_float = ("weight", 'f8', "%.15g")
+placement_weight_count = ("weight", 'i4', "%d")
+
+blended_areaperil_equal_output = [blended_areaperil_id, placement_scheme_id, placement_id, areaperil_id]
+blended_areaperil_count_output = [blended_areaperil_id, placement_scheme_id, placement_id, placement_weight_count, areaperil_id]
+blended_areaperil_float_output = [blended_areaperil_id, placement_scheme_id, placement_id, placement_weight_float, areaperil_id]
+(blended_areaperil_equal_headers, blended_areaperil_equal_dtype,
+ blended_areaperil_equal_fmt) = generate_output_metadata(blended_areaperil_equal_output)
+(blended_areaperil_count_headers, blended_areaperil_count_dtype,
+ blended_areaperil_count_fmt) = generate_output_metadata(blended_areaperil_count_output)
+(blended_areaperil_float_headers, blended_areaperil_float_dtype,
+ blended_areaperil_float_fmt) = generate_output_metadata(blended_areaperil_float_output)
+
 loss_pair_dtype = np.dtype([('sidx', sidx[1]), ('loss', loss[1])], align=False)
 loss_pair_size = loss_pair_dtype.itemsize
 

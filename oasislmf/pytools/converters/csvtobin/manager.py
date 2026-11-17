@@ -6,6 +6,7 @@ import logging
 from oasislmf.pytools.common.data import resolve_file
 from oasislmf.pytools.converters.csvtobin.utils import (
     amplifications_tobin,
+    blended_areaperil_tobin,
     complex_items_tobin,
     coverages_tobin,
     damagebin_tobin,
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 TOBIN_FUNC_MAP = {
     "amplifications": amplifications_tobin,
+    "blended_areaperil": blended_areaperil_tobin,
     "complex_items": complex_items_tobin,
     "coverages": coverages_tobin,
     "damagebin": damagebin_tobin,
