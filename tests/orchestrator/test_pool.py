@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 import warnings
-from multiprocessing import Pipe
+from multiprocessing.connection import Client, Listener
 
 import numpy as np
 import psutil
@@ -659,6 +659,13 @@ def bare_pool(tmp_path, run_dir, *workers, **options):
         p.close()
 
 
+def socket_pair():
+    """Two ends of a TCP connection as the pool's listener makes them: ``(accepted, client)``."""
+    with Listener(('127.0.0.1', 0), family='AF_INET') as listener:
+        client = Client(listener.address, family='AF_INET')
+        return listener.accept(), client
+
+
 def exited_worker(tmp_path, returncode, **state):
     return pool.Worker(number=0, popen=ExitedPopen(returncode), log_path='', err_path=str(tmp_path / 'no.err'), t_spawn=0.0, **state)
 
@@ -671,7 +678,7 @@ def test_pool_ignores_connections_without_a_valid_hello(tmp_path, run_dir, hello
     if hello == 'taken':
         worker.conn = taken
         hello = {'type': 'hello', 'worker': 0, 'pid': 1}
-    ours, theirs = Pipe()
+    ours, theirs = socket_pair()
     if hello == 'eof':
         theirs.close()
     elif hello != 'silent':
@@ -684,7 +691,7 @@ def test_pool_ignores_connections_without_a_valid_hello(tmp_path, run_dir, hello
 
 def test_pool_registers_a_worker_from_its_hello(tmp_path, run_dir):
     worker = pool.Worker(number=1, popen=None, log_path='', err_path='', t_spawn=0.0)
-    ours, theirs = Pipe()
+    ours, theirs = socket_pair()
     theirs.send({'type': 'hello', 'worker': 1, 'pid': 99})
     with bare_pool(tmp_path, run_dir, pool.Worker(number=0, popen=None, log_path='', err_path='', t_spawn=0.0), worker) as p:
         p._register(ours)
@@ -695,7 +702,7 @@ def test_pool_registers_a_worker_from_its_hello(tmp_path, run_dir):
 
 def test_pool_worker_exit_raises_the_error_it_sent_before_registering(tmp_path, run_dir):
     worker = exited_worker(tmp_path, 1, chunk=2)
-    ours, theirs = Pipe()
+    ours, theirs = socket_pair()
     theirs.send({'type': 'hello', 'worker': 0, 'pid': 4242})
     theirs.send({'type': 'error', 'stage': 'gul', 'chunk': 2, 'event': 7, 'error': 'ValueError: bad', 'traceback': 'Traceback'})
     with bare_pool(tmp_path, run_dir, worker) as p:
