@@ -1,7 +1,8 @@
 # Workflow to validate oasislmf installation and basic functionality on macOS.
 #
 # This runs on every PR and push to main to catch macOS-specific regressions.
-# It is intentionally lightweight — install + smoke test only — to keep CI costs low.
+# It is intentionally lightweight — install + smoke test only — to keep CI costs low — except for
+# the orchestrator tests (one Python version), the kernel executor meant to run on every platform.
 
 name: macOS Smoke Test
 
@@ -12,6 +13,12 @@ on:
       - main
       - stable**
   workflow_dispatch:
+    inputs:
+      orchestrator_bash_tests:
+        description: "Also run the orchestrator tests that compare with bash (each full-kernel bash run peaks at ~4.5 GB)"
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   build:
@@ -106,3 +113,20 @@ jobs:
           print(f'pyarrow {pyarrow.__version__}, fastparquet {fastparquet.__version__}')
           print('Core numerical stack works on ARM64')
           "
+
+      # The orchestrator suites. The tests that compare with bash (marker requires_bash) run only when
+      # dispatched with orchestrator_bash_tests: a K=2 full-kernel bash run of the test fixture peaks at
+      # ~4.5 GB on a 7 GB runner, and Linux (unittest.yml) runs them on every PR.
+      - name: Orchestrator tests
+        if: matrix.python-version == '3.12'
+        timeout-minutes: 60
+        env:
+          MARKERS: ${{ inputs.orchestrator_bash_tests && 'requires_bash or not requires_bash' || 'not requires_bash' }}
+        run: |
+          bash --version | head -1
+          python -m pip install pytest hypothesis mock -r optional-package.in
+          python -m pytest -q -m "$MARKERS" \
+            tests/orchestrator \
+            tests/model_execution/test_resource_monitor.py \
+            tests/model_execution/test_runner.py::TestRunWithOrchestrator
+          python -m pytest -q -m "$MARKERS" -k orchestrator tests/computation/test_generate_losses.py
