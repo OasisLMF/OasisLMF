@@ -172,7 +172,8 @@ def prepare_sections_df(gul_inputs_df):
 
 def prepare_coverages_df(gul_inputs_df):
     """One row per coverage, sorted by coverage_id: coverages.bin is positional, and coverage_id
-    does not follow item_id order (a location's first peril need not carry all its coverages)."""
+    does not follow item_id order (a location's first peril need not carry all its coverages).
+    """
     return (gul_inputs_df[list(structured_dtype_to_pandas(coverages_dtype))]
             .drop_duplicates(subset='coverage_id')
             .sort_values('coverage_id'))
