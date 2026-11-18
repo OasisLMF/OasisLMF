@@ -321,17 +321,21 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 @nb.njit(cache=True)
 def reset_event(summary_set_indices, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end,
                 present_summary_id, loss_summary, is_risk_affected, affected_risks, affected_risks_n):
-    """Reset the event based data structures for the next event.
+    """Reset the per-event state for the next event, touching only the entries the event used.
 
-    Only the entries used by the event are reset: the loss_summary rows and present_summary_id entries of the
-    summary ids present in the event (for each summary set read), and the risks it affected. Resetting the whole
-    arrays would cost, on every event, time proportional to the size of the portfolio rather than of the event.
+    Zeroes the loss_summary rows of the summary ids present in the event (for each requested set) and
+    clears the risks it affected. present_summary_id needs no clearing: only [start, end) is ever read,
+    and read_buffer rewrites it from start once the end pointer is reset.
+
+    Relies on read_buffer listing every loss_summary row it touches in present_summary_id, which it does
+    on the row's first touch in the event (its NUMBER_OF_AFFECTED_RISK_IDX column is still 0). Call once
+    per event, after every requested set is written: mv_write_event and fill_event_rows return early when
+    the buffer fills and skip zero rows, so the reset cannot live in them.
     """
     for summary_set_index in summary_set_indices:
         start = summary_set_index_to_loss_ptr[summary_set_index]
         for present_i in range(start, summary_set_index_to_present_loss_ptr_end[summary_set_index]):
             loss_summary[start + present_summary_id[present_i] - 1, :] = 0
-            present_summary_id[present_i] = 0
         summary_set_index_to_present_loss_ptr_end[summary_set_index] = start
     for risk_j in range(affected_risks_n[0]):
         is_risk_affected[affected_risks[risk_j]] = 0
