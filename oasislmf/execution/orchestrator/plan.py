@@ -68,6 +68,9 @@ OUTPUT_TOOLS = {
 }
 """Output tool -> the ``'module:function'`` an ``OutputJob``'s kwargs are passed to."""
 
+OUTPUT_KWARGS = {'katpy': ('out',), 'aalpy': ('aal', 'alct'), 'lecpy': ('ept', 'psept')}
+"""tool -> the keyword arguments that name the files it writes."""
+
 
 class Unsupported(Exception):
     """The run needs something the orchestrator does not cover; it must run with bash.
@@ -89,9 +92,12 @@ class OutputJob:
         tool (str): ``katpy``, ``aalpy`` or ``lecpy``.
         kwargs (dict): keyword arguments of the tool's ``main`` (``OUTPUT_TOOLS``), i.e. its command-line options
             by ``dest``. Paths are as bash writes them, relative to the run directory unless bash made them absolute.
+        summary_info (str | None): with join_summary_info, the summary-info file ``join-summary-info`` joins onto
+            every file the job writes once the tool is done; None otherwise.
     """
     tool: str
     kwargs: dict = field(default_factory=dict)
+    summary_info: str = None
 
     @property
     def entry_point(self):
@@ -127,6 +133,16 @@ class OutputJob:
             return argv
         raise ValueError(f'unknown output tool {self.tool!r}')
 
+    def outputs(self):
+        """The files the job writes, as the plan names them, in the order bash post-processes them."""
+        return [self.kwargs[key] for key in OUTPUT_KWARGS.get(self.tool, ()) if self.kwargs.get(key)]
+
+    def join_commands(self):
+        """The ``join-summary-info`` commands bash runs on this job's files after every job is done."""
+        if not self.summary_info:
+            return []
+        return [['join-summary-info', '-s', self.summary_info, '-d', path, '-o', path] for path in self.outputs()]
+
     def to_dict(self):
         """Return the job as a plain dict."""
         return asdict(self)
@@ -134,7 +150,7 @@ class OutputJob:
     @classmethod
     def from_dict(cls, data):
         """Build a job from the output of ``to_dict``."""
-        return cls(tool=data['tool'], kwargs=dict(data['kwargs']))
+        return cls(tool=data['tool'], kwargs=dict(data['kwargs']), summary_info=data.get('summary_info'))
 
 
 @dataclass
@@ -215,8 +231,6 @@ def _check_supported(bash_params, analysis_settings, run_dir):
         raise Unsupported(f"custom_args {sorted(bash_params['custom_args'])} are passed to the getmodel command")
     if bash_params.get('model_py_server'):
         raise Unsupported('the model data server (servedata, gulmc --data-server)')
-    if bash_params.get('join_summary_info') or analysis_settings.get('join_summary_info'):
-        raise Unsupported('join-summary-info post-processing of the output files')
     il_or_ri = bash_params.get('il_output') or bash_params.get('ri_output')
     distributed = bash_params.get('process_number') is not None
     if bash_params.get('num_gul_per_lb') and bash_params.get('num_fm_per_lb') and il_or_ri and not distributed:
@@ -312,6 +326,7 @@ def _output_jobs(bash_params, analysis_settings, nodes, n_chunks):
     output_dir = bash_params.get('output_dir', 'output/')
     kat_dir = bash_params.get('work_kat_dir', 'work/kat/')
     unsorted = not bash_params.get('kat_sort_by_event', True)
+    join = bool(bash_params.get('join_summary_info') or analysis_settings.get('join_summary_info'))
     jobs = []
     for node in nodes:
         runtype, ip = node['runtype'], node['inuring_priority']
@@ -321,6 +336,7 @@ def _output_jobs(bash_params, analysis_settings, nodes, n_chunks):
             ord_output = summaries[n].get('ord_output', {})
             ext = 'parquet' if ord_output.get('parquet_format') else 'csv'
             stem = f'{runtype}_{ip}S{n}'
+            summary_info = f'{output_dir}{runtype}_S{n}_summary-info.{ext}' if join else None
             for ord_type, tables in ORD_TABLES.items():
                 for name, _flag, ord_table in tables:
                     if not ord_output.get(ord_table):
@@ -329,17 +345,17 @@ def _output_jobs(bash_params, analysis_settings, nodes, n_chunks):
                         'out': f'{output_dir}{stem}_{name}.{ext}', 'file_type': 'bin',
                         'files_in': [f'{kat_dir}{stem}_{ord_table}_P{k}' for k in range(1, n_chunks + 1)],
                         name: True, 'unsorted': unsorted,
-                    }))
+                    }, summary_info))
             if ord_enabled(summaries[n], ORD_ALT_OUTPUT_SWITCHES):
                 kwargs = {'subfolder': f'{stem}_summary_palt', 'aal': f'{output_dir}{stem}_palt.{ext}', 'ext': ext}
                 if ord_output.get('alct_convergence'):
                     kwargs['alct'] = f'{output_dir}{stem}_alct.{ext}'
                     if ord_output.get('alct_confidence'):
                         kwargs['confidence'] = ord_output['alct_confidence']
-                jobs.append(OutputJob('aalpy', kwargs))
+                jobs.append(OutputJob('aalpy', kwargs, summary_info))
             if ord_enabled(summaries[n], ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
                 jobs.append(OutputJob('aalpy', {'subfolder': f'{stem}_summary_altmeanonly',
-                                                'aal': f'{output_dir}{stem}_altmeanonly.{ext}', 'ext': ext}))
+                                                'aal': f'{output_dir}{stem}_altmeanonly.{ext}', 'ext': ext}, summary_info))
             if ord_enabled(summaries[n], ORD_LECCALC):
                 kwargs = {'subfolder': f'{stem}_summaryleccalc', 'use_return_period': bool(ord_output.get('return_period_file')),
                           'ext': ext}
@@ -350,7 +366,7 @@ def _output_jobs(bash_params, analysis_settings, nodes, n_chunks):
                     kwargs['ept'] = f'{output_dir}{stem}_ept.{ext}'
                 if any(ord_output.get(o) for o in ORD_PSEPT_OUTPUT_SWITCHES):
                     kwargs['psept'] = f'{output_dir}{stem}_psept.{ext}'
-                jobs.append(OutputJob('lecpy', kwargs))
+                jobs.append(OutputJob('lecpy', kwargs, summary_info))
     return jobs
 
 

@@ -425,8 +425,8 @@ def test_unsupported_run_falls_back_to_bash(full_kernel_run, tmp_path, caplog):
     settings = {'number_of_samples': settings['number_of_samples'], 'gul_threshold': 0, 'gul_output': True,
                 'gul_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}], 'model_settings': settings.get('model_settings', {})}
     with caplog.at_level('WARNING', logger='oasislmf.execution.runner'):
-        run = run_whole(full_kernel_run, tmp_path / 'run', True, settings=settings, n_processes=1, join_summary_info=True)
-    assert 'join-summary-info' in caplog.text and 'running the kernel with the bash script instead' in caplog.text
+        run = run_whole(full_kernel_run, tmp_path / 'run', True, settings=settings, n_processes=1, gulmc=False)
+    assert 'gulpy' in caplog.text and 'running the kernel with the bash script instead' in caplog.text
     assert not (run / 'log' / kernel.RUN_LOG).exists()
     assert (run / 'output' / 'gul_S1_selt.csv').stat().st_size > 0
 

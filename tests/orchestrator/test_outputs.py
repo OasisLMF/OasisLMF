@@ -92,6 +92,16 @@ def test_jobs_for_chunks_rewrites_katpy_inputs_only(tmp_path):
         jobs_for_chunks([selt_job('o.csv', 'work/a.csv')], 2)
 
 
+def test_jobs_for_chunks_keeps_the_summary_info_to_join():
+    job = OutputJob('katpy', {'out': 'output/gul_S1_selt.csv', 'files_in': ['work/kat/gul_S1_selt_ord_P1'], 'selt': True},
+                    'output/gul_S1_summary-info.csv')
+    [two] = jobs_for_chunks([job.to_dict()], 2)
+    assert two.summary_info == job.summary_info
+    assert two.join_commands() == [['join-summary-info', '-s', 'output/gul_S1_summary-info.csv',
+                                    '-d', 'output/gul_S1_selt.csv', '-o', 'output/gul_S1_selt.csv']]
+    assert OutputJob('katpy', {'out': 'x.csv'}).join_commands() == []
+
+
 def test_plan_jobs_are_independent_and_conflicts_are_detected(tmp_path):
     jobs = plan_jobs(tmp_path)
     check_independent(jobs)

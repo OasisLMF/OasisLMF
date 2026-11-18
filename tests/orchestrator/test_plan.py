@@ -99,10 +99,22 @@ CASES = {
          'gul_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}]},
         {'num_reinsurance_iterations': 0},
     ),
+    'join_summary_info_option': (
+        {'number_of_samples': 4, 'gul_threshold': 0, 'gul_output': True, 'il_output': True, 'ri_output': True,
+         'gul_summaries': [{'id': 1, 'ord_output': ALL_ORD}],
+         'il_summaries': [{'id': 2, 'ord_output': {'elt_moment': True, 'alt_meanonly': True, 'psept_aep': True, 'parquet_format': True}}],
+         'ri_summaries': [{'id': 1, 'ord_output': {'plt_sample': True, 'ept_mean_sample_oep': True}}]},
+        {'num_reinsurance_iterations': 2, 'join_summary_info': True},
+    ),
+    'join_summary_info_setting': (
+        {'number_of_samples': 4, 'gul_threshold': 0, 'gul_output': True, 'join_summary_info': True,
+         'gul_summaries': [{'id': 1, 'ord_output': {'elt_sample': True, 'alt_period': True, 'alct_convergence': True}}]},
+        {'num_reinsurance_iterations': 0},
+    ),
 }
 
 DROP = {'(', ')', '2>>', '$LOG_DIR/stderror.err', '&'}
-KINDS = ('evepy', 'summarypy', 'tee', 'eltpy', 'pltpy', 'katpy', 'aalpy', 'lecpy')
+KINDS = ('evepy', 'summarypy', 'tee', 'eltpy', 'pltpy', 'katpy', 'aalpy', 'lecpy', 'join-summary-info')
 
 
 def normalise(argv, fifo_dir='fifo/'):
@@ -152,6 +164,8 @@ def plan_commands(plan, fifo_dir='fifo/'):
             found[normalise(argv, fifo_dir)] += 1
     for job in plan.output_jobs:
         found[normalise(job.command(), fifo_dir)] += 1
+        for argv in job.join_commands():
+            found[normalise(argv, fifo_dir)] += 1
     return found
 
 
@@ -354,8 +368,6 @@ BASE = {'number_of_samples': 1, 'gul_threshold': 0, 'gul_output': True, 'gul_sum
     (BASE, {'custom_gulcalc_cmd': 'supplier_model_gulcalc'}, 'custom gulcalc'),
     (BASE, {'gulmc': False}, 'gulpy'),
     (BASE, {'model_py_server': True}, 'data server'),
-    (BASE, {'join_summary_info': True}, 'join-summary-info'),
-    ({**BASE, 'join_summary_info': True}, {}, 'join-summary-info'),
     (BASE, {'custom_args': {'x': 1}}, 'custom_args'),
     ({**BASE, 'il_output': True, 'il_summaries': [{'id': 1}]}, {'num_gul_per_lb': 1, 'num_fm_per_lb': 1}, 'load balancer'),
     ({**BASE, 'gul_summaries': [{'id': 1, 'eltcalc': True}]}, {}, 'legacy'),
@@ -382,6 +394,16 @@ def test_pla_spec_follows_the_plapy_command():
         spec = plan_from_bash_params({'analysis_settings': {**params, **settings}, **params}).spec
         assert spec.pla == expected, settings
         assert ChainSpec.from_json(spec.to_json()) == spec
+
+
+def test_join_summary_info_jobs_round_trip(tmp_path):
+    settings, options = CASES['join_summary_info_option']
+    run_dir, params = generate(tmp_path, settings, options, 2)
+    plan = plan_from_bash_params(params, run_dir=str(run_dir))
+    assert plan.output_jobs and all(job.summary_info for job in plan.output_jobs)
+    assert {job.summary_info for job in plan.output_jobs} == {
+        'output/gul_S1_summary-info.csv', 'output/il_S2_summary-info.parquet', 'output/ri_S1_summary-info.csv'}
+    assert Plan.from_json(plan.to_json()) == plan
 
 
 def test_unsupported_full_correlation_and_shuffle():

@@ -174,7 +174,8 @@ def run_output_job(message, run_dir):
     Raises:
         JobError: the tool failed.
     """
-    result = run_job({'tool': message['tool'], 'kwargs': message['kwargs']}, run_dir, index=message['job'])
+    result = run_job({'tool': message['tool'], 'kwargs': message['kwargs'],
+                     'summary_info': message.get('summary_info')}, run_dir, index=message['job'])
     return {'type': 'done', 'job': message['job'], 'seconds': result['seconds']}
 
 

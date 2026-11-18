@@ -6,9 +6,10 @@ workers and the inline executor do instead of starting one Python interpreter pe
 
 Ordering. The jobs of a plan are independent: a katpy job reads only ``work/kat/*_P<k>`` files, an aalpy or lecpy
 job only its own ``work/<subfolder>/`` (where it also keeps its scratch files, ``aal_files/`` and ``lec_files/``),
-and none of them reads anything under ``output/``. ALCT is written by the same aalpy run as its ALT, and
-join-summary-info post-processing, the only step that reads output files, is a plan bash has to run
-(``Unsupported``). They can therefore run in any order and in parallel. ``check_independent`` verifies this for a
+and none of them reads anything under ``output/`` but the summary-info files the analysis step writes. ALCT is
+written by the same aalpy run as its ALT. With join_summary_info, a job joins the summary info onto its own files
+once its tool is done, as bash does once every tool is done; no other job reads them. They can therefore run in
+any order and in parallel. ``check_independent`` verifies this for a
 list of jobs, so that a planner change that introduces a dependency fails loudly instead of racing.
 
 In-process safety. The tools keep no state between calls in module globals (aalpy reads ``OASIS_AAL_MEMORY`` once
@@ -27,13 +28,12 @@ import time
 import warnings
 from contextlib import contextmanager
 
+from oasislmf.pytools.join_summary_info.manager import main as join_summary_info
+
 from .plan import OutputJob
 
 __all__ = ['JobError', 'as_job', 'job_label', 'job_outputs', 'job_inputs', 'check_independent', 'jobs_for_chunks',
            'prepare_output_dirs', 'isolated_logging', 'run_job', 'run_jobs']
-
-OUTPUT_KWARGS = {'katpy': ('out',), 'aalpy': ('aal', 'alct'), 'lecpy': ('ept', 'psept')}
-"""tool -> the keyword arguments that name the files it writes."""
 
 
 class JobError(RuntimeError):
@@ -64,10 +64,9 @@ def job_outputs(job):
         job (OutputJob | dict): the job.
 
     Returns:
-        list[str]: the paths, in the order of ``OUTPUT_KWARGS``.
+        list[str]: the paths, in the order of ``plan.OUTPUT_KWARGS``.
     """
-    job = as_job(job)
-    return [job.kwargs[key] for key in OUTPUT_KWARGS.get(job.tool, ()) if job.kwargs.get(key)]
+    return as_job(job).outputs()
 
 
 def job_inputs(job, work_dir='work'):
@@ -147,7 +146,7 @@ def jobs_for_chunks(jobs, n_chunks):
             if not sep or not k.isdigit():
                 raise ValueError(f'katpy input {files_in[0]!r} is not a per-chunk file name ending in _P<k>')
             kwargs['files_in'] = [f'{stem}_P{k}' for k in range(1, n_chunks + 1)]
-        result.append(OutputJob(job.tool, kwargs))
+        result.append(OutputJob(job.tool, kwargs, job.summary_info))
     return result
 
 
@@ -203,8 +202,9 @@ def _entry_point(job):
 def run_job(job, run_dir, index=None):
     """Run one output job in the calling process.
 
-    The tool's ``main`` is called with the job's kwargs and the run directory as working directory. The previous
-    working directory and the logging configuration are restored afterwards, whatever happens.
+    The tool's ``main`` is called with the job's kwargs and the run directory as working directory, then, when the
+    job has a ``summary_info``, ``join-summary-info`` on each file it wrote. The previous working directory and the
+    logging configuration are restored afterwards, whatever happens.
 
     Args:
         job (OutputJob | dict): the job.
@@ -225,6 +225,9 @@ def run_job(job, run_dir, index=None):
         os.chdir(run_dir)
         with isolated_logging():
             main(**job.kwargs)
+        for path in job.outputs() if job.summary_info else ():
+            with isolated_logging():
+                join_summary_info(summaryinfo=job.summary_info, data=path, output=path)
     except Exception as exc:
         raise JobError(f'output job {job_label(job)} failed: {type(exc).__name__}: {exc}', job=job, index=index) from exc
     finally:
