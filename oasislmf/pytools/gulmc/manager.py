@@ -505,6 +505,9 @@ def run(run_dir,
         fp_ap_inds = np.empty(n_max_areaperils, dtype=np.uint32)
         fp_event_rps = np.empty(n_max_areaperils, dtype=np.int32)
         fp_haz_arr_ptr = np.empty(n_max_areaperils + 1, dtype=np.int64)
+        # per-item event data, kept across events: reconstruct_coverages only grows it, and every
+        # field it reads back is written for the event first
+        items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
         # Pre-allocate CDF cache once (reused across events, no need to zero)
         cached_vuln_cdfs = np.empty((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
@@ -570,6 +573,7 @@ def run(run_dir,
                     damage_corr_seeds,
                     dynamic_footprint,
                     byte_mv,
+                    items_event_data,
                     group_seq_rng_index,
                     hazard_group_seq_rng_index,
                     coverage_source_id,
@@ -1704,6 +1708,7 @@ def reconstruct_coverages(compute_info,
                           damage_corr_seeds,
                           dynamic_footprint,
                           byte_mv,
+                          items_event_data,
                           group_seq_rng_index,
                           hazard_group_seq_rng_index,
                           coverage_source_id,
@@ -1757,6 +1762,9 @@ def reconstruct_coverages(compute_info,
         damage_corr_seeds (numpy.array[int]): output buffer for damage correlation seeds.
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
         byte_mv (numpy.array[byte]): output byte buffer, may be resized if needed.
+        items_event_data (numpy.array[items_MC_data_type]): per-item event data buffer, reused
+          across events and grown (doubled) when an event needs more room. Its contents on entry
+          are irrelevant: every field read for an item is written for this event first.
         group_seq_rng_index (numpy.array[int64]): pre-allocated array of size n_unique_groups,
           used for O(1) group_id to rng_index mapping. All NO_RNG_INDEX on entry; only the
           entries of this event's groups are set, and they are restored before returning.
@@ -1801,7 +1809,6 @@ def reconstruct_coverages(compute_info,
     hazard_rng_index = 0
     compute_i = 0
     items_data_i = 0
-    items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
     # for each areaperil_id, loop over all vulnerability functions used in that areaperil_id and,
     # for each item:
