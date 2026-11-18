@@ -14,6 +14,7 @@ import numpy as np
 
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasis_data_manager.filestore.backends.base import BaseStorage
+from oasislmf.pytools.getmodel.common import SECTION_MERGE_DEFAULT, SECTION_MERGE_OPTIONS
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 POINTER_PATH = str(os.path.dirname(os.path.realpath(__file__))) + "/pointer_flag.txt"
@@ -54,6 +55,7 @@ class FootprintLayer:
         total_expected: int,
         ignore_file_type: Set[str] = set(),
         df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+        section_merge=None,
     ) -> None:
         """The constructor for the FootprintLayer class.
 
@@ -62,6 +64,8 @@ class FootprintLayer:
             total_expected (int): the total number of reliant processes expected
             ignore_file_type (Set[str]): collection of file types to ignore when loading
             df_engine (str): the engine to use when loading dataframes
+            section_merge (str or None): how a dynamic footprint merges an areaperil's intensities
+                across the sections of one event (see Footprint.load)
         """
         self.storage = storage
         self.ignore_file_type: Set[str] = ignore_file_type
@@ -71,6 +75,7 @@ class FootprintLayer:
         self.total_expected: int = total_expected
         self.total_served: int = 0
         self.df_engine = df_engine
+        self.section_merge = section_merge
         self._define_socket()
 
     def _define_socket(self) -> None:
@@ -141,7 +146,8 @@ class FootprintLayer:
         with ExitStack() as stack:
             footprint_obj = stack.enter_context(Footprint.load(self.storage,
                                                                ignore_file_type=self.ignore_file_type,
-                                                               df_engine=self.df_engine))
+                                                               df_engine=self.df_engine,
+                                                               section_merge=self.section_merge))
             self.file_data = footprint_obj
             while True:
                 try:
@@ -291,8 +297,12 @@ def main() -> None:
     parser.add_argument("n", help="number of processes expected to be reliant on server", type=int)
     parser.add_argument("--df-engine", help="The engine to use when loading dataframes",
                         default="oasis_data_manager.df_reader.reader.OasisPandasReader", )
+    parser.add_argument("--section-merge", default=SECTION_MERGE_DEFAULT, choices=SECTION_MERGE_OPTIONS,
+                        help="How a dynamic footprint merges the intensities of an areaperil lying in several "
+                             f"sections of one event. Default: {SECTION_MERGE_DEFAULT}")
     args = parser.parse_args()
-    server = FootprintLayer(LocalStorage(root_dir=args.p), total_expected=args.n, df_engine=args.df_engine)
+    server = FootprintLayer(LocalStorage(root_dir=args.p), total_expected=args.n, df_engine=args.df_engine,
+                            section_merge=args.section_merge)
     server.listen()
 
 
