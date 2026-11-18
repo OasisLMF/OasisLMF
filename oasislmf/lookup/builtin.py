@@ -49,6 +49,7 @@ import math
 import re
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
+from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.peril import get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
@@ -241,9 +242,11 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
                                          .merge(peril_groups_df)['peril_id'])
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
-        locations['peril_group_id'] = locations[peril_covered_column].astype(str).str.split(';')
-        keys_df = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)[['loc_id', 'peril_id']]
-        locations.drop(columns='peril_group_id')
+        # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
+        # de-duplicate after expanding the groups, ignoring which group a peril came from
+        keys_df = (locations.assign(peril_group_id=locations[peril_covered_column].astype(str).str.split(';'))
+                   .explode('peril_group_id').merge(peril_groups_df))
+        keys_df = keys_df.drop_duplicates(subset=keys_df.columns.drop('peril_group_id'))[['loc_id', 'peril_id']]
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
         keys_df = keys_df.merge(coverage_df, how="cross").sort_values(['loc_id', 'peril_id', 'coverage_type'], kind='stable')
@@ -611,6 +614,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
 
+        Each peril gives one row per location. When it is reached through more than one listed
+        group (e.g. ``OO1;ORF``), the row kept has as ``peril_group_id`` the first listed group
+        that contains it.
+
         Useful inspirational code:
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
 
@@ -639,9 +646,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing PerilsCovered column in location')
 
-            locations['peril_group_id'] = locations[perils_covered_column].astype(str).str.split(';')
-            peril_locations = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)
-            locations.drop(columns='peril_group_id')
+            # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
+            # de-duplicate after expanding the groups, ignoring which group a peril came from
+            peril_locations = (locations.assign(peril_group_id=locations[perils_covered_column].astype(str).str.split(';'))
+                               .explode('peril_group_id').merge(peril_groups_df))
+            peril_locations = peril_locations.drop_duplicates(subset=peril_locations.columns.drop('peril_group_id'))
 
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
@@ -770,16 +779,15 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             removed in a future version.
         """
         if nearest_neighbor_min_distance > 0:
-            warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
-                          "removed in a future version. Please use `nearest_neighbor_max_distance` "
-                          "instead.",
-                          DeprecationWarning)
+            warn_deprecated("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
+                            "removed in a future version. Please use `nearest_neighbor_max_distance` "
+                            "instead.")
             if not nearest_neighbor_max_distance > 0:
                 nearest_neighbor_max_distance = nearest_neighbor_min_distance
 
         if area_peril_read_params:
-            warnings.warn("Parameter `area_peril_read_params` is deprecated and may be removed in a "
-                          "future version. Please use `file_read_params` instead.", DeprecationWarning)
+            warn_deprecated("Parameter `area_peril_read_params` is deprecated and may be removed in a "
+                            "future version. Please use `file_read_params` instead.")
             if not file_read_params:
                 file_read_params = area_peril_read_params
 

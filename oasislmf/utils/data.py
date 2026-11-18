@@ -39,7 +39,6 @@ import io
 import json
 import os
 import re
-import warnings
 from datetime import datetime
 from pathlib import Path
 
@@ -61,7 +60,9 @@ import chardet
 from chardet import UniversalDetector
 from tabulate import tabulate
 
-from oasislmf.utils.defaults import SOURCE_IDX, SAR_ID
+from oasislmf.utils.deprecation import warn_deprecated
+from oasislmf.utils.defaults import (SOURCE_IDX, SAR_ID, DISAGGREGATION_MODES, DISAGGREGATION_NONE,
+                                     DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -89,7 +90,6 @@ def settings_loader(name, settings_json, loader, required=False, **kwargs):
 
 
 pd.options.mode.chained_assignment = None
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 SUPPORTED_SRC_TYPE = ['parquet', 'csv', 'json']
 
@@ -1078,6 +1078,51 @@ def structured_dtype_to_pandas(np_dtype):
         dict: mapping of each field name to its numpy dtype.
     """
     return {col: dtype for col, (dtype, _) in np_dtype.fields.items()}
+
+
+def resolve_disaggregation(disaggregation, do_disaggregation=None, default=DISAGGREGATION_SAMPLES):
+    """Resolve how a location's buildings are separated, accepting the deprecated booleans.
+
+    ``disaggregation`` is one string -- :data:`DISAGGREGATION_NONE`, ``_ITEMS`` or ``_SAMPLES`` --
+    threaded from the command line all the way through generation. It replaces the boolean
+    ``do_disaggregation``, which could only name two of the three.
+
+    Args:
+        disaggregation (str | None): the mode, or None when not given.
+        do_disaggregation (bool | None): deprecated. True means one item per building. Honoured
+            only when ``disaggregation`` is None.
+        default (str): the mode when neither is given. ``DISAGGREGATION_SAMPLES`` matches the
+            command line's generation default; a step with another default passes its own here,
+            and leaves its ``disaggregation`` parameter defaulting to None so that a boolean
+            given on its own still reaches this function.
+
+    Returns:
+        str: one of :data:`DISAGGREGATION_MODES`.
+
+    Raises:
+        OasisException: if ``disaggregation`` is not a recognised mode.
+    """
+    if disaggregation is not None and disaggregation not in DISAGGREGATION_MODES:
+        raise OasisException(
+            f"disaggregation must be one of {', '.join(DISAGGREGATION_MODES)}, "
+            f"got '{disaggregation}'")
+
+    deprecated_given = do_disaggregation is not None
+
+    if disaggregation is None:
+        if not deprecated_given:
+            return default
+        disaggregation = DISAGGREGATION_ITEMS if do_disaggregation else DISAGGREGATION_NONE
+        warn_deprecated(
+            f"do_disaggregation is deprecated and may be removed in a future version. Use "
+            f"disaggregation='{disaggregation}' instead: a boolean cannot name the three ways a "
+            f"location's buildings can be represented.")
+    elif deprecated_given:
+        warn_deprecated(
+            f"do_disaggregation is deprecated and ignored here: disaggregation='{disaggregation}' "
+            f"is used. Use disaggregation to choose how a location's buildings are represented.")
+
+    return disaggregation
 
 
 def assign_risk_ids(df):

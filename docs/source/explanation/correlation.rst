@@ -308,6 +308,32 @@ The correlation factor works together with the group correlation functionality. 
 
 This means that the decision of how group_ids are assigned in model settings and the global correlation factor must be made together by the model provider.
 
+**The correlation factor under** ``--disaggregation samples``
+
+The shared term the factor mixes in is drawn **once per peril correlation group**, so every item
+in that group — including the separate buildings of one location — mixes in the *same* shared
+value and differs only in its own independent draw. Under packing a location's buildings are
+therefore correlated at the configured factor, the **same** factor that applies between locations:
+
+* a factor of 0 leaves a location's buildings independent of each other;
+* a factor of 1 makes them move together;
+* anything between gives the same partial correlation within a location as across the portfolio.
+
+The same holds for ``hazard_correlation_value``: each building samples its own hazard intensity,
+mixing in the group's one shared hazard value at that factor.
+
+Intra-location and inter-location correlation cannot be set separately in this mode. Under
+``--disaggregation items`` they were separate controls — the group fields decided within a
+location, the factor decided across them. In particular, with the default group fields ``items``
+gives a location's buildings one shared hazard draw, which ``samples`` cannot express without also
+correlating the hazard of every location in the peril group.
+
+.. note::
+
+    The factor sets the correlation of the underlying normal variables, not of the losses. The
+    vulnerability curve attenuates it, so the correlation between two buildings' **losses** is
+    strictly lower than the configured factor — materially so for curves with a flat region.
+
 |
 
 **Partial damage correlation of 40% between all locations**
@@ -520,9 +546,26 @@ With these settings, damage and hazard groups are the same, representing each ex
 
 **Correlation groups for disaggregated risks**
 
-OasisLMF 1.28 supports disaggregation of exposure locations when the **NumberOfBuildings** value is greater than 1. This means that one exposure location is split into multiple locations for the purposes of ground up loss sampling and financial module calculations.
+Oasis disaggregates exposure locations when the **NumberOfBuildings** value is greater than 1. This means that one exposure location is split into multiple locations for the purposes of ground up loss sampling and financial module calculations.
 
-The default behaviour is that disaggregated risks will be fully correlated for both hazard and damage if not otherwise specified in model settings using the internal Oasis fields **building_id** or **risk_id** in data settings.
+.. important::
+
+    **Which mode you are in decides this, and the default changed.**
+
+    Under ``--disaggregation samples``, now the default, a location keeps a single item and its
+    buildings are separated in the **sample dimension**: each one draws from its own independent
+    random blocks, one for hazard intensity and one for damage. They are therefore **independent
+    of each other in both hazard and damage by construction**, apart from the peril correlation
+    factors described above, and no group
+    setting changes that — ``building_id`` and ``risk_id`` have nothing to differentiate, because
+    the buildings are already apart. A location whose buildings should instead move together
+    needs no building dimension at all, which is what ``--disaggregation none`` gives.
+
+    The rest of this section describes ``--disaggregation items``, where each building is its own
+    item and so its own row to group on. There the buildings start **fully correlated** and the
+    group fields below are what splits them. See :ref:`disaggregation_samples`.
+
+Under ``--disaggregation items``, disaggregated risks are fully correlated for both hazard and damage unless the model settings say otherwise, using the internal Oasis fields **building_id** or **risk_id** in data settings.
 
 |
 
