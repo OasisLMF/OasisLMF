@@ -1405,7 +1405,9 @@ def compute_event_losses(compute_info,
                 if item_event_data['return_period'] > 0 \
                         and item_event_data['event_rp'] < item_event_data['return_period']:
                     losses[:, item_j] = 0
-                    building_losses[:, item_j, :] = 0
+                    # only this item's buildings: write_losses reads no further for it, and zeroes
+                    # the rest of the coverage's building range itself when an alloc rule needs it
+                    building_losses[:, item_j, :abs(item_event_data['packed_buildings'])] = 0
                     if has_dependents_below:
                         # a dependent below this one in the DFS still reads (depth, item_j), so
                         # leave "no damage" there rather than the last coverage's values
