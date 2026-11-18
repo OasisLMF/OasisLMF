@@ -544,7 +544,7 @@ class SummaryReader(EventReader):
         for summary_set_index in self.summary_set_indices:
             start = self.summary_set_index_to_loss_ptr[summary_set_index]
             end = self.summary_set_index_to_present_loss_ptr_end[summary_set_index]
-            self.present_summary_id[start:end] = np.sort(self.present_summary_id[start:end])
+            self.present_summary_id[start:end].sort()  # in place: the slice is a view
 
 
 def get_summary_set_id_to_summary_set_index(summary_sets_id):
