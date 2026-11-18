@@ -524,7 +524,7 @@ gul -> fm(il) -> fm(ri)
 - **Output stage.** After the last chunk, the katpy/aalpy/lecpy jobs (one per output file,
   about 25 for PiWind) run as tasks on the same pool: the worker protocol gains a `job`
   message beside `chunk`, and each job calls the tool's `run()` in-process. No new processes.
-- **What is not covered** falls back to bash, as decided for phase 4: the legacy ktools C++
+- **What is not covered** falls back to bash, as decided for phase 4 (narrowed in 10.6): the legacy ktools C++
   outputs (if `genbash` still emits any for some settings), supplier gulcalc binaries, and
   anything the planner does not recognise. The planner says why it fell back.
 
@@ -943,3 +943,36 @@ Open: expose `resource_manager`/`chunk_factor`/margin as run settings (now `run_
 start more workers blind when the machine obviously has room (each later worker costs the first one's
 setup time, about 3 to 5 s); cgroup v2 `cpu.max` quotas are not read; a per-event cost model (footprint
 bytes per event) for largest-chunks-first.
+
+### 10.6 Settings that no longer fall back to bash
+
+Five of the nine fallbacks of package 13 were settings the stages can reproduce:
+
+- **Post loss amplification** (`pla`). `PlaStage` (`pytools/pla/stage.py`) loads plapy's factors
+  once and applies plapy's Numba kernels to the gul block in place, right after gulmc, so the gul
+  summaries and fm read the amplified stream as after `gulmc | plapy | tee` in bash. The planner
+  sets only the option `get_pla_cmd` passes (`-F` when the uniform factor is positive, else `-f`
+  when the secondary factor is not 1), so the stage gets plapy's defaults for the other.
+- **join_summary_info** (option or setting). Each `OutputJob` carries the summary-info file bash
+  joins onto its outputs (`output/<runtype>_S<n>_summary-info.<ext>`); `run_job` runs
+  `join-summary-info` on each file the job wrote once its tool is done. Jobs stay independent:
+  a job only rewrites its own files.
+- **Legacy (non-ORD) outputs.** genbash emits nothing for them: a legacy-only summary set is
+  computed and its summary stream sent to `/dev/null`. The planner logs them and does the same.
+- **Load balancer** and **model_py_server.** Both change how bash spreads the work, not the
+  losses, and are ignored with a log message: the pool already hands the next chunk to a free
+  worker, and each worker reads the footprint itself. The data server cannot be used as is
+  anyway: `servedata` stops after a fixed number of clients, and the resource manager changes the
+  worker count during a run. The output equals a bash run without them.
+
+Still falling back: a custom gulcalc and `custom_args` (an external binary or arguments of the
+getmodel command), gulpy (`modelpy | gulpy`, no stages) and full correlation. Full correlation is
+broken in bash too: genbash creates the `full_correlation/gul_fc_P<k>` FIFOs and reads them, but
+nothing writes them since `get_getmodel_cmd` ignores `correlated_output` and gulpy has no `-j`.
+
+Tests: `test_plan.py` compares the plan with genbash's commands for pla (three factor cases),
+join_summary_info (option and setting) and legacy outputs, and checks that the ignored settings
+give the plan of the run without them; `tests/pytools/pla/test_stage.py` checks `PlaStage`
+against plapy byte for byte; `test_kernel.py` runs the fixture's full kernel with bash and with
+the orchestrator for pla (per-event and uniform factors), join_summary_info and legacy outputs,
+and compares `output/` byte for byte.
