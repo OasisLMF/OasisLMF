@@ -34,7 +34,7 @@ def bins_of(intensity_bins, peril_id, intensities, intensity_adjustment=0):
     bins = []
     for intensity in intensities:
         haz_pdf_record['intensity'] = intensity
-        merge_dynamic_haz_records_per_bin(haz_pdf_record, item, intensity_adjustment, *intensity_bins,
+        merge_dynamic_haz_records_per_bin(haz_pdf_record, 0, 1, item, intensity_adjustment, *intensity_bins,
                                           bin_slot, haz_bin_id, haz_prob)
         bins.append(int(haz_bin_id[0]))
     return bins
