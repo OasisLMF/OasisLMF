@@ -1,9 +1,9 @@
 """Summaries of an event must not depend on the events processed before it in the same summarypy run.
 
 summarypy keeps per-event state in arrays sized by the portfolio (losses per summary id, summary ids
-present in the event, risks already affected) and resets only the entries an event used. This checks
-that a stream of consecutive events touching different items gives, for each event, the same bytes as
-running that event alone.
+present in the event, risks already affected) and resets only the entries an event used, or just
+rewinds the list end for the present summary ids. This checks that a stream of consecutive events
+touching different items gives, for each event, the same bytes as running that event alone.
 """
 import shutil
 from pathlib import Path
