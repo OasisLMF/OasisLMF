@@ -165,6 +165,7 @@ def test_get_exposure_data_reads_string_paths_without_storage_url(monkeypatch):
 
     That URL is ``file://C:\\...`` on Windows, whose path part is empty; the fake below fails the same way on any OS.
     """
+
     def windows_storage_url(self, filename=None, **kwargs):
         raise OSError(f"<urlopen error [WinError 3] The system cannot find the path specified: ''> ({filename})")
 
