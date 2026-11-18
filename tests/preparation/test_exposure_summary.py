@@ -308,6 +308,16 @@ def test_matches_reference_with_tiv_columns_missing():
     assert_matches_reference(exposure_df, keys_df, FIELDS)
 
 
+def test_matches_reference_without_is_aggregate():
+    """IsAggregate defaults to 0, so without it every location is a single risk, whatever its
+    number of buildings."""
+    exposure_df, keys_df = make_portfolio(19, shared_loc_ids=True)
+    exposure_df = exposure_df.drop(columns='IsAggregate')
+    assert (exposure_df['NumberOfBuildings'] > 1).any()
+    summary = assert_matches_reference(exposure_df, keys_df, FIELDS[:-1])
+    assert summary['total']['portfolio']['number_of_risks'] == exposure_df['loc_id'].nunique()
+
+
 def test_matches_reference_with_a_categorical_field():
     exposure_df, keys_df = make_portfolio(18, shared_loc_ids=True)
     exposure_df['CountryCode'] = exposure_df['CountryCode'].astype('category')

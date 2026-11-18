@@ -990,9 +990,12 @@ def get_exposure_summary_rows(exposure_df, exposure_profile, additional_fields):
         rows['number_of_buildings'] = exposure_df['NumberOfBuildings'].to_numpy()
     else:
         rows['number_of_buildings'] = 1
-    rows['number_of_risks'] = rows['number_of_buildings']
+    # a location is a single risk unless it is an aggregate one; IsAggregate defaults to 0
     if 'IsAggregate' in exposure_df:
+        rows['number_of_risks'] = rows['number_of_buildings']
         rows.loc[(exposure_df['IsAggregate'] == 0).to_numpy(), 'number_of_risks'] = 1
+    else:
+        rows['number_of_risks'] = 1
     rows = rows.replace({'number_of_buildings': 0, 'number_of_risks': 0}, 1)
 
     tiv = np.zeros((len(rows), len(coverage_type_ids)))
@@ -1110,7 +1113,9 @@ def get_exposure_summary(
         dict: Exposure summary dictionary
     """
     keys_parts = keys_df if isinstance(keys_df, (list, tuple)) else [keys_df]
-    keys_parts = [select_keys_columns(part, EXPOSURE_SUMMARY_KEYS_COLS) for part in keys_parts]
+    # write_exposure_summary passes frames it has already selected the columns of
+    keys_parts = [part if list(part.columns) == EXPOSURE_SUMMARY_KEYS_COLS
+                  else select_keys_columns(part, EXPOSURE_SUMMARY_KEYS_COLS) for part in keys_parts]
 
     rows, field_names, coverage_type_ids, tiv = get_exposure_summary_rows(
         exposure_df, exposure_profile, additional_fields)
