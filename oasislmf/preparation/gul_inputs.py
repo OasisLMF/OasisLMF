@@ -170,6 +170,14 @@ def prepare_sections_df(gul_inputs_df):
     return sections
 
 
+def prepare_coverages_df(gul_inputs_df):
+    """One row per coverage, sorted by coverage_id: coverages.bin is positional, and coverage_id
+    does not follow item_id order (a location's first peril need not carry all its coverages)."""
+    return (gul_inputs_df[list(structured_dtype_to_pandas(coverages_dtype))]
+            .drop_duplicates(subset='coverage_id')
+            .sort_values('coverage_id'))
+
+
 def coverages_write_gul_bin(data, file_path, dtype):
     """Write coverages.bin: one tiv per coverage, in coverage_id order.
 
@@ -242,7 +250,8 @@ files_write_info = {
               "bin_dtype": items_dtype},
     'coverages': {"csv_dtype": structured_dtype_to_pandas(coverages_dtype),
                   "bin_dtype": coverages_dtype,
-                  "write_bin": coverages_write_gul_bin},
+                  "write_bin": coverages_write_gul_bin,
+                  "prepare_data": prepare_coverages_df},
     'amplifications': {"csv_dtype": structured_dtype_to_pandas(amplifications_dtype),
                        "bin_dtype": amplifications_dtype,
                        "write_bin": amplifications_write_gul_bin,
@@ -680,12 +689,6 @@ def get_gul_input_items(
     # Free memory after merge, before memory-intensive restructuring of data
     del keys_df
 
-    # Put rows in a canonical order before any ID is assigned: item_id and coverage_id are
-    # numbered in row order, and the keys row order depends on the lookup (e.g. on how many
-    # chunks a multiprocessed lookup split the locations into - see #2211). Stable, so duplicate
-    # keys rows for the same item keep their keys file order.
-    gul_inputs_df.sort_values(['loc_id', 'peril_id', 'coverage_type_id'], kind='stable', inplace=True, ignore_index=True)
-
     # =========================================================================
     # COVERAGE UNPACKING: Set TIV based on coverage type
     # =========================================================================
@@ -766,12 +769,17 @@ def get_gul_input_items(
     # risk_id/NumberOfRisks: Used for aggregate exposure handling in FM
     gul_inputs_df = assign_risk_ids(gul_inputs_df)
 
+    # item_id and coverage_id are numbered in sorted key order, not row order: the keys row order
+    # depends on the lookup (e.g. on how many chunks a multiprocessed lookup split the locations
+    # into - see #2211). The rows themselves stay in keys order, so duplicate keys rows for the
+    # same item keep their keys file order for merge_item_key_rows.
     # item_id: Unique per (location, peril, coverage_type, building) - the fundamental GUL unit
     gul_inputs_df['item_id'] = gul_inputs_df.groupby(
-        ['loc_id', 'peril_id', 'coverage_type_id', 'building_id'], sort=False, observed=True).ngroup().astype('int32') + 1
-    # coverage_id: Groups items by (location, building, coverage_type) - ignores peril
+        ['loc_id', 'peril_id', 'coverage_type_id', 'building_id'], sort=True, observed=True).ngroup().astype('int32') + 1
+    # coverage_id: Groups items by (location, coverage_type, building) - ignores peril. Not
+    # necessarily in item_id order, so coverages are written sorted by coverage_id.
     gul_inputs_df['coverage_id'] = gul_inputs_df.groupby(
-        ['loc_id', 'building_id', 'coverage_type_id'], sort=False, observed=True).ngroup().astype('int32') + 1
+        ['loc_id', 'coverage_type_id', 'building_id'], sort=True, observed=True).ngroup().astype('int32') + 1
 
     # Link each dependent item to its source item at the same (loc_id, building_id, peril_id);
     # 0 = independent. Per item rather than per coverage so the engine never has to infer the

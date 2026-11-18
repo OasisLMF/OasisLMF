@@ -2,10 +2,11 @@
 
 import logging
 
+import numpy as np
 import pandas as pd
 import pytest
 
-from oasislmf.preparation.gul_inputs import get_gul_input_items, prepare_sections_df
+from oasislmf.preparation.gul_inputs import get_gul_input_items, prepare_sections_df, write_gul_input_files
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -128,3 +129,18 @@ def test_item_ids_do_not_depend_on_keys_row_order():
     for seed in range(5):
         shuffled = keys.sample(frac=1, random_state=seed).reset_index(drop=True)
         pd.testing.assert_frame_equal(get_gul_input_items(exposure.copy(), shuffled)[cols], expected[cols])
+
+
+def test_coverages_bin_follows_coverage_id_when_first_peril_lacks_a_coverage(tmp_path):
+    """coverage_id is numbered by (loc_id, coverage_type_id, building_id), so it need not follow
+    item_id order: here the first peril (WSS) only carries contents. coverages.bin is positional,
+    so it must still hold the TIVs in coverage_id order."""
+    keys = pd.DataFrame(
+        [(1, 'WSS', 3, 10, 3), (1, 'WTC', 1, 10, 1), (1, 'WTC', 3, 10, 3)],
+        columns=['loc_id', 'peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'])
+    keys['status'] = 'success'
+    gul_inputs = get_gul_input_items(make_exposure(num_locations=1), keys)
+    assert gul_inputs[['coverage_type_id', 'coverage_id']].drop_duplicates().values.tolist() == [[3, 2], [1, 1]]
+
+    write_gul_input_files(gul_inputs, str(tmp_path), None, str(tmp_path))
+    assert np.fromfile(tmp_path / 'coverages.bin', dtype='f4').tolist() == [1000., 100.]
