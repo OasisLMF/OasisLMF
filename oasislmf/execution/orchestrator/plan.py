@@ -217,8 +217,6 @@ def _check_supported(bash_params, analysis_settings, run_dir):
         raise Unsupported('the model data server (servedata, gulmc --data-server)')
     if bash_params.get('join_summary_info') or analysis_settings.get('join_summary_info'):
         raise Unsupported('join-summary-info post-processing of the output files')
-    if analysis_settings.get('pla'):
-        raise Unsupported('post loss amplification (plapy)')
     il_or_ri = bash_params.get('il_output') or bash_params.get('ri_output')
     distributed = bash_params.get('process_number') is not None
     if bash_params.get('num_gul_per_lb') and bash_params.get('num_fm_per_lb') and il_or_ri and not distributed:
@@ -233,6 +231,22 @@ def _check_supported(bash_params, analysis_settings, run_dir):
             legacy = [key for key in LEGACY_SUMMARY_OUTPUTS if summary.get(key)]
             if legacy:
                 raise Unsupported(f"legacy (non-ORD) outputs {legacy} in {runtype}_summaries id {summary.get('id')}")
+
+
+def _pla_kwargs(analysis_settings):
+    """``PlaStage`` keyword arguments of the ``plapy`` command ``get_pla_cmd`` writes, or None without pla.
+
+    Only the option bash passes is set, so the stage gets plapy's defaults for the other one.
+    """
+    if not analysis_settings.get('pla', False):
+        return None
+    uniform_factor = analysis_settings.get('pla_uniform_factor', 0)
+    secondary_factor = analysis_settings.get('pla_secondary_factor', 1)
+    if uniform_factor > 0:
+        return {'uniform_factor': uniform_factor}
+    if secondary_factor != 1:
+        return {'secondary_factor': secondary_factor}
+    return {}
 
 
 def _step_policies(run_dir):
@@ -408,7 +422,7 @@ def plan_from_bash_params(bash_params, run_dir=None):
         nodes.append(_summary_node('rl', text, level, 'gross', os.path.join('input', f'RI_{level}'),
                                    analysis_settings['rl_summaries'], work_dir, kat_dir, low_memory))
 
-    spec = ChainSpec(run_dir=run_dir, gul=gul, fm=fm, summaries=nodes)
+    spec = ChainSpec(run_dir=run_dir, gul=gul, fm=fm, summaries=nodes, pla=_pla_kwargs(analysis_settings))
     n_chunks = int(bash_params.get('max_process_id') or 1)
     process_number = bash_params.get('process_number')
     if process_number is not None:
@@ -477,6 +491,12 @@ def render_chunk_commands(spec, k, n_chunks, event_shuffle=EVE_DEFAULT_SHUFFLE, 
         return _fifo(fifo_dir, node['runtype'], k, node['inuring_priority'].rstrip('_'))
 
     main = _gul_command(spec.gul, k, n_chunks, EVE_FLAGS[event_shuffle])
+    if spec.pla is not None:
+        main += ['|', 'plapy']
+        if 'uniform_factor' in spec.pla:
+            main += ['-F', str(spec.pla['uniform_factor'])]
+        elif 'secondary_factor' in spec.pla:
+            main += ['-f', str(spec.pla['secondary_factor'])]
     gul_nodes = by_source.get((None, None), [])
     if spec.fm:
         if gul_nodes:

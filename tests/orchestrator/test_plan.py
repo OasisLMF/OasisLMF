@@ -84,6 +84,21 @@ CASES = {
         {'number_of_samples': 2, 'gul_threshold': 0, 'il_output': True, 'il_summaries': [{'id': 1, 'ord_output': {'plt_sample': True}}]},
         {'num_reinsurance_iterations': 0},
     ),
+    'pla_default': (
+        {'number_of_samples': 2, 'gul_threshold': 0, 'gul_output': True, 'il_output': True, 'pla': True,
+         'gul_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}], 'il_summaries': [{'id': 1, 'ord_output': {'plt_sample': True}}]},
+        {'num_reinsurance_iterations': 0},
+    ),
+    'pla_secondary_factor': (
+        {'number_of_samples': 2, 'gul_threshold': 0, 'il_output': True, 'ri_output': True, 'pla': True, 'pla_secondary_factor': 0.5,
+         'il_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}], 'ri_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}]},
+        {'num_reinsurance_iterations': 1},
+    ),
+    'pla_uniform_factor': (
+        {'number_of_samples': 2, 'gul_threshold': 0, 'gul_output': True, 'pla': True, 'pla_uniform_factor': 1.5, 'pla_secondary_factor': 0.5,
+         'gul_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}]},
+        {'num_reinsurance_iterations': 0},
+    ),
 }
 
 DROP = {'(', ')', '2>>', '$LOG_DIR/stderror.err', '&'}
@@ -341,7 +356,6 @@ BASE = {'number_of_samples': 1, 'gul_threshold': 0, 'gul_output': True, 'gul_sum
     (BASE, {'model_py_server': True}, 'data server'),
     (BASE, {'join_summary_info': True}, 'join-summary-info'),
     ({**BASE, 'join_summary_info': True}, {}, 'join-summary-info'),
-    ({**BASE, 'pla': True}, {}, 'plapy'),
     (BASE, {'custom_args': {'x': 1}}, 'custom_args'),
     ({**BASE, 'il_output': True, 'il_summaries': [{'id': 1}]}, {'num_gul_per_lb': 1, 'num_fm_per_lb': 1}, 'load balancer'),
     ({**BASE, 'gul_summaries': [{'id': 1, 'eltcalc': True}]}, {}, 'legacy'),
@@ -358,6 +372,16 @@ def test_unsupported(tmp_path, monkeypatch, settings, options, reason):
     with pytest.raises(Unsupported, match=reason) as info:
         plan_from_bash_params(params)
     assert reason in info.value.reason
+
+
+def test_pla_spec_follows_the_plapy_command():
+    params = {'number_of_samples': 1, 'gul_threshold': 0, 'gul_alloc_rule': 0, 'gul_output': True, 'gul_summaries': []}
+    for settings, expected in [({}, None), ({'pla': False, 'pla_uniform_factor': 2}, None), ({'pla': True}, {}),
+                               ({'pla': True, 'pla_secondary_factor': 0.3}, {'secondary_factor': 0.3}),
+                               ({'pla': True, 'pla_uniform_factor': 2, 'pla_secondary_factor': 0.3}, {'uniform_factor': 2})]:
+        spec = plan_from_bash_params({'analysis_settings': {**params, **settings}, **params}).spec
+        assert spec.pla == expected, settings
+        assert ChainSpec.from_json(spec.to_json()) == spec
 
 
 def test_unsupported_full_correlation_and_shuffle():

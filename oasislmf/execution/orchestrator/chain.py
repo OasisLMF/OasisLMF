@@ -1,6 +1,8 @@
 """The stage tree ``gul -> fm(il) -> fm(ri_1) -> ...`` with its summaries, run one event at a time in one process.
 
-The trunk is the linear chain of loss stages: gulmc, then one fmpy per IL/RI step. Any loss stream of the trunk
+The trunk is the linear chain of loss stages: gulmc, optionally followed by the post loss amplification of
+plapy (applied to the gul block in place, so everything downstream reads the amplified stream, as after
+``gulmc | plapy`` in bash), then one fmpy per IL/RI step. Any loss stream of the trunk
 (the gul stream, or the gross or net output of an fm step) can feed a summary node, the in-process ``summarypy``,
 which writes one summary block per summary set. Each summary block feeds that set's outputs: ``PltStage`` and
 ``EltStage`` (``pltpy``/``eltpy``, rows appended to per-chunk files) and plain files written exactly as ``tee``
@@ -43,6 +45,8 @@ class ChainSpec:
             ``input_header``) plus ``name`` (``'il'`` or ``'ri'``) and ``feeds_next`` (``'gross'`` or ``'net'``,
             the output the next step reads; ignored on the last step). ``gross`` and ``net`` default to the
             outputs the chain can ask the step for.
+        pla (dict | None): ``PlaStage`` keyword arguments (without ``run_dir`` and ``input_header``) when the gul
+            stream is amplified, as by ``plapy`` after ``gulmc``; None otherwise.
         summaries (list[dict]): the summary nodes, one per ``summarypy``. Each is a dict with
 
             * ``source``: ``{'step': None | int, 'output': None | 'gross' | 'net'}``, the stream it reads: the gul
@@ -63,6 +67,7 @@ class ChainSpec:
     gul: dict = field(default_factory=dict)
     fm: list = field(default_factory=list)
     summaries: list = field(default_factory=list)
+    pla: dict = None
 
     def to_dict(self):
         """Return the spec as a plain dict."""
@@ -71,8 +76,9 @@ class ChainSpec:
     @classmethod
     def from_dict(cls, data):
         """Build a spec from the output of ``to_dict``."""
+        pla = data.get('pla')
         return cls(run_dir=data['run_dir'], gul=dict(data.get('gul', {})), fm=[dict(step) for step in data.get('fm', [])],
-                   summaries=json.loads(json.dumps(data.get('summaries', []))))
+                   summaries=json.loads(json.dumps(data.get('summaries', []))), pla=None if pla is None else dict(pla))
 
     def to_json(self):
         """Return the spec as a JSON string."""
@@ -149,13 +155,15 @@ def _resolve(factory):
 
 
 def default_factories():
-    """Return the real stages, ``{'gul': GulmcStage, 'fm': FmStage, 'summary': ..., 'elt': ..., 'plt': ...}``."""
+    """Return the real stages, ``{'gul': GulmcStage, 'fm': FmStage, 'pla': ..., 'summary': ..., 'elt': ..., 'plt': ...}``."""
     return dict(importlib.import_module(STAGES_MODULE).FACTORIES)
 
 
 def needed_factories(spec):
-    """The factory keys a chain of ``spec`` uses: ``gul`` and ``fm``, ``summary`` with a summary tree, and its table kinds."""
+    """The factory keys a chain of ``spec`` uses: ``gul``, ``fm``, ``pla`` when amplified, ``summary`` and its table kinds."""
     needed = {'gul', 'fm'}
+    if spec.pla is not None:
+        needed.add('pla')
     if spec.summaries:
         needed.add('summary')
     for node in spec.summaries:
@@ -276,6 +284,7 @@ class Chain:
     Attributes:
         spec (ChainSpec): the spec the chain was built from.
         gul: the gul stage.
+        pla: the post loss amplification stage, or None.
         fm_steps (list): the fm stages, in order.
         summary_nodes (list[SummaryNode]): the summary nodes, in spec order.
         headers (dict[str, bytes]): stream header of each available tap.
@@ -287,14 +296,15 @@ class Chain:
 
         Args:
             spec (ChainSpec): what to build.
-            factories (dict, optional): ``{'gul'|'fm'|'summary'|'elt'|'plt': callable}`` replacing the real stage
-                classes, each called with the stage's keyword arguments (plus ``input_header`` for all but gul, and
-                ``run_dir`` for gul, elt and plt). A value may be a ``'package.module:attribute'`` string. Keys
+            factories (dict, optional): ``{'gul'|'pla'|'fm'|'summary'|'elt'|'plt': callable}`` replacing the real
+                stage classes, each called with the stage's keyword arguments (plus ``input_header`` for all but gul, and
+                ``run_dir`` for gul, pla, elt and plt). A value may be a ``'package.module:attribute'`` string. Keys
                 missing use the real stages.
         """
         self.spec = spec
         self.chunk = None
         self.gul = None
+        self.pla = None
         self.fm_steps = []
         self.summary_nodes = [SummaryNode(i, node) for i, node in enumerate(spec.summaries)]
 
@@ -324,6 +334,10 @@ class Chain:
         try:
             self.gul = resolved['gul'](**{'run_dir': spec.run_dir, **spec.gul})
             header = self.gul.header
+            if spec.pla is not None:
+                self.pla = resolved['pla'](run_dir=spec.run_dir, input_header=header, **spec.pla)
+                header = self.pla.header
+            self._gul_header = header
             for i, step in enumerate(spec.fm):
                 kwargs = {k: v for k, v in step.items() if k not in STEP_KEYS}
                 kwargs.setdefault('gross', self._feeds[i] == 'gross' or i == self._il_index or 'gross' in consumed[i])
@@ -337,7 +351,7 @@ class Chain:
             self.close()
             raise
 
-        self.headers = {'gul': self.gul.header}
+        self.headers = {'gul': self._gul_header}
         if self._il_index is not None:
             self.headers['il'] = self.fm_steps[self._il_index].header
         if self._ri_index is not None:
@@ -349,7 +363,7 @@ class Chain:
 
     def _source_header(self, source):
         step, _output = source
-        return self.gul.header if step is None else self.fm_steps[step].header
+        return self._gul_header if step is None else self.fm_steps[step].header
 
     def _build_node(self, node, resolved):
         """Build the summary stage of a node and the plt/elt stages of its sets."""
@@ -370,6 +384,8 @@ class Chain:
     def stages(self):
         """Every stage of the chain with its name, trunk first: ``[(name, stage), ...]``."""
         named = [] if self.gul is None else [('gul', self.gul)]
+        if self.pla is not None:
+            named.append(('pla', self.pla))
         named += [(f"{self.spec.fm[i].get('name')} (fm step {i + 1})", stage) for i, stage in enumerate(self.fm_steps)]
         for node in self.summary_nodes:
             if node.stage is not None:
@@ -440,6 +456,8 @@ class Chain:
         self.gul.process_event(event_id, block)
         if not block.size:
             return
+        if self.pla is not None:
+            self.pla.amplify(block.view())
         if 'gul' in taps:
             taps['gul'].write(block.view())
 
