@@ -1791,7 +1791,8 @@ def reconstruct_coverages(compute_info,
     Returns:
         tuple: (items_event_data, rng_index, hazard_rng_index, byte_mv)
           - items_event_data (numpy.array[items_MC_data_type]): per-item data including
-            item_idx, haz_arr_i, rng_index, hazard_rng_index, eff_cdf_id.
+            item_idx, haz_arr_i, rng_index, hazard_rng_index, eff_cdf_id. The buffer passed in, or a
+            grown copy of it: the caller must keep the returned one for the next event.
           - rng_index (int): number of unique damage random seeds generated.
           - hazard_rng_index (int): number of unique hazard random seeds generated. Only hazard
             groups touching a non-deterministic areaperil (and only under full Monte Carlo, not
