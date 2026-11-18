@@ -1744,8 +1744,11 @@ def reconstruct_coverages(compute_info,
         items (np.ndarray): items table merged with correlation parameters, containing
           group_id, hazard_group_id, coverage_id, group_seq_id, hazard_group_seq_id, etc.
         item_cdf_group_idx (np.array[int64]): pre-computed mapping from item_idx to CDF group index.
-        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
-        compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed.
+        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id. On entry,
+          cur_items is non-zero only for the coverages in ``compute[:compute_info['coverage_n']]``
+          (the previous event's), which are the only ones reset here.
+        compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed. Must
+          still hold the previous event's list on entry, see ``coverages``.
         haz_seeds (numpy.array[int]): output buffer for hazard intensity random seeds.
         haz_peril_correlation_groups (numpy.array[int]): unique peril correlation groups for hazard.
         haz_corr_seeds (numpy.array[int]): output buffer for hazard correlation seeds.
@@ -1755,7 +1758,8 @@ def reconstruct_coverages(compute_info,
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
         byte_mv (numpy.array[byte]): output byte buffer, may be resized if needed.
         group_seq_rng_index (numpy.array[int64]): pre-allocated array of size n_unique_groups,
-          used for O(1) group_id to rng_index mapping (reset to NO_RNG_INDEX each event).
+          used for O(1) group_id to rng_index mapping. All NO_RNG_INDEX on entry; only the
+          entries of this event's groups are set, and they are restored before returning.
         coverage_source_id (numpy.array): source coverage_id per coverage_id, 0 for a root.
         coverage_dependents_ja_offsets (numpy.array[oasis_int]): CSR offsets into
           ``coverage_dependents_ja_data``, indexed by source coverage_id.
@@ -1771,7 +1775,8 @@ def reconstruct_coverages(compute_info,
         item_idx_to_item_j (numpy.array[oasis_int]): scratch mapping an item index to its position
           within its coverage for this event, used to pair a dependent item with its source item.
         hazard_group_seq_rng_index (numpy.array[int64]): pre-allocated array of size
-          n_unique_haz_groups, for hazard_group_id to rng_index mapping.
+          n_unique_haz_groups, for hazard_group_id to rng_index mapping. Same contract as
+          ``group_seq_rng_index``.
 
     Returns:
         tuple: (items_event_data, rng_index, hazard_rng_index, byte_mv)
