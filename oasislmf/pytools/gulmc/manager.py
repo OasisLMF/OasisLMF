@@ -364,9 +364,9 @@ def run(run_dir,
         # create the array to store the seeds
         haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
-        # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts).
-        # Initialised once; reconstruct_coverages restores the entries it used, so they are never
-        # reset in full (their size is that of the portfolio, not of the event).
+        # Pre-allocated arrays for group_id -> rng_index mapping. Initialised once; reconstruct_coverages
+        # restores the entries it used, so they are never reset in full (their size is that of the
+        # portfolio, not of the event).
         group_seq_rng_index = np.full(n_unique_groups, NO_RNG_INDEX, dtype=np.int64)
         hazard_group_seq_rng_index = np.full(n_unique_haz_groups, NO_RNG_INDEX, dtype=np.int64)
         # haz correlation
@@ -1801,10 +1801,7 @@ def reconstruct_coverages(compute_info,
           - byte_mv (numpy.array[byte]): output buffer, possibly resized.
     """
     # init data structures
-    # Only the coverages registered by the previous event (still listed in compute[:coverage_n])
-    # can have cur_items > 0: reset those instead of the whole coverages array. Likewise
-    # group_seq_rng_index and hazard_group_seq_rng_index hold NO_RNG_INDEX on entry (initialised
-    # in run, restored at the end of this function).
+    # only the previous event's coverages can have cur_items > 0 (see ``coverages``): reset just those
     for position in range(compute_info['coverage_n']):
         coverages[compute[position]]['cur_items'] = 0
     rng_index = 0

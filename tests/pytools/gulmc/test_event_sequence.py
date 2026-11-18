@@ -1,9 +1,9 @@
 """Losses of an event must not depend on the events processed before it in the same gulmc run.
 
 gulmc keeps per-event state in arrays sized by the portfolio (coverage item counters, group -> rng
-index maps, CDF cache tags) and resets only the entries an event used. This checks that running
-consecutive events that touch different items gives, for each event, the same bytes as running
-that event alone.
+index maps, CDF cache tags) and resets or invalidates only the entries an event used. This checks
+that running consecutive events that touch different items gives, for each event, the same bytes
+as running that event alone.
 """
 import shutil
 from pathlib import Path

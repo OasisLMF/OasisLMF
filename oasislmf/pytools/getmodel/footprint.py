@@ -76,10 +76,9 @@ def select_row_groups(metadata, sorted_areaperil_ids):
 
 @nb.njit(cache=True)
 def has_number_in_range(sorted_areaperil_ids, min_areaperil_id, max_areaperil_id):
-    """Whether any of sorted_areaperil_ids (sorted ascending) lies in [min_areaperil_id, max_areaperil_id].
+    """Whether any of sorted_areaperil_ids lies in [min_areaperil_id, max_areaperil_id].
 
-    A binary search, as select_row_groups does: called once per event, so a scan would cost the
-    size of the portfolio on every event, most of all on events that miss it.
+    sorted_areaperil_ids must be sorted ascending; unsorted ids give a wrong answer, not an error.
     """
     j = np.searchsorted(sorted_areaperil_ids, min_areaperil_id)
     return j < sorted_areaperil_ids.shape[0] and sorted_areaperil_ids[j] <= max_areaperil_id
