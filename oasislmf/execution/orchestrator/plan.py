@@ -19,6 +19,7 @@ Settings the stages do not cover raise ``Unsupported`` with the reason, and the 
 """
 import csv
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass, field
 
@@ -32,6 +33,8 @@ from .chain import CHUNK_KEY, ChainSpec, chunk_path_templates, fill_chunk
 from .chunks import make_chunks
 
 __all__ = ['Unsupported', 'OutputJob', 'Plan', 'plan_from_bash_params', 'render_chunk_commands', 'fill_chunk']
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_VULN_CACHE_MB = 200
 EVE_FLAGS = {EVE_NO_SHUFFLE: '-n ', EVE_ROUND_ROBIN: '', EVE_FISHER_YATES: '-r ', EVE_STD_SHUFFLE: '-R '}
@@ -220,7 +223,13 @@ class Plan:
 
 
 def _check_supported(bash_params, analysis_settings, run_dir):
-    """Raise ``Unsupported`` for every setting that changes the pipeline in a way the stages do not reproduce."""
+    """Raise ``Unsupported`` for every setting that changes the pipeline in a way the stages do not reproduce.
+
+    Settings that only change how bash spreads the work, not the losses, are ignored with a log message: the
+    load balancer between gul and fm (the pool already hands chunks to whichever worker is free) and the model
+    data server (each worker reads the footprint itself). Legacy (non-ORD) output flags are ignored as genbash
+    ignores them: their summary sets are computed and discarded.
+    """
     if bash_params.get('_get_getmodel_cmd'):
         raise Unsupported('a custom gulcalc (model supplier binary or custom getmodel command) produces the ground up loss')
     if not bash_params.get('gulmc', True):
@@ -229,22 +238,24 @@ def _check_supported(bash_params, analysis_settings, run_dir):
         raise Unsupported('full correlation output (only produced with gulpy)')
     if bash_params.get('custom_args'):
         raise Unsupported(f"custom_args {sorted(bash_params['custom_args'])} are passed to the getmodel command")
-    if bash_params.get('model_py_server'):
-        raise Unsupported('the model data server (servedata, gulmc --data-server)')
-    il_or_ri = bash_params.get('il_output') or bash_params.get('ri_output')
-    distributed = bash_params.get('process_number') is not None
-    if bash_params.get('num_gul_per_lb') and bash_params.get('num_fm_per_lb') and il_or_ri and not distributed:
-        raise Unsupported('load balancer (num_gul_per_lb / num_fm_per_lb) between gul and fm')
     event_shuffle = bash_params.get('event_shuffle', EVE_DEFAULT_SHUFFLE)
     if event_shuffle not in EVE_FLAGS:
         raise Unsupported(f'unknown event shuffle rule {event_shuffle!r}')
+    if bash_params.get('model_py_server'):
+        logger.info('The orchestrator ignores model_py_server: each worker reads the footprint without the data server')
+    il_or_ri = bash_params.get('il_output') or bash_params.get('ri_output')
+    distributed = bash_params.get('process_number') is not None
+    if bash_params.get('num_gul_per_lb') and bash_params.get('num_fm_per_lb') and il_or_ri and not distributed:
+        logger.info('The orchestrator ignores the load balancer (num_gul_per_lb / num_fm_per_lb): '
+                    'its workers take the next chunk when they are free')
     for runtype in ('gul', 'il', 'ri', 'rl'):
         if not bash_params.get(f'{runtype}_output'):
             continue
         for summary in analysis_settings.get(f'{runtype}_summaries', []):
             legacy = [key for key in LEGACY_SUMMARY_OUTPUTS if summary.get(key)]
             if legacy:
-                raise Unsupported(f"legacy (non-ORD) outputs {legacy} in {runtype}_summaries id {summary.get('id')}")
+                logger.info(f"Legacy (non-ORD) outputs {legacy} in {runtype}_summaries id {summary.get('id')} are not produced, "
+                            "as with the bash script")
 
 
 def _pla_kwargs(analysis_settings):

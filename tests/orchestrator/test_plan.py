@@ -111,6 +111,13 @@ CASES = {
          'gul_summaries': [{'id': 1, 'ord_output': {'elt_sample': True, 'alt_period': True, 'alct_convergence': True}}]},
         {'num_reinsurance_iterations': 0},
     ),
+    'legacy_outputs': (
+        {'number_of_samples': 2, 'gul_threshold': 0, 'gul_output': True, 'il_output': True,
+         'gul_summaries': [{'id': 1, 'eltcalc': True, 'summarycalc': True, 'ord_output': {'elt_sample': True}},
+                           {'id': 2, 'lec_output': True, 'leccalc': {'full_uncertainty_aep': True}, 'aalcalc': True}],
+         'il_summaries': [{'id': 1, 'pltcalc': True, 'aalcalcmeanonly': True}]},
+        {'num_reinsurance_iterations': 0},
+    ),
 }
 
 DROP = {'(', ')', '2>>', '$LOG_DIR/stderror.err', '&'}
@@ -367,11 +374,7 @@ BASE = {'number_of_samples': 1, 'gul_threshold': 0, 'gul_output': True, 'gul_sum
     (BASE, {'_get_getmodel_cmd': lambda **kw: 'x'}, 'custom gulcalc'),
     (BASE, {'custom_gulcalc_cmd': 'supplier_model_gulcalc'}, 'custom gulcalc'),
     (BASE, {'gulmc': False}, 'gulpy'),
-    (BASE, {'model_py_server': True}, 'data server'),
     (BASE, {'custom_args': {'x': 1}}, 'custom_args'),
-    ({**BASE, 'il_output': True, 'il_summaries': [{'id': 1}]}, {'num_gul_per_lb': 1, 'num_fm_per_lb': 1}, 'load balancer'),
-    ({**BASE, 'gul_summaries': [{'id': 1, 'eltcalc': True}]}, {}, 'legacy'),
-    ({**BASE, 'gul_summaries': [{'id': 1, 'lec_output': True, 'leccalc': {'full_uncertainty_aep': True}}]}, {}, 'legacy'),
 ])
 def test_unsupported(tmp_path, monkeypatch, settings, options, reason):
     gulcalc = tmp_path / 'bin' / ('supplier_model_gulcalc.bat' if sys.platform == 'win32' else 'supplier_model_gulcalc')
@@ -384,6 +387,28 @@ def test_unsupported(tmp_path, monkeypatch, settings, options, reason):
     with pytest.raises(Unsupported, match=reason) as info:
         plan_from_bash_params(params)
     assert reason in info.value.reason
+
+
+LB_SETTINGS = {**BASE, 'il_output': True, 'il_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}]}
+
+
+@pytest.mark.parametrize('settings, options, message', [
+    (BASE, {'model_py_server': True}, 'model_py_server'),
+    (LB_SETTINGS, {'num_gul_per_lb': 2, 'num_fm_per_lb': 1}, 'load balancer'),
+    ({**BASE, 'gul_summaries': [{'id': 1, 'eltcalc': True, 'ord_output': {'elt_sample': True}}]}, {}, 'Legacy'),
+])
+def test_ignored_settings_plan_as_without_them(tmp_path, caplog, settings, options, message):
+    """Settings that change how bash spreads the work, not the losses, give the plan of the run without them."""
+    without = {key: value for key, value in settings.items()}
+    if message == 'Legacy':
+        without['gul_summaries'] = [{'id': 1, 'ord_output': {'elt_sample': True}}]
+    kwargs = dict(max_process_id=4, fifo_tmp_dir=False, model_run_dir=str(tmp_path))
+    with caplog.at_level('INFO', logger='oasislmf.execution.orchestrator.plan'):
+        plan = plan_from_bash_params(bash.bash_params(analysis_settings=copy.deepcopy(settings), **kwargs, **options))
+    assert message in caplog.text
+    assert plan == plan_from_bash_params(bash.bash_params(analysis_settings=copy.deepcopy(without), **kwargs))
+    assert not plan.spec.gul.get('data_server')
+    assert plan.n_chunks == 4
 
 
 def test_pla_spec_follows_the_plapy_command():

@@ -23,6 +23,7 @@ from oasislmf.execution.orchestrator.chunks import make_chunks, read_events
 from oasislmf.execution.orchestrator.plan import OutputJob, Plan, plan_from_bash_params
 from oasislmf.execution.orchestrator.progress import ProgressReporter
 from oasislmf.execution.orchestrator.resources import ResourceManager
+from oasislmf.pytools.common.data import items_dtype
 from tests.orchestrator.tools.compare_outputs import compare_outputs_rows, compare_trees_bytes, list_files
 from tests.orchestrator.tools.kernel_reference import link_dir
 
@@ -488,3 +489,75 @@ def test_progress_reporter_retries_a_ping_that_raises(caplog):
     assert reporter._send()
     assert sent == [{'events_complete': 4, 'analysis_pk': 3}] * 2 and reporter.sent == 4
     reporter.close()
+
+
+# --- settings bash and the orchestrator both run: pla, join-summary-info, legacy outputs -----------------------------
+
+def write_pla_files(run, seed=7):
+    """``input/amplifications.bin`` (items to 3 amplification ids) and ``static/lossfactors.bin`` (a factor for most
+    (event, amplification id) pairs, the rest left to plapy's default) in a run directory with its own input and static."""
+    n_items = int(np.fromfile(run / 'input' / 'items.bin', dtype=items_dtype)['item_id'].max())
+    amplifications = np.empty(2 * n_items + 1, dtype=np.int32)
+    amplifications[0] = 0
+    amplifications[1::2] = np.arange(1, n_items + 1)
+    amplifications[2::2] = np.arange(n_items) % 3 + 1
+    amplifications.tofile(run / 'input' / 'amplifications.bin')
+    rng = np.random.default_rng(seed)
+    parts = [np.array([0], dtype=np.int32).tobytes()]
+    for event_id in read_events(str(run / 'input' / 'events.bin')):
+        amp_ids = [a for a in (1, 2, 3) if rng.random() < 0.8]
+        parts.append(np.array([event_id, len(amp_ids)], dtype=np.int32).tobytes())
+        for amp_id in amp_ids:
+            parts.append(np.int32(amp_id).tobytes() + np.float32(rng.uniform(0.5, 2.5)).tobytes())
+    (run / 'static' / 'lossfactors.bin').write_bytes(b''.join(parts))
+
+
+def pla_full_kernel_run(full_kernel_run, path):
+    """A copy of the fixture's run directory whose own input and static hold post loss amplification files."""
+    path.mkdir(parents=True)
+    for name in ('input', 'static'):
+        shutil.copytree(os.path.realpath(full_kernel_run / name), path / name)
+    shutil.copytree(full_kernel_run / 'output', path / 'output')
+    shutil.copy2(full_kernel_run / 'analysis_settings.json', path / 'analysis_settings.json')
+    write_pla_files(path)
+    return path
+
+
+def with_legacy_outputs(settings):
+    settings = json.loads(json.dumps(settings))
+    for runtype in ('gul', 'il', 'ri'):
+        for summary in settings.get(f'{runtype}_summaries', []):
+            summary.update(eltcalc=True, pltcalc=True, summarycalc=True, aalcalc=True, lec_output=True,
+                           leccalc={'full_uncertainty_aep': True})
+    return settings
+
+
+SUPPORTED_SETTINGS = {
+    'pla_factors': ({'pla': True, 'pla_secondary_factor': 0.4}, True),
+    'pla_uniform': ({'pla': True, 'pla_uniform_factor': 1.7}, False),
+    'join_summary_info': ({'join_summary_info': True}, False),
+    'legacy_outputs': (with_legacy_outputs, False),
+}
+
+
+@pytest.mark.requires_bash
+@pytest.mark.parametrize('case', sorted(SUPPORTED_SETTINGS))
+def test_runner_orchestrator_matches_bash_with_settings_it_used_to_fall_back_on(full_kernel_run, orchestrated_whole_run, tmp_path,
+                                                                                case):
+    """Once unsupported, these settings now run with the orchestrator, byte-identical to bash on the same run."""
+    change, pla_files = SUPPORTED_SETTINGS[case]
+    base = pla_full_kernel_run(full_kernel_run, tmp_path / 'base') if pla_files else full_kernel_run
+    settings = settings_of(full_kernel_run)
+    settings = change(settings) if callable(change) else {**settings, **change}
+    bash_run = run_whole(base, tmp_path / 'bash', False, settings=settings)
+    orch_run = run_whole(base, tmp_path / 'orchestrator', True, settings=settings)
+    assert (orch_run / 'log' / kernel.RUN_LOG).is_file(), 'the orchestrator fell back to bash'
+    assert (orch_run / 'log' / kernel.STDERR_LOG).read_text() == ''
+    report = output_report(bash_run, orch_run)
+    assert report.ok, report.summary()
+    assert report.compared > 20
+    changed = compare_trees_bytes(orchestrated_whole_run, orch_run, subdirs=('output',))
+    if case == 'legacy_outputs':
+        assert changed.ok, changed.summary()
+    else:
+        assert not changed.ok, f'{case} left every output as without it'
