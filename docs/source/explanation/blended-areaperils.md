@@ -143,7 +143,7 @@ blended_areaperil_id,placement_scheme_id,placement_id,weight,areaperil_id
 |---|---|
 | `blended_areaperil_id` | The id the lookup returns. It must not also be a real cell id. |
 | `placement_scheme_id` | The set of positions. Every blended areaperil of a location (all its perils and coverages) must name the same scheme. |
-| `placement_id` | The position, numbered 0, 1, 2… within the blended areaperil. |
+| `placement_id` | The position's id. Any distinct numbers will do, such as an address-point id numbered across the whole model. The blended areaperils of a scheme list the same ids. |
 | `weight` | How likely the position is (see below). |
 | `areaperil_id` | The footprint cell read at that position for this peril; `0` means not at risk. |
 
@@ -162,9 +162,9 @@ csvtobin blended_areaperil -i blended_areaperil_id.csv -o blended_areaperil_id.b
 bintocsv blended_areaperil -i blended_areaperil_id.bin -o blended_areaperil_id.csv
 ```
 
-Mistakes the file can show on its own fail the run with a message naming the ids, for example a
-position missing from 0, 1, 2…, two perils giving one position different weights, or a blended
-id also used as a cell id.
+Mistakes the file can show on its own fail the run with a message naming the ids, for example
+two perils of one scheme listing different positions or giving one position different weights,
+or a blended id also used as a cell id.
 
 ### 2. A lookup that returns blended ids
 

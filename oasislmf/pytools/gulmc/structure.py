@@ -439,7 +439,7 @@ def item_location_placement_keys(input_path, items):
 
 
 def build_placements(input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-                     sample_size):
+                     blended_areaperil_placement_schemes, sample_size):
     """Draw the placements, when the model has a blended areaperil of more than one placement.
 
     Returns:
@@ -457,7 +457,8 @@ def build_placements(input_path, items, blended_areaperil_placement_ja_offsets, 
     item_location_keys, item_building_ids = item_location_placement_keys(input_path, items)
     placement_item_idxs, placement_item_starts, location_placements = build_item_placements(
         items, item_location_keys, item_building_ids,
-        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights, sample_size)
+        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+        blended_areaperil_placement_schemes, sample_size)
     return id_index_build(placement_item_idxs), placement_item_starts, location_placements, int(sample_size)
 
 
@@ -652,14 +653,14 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     (items['blended_areaperil_idx'],
      blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_ja_probabilities,
      blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-     blended_areaperil_placement_ja_areaperil_j) = build_blended_areaperils(items, blend)
+     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_schemes) = build_blended_areaperils(items, blend)
     (item_areaperil_ja_offsets, entry_areaperil_ids, entry_vuln_ids, entry_item_idxs,
      entry_item_areaperil_idxs) = build_item_areaperils(items, blended_areaperil_ja_offsets,
                                                         blended_areaperil_ja_areaperil_ids)
     n_item_areaperils = int(item_areaperil_ja_offsets[-1])
     placement_item_ind, placement_item_starts, location_placements, placement_sample_size = build_placements(
         input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-        sample_size)
+        blended_areaperil_placement_schemes, sample_size)
     # an item counts once in its coverage however many areaperils it reads
     np.add.at(coverages['max_items'], items['coverage_id'], 1)
 

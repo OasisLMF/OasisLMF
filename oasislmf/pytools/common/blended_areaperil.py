@@ -11,6 +11,12 @@ row per (blended id, position)::
 
     blended_areaperil_id, placement_scheme_id, placement_id, [weight], areaperil_id
 
+A ``placement_id`` is an identifier, not an index: any distinct values will do, so a model can
+number its positions before, and independently of, its blended areaperils (one id per address
+point across the whole model, say). The blended ids of a scheme list the same placement ids, and
+each blended id's placements are taken in ascending ``placement_id`` order, so a placement index
+means the same position for every peril of the scheme.
+
 Weight types
 ------------
 A model writes weights in whichever form it holds, and all three select through the same rule:
@@ -101,7 +107,8 @@ class BlendTable(NamedTuple):
     """A loaded blended areaperil table.
 
     ``table`` is in ``blend_table_dtype``, sorted by (blended_areaperil_id, placement_id), so each
-    blended id's positions are one contiguous run in placement order.
+    blended id's positions are one contiguous run in ascending placement id order. A position's
+    rank in that run is the placement index the engine draws.
     """
     table: np.ndarray
     weight_type: int
@@ -275,10 +282,11 @@ def validate(blend, label='blended areaperil table'):
     Checked, raising with the offending ids named:
 
     - every blended id names one ``placement_scheme_id``;
-    - a blended id's ``placement_id`` values are exactly 0..n-1;
-    - within a scheme every blended id lists the same number of positions, and a position has
-      one weight whichever blended id carries it -- the weights describe where the building is,
-      not which grid is looking at it;
+    - a blended id lists a ``placement_id`` once. The ids are identifiers, so any distinct values
+      do; they need not start at 0 or be contiguous;
+    - within a scheme every blended id lists the same placement ids, and a placement has one
+      weight whichever blended id carries it -- the weights describe where the building is, not
+      which grid is looking at it;
     - weights are finite and non-negative, and a count or equal scheme has a positive total;
     - float weights sum to at most 1 (within ``FLOAT_SUM_TOLERANCE``). Less than 1 is legal and
       means the building may be outside every position; more than 1 cannot mean anything, since
@@ -318,20 +326,26 @@ def validate(blend, label='blended areaperil table'):
     if bad.any():
         raise OasisException(f"{label}: blended_areaperil_id {_ids(blended[bad])} name more than one placement_scheme_id")
 
-    bad = placement != np.arange(n) - first
+    bad = (blended[1:] == blended[:-1]) & (placement[1:] == placement[:-1])
     if bad.any():
-        raise OasisException(
-            f"{label}: placement_id of blended_areaperil_id {_ids(blended[bad])} is not 0..n-1 "
-            f"(each position listed once, numbered from 0 with no gaps)")
+        raise OasisException(f"{label}: blended_areaperil_id {_ids(blended[1:][bad])} list a placement_id more than once")
 
+    # every blended id of a scheme lists the placements of the scheme's first blended id: same
+    # count, then, row by row in placement order, the same id
     group_scheme = scheme[group_start]
-    order = np.lexsort((group_size, group_scheme))
-    gs, gn = group_scheme[order], group_size[order]
-    bad = (gs[1:] == gs[:-1]) & (gn[1:] != gn[:-1])
-    if bad.any():
+    _, scheme_first_group = np.unique(group_scheme, return_index=True)
+    _, group_scheme_idx = np.unique(group_scheme, return_inverse=True)
+    reference_group = scheme_first_group[group_scheme_idx]
+    bad_groups = group_size != group_size[reference_group]
+    if not bad_groups.any():
+        group_of_row = np.repeat(np.arange(group_start.shape[0]), group_size)
+        reference_row = group_start[reference_group][group_of_row] + (np.arange(n) - first)
+        bad_groups[group_of_row[placement != placement[reference_row]]] = True
+    if bad_groups.any():
         raise OasisException(
-            f"{label}: blended ids of placement_scheme_id {_ids(gs[1:][bad])} list different numbers of positions; "
-            f"every blended id of a scheme must list the same positions")
+            f"{label}: blended ids of placement_scheme_id {_ids(group_scheme[bad_groups])} list different placement_id "
+            f"values (blended_areaperil_id {_ids(blended[group_start][bad_groups])}); every blended id of a scheme must "
+            f"list the same placements")
 
     if weight_type != WEIGHT_EQUAL:
         bad = ~np.isfinite(weight) | (weight < 0)
@@ -396,8 +410,10 @@ def build_blended_areaperils(items, blend=None):
         blended areaperil arrays: ``blended_areaperil_ja_offsets``,
         ``blended_areaperil_ja_areaperil_ids``, ``blended_areaperil_ja_probabilities``,
         ``blended_areaperil_placement_ja_offsets``, ``blended_areaperil_placement_ja_cum_weights``,
-        and ``blended_areaperil_placement_ja_areaperil_j``. The ids are needed only while the
-        structures are built; the event loop works with areaperil_j.
+        ``blended_areaperil_placement_ja_areaperil_j``, and ``blended_areaperil_placement_schemes``,
+        the ``placement_scheme_id`` of each blended areaperil (-1 for an id not in the blend table).
+        The ids and the schemes are needed only while the structures are built; the event loop
+        works with areaperil_j.
     """
     blended_ids, items_blended_areaperil_idx = np.unique(items['areaperil_id'], return_inverse=True)
     n_blended = blended_ids.shape[0]
@@ -419,8 +435,10 @@ def build_blended_areaperils(items, blend=None):
     k = np.ones(n_blended, dtype=np.int64)
     n_placements = np.ones(n_blended, dtype=np.int64)
     blended_parts = {}
+    blended_areaperil_placement_schemes = np.full(n_blended, -1, dtype=np.int64)
     for b in np.flatnonzero(is_blended):
         rows = table[row_start[b]:row_end[b]]
+        blended_areaperil_placement_schemes[b] = rows['placement_scheme_id'][0]
         areaperil_ids = rows['areaperil_id']
         covered = areaperil_ids != 0
         _, first_seen = np.unique(areaperil_ids[covered], return_index=True)
@@ -470,7 +488,8 @@ def build_blended_areaperils(items, blend=None):
             blended_areaperil_ja_probabilities,
             blended_areaperil_placement_ja_offsets,
             blended_areaperil_placement_ja_cum_weights,
-            blended_areaperil_placement_ja_areaperil_j)
+            blended_areaperil_placement_ja_areaperil_j,
+            blended_areaperil_placement_schemes)
 
 
 # ---------------------------------------------------------------------------------------------

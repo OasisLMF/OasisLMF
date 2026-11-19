@@ -53,7 +53,7 @@ def read_items(input_path, ignore_file_type=set()):
 
 def build_item_placements(items, item_location_keys, item_building_ids,
                           blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-                          sample_size):
+                          blended_areaperil_placement_schemes, sample_size):
     """Draw every building's placement for every sample, once per run, shared by its location's items.
 
     Placement is where a building stands, which does not change from one event to the next,
@@ -64,7 +64,7 @@ def build_item_placements(items, item_location_keys, item_building_ids,
     areaperil it covers (``blended_areaperil_placement_ja_areaperil_j``). So they always agree on
     where the building stands, and the placement is stored once per location rather than per item.
 
-    That needs one set of weights per location: every blended item of a location must use the
+    That needs one set of positions per location: every blended item of a location must name the
     same placement scheme, which is checked here.
 
     Only items whose blended areaperil has more than one placement are listed; every other item
@@ -77,6 +77,9 @@ def build_item_placements(items, item_location_keys, item_building_ids,
             was disaggregated into one item per building).
         blended_areaperil_placement_ja_offsets (np.ndarray[oasis_int]): placements per blended areaperil.
         blended_areaperil_placement_ja_cum_weights (np.ndarray[float64]): running placement weight.
+        blended_areaperil_placement_schemes (np.ndarray[int64] | None): placement scheme of each
+            blended areaperil. None skips the one-scheme-per-location check, for a structure that
+            passed it when it was built.
         sample_size (int): number of samples S.
 
     Returns:
@@ -100,22 +103,19 @@ def build_item_placements(items, item_location_keys, item_building_ids,
     location_keys, item_location = np.unique(item_location_keys[placement_item_idxs], return_inverse=True)
     n_locations = location_keys.shape[0]
 
-    # one scheme per location: its blended areaperils (one per peril or coverage type) must place by
-    # the same weights, or its items could not share one placement
-    scheme_signature = {}
-    signatures = np.empty(placement_item_idxs.shape[0], dtype=np.int64)
-    for k, b_idx in enumerate(item_blended_idx):
-        cum = blended_areaperil_placement_ja_cum_weights[blended_areaperil_placement_ja_offsets[b_idx]:
-                                                         blended_areaperil_placement_ja_offsets[b_idx + 1]]
-        signatures[k] = scheme_signature.setdefault(cum.tobytes(), len(scheme_signature))
-    location_signature = np.full(n_locations, -1, dtype=np.int64)
-    location_signature[item_location] = signatures
-    if np.any(location_signature[item_location] != signatures):
-        bad = np.unique(item_location[location_signature[item_location] != signatures])
-        raise OasisException(
-            f"blended areaperils: {len(bad)} location(s) read blended areaperils with different placement "
-            f"weights (placement keys {location_keys[bad][:5].tolist()}); every blended areaperil of a location must "
-            f"name the same placement scheme")
+    # one scheme per location: its blended areaperils (one per peril or coverage type) must list the
+    # same positions, or its items could not share one placement
+    if blended_areaperil_placement_schemes is not None:
+        schemes = blended_areaperil_placement_schemes[item_blended_idx]
+        location_scheme = np.empty(n_locations, dtype=schemes.dtype)
+        location_scheme[item_location] = schemes
+        mismatch = location_scheme[item_location] != schemes
+        if mismatch.any():
+            bad = np.unique(item_location[mismatch])
+            raise OasisException(
+                f"blended areaperils: {len(bad)} location(s) read blended areaperils of different placement schemes "
+                f"(placement keys {location_keys[bad][:5].tolist()}); every blended areaperil of a location must "
+                f"name the same placement scheme")
 
     # a location's run covers its building numbers 1..n, the most any of its items reaches
     location_n_buildings = np.zeros(n_locations, dtype=np.int64)
