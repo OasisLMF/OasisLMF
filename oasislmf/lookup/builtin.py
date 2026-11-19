@@ -445,6 +445,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         id_cols = ['coverage_type', 'area_peril_id', 'vulnerability_id']
         if 'amplification_id' in locations.columns:
             id_cols += ['amplification_id']
+        # a location with no section fails like one with no areaperil; a step that already joined
+        # sections into text ('3001;3002') is left as it is
+        if 'section_id' in locations.columns and pd.api.types.is_numeric_dtype(locations['section_id']):
+            id_cols += ['section_id']
         self.set_id_columns(locations, id_cols)
         # check all success location have all ids set correctly
         success_locations = locations.loc[locations['status'] == OASIS_KEYS_STATUS['success']['id']]
@@ -777,6 +781,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
+
+        A location falling in several overlapping geometries gets one row per geometry. For
+        section_id that is the expected form: the keys rows of an item that differ only in
+        section_id are combined when the GUL inputs are built.
         """
         if nearest_neighbor_min_distance > 0:
             warn_deprecated("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
