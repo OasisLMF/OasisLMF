@@ -1,9 +1,9 @@
 """The planner: the stage tree of a kernel run, built from the ``bash_params`` dict that ``genbash`` consumes.
 
 ``plan_from_bash_params`` reproduces what the generated bash script runs, partition by partition, as a ``ChainSpec``
-whose stages are the in-process equivalents of the commands (``gulmc``, ``fmpy`` per IL/RI step, one ``summarypy``
-per run type and inuring priority, ``pltpy``/``eltpy`` per summary set, and the ``tee`` work files), plus the
-``katpy``/``aalpy``/``lecpy`` commands bash runs once every partition is done, as ``OutputJob``s.
+whose stages are the in-process equivalents of the commands (``gulmc``, or ``modelpy | gulpy`` as one stage, ``fmpy``
+per IL/RI step, one ``summarypy`` per run type and inuring priority, ``pltpy``/``eltpy`` per summary set, and the
+``tee`` work files), plus the ``katpy``/``aalpy``/``lecpy`` commands bash runs once every partition is done, as ``OutputJob``s.
 
 Every per-chunk path is a template holding ``{k}`` and is exactly the name bash uses for partition k, so the work
 directory of an orchestrated run is interchangeable with a bash one. ``render_chunk_commands`` and
@@ -232,10 +232,8 @@ def _check_supported(bash_params, analysis_settings, run_dir):
     """
     if bash_params.get('_get_getmodel_cmd'):
         raise Unsupported('a custom gulcalc (model supplier binary or custom getmodel command) produces the ground up loss')
-    if not bash_params.get('gulmc', True):
-        raise Unsupported('the ground up loss is computed by modelpy | gulpy, only gulmc has a stage')
     if bash_params.get('full_correlation'):
-        raise Unsupported('full correlation output (only produced with gulpy)')
+        raise Unsupported('full correlation output (genbash reads FIFOs nothing writes, issue #2311)')
     if bash_params.get('custom_args'):
         raise Unsupported(f"custom_args {sorted(bash_params['custom_args'])} are passed to the getmodel command")
     event_shuffle = bash_params.get('event_shuffle', EVE_DEFAULT_SHUFFLE)
@@ -256,6 +254,41 @@ def _check_supported(bash_params, analysis_settings, run_dir):
             if legacy:
                 logger.info(f"Legacy (non-ORD) outputs {legacy} in {runtype}_summaries id {summary.get('id')} are not produced, "
                             "as with the bash script")
+
+
+def _gulmc_kwargs(bash_params):
+    """``GulmcStage`` keyword arguments of the ``gulmc`` command ``get_getmodel_cmd`` writes."""
+    return {
+        'sample_size': int(bash_params['number_of_samples']),
+        'loss_threshold': float(bash_params['gul_threshold']),
+        'alloc_rule': int(bash_params['gul_alloc_rule']),
+        'debug': 0,
+        'random_generator': int(bash_params.get('gul_random_generator', 2)),
+        'peril_filter': list(bash_params.get('peril_filter') or []),
+        'effective_damageability': bool(bash_params.get('gulmc_effective_damageability')),
+        'max_cached_vuln_cdf_size_MB': int(bash_params.get('gulmc_vuln_cache_size') or DEFAULT_VULN_CACHE_MB),
+        'model_df_engine': bash_params.get('model_df_engine') or 'oasis_data_manager.df_reader.reader.OasisPandasReader',
+        'dynamic_footprint': bool(bash_params.get('dynamic_footprint')),
+    }
+
+
+def _modelpy_gulpy_kwargs(bash_params):
+    """``ModelpyGulpyStage`` keyword arguments of the ``modelpy | gulpy`` commands ``get_getmodel_cmd`` writes.
+
+    Only the options bash passes are set, so the stages get the commands' defaults for the others: modelpy gets
+    ``--peril-filter`` when there is one (and ``--data-server`` with model_py_server, which the orchestrator
+    ignores), gulpy ``--random-generator``, ``-S``, ``-L`` and ``-a``.
+    """
+    modelpy = {}
+    if bash_params.get('peril_filter'):
+        modelpy['peril_filter'] = list(bash_params['peril_filter'])
+    gulpy = {
+        'random_generator': int(bash_params.get('gul_random_generator', 2)),
+        'sample_size': int(bash_params['number_of_samples']),
+        'loss_threshold': float(bash_params['gul_threshold']),
+        'alloc_rule': int(bash_params['gul_alloc_rule']),
+    }
+    return {'modelpy': modelpy, 'gulpy': gulpy}
 
 
 def _pla_kwargs(analysis_settings):
@@ -408,18 +441,8 @@ def plan_from_bash_params(bash_params, run_dir=None):
     low_memory = bool(bash_params.get('summarypy_low_memory'))
     kat_dir = bash_params.get('work_kat_dir', 'work/kat/')
 
-    gul = {
-        'sample_size': int(bash_params['number_of_samples']),
-        'loss_threshold': float(bash_params['gul_threshold']),
-        'alloc_rule': int(bash_params['gul_alloc_rule']),
-        'debug': 0,
-        'random_generator': int(bash_params.get('gul_random_generator', 2)),
-        'peril_filter': list(bash_params.get('peril_filter') or []),
-        'effective_damageability': bool(bash_params.get('gulmc_effective_damageability')),
-        'max_cached_vuln_cdf_size_MB': int(bash_params.get('gulmc_vuln_cache_size') or DEFAULT_VULN_CACHE_MB),
-        'model_df_engine': bash_params.get('model_df_engine') or 'oasis_data_manager.df_reader.reader.OasisPandasReader',
-        'dynamic_footprint': bool(bash_params.get('dynamic_footprint')),
-    }
+    gul_engine = 'gulmc' if bash_params.get('gulmc', True) else 'gulpy'
+    gul = _gulmc_kwargs(bash_params) if gul_engine == 'gulmc' else _modelpy_gulpy_kwargs(bash_params)
     fm_common = {'low_memory': bool(bash_params.get('fmpy_low_memory')), 'sort_output': bool(bash_params.get('fmpy_sort_output'))}
 
     fm = []
@@ -449,7 +472,7 @@ def plan_from_bash_params(bash_params, run_dir=None):
         nodes.append(_summary_node('rl', text, level, 'gross', os.path.join('input', f'RI_{level}'),
                                    analysis_settings['rl_summaries'], work_dir, kat_dir, low_memory))
 
-    spec = ChainSpec(run_dir=run_dir, gul=gul, fm=fm, summaries=nodes, pla=_pla_kwargs(analysis_settings))
+    spec = ChainSpec(run_dir=run_dir, gul=gul, fm=fm, summaries=nodes, pla=_pla_kwargs(analysis_settings), gul_engine=gul_engine)
     n_chunks = int(bash_params.get('max_process_id') or 1)
     process_number = bash_params.get('process_number')
     if process_number is not None:
@@ -465,9 +488,20 @@ def _fifo(fifo_dir, runtype, k, consumer=''):
     return f'{fifo_dir}{runtype}_{consumer}_P{k}' if consumer else f'{fifo_dir}{runtype}_P{k}'
 
 
-def _gul_command(gul, k, n_chunks, eve_flag):
-    """``evepy ... | gulmc ...`` as ``get_getmodel_cmd`` writes it."""
-    argv = ['evepy', *eve_flag.split(), str(k), str(n_chunks), '|', 'gulmc', f"--random-generator={gul['random_generator']}"]
+def _gul_command(spec, k, n_chunks, eve_flag):
+    """``evepy ... | gulmc ...`` or ``evepy ... | modelpy ... | gulpy ...`` as ``get_getmodel_cmd`` writes it."""
+    gul = spec.gul
+    argv = ['evepy', *eve_flag.split(), str(k), str(n_chunks), '|']
+    if spec.gul_engine == 'gulpy':
+        modelpy, gulpy = gul.get('modelpy', {}), gul['gulpy']
+        argv.append('modelpy')
+        if modelpy.get('data_server'):
+            argv.append('--data-server')
+        if modelpy.get('peril_filter'):
+            argv += ['--peril-filter', *modelpy['peril_filter']]
+        argv += ['|', 'gulpy', f"--random-generator={gulpy['random_generator']}"]
+        return argv + [f"-S{gulpy['sample_size']}", f"-L{gulpy['loss_threshold']}", f"-a{gulpy['alloc_rule']}"]
+    argv += ['gulmc', f"--random-generator={gul['random_generator']}"]
     if gul.get('data_server'):
         argv.append('--data-server')
     argv.append(f"--model-df-engine={gul['model_df_engine']}")
@@ -496,8 +530,8 @@ def render_chunk_commands(spec, k, n_chunks, event_shuffle=EVE_DEFAULT_SHUFFLE, 
     """The commands bash runs for partition k that a chain built from ``spec`` replaces, as argument lists.
 
     The result is derived from the spec alone, in genbash's spelling, without the stderr guards and pid bookkeeping
-    of the script: the main pipeline (``evepy | gulmc | tee | fmpy ...``), then for each summary node its ``summarypy``,
-    and per summary set its ``tee`` and ``pltpy``/``eltpy`` commands.
+    of the script: the main pipeline (``evepy | gulmc | tee | fmpy ...``, or ``evepy | modelpy | gulpy | ...``), then for
+    each summary node its ``summarypy``, and per summary set its ``tee`` and ``pltpy``/``eltpy`` commands.
 
     Args:
         spec (ChainSpec): a spec from ``plan_from_bash_params``.
@@ -517,7 +551,7 @@ def render_chunk_commands(spec, k, n_chunks, event_shuffle=EVE_DEFAULT_SHUFFLE, 
     def node_fifo(node):
         return _fifo(fifo_dir, node['runtype'], k, node['inuring_priority'].rstrip('_'))
 
-    main = _gul_command(spec.gul, k, n_chunks, EVE_FLAGS[event_shuffle])
+    main = _gul_command(spec, k, n_chunks, EVE_FLAGS[event_shuffle])
     if spec.pla is not None:
         main += ['|', 'plapy']
         if 'uniform_factor' in spec.pla:

@@ -118,6 +118,24 @@ CASES = {
          'il_summaries': [{'id': 1, 'pltcalc': True, 'aalcalcmeanonly': True}]},
         {'num_reinsurance_iterations': 0},
     ),
+    'gulpy_gul_only': (
+        {'number_of_samples': 10, 'gul_threshold': 0, 'gul_output': True, 'gul_summaries': [{'id': 1, 'ord_output': ALL_ORD}]},
+        {'num_reinsurance_iterations': 0, 'gulmc': False},
+    ),
+    'gulpy_gul_il_ri': (
+        {'number_of_samples': 4, 'gul_threshold': 1e-3, 'gul_output': True, 'il_output': True, 'ri_output': True,
+         'gul_summaries': [{'id': 1, 'ord_output': {'elt_sample': True, 'alt_period': True}}],
+         'il_summaries': [{'id': 1, 'ord_output': {'plt_sample': True}}],
+         'ri_summaries': [{'id': 1, 'ord_output': {'ept_mean_sample_oep': True}}]},
+        {'num_reinsurance_iterations': 2, 'gulmc': False, 'peril_filter': ['WTC', 'WSS'], 'gul_random_generator': 1,
+         'gul_alloc_rule': 2, 'gulmc_effective_damageability': True, 'gulmc_vuln_cache_size': 50, 'dynamic_footprint': True,
+         'model_df_engine': 'some.module.Reader', 'event_shuffle': EVE_STD_SHUFFLE},
+    ),
+    'gulpy_pla': (
+        {'number_of_samples': 2, 'gul_threshold': 0, 'gul_output': True, 'il_output': True, 'pla': True, 'pla_secondary_factor': 0.5,
+         'gul_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}], 'il_summaries': [{'id': 1, 'ord_output': {'plt_sample': True}}]},
+        {'num_reinsurance_iterations': 0, 'gulmc': False},
+    ),
 }
 
 DROP = {'(', ')', '2>>', '$LOG_DIR/stderror.err', '&'}
@@ -373,7 +391,7 @@ BASE = {'number_of_samples': 1, 'gul_threshold': 0, 'gul_output': True, 'gul_sum
 @pytest.mark.parametrize('settings, options, reason', [
     (BASE, {'_get_getmodel_cmd': lambda **kw: 'x'}, 'custom gulcalc'),
     (BASE, {'custom_gulcalc_cmd': 'supplier_model_gulcalc'}, 'custom gulcalc'),
-    (BASE, {'gulmc': False}, 'gulpy'),
+    ({**BASE, 'full_correlation': True}, {'gulmc': False}, 'full correlation'),
     (BASE, {'custom_args': {'x': 1}}, 'custom_args'),
 ])
 def test_unsupported(tmp_path, monkeypatch, settings, options, reason):
@@ -409,6 +427,34 @@ def test_ignored_settings_plan_as_without_them(tmp_path, caplog, settings, optio
     assert plan == plan_from_bash_params(bash.bash_params(analysis_settings=copy.deepcopy(without), **kwargs))
     assert not plan.spec.gul.get('data_server')
     assert plan.n_chunks == 4
+
+
+def test_gulpy_plan_as_without_model_py_server(tmp_path, caplog):
+    """modelpy's data server is ignored as gulmc's is: the plan is that of the run without it, and never asks for it."""
+    kwargs = dict(max_process_id=2, fifo_tmp_dir=False, model_run_dir=str(tmp_path), gulmc=False)
+    with caplog.at_level('INFO', logger='oasislmf.execution.orchestrator.plan'):
+        plan = plan_from_bash_params(bash.bash_params(analysis_settings=copy.deepcopy(BASE), model_py_server=True, **kwargs))
+    assert 'model_py_server' in caplog.text
+    assert plan == plan_from_bash_params(bash.bash_params(analysis_settings=copy.deepcopy(BASE), **kwargs))
+    assert plan.spec.gul == {'modelpy': {}, 'gulpy': {'random_generator': 2, 'sample_size': 1, 'loss_threshold': 0.0, 'alloc_rule': 0}}
+
+
+def test_gulpy_plan_tree_shape(tmp_path):
+    """With gulmc off the gul stage is modelpy | gulpy, given only the options bash passes each command."""
+    settings, options = CASES['gulpy_gul_il_ri']
+    run_dir, params = generate(tmp_path, settings, options, 2)
+    plan = plan_from_bash_params(params, run_dir=str(run_dir))
+    spec = plan.spec
+    assert spec.gul_engine == 'gulpy' and spec.gul_factory == 'gulpy'
+    assert spec.gul == {'modelpy': {'peril_filter': ['WTC', 'WSS']},
+                        'gulpy': {'random_generator': 1, 'sample_size': 4, 'loss_threshold': 1e-3, 'alloc_rule': 2}}
+    assert [s['name'] for s in spec.fm] == ['il', 'ri', 'ri']
+    assert ChainSpec.from_json(spec.to_json()) == spec
+    assert Plan.from_json(plan.to_json()) == plan
+    gulmc_spec = plan_from_bash_params(generate(tmp_path / 'gulmc', settings, {**options, 'gulmc': True}, 2)[1],
+                                       run_dir=str(run_dir)).spec
+    assert gulmc_spec.gul_engine == 'gulmc' and gulmc_spec.gul_factory == 'gul'
+    assert gulmc_spec.fm == spec.fm and gulmc_spec.summaries == spec.summaries
 
 
 def test_pla_spec_follows_the_plapy_command():

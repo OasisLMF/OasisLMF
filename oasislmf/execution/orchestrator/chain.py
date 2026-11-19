@@ -1,9 +1,9 @@
 """The stage tree ``gul -> fm(il) -> fm(ri_1) -> ...`` with its summaries, run one event at a time in one process.
 
-The trunk is the linear chain of loss stages: gulmc, optionally followed by the post loss amplification of
-plapy (applied to the gul block in place, so everything downstream reads the amplified stream, as after
-``gulmc | plapy`` in bash), then one fmpy per IL/RI step. Any loss stream of the trunk
-(the gul stream, or the gross or net output of an fm step) can feed a summary node, the in-process ``summarypy``,
+The trunk is the linear chain of loss stages: gulmc, or ``modelpy | gulpy`` as one stage (``ChainSpec.gul_engine``),
+optionally followed by the post loss amplification of plapy (applied to the gul block in place, so everything
+downstream reads the amplified stream, as after ``gulmc | plapy`` in bash), then one fmpy per IL/RI step. Any loss
+stream of the trunk (the gul stream, or the gross or net output of an fm step) can feed a summary node, the in-process ``summarypy``,
 which writes one summary block per summary set. Each summary block feeds that set's outputs: ``PltStage`` and
 ``EltStage`` (``pltpy``/``eltpy``, rows appended to per-chunk files) and plain files written exactly as ``tee``
 writes them (the summary header, then the blocks)::
@@ -31,6 +31,8 @@ FEEDS = ('gross', 'net')
 STEP_KEYS = ('name', 'feeds_next')
 CHUNK_KEY = '{k}'
 TABLE_KINDS = ('plt', 'elt')
+GUL_FACTORIES = {'gulmc': 'gul', 'gulpy': 'gulpy'}
+"""``ChainSpec.gul_engine`` -> the factory key of its gul stage."""
 
 
 @dataclass
@@ -40,7 +42,13 @@ class ChainSpec:
     Attributes:
         run_dir (str): run directory. The stages resolve their paths relative to it, so they are used with it
             as the working directory.
-        gul (dict): ``GulmcStage`` keyword arguments. ``run_dir`` defaults to ``ChainSpec.run_dir``.
+        gul (dict): keyword arguments of the gul stage, ``run_dir`` defaulting to ``ChainSpec.run_dir``. With
+            ``gul_engine`` ``'gulmc'``, ``GulmcStage`` keyword arguments. With ``'gulpy'``, ``ModelpyGulpyStage``
+            keyword arguments: ``{'modelpy': {...}, 'gulpy': {...}}``, the options of the ``modelpy`` and of the
+            ``gulpy`` command of ``modelpy | gulpy`` as ``ModelpyStage`` and ``GulpyStage`` keyword arguments;
+            an option left out takes the command's default.
+        gul_engine (str): what computes the ground up loss, ``'gulmc'`` (factory key ``'gul'``) or ``'gulpy'``
+            for ``modelpy | gulpy`` (factory key ``'gulpy'``). Defaults to ``'gulmc'``.
         fm (list[dict]): one dict per fm step, in order: ``FmStage`` keyword arguments (without
             ``input_header``) plus ``name`` (``'il'`` or ``'ri'``) and ``feeds_next`` (``'gross'`` or ``'net'``,
             the output the next step reads; ignored on the last step). ``gross`` and ``net`` default to the
@@ -68,6 +76,15 @@ class ChainSpec:
     fm: list = field(default_factory=list)
     summaries: list = field(default_factory=list)
     pla: dict = None
+    gul_engine: str = 'gulmc'
+
+    @property
+    def gul_factory(self):
+        """str: the factory key of the gul stage, ``GUL_FACTORIES[gul_engine]``."""
+        try:
+            return GUL_FACTORIES[self.gul_engine]
+        except KeyError:
+            raise ValueError(f'unknown gul_engine {self.gul_engine!r}, expected one of {sorted(GUL_FACTORIES)}') from None
 
     def to_dict(self):
         """Return the spec as a plain dict."""
@@ -77,8 +94,9 @@ class ChainSpec:
     def from_dict(cls, data):
         """Build a spec from the output of ``to_dict``."""
         pla = data.get('pla')
-        return cls(run_dir=data['run_dir'], gul=dict(data.get('gul', {})), fm=[dict(step) for step in data.get('fm', [])],
-                   summaries=json.loads(json.dumps(data.get('summaries', []))), pla=None if pla is None else dict(pla))
+        return cls(run_dir=data['run_dir'], gul=json.loads(json.dumps(data.get('gul', {}))), fm=[dict(step) for step in data.get('fm', [])],
+                   summaries=json.loads(json.dumps(data.get('summaries', []))), pla=None if pla is None else dict(pla),
+                   gul_engine=data.get('gul_engine', 'gulmc'))
 
     def to_json(self):
         """Return the spec as a JSON string."""
@@ -155,13 +173,13 @@ def _resolve(factory):
 
 
 def default_factories():
-    """Return the real stages, ``{'gul': GulmcStage, 'fm': FmStage, 'pla': ..., 'summary': ..., 'elt': ..., 'plt': ...}``."""
+    """Return the real stages, ``{'gul': GulmcStage, 'gulpy': ..., 'fm': FmStage, 'pla': ..., 'summary': ..., 'elt': ..., 'plt': ...}``."""
     return dict(importlib.import_module(STAGES_MODULE).FACTORIES)
 
 
 def needed_factories(spec):
-    """The factory keys a chain of ``spec`` uses: ``gul``, ``fm``, ``pla`` when amplified, ``summary`` and its table kinds."""
-    needed = {'gul', 'fm'}
+    """The factory keys a chain of ``spec`` uses: its gul stage's, ``fm``, ``pla`` when amplified, ``summary`` and its table kinds."""
+    needed = {spec.gul_factory, 'fm'}
     if spec.pla is not None:
         needed.add('pla')
     if spec.summaries:
@@ -296,10 +314,11 @@ class Chain:
 
         Args:
             spec (ChainSpec): what to build.
-            factories (dict, optional): ``{'gul'|'pla'|'fm'|'summary'|'elt'|'plt': callable}`` replacing the real
-                stage classes, each called with the stage's keyword arguments (plus ``input_header`` for all but gul, and
-                ``run_dir`` for gul, pla, elt and plt). A value may be a ``'package.module:attribute'`` string. Keys
-                missing use the real stages.
+            factories (dict, optional): ``{'gul'|'gulpy'|'pla'|'fm'|'summary'|'elt'|'plt': callable}`` replacing the
+                real stage classes, each called with the stage's keyword arguments (plus ``input_header`` for all but the
+                gul stage, and ``run_dir`` for the gul stage, pla, elt and plt). The gul stage is built by ``'gul'``
+                (gulmc) or ``'gulpy'`` (modelpy | gulpy), as ``spec.gul_engine`` says. A value may be a
+                ``'package.module:attribute'`` string. Keys missing use the real stages.
         """
         self.spec = spec
         self.chunk = None
@@ -332,7 +351,7 @@ class Chain:
         self._summary_outputs = consumed
 
         try:
-            self.gul = resolved['gul'](**{'run_dir': spec.run_dir, **spec.gul})
+            self.gul = resolved[spec.gul_factory](**{'run_dir': spec.run_dir, **spec.gul})
             header = self.gul.header
             if spec.pla is not None:
                 self.pla = resolved['pla'](run_dir=spec.run_dir, input_header=header, **spec.pla)

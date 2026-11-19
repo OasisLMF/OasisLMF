@@ -135,11 +135,11 @@ def test_plan_option_chunks_taps_and_keep_work(tmp_path, run_dir, recorded_runs)
 
 
 def test_plan_option_unsupported_exits_3(run_dir, recorded_runs, capsys):
-    params_file = write_bash_params(run_dir, gulmc=False)
+    params_file = write_bash_params(run_dir, custom_args={'modelpy_server': False})
     with pytest.raises(SystemExit) as info:
         cli.main(['--plan', str(params_file), '--run-dir', str(run_dir)])
     assert info.value.code == 3
-    assert 'unsupported by the orchestrator, run with bash: the ground up loss is computed by modelpy | gulpy' in capsys.readouterr().err
+    assert "unsupported by the orchestrator, run with bash: custom_args ['modelpy_server']" in capsys.readouterr().err
     assert recorded_runs == []
 
 
