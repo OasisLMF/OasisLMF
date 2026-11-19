@@ -572,12 +572,13 @@ def test_modelpy_refusal_holds_for_a_relative_run_directory(tmp_path, monkeypatc
     ('return_period', np.nan, 'return_period that is missing or not a whole number'),
 ])
 def test_unusable_hazard_values_are_refused_at_load(tmp_path, column, value, reason):
+    """Refused when the hazard case is loaded, by the first get_event, whichever event it asks for."""
     hazard_case = make_hazard_case().astype({'intensity': 'float64', 'return_period': 'float64'}).assign(probability=1.0)
     hazard_case.loc[0, column] = value
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case)
     with pytest.raises(OasisFootPrintError, match=reason):
-        with open_footprint(storage, run_dir):
-            pass
+        with open_footprint(storage, run_dir) as footprint:
+            footprint.get_event(1)
 
 
 @pytest.mark.parametrize('partition_event_definition', [True, False], ids=['partitioned', 'flat'])
@@ -602,5 +603,5 @@ def test_a_distribution_with_no_probability_is_refused_at_load(tmp_path):
     hazard_case.loc[hazard_case['areaperil_id'] == 200, 'probability'] = 0.0
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case)
     with pytest.raises(OasisFootPrintError, match='adding up to 0'):
-        with open_footprint(storage, run_dir):
-            pass
+        with open_footprint(storage, run_dir) as footprint:
+            footprint.get_event(1)
