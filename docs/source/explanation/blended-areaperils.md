@@ -119,7 +119,7 @@ For surge in the example: 0.5 × (the mean at cell 101) + 0.3 × 0 + 0.2 × (the
 gulpy receives this same mixture from getmodel. It therefore gets each item's distribution
 right, but it does not keep the perils of a building at one position the way gulmc does.
 
-**Dynamic footprints.** Standard of protection is judged at the position: in the same event a
+**Dynamic footprints** (see {doc}`dynamic-footprint`). Standard of protection is judged at the position: in the same event a
 building can be protected at P0 and flooded at P2.
 
 ## What the model needs to provide

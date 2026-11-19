@@ -23,7 +23,7 @@ fm-architecture
 
 How ground-up losses are simulated by the Monte-Carlo engine
 (`oasislmf/pytools/gulmc`): the modelling methodology, sampling, correlation,
-disaggregation, coverage dependency, and blended areaperils.
+disaggregation, coverage dependency, dynamic footprints, and blended areaperils.
 
 ```{toctree}
 :maxdepth: 1
@@ -34,6 +34,7 @@ sampling-methodology
 correlation
 disaggregation
 coverage-dependency
+dynamic-footprint
 blended-areaperils
 ```
 
