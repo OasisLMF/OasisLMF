@@ -422,12 +422,14 @@ def test_chunked_runs_mixed_bash_and_orchestrator_match_the_whole_run(full_kerne
 
 @pytest.mark.requires_bash
 def test_unsupported_run_falls_back_to_bash(full_kernel_run, tmp_path, caplog):
+    """custom_args (here one restating a default) go to the getmodel command, which the planner cannot follow: bash runs."""
     settings = settings_of(full_kernel_run)
     settings = {'number_of_samples': settings['number_of_samples'], 'gul_threshold': 0, 'gul_output': True,
                 'gul_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}], 'model_settings': settings.get('model_settings', {})}
     with caplog.at_level('WARNING', logger='oasislmf.execution.runner'):
-        run = run_whole(full_kernel_run, tmp_path / 'run', True, settings=settings, n_processes=1, gulmc=False)
-    assert 'gulpy' in caplog.text and 'running the kernel with the bash script instead' in caplog.text
+        run = run_whole(full_kernel_run, tmp_path / 'run', True, settings=settings, n_processes=1,
+                        custom_args={'modelpy_server': False})
+    assert 'custom_args' in caplog.text and 'running the kernel with the bash script instead' in caplog.text
     assert not (run / 'log' / kernel.RUN_LOG).exists()
     assert (run / 'output' / 'gul_S1_selt.csv').stat().st_size > 0
 
@@ -533,11 +535,14 @@ def with_legacy_outputs(settings):
 
 
 SUPPORTED_SETTINGS = {
-    'pla_factors': ({'pla': True, 'pla_secondary_factor': 0.4}, True),
-    'pla_uniform': ({'pla': True, 'pla_uniform_factor': 1.7}, False),
-    'join_summary_info': ({'join_summary_info': True}, False),
-    'legacy_outputs': (with_legacy_outputs, False),
+    'pla_factors': ({'pla': True, 'pla_secondary_factor': 0.4}, True, {}),
+    'pla_uniform': ({'pla': True, 'pla_uniform_factor': 1.7}, False, {}),
+    'join_summary_info': ({'join_summary_info': True}, False, {}),
+    'legacy_outputs': (with_legacy_outputs, False, {}),
+    'gulpy': ({}, False, {'gulmc': False}),
+    'gulpy_pla_factors': ({'pla': True, 'pla_secondary_factor': 0.4}, True, {'gulmc': False}),
 }
+"""case -> (change to the fixture's settings, whether the run needs the pla files, other ``runner.run`` arguments)."""
 
 
 @pytest.mark.requires_bash
@@ -545,14 +550,17 @@ SUPPORTED_SETTINGS = {
 def test_runner_orchestrator_matches_bash_with_settings_it_used_to_fall_back_on(full_kernel_run, orchestrated_whole_run, tmp_path,
                                                                                 case):
     """Once unsupported, these settings now run with the orchestrator, byte-identical to bash on the same run."""
-    change, pla_files = SUPPORTED_SETTINGS[case]
+    change, pla_files, run_kwargs = SUPPORTED_SETTINGS[case]
     base = pla_full_kernel_run(full_kernel_run, tmp_path / 'base') if pla_files else full_kernel_run
     settings = settings_of(full_kernel_run)
     settings = change(settings) if callable(change) else {**settings, **change}
-    bash_run = run_whole(base, tmp_path / 'bash', False, settings=settings)
-    orch_run = run_whole(base, tmp_path / 'orchestrator', True, settings=settings)
+    bash_run = run_whole(base, tmp_path / 'bash', False, settings=settings, **run_kwargs)
+    orch_run = run_whole(base, tmp_path / 'orchestrator', True, settings=settings, **run_kwargs)
     assert (orch_run / 'log' / kernel.RUN_LOG).is_file(), 'the orchestrator fell back to bash'
     assert (orch_run / 'log' / kernel.STDERR_LOG).read_text() == ''
+    if run_kwargs.get('gulmc') is False:
+        script = (orch_run / 'run_kernel.sh').read_text()
+        assert '| modelpy' in script and '| gulpy' in script and 'gulmc' not in script
     report = output_report(bash_run, orch_run)
     assert report.ok, report.summary()
     assert report.compared > 20
