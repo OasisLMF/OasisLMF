@@ -467,10 +467,10 @@ class TestRunWithOrchestrator(TestCase):
 
     def test_unsupported_run_falls_back_to_bash_with_a_warning(self):
         with self.assertLogs('oasislmf.execution.runner', level='WARNING') as logs:
-            genbash, popen, run_plan = self._run(orchestrator=True, join_summary_info=True)
+            genbash, popen, run_plan = self._run(orchestrator=True, custom_args={'modelpy_server': False})
         run_plan.assert_not_called()
         self.assertEqual(['bash', self.script], popen.call_args.args[0])
-        self.assertIn('join-summary-info', logs.output[0])
+        self.assertIn('custom_args', logs.output[0])
         self.assertIn('running the kernel with the bash script instead', logs.output[0])
 
     def test_custom_getmodel_command_falls_back_to_bash(self):
@@ -528,7 +528,7 @@ class TestRunWithOrchestrator(TestCase):
     def test_run_analysis_option_off_or_unsupported_runs_bash(self):
         proc = mock.Mock(pid=1, returncode=0)
         proc.communicate.return_value = (b'', None)
-        for extra in [{}, {'orchestrator': True, 'join_summary_info': True}]:
+        for extra in [{}, {'orchestrator': True, 'custom_args': {'modelpy_server': False}}]:
             with self.subTest(**extra), \
                     patch('oasislmf.execution.runner.run_plan') as run_plan, \
                     patch('oasislmf.execution.runner.create_bash_analysis') as create_bash, \
