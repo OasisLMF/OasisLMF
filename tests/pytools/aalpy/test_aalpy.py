@@ -1,15 +1,19 @@
+import gc
 import numpy as np
 import os
 import shutil
+import traceback
+import weakref
 from pathlib import Path
 import pandas as pd
 import pytest
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from oasislmf.pytools.common.data import occurrence_dtype
-from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
-from oasislmf.pytools.aal.manager import _SUMMARIES_DTYPE_size, main
+from oasislmf.pytools.common.data import occurrence_dtype, periods_dtype
+from oasislmf.pytools.common.event_stream import MEAN_IDX, SUMMARY_STREAM_ID, stream_info_to_bytes
+from oasislmf.pytools.aal.manager import (_AAL_REC_DTYPE, _AAL_REC_PERIOD_DTYPE, _SUMMARIES_DTYPE, _SUMMARIES_DTYPE_size,
+                                          get_num_subsets, main, run_aal)
 from tests.pytools.utils import make_idx_from_bin
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_aalpy")
@@ -316,5 +320,66 @@ def test_aal_oversize_event_raises(use_idx):
         # buffer_size = int(tiny_memory * 1024**3 / _SUMMARIES_DTYPE_size) = 1
         tiny_memory = _SUMMARIES_DTYPE_size / 1024 ** 3
         with patch("oasislmf.pytools.aal.manager.OASIS_AAL_MEMORY", tiny_memory):
-            with pytest.raises(ValueError, match="OASIS_AAL_MEMORY is too small"):
+            with pytest.raises(ValueError, match="OASIS_AAL_MEMORY is too small") as excinfo:
                 main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / "aal.csv")
+        # redirect_logging logs the error with its traceback and pytest keeps the record until the
+        # test ends, keeping the raising frames' memmaps open: Windows then can't delete tmp_dir (#2238)
+        traceback.clear_frames(excinfo.tb)
+
+
+# ---------------------------------------------------------------------------
+# k-way merge of the sorted summary index chunks
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("test_name", ["aal", "alct"])
+def test_output_unchanged_when_index_is_split_into_chunks(test_name):
+    """A small OASIS_AAL_MEMORY splits the summary index into several sorted chunks, which run_aal
+    merges back in order: the output must match the single-chunk reference."""
+    outfile_name = f"py_{test_name}gul.csv"
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "all_files"), tmp_dir)
+        actual_outfile = tmp_dir / "out" / outfile_name
+        actual_outfile.parent.mkdir()
+
+        with patch("oasislmf.pytools.aal.manager.OASIS_AAL_MEMORY", 4096 * _SUMMARIES_DTYPE_size / 1024 ** 3):
+            main(run_dir=tmp_dir, subfolder="gul", ext="csv", **{test_name: actual_outfile})
+
+        assert len(list((tmp_dir / "work" / "gul" / "aal_files").glob("indexed_summaries.part*.bdat"))) > 1
+        expected = np.genfromtxt(tmp_dir / outfile_name, delimiter=',', skip_header=1)
+        actual = np.genfromtxt(actual_outfile, delimiter=',', skip_header=1)
+        np.testing.assert_allclose(expected, actual, rtol=1e-5, atol=1e-8)
+
+
+def test_summary_index_rows_are_packed():
+    """The index buffer (OASIS_AAL_MEMORY) and its chunk files hold one of these rows per event occurrence and
+    summary_id; padding file_offset to 8 bytes would make them 24 bytes, 20% more memory and disk."""
+    assert _SUMMARIES_DTYPE_size == 20
+    assert not _SUMMARIES_DTYPE.isalignedstruct
+
+
+def test_run_aal_releases_its_chunks():
+    """The merge used to be a jitted generator, and numba leaks the arguments of a generator consumed in
+    jitted code: the chunk memmaps stayed mapped and Windows couldn't delete their files (#2238)."""
+    # one summary block: event_id, summary_id, expval, (mean sidx, loss), (sidx 1, loss), (0, 0)
+    block = np.zeros(9, dtype=np.int32)
+    block[:2] = 1, 1
+    block[3], block[5] = MEAN_IDX, 1
+    block[4] = block[6] = np.float32(500.0).view(np.int32)
+
+    chunks = []
+    for period_no in (2, 1):
+        chunk = np.zeros(1, dtype=_SUMMARIES_DTYPE)
+        chunk["summary_id"] = 1
+        chunk["period_no"] = period_no
+        chunks.append(chunk)
+    vec_analytical_aal = np.zeros(1, dtype=_AAL_REC_DTYPE)
+
+    run_aal(chunks, 2, np.array([(1, 0.5), (2, 0.5)], dtype=periods_dtype), 1, 1, [block.view(np.uint8)],
+            vec_analytical_aal, np.zeros(get_num_subsets(False, 1, 1), dtype=_AAL_REC_PERIOD_DTYPE), np.zeros(1, dtype=np.bool_))
+    assert vec_analytical_aal["mean"][0] > 0
+
+    chunk_refs = [weakref.ref(chunk) for chunk in chunks]
+    del chunks, chunk
+    gc.collect()
+    assert [ref() for ref in chunk_refs] == [None, None]

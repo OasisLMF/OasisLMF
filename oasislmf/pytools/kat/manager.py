@@ -318,6 +318,23 @@ def merge_plt_data(memmaps):
     yield buffer[:bidx]
 
 
+def _read_bin_buffers(bin_in, dtype):
+    """Read an open binary file in buffers of DEFAULT_BUFFER_SIZE rows.
+
+    Args:
+        bin_in (BinaryIO): open binary file, read from its current position
+        dtype (np.dtype): row dtype
+
+    Yields:
+        buffer_data (ndarray): next rows of the file, at most DEFAULT_BUFFER_SIZE of them
+    """
+    while True:
+        buffer_data = np.fromfile(bin_in, dtype=dtype, count=DEFAULT_BUFFER_SIZE)
+        if len(buffer_data) == 0:
+            return
+        yield buffer_data
+
+
 def bin_concat_sort_by_headers(
     stack,
     file_paths,
@@ -573,8 +590,9 @@ def run(
             if output_type not in [".csv", ".parquet"]:
                 raise RuntimeError(f"ERROR: katpy does not support concatenating input files of type {input_type} to output type {output_type}")
             final_out_file_path = out_file
-            temp_file = tempfile.NamedTemporaryFile(suffix=input_type, delete=False)
-            out_file = Path(temp_file.name)
+            # Closed straight away: only the name is needed, and an open handle stops Windows deleting it later (#2238)
+            with tempfile.NamedTemporaryFile(suffix=input_type, delete=False) as temp_file:
+                out_file = Path(temp_file.name)
             bin_to_csv = output_type == ".csv"
             bin_to_parquet = output_type == ".parquet"
         else:
@@ -669,33 +687,27 @@ def run(
                     empty_arrays = [pa.array([], type=schema.field(name).type) for name in dtype.names]
                     pq.write_table(pa.Table.from_arrays(empty_arrays, schema=schema), final_out_file_path)
             else:
-                data = np.memmap(out_file, dtype=dtype)
-                num_rows = data.shape[0]
-                if bin_to_csv:
-                    csv_out_file = open(final_out_file_path, "w")
-                    csv_out_file.write(",".join(headers) + "\n")
+                # Read in buffers from an open file rather than a memmap, so nothing still maps out_file when it is
+                # unlinked below (Windows can't delete a mapped file, #2238)
+                with open(out_file, "rb") as bin_in:
+                    if bin_to_csv:
+                        with open(final_out_file_path, "w") as csv_out_file:
+                            csv_out_file.write(",".join(headers) + "\n")
+                            for buffer_data in _read_bin_buffers(bin_in, dtype):
+                                write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
+                    if bin_to_parquet:
+                        bin_in.seek(0)
+                        schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
+                        parquet_writer = None
+                        for buffer_data in _read_bin_buffers(bin_in, dtype):
+                            arrays = [pa.array(buffer_data[name]) for name in dtype.names]
+                            table = pa.Table.from_arrays(arrays, schema=schema)
+                            if parquet_writer is None:
+                                parquet_writer = pq.ParquetWriter(final_out_file_path, schema)
+                            parquet_writer.write_table(table)
 
-                    buffer_size = DEFAULT_BUFFER_SIZE
-                    for start in range(0, num_rows, buffer_size):
-                        end = min(start + buffer_size, num_rows)
-                        buffer_data = data[start:end]
-                        write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
-                    csv_out_file.close()
-                if bin_to_parquet:
-                    schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
-                    parquet_writer = None
-                    buffer_size = DEFAULT_BUFFER_SIZE
-                    for start in range(0, num_rows, buffer_size):
-                        end = min(start + buffer_size, num_rows)
-                        buffer_data = data[start:end]
-                        arrays = [pa.array(buffer_data[name]) for name in dtype.names]
-                        table = pa.Table.from_arrays(arrays, schema=schema)
-                        if parquet_writer is None:
-                            parquet_writer = pq.ParquetWriter(final_out_file_path, schema)
-                        parquet_writer.write_table(table)
-
-                    if parquet_writer is not None:
-                        parquet_writer.close()
+                        if parquet_writer is not None:
+                            parquet_writer.close()
         finally:
             out_file.unlink(missing_ok=True)
 

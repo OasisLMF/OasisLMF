@@ -1,5 +1,7 @@
+import os
 from pathlib import Path
 import pandas as pd
+import pytest
 import shutil
 from tempfile import TemporaryDirectory
 
@@ -110,6 +112,38 @@ def test_katpy_csv_sorted():
 def test_katpy_bin_sorted():
     """Test katpy with bin inputs (using QPLT) sorted"""
     case_runner("bqplt", "bkatpy_qplt.csv", True)
+
+
+def _mapped_or_open(path):
+    path = str(Path(path).resolve())
+    with open("/proc/self/maps") as f:
+        if any(line.rstrip("\n").endswith(" " + path) for line in f):
+            return True
+    return any(os.path.realpath(f"/proc/self/fd/{fd}") == path for fd in os.listdir("/proc/self/fd"))
+
+
+@pytest.mark.skipif(not os.path.exists("/proc/self/maps"), reason="checks mappings through /proc")
+@pytest.mark.parametrize("out_name", ["bkatpy_qplt.csv", "bkatpy_qplt.parquet"])
+def test_katpy_bin_releases_temp_file_before_deleting_it(out_name, monkeypatch):
+    """Bin inputs are merged into a temp file that is converted and then deleted. Windows can't delete a file
+    that is still mapped or open, so nothing may hold it by then (#2238)"""
+    held_at_unlink = []
+    real_unlink = Path.unlink
+
+    def unlink(self, *args, **kwargs):
+        held_at_unlink.append(_mapped_or_open(self))
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+    monkeypatch.setattr("oasislmf.pytools.kat.manager.DEFAULT_BUFFER_SIZE", 7)  # several buffers per file
+    with TemporaryDirectory() as tmp_dir:
+        actual_out = Path(tmp_dir, out_name)
+        main(dir_in=Path(TESTS_ASSETS_DIR, "bqplt"), qplt=True, out=actual_out, unsorted=False)
+        expected = pd.read_csv(Path(TESTS_ASSETS_DIR, "bkatpy_qplt.csv"))
+        actual = pd.read_csv(actual_out) if actual_out.suffix == ".csv" else pd.read_parquet(actual_out)
+        np.testing.assert_allclose(actual.to_numpy(dtype=float), expected.to_numpy(dtype=float), rtol=1e-5, atol=1e-8)
+
+    assert held_at_unlink and not any(held_at_unlink)
 
 
 def test_katpy_parquet_sorted():

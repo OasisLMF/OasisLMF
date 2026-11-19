@@ -1,4 +1,5 @@
 import shutil
+import traceback
 from pathlib import Path
 from unittest.mock import patch
 from tempfile import TemporaryDirectory
@@ -303,12 +304,15 @@ def test_lec_sequential_raises_on_insufficient_disk():
         fake_usage = type(real)(total=real.total, used=real.used, free=0)
 
         with patch("oasislmf.pytools.lec.manager.shutil.disk_usage", return_value=fake_usage):
-            with pytest.raises(RuntimeError, match="Insufficient disk space"):
+            with pytest.raises(RuntimeError, match="Insufficient disk space") as excinfo:
                 main(
                     run_dir=tmp_dir, subfolder="gul", use_return_period=False,
                     ept=out_dir / "py_ept.csv", psept=out_dir / "py_psept.csv", ext="csv",
                     **_ALL_OUTPUT_FLAGS,
                 )
+        # redirect_logging logs the error with its traceback and pytest keeps the record until the
+        # test ends, keeping the raising frames' memmaps open: Windows then can't delete tmp_dir (#2238)
+        traceback.clear_frames(excinfo.tb)
 
 
 def test_lec_idx_partial_coverage_falls_back_to_sequential():
