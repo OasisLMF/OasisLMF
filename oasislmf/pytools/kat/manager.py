@@ -499,8 +499,10 @@ def parquet_concat_sorted(
 def bin_to_tabular(bin_file, out_file_path, out_type, to_csv, to_parquet):
     """Convert a concatenated katpy binary file to csv and/or parquet.
 
-    Kept in its own function so the memory map over ``bin_file`` is released when it returns:
-    Windows refuses to delete a file that is still mapped or open.
+    The binary file is read in chunks rather than memory mapped: views of a mapping held by
+    frames of an exception's traceback would keep the file mapped after an error, and Windows
+    refuses to delete a mapped file (WinError 32). Once this returns or raises, nothing
+    refers to ``bin_file``.
 
     Args:
         bin_file (Path): concatenated binary file
@@ -515,42 +517,23 @@ def bin_to_tabular(bin_file, out_file_path, out_type, to_csv, to_parquet):
     out_size = bin_file.stat().st_size
     if out_size % dtype.itemsize != 0:
         logger.warning(f"Output binary size {out_size} is not a multiple of record size {dtype.itemsize}, treating as empty")
-    if out_size == 0 or out_size % dtype.itemsize != 0:
+        out_size = 0
+    num_rows = out_size // dtype.itemsize
+    with ExitStack() as stack:
+        bin_in = stack.enter_context(open(bin_file, "rb"))
         if to_csv:
-            with open(out_file_path, "w") as csv_out_file:
-                csv_out_file.write(",".join(headers) + "\n")
-        if to_parquet:
-            schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
-            empty_arrays = [pa.array([], type=schema.field(name).type) for name in dtype.names]
-            pq.write_table(pa.Table.from_arrays(empty_arrays, schema=schema), out_file_path)
-    else:
-        data = np.memmap(bin_file, dtype=dtype)
-        num_rows = data.shape[0]
-        if to_csv:
-            csv_out_file = open(out_file_path, "w")
+            csv_out_file = stack.enter_context(open(out_file_path, "w"))
             csv_out_file.write(",".join(headers) + "\n")
-
-            buffer_size = DEFAULT_BUFFER_SIZE
-            for start in range(0, num_rows, buffer_size):
-                end = min(start + buffer_size, num_rows)
-                buffer_data = data[start:end]
-                write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
-            csv_out_file.close()
         if to_parquet:
             schema = pa.schema([(name, pa.from_numpy_dtype(dtype[name])) for name in dtype.names])
-            parquet_writer = None
-            buffer_size = DEFAULT_BUFFER_SIZE
-            for start in range(0, num_rows, buffer_size):
-                end = min(start + buffer_size, num_rows)
-                buffer_data = data[start:end]
-                arrays = [pa.array(buffer_data[name]) for name in dtype.names]
-                table = pa.Table.from_arrays(arrays, schema=schema)
-                if parquet_writer is None:
-                    parquet_writer = pq.ParquetWriter(out_file_path, schema)
-                parquet_writer.write_table(table)
-
-            if parquet_writer is not None:
-                parquet_writer.close()
+            parquet_writer = stack.enter_context(pq.ParquetWriter(out_file_path, schema))
+        for start in range(0, num_rows, DEFAULT_BUFFER_SIZE):
+            buffer_data = np.fromfile(bin_in, dtype=dtype, count=min(DEFAULT_BUFFER_SIZE, num_rows - start))
+            if to_csv:
+                write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
+            if to_parquet:
+                parquet_writer.write_table(pa.Table.from_arrays(
+                    [pa.array(buffer_data[name]) for name in dtype.names], schema=schema))
 
 
 def run(
@@ -639,82 +622,83 @@ def run(
         else:
             raise RuntimeError(f"ERROR: katpy does not support concatenating input files of type {input_type} to output type {output_type}")
 
-    output_flags = [
-        concatenate_selt,
-        concatenate_melt,
-        concatenate_qelt,
-        concatenate_splt,
-        concatenate_mplt,
-        concatenate_qplt,
-    ]
+    try:
+        output_flags = [
+            concatenate_selt,
+            concatenate_melt,
+            concatenate_qelt,
+            concatenate_splt,
+            concatenate_mplt,
+            concatenate_qplt,
+        ]
 
-    sort_by_event = any(output_flags[KAT_SELT:KAT_QELT + 1])
-    sort_by_period = any(output_flags[KAT_SPLT:KAT_QPLT + 1])
-    assert sort_by_event + sort_by_period == 1, "incorrect flag config in katpy"
-    out_type = output_flags.index(True)
+        sort_by_event = any(output_flags[KAT_SELT:KAT_QELT + 1])
+        sort_by_period = any(output_flags[KAT_SPLT:KAT_QPLT + 1])
+        assert sort_by_event + sort_by_period == 1, "incorrect flag config in katpy"
+        out_type = output_flags.index(True)
 
-    with ExitStack() as stack:
-        if input_type == ".csv":
-            files_with_header, header = find_csv_with_header(stack, input_files)
-            headers = header.strip().split(",")
-            check_correct_headers(headers, out_type)
+        with ExitStack() as stack:
+            if input_type == ".csv":
+                files_with_header, header = find_csv_with_header(stack, input_files)
+                headers = header.strip().split(",")
+                check_correct_headers(headers, out_type)
 
-            if unsorted:
-                csv_concat_unsorted(stack, input_files, files_with_header, headers, out_file)
-            elif sort_by_event:
-                header_idxs = get_header_idxs(headers, ["EventId"])
-                csv_concat_sort_by_headers(
-                    stack,
-                    input_files,
-                    files_with_header,
-                    headers,
-                    header_idxs,
-                    lambda values: int(values[0]),
-                    out_file,
-                )
-            elif sort_by_period:
-                header_idxs = get_header_idxs(headers, ["EventId", "Period"])
-                csv_concat_sort_by_headers(
-                    stack,
-                    input_files,
-                    files_with_header,
-                    headers,
-                    header_idxs,
-                    lambda values: (int(values[0]), int(values[1])),
-                    out_file,
-                )
-        elif input_type == ".bin":
-            if unsorted:
-                bin_concat_unsorted(stack, input_files, out_file)
+                if unsorted:
+                    csv_concat_unsorted(stack, input_files, files_with_header, headers, out_file)
+                elif sort_by_event:
+                    header_idxs = get_header_idxs(headers, ["EventId"])
+                    csv_concat_sort_by_headers(
+                        stack,
+                        input_files,
+                        files_with_header,
+                        headers,
+                        header_idxs,
+                        lambda values: int(values[0]),
+                        out_file,
+                    )
+                elif sort_by_period:
+                    header_idxs = get_header_idxs(headers, ["EventId", "Period"])
+                    csv_concat_sort_by_headers(
+                        stack,
+                        input_files,
+                        files_with_header,
+                        headers,
+                        header_idxs,
+                        lambda values: (int(values[0]), int(values[1])),
+                        out_file,
+                    )
+            elif input_type == ".bin":
+                if unsorted:
+                    bin_concat_unsorted(stack, input_files, out_file)
+                else:
+                    sort_type = "elt" if sort_by_event else "plt"
+                    bin_concat_sort_by_headers(
+                        stack,
+                        input_files,
+                        out_type,
+                        sort_type,
+                        out_file,
+                    )
+            elif input_type == ".parquet":
+                if unsorted:
+                    parquet_concat_unsorted(
+                        input_files,
+                        out_file,
+                    )
+                else:
+                    sort_type = "elt" if sort_by_event else "plt"
+                    parquet_concat_sorted(
+                        input_files,
+                        sort_type,
+                        out_file,
+                    )
             else:
-                sort_type = "elt" if sort_by_event else "plt"
-                bin_concat_sort_by_headers(
-                    stack,
-                    input_files,
-                    out_type,
-                    sort_type,
-                    out_file,
-                )
-        elif input_type == ".parquet":
-            if unsorted:
-                parquet_concat_unsorted(
-                    input_files,
-                    out_file,
-                )
-            else:
-                sort_type = "elt" if sort_by_event else "plt"
-                parquet_concat_sorted(
-                    input_files,
-                    sort_type,
-                    out_file,
-                )
-        else:
-            raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
+                raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
 
-    if bin_to_csv or bin_to_parquet:
-        try:
+        if bin_to_csv or bin_to_parquet:
             bin_to_tabular(out_file, final_out_file_path, out_type, bin_to_csv, bin_to_parquet)
-        finally:
+    finally:
+        if bin_to_csv or bin_to_parquet:
             out_file.unlink(missing_ok=True)
 
 
