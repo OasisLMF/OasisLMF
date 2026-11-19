@@ -5,25 +5,14 @@ import os
 import shutil
 import tempfile
 import uuid
+import warnings
 
 
 def logging_set_handlers(logger_name, handler, log_level):
-    """Point a logger at the redirect handler, returning what to hand back to reset.
-
-    Args:
-        logger_name (str): the logger to redirect.
-        handler (logging.Handler): handler to attach to ``oasislmf.*`` loggers.
-        log_level (int): level for the redirected ``oasislmf.*`` loggers.
-
-    Returns:
-        tuple: the logger's previous (level, propagate, handlers), for
-        :func:`logging_reset_handlers`.
-    """
     logger = logging.getLogger(logger_name)
-    previous = (logger.level, logger.propagate, list(logger.handlers))
     # set all handlers to ERROR
-    for existing in logger.handlers:
-        existing.setLevel(logging.ERROR)
+    for existing_handler in logger.handlers:
+        existing_handler.setLevel(logging.ERROR)
     # set children oasislmf loggers to 'log_level'
     if 'oasislmf.' in logger_name:
         logger.addHandler(handler)
@@ -31,44 +20,37 @@ def logging_set_handlers(logger_name, handler, log_level):
         logger.propagate = False
     else:
         logger.setLevel(logging.ERROR)
-    return previous
 
 
-def logging_reset_handlers(logger_name, previous=None):
-    """Undo :func:`logging_set_handlers`, restoring the logger's own configuration.
-
-    Logging is process-global, so anything not put back leaks into whatever runs next. Restoring
-    the captured state rather than assuming defaults is what makes that safe: the level used to be
-    reset only for non-oasislmf loggers, so every ``oasislmf.*`` logger was left permanently at the
-    redirect level and quietly stopped emitting INFO for the rest of the process. Each pytools tool
-    is its own process in a model run, so it never showed there -- but it does for anything running
-    them in-process, and it is why the platform tests failed when they ran after the pytools ones.
+def logging_snapshot(logger_names):
+    """Record the level, propagate flag and handlers (with their levels) of each logger.
 
     Args:
-        logger_name (str): the logger to restore.
-        previous (tuple, optional): the (level, propagate, handlers) returned by
-            :func:`logging_set_handlers`. Without it the logger is reset to defaults, which is only
-            right if it had none of its own configuration to begin with.
-    """
-    logger = logging.getLogger(logger_name)
-    # revert all handlers to NOTSET
-    for handler in logger.handlers:
-        handler.setLevel(logging.NOTSET)
+        logger_names (Iterable[str]): names of the loggers to record.
 
-    if previous is not None:
-        level, propagate, handlers = previous
-        logger.handlers = handlers
+    Returns:
+        dict: logger name to (level, propagate, [(handler, handler level), ...]).
+    """
+    snapshot = {}
+    for logger_name in logger_names:
+        logger = logging.getLogger(logger_name)
+        snapshot[logger_name] = (logger.level, logger.propagate, [(handler, handler.level) for handler in logger.handlers])
+    return snapshot
+
+
+def logging_restore(snapshot):
+    """Put each logger back exactly as `logging_snapshot` recorded it.
+
+    Args:
+        snapshot (dict): the result of `logging_snapshot`.
+    """
+    for logger_name, (level, propagate, handlers) in snapshot.items():
+        logger = logging.getLogger(logger_name)
         logger.setLevel(level)
         logger.propagate = propagate
-        return
-
-    # No captured state: undo what logging_set_handlers does, and only that. It touches handlers
-    # and propagate for 'oasislmf.*' loggers alone, and redirect_logging walks every logger in the
-    # process -- forcing propagate back on elsewhere would overwrite a host application's choice.
-    if 'oasislmf.' in logger_name:
-        logger.handlers.clear()
-        logger.propagate = True
-    logger.setLevel(logging.NOTSET)
+        logger.handlers[:] = [handler for handler, _ in handlers]
+        for handler, handler_level in handlers:
+            handler.setLevel(handler_level)
 
 
 def redirect_logging(exec_name, log_dir='./log'):
@@ -110,7 +92,9 @@ def redirect_logging(exec_name, log_dir='./log'):
             # './log', which is what `log_dir` would otherwise always resolve to.
             _log_dir = _tmp_dir or os.environ.get('OASIS_PYTOOLS_LOG_DIR') or log_dir
             os.makedirs(_log_dir, exist_ok=True)
-            logging_config = logging.root.manager.loggerDict.keys()
+            logging_config = list(logging.root.manager.loggerDict.keys())
+            logging_state = logging_snapshot(logging_config + ['oasislmf', 'py.warnings'])
+            previous_showwarning = warnings.showwarning
             logging.captureWarnings(True)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
@@ -135,11 +119,9 @@ def redirect_logging(exec_name, log_dir='./log'):
             rootFileHandler.setLevel(logging.INFO)
             rootFileHandler.setFormatter(formatter)
 
-            # Set all logger handlers to level ERROR, keeping what each one looked like
-            previous_by_logger = {
-                lg_name: logging_set_handlers(lg_name, childFileHandler, log_level)
-                for lg_name in logging_config
-            }
+            # Set all logger handlers to level ERROR
+            for lg_name in logging_config:
+                logging_set_handlers(lg_name, childFileHandler, log_level)
 
             # Set root oasislmf logger to INFO
             logger = logging.getLogger('oasislmf')
@@ -165,11 +147,11 @@ def redirect_logging(exec_name, log_dir='./log'):
                 logger.exception(err)
                 raise err
             finally:
-                for lg_name in logging_config:
-                    logging_reset_handlers(lg_name, previous_by_logger.get(lg_name))
-                logger.removeHandler(rootFileHandler)
-                logging.shutdown()
-                logging.captureWarnings(False)
+                logging_restore(logging_state)
+                childFileHandler.close()
+                rootFileHandler.close()
+                if warnings.showwarning is not previous_showwarning:
+                    logging.captureWarnings(False)
                 if _tmp_dir:
                     shutil.rmtree(_tmp_dir, ignore_errors=True)
         return wrapper
