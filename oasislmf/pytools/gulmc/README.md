@@ -103,6 +103,9 @@ item's areaperil, of which an item can have several. See [Item areaperils](#item
 
 ### Item areaperils
 
+For what blended areaperils do and the model data they need, see the user-facing page
+`docs/source/explanation/blended-areaperils.md`. This section covers how gulmc implements them.
+
 An item's `areaperil_id` names a **blended areaperil**: weighted placements, each read through
 one footprint areaperil. Ids listed in the model's `blended_areaperil_id` table (see
 `pytools/common/blended_areaperil.py`) take their placements from it. Every other id is a base

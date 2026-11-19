@@ -39,12 +39,15 @@ THREE_LOCATIONS = [  # item_id, coverage_id, areaperil_id, location, building_id
 ]
 
 
-def blend_rows(positions, blended_id=BLENDED, scheme=1):
-    """Blend table rows for ``positions``, a list of (weight, areaperil_id); weight None for equal weights."""
+def blend_rows(positions, blended_id=BLENDED, scheme=1, placement_ids=None):
+    """Blend table rows for ``positions``, a list of (weight, areaperil_id); weight None for equal weights.
+
+    The placements are numbered 0, 1, 2... unless ``placement_ids`` gives their ids.
+    """
     rows = pd.DataFrame({
         'blended_areaperil_id': blended_id,
         'placement_scheme_id': scheme,
-        'placement_id': range(len(positions)),
+        'placement_id': range(len(positions)) if placement_ids is None else placement_ids,
         'weight': [w for w, _ in positions],
         'areaperil_id': [ap for _, ap in positions],
     })
@@ -377,9 +380,20 @@ def test_csv_and_parquet_summary_maps_place_buildings_alike(tmp_path):
     pd.testing.assert_series_equal(gul_losses(from_csv), gul_losses(from_parquet))
 
 
-def test_a_location_must_place_all_its_items_by_one_scheme(tmp_path):
+def test_placement_ids_are_identifiers_not_positions(tmp_path):
+    """Any distinct placement ids place as 0, 1, 2... would, the positions taken in ascending id order."""
+    numbered = write_model(tmp_path / 'numbered', THREE_LOCATIONS, blend_rows([(3, A), (1, B)]))
+    any_ids = write_model(tmp_path / 'any_ids', THREE_LOCATIONS,
+                          blend_rows([(1, B), (3, A)], placement_ids=[900311, 70412]))
+    pd.testing.assert_series_equal(gul_losses(numbered), gul_losses(any_ids))
+
+
+@pytest.mark.parametrize('second_weights', [(1, 1), (3, 1)], ids=['other weights', 'same weights'])
+def test_a_location_must_place_all_its_items_by_one_scheme(tmp_path, second_weights):
+    """Two perils of one location in different schemes are refused, even when the weights happen to match."""
     items = [(1, 1, BLENDED, 1, 1), (2, 2, BLENDED_2, 1, 1)]
-    blend = [blend_rows([(3, A), (1, B)]), blend_rows([(1, A), (1, B)], blended_id=BLENDED_2, scheme=2)]
+    blend = [blend_rows([(3, A), (1, B)]),
+             blend_rows(list(zip(second_weights, (A, B))), blended_id=BLENDED_2, scheme=2, placement_ids=[10, 11])]
     with pytest.raises(OasisException, match='same placement scheme'):
         gul_losses(write_model(tmp_path / 'blended', items, blend))
 
@@ -438,14 +452,15 @@ HEADER = 'blended_areaperil_id,placement_scheme_id,placement_id,weight,areaperil
 
 @pytest.mark.parametrize('rows, match', [
     ('9,1,0,1,1\n9,2,1,1,2\n', 'more than one placement_scheme_id'),
-    ('9,1,0,1,1\n9,1,2,1,2\n', 'not 0..n-1'),
-    ('9,1,0,1,1\n9,1,1,1,2\n8,1,0,1,3\n', 'different numbers of positions'),
+    ('9,1,5,1,1\n9,1,5,1,2\n', 'more than once'),
+    ('9,1,0,1,1\n9,1,1,1,2\n8,1,0,1,3\n', 'list different placement_id'),
+    ('9,1,0,1,1\n9,1,1,1,2\n8,1,0,1,3\n8,1,7,1,4\n', 'list different placement_id'),
     ('9,1,0,1,1\n9,1,1,1,2\n8,1,0,1,3\n8,1,1,2,4\n', 'different weights'),
     ('9,1,0,-1,1\n9,1,1,2,2\n', 'negative or non-finite'),
     ('9,1,0,0,1\n9,1,1,0,2\n', 'total weight of 0'),
     ('9,1,0,0.7,1\n9,1,1,0.4,2\n', 'sum to more than 1'),
     ('9,1,0,1,1\n9,1,1,1,8\n8,2,0,1,3\n', 'also appear as areaperil_id'),
-], ids=['two schemes', 'placement gap', 'scheme sizes differ', 'scheme weights differ', 'negative weight',
+], ids=['two schemes', 'placement listed twice', 'scheme sizes differ', 'scheme placements differ', 'scheme weights differ', 'negative weight',
         'zero count total', 'float sum over 1', 'blended id used as a cell'])
 def test_an_inconsistent_table_is_rejected(rows, match):
     with pytest.raises(OasisException, match=match):
@@ -457,10 +472,16 @@ def test_a_misspelt_weight_column_is_rejected():
         check_table('blended_areaperil_id,placement_scheme_id,placement_id,wieght,areaperil_id\n9,1,0,1,1\n')
 
 
+def test_placement_ids_need_not_be_numbered_from_0():
+    """Placement ids from a model-wide numbering, with gaps, are accepted and sorted per blended id."""
+    table = check_table(HEADER + '9,1,7002,1,1\n9,1,15,1,2\n8,1,15,1,3\n8,1,7002,1,4\n').table
+    assert table['placement_id'].tolist() == [15, 7002, 15, 7002]
+
+
 @pytest.mark.parametrize('weights', [None, [3, 1], [0.6, 0.25]], ids=['equal', 'count', 'float'])
 def test_the_table_survives_a_round_trip_through_the_binary_form(tmp_path, weights):
     table = pd.DataFrame({'blended_areaperil_id': [9, 9, 8, 8], 'placement_scheme_id': [1, 1, 1, 1],
-                          'placement_id': [0, 1, 0, 1], 'areaperil_id': [1, 2, 3, 4]})
+                          'placement_id': [7, 41, 7, 41], 'areaperil_id': [1, 2, 3, 4]})
     if weights is not None:
         table.insert(3, 'weight', weights * 2)
     table.to_csv(tmp_path / 'in.csv', index=False)
