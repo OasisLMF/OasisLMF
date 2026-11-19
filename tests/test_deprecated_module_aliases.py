@@ -40,3 +40,30 @@ def test_deprecated_alias_is_the_same_module(first, second):
 def test_unknown_submodule_is_not_aliased():
     with pytest.raises(ModuleNotFoundError):
         __import__("oasislmf.no_such_module")
+
+
+WARNING_CHECK = """
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import oasislmf  # on Windows its first import warns that the platform is not supported
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("{action}")
+    import oasislmf.api.client
+    import oasislmf.model_execution.bash
+for w in caught:
+    print(w.message)
+"""
+
+
+@pytest.mark.parametrize("action, expected", [
+    ("default", ["imports from 'oasislmf.api' are deprecated. Import by using 'oasislmf.platform_api' instead.",
+                 "imports from 'oasislmf.model_execution' are deprecated. Import by using 'oasislmf.execution' instead."]),
+    ("ignore", []),
+], ids=["one_warning_per_alias", "user_filter_respected"])
+def test_deprecated_alias_warning(action, expected):
+    """Importing through an alias warns once, naming the current module, and the user's warning filters apply."""
+    result = subprocess.run([sys.executable, "-c", WARNING_CHECK.format(action=action)],
+                            capture_output=True, text=True, cwd=REPO_ROOT)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == expected
