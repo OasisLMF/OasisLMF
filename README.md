@@ -48,6 +48,8 @@ For running models locally the CLI provides a `model` subcommand with the follow
 
 The optional `--summarise-exposure` flag can be issued with `model generate-oasis-files` and `model run` to generate a summary of Total Insured Values (TIVs) grouped by coverage type and peril. This produces the `exposure_summary_report.json` file.
 
+`model run` and the `model generate-losses*` commands run the loss kernel by writing and running a bash script (`run_kernel.sh`). With the optional `--orchestrator` flag they run it instead in a pool of Python workers, which is faster, uses less memory, needs neither bash nor named pipes, and writes the same output files. Runs it does not support fall back to the script with a warning. See [Run the loss kernel with the orchestrator](docs/source/how-to/run-kernel-with-orchestrator.md).
+
 For remote model execution the `api` subcommand provides the following main subcommand:
 
 * `api run`: runs the model remotely (same as `model run`) but via the Oasis API
@@ -196,6 +198,10 @@ To run the unit tests (as CI does, on Python 3.10 - 3.14) run:
 To run the docstring examples run:
 
     pytest -p no:flaky --doctest-modules --no-cov oasislmf/
+
+Tests that run bash kernel scripts or pytools pipelines over OS pipes are marked `requires_bash`. They are skipped on Windows and macOS, and wherever `OASIS_TEST_NO_BASH` is set. They need the pytools console scripts (`fmpy`, `summarypy`...) on `PATH`; without them a kernel script waits forever on its named pipes.
+
+The orchestrator tests (`tests/orchestrator`) compare the orchestrator with the bash script on the same run. They make their bash references with the code of a pristine checkout when one is available: the directory in `OASIS_ORCH_REF_SOURCE`, by default `~/GitHub/OasisLMF-ref`, else the installed `oasislmf`. CI sets `OASIS_ORCH_REQUIRE_REF` so that a reference made by the code under test fails the tests instead.
 
 ## Publishing
 

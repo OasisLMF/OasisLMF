@@ -13,6 +13,7 @@ how locations are joined to your geometry file — is covered in
 
 installation
 building-and-running-models
+run-kernel-with-orchestrator
 logging-configuration
 model-development-kit
 api-client

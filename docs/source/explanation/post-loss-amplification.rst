@@ -104,7 +104,12 @@ The file ``input/amplifications.bin`` is generated from the keys file. A strateg
 locations file can be supplied by the model provider. If present, amplification IDs are assigned to keys. If there are no 
 amplification IDs,
 
-If ``input/amplifications.bin`` is present, the Ground Up Loss (GUL) output is piped through plapy.
+When the analysis settings set ``"pla": true``, the Ground Up Loss (GUL) output is piped through plapy, before the GUL
+summaries and the financial module read it.
+
+.. versionchanged:: NEXT
+   With the ``orchestrator`` option (see :doc:`kernel-execution`), the same amplification runs in-process, as a stage right
+   after ground-up loss, with the same factors and the same results.
 
 |
 

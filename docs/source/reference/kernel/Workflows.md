@@ -9,6 +9,9 @@ across several **partitions** in parallel (`evepy p N`), connected by named pipe
 concatenates the partition outputs with `katpy`. For a worked, stage-by-stage walkthrough
 of a single stream see the *step-by-step pipeline* example (in the example-models docs).
 
+With the `orchestrator` option, the same stages run in-process in a pool of workers instead of
+as piped processes, and write the same files; see {doc}`../../explanation/kernel-execution`.
+
 Two ground-up engines are available: **`gulmc`** (full Monte-Carlo, reads the model data
 directly — the default, used below) and **`gulpy`** (consumes `modelpy`'s CDF stream, i.e.
 `evepy | modelpy | gulpy …`). Summary type is selected with `summarypy -t gul|il|ri`.
