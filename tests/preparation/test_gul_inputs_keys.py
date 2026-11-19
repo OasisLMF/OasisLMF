@@ -37,7 +37,7 @@ def test_one_row_per_item_keeps_sections_unchanged():
     gul_inputs = get_gul_input_items(make_exposure(), keys)
 
     assert len(gul_inputs) == 4
-    assert gul_inputs['section_id'].tolist() == [3, 3, 4, 4]
+    assert gul_inputs['section_id'].tolist() == ['3', '3', '4', '4']
     assert sections_of(gul_inputs) == [3, 4]
 
 
@@ -70,11 +70,21 @@ def test_rows_differing_in_areaperil_warn_and_keep_the_first(caplog):
     assert 'loc_id 1 peril WTC coverage type 1 building 1: differing areaperil_id' in message
 
 
-@pytest.mark.parametrize('bad_section', ['A', float('nan')])
-def test_invalid_section_on_item_with_several_rows_raises(bad_section):
-    keys = make_keys([(1, 1, 10, 1, bad_section), (1, 1, 10, 1, 2), (2, 1, 11, 1, 3)])
-    with pytest.raises(OasisException, match=r"section_id value\(s\) are missing or not integers.*item 1"):
+@pytest.mark.parametrize('bad_section', ['A', float('nan'), '', '2.5', '3;'])
+@pytest.mark.parametrize('several_rows', [True, False], ids=['several rows', 'one row'])
+def test_invalid_section_raises(bad_section, several_rows):
+    keys = make_keys([(1, 1, 10, 1, bad_section)] + [(1, 1, 10, 1, 2)] * several_rows + [(2, 1, 11, 1, 3)])
+    with pytest.raises(OasisException, match=r"section_id value\(s\) are missing or not whole numbers, e\.g\. loc_id 1 peril WTC"):
         get_gul_input_items(make_exposure(), keys)
+
+
+def test_float_sections_are_read_as_whole_numbers():
+    # a left join leaves section_id float once a row has none; 3.0 is section 3, not '3.0'
+    keys = make_keys([(1, 1, 10, 1, 1.0), (1, 1, 10, 1, 2.0), (2, 1, 11, 1, 3.0)])
+    gul_inputs = get_gul_input_items(make_exposure(), keys)
+
+    assert gul_inputs['section_id'].tolist() == ['1;2', '3']
+    assert sections_of(gul_inputs) == [1, 2, 3]
 
 
 def test_keys_columns_are_matched_case_insensitively():
