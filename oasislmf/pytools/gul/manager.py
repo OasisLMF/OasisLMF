@@ -8,8 +8,7 @@ from select import select
 
 import numpy as np
 from numba import njit
-import time
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async
+from oasislmf.utils.ping import EventProgress
 
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, check_packing_supported,
@@ -41,7 +40,6 @@ from oasislmf.pytools.gul.random import (_lh_philox_block, PHILOX_U32_MASK, PHIL
                                          inv_factor, norm_factor, x_min)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
 logger = logging.getLogger(__name__)
 
@@ -340,11 +338,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # block whatever it carries
         max_bytes_per_item *= max_emitted_blocks(n_buildings_by_item_id)
 
-        counter = 0
-        timer = time.time()
-        socket_server_val = kwargs.get('socket_server', 'False')
-        ping = socket_server_val != 'False'
-        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
+        progress = EventProgress(kwargs.get('socket_server', 'False'), kwargs.get("analysis_pk", None))
         for event_data in read_getmodel_stream(streams_in, items,
                                                item_map_hm, item_map_hm_keys,
                                                item_map_ja_offsets,
@@ -413,21 +407,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 cursor = 0
 
             logger.info(f"event {event_id} DONE")
-            counter += 1
+            progress.event_done()
 
-            if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                if ping_port is not None:
-                    ping_data['port_override'] = ping_port
-                oasis_ping_async(ping_data)
-                counter = 0
-                timer = time.time()
-
-        if ping:
-            ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-            if ping_port is not None:
-                ping_data['port_override'] = ping_port
-            oasis_ping(ping_data)
+        progress.finish()
     return 0
 
 
