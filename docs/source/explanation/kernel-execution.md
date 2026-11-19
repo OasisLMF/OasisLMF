@@ -33,7 +33,7 @@ up, insured and reinsurance losses with every output) runs out of 14 GB above 6 
 ```
 
 With the `orchestrator` option, the same run is made by a pool of worker processes instead of
-the script. Each worker builds the whole chain once, as in-process stages (gulmc, the fm steps,
+the script. Each worker builds the whole chain once, as in-process stages (gulmc or `modelpy | gulpy`, the fm steps,
 the summaries and the table writers), and then runs whole chunks of events through it. Losses
 pass from one stage to the next as in-memory blocks, without pipes:
 

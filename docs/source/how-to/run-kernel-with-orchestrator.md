@@ -56,6 +56,7 @@ and `log/` holds the script's logs only.
 | Setting | With the orchestrator |
 |---|---|
 | gulmc (the default ground-up engine) | Supported. |
+| gulpy (`gulmc: false`, `modelpy \| gulpy`) | Supported, as one in-process stage. |
 | Insured and reinsurance losses, every inuring priority, `ri_output` and `rl_output` | Supported. |
 | Every ORD output, CSV or parquet, summarypy low memory, fmpy low memory and sorted output | Supported. |
 | Post loss amplification (`pla`, `pla_secondary_factor`, `pla_uniform_factor`) | Supported. |
@@ -65,10 +66,9 @@ and `log/` holds the script's logs only.
 | The load balancer (`kernel_num_gul_per_lb`, `kernel_num_fm_per_lb`) | Ignored: workers already take the next chunk when they are free. The output is that of a run without it. |
 | `model_py_server` | Ignored: each worker reads the footprint itself. |
 | Legacy non-ORD outputs (`eltcalc`, `summarycalc`, `aalcalc`, `leccalc`...) | Not produced, as with the script, which emits nothing for them. |
-| gulpy (`gulmc: false`) | Falls back to the script. |
 | A custom gulcalc (`model_custom_gulcalc`, or a `<supplier>_<model>_gulcalc` on the path) | Falls back to the script: an external program computes the ground-up loss. |
 | Custom getmodel arguments (`custom_args`) | Falls back to the script. |
-| `full_correlation` | Falls back to the script. |
+| `full_correlation` | Falls back to the script. The script itself does not complete with it (issue #2311). |
 
 Each ignored setting is noted in the step's log.
 
