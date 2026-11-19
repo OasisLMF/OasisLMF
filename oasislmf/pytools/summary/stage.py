@@ -521,12 +521,6 @@ class SummaryStage:
         low_memory (bool): also write, per event and set, the ``.idx`` records summarypy ``-m`` writes.
         output_zeros (bool): write summaries and samples with a zero loss (summarypy ``-z``).
         **kwargs: ignored, so that the summarypy command-line options can be passed through.
-
-    Attributes:
-        headers (dict): summary_set_id -> the 12-byte summary stream header summarypy writes before the
-            first event of that set (it carries the set id, so it differs per set).
-        reader (SummaryReader): the reader loading events into the aggregation arrays.
-        len_sample (np.int32): the sample count of the input and output streams.
     """
 
     def __init__(self, input_header, static_path, run_type, summary_set_ids, low_memory=False,
@@ -547,6 +541,7 @@ class SummaryStage:
                 f'{[summary_set_id for summary_set_id, summary_set_index in enumerate(summary_set_id_to_summary_set_index) if summary_set_index != null_index]}')
 
         self.len_sample = len_sample
+        """np.int32: the sample count of the input and output streams."""
         self.low_memory = low_memory
         self.output_zeros = output_zeros
         self.has_affected_risk = True if summary_info[0]['nb_risk'] > 0 else None
@@ -569,6 +564,7 @@ class SummaryStage:
             self.summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
             loss_index, self.loss_summary, self.present_summary_id, self.summary_set_index_to_present_loss_ptr_end,
             item_id_to_risks_i, risk_i_to_n_buildings, self.is_risk_affected, self.has_affected_risk)
+        """SummaryReader: the reader loading events into the aggregation arrays."""
 
         self.out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
 
@@ -577,6 +573,8 @@ class SummaryStage:
                              + summaryset_id_dtype.type(summary_set_id).tobytes())
             for summary_set_id in self.summary_set_ids
         }
+        """dict: summary_set_id -> the 12-byte summary stream header summarypy writes before the first event of that
+        set (it carries the set id, so it differs per set)."""
 
         # data for the index file (low_memory)
         self.summary_sets_cursor = np.zeros(nb_xref_summary_sets, dtype=np.int64)

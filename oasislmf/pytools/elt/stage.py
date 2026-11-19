@@ -110,7 +110,6 @@ class TableStage:
     Attributes:
         len_sample (int): sample count of the input stream.
         summary_set_id (int | None): summary set id from a 12-byte header, else None.
-        reader (EventReader): the reader blocks are parsed with.
     """
 
     out_types = ()
@@ -136,6 +135,7 @@ class TableStage:
         self.noheader = noheader
         self.computes = {out_type: bool(computes[out_type]) for out_type in self.out_types}
         self.reader = None
+        """EventReader: the reader blocks are parsed with, built by ``_init_reader``."""
         self._fresh_state = None
         self._stack = None
         self._files = {}

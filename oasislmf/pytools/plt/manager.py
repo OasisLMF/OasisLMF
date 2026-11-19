@@ -444,7 +444,7 @@ def read_input_files(run_dir, compute_qplt, sample_size):
         sample_size (int): Sample size
 
     Returns:
-        file_data (Dict[str, Any]): A dict of relevent data extracted from files
+        Dict[str, Any]: the data read from the input files, by name.
     """
     occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
     period_weights = read_periods(no_of_periods, Path(run_dir, "input"))

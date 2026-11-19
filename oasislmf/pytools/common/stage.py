@@ -14,9 +14,6 @@ class EventBlock:
 
     ``write`` appends bytes, growing the buffer by doubling; ``view`` returns an ``int8`` view of the bytes
     written so far, without copying.
-
-    Attributes:
-        size (int): number of bytes currently held.
     """
 
     __slots__ = ('_buf', 'size')
@@ -29,6 +26,7 @@ class EventBlock:
         """
         self._buf = np.empty(max(int(capacity), 1), dtype=np.int8)
         self.size = 0
+        """int: number of bytes currently held."""
 
     @property
     def capacity(self):

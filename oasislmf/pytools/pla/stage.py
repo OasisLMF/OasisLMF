@@ -16,11 +16,7 @@ from .structure import get_post_loss_amplification_factors
 
 
 class PlaStage:
-    """Post loss amplification of a ground up loss stream, block by block.
-
-    Attributes:
-        header (bytes): the stream header ``plapy`` writes, the same as the one it reads.
-    """
+    """Post loss amplification of a ground up loss stream, block by block."""
 
     def __init__(self, run_dir, input_header, secondary_factor=1.0, uniform_factor=0.0, input_path='input',
                  static_path='static'):
@@ -36,6 +32,7 @@ class PlaStage:
             static_path (str): directory of ``lossfactors.bin``.
         """
         self.header = bytes(input_header)
+        """bytes: the stream header ``plapy`` writes, the same as the one it reads."""
         if uniform_factor > 0:
             self.items_amps = None
             self.plafactors = None

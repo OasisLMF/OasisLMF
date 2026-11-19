@@ -47,10 +47,8 @@ def read_input_files(
         sample_size (int): Sample Size.
 
     Returns:
-        file_data (Dict[str, Any]): A dict of relevent data extracted from files
-        use_return_period (bool): Use Return Period file.
-        agg_wheatsheaf_mean (bool): Aggregate Wheatsheaf Mean.
-        occ_wheatsheaf_mean (bool): Occurrence Wheatsheaf Mean.
+        tuple[Dict[str, Any], bool, bool, bool]: the data read from the input files by name, and
+        use_return_period, agg_wheatsheaf_mean and occ_wheatsheaf_mean, adjusted to what the files allow.
     """
     input_dir = Path(run_dir, "input")
     occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(input_dir)

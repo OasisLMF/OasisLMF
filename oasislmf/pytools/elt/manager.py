@@ -373,7 +373,7 @@ def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
         compute_qelt (bool): Compute QELT bool
         sample_size (int): Sample size
     Returns:
-        file_data (Dict[str, Any]): A dict of relevent data extracted from files
+        Dict[str, Any]: the data read from the input files, by name.
     """
     unique_event_ids = np.array([], dtype=event_id_dtype)
     event_rates = np.array([], dtype=oasis_float)
