@@ -140,30 +140,78 @@ def test_oasis_ping_websocket_failure():
     fake_ws.send.assert_not_called()
 
 
-def test_oasis_ping_http_success():
-    fake_response = MagicMock()
-    with patch("requests.post", return_value=fake_response) as mock_post:
+def _http_response(status_code):
+    response = requests.Response()
+    response.status_code = status_code
+    response.reason = "test"
+    return response
+
+
+@pytest.mark.parametrize("status_code", [200, 201, 204])
+def test_oasis_ping_http_success(status_code):
+    with patch("requests.post", return_value=_http_response(status_code)) as mock_post:
         result = oasis_ping_http("http://fakehost/analysis-status/", {"hello": "world"})
 
     assert result is True
     mock_post.assert_called_once_with("http://fakehost/analysis-status/", json={"hello": "world"}, timeout=1)
-    fake_response.raise_for_status.assert_called_once()
 
 
-def test_oasis_ping_http_failure():
-    with patch("requests.post", side_effect=requests.exceptions.ConnectionError("boom")):
+@pytest.mark.parametrize("error", [
+    requests.exceptions.ConnectionError("boom"),
+    requests.exceptions.ConnectTimeout("connect timed out"),
+    requests.exceptions.InvalidURL("bad url"),
+    requests.exceptions.MissingSchema("no schema"),
+], ids=["connection-error", "connect-timeout", "invalid-url", "missing-schema"])
+def test_oasis_ping_http_not_sent(error):
+    """The message surely did not reach the server, so the caller can retry it or try another target."""
+    with patch("requests.post", side_effect=error):
         result = oasis_ping_http("http://fakehost/analysis-status/", {"hello": "world"})
 
     assert result is False
 
 
-def test_oasis_ping_http_bad_status():
-    fake_response = MagicMock()
-    fake_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500")
-    with patch("requests.post", return_value=fake_response):
+@pytest.mark.parametrize("error", [
+    requests.exceptions.ReadTimeout("read timed out"),
+    requests.exceptions.ChunkedEncodingError("response cut short"),
+], ids=["read-timeout", "chunked-encoding"])
+def test_oasis_ping_http_failure_after_sending_counts_as_sent(error):
+    """The POST went out and the server may have applied it, so sending it again could count it twice."""
+    with patch("requests.post", side_effect=error):
         result = oasis_ping_http("http://fakehost/analysis-status/", {"hello": "world"})
 
-    assert result is False
+    assert result is True
+
+
+@pytest.mark.parametrize("status_code, expected", [(400, False), (404, False), (500, True), (502, True), (503, True)])
+def test_oasis_ping_http_bad_status(status_code, expected):
+    """A 4xx is rejected before anything is applied; a 5xx may come after the server applied the message."""
+    with patch("requests.post", return_value=_http_response(status_code)):
+        result = oasis_ping_http("http://fakehost/analysis-status/", {"hello": "world"})
+
+    assert result is expected
+
+
+@pytest.mark.parametrize("http_outcome, websocket_called", [
+    (requests.exceptions.ReadTimeout("read timed out"), False),
+    (_http_response(500), False),
+    (requests.exceptions.ConnectionError("refused"), True),
+    (_http_response(404), True),
+], ids=["read-timeout", "server-error", "connection-error", "not-found"])
+def test_oasis_ping_websocket_fallback_only_when_http_not_sent(http_outcome, websocket_called):
+    data = {"analysis_pk": 123, "events_complete": 7}
+    post = {"side_effect": http_outcome} if isinstance(http_outcome, Exception) else {"return_value": http_outcome}
+    with (patch.dict(os.environ, {
+        "OASIS_ANALYSIS_STATUS_URL": "http://fakehost/analysis-status/",
+        "OASIS_WEBSOCKET_URL": "ws://fakehost",
+        "OASIS_WEBSOCKET_PORT": "9999",
+    }, clear=True),
+            patch("requests.post", **post) as mock_post,
+            patch("oasislmf.utils.ping.oasis_ping_websocket", return_value=True) as mock_ws):
+        result = oasis_ping(data)
+
+    mock_post.assert_called_once()
+    assert mock_ws.called is websocket_called
+    assert result is True
 
 
 def test_oasis_ping_port_override():
@@ -315,3 +363,24 @@ def test_event_progress_finish_waits_for_ping_in_flight():
         progress.finish()
 
     assert sent == [1, 1]
+
+
+def test_event_progress_does_not_resend_count_after_http_read_timeout():
+    """A count whose POST timed out waiting for the response may already be applied, so it is not sent again."""
+    posted = []
+
+    def fake_post(url, json, timeout):
+        posted.append(json["events_complete"])
+        if len(posted) == 1:
+            raise requests.exceptions.ReadTimeout("read timed out")
+        return _http_response(200)
+
+    with (patch.dict(os.environ, {"OASIS_ANALYSIS_STATUS_URL": "http://fakehost/analysis-status/"}, clear=True),
+          patch("requests.post", side_effect=fake_post),
+          patch("oasislmf.utils.ping.SERVER_UPDATE_TIME", -1)):
+        progress = EventProgress('True', analysis_pk=5)
+        progress.event_done()
+        assert wait_for_async_ping(2)
+        progress.finish()
+
+    assert posted == [1, 0]

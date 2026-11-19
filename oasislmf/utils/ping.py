@@ -71,6 +71,8 @@ def oasis_ping(data):
     If `analysis_pk` is in the data, targets are tried in order until one succeeds:
         - if `OASIS_ANALYSIS_STATUS_URL` is in environment, POSTs the message to that URL.
         - if `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_PORT` are in environment, sends a websocket message.
+          This is only tried when the POST definitely did not deliver the message (see `oasis_ping_http`),
+          so a message the server may have applied is never sent twice.
         - if neither is configured, or all configured targets fail, no message gets through.
     Else, a message sent to `OASIS_SOCKET_SERVER_IP` `OASIS_SOCKET_SERVER_PORT` defaulted to 127.0.0.1 8888.
 
@@ -83,7 +85,8 @@ def oasis_ping(data):
         data (dict): dictionary of data: JSON serialisable
 
     Returns:
-        Boolean: whether attempted call gets through
+        Boolean: False only if the message was definitely not delivered to any target, True if it was delivered
+            or, for an HTTP target, may have been applied (see `oasis_ping_http`)
     """
     if data.get('analysis_pk', None) is not None:
         attempted = False
@@ -141,7 +144,7 @@ def oasis_ping_progress(socket_server, analysis_pk=None, **progress):
         **progress: progress fields to send, e.g. ``outputs_complete=1``.
 
     Returns:
-        Boolean: whether an update was sent and got through
+        Boolean: whether an update was sent and got through, as returned by `oasis_ping`
     """
     data = progress_ping_data(socket_server, analysis_pk, **progress)
     if data is None:
@@ -215,8 +218,9 @@ class EventProgress:
     """Reports a GUL process's progress without blocking it or losing completed events.
 
     Completed events are sent at most every SERVER_UPDATE_TIME seconds through `oasis_ping_async`.
-    A count stays pending until its ping gets through: if the ping is dropped or fails, the count
-    goes out with the next update. `finish` waits for a ping still in flight, then sends what is left.
+    A count stays pending until its ping gets through: if the ping is dropped or definitely not delivered
+    (see `oasis_ping`), the count goes out with the next update. `finish` waits for a ping still in flight,
+    then sends what is left.
 
     Args:
         socket_server (str): value of the tool's ``--socket-server`` flag, see `progress_ping_data`.
@@ -291,20 +295,35 @@ def oasis_ping_socket(target, data):
 def oasis_ping_http(url, data):
     """Sends a JSON message to a target HTTP endpoint via POST.
 
+    A message counts as not sent only when it surely was not applied: the request could not be made
+    (invalid URL), the connection failed (including a connect timeout), or the server rejected it with a
+    4xx response. A read timeout, any other failure after the request went out, or a 5xx response may come
+    after the server applied the message, so these count as sent, to keep a progress increment from being
+    counted twice. They are still logged as errors.
+
     Args:
         url (str): URL to hit (e.g. "http://oasis-server:8000/analysis-status/")
         data (dict): dictionary of data: JSON serialisable
 
     Returns:
-        Boolean: whether attempted call gets through
+        Boolean: False if the message was definitely not delivered or applied, True if it was or may have been
     """
     try:
         response = requests.post(url, json=data, timeout=1)
-        response.raise_for_status()
-        return True
-    except requests.exceptions.RequestException as e:
-        logger.error(f"oasis_ping_http could not connect: {e}")
+    except (requests.exceptions.ConnectionError, requests.exceptions.InvalidURL, requests.exceptions.MissingSchema,
+            requests.exceptions.InvalidSchema, requests.exceptions.InvalidHeader) as e:
+        logger.error(f"oasis_ping_http could not send the message: {e}")
         return False
+    except requests.exceptions.RequestException as e:
+        logger.error(f"oasis_ping_http failed after sending, the server may still have applied the message: {e}")
+        return True
+    if 400 <= response.status_code < 500:
+        logger.error(f"oasis_ping_http message rejected: HTTP {response.status_code} {response.reason}")
+        return False
+    if response.status_code >= 500:
+        logger.error(f"oasis_ping_http server error, the message may still have been applied: "
+                     f"HTTP {response.status_code} {response.reason}")
+    return True
 
 
 def oasis_ping_websocket(ws_url, data):
