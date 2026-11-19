@@ -2,7 +2,6 @@
 
 TODO: use selector and select for output
 """
-import atexit
 import json
 import logging
 import os
@@ -23,7 +22,6 @@ from oasislmf.pytools.common.hashmap import (
 
 from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.utils.data import validate_vulnerability_replacements, analysis_settings_loader
 from oasislmf.pytools.common.data import (
@@ -39,12 +37,11 @@ from oasislmf.pytools.common.id_index import (
     get_idx as id_index_get_idx,
     NOT_FOUND as ID_INDEX_NOT_FOUND,
 )
-from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (
     Index_type, zvulnerability_filename, zvulnerability_index_filename,
     VulnerabilityIndex_dtype, VulnerabilityRow_dtype, vuln_offset, decompress_vuln_block, incomplete_zvuln_pair_msg,
 )
-from oasislmf.pytools.getmodel.footprint import Footprint
+from oasislmf.pytools.getmodel import stage as getmodel_stage
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.ping import oasis_ping
 
@@ -1005,21 +1002,6 @@ def run(
         df_engine (str): The engine to use when loading dataframes
         analysis_pk (int): the analysis primary key reported alongside the completion ping
     """
-    model_storage = get_storage_from_config_path(
-        os.path.join(run_dir, 'model_storage.json'),
-        os.path.join(run_dir, 'static'),
-    )
-    input_path = os.path.join(run_dir, 'input')
-    ignore_file_type = set(ignore_file_type)
-
-    if data_server:
-        logger.debug("data server active")
-        FootprintLayerClient.register()
-        logger.debug("registered with data server")
-        atexit.register(FootprintLayerClient.unregister)
-    else:
-        logger.debug("data server not active")
-
     with ExitStack() as stack:
         if file_in is None:
             streams_in = sys.stdin.buffer
@@ -1034,43 +1016,10 @@ def run(
         event_id_mv = memoryview(bytearray(4))
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
-        # --- load or build read-only structures --------------------------------
-        from oasislmf.pytools.getmodel.structure import (
-            getmodel_structure_exists, load_getmodel_structure, build_structures,
-        )
-        if getmodel_structure_exists(run_dir):
-            logger.info("loading pre-computed getmodel structures (shared memory)")
-            structures = load_getmodel_structure(run_dir)
-        else:
-            logger.info("building getmodel structures from input files")
-            structures = build_structures(run_dir, ignore_file_type, peril_filter, df_engine)
+        stage = stack.enter_context(getmodel_stage.ModelpyStage(
+            run_dir, ignore_file_type=ignore_file_type, data_server=data_server, peril_filter=peril_filter, df_engine=df_engine))
 
-        vuln_array = structures['vuln_array']
-        vulns_id = structures['vulns_id']
-        areaperil_id_ind = structures['areaperil_id_ind']
-        areaperil_to_vulns_idx_array = structures['areaperil_to_vulns_idx_array']
-        areaperil_to_vulns = structures['areaperil_to_vulns']
-        unique_areaperil_ids = structures['unique_areaperil_ids']
-        mean_damage_bins = structures['mean_damage_bins']
-        num_damage_bins = structures['num_damage_bins']
-        num_intensity_bins = structures['num_intensity_bins']
-
-        logger.debug('init footprint')
-        footprint_obj = stack.enter_context(
-            Footprint.load(model_storage, ignore_file_type, df_engine=df_engine,
-                           areaperil_ids=list(unique_areaperil_ids)))
-
-        if data_server:
-            num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
-            logger.info(f"got {num_intensity_bins} intensity bins from server")
-
-        # even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
-        max_result_relative_size = 1 + + areaperil_int_relative_size + 1 + 1 + num_damage_bins * results_relative_size
-        mv = memoryview(bytearray(buff_size))
-        int32_mv = np.ndarray(buff_size // np.int32().itemsize, buffer=mv, dtype=np.int32)
-
-        # header
-        stream_out.write(np.uint32(1).tobytes())
+        stream_out.write(stage.header)
 
         logger.debug('doCdf starting')
         empty_events = 0
@@ -1078,29 +1027,6 @@ def run(
             len_read = streams_in.readinto(event_id_mv)
             if len_read == 0:
                 break
-
-            # get the next event_id from the input stream
-            event_id = event_ids[0]
-
-            if data_server:
-                event_footprint = FootprintLayerClient.get_event(event_id)
-            else:
-                event_footprint = footprint_obj.get_event(event_id)
-
-            if event_footprint is not None:
-                # compute effective damageability probability distribution
-                # stream out: event_id, areaperil_id, number of damage bins, effecive damageability cdf bins (bin_mean and prob_to)
-                for cursor_bytes in doCdf(event_id,
-                                          num_intensity_bins, event_footprint,
-                                          areaperil_id_ind, areaperil_to_vulns_idx_array, areaperil_to_vulns,
-                                          vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
-                                          int32_mv, max_result_relative_size):
-
-                    if cursor_bytes:
-                        stream_out.write(mv[:cursor_bytes])
-                    else:
-                        empty_events += 1
-                        break
-            else:
+            if not stage.process_event(event_ids[0], stream_out):
                 empty_events += 1
         oasis_ping({"events_complete": empty_events, 'analysis_pk': analysis_pk})

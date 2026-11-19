@@ -16,9 +16,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.pytools.getmodel.manager import (
-    get_items, get_vulns, get_mean_damage_bins, convert_vuln_id_to_index, get_conditional_vuln_ids,
-)
+from oasislmf.pytools.getmodel import manager as getmodel_manager
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +84,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
     # --- items -----------------------------------------------------------------
     logger.debug('import items')
     vuln_map, vuln_map_keys, areaperil_id_ind, areaperil_to_vulns_idx_array, \
-        areaperil_to_vulns, unique_areaperil_ids = get_items(
+        areaperil_to_vulns, unique_areaperil_ids = getmodel_manager.get_items(
             input_path, ignore_file_type,
             valid_area_peril_id if peril_filter else None)
 
@@ -101,7 +99,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
     # A conditional vulnerability is indexed by a source's damage bin, so this engine cannot
     # sample it from the footprint hazard — only gulmc can run such an analysis. Checked here
     # because get_vulns would otherwise fail with a bare "Vulnerability_ids ... are missing".
-    conditional_vuln_ids = get_conditional_vuln_ids(model_storage, ignore_file_type)
+    conditional_vuln_ids = getmodel_manager.get_conditional_vuln_ids(model_storage, ignore_file_type)
     if conditional_vuln_ids.size:
         used = np.intersect1d(np.asarray(vuln_map_keys), conditional_vuln_ids)
         if used.size:
@@ -113,16 +111,16 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
             )
 
     logger.debug('import vulnerabilities')
-    vuln_array, vulns_id, num_damage_bins = get_vulns(
+    vuln_array, vulns_id, num_damage_bins = getmodel_manager.get_vulns(
         model_storage, run_dir, vuln_map, vuln_map_keys,
         num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
 
     # convert vulnerability IDs in areaperil_to_vulns to dense indices
-    convert_vuln_id_to_index(vuln_map, vuln_map_keys, areaperil_to_vulns)
+    getmodel_manager.convert_vuln_id_to_index(vuln_map, vuln_map_keys, areaperil_to_vulns)
 
     # --- mean damage bins ------------------------------------------------------
     logger.debug('import mean damage bins')
-    mean_damage_bins = get_mean_damage_bins(model_storage, ignore_file_type)
+    mean_damage_bins = getmodel_manager.get_mean_damage_bins(model_storage, ignore_file_type)
 
     # --- pack everything into a dict -------------------------------------------
     return {
