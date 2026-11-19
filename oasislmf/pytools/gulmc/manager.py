@@ -16,7 +16,6 @@ import os
 import sys
 import json
 from contextlib import ExitStack
-from select import select
 import time
 
 import numpy as np
@@ -28,7 +27,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, ITEM_PACKED_STREAM, ITEM_STREAM, LOSS_STREAM_ID,
                                                   check_packed_item_fits, check_packing_supported,
-                                                  max_emitted_blocks, stream_info_to_bytes)
+                                                  max_emitted_blocks, stream_info_to_bytes, write_mv_to_stream)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
@@ -348,8 +347,6 @@ def run(run_dir,
             stream_out = sys.stdout.buffer
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
-
-        select_stream_list = [stream_out]
 
         # prepare output stream. The aggregation type says whether a reader may meet a packed
         # sidx, and only a kept-separate item emits one -- a run that packs nothing, or packs only
@@ -673,10 +670,7 @@ def run(run_dir,
                             f"{compute_info['cursor']} bytes into a {byte_mv.shape[0]} byte "
                             f"buffer, which must hold the largest coverage whole.")
                     # write the losses to the output stream
-                    write_start = 0
-                    while write_start < compute_info['cursor']:
-                        select([], select_stream_list, select_stream_list)
-                        write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
+                    write_mv_to_stream(stream_out, byte_mv, compute_info['cursor'])
 
                 logger.info(f"event {event_ids[0]} DONE")
 

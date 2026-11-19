@@ -1,53 +1,62 @@
 import io
 import os
-import sys
+import socket
+import threading
+import time
 
 import numpy as np
 import pytest
 
-from oasislmf.pytools.common import event_stream
-from oasislmf.pytools.common.event_stream import stream_is_selectable, write_mv_to_stream
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, write_mv_to_stream
 
 PAYLOAD = np.arange(64, dtype=np.uint8)
 
 
-def macos_select(rlist, wlist, xlist):
-    """``select`` as macOS answers it for a regular file: writable, but also exceptional."""
-    return [], list(wlist), list(xlist)
-
-
-def test_write_to_regular_file_does_not_select(monkeypatch, tmp_path):
-    """Writing to a regular file must not depend on ``select``, which reports one as exceptional on macOS."""
-    monkeypatch.setattr(event_stream, "select", macos_select)
+def test_write_to_regular_file(tmp_path):
     out_path = tmp_path / "out.bin"
     with open(out_path, "wb") as stream:
-        assert not stream_is_selectable(stream)
-        write_mv_to_stream(stream, memoryview(PAYLOAD), PAYLOAD.shape[0])
+        write_mv_to_stream(stream, PAYLOAD, PAYLOAD.shape[0])
     assert out_path.read_bytes() == PAYLOAD.tobytes()
 
 
 def test_write_to_buffer_without_fileno():
     stream = io.BytesIO()
-    assert not stream_is_selectable(stream)
-    write_mv_to_stream(stream, memoryview(PAYLOAD), 10)
+    write_mv_to_stream(stream, PAYLOAD, 10)
     assert stream.getvalue() == PAYLOAD[:10].tobytes()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="select does not accept pipes on Windows")
-def test_write_to_pipe_selects(monkeypatch):
-    """A pipe still waits on ``select`` for back pressure."""
-    calls = []
-    real_select = event_stream.select
+def slow_read(stream, received):
+    """Read in small chunks with pauses, so the writer fills the kernel buffer and has to wait."""
+    while chunk := stream.read(PIPE_CAPACITY // 4):
+        received.append(chunk)
+        time.sleep(0.001)
 
-    def spy_select(rlist, wlist, xlist):
-        calls.append(wlist)
-        return real_select(rlist, wlist, xlist)
 
-    monkeypatch.setattr(event_stream, "select", spy_select)
+def pipe_pair():
     read_fd, write_fd = os.pipe()
-    with os.fdopen(read_fd, "rb") as reader, os.fdopen(write_fd, "wb", buffering=0) as writer:
-        assert stream_is_selectable(writer)
-        write_mv_to_stream(writer, memoryview(PAYLOAD), PAYLOAD.shape[0])
+    return os.fdopen(read_fd, "rb"), os.fdopen(write_fd, "wb")
+
+
+def socket_pair():
+    a, b = socket.socketpair()
+    reader, writer = b.makefile("rb"), a.makefile("wb")
+    a.close()  # the file objects keep the sockets open
+    b.close()
+    return reader, writer
+
+
+@pytest.mark.parametrize("make_pair", [pipe_pair, socket_pair], ids=["pipe", "socket"])
+def test_write_waits_for_a_slow_reader(make_pair):
+    """A payload several times the kernel buffer arrives whole and in order: the blocking write is the back pressure."""
+    payload = np.random.default_rng(0).integers(0, 256, 16 * PIPE_CAPACITY, dtype=np.uint8)
+    reader, writer = make_pair()
+    received = []
+    thread = threading.Thread(target=slow_read, args=(reader, received))
+    thread.start()
+    try:
+        write_mv_to_stream(writer, payload, payload.shape[0])
+    finally:
         writer.close()
-        assert reader.read() == PAYLOAD.tobytes()
-    assert calls
+        thread.join()
+        reader.close()
+    assert b"".join(received) == payload.tobytes()
