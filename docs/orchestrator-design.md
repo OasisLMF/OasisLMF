@@ -966,9 +966,10 @@ Five of the nine fallbacks of package 13 were settings the stages can reproduce:
   worker count during a run. The output equals a bash run without them.
 
 Still falling back: a custom gulcalc and `custom_args` (an external binary or arguments of the
-getmodel command), gulpy (`modelpy | gulpy`, no stages) and full correlation. Full correlation is
-broken in bash too: genbash creates the `full_correlation/gul_fc_P<k>` FIFOs and reads them, but
-nothing writes them since `get_getmodel_cmd` ignores `correlated_output` and gulpy has no `-j`.
+getmodel command) and full correlation. gulpy (`modelpy | gulpy`) has stages since, see 10.7. Full
+correlation is broken in bash too (issue #2311): genbash creates the `full_correlation/gul_fc_P<k>`
+FIFOs and reads them, but nothing writes them since `get_getmodel_cmd` ignores `correlated_output`
+and gulpy has no `-j`.
 
 Tests: `test_plan.py` compares the plan with genbash's commands for pla (three factor cases),
 join_summary_info (option and setting) and legacy outputs, and checks that the ignored settings
@@ -976,3 +977,52 @@ give the plan of the run without them; `tests/pytools/pla/test_stage.py` checks 
 against plapy byte for byte; `test_kernel.py` runs the fixture's full kernel with bash and with
 the orchestrator for pla (per-event and uniform factors), join_summary_info and legacy outputs,
 and compares `output/` byte for byte.
+
+### 10.7 gulpy (`modelpy | gulpy`)
+
+With `gulmc: false` genbash runs `evepy | modelpy | gulpy`. Both tools were split at their event
+loops, as gulmc was, and their commands rebuilt on the stages, so there is one code path:
+
+- `ModelpyStage` (`pytools/getmodel/stage.py`) holds what `modelpy` loads before its loop (the
+  getmodel structures, the footprint, the output buffer); `process_event` runs `doCdf` for one
+  event and writes its CDF records.
+- `GulpyStage` (`pytools/gul/stage.py`) holds what `gulpy` builds before its loop (the gulpy
+  structures, packing checks, random generator, correlation tables, loss buffers);
+  `process_cdf_event` computes one event of the CDF stream.
+- `ModelpyGulpyStage` chains them with the `GulmcStage` interface: modelpy writes the event's CDF
+  records into an `EventBlock`, `read_getmodel_block` (`pytools/gul/io.py`) reads it, and gulpy
+  writes the losses. The chain picks it with `ChainSpec.gul_engine == 'gulpy'` (factory key
+  `gulpy`); `ChainSpec.gul` is then `{'modelpy': {...}, 'gulpy': {...}}`, the options of each
+  command.
+
+State across events and buffers. gulpy's stream reader carries `last_event_id`, `compute_i`,
+`rng_index`, the group-to-seed map, the cdf record index and the coverage item counts from one
+buffer refill to the next, and resets them when an event ends. `read_getmodel_block` starts from
+that reset state and parses the whole event with the same `stream_to_data`; what the reader yields
+for an event does not depend on where its refills fell, so the block gives the same event data. An
+event modelpy writes nothing for is absent from gulpy's stream, so the stage writes nothing for it.
+The stages keep no other state between events beyond reused buffers, so a stage serves any chunk
+in any order (tested in reverse and one event alone).
+
+Planner. `get_getmodel_cmd` passes modelpy only `--peril-filter` (and `--data-server`, ignored as
+for gulmc) and gulpy only `--random-generator`, `-S`, `-L` and `-a`: not the df engine, the
+effective damageability or the vulnerability cache size. The spec holds exactly those options, so
+the stages get the commands' defaults for the rest, and `render_chunk_commands` writes
+`evepy ... | modelpy ... | gulpy ...` (then `| plapy`, `| tee`, fmpy as for gulmc). The stage
+refuses the data server; the footprint is read by each worker.
+
+Verified against the pristine `modelpy`/`gulpy` of main (b2e63308c): the modelpy stage and command
+on test models 1, 3 and 7 (the others need gulmc) and with a peril filter; the gulpy stage and
+command for alloc rules 0 to 3, random generators 0 to 2, debug, sample sizes 0 and 3000 (several
+buffer writes per event), a loss threshold, correlation on and ignored, two buildings kept separate
+and three summed, and a peril filter; byte for byte, events in order, reversed and alone.
+
+Tests: `tests/pytools/test_getmodel/test_stage.py` and `tests/pytools/gul/test_stage.py` (stages and
+commands against the reference checkout of `tests/orchestrator/tools/kernel_reference.py`);
+`test_plan.py` compares the plan with genbash's commands for gulpy alone, gul+il+ri with a peril
+filter and gulmc-only options, and with pla; `test_kernel.py` runs the fixture's full kernel with
+gulpy (and with gulpy and pla) under bash and the orchestrator and compares `output/` byte for
+byte. `custom_args` is now the setting the fallback test uses.
+
+Timing, the test fixture's full kernel (30 events, 2 processes, every ORD output), whole
+`runner.run` wall time: gulpy 32 s with bash, 9 s with the orchestrator (gulmc: 29 s and 6 s).
