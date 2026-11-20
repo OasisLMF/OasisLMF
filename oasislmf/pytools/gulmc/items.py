@@ -51,6 +51,47 @@ def read_items(input_path, ignore_file_type=set()):
     return items
 
 
+def build_blended_cdf_groups(items, item_areaperil_ja_offsets, blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
+                             dynamic_footprint):
+    """Number the blended cdf groups: the blended items that read one effective damage cdf.
+
+    A blended item reports the effective damage cdf of its blended areaperil, its areaperils' cdfs
+    mixed by probability. That cdf depends on the blended areaperil, the vulnerability, and under a
+    dynamic footprint the intensity adjustment and the protection return period, which decides
+    which areaperils are live. It does not depend on the tiv, which only scales it. Items that agree
+    on those keys form a group and read one cdf, computed once per event instead of once per item.
+    This is the blended counterpart of an item areaperil's cdf group.
+
+    Only blended items are listed: those reading more than one areaperil, or one areaperil with
+    probability below 1. Every other item reads its single areaperil's cdf group.
+
+    The vulnerability is keyed by ``vulnerability_id``: an aggregate item carries no
+    ``vulnerability_idx`` of its own.
+
+    Returns:
+        tuple: ``blended_cdf_item_idxs`` (int32, the blended items' item_idx, increasing), their
+        ``blended_cdf_groups`` (int64) and the number of groups.
+    """
+    n_areaperils = np.diff(item_areaperil_ja_offsets)
+    blended_idx = items['blended_areaperil_idx']
+    # the probability of an item's first areaperil, read only for an item that has one
+    first = np.minimum(blended_areaperil_ja_offsets[blended_idx], max(blended_areaperil_ja_probabilities.shape[0] - 1, 0))
+    first_probability = (blended_areaperil_ja_probabilities[first] if blended_areaperil_ja_probabilities.shape[0]
+                         else np.ones(items.shape[0]))
+    mixing = (n_areaperils > 1) | ((n_areaperils == 1) & (first_probability < 1.))
+    blended_cdf_item_idxs = np.flatnonzero(mixing).astype(np.int32)
+    if blended_cdf_item_idxs.shape[0] == 0:
+        return blended_cdf_item_idxs, np.zeros(0, dtype=np.int64), 0
+    blended_items = items[blended_cdf_item_idxs]
+    columns = [blended_items['blended_areaperil_idx'], blended_items['vulnerability_id']]
+    if dynamic_footprint:
+        columns += [blended_items['intensity_adjustment'], blended_items['return_period']]
+    keys = np.stack([np.asarray(column, dtype=np.int64) for column in columns], axis=1)
+    _, blended_cdf_groups = np.unique(keys, axis=0, return_inverse=True)
+    blended_cdf_groups = blended_cdf_groups.reshape(-1).astype(np.int64)
+    return blended_cdf_item_idxs, blended_cdf_groups, int(blended_cdf_groups.max()) + 1
+
+
 def build_item_placements(items, item_location_keys, item_building_ids,
                           blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
                           blended_areaperil_placement_schemes, sample_size):

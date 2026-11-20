@@ -40,7 +40,7 @@ from oasislmf.pytools.gulmc.common import (
     NormInversionParameters, coverage_type,
 )
 from oasislmf.pytools.gulmc.items import (
-    read_items, build_item_areaperils, build_item_placements, generate_item_map,
+    read_items, build_item_areaperils, build_item_placements, build_blended_cdf_groups, generate_item_map,
     build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln,
 )
 from oasislmf.utils.path import setcwd
@@ -53,7 +53,7 @@ DYNAMIC_FOOTPRINT_DIR = 'dynamic_footprint'
 
 # (variable_name, filename) pairs for all arrays that are saved/loaded.
 # number of scalars load_gulmc_structure reads out of metadata.npy
-N_METADATA_FIELDS = 4
+N_METADATA_FIELDS = 5
 # metadata value for "no placements were drawn": the model has no blended areaperil of more than one
 # placement, so the structure is valid for any sample size
 NO_PLACEMENT_SAMPLE_SIZE = -1
@@ -77,6 +77,8 @@ ARRAY_FILES = [
     'placement_item_ind',
     'placement_item_starts',
     'location_placements',
+    'blended_cdf_item_ind',
+    'blended_cdf_groups',
     'areaperil_agg_vuln_idx_ja_offsets',
     'areaperil_agg_vuln_idx_ja_data',
     'damage_bins',
@@ -661,6 +663,10 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     placement_item_ind, placement_item_starts, location_placements, placement_sample_size = build_placements(
         input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
         blended_areaperil_placement_schemes, sample_size)
+    blended_cdf_item_idxs, blended_cdf_groups, n_blended_cdf_groups = build_blended_cdf_groups(
+        items, item_areaperil_ja_offsets, blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
+        dynamic_footprint)
+    blended_cdf_item_ind = id_index_build(blended_cdf_item_idxs)
     # an item counts once in its coverage however many areaperils it reads
     np.add.at(coverages['max_items'], items['coverage_id'], 1)
 
@@ -772,6 +778,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'placement_item_ind': placement_item_ind,
         'placement_item_starts': placement_item_starts,
         'location_placements': location_placements,
+        'blended_cdf_item_ind': blended_cdf_item_ind,
+        'blended_cdf_groups': blended_cdf_groups,
         'areaperil_agg_vuln_idx_ja_offsets': areaperil_agg_vuln_idx_ja_offsets,
         'areaperil_agg_vuln_idx_ja_data': areaperil_agg_vuln_idx_ja_data,
         'damage_bins': damage_bins,
@@ -794,6 +802,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'n_unique_groups': n_unique_groups,
         'n_unique_haz_groups': n_unique_haz_groups,
         'placement_sample_size': placement_sample_size,
+        'n_blended_cdf_groups': n_blended_cdf_groups,
     }
 
 
@@ -830,6 +839,7 @@ def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
         structures['n_unique_groups'],
         structures['n_unique_haz_groups'],
         structures['placement_sample_size'],
+        structures['n_blended_cdf_groups'],
     ], dtype=np.int64)
     np.save(os.path.join(structure_path, 'metadata'), metadata)
 
@@ -863,5 +873,6 @@ def load_gulmc_structure(run_dir):
     result['n_unique_groups'] = int(metadata[1])
     result['n_unique_haz_groups'] = int(metadata[2])
     result['placement_sample_size'] = int(metadata[3])
+    result['n_blended_cdf_groups'] = int(metadata[4])
 
     return result

@@ -9,6 +9,7 @@ The two cells are both in test_model_1's footprint and give different losses und
 ``A`` (154) has hazard in every event, ``B`` (101) has none in event 1. ``make_dynamic`` puts them in
 two sections of a dynamic footprint, with return periods either side of the items' protection.
 """
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -18,14 +19,14 @@ import pandas as pd
 import pytest
 
 from oasislmf.pytools.common.blended_areaperil import read_csv, validate
-from oasislmf.pytools.common.event_stream import MEAN_IDX
+from oasislmf.pytools.common.event_stream import MEAN_IDX, STD_DEV_IDX
 from oasislmf.pytools.getmodel.common import FootprintHeader
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 from oasislmf.pytools.gulmc.structure import create_gulmc_structure
 from oasislmf.utils.exceptions import OasisException
-from tests.pytools.utils import copy_test_model, read_gul_stream, write_correlations
+from tests.pytools.utils import copy_test_model, read_gul_stream, set_coverage_buildings, write_correlations
 
 A, B = 154, 101
 BLENDED, BLENDED_2 = 9001, 9002
@@ -360,6 +361,49 @@ def test_protection_holds_or_fails_at_each_position(tmp_path, monkeypatch):
     position = placed['position'].unstack('item_id')
     assert (position[1] == position[2]).all()
     assert 0 < (position[1] == 1).mean() < 1
+
+
+def test_buildings_of_one_blend_are_each_judged_by_their_own_protection(tmp_path, monkeypatch):
+    """Two buildings on the same blended areaperil, one protected at A and one not, each lose exactly
+    as they do when every building shares its protection."""
+    items = THREE_LOCATIONS[:2]
+    blend = blend_rows([(1, A), (1, B)])
+
+    def run(name, protection):
+        run_dir = make_dynamic(write_model(tmp_path / name, items, blend), protection=0)
+        pd.DataFrame({'item_id': [1, 2], 'intensity_adjustment': 0, 'return_period': protection}).to_csv(
+            run_dir / 'input' / 'item_adjustments.csv', index=False)
+        monkeypatch.chdir(run_dir)
+        out = run_dir / 'gul.bin'
+        run_gulmc(run_dir=run_dir, ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin', file_out=out,
+                  sample_size=SAMPLES, loss_threshold=0., alloc_rule=0, debug=0, random_generator=2, dynamic_footprint=True)
+        return read_gul_stream(out)[2].set_index(['event_id', 'item_id', 'sidx'])['loss']
+
+    mixed = run('mixed', [50, 0])
+    protected, unprotected = run('protected', [50, 50]), run('unprotected', [0, 0])
+    assert not means(protected).xs(2, level='item_id').equals(means(unprotected).xs(2, level='item_id'))
+
+    pd.testing.assert_series_equal(mixed.xs(1, level='item_id'), protected.xs(1, level='item_id'))
+    pd.testing.assert_series_equal(mixed.xs(2, level='item_id'), unprotected.xs(2, level='item_id'))
+
+
+@pytest.mark.skipif(os.environ.get("NUMBA_DISABLE_JIT", "0") != "0",
+                    reason="statistical test: 2,000 samples per run is hours with the JIT disabled")
+def test_a_summed_blended_item_reports_the_spread_of_its_samples(tmp_path):
+    """The std_dev a blended item of correlated buildings reports for their sum agrees with its samples.
+
+    The three locations have different tivs and one blended areaperil, so they share its mixture:
+    the spread each reports has to be its own, scaled by its own tiv.
+    """
+    run_dir = write_model(tmp_path / 'blended', THREE_LOCATIONS, blend_rows([(1, A), (1, B)]))
+    write_correlations(run_dir / 'input', [1, 2, 3], 0.7)
+    set_coverage_buildings(run_dir / 'input', 16, item_to_coverage=[1, 2, 3])
+    losses = gul_losses(run_dir, sample_size=2000)
+
+    event = means(losses).groupby(level='event_id').sum().idxmax()
+    for item_id in (1, 2, 3):
+        item = losses.xs((event, item_id), level=['event_id', 'item_id'])
+        assert item[STD_DEV_IDX] == pytest.approx(item[item.index > 0].std(ddof=0), rel=0.08), f"item {item_id}"
 
 
 def test_a_dependency_entirely_outside_the_hazard_loses_nothing(tmp_path):
