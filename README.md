@@ -93,11 +93,13 @@ Some features need extra packages, grouped so you only install what you use:
 | `currency` | forex-python                                          | `FxCurrencyRates` currency conversion                 |
 | `spatial`  | shapely, geopandas, rtree, scikit-learn, h3, rasterio | `rtree`, `h3` and `geotiff` built-in lookup steps     |
 | `plot`     | matplotlib                                            | resource monitor plots and `oasislmf api plot`        |
-| `extra`    | `currency` + `spatial` + `plot`                       | all of the above (kept for backwards compatibility)   |
+| `all`      | `currency` + `spatial` + `plot`                       | all of the above                                      |
+| `extra`    | `currency` + `spatial` + `plot`                       | same as `all` (kept for backwards compatibility)      |
 
 Install one or more groups with, for example:
 
     pip install "oasislmf[spatial,plot]"
+    pip install "oasislmf[all]"
 
 ### macOS Apple Silicon (M1/M2/M3/M4)
 
