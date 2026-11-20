@@ -601,8 +601,8 @@ def test_dynamic_footprint_incomplete_save_is_not_used(tmp_path, monkeypatch):
 
     (Path(shared_dir) / SHARED_MANIFEST).unlink()
     with Footprint.load(storage, shared_dir=shared_dir) as footprint:
-        assert footprint.shared_hazard is None and footprint.df_hazard_case is not None
         np.testing.assert_array_equal(footprint.get_event(1), shared_event)
+        assert footprint.shared_hazard is None and footprint.df_hazard_case is not None
 
 
 def test_dynamic_footprint_structures_build_from_a_relative_run_directory(tmp_path, monkeypatch):
