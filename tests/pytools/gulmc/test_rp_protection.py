@@ -10,6 +10,7 @@ Three levels of coverage:
   3. compute_event_losses             – losses are zeroed when event_rp < item_rp
 """
 import numpy as np
+from oasislmf.pytools.common.id_index import build as id_index_build
 import pytest
 
 from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int, damagebin_dtype
@@ -83,7 +84,7 @@ def _make_items_array(intensity_adjustment=0, return_period=0):
         ('hazard_group_id', np.int32),
         ('hazard_correlation_value', np.float32),
         ('vulnerability_idx', oasis_int),
-        ('areaperil_agg_vuln_idx', oasis_int),
+        ('blended_areaperil_idx', oasis_int),
         ('intensity_adjustment', np.int32),
         ('return_period', np.int32),
         ('peril_id', np.int32),
@@ -97,7 +98,6 @@ def _make_items_array(intensity_adjustment=0, return_period=0):
     items[0]['vulnerability_id'] = VULN_ID
     items[0]['group_id'] = 1
     items[0]['vulnerability_idx'] = 0
-    items[0]['areaperil_agg_vuln_idx'] = -1
     items[0]['peril_id'] = PERIL_ID
     items[0]['intensity_adjustment'] = intensity_adjustment
     items[0]['return_period'] = return_period
@@ -160,14 +160,26 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     items_event_data = np.zeros(1, dtype=items_MC_data_type)
     items_event_data[0]['item_id'] = 1
     items_event_data[0]['item_idx'] = 0       # index into items array
-    items_event_data[0]['haz_arr_i'] = 0      # index into haz_arr_ptr
     items_event_data[0]['rng_index'] = 0
     items_event_data[0]['hazard_rng_index'] = 0
     items_event_data[0]['intensity_adjustment'] = item_intensity_adjustment
     items_event_data[0]['return_period'] = item_rp
-    items_event_data[0]['event_rp'] = event_rp
-    items_event_data[0]['eff_cdf_id'] = 0
     items_event_data[0]['packed_buildings'] = 1   # one building: the unpacked identity
+
+    # --- item areaperils: the item reads one areaperil (K = 1) ---
+    item_areaperil_ja_offsets = np.array([0, 1], dtype=oasis_int)
+    item_areaperil_ja_cdf_group_idxs = np.zeros(1, dtype=np.int64)
+    item_areaperil_ja_areaperil_agg_vuln_idxs = np.full(1, -1, dtype=oasis_int)   # not aggregate
+    item_areaperil_haz_arr_i = np.zeros(1, dtype=oasis_int)                       # index into haz_arr_ptr
+    item_areaperil_event_rp = np.array([event_rp], dtype=np.int32)
+    # a base areaperil: one placement, so no per-sample placements are stored
+    placement_item_ind = id_index_build(np.zeros(0, dtype=np.int32))   # no item reads a placement
+    placement_item_starts = np.zeros(0, dtype=np.int64)
+    location_placements = np.zeros(0, dtype=np.uint8)
+    blended_areaperil_placement_ja_offsets = np.array([0, 1], dtype=oasis_int)
+    blended_areaperil_placement_ja_areaperil_j = np.zeros(1, dtype=np.int32)
+    blended_areaperil_ja_offsets = np.array([0, 1], dtype=oasis_int)
+    blended_areaperil_ja_probabilities = np.ones(1, dtype=np.float64)
 
     # --- items ---
     items = _make_items_array(intensity_adjustment=item_intensity_adjustment, return_period=item_rp)
@@ -281,6 +293,14 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
 
     args = (
         compute_info, coverages, coverage_ids, items_event_data, items,
+        item_areaperil_ja_offsets, item_areaperil_ja_cdf_group_idxs, item_areaperil_ja_areaperil_agg_vuln_idxs,
+        item_areaperil_haz_arr_i, item_areaperil_event_rp,
+        placement_item_ind, placement_item_starts, location_placements,
+        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_areaperil_j,
+        blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
+        id_index_build(np.zeros(0, dtype=np.int32)), np.zeros(0, dtype=np.int64),  # no item mixes
+        np.zeros(0, dtype=np.int64), np.empty((1, Ndamage_bins), dtype=oasis_float), np.zeros(1, dtype=np.int32),
+        np.zeros((0, 2, HERMITE_TERMS)), 1,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, conditional_vuln_array, vuln_idx_to_cond_idx, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
@@ -500,7 +520,8 @@ def test_rp_protection_only_affects_protected_items():
         ('vulnerability_id', np.int32), ('group_id', np.uint32),
         ('peril_correlation_group', np.int32), ('damage_correlation_value', np.float32),
         ('hazard_group_id', np.int32), ('hazard_correlation_value', np.float32),
-        ('vulnerability_idx', oasis_int), ('areaperil_agg_vuln_idx', oasis_int),
+        ('vulnerability_idx', oasis_int),
+        ('blended_areaperil_idx', oasis_int),
         ('intensity_adjustment', np.int32),
         ('return_period', np.int32), ('peril_id', np.int32),
         ('group_seq_id', np.int32), ('hazard_group_seq_id', np.int32),
@@ -513,7 +534,6 @@ def test_rp_protection_only_affects_protected_items():
         items[i]['vulnerability_id'] = VULN_ID
         items[i]['group_id'] = 1
         items[i]['vulnerability_idx'] = 0
-        items[i]['areaperil_agg_vuln_idx'] = -1
         items[i]['peril_id'] = PERIL_ID
         items[i]['group_seq_id'] = 0
         items[i]['hazard_group_seq_id'] = 0
@@ -526,14 +546,25 @@ def test_rp_protection_only_affects_protected_items():
     items_event_data['packed_buildings'] = 1      # one building each: the unpacked identity
     items_event_data[0]['item_id'] = 1
     items_event_data[0]['item_idx'] = 0
-    items_event_data[0]['haz_arr_i'] = 0
     items_event_data[0]['return_period'] = ITEM_RP_PROTECTION
-    items_event_data[0]['event_rp'] = EVENT_RP_BELOW  # 12 < 25 → protected
     items_event_data[1]['item_id'] = 2
     items_event_data[1]['item_idx'] = 1
-    items_event_data[1]['haz_arr_i'] = 0
     items_event_data[1]['return_period'] = 0
-    items_event_data[1]['event_rp'] = EVENT_RP_BELOW  # irrelevant when item_rp=0
+
+    # one item areaperil each (K = 1), both on the same areaperil and CDF group
+    item_areaperil_ja_offsets = np.array([0, 1, 2], dtype=oasis_int)
+    item_areaperil_ja_cdf_group_idxs = np.zeros(2, dtype=np.int64)
+    item_areaperil_ja_areaperil_agg_vuln_idxs = np.full(2, -1, dtype=oasis_int)
+    item_areaperil_haz_arr_i = np.zeros(2, dtype=oasis_int)
+    # 12 < 25, so item 0 is protected; irrelevant for item 1, whose item_rp is 0
+    item_areaperil_event_rp = np.full(2, EVENT_RP_BELOW, dtype=np.int32)
+    placement_item_ind = id_index_build(np.zeros(0, dtype=np.int32))   # no item reads a placement
+    placement_item_starts = np.zeros(0, dtype=np.int64)
+    location_placements = np.zeros(0, dtype=np.uint8)
+    blended_areaperil_placement_ja_offsets = np.array([0, 1], dtype=oasis_int)
+    blended_areaperil_placement_ja_areaperil_j = np.zeros(1, dtype=np.int32)
+    blended_areaperil_ja_offsets = np.array([0, 1], dtype=oasis_int)
+    blended_areaperil_ja_probabilities = np.ones(1, dtype=np.float64)
 
     haz_pdf = np.zeros(1, dtype=haz_arr_type)
     haz_pdf[0]['probability'] = 1.0
@@ -601,6 +632,14 @@ def test_rp_protection_only_affects_protected_items():
 
     compute_event_losses(
         compute_info, coverages, coverage_ids, items_event_data, items,
+        item_areaperil_ja_offsets, item_areaperil_ja_cdf_group_idxs, item_areaperil_ja_areaperil_agg_vuln_idxs,
+        item_areaperil_haz_arr_i, item_areaperil_event_rp,
+        placement_item_ind, placement_item_starts, location_placements,
+        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_areaperil_j,
+        blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
+        id_index_build(np.zeros(0, dtype=np.int32)), np.zeros(0, dtype=np.int64),  # no item mixes
+        np.zeros(0, dtype=np.int64), np.empty((1, Ndamage_bins), dtype=oasis_float), np.zeros(1, dtype=np.int32),
+        np.zeros((0, 2, HERMITE_TERMS)), 1,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, conditional_vuln_array, vuln_idx_to_cond_idx, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,

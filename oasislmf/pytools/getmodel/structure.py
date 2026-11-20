@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import Keys
+from oasislmf.pytools.common.blended_areaperil import read_blended_areaperil
 from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.manager import (
@@ -32,6 +33,14 @@ ARRAY_FILES = [
     'areaperil_to_vulns',
     'unique_areaperil_ids',
     'mean_damage_bins',
+    'pair_use',
+    'blended_cdf_areaperil_ids',
+    'blended_cdf_vuln_idxs',
+    'blended_cdf_ja_offsets',
+    'blended_cdf_ja_pair_idxs',
+    'blended_cdf_ja_probabilities',
+    'pair_to_blended_cdf_ja_offsets',
+    'pair_to_blended_cdf_ja_idxs',
 ]
 
 
@@ -85,10 +94,12 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
 
     # --- items -----------------------------------------------------------------
     logger.debug('import items')
+    # a blended item gets the mixture of its areaperils' cdfs, so their pairs are computed too
+    blend = read_blended_areaperil(model_storage, ignore_file_type)
     vuln_map, vuln_map_keys, areaperil_id_ind, areaperil_to_vulns_idx_array, \
-        areaperil_to_vulns, unique_areaperil_ids = get_items(
+        areaperil_to_vulns, unique_areaperil_ids, blended_cdfs = get_items(
             input_path, ignore_file_type,
-            valid_area_peril_id if peril_filter else None)
+            valid_area_peril_id if peril_filter else None, blend)
 
     # --- footprint (temporary open to get num_intensity_bins) ------------------
     logger.debug('import footprint (header only)')
@@ -129,6 +140,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
 
     # convert vulnerability IDs in areaperil_to_vulns to dense indices
     convert_vuln_id_to_index(vuln_map, vuln_map_keys, areaperil_to_vulns)
+    blended_cdf_vuln_idxs = blended_cdfs.pop('blended_cdf_vuln_ids')
+    convert_vuln_id_to_index(vuln_map, vuln_map_keys, blended_cdf_vuln_idxs)
 
     # --- mean damage bins ------------------------------------------------------
     logger.debug('import mean damage bins')
@@ -143,6 +156,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
         'areaperil_to_vulns': areaperil_to_vulns,
         'unique_areaperil_ids': unique_areaperil_ids,
         'mean_damage_bins': mean_damage_bins,
+        'blended_cdf_vuln_idxs': blended_cdf_vuln_idxs,
+        **blended_cdfs,
         # scalars
         'num_damage_bins': num_damage_bins,
         'num_intensity_bins': num_intensity_bins,

@@ -8,6 +8,9 @@ from oasislmf.pytools.converters.data import SUPPORTED_CSVTOBIN
 
 
 def add_custom_args(file_type, parser):
+    if file_type == "blended_areaperil":
+        parser.add_argument('-N', '--no_validation', action='store_true',
+                            help='No validation checks; rows are written as read, unsorted')
     if file_type == "damagebin":
         parser.add_argument('-N', '--no_validation', action='store_true', help='No validation checks')
     if file_type == "occurrence":

@@ -7,6 +7,7 @@ Follows the same pattern as ``oasislmf.pytools.fm.financial_structure``:
     allowing multiple gulmc processes to share physical memory pages through
     the OS page cache.
 """
+import hashlib
 import logging
 import os
 import shutil
@@ -14,10 +15,12 @@ import shutil
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import numba as nb
+import pandas as pd
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import (building_count_dtype, load_as_ndarray, oasis_int, oasis_float)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
+from oasislmf.pytools.common.blended_areaperil import build_blended_areaperils, read_blended_areaperil
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
 from oasislmf.pytools.gul.structure import coverage_building_counts
 from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
@@ -37,8 +40,8 @@ from oasislmf.pytools.gulmc.common import (
     NormInversionParameters, coverage_type,
 )
 from oasislmf.pytools.gulmc.items import (
-    read_items, generate_item_map,
-    build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id,
+    read_items, build_item_areaperils, build_item_placements, build_blended_cdf_groups, generate_item_map,
+    build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln,
 )
 from oasislmf.utils.path import setcwd
 
@@ -50,17 +53,32 @@ DYNAMIC_FOOTPRINT_DIR = 'dynamic_footprint'
 
 # (variable_name, filename) pairs for all arrays that are saved/loaded.
 # number of scalars load_gulmc_structure reads out of metadata.npy
-N_METADATA_FIELDS = 3
+N_METADATA_FIELDS = 5
+# metadata value for "no placements were drawn": the model has no blended areaperil of more than one
+# placement, so the structure is valid for any sample size
+NO_PLACEMENT_SAMPLE_SIZE = -1
 
 ARRAY_FILES = [
     'items',
     'coverages',
     'item_map_ja_areaperil_ids',
     'item_map_ja_offsets',
-    'item_map_ja_vuln_ja_offsets',
-    'item_map_ja_vuln_ja_item_idxs',
+    'item_map_ja_item_idxs',
+    'item_map_ja_item_areaperil_idxs',
     'item_map_ja_id_ind',
-    'item_cdf_group_idx',
+    'item_areaperil_ja_offsets',
+    'item_areaperil_ja_cdf_group_idxs',
+    'item_areaperil_ja_areaperil_agg_vuln_idxs',
+    'blended_areaperil_ja_offsets',
+    'blended_areaperil_ja_probabilities',
+    'blended_areaperil_placement_ja_offsets',
+    'blended_areaperil_placement_ja_cum_weights',
+    'blended_areaperil_placement_ja_areaperil_j',
+    'placement_item_ind',
+    'placement_item_starts',
+    'location_placements',
+    'blended_cdf_item_ind',
+    'blended_cdf_groups',
     'areaperil_agg_vuln_idx_ja_offsets',
     'areaperil_agg_vuln_idx_ja_data',
     'damage_bins',
@@ -349,7 +367,7 @@ def align_conditional_damage_axis(conditional_vuln_array, Ndamage_bins_max):
     )
 
 
-def build_vuln_idx_to_cond_idx(items, cond_vuln_ids, n_vulns):
+def build_vuln_idx_to_cond_idx(items, item_is_aggregate, cond_vuln_ids, n_vulns):
     """Map each vulnerability's dense index to its conditional (damage-transition) matrix row.
 
     ``conditional_vuln_array`` is compact (one row per conditional vulnerability), while the kernel
@@ -358,14 +376,14 @@ def build_vuln_idx_to_cond_idx(items, cond_vuln_ids, n_vulns):
     normal hazard-indexed vulnerability.
 
     Only non-aggregate items carry a ``vulnerability_idx`` (``generate_item_map`` assigns it in the
-    non-aggregate branch only, and sets ``areaperil_agg_vuln_idx`` instead for aggregates), so
+    non-aggregate branch only, and records an aggregate block per item areaperil instead), so
     aggregate items are excluded: an aggregate vulnerability id that happens to collide with a
     conditional one must not scatter through an index that was never assigned. A dependent coverage
     may not use an aggregate vulnerability anyway — ``validate_coverage_dependency`` rejects that.
 
     Args:
-        items (np.ndarray): items table with 'vulnerability_id', 'vulnerability_idx' and
-            'areaperil_agg_vuln_idx'.
+        items (np.ndarray): items table with 'vulnerability_id' and 'vulnerability_idx'.
+        item_is_aggregate (np.ndarray[bool]): per item, whether its vulnerability is aggregate.
         cond_vuln_ids (np.ndarray): conditional vulnerability ids, ascending (from ``np.unique``).
         n_vulns (int): number of dense vulnerability indices (``vuln_array.shape[0]``).
 
@@ -377,11 +395,73 @@ def build_vuln_idx_to_cond_idx(items, cond_vuln_ids, n_vulns):
     if cond_vuln_ids.shape[0] == 0:
         return vuln_idx_to_cond_idx
 
-    present = np.isin(items['vulnerability_id'], cond_vuln_ids) & (items['areaperil_agg_vuln_idx'] < 0)
+    present = np.isin(items['vulnerability_id'], cond_vuln_ids) & ~item_is_aggregate
     # cond_vuln_ids is ascending, so searchsorted gives the conditional row
     vuln_idx_to_cond_idx[items['vulnerability_idx'][present]] = \
         np.searchsorted(cond_vuln_ids, items['vulnerability_id'][present]).astype(np.int64)
     return vuln_idx_to_cond_idx
+
+
+def item_location_placement_keys(input_path, items):
+    """Per item, its location's placement key and its building_id, from gul_summary_map.
+
+    The key is a 64-bit hash of the location's OED identifiers (PortNumber, AccNumber, LocNumber),
+    not of the generated loc_id, so a building keeps its placements when the portfolio is reordered
+    or split. It carries no event, because a building does not move between events.
+
+    Args:
+        input_path (str): the run's input directory.
+        items (np.ndarray): items table with 'item_id'.
+
+    Returns:
+        tuple(np.ndarray[uint64], np.ndarray[int64]): key and building_id per item.
+    """
+    columns = ['item_id', 'PortNumber', 'AccNumber', 'LocNumber', 'building_id']
+    parquet_path = os.path.join(input_path, 'gul_summary_map.parquet')
+    if os.path.exists(parquet_path):
+        summary_map = pd.read_parquet(parquet_path, columns=columns)
+    else:
+        # as text, as parquet holds them: inferred types would turn LocNumber '001' into 1, the same
+        # as LocNumber '1', and a csv run would draw other placements than a parquet one
+        summary_map = pd.read_csv(os.path.join(input_path, 'gul_summary_map.csv'), usecols=columns,
+                                  dtype={'PortNumber': str, 'AccNumber': str, 'LocNumber': str})
+    summary_map = summary_map.drop_duplicates('item_id').set_index('item_id')
+    missing = ~np.isin(items['item_id'], summary_map.index)
+    if missing.any():
+        raise OasisException(
+            f"blended areaperils: item_id {items['item_id'][missing][:5].tolist()} missing from gul_summary_map, "
+            f"which gives each item's location for its placement draw")
+    rows = summary_map.loc[items['item_id']]
+    locations = (rows['PortNumber'].astype(str) + '\x1f' + rows['AccNumber'].astype(str) + '\x1f'
+                 + rows['LocNumber'].astype(str)).to_numpy()
+    unique_locations, location_idx = np.unique(locations, return_inverse=True)
+    keys = np.array([int.from_bytes(hashlib.blake2b(f'placement\x1f{loc}'.encode(), digest_size=8).digest(), 'little')
+                     for loc in unique_locations], dtype=np.uint64)
+    return keys[location_idx], rows['building_id'].to_numpy(dtype=np.int64)
+
+
+def build_placements(input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+                     blended_areaperil_placement_schemes, sample_size):
+    """Draw the placements, when the model has a blended areaperil of more than one placement.
+
+    Returns:
+        tuple: ``placement_item_ind`` (an id_index from item_idx to its rank among the items that
+        read a placement), ``placement_item_starts`` and ``location_placements`` (see
+        ``build_item_placements``), and the sample size they were drawn for, or
+        ``NO_PLACEMENT_SAMPLE_SIZE`` when no item needs one. A portfolio without blending gets
+        empty arrays: its items never look a placement up.
+    """
+    if np.diff(blended_areaperil_placement_ja_offsets).max(initial=1) <= 1:
+        return (id_index_build(np.zeros(0, dtype=np.int32)), np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.uint8),
+                NO_PLACEMENT_SAMPLE_SIZE)
+    if sample_size is None:
+        raise OasisException("blended areaperils: the sample size is needed to draw placements when the gulmc structure is built")
+    item_location_keys, item_building_ids = item_location_placement_keys(input_path, items)
+    placement_item_idxs, placement_item_starts, location_placements = build_item_placements(
+        items, item_location_keys, item_building_ids,
+        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+        blended_areaperil_placement_schemes, sample_size)
+    return id_index_build(placement_item_idxs), placement_item_starts, location_placements, int(sample_size)
 
 
 def _structure_path(run_dir):
@@ -423,7 +503,7 @@ def dynamic_footprint_path(run_dir):
 
 
 def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint, model_df_engine,
-                     dynamic_footprint_dir=None):
+                     dynamic_footprint_dir=None, sample_size=None):
     """Build all read-only gulmc data structures from input files.
 
     This extracts the preparation logic from ``manager.run()`` into a
@@ -439,6 +519,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         model_df_engine (str): engine for loading model dataframes.
         dynamic_footprint_dir (str, optional): if given and the model has a dynamic footprint, save
             its hazard there for the gulmc processes to memory-map. Defaults to None.
+        sample_size (int, optional): number of samples. Only needed, and then required, when the
+            model has a blended areaperil of more than one placement: placements are drawn here,
+            once for the run. Defaults to None.
 
     Returns:
         dict: mapping variable names to numpy arrays / scalars.
@@ -512,7 +595,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     items = rfn.merge_arrays((items,
                               np.empty(items.shape,
                                        dtype=nb.from_dtype(np.dtype([("vulnerability_idx", oasis_int),
-                                                                     ("areaperil_agg_vuln_idx", oasis_int),
+                                                                     ("blended_areaperil_idx", oasis_int),
                                                                      ("packed_buildings", building_count_dtype)])))),
                              flatten=True)
     # building-packing, signed: magnitude is the number of buildings multiplexed into each item's
@@ -528,7 +611,6 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                 f"covered by coverages.bin; the two files must be regenerated together."
             )
         items['packed_buildings'] = n_building_by_coverage[cov_i]
-    items['areaperil_agg_vuln_idx'] = -1
     # generate_item_map only assigns vulnerability_idx for non-aggregate items; initialise it so an
     # aggregate item never carries uninitialised memory into an array index
     items['vulnerability_idx'] = 0
@@ -566,22 +648,45 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
 
     items.sort(order=['areaperil_id', 'vulnerability_id'])
 
-    # --- item map (two-level jagged array) -------------------------------------
+    # --- blended areaperils and item areaperils -----------------------------------
+    # Every item reads its hazard through a blended areaperil: the ids listed in the model's blend
+    # table carry their placements, and every other id is the size-1 case (K = 1).
+    blend = read_blended_areaperil(model_storage, ignore_file_type)
+    (items['blended_areaperil_idx'],
+     blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_ja_probabilities,
+     blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_schemes) = build_blended_areaperils(items, blend)
+    (item_areaperil_ja_offsets, entry_areaperil_ids, entry_vuln_ids, entry_item_idxs,
+     entry_item_areaperil_idxs) = build_item_areaperils(items, blended_areaperil_ja_offsets,
+                                                        blended_areaperil_ja_areaperil_ids)
+    n_item_areaperils = int(item_areaperil_ja_offsets[-1])
+    placement_item_ind, placement_item_starts, location_placements, placement_sample_size = build_placements(
+        input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+        blended_areaperil_placement_schemes, sample_size)
+    blended_cdf_item_idxs, blended_cdf_groups, n_blended_cdf_groups = build_blended_cdf_groups(
+        items, item_areaperil_ja_offsets, blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
+        dynamic_footprint)
+    blended_cdf_item_ind = id_index_build(blended_cdf_item_idxs)
+    # an item counts once in its coverage however many areaperils it reads
+    np.add.at(coverages['max_items'], items['coverage_id'], 1)
+
+    # --- item map (areaperil -> item areaperils) -------------------------------
     (item_map_ja_areaperil_ids, item_map_ja_offsets,
-     item_map_ja_vuln_ja_offsets,
-     item_map_ja_vuln_ja_item_idxs,
+     item_map_ja_item_idxs, item_map_ja_item_areaperil_idxs,
+     item_areaperil_ja_areaperil_agg_vuln_idxs,
      vuln_map, vuln_map_keys,
      areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
      areaperil_agg_vuln_idx_ja_areaperil_ids) = generate_item_map(
-        items,
-        coverages,
+        entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entry_item_areaperil_idxs,
+        items, n_item_areaperils,
         agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids)
+    del entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entry_item_areaperil_idxs
     item_map_ja_id_ind = id_index_build(item_map_ja_areaperil_ids)
 
     # CDF group indices
-    item_cdf_group_idx, n_cdf_groups = build_cdf_group_indices(
-        item_map_ja_vuln_ja_offsets, item_map_ja_vuln_ja_item_idxs,
-        items, dynamic_footprint if dynamic_footprint else None)
+    item_areaperil_ja_cdf_group_idxs, n_cdf_groups = build_cdf_group_indices(
+        item_map_ja_offsets, item_map_ja_item_idxs, item_map_ja_item_areaperil_idxs,
+        items, n_item_areaperils, dynamic_footprint if dynamic_footprint else None)
 
     if aggregate_weights is not None:
         logger.debug('reconstruct aggregate vulnerability definitions and weights')
@@ -627,7 +732,13 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # (Ndamage_bins_max), which the vulnerability file — not the damage_bin_dict — determines.
     conditional_vuln_array = align_conditional_damage_axis(conditional_vuln_array, vuln_array.shape[1])
 
-    vuln_idx_to_cond_idx = build_vuln_idx_to_cond_idx(items, cond_vuln_ids, vuln_array.shape[0])
+    # an item with no item areaperil (every placement uncovered) is never computed and was never
+    # given a vulnerability_idx, so it must not scatter into the mapping
+    computed = np.diff(item_areaperil_ja_offsets) > 0
+    vuln_idx_to_cond_idx = build_vuln_idx_to_cond_idx(
+        items[computed],
+        item_is_aggregate_vuln(item_areaperil_ja_offsets, item_areaperil_ja_areaperil_agg_vuln_idxs)[computed],
+        cond_vuln_ids, vuln_array.shape[0])
 
     # --- Gaussian lookup tables (deterministic constants) ----------------------
     norm_inv_parameters = np.array(
@@ -653,10 +764,22 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'coverages': coverages,
         'item_map_ja_areaperil_ids': item_map_ja_areaperil_ids,
         'item_map_ja_offsets': item_map_ja_offsets,
-        'item_map_ja_vuln_ja_offsets': item_map_ja_vuln_ja_offsets,
-        'item_map_ja_vuln_ja_item_idxs': item_map_ja_vuln_ja_item_idxs,
+        'item_map_ja_item_idxs': item_map_ja_item_idxs,
+        'item_map_ja_item_areaperil_idxs': item_map_ja_item_areaperil_idxs,
         'item_map_ja_id_ind': item_map_ja_id_ind,
-        'item_cdf_group_idx': item_cdf_group_idx,
+        'item_areaperil_ja_offsets': item_areaperil_ja_offsets,
+        'item_areaperil_ja_cdf_group_idxs': item_areaperil_ja_cdf_group_idxs,
+        'item_areaperil_ja_areaperil_agg_vuln_idxs': item_areaperil_ja_areaperil_agg_vuln_idxs,
+        'blended_areaperil_ja_offsets': blended_areaperil_ja_offsets,
+        'blended_areaperil_ja_probabilities': blended_areaperil_ja_probabilities,
+        'blended_areaperil_placement_ja_offsets': blended_areaperil_placement_ja_offsets,
+        'blended_areaperil_placement_ja_cum_weights': blended_areaperil_placement_ja_cum_weights,
+        'blended_areaperil_placement_ja_areaperil_j': blended_areaperil_placement_ja_areaperil_j,
+        'placement_item_ind': placement_item_ind,
+        'placement_item_starts': placement_item_starts,
+        'location_placements': location_placements,
+        'blended_cdf_item_ind': blended_cdf_item_ind,
+        'blended_cdf_groups': blended_cdf_groups,
         'areaperil_agg_vuln_idx_ja_offsets': areaperil_agg_vuln_idx_ja_offsets,
         'areaperil_agg_vuln_idx_ja_data': areaperil_agg_vuln_idx_ja_data,
         'damage_bins': damage_bins,
@@ -678,11 +801,13 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'n_cdf_groups': n_cdf_groups,
         'n_unique_groups': n_unique_groups,
         'n_unique_haz_groups': n_unique_haz_groups,
+        'placement_sample_size': placement_sample_size,
+        'n_blended_cdf_groups': n_blended_cdf_groups,
     }
 
 
 def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
-                           dynamic_footprint, model_df_engine):
+                           dynamic_footprint, model_df_engine, sample_size=None):
     """Build and save all read-only gulmc data structures as ``.npy`` files.
 
     Args:
@@ -691,13 +816,16 @@ def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
         peril_filter (list): list of perils to include (empty = all).
         dynamic_footprint (bool): whether to apply dynamic footprint logic.
         model_df_engine (str): engine for loading model dataframes.
+        sample_size (int, optional): number of samples, required when the model has blended
+            areaperils (see ``build_structures``). Defaults to None.
     """
     structure_path = _structure_path(run_dir)
     # a footprint saved for an earlier portfolio in this run directory must not be used for this one
     shutil.rmtree(dynamic_footprint_path(run_dir), ignore_errors=True)
     structures = build_structures(run_dir, ignore_file_type, peril_filter,
                                   dynamic_footprint, model_df_engine,
-                                  dynamic_footprint_dir=dynamic_footprint_path(run_dir))
+                                  dynamic_footprint_dir=dynamic_footprint_path(run_dir),
+                                  sample_size=sample_size)
 
     os.makedirs(structure_path, exist_ok=True)
 
@@ -710,6 +838,8 @@ def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
         structures['n_cdf_groups'],
         structures['n_unique_groups'],
         structures['n_unique_haz_groups'],
+        structures['placement_sample_size'],
+        structures['n_blended_cdf_groups'],
     ], dtype=np.int64)
     np.save(os.path.join(structure_path, 'metadata'), metadata)
 
@@ -742,5 +872,7 @@ def load_gulmc_structure(run_dir):
     result['n_cdf_groups'] = int(metadata[0])
     result['n_unique_groups'] = int(metadata[1])
     result['n_unique_haz_groups'] = int(metadata[2])
+    result['placement_sample_size'] = int(metadata[3])
+    result['n_blended_cdf_groups'] = int(metadata[4])
 
     return result

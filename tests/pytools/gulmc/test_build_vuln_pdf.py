@@ -4,8 +4,6 @@ import pytest
 from oasislmf.pytools.gulmc.common import agg_vuln_idx_weight_dtype
 from oasislmf.pytools.gulmc.manager import build_vuln_pdf
 
-item_dtype = np.dtype([('areaperil_agg_vuln_idx', np.int32), ('vulnerability_idx', np.int32)])
-
 NDAMAGE_BINS = 4
 HAZ_BIN_ID = np.array([1], dtype=np.int64)
 
@@ -18,23 +16,21 @@ def _make_vuln_array(*rows):
     return vuln_array
 
 
-def _make_agg_item(n_sub):
-    """Build an item using a single aggregate vulnerability block of n_sub constituents."""
-    item = np.zeros(1, dtype=item_dtype)[0]
-    item['areaperil_agg_vuln_idx'] = 0
-    offsets = np.array([0, n_sub], dtype=np.int64)
-    return item, offsets
+def _make_agg_offsets(n_sub):
+    """Offsets of a single aggregate vulnerability block (block 0) of n_sub constituents."""
+    return np.array([0, n_sub], dtype=np.int64)
 
 
 def _run(vuln_array, weights, haz_bin_id=HAZ_BIN_ID):
     """Call build_vuln_pdf with the given constituent weights and hazard bins."""
-    item, offsets = _make_agg_item(len(weights))
+    offsets = _make_agg_offsets(len(weights))
     ja_data = np.zeros(len(weights), dtype=agg_vuln_idx_weight_dtype)
     for i, w in enumerate(weights):
         ja_data[i]['vuln_idx'] = i
         ja_data[i]['weight'] = w
     vuln_pdf_empty = np.empty((len(haz_bin_id), NDAMAGE_BINS), dtype=np.float32)
-    return build_vuln_pdf(item, len(haz_bin_id), haz_bin_id, vuln_array, NDAMAGE_BINS, offsets, ja_data, vuln_pdf_empty)
+    # vulnerability_idx 0 is unused: aggregate block 0 is read instead
+    return build_vuln_pdf(0, 0, len(haz_bin_id), haz_bin_id, vuln_array, NDAMAGE_BINS, offsets, ja_data, vuln_pdf_empty)
 
 
 def test_weighted_sums_to_one_with_undefined_constituent():
