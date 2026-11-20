@@ -70,7 +70,7 @@ CASES = {
          'ri_summaries': [{'id': 1, 'ord_output': ALL_ORD}, {'id': 2, 'ord_output': {'plt_sample': True}}]},
         {'num_reinsurance_iterations': 3, 'fmpy_low_memory': True, 'fmpy_sort_output': True, 'event_shuffle': EVE_NO_SHUFFLE,
          'peril_filter': ['WTC', 'WSS'], 'gulmc_effective_damageability': True, 'gulmc_vuln_cache_size': 50,
-         'dynamic_footprint': True, 'gul_random_generator': 1, 'ri_alloc_rule': 2},
+         'dynamic_footprint': True, 'section_merge': 'sum', 'gul_random_generator': 1, 'ri_alloc_rule': 2},
     ),
     'ri_only_one_layer': (
         {'number_of_samples': 2, 'gul_threshold': 0, 'ri_output': True, 'ri_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}]},
@@ -270,7 +270,8 @@ def test_plan_tree_shape(tmp_path):
     assert spec.run_dir == str(run_dir)
     assert spec.gul == {'sample_size': 10, 'loss_threshold': 0.0, 'alloc_rule': 0, 'debug': 0, 'random_generator': 2, 'peril_filter': [],
                         'effective_damageability': False, 'max_cached_vuln_cdf_size_MB': 200,
-                        'model_df_engine': 'oasis_data_manager.df_reader.reader.OasisPandasReader', 'dynamic_footprint': False}
+                        'model_df_engine': 'oasis_data_manager.df_reader.reader.OasisPandasReader', 'dynamic_footprint': False,
+                        'section_merge': 'max'}
     assert [(s['name'], s['static_path'], s['allocation_rule'], s['gross'], s['net'], s['feeds_next']) for s in spec.fm] == [
         ('il', 'input', 2, True, False, 'gross'), ('ri', ri_path(1), 3, True, True, 'net'), ('ri', ri_path(2), 3, True, True, None)]
     assert [(n['runtype'], n['inuring_priority'], n['source']['step'], n['source']['output'], n['stage']['run_type'],

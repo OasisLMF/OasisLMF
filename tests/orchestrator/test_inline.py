@@ -99,6 +99,7 @@ def test_cli_args_to_spec_piwind():
         'ignore_file_type': [], 'peril_filter': [], 'data_server': False, 'ignore_correlation': False,
         'ignore_haz_correlation': False, 'effective_damageability': False, 'max_cached_vuln_cdf_size_MB': 200,
         'model_df_engine': 'oasis_data_manager.df_reader.reader.OasisPandasReader', 'dynamic_footprint': False,
+        'section_merge': 'max',
     }
     fm_common = {'low_memory': False, 'sort_output': False, 'storage_method': 'sparse'}
     assert spec.fm == [

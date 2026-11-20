@@ -26,6 +26,7 @@ from dataclasses import asdict, dataclass, field
 from oasislmf.execution.bash import (ORD_ALT_MEANONLY_OUTPUT_SWITCHES, ORD_ALT_OUTPUT_SWITCHES,
                                      ORD_EPT_OUTPUT_SWITCHES, ORD_LECCALC, ORD_PSEPT_OUTPUT_SWITCHES, OUTPUT_SWITCHES,
                                      get_ri_inuring_priorities, get_rl_inuring_priorities, ord_enabled)
+from oasislmf.pytools.getmodel.common import SECTION_MERGE_DEFAULT
 from oasislmf.utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES, EVE_NO_SHUFFLE, EVE_ROUND_ROBIN,
                                      EVE_STD_SHUFFLE)
 
@@ -269,6 +270,7 @@ def _gulmc_kwargs(bash_params):
         'max_cached_vuln_cdf_size_MB': int(bash_params.get('gulmc_vuln_cache_size') or DEFAULT_VULN_CACHE_MB),
         'model_df_engine': bash_params.get('model_df_engine') or 'oasis_data_manager.df_reader.reader.OasisPandasReader',
         'dynamic_footprint': bool(bash_params.get('dynamic_footprint')),
+        'section_merge': bash_params.get('section_merge') or SECTION_MERGE_DEFAULT,
     }
 
 
@@ -513,6 +515,8 @@ def _gul_command(spec, k, n_chunks, eve_flag):
         argv += ['--vuln-cache-size', str(gul['max_cached_vuln_cdf_size_MB'])]
     if gul.get('dynamic_footprint'):
         argv += ['--dynamic-footprint', 'True']
+    if gul.get('section_merge') and gul['section_merge'] != SECTION_MERGE_DEFAULT:
+        argv += ['--section-merge', gul['section_merge']]
     return argv + [f"-S{gul['sample_size']}", f"-L{gul['loss_threshold']}", f"-a{gul['alloc_rule']}"]
 
 

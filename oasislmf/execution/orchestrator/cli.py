@@ -25,6 +25,7 @@ import sys
 import numpy as np
 
 from oasislmf.execution.bash import bash_params as make_bash_params
+from oasislmf.pytools.getmodel.common import SECTION_MERGE_DEFAULT, SECTION_MERGE_OPTIONS
 from oasislmf.utils.data import get_json
 
 from .chain import TAPS, build_chain_spec
@@ -171,6 +172,9 @@ def build_parser():
     gul.add_argument('--model-df-engine', default='oasis_data_manager.df_reader.reader.OasisPandasReader',
                      help='engine used to load model dataframes')
     gul.add_argument('--dynamic-footprint', action='store_true', default=False, help='apply dynamic footprint logic')
+    gul.add_argument('--section-merge', default=SECTION_MERGE_DEFAULT, choices=SECTION_MERGE_OPTIONS,
+                     help='how a dynamic footprint merges the intensities of an areaperil lying in several sections of one '
+                          f'event. Default: {SECTION_MERGE_DEFAULT}')
 
     fm = parser.add_argument_group('fm (as fmpy)')
     fm.add_argument('--il-alloc-rule', type=int, default=2, help='IL back-allocation rule (fmpy -a). Default: 2')
@@ -207,6 +211,7 @@ def spec_from_args(args):
         'max_cached_vuln_cdf_size_MB': args.max_cached_vuln_cdf_size_MB,
         'model_df_engine': args.model_df_engine,
         'dynamic_footprint': args.dynamic_footprint,
+        'section_merge': args.section_merge,
     }
     fm_common = {'low_memory': args.low_memory, 'sort_output': args.sort_output, 'storage_method': args.storage_method}
     il = {'allocation_rule': args.il_alloc_rule, 'static_path': 'input', **fm_common}

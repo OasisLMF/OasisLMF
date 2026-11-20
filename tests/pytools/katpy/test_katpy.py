@@ -1,6 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import shutil
+import tempfile
 from tempfile import TemporaryDirectory
 
 import numpy as np
@@ -134,29 +135,72 @@ def test_katpy_parquet_unsorted():
     case_runner("pqplt", "upkatpy_qplt.parquet", False)
 
 
+REAL_UNLINK = Path.unlink
+
+
+def windows_unlink(self, *args, **kwargs):
+    """``Path.unlink`` failing as on Windows when the file is still open or memory mapped (WinError 32)."""
+    process = psutil.Process()
+    in_use = {Path(f.path) for f in process.open_files()}
+    if hasattr(process, "memory_maps"):
+        in_use |= {Path(m.path) for m in process.memory_maps() if m.path}
+    if Path(self).resolve() in in_use:
+        raise PermissionError(f"[WinError 32] The process cannot access the file because it is being used by another process: '{self}'")
+    return REAL_UNLINK(self, *args, **kwargs)
+
+
+@pytest.fixture
+def temp_dir(monkeypatch, tmp_path):
+    """Directory where katpy creates its temporary .bin, apart from the output."""
+    temp_dir = tmp_path / "tmp"
+    temp_dir.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp_dir))
+    return temp_dir
+
+
 @pytest.mark.parametrize("out_name", ["katpy_qplt.csv", "katpy_qplt.parquet"])
-def test_bin_to_tabular_releases_temp_file(monkeypatch, tmp_path, out_name):
+def test_bin_to_tabular_releases_temp_file(monkeypatch, tmp_path, temp_dir, out_name):
     """The temporary .bin of a bin to csv/parquet run is closed and unmapped before it is deleted.
 
     Windows refuses to delete a file that is still open or memory mapped (WinError 32); deleting
-    such a file is made to fail the same way here, and the temporary directory must end up empty.
+    such a file is made to fail the same way here.
     """
-    temp_dir = tmp_path / "tmp"
-    temp_dir.mkdir()
-    monkeypatch.setattr("tempfile.tempdir", str(temp_dir))
-    real_unlink = Path.unlink
-
-    def windows_unlink(self, *args, **kwargs):
-        process = psutil.Process()
-        in_use = {Path(f.path) for f in process.open_files()} | {Path(m.path) for m in process.memory_maps() if m.path}
-        if Path(self).resolve() in in_use:
-            raise PermissionError(f"[WinError 32] The process cannot access the file because it is being used by another process: '{self}'")
-        return real_unlink(self, *args, **kwargs)
-
     monkeypatch.setattr(Path, "unlink", windows_unlink)
 
     out_file = tmp_path / out_name
     main(dir_in=Path(TESTS_ASSETS_DIR, "bqplt"), qplt=True, out=out_file, unsorted=False)
 
     assert out_file.stat().st_size > 0
+    assert list(temp_dir.iterdir()) == []
+
+
+@pytest.mark.parametrize("out_name", ["katpy_qplt.csv", "katpy_qplt.parquet"])
+def test_bin_to_tabular_removes_temp_file_on_error(monkeypatch, tmp_path, temp_dir, out_name):
+    """The temporary .bin is deleted when the concatenation fails before the conversion starts."""
+    def failing_concat(*args, **kwargs):
+        raise RuntimeError("concatenation failed")
+
+    monkeypatch.setattr("oasislmf.pytools.kat.manager.bin_concat_sort_by_headers", failing_concat)
+
+    with pytest.raises(RuntimeError, match="concatenation failed"):
+        main(dir_in=Path(TESTS_ASSETS_DIR, "bqplt"), qplt=True, out=tmp_path / out_name, unsorted=False)
+
+    assert list(temp_dir.iterdir()) == []
+
+
+@pytest.mark.parametrize("out_name, failing", [("katpy_qplt.csv", "write_ndarray_to_fmt_csv"), ("katpy_qplt.parquet", "pa.array")])
+def test_bin_to_tabular_releases_temp_file_on_conversion_error(monkeypatch, tmp_path, temp_dir, out_name, failing):
+    """A conversion that fails part way still lets the temporary .bin be deleted, and its error is the one raised.
+
+    The failing callee keeps its arguments, as a real one would: its frame stays in the traceback with the chunk read.
+    """
+    def fail(*args, **kwargs):
+        raise ValueError("conversion failed")
+
+    monkeypatch.setattr(f"oasislmf.pytools.kat.manager.{failing}", fail)
+    monkeypatch.setattr(Path, "unlink", windows_unlink)
+
+    with pytest.raises(ValueError, match="conversion failed"):
+        main(dir_in=Path(TESTS_ASSETS_DIR, "bqplt"), qplt=True, out=tmp_path / out_name, unsorted=False)
+
     assert list(temp_dir.iterdir()) == []

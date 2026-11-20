@@ -97,8 +97,8 @@ class EventBlock:
 class StreamSink:
     """Sink writing to a real stream (stdout, a pipe, a fifo or a file) with ``write_mv_to_stream``.
 
-    ``write_mv_to_stream`` waits with select until the stream is writable and loops on partial writes, so a slow
-    consumer applies back-pressure instead of the writes failing on a non-blocking pipe.
+    ``write_mv_to_stream`` blocks until the reader takes the bytes and loops on partial writes, so a slow
+    consumer applies back-pressure.
     """
 
     def __init__(self, stream):

@@ -35,7 +35,7 @@ kernel-execution
 
 How ground-up losses are simulated by the Monte-Carlo engine
 (`oasislmf/pytools/gulmc`): the modelling methodology, sampling, correlation,
-disaggregation, and coverage dependency.
+disaggregation, coverage dependency, and dynamic footprints.
 
 ```{toctree}
 :maxdepth: 1
@@ -46,6 +46,7 @@ sampling-methodology
 correlation
 disaggregation
 coverage-dependency
+dynamic-footprint
 ```
 
 ## Adjustments & methodology

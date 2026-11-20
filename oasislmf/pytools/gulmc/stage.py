@@ -70,6 +70,8 @@ class GulmcStage:
         model_df_engine (str, optional): The engine to use when loading model dataframes. Defaults to OasisPandasReader.
         dynamic_footprint (bool, optional): if True, load the dynamic footprint data and adjust hazard intensities at
           runtime. Defaults to False.
+        section_merge (str, optional): how a dynamic footprint merges an areaperil's intensities across the sections of
+          one event (see Footprint.load). Defaults to None, the footprint's default.
 
     Attributes:
         header (bytes): the stream header (stream type and sample size) gulmc writes before its first event.
@@ -83,7 +85,7 @@ class GulmcStage:
                  ignore_file_type=(), peril_filter=(), data_server=None, ignore_correlation=False,
                  ignore_haz_correlation=False, effective_damageability=False,
                  max_cached_vuln_cdf_size_MB=200, model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
-                 dynamic_footprint=False):
+                 dynamic_footprint=False, section_merge=None):
         ignore_file_type = set(ignore_file_type)
 
         if alloc_rule not in [0, 1, 2, 3]:
@@ -103,12 +105,12 @@ class GulmcStage:
         with ExitStack() as stack:
             self._setup(stack, run_dir, sample_size, loss_threshold, alloc_rule, debug, random_generator, ignore_file_type,
                         peril_filter, data_server, ignore_correlation, ignore_haz_correlation, effective_damageability,
-                        max_cached_vuln_cdf_size_MB, model_df_engine, dynamic_footprint)
+                        max_cached_vuln_cdf_size_MB, model_df_engine, dynamic_footprint, section_merge)
             self._stack = stack.pop_all()
 
     def _setup(self, stack, run_dir, sample_size, loss_threshold, alloc_rule, debug, random_generator, ignore_file_type,
                peril_filter, data_server, ignore_correlation, ignore_haz_correlation, effective_damageability,
-               max_cached_vuln_cdf_size_MB, model_df_engine, dynamic_footprint):
+               max_cached_vuln_cdf_size_MB, model_df_engine, dynamic_footprint, section_merge):
         """Build the structures, footprint, random generator state and buffers the event loop uses.
 
         Args:
@@ -128,6 +130,7 @@ class GulmcStage:
             max_cached_vuln_cdf_size_MB (int): as for the constructor.
             model_df_engine (str): as for the constructor.
             dynamic_footprint (bool): as for the constructor.
+            section_merge (str or None): as for the constructor.
         """
         # --- load or build read-only structures --------------------------------
         # the dynamic footprint's hazard is memory-mapped when create_gulmc_structure saved it
@@ -259,6 +262,7 @@ class GulmcStage:
         else:
             footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
                                                 df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids,
+                                                section_merge=section_merge,
                                                 shared_dir=footprint_shared_dir))
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
