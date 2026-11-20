@@ -1012,11 +1012,15 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         The raster is not held in memory: each call reads only the requested bands over the rows and columns spanned
         by its locations, in strips that fit within GEOTIFF_READ_BUDGET_BYTES.
 
+        Pixels the raster marks as invalid, through a band's nodata value or a GDAL mask band, take the band's
+        default, as do locations outside the raster or with missing coordinates.
+
         Args:
             file_path: path to the geotiff file
             band_info: a dict where keys are assigned column name, and values are dicts with
                 id is the id of the band in the tiff file (starting at 1)
-                default is the value for locations outside of the raster or with missing coordinates
+                default is the value for nodata pixels and for locations outside of the raster or with missing
+                coordinates
         Returns:
             function to assign band value to each corresponding lat lon
         """
@@ -1063,8 +1067,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                         col_start = int(strip_col.min())
                         window = Window(col_start, row_start,
                                         int(strip_col.max()) + 1 - col_start, int(strip_row[-1]) + 1 - row_start)
-                        data = dataset.read(band_ids, window=window, out_dtype=dtype)  # (band, row, col)
-                        res[loc_idx[start:end]] = data[:, strip_row - row_start, strip_col - col_start].T
+                        # (band, row, col), masked where the band's nodata value or mask band marks a pixel invalid
+                        data = dataset.read(band_ids, window=window, out_dtype=dtype, masked=True)
+                        values = data.data[:, strip_row - row_start, strip_col - col_start].T
+                        invalid = np.ma.getmaskarray(data)[:, strip_row - row_start, strip_col - col_start].T
+                        res[loc_idx[start:end]] = np.where(invalid, defaults, values)
                         start = end
 
             for col_i, col_name in enumerate(band_info.keys()):

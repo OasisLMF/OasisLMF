@@ -428,11 +428,11 @@ def test_build_set_status_rejects_unknown_status_value():
         fct(locations)
 
 
-def _write_geotiff(path, data, transform):
-    """Write ``data`` (band, row, col) to a GeoTIFF at ``path`` with the given affine transform."""
+def _write_geotiff(path, data, transform, nodata=None):
+    """Write ``data`` (band, row, col) to a GeoTIFF at ``path`` with the given affine transform and nodata value."""
     rasterio = pytest.importorskip("rasterio")
     with rasterio.open(path, "w", driver="GTiff", height=data.shape[1], width=data.shape[2], count=data.shape[0],
-                       dtype=data.dtype, transform=transform, crs="EPSG:4326") as dst:
+                       dtype=data.dtype, transform=transform, crs="EPSG:4326", nodata=nodata) as dst:
         dst.write(data)
     return path
 
@@ -511,6 +511,35 @@ def test_build_geotiff_strip_reads_match_single_read(tmp_path, monkeypatch):
     inside = (col >= 0) & (col < 40) & (row >= 0) & (row < 50)
     expected = np.where(inside, data[0, row.clip(0, 49).astype(int), col.clip(0, 39).astype(int)], -1)
     assert single["first"].tolist() == expected.tolist()
+
+
+@pytest.mark.parametrize("dtype, nodata", [("int16", -9999), ("float32", np.nan), ("float32", -3.4e38)])
+def test_build_geotiff_replaces_nodata_with_band_default(tmp_path, dtype, nodata):
+    """Pixels holding the raster's nodata value take the column's default; other pixels keep their value,
+    and a value equal to another column's default is not mistaken for nodata."""
+    from affine import Affine
+    # 1 band, 1 row, 3 cols: valid, nodata, valid
+    data = np.array([[[7, nodata, 9]]], dtype=dtype)
+    path = _write_geotiff(tmp_path / "nodata.tif", data, Affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0), nodata=nodata)
+    band_info = OrderedDict([("first", {"id": 1, "default": -1}), ("again", {"id": 1, "default": -2})])
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5, 2.5, 5.0], "latitude": [0.5] * 4}))
+
+    assert result["first"].tolist() == [7, -1, 9, -1]
+    assert result["again"].tolist() == [7, -2, 9, -2]
+
+
+def test_build_geotiff_without_nodata_keeps_every_value(tmp_path):
+    """A raster with no nodata value has no invalid pixels, even ones holding a typical nodata number."""
+    from affine import Affine
+    data = np.array([[[7, -9999]]], dtype="int16")
+    path = _write_geotiff(tmp_path / "no_nodata.tif", data, Affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0))
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5], "latitude": [0.5, 0.5]}))
+
+    assert result["value"].tolist() == [7, -9999]
 
 
 def test_build_geotiff_rejects_band_id_outside_file(tmp_path):

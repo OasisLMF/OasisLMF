@@ -509,7 +509,8 @@ Build a lookup function that assigns geotiff band values to each location from i
 
 ``band_info``: a dict where keys are the assigned column names, and values are dicts with:
    * ``id``: the id of the band in the tiff file
-   * ``default``: the value for locations outside of the geotiff's range or with missing coordinates
+   * ``default``: the value for pixels the geotiff marks as nodata, and for locations outside of the geotiff's
+     range or with missing coordinates
 
 Each location takes the values of the pixel that contains it. The file is read with ``rasterio``, which only loads
 the requested bands over the area covered by the locations, so large rasters do not need to fit in memory.
