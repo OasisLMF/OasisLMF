@@ -90,12 +90,12 @@ def placed_on(items, areaperil_id):
     return [(i, c, areaperil_id if ap in (BLENDED, BLENDED_2) else ap, loc, b) for i, c, ap, loc, b in items]
 
 
-def gul_losses(run_dir, sample_size=SAMPLES, effective_damageability=False):
+def gul_losses(run_dir, sample_size=SAMPLES, effective_damageability=False, **kwargs):
     """Run gulmc on ``run_dir`` and return its losses indexed by (event_id, item_id, sidx)."""
     out = run_dir / 'gul.bin'
     run_gulmc(run_dir=run_dir, ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin', file_out=out,
               sample_size=sample_size, loss_threshold=0., alloc_rule=0, debug=0, random_generator=2,
-              ignore_correlation=False, effective_damageability=effective_damageability)
+              ignore_correlation=False, effective_damageability=effective_damageability, **kwargs)
     return read_gul_stream(out)[2].set_index(['event_id', 'item_id', 'sidx'])['loss']
 
 
@@ -385,6 +385,33 @@ def test_buildings_of_one_blend_are_each_judged_by_their_own_protection(tmp_path
 
     pd.testing.assert_series_equal(mixed.xs(1, level='item_id'), protected.xs(1, level='item_id'))
     pd.testing.assert_series_equal(mixed.xs(2, level='item_id'), unprotected.xs(2, level='item_id'))
+
+
+@pytest.mark.parametrize('effective_damageability', [False, True], ids=['eff=False', 'eff=True'])
+def test_blended_cdfs_evicting_each_other_from_the_cache_lose_the_same(tmp_path, monkeypatch, effective_damageability):
+    """Buildings that alternate between two blended cdfs lose the same with a cdf cache too small to
+    hold both, so that each evicts the other, as with the default cache.
+
+    Items are computed in blended areaperil and vulnerability order, so only items that share both
+    can alternate: here, buildings on one blend alternately protected at A and not.
+    """
+    items = [(i, i, BLENDED, i, 1) for i in (1, 2, 3, 4)]
+    blend = blend_rows([(1, A), (1, B)])
+
+    def run(name, **kwargs):
+        run_dir = make_dynamic(write_model(tmp_path / name, items, blend), protection=0)
+        pd.DataFrame({'item_id': [1, 2, 3, 4], 'intensity_adjustment': 0, 'return_period': [50, 0, 50, 0]}).to_csv(
+            run_dir / 'input' / 'item_adjustments.csv', index=False)
+        monkeypatch.chdir(run_dir)
+        out = run_dir / 'gul.bin'
+        run_gulmc(run_dir=run_dir, ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin', file_out=out,
+                  sample_size=SAMPLES, loss_threshold=0., alloc_rule=0, debug=0, random_generator=2, dynamic_footprint=True,
+                  effective_damageability=effective_damageability, **kwargs)
+        return read_gul_stream(out)[2].set_index(['event_id', 'item_id', 'sidx'])['loss']
+
+    # room for two cdfs of test_model_1's 12 damage bins: one for the cells, one for the blended cdfs
+    two_cdfs_mb = 2 * 12 * 4 / 1024 / 1024
+    pd.testing.assert_series_equal(run('small', max_cached_vuln_cdf_size_MB=two_cdfs_mb), run('default'))
 
 
 @pytest.mark.skipif(os.environ.get("NUMBA_DISABLE_JIT", "0") != "0",

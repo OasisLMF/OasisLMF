@@ -126,6 +126,7 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     ('item_j', oasis_int),
     ('building_b', oasis_int),
     ('cdf_cache_ctr', np.int64),
+    ('blended_cdf_cache_ctr', np.int64),
     ('max_bytes_per_item', np.int64),
     ('Ndamage_bins_max', oasis_int),
     ('sample_size', oasis_int),

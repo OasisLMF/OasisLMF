@@ -170,7 +170,8 @@ def run(run_dir,
         ignore_haz_correlation (bool, optional): if True, do not compute correlated hazard intensity samples. Defaults to False.
         effective_damageability (bool, optional): if True, it uses effective damageability to draw damage samples instead of
           using the full monte carlo approach (i.e., to draw hazard intensity first, then damage).
-        max_cached_vuln_cdf_size_MB (int, optional): size in MB of the in-memory cache to store and reuse vulnerability cdf. Defaults to 200.
+        max_cached_vuln_cdf_size_MB (int, optional): size in MB of the in-memory caches to store and reuse vulnerability cdf,
+          shared between the cell and blended cdf caches. Defaults to 200.
         model_df_engine (str, optional): The engine to use when loading model dataframes. Defaults to OasisPandasReader.
         dynamic_footprint (bool, optional): if True, load the dynamic footprint data and adjust hazard intensities at
           runtime. Defaults to False.
@@ -491,7 +492,19 @@ def run(run_dir,
         # define vulnerability cdf cache size
         max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cache size in bytes
         max_Nnumbers_cached_vuln_cdf = max_cached_vuln_cdf_size_bytes // oasis_float.itemsize  # total numbers that can fit in the cache
-        max_Nvulnerability_cached_vuln_cdf = max_Nnumbers_cached_vuln_cdf // Ndamage_bins_max  # max number of vulnerability functions that can be stored in cache
+        # max number of cdfs that can be stored in cache
+        max_Nvulnerability_cached_vuln_cdf = int(max_Nnumbers_cached_vuln_cdf // Ndamage_bins_max)
+        # The budget is shared with the blended cdfs (one per blended cdf group), which have a ring of
+        # their own: in the cell ring, the cells each item resolves for its samples would evict its
+        # group's cdf and send the next item back over all of the group's areaperils. A group's cdf
+        # replaces K cell resolutions, so the blended ring takes up to half the budget, one slot per
+        # group, rounded down to a power of two; with no blending it is a single unused slot.
+        if n_blended_cdf_groups > 0:
+            n_blended_cdf_slots = min(1 << (n_blended_cdf_groups - 1).bit_length(),
+                                      1 << (max(max_Nvulnerability_cached_vuln_cdf // 2, 1).bit_length() - 1))
+        else:
+            n_blended_cdf_slots = 1
+        max_Nvulnerability_cached_vuln_cdf = max(max_Nvulnerability_cached_vuln_cdf - n_blended_cdf_slots, 1)
         # number of vulnerability functions to be cached, rounded up to power of two for bitwise masking.
         # The cache must fit at least one full multi-block write for a single item — that is
         # 1 effective damage CDF + Nintensity_bins per-bin vuln CDFs — otherwise a block can
@@ -503,6 +516,8 @@ def run(run_dir,
         logger.info(f"max vulnerability cdf cache size is {max_cached_vuln_cdf_size_MB}MB")
         logger.info(
             f"generating a cache of shape ({Nvulns_cached}, {Ndamage_bins_max}) and size {Nvulns_cached * Ndamage_bins_max * oasis_float.itemsize / 1024 / 1024:8.3f}MB")
+        if n_blended_cdf_groups > 0:
+            logger.info(f"generating a blended cdf cache of {n_blended_cdf_slots} slots for {n_blended_cdf_groups} blended cdf groups")
 
         # maximum bytes to be written in the output stream for 1 item
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
@@ -556,6 +571,8 @@ def run(run_dir,
         cdf_cache_tag = np.full(n_cdf_groups, CDF_CACHE_EMPTY, dtype=np.int64)
         cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
         blended_cdf_cache_tag = np.full(n_blended_cdf_groups, CDF_CACHE_EMPTY, dtype=np.int64)
+        blended_cdf_cache = np.empty((n_blended_cdf_slots, Ndamage_bins_max), dtype=oasis_float)
+        blended_cdf_cache_nbins = np.zeros(n_blended_cdf_slots, dtype=np.int32)
         # a blended cdf group's Hermite terms are kept only when some item sums correlated buildings
         needs_hermite = do_correlation and np.any((items['packed_buildings'] > 1) & (items['damage_correlation_value'] > 0))
         blended_cdf_hermite = np.zeros((n_blended_cdf_groups if needs_hermite else 0, 2, HERMITE_TERMS), dtype=np.float64)
@@ -650,6 +667,7 @@ def run(run_dir,
                 # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
                 cdf_cache_tag[:] = CDF_CACHE_EMPTY
                 blended_cdf_cache_tag[:] = CDF_CACHE_EMPTY
+                compute_info['blended_cdf_cache_ctr'] = 0
                 compute_info['cdf_cache_ctr'] = 0
 
                 processing_done = False
@@ -678,6 +696,8 @@ def run(run_dir,
                             blended_cdf_item_ind,
                             blended_cdf_groups,
                             blended_cdf_cache_tag,
+                            blended_cdf_cache,
+                            blended_cdf_cache_nbins,
                             blended_cdf_hermite,
                             max_areaperils_per_item,
                             sample_size,
@@ -1410,6 +1430,8 @@ def compute_event_losses(compute_info,
                          blended_cdf_item_ind,
                          blended_cdf_groups,
                          blended_cdf_cache_tag,
+                         blended_cdf_cache,
+                         blended_cdf_cache_nbins,
                          blended_cdf_hermite,
                          max_areaperils_per_item,
                          sample_size,
@@ -1502,8 +1524,12 @@ def compute_event_losses(compute_info,
         blended_cdf_groups (np.array[int64]): per blended item, its blended cdf group: the items
           that read one effective damage cdf (same blended areaperil, vulnerability, and under a
           dynamic footprint intensity adjustment and protection).
-        blended_cdf_cache_tag (np.array[int64]): per blended cdf group, the cdf cache write counter
-          when its cdf was cached (CDF_CACHE_EMPTY = -1). The cdf takes one slot of the cdf cache.
+        blended_cdf_cache_tag (np.array[int64]): per blended cdf group, the value of
+          ``compute_info['blended_cdf_cache_ctr']`` when its cdf was cached (CDF_CACHE_EMPTY = -1).
+        blended_cdf_cache (np.array[oasis_float, 2d]): ring of blended cdfs, one per slot; its row
+          count is a power of two. Kept apart from the cell cache, whose slots the cells an item
+          resolves for its samples keep rewriting.
+        blended_cdf_cache_nbins (np.array[int32]): per slot, its cdf's length.
         blended_cdf_hermite (np.array[float64, 3d]): per blended cdf group, the Hermite terms of its
           cdf without the tiv, as [part the tiv multiplies, part it does not]. Empty when no item
           needs them.
@@ -1571,7 +1597,7 @@ def compute_event_losses(compute_info,
         bool: True if all coverages have been processed, False if the buffer is full and
           the caller should flush and call again.
     """
-    cdf_cache_size = nb_int64(cdf_cache_mask + 1)
+    blended_cdf_cache_mask = nb_int64(blended_cdf_cache.shape[0] - 1)
     # a dynamic footprint's records merged per intensity bin (see merge_dynamic_haz_records_per_bin)
     n_bin_ids = intensity_bins.max() + 1 if intensity_bins.size > 0 else 1
     bin_slot = np.full(n_bin_ids, -1, dtype=np.int64)
@@ -1692,7 +1718,10 @@ def compute_event_losses(compute_info,
             if shares_blended_cdf:
                 blended_cdf_group = blended_cdf_groups[id_index_get_idx(blended_cdf_item_ind, item_idx)]
                 stored = blended_cdf_cache_tag[blended_cdf_group]
-                if stored < 0 or compute_info['cdf_cache_ctr'] - stored >= cdf_cache_size:
+                # A slot is overwritten only by the write that wraps round to it, so a cdf holds until the
+                # ring has taken as many writes after it as it has slots: with a slot per group, the
+                # whole event.
+                if stored < 0 or compute_info['blended_cdf_cache_ctr'] - stored > blended_cdf_cache_mask + 1:
                     # Walk the areaperils once for the whole group. Their hazard rows are scratch:
                     # each is written at row 0 and read here at most, as sampling resolves its own.
                     group_hermite = blended_cdf_hermite.shape[0] > 0
@@ -1746,18 +1775,18 @@ def compute_event_losses(compute_info,
                         areaperil_j_to_eff_damage_cdf[:n_areaperils], areaperil_j_to_Neff_damage_bins[:n_areaperils],
                         blended_areaperil_ja_probabilities[blended_start:blended_start + n_areaperils],
                         areaperil_j_live[:n_areaperils], mixed_eff_damage_cdf)
-                    # the group's cdf takes one slot of the cdf cache; an empty one means nothing is live
-                    blended_cdf_cache_tag[blended_cdf_group] = compute_info['cdf_cache_ctr']
-                    cache_idx = compute_info['cdf_cache_ctr'] & cdf_cache_mask
+                    # an empty cdf means nothing is live
+                    blended_cdf_cache_tag[blended_cdf_group] = compute_info['blended_cdf_cache_ctr']
+                    cache_idx = compute_info['blended_cdf_cache_ctr'] & blended_cdf_cache_mask
                     for damage_bin_i in range(n_mixed):
-                        cached_vuln_cdfs[cache_idx, damage_bin_i] = mixed_eff_damage_cdf[damage_bin_i]
-                    cdf_cache_nbins[cache_idx] = nb_int32(n_mixed)
-                    compute_info['cdf_cache_ctr'] += 1
+                        blended_cdf_cache[cache_idx, damage_bin_i] = mixed_eff_damage_cdf[damage_bin_i]
+                    blended_cdf_cache_nbins[cache_idx] = nb_int32(n_mixed)
+                    compute_info['blended_cdf_cache_ctr'] += 1
                 else:
-                    cache_idx = stored & cdf_cache_mask
-                    n_mixed = cdf_cache_nbins[cache_idx]
+                    cache_idx = stored & blended_cdf_cache_mask
+                    n_mixed = blended_cdf_cache_nbins[cache_idx]
                     for damage_bin_i in range(n_mixed):
-                        mixed_eff_damage_cdf[damage_bin_i] = cached_vuln_cdfs[cache_idx, damage_bin_i]
+                        mixed_eff_damage_cdf[damage_bin_i] = blended_cdf_cache[cache_idx, damage_bin_i]
                 n_live = n_mixed
                 if do_hermite:
                     for k in range(HERMITE_TERMS):

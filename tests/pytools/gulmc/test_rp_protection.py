@@ -299,7 +299,8 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_areaperil_j,
         blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
         id_index_build(np.zeros(0, dtype=np.int32)), np.zeros(0, dtype=np.int64),  # no item mixes
-        np.zeros(0, dtype=np.int64), np.zeros((0, 2, HERMITE_TERMS)), 1,
+        np.zeros(0, dtype=np.int64), np.empty((1, Ndamage_bins), dtype=oasis_float), np.zeros(1, dtype=np.int32),
+        np.zeros((0, 2, HERMITE_TERMS)), 1,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, conditional_vuln_array, vuln_idx_to_cond_idx, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
@@ -637,7 +638,8 @@ def test_rp_protection_only_affects_protected_items():
         blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_areaperil_j,
         blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
         id_index_build(np.zeros(0, dtype=np.int32)), np.zeros(0, dtype=np.int64),  # no item mixes
-        np.zeros(0, dtype=np.int64), np.zeros((0, 2, HERMITE_TERMS)), 1,
+        np.zeros(0, dtype=np.int64), np.empty((1, Ndamage_bins), dtype=oasis_float), np.zeros(1, dtype=np.int32),
+        np.zeros((0, 2, HERMITE_TERMS)), 1,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, conditional_vuln_array, vuln_idx_to_cond_idx, damage_bins,
         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
