@@ -29,7 +29,7 @@ try:  # needed for rtree
     except ImportError:
         BallTree = None
 except ImportError:
-    Point = gdp = None
+    Point = gpd = BallTree = None
 
 try:  # needed for geotiff
     import rasterio

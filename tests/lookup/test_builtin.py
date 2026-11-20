@@ -1,3 +1,6 @@
+import subprocess
+import sys
+import textwrap
 from collections import OrderedDict
 from pathlib import Path
 
@@ -546,6 +549,27 @@ def test_build_geotiff_rejects_band_id_outside_file(tmp_path):
     with pytest.raises(OasisException, match=r"outside of \[1-3\]"):
         Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
                                         band_info={"value": {"id": 4, "default": -1}})
+
+
+def test_builtin_imports_without_spatial_packages():
+    """Without shapely and geopandas the module still imports, every spatial name is None, and rtree
+    raises an OasisException pointing at the spatial extra."""
+    code = textwrap.dedent("""
+        import sys
+        for name in ("shapely", "shapely.geometry", "geopandas", "sklearn", "sklearn.neighbors"):
+            sys.modules[name] = None  # makes any import of it raise ImportError
+        from oasislmf.lookup import builtin
+        from oasislmf.utils.exceptions import OasisException
+        assert builtin.Point is None and builtin.gpd is None and builtin.BallTree is None
+        try:
+            builtin.Lookup(config={}).build_rtree(file_path="unused.parquet", file_type="parquet", id_columns=[])
+        except OasisException as e:
+            assert "oasislmf[spatial]" in str(e), e
+        else:
+            raise AssertionError("build_rtree did not raise")
+    """)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
 
 
 # --- geog_lookup (GeogScheme/GeogName resolution) -----------------------------
