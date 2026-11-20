@@ -10,14 +10,9 @@ from numba import njit
 import time
 from oasislmf.utils.ping import oasis_ping, oasis_ping_async
 
-from oasislmf.pytools.common.data import correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, check_packing_supported,
-                                                  encode_sidx, max_emitted_blocks,
-                                                  mv_write_item_header, write_mv_to_stream,
-                                                  mv_write_sidx_loss,
-                                                  stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM,
-                                                  ITEM_PACKED_STREAM)
-from oasislmf.pytools.getmodel.common import oasis_float
+from oasislmf.pytools.common.data import items_dtype
+from oasislmf.pytools.common.event_stream import (encode_sidx, mv_write_item_header,
+                                                  mv_write_sidx_loss)
 from oasislmf.pytools.common.data import areaperil_int, oasis_int
 from oasislmf.pytools.common.hashmap import (
     init_dict, unpack as hm_unpack, rehash as hm_rehash,
@@ -25,20 +20,17 @@ from oasislmf.pytools.common.hashmap import (
 )
 from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX,
                                          MAX_LOSS_IDX,
-                                         MEAN_IDX, NUM_IDX, STD_DEV_IDX,
-                                         TIV_IDX,
-                                         gulSampleslevelHeader_size,
-                                         gulSampleslevelRec_size)
+                                         MEAN_IDX, STD_DEV_IDX,
+                                         TIV_IDX)
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul,
                                        accumulate_hermite_coeffs, loss_correlation, HERMITE_TERMS,
                                        apply_alloc_rule)
 from oasislmf.pytools.gul.io import read_getmodel_stream
 from oasislmf.pytools.gul.random import (_lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32,
-                                         cdf_min,
-                                         generate_correlated_hash_vector,
-                                         get_corr_rval, get_random_generator,
-                                         inv_factor, norm_factor, x_min)
+                                         get_corr_rval)
 from oasislmf.pytools.gul.utils import binary_search
+from oasislmf.pytools.common.stage import StreamSink
+from oasislmf.pytools.gul import stage as gul_stage
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
@@ -177,42 +169,22 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         file_in (str, optional): filename of input stream. Defaults to None.
         file_out (str, optional): filename of output stream. Defaults to None.
         ignore_correlation (bool): if True, do not compute correlated random samples.
-        **kwargs: additional keyword arguments, accepted and ignored so that callers can forward a
-          wider parameter dict.
+        **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
+          the port to override; analysis_pk is reported with each ping.
 
     Raises:
-        ValueError: if alloc_rule is not 0, 1, or 2.
+        ValueError: if alloc_rule is not 0, 1, 2, or 3.
 
     Returns:
         int: 0 if no errors occurred.
     """
     logger.info("starting gulpy")
 
-    # --- load or build read-only structures --------------------------------
-    from oasislmf.pytools.gul.structure import (
-        gulpy_structure_exists, load_gulpy_structure,
-        build_structures as gul_build_structures,
-    )
-    if gulpy_structure_exists(run_dir):
-        logger.info("loading pre-computed gulpy structures (shared memory)")
-        structures = load_gulpy_structure(run_dir)
-    else:
-        logger.info("building gulpy structures from input files")
-        structures = gul_build_structures(run_dir, ignore_file_type, peril_filter)
-
-    damage_bins = structures['damage_bins']
-    coverages = structures['coverages'].copy()  # writable copy: cur_items/start_items mutated per event
-    items = structures['items']
-    item_map_hm = structures['item_map_hm']
-    item_map_hm_keys = structures['item_map_hm_keys']
-    item_map_ja_offsets = structures['item_map_ja_offsets']
-
-    # init array to store the coverages to be computed
-    # coverages are numbered from 1, therefore skip element 0.
-    compute = np.zeros(coverages.shape[0] + 1, items.dtype['coverage_id'])
+    stage = gul_stage.GulpyStage(run_dir, sample_size=sample_size, loss_threshold=loss_threshold, alloc_rule=alloc_rule,
+                                 debug=debug, random_generator=random_generator, ignore_file_type=ignore_file_type,
+                                 peril_filter=peril_filter, ignore_correlation=ignore_correlation)
 
     with ExitStack() as stack:
-        # set up streams
         if file_in is None:
             streams_in = sys.stdin.buffer
         else:
@@ -222,191 +194,18 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             stream_out = sys.stdout.buffer
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
+        sink = StreamSink(stream_out)
 
-        # set the random generator function
-        generate_rndm = get_random_generator(random_generator)
-
-        # Building packing is the N > 1 case of one mechanism, not a second path: an unpacked run
-        # is every item carrying one building, and the packed generator's first block per seed is
-        # the legacy draw byte-for-byte. So the compute always takes the packed route.
-        # Signed: magnitude is the building count, a negative sign means "keep the buildings
-        # separate". Unpacked into locals wherever it is consumed -- never used raw as a bound.
-        n_buildings_by_item_id = structures['n_buildings_by_item_id']
-        if debug:
-            # debug writes the random values drawn, one per building; summed at source they would
-            # add up to anywhere in [0, N] instead of [0, 1], so every item keeps its buildings separate
-            n_buildings_by_item_id = -np.abs(n_buildings_by_item_id)
-        damage_correlation_by_item_id = structures['damage_correlation_by_item_id']
-        max_buildings = int(np.abs(n_buildings_by_item_id).max())
-        check_packing_supported(random_generator, n_buildings_by_item_id)
-        # only kept-separate items meet either stream ceiling: a summed one writes a single
-        # block at sidx 1..S however many buildings it carries
-        emitted_blocks = max_emitted_blocks(n_buildings_by_item_id)
-        check_packed_item_fits(emitted_blocks, sample_size)
-
-        # The header has to wait for the building counts: the aggregation type says whether a
-        # reader may meet a packed sidx, and only a kept-separate item emits one. A run that packs
-        # nothing -- or packs only items summed at source -- declares ITEM_STREAM and is
-        # byte-for-byte what it was before packing existed.
-        stream_out.write(stream_info_to_bytes(
-            LOSS_STREAM_ID, ITEM_PACKED_STREAM if emitted_blocks > 1 else ITEM_STREAM))
-        stream_out.write(np.int32(sample_size).tobytes())
-
-        if alloc_rule not in [0, 1, 2, 3]:
-            raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
-
-        cursor = 0
-
-        # create the array to store the seeds
-        seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
-
-        # --- correlation setup from pre-computed structures --------------------
-        do_correlation = bool(structures['do_correlation'])
-        if ignore_correlation:
-            do_correlation = False
-            logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
-            # The structures were built with the file's correlation, and --ignore-correlation is a
-            # RUN-time flag the build never saw. A summed packed item's std_dev is combined with
-            # this value, so leaving it would report the spread of a correlation nothing drew --
-            # and worse, the dummy norm_inv_cdf substituted below would make the Hermite
-            # coefficients meaningless rather than merely stale. gulmc writes the effective value
-            # per event for the same reason; gulpy carries it per item, so zero it here.
-            damage_correlation_by_item_id = np.zeros_like(damage_correlation_by_item_id)
-
-        if do_correlation:
-            logger.info("Correlated random number generation: switched ON.")
-            corr_data_by_item_id = structures['corr_data_by_item_id']
-            unique_peril_correlation_groups = structures['unique_peril_correlation_groups']
-            norm_inv_cdf = structures['norm_inv_cdf']
-            norm_cdf = structures['norm_cdf']
-
-            corr_seeds = np.zeros(np.max(unique_peril_correlation_groups) + 1, dtype='int64')
-
-            arr_min, arr_min_cdf = x_min, cdf_min
-            arr_inv_factor, arr_norm_factor = inv_factor, norm_factor
-
-            # buffer to be re-used to store all the correlated random values
-            z_unif = np.zeros(sample_size, dtype='float64')
-
-        else:
-            if not ignore_correlation:
-                logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
-                            "the correlation value is zero for all peril correlation groups.")
-            # create dummy data structures with proper dtypes to allow correct numba compilation
-            corr_seeds = np.zeros(1, dtype='int64')
-            corr_data_by_item_id = np.ndarray(1, dtype=correlations_dtype)
-            arr_min, arr_min_cdf = 0., 0.
-            arr_inv_factor, arr_norm_factor = 0., 0.
-            norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
-            z_unif = np.zeros(1, dtype='float64')
-
-        # create buffer to be reused to store all losses for one coverage
-        max_items_per_coverage = np.max(coverages[1:]['max_items'])
-        losses_buffer = np.zeros((sample_size + NUM_IDX + 1, max_items_per_coverage), dtype=oasis_float)
-        # Per-building samples: the specials stay on losses_buffer, being building-independent.
-        # write_losses reduces across items at a fixed building and then sums the buildings, so a
-        # coverage's every building has to be resident before any of it can be written.
-        building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buildings),
-                                   dtype=oasis_float)
-        # per item of the current coverage, the correlation between two of its buildings'
-        # LOSSES -- 0 unless the item is summed and correlated, the only case that reads it
-        loss_correlation_by_item = np.zeros(max_items_per_coverage, dtype=oasis_float)
-        # Generator 2 is counter-based, so a building's block is a pure function of the group
-        # key and the building index and can be produced where it is consumed -- which is the
-        # reason it is the only generator packing is allowed on. These hold one building's worth;
-        # empty_draws stands in for the per-group array that is then never built.
-        lazy_draws = np.int8(1 if random_generator == 2 else 0)
-        draw_scratch = np.zeros(max(sample_size, 1), dtype='float64')
-        perm_scratch = np.zeros(max(sample_size, 1), dtype='float64')
-        # 2d like the real array: numba unifies the two branches of the assignment below, and a
-        # 1d stand-in would make rndms_base[rng_index] a scalar on one side and a row on the other
-        empty_draws = np.empty((1, 1), dtype='float64')
-        hermite_coeffs = np.zeros(HERMITE_TERMS, dtype='float64')
-        # Resume point WITHIN a coverage, so a flush need not fall on a coverage boundary:
-        # [0] is the next item of that coverage to process, [1] how many of its buildings have
-        # already been emitted. gulpy signals resumption through its return value, so this is
-        # carried in an array the callee mutates rather than on a state struct.
-        byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
-
-        # One block: the item header, a building's NUM_IDX specials and S samples, and the
-        # delimiter. Only the first block of an item carries the header and only the last the
-        # delimiter, so charging every block for both is a deliberate over-estimate.
-        max_bytes_per_block = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
-        max_bytes_per_item = max_bytes_per_block
-        # a kept-separate item writes one block of that per building; a summed one writes a single
-        # block whatever it carries
-        max_bytes_per_item *= max_emitted_blocks(n_buildings_by_item_id)
+        stream_out.write(stage.header)
 
         counter = 0
         timer = time.time()
         socket_server_val = kwargs.get('socket_server', 'False')
         ping = socket_server_val != 'False'
         ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
-        for event_data in read_getmodel_stream(streams_in, items,
-                                               item_map_hm, item_map_hm_keys,
-                                               item_map_ja_offsets,
-                                               coverages, compute, seeds):
-            event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
-
-            # One row of sample_size per rng group. Generator 2 draws each building's block
-            # where it is used instead, so nothing is built here for it -- see lazy_draws.
-            if lazy_draws:
-                rndms_base = empty_draws
-            else:
-                rndms_base = generate_rndm(seeds[:rng_index], sample_size)
-
-            # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
-            # generate the correlated samples for the whole event, for all peril correlation groups
-            if do_correlation:
-                generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, corr_seeds)
-                eps_ij = generate_rndm(corr_seeds, sample_size, skip_seeds=1)
-
-            else:
-                # create dummy data structures with proper dtypes to allow correct numba compilation
-                eps_ij = np.zeros((1, 1), dtype='float64')
-
-            last_processed_coverage_ids_idx = 0
-
-            # The buffer has to fit the longest coverage. compute_event_losses returns only
-            # between coverages, so a coverage's whole output accumulates before anything is
-            # written out -- whether it is emitted inline or through write_losses.
-            required_bytes = int(coverages['cur_items'].max()) * max_bytes_per_item
-            byte_mv = adjust_byte_mv_size(byte_mv, required_bytes)
-            while last_processed_coverage_ids_idx < compute_i:
-                resume_point_before = last_processed_coverage_ids_idx
-                cursor, last_processed_coverage_ids_idx = compute_event_losses(
-                    event_id, coverages, compute[:compute_i], items_data,
-                    last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
-                    damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, eps_ij, corr_data_by_item_id,
-                    arr_min, arr_inv_factor, norm_inv_cdf, arr_min_cdf, arr_norm_factor, norm_cdf, z_unif, debug,
-                    building_losses, rndms_base,
-                    seeds, lazy_draws, draw_scratch, perm_scratch,
-                    loss_correlation_by_item, hermite_coeffs,
-                    n_buildings_by_item_id, damage_correlation_by_item_id,
-                    max_bytes_per_item, byte_mv, cursor
-                )
-
-                # A call that stops short must have advanced the resume point. It only stops
-                # because the buffer is full, and the buffer is empty on entry, so if it stops at
-                # the same place it will keep stopping there -- an infinite loop with no error.
-                # The only thing that can move is the coverage index: a coverage is emitted whole,
-                # so stopping means it did not start. The sizing above makes this unreachable;
-                # the check turns a future violation of it into a failure rather than a hang.
-                if (last_processed_coverage_ids_idx < compute_i
-                        and last_processed_coverage_ids_idx <= resume_point_before):
-                    raise RuntimeError(
-                        f"gulpy made no progress on event {event_id}: it asked to resume at "
-                        f"coverage {last_processed_coverage_ids_idx}, no further on than the "
-                        f"{resume_point_before} it started from, having written {cursor} bytes "
-                        f"into a {byte_mv.shape[0]} byte buffer, which must hold the largest "
-                        f"coverage whole.")
-
-                # write the losses to the output stream
-                write_mv_to_stream(stream_out, byte_mv, cursor)
-
-                cursor = 0
-
-            logger.info(f"event {event_id} DONE")
+        for event_data in read_getmodel_stream(streams_in, stage.items, stage.item_map_hm, stage.item_map_hm_keys,
+                                               stage.item_map_ja_offsets, stage.coverages, stage.compute, stage.seeds):
+            stage.process_cdf_event(event_data, sink)
             counter += 1
 
             if ping and time.time() - timer > SERVER_UPDATE_TIME:

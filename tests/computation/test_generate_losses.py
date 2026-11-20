@@ -4,15 +4,19 @@ import pathlib
 import os
 import logging
 import shutil
+import types
+import warnings
 import numpy as np
 
 from unittest.mock import patch, Mock
 
 import pandas as pd
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.computation.generate.losses import GenerateLosses
 from oasislmf.manager import OasisManager
 from oasislmf.pytools.common.input_files import read_coverage_buildings
 from oasislmf.utils.log import LoggingContext
@@ -557,6 +561,175 @@ class TestGenLosses(ComputationChecker):
                 merge_dirs(chunk_work_dir, main_work_dir)
 
             self.manager.generate_losses_output(**call_args)
+
+    def _output_files(self, model_run_dir):
+        output_dir = pathlib.Path(model_run_dir, 'output')
+        return {str(p.relative_to(output_dir)): p.read_bytes() for p in sorted(output_dir.rglob('*')) if p.is_file()}
+
+    def _assert_same_outputs(self, bash_run_dir, orchestrator_run_dir):
+        """Same files under output/, every one byte-identical, and some loss tables among them."""
+        bash_files = self._output_files(bash_run_dir)
+        orchestrator_files = self._output_files(orchestrator_run_dir)
+        self.assertEqual(sorted(bash_files), sorted(orchestrator_files))
+        self.assertTrue(any(name.endswith('.csv') and 'summary-info' not in name for name in bash_files))
+        for name, content in bash_files.items():
+            self.assertEqual(content, orchestrator_files[name], f'output/{name} differs between bash and orchestrator runs')
+
+    def _assert_ran_with(self, model_run_dir, log_dir, orchestrator):
+        self.assertEqual(orchestrator, os.path.isfile(os.path.join(model_run_dir, log_dir, 'orchestrator.log')))
+
+    def _compare_generate_losses(self, files_args, settings, port, **extra_args):
+        """Run generate_losses with bash and with the orchestrator on the same inputs and compare output/."""
+        self.manager.generate_files(**files_args)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), settings)
+        with self.tmp_dir() as bash_run_dir, self.tmp_dir() as orchestrator_run_dir, \
+                patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": port}):
+            for model_run_dir, orchestrator in ((bash_run_dir, False), (orchestrator_run_dir, True)):
+                self.manager.generate_losses(**{
+                    **self.min_args,
+                    'oasis_files_dir': files_args['oasis_files_dir'],
+                    'model_run_dir': model_run_dir,
+                    'kernel_num_processes': 2,
+                    'orchestrator': orchestrator,
+                    **extra_args,
+                })
+                self.assertTrue(os.path.isfile(os.path.join(model_run_dir, 'run_kernel.sh')))
+                self._assert_ran_with(model_run_dir, 'log', orchestrator)
+            self._assert_same_outputs(bash_run_dir, orchestrator_run_dir)
+
+    @pytest.mark.requires_bash
+    def test_losses__orchestrator__ri_matches_bash(self):
+        self._compare_generate_losses(self.args_gen_files_ri, RI_RUN_SETTINGS, "10032")
+
+    @pytest.mark.requires_bash
+    def test_losses__orchestrator__ri_and_rl_multi_layer_matches_bash(self):
+        self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MULTI_LAYER_INF)
+        self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MULTI_LAYER_SCP)
+        settings = {**RI_AAL_SETTINGS, 'rl_output': True, 'rl_summaries': RI_AAL_SETTINGS['ri_summaries']}
+        self._compare_generate_losses(self.args_gen_files_ri, settings, "10033")
+
+    @pytest.mark.requires_bash
+    def test_losses__orchestrator__chunked_workflow_matches_bash(self):
+        num_chunks = 3
+        self.manager.generate_files(**self.args_gen_files_ri)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)
+        with self.tmp_dir() as bash_run_dir, self.tmp_dir() as orchestrator_run_dir:
+            for model_run_dir, orchestrator in ((bash_run_dir, False), (orchestrator_run_dir, True)):
+                call_args = {
+                    **self.min_args,
+                    'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+                    'max_process_id': num_chunks,
+                    'model_run_dir': model_run_dir,
+                    'orchestrator': orchestrator,
+                }
+                self.manager.generate_losses_dir(**call_args)
+                main_work_dir = os.path.join(model_run_dir, 'work')
+                for i in range(1, num_chunks + 1):
+                    with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10034"}):
+                        self.manager.generate_losses_partial(**{**call_args, 'process_number': i, 'analysis_pk': 1})
+                    self.assertTrue(os.path.isfile(os.path.join(model_run_dir, f'{i}.run_analysis.sh')))
+                    self._assert_ran_with(model_run_dir, os.path.join('log', str(i)), orchestrator)
+                    merge_dirs(os.path.join(model_run_dir, f'{i}.work'), main_work_dir)
+                self.manager.generate_losses_output(**call_args)
+                self._assert_ran_with(model_run_dir, os.path.join('log', 'out'), orchestrator)
+            self._assert_same_outputs(bash_run_dir, orchestrator_run_dir)
+
+    @pytest.mark.requires_bash
+    def test_losses__orchestrator__unsupported_config_falls_back_to_bash(self):
+        self.manager.generate_files(**self.args_gen_files_gul)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        with self.tmp_dir() as model_run_dir, \
+                patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10035"}), \
+                self.assertLogs('oasislmf.execution.runner', level='WARNING') as logs:
+            self.manager.generate_losses(**{**self.min_args, 'model_run_dir': model_run_dir, 'kernel_num_processes': 2,
+                                            'join_summary_info': True, 'orchestrator': True})
+            self._assert_ran_with(model_run_dir, 'log', False)
+        self.assertTrue(any('join-summary-info' in line and 'bash script instead' in line for line in logs.output))
+
+    def test_losses__orchestrator__error__exception_raised__outputs(self):
+        self.manager.generate_files(**self.args_gen_files_ri)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), RI_AAL_SETTINGS)
+        run_dir = self.tmp_dirs.get('model_run_dir').name
+        call_args = {**self.min_args, 'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'], 'max_process_id': 1,
+                     'model_run_dir': run_dir, 'orchestrator': True}
+        self.manager.generate_losses_dir(**call_args)
+        with self._caplog.at_level(logging.INFO), self.assertRaises(OasisException) as context:
+            self.manager.generate_losses_output(**call_args)
+        self.assertIn('Kernel execution error: non-zero exit code or error/warning messages detected', str(context.exception))
+        self.assertIn('KERNEL_STDERR', self._caplog.text)
+        self.assertIn('orchestrator outputs failed', self._caplog.text)
+        self._assert_ran_with(run_dir, os.path.join('log', 'out'), True)
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__orchestrator_option_reaches_the_runner(self, mock_run_func):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        for orchestrator in (False, True):
+            with self.subTest(orchestrator=orchestrator), self.tmp_dir() as model_run_dir:
+                mock_run_func.reset_mock()
+                self.manager.generate_losses(**{**self.min_args, 'model_run_dir': model_run_dir, 'orchestrator': orchestrator})
+                self.assertEqual(orchestrator, mock_run_func.call_args.kwargs.get('orchestrator', False))
+
+    @patch('oasislmf.execution.runner.run', side_effect=TypeError('planner bug'))
+    def test_losses__orchestrator__type_error_in_the_run_is_not_a_signature_fallback(self, mock_run_func):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        with self.tmp_dir() as model_run_dir, warnings.catch_warnings(record=True) as caught, \
+                self.assertRaisesRegex(TypeError, 'planner bug'):
+            warnings.simplefilter('always')
+            self.manager.generate_losses(**{**self.min_args, 'model_run_dir': model_run_dir, 'orchestrator': True})
+        mock_run_func.assert_called_once()
+        self.assertTrue(mock_run_func.call_args.kwargs['orchestrator'])
+        self.assertFalse(any("doesn't accept new runner arguments" in str(w.message) for w in caught))
+
+    def _run_with_supplier_runner(self, run):
+        """generate_losses with the orchestrator on and ``run`` as the supplier model runner's ``run``."""
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        module = types.SimpleNamespace(run=run)
+        with self.tmp_dir() as model_run_dir, warnings.catch_warnings(record=True) as caught, \
+                patch.object(GenerateLosses, '_get_model_runner', return_value=(module, 'supplier')):
+            warnings.simplefilter('always')
+            self.manager.generate_losses(**{**self.min_args, 'model_run_dir': model_run_dir, 'orchestrator': True})
+        return [str(w.message) for w in caught]
+
+    def test_losses__orchestrator__passes_through_a_supplier_runner_with_kwargs(self):
+        calls = []
+
+        def run(analysis_settings, **params):
+            calls.append(params)
+
+        messages = self._run_with_supplier_runner(run)
+        self.assertEqual(1, len(calls))
+        self.assertTrue(calls[0]['orchestrator'])
+        self.assertFalse(any("doesn't accept new runner arguments" in m for m in messages))
+
+    def test_losses__orchestrator__old_supplier_runner_falls_back_to_the_old_arguments(self):
+        calls = []
+
+        def run(analysis_settings, number_of_processes, filename, num_reinsurance_iterations, run_debug, stderr_guard,
+                gul_legacy_stream, set_alloc_rule_gul=None, set_alloc_rule_il=None, set_alloc_rule_ri=None, fifo_tmp_dir=True,
+                custom_gulcalc_cmd=None):
+            calls.append(filename)
+
+        messages = self._run_with_supplier_runner(run)
+        self.assertEqual(1, len(calls))
+        self.assertTrue(any("supplier.supplier_model_runner doesn't accept new runner arguments" in m for m in messages))
+
+    @patch('oasislmf.execution.runner.run_outputs')
+    @patch('oasislmf.execution.runner.run_analysis')
+    def test_losses__orchestrator_option_reaches_the_chunk_and_output_steps(self, mock_run_analysis, mock_run_outputs):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        for orchestrator in (False, True):
+            with self.subTest(orchestrator=orchestrator), self.tmp_dir() as model_run_dir:
+                call_args = {**self.min_args, 'model_run_dir': model_run_dir, 'max_process_id': 2, 'orchestrator': orchestrator}
+                self.manager.generate_losses_dir(**call_args)
+                self.manager.generate_losses_partial(**{**call_args, 'process_number': 2})
+                self.manager.generate_losses_output(**call_args)
+                self.assertEqual(orchestrator, mock_run_analysis.call_args.kwargs.get('orchestrator', False))
+                self.assertEqual(2, mock_run_analysis.call_args.kwargs['process_number'])
+                self.assertEqual(orchestrator, mock_run_outputs.call_args.kwargs.get('orchestrator', False))
 
     @patch('oasislmf.execution.runner.run')
     def test_losses__supplier_model_ruuner(self, mock_run_func):

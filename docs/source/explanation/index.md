@@ -19,6 +19,18 @@ financial-module
 fm-architecture
 ```
 
+## Running the loss kernel
+
+How the kernel runs: the generated bash script, and the event-worker orchestrator
+(`oasislmf/execution/orchestrator`) that runs the same stages in a pool of workers:
+
+```{toctree}
+:maxdepth: 1
+:caption: Running the loss kernel
+
+kernel-execution
+```
+
 ## Ground-up loss modelling
 
 How ground-up losses are simulated by the Monte-Carlo engine

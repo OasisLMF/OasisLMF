@@ -26,6 +26,7 @@ Disable (when using NUMBA_DISABLE_JIT):
 
 import contextlib
 import functools
+import multiprocessing
 import os
 import shutil
 import subprocess
@@ -34,6 +35,8 @@ import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+from numba.core.caching import IndexDataCacheFile
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +67,38 @@ vulnerability_rel_path = Path("static", "vulnerability.bin")
 lossfactors_rel_path = Path("static", "lossfactors.bin")
 
 summary_rel_path = Path("work", "gul", "summarypy.bin")
+
+
+# ---------------------------------------------------------------------------
+# Numba cache index lock.
+#
+# Numba saves a new compiled variant by loading the function's .nbi index, taking the first
+# unused .<n>.nbc data file name, writing the index back and then the data file. Two processes
+# adding different variants of the same function at once pick the same name: one variant's
+# data overwrites the other's, and the index then maps a signature to code compiled for another
+# one (e.g. mv_read returning a float32 where an int32 was asked for). The pool workers hold one
+# lock across each save, and across each tool run in a subprocess, which the patch cannot reach.
+# ---------------------------------------------------------------------------
+
+_cache_lock = None
+_unlocked_cache_save = IndexDataCacheFile.save
+
+
+def _locked_cache_save(self, key, data):
+    """``IndexDataCacheFile.save`` holding the warmup's cache lock, when the process has one."""
+    with _cache_lock if _cache_lock is not None else contextlib.nullcontext():
+        _unlocked_cache_save(self, key, data)
+
+
+def _init_worker(lock):
+    """Pool worker initializer: share the parent's cache lock and make Numba's cache saves take it.
+
+    Args:
+        lock (multiprocessing.synchronize.Lock): lock shared by all the warmup's workers.
+    """
+    global _cache_lock
+    _cache_lock = lock
+    IndexDataCacheFile.save = _locked_cache_save
 
 
 def _copy_rel_path(src, dest):
@@ -111,6 +146,8 @@ def _run_stage(cmd, stdin_path=None, stdout_path=None, cwd=None, timeout=300):
     .nbi index that silently drop type variants from the cache.
     """
     with contextlib.ExitStack() as stack:
+        if _cache_lock is not None:
+            stack.enter_context(_cache_lock)
         stdin_fh = stack.enter_context(open(stdin_path, 'rb')) if stdin_path else subprocess.DEVNULL
         stdout_fh = stack.enter_context(open(stdout_path, 'wb')) if stdout_path else subprocess.DEVNULL
         result = subprocess.run(
@@ -429,7 +466,8 @@ def warmup(max_workers=None):
         has_tqdm = False
 
     errors = {}
-    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+    cache_lock = multiprocessing.Lock()
+    with ProcessPoolExecutor(max_workers=max_workers, initializer=_init_worker, initargs=(cache_lock,)) as pool:
         futures = {pool.submit(fn): name for name, fn in ALL_SILENT_TASKS.items()}
         pbar = tqdm(total=len(futures), desc="warmup", unit="task",
                     bar_format="{desc}: {bar} {n_fmt}/{total_fmt} [{elapsed}<{remaining}]") if has_tqdm else None

@@ -3,6 +3,18 @@ import os
 
 import pytest
 
+from tests.bash_support import REQUIRES_BASH_FIXTURES, SKIP_REASON, bash_available
+
+
+def pytest_collection_modifyitems(config, items):
+    """Mark the tests that use a bash fixture ``requires_bash``, and skip every such test where bash cannot run."""
+    skip = None if bash_available() else pytest.mark.skip(reason=SKIP_REASON)
+    for item in items:
+        if REQUIRES_BASH_FIXTURES & set(getattr(item, 'fixturenames', ())):
+            item.add_marker(pytest.mark.requires_bash)
+        if skip is not None and item.get_closest_marker('requires_bash'):
+            item.add_marker(skip)
+
 
 @pytest.fixture(autouse=True, scope="session")
 def _use_tmp_log_dir(tmp_path_factory):

@@ -1,7 +1,8 @@
 # Workflow to validate oasislmf installation and basic functionality on macOS.
 #
 # This runs on every PR and push to main to catch macOS-specific regressions.
-# It is intentionally lightweight — install + smoke test only — to keep CI costs low.
+# It is intentionally lightweight — install + smoke test only — to keep CI costs low — except for
+# the orchestrator tests (one Python version), the kernel executor meant to run on every platform.
 
 name: macOS Smoke Test
 
@@ -106,3 +107,16 @@ jobs:
           print(f'pyarrow {pyarrow.__version__}, fastparquet {fastparquet.__version__}')
           print('Core numerical stack works on ARM64')
           "
+
+      # The orchestrator suites without the tests that compare with bash or pytools pipelines (marker
+      # requires_bash, skipped on macOS anyway: tests/bash_support.py); Linux (unittest.yml) runs those.
+      - name: Orchestrator tests
+        if: matrix.python-version == '3.12'
+        timeout-minutes: 60
+        run: |
+          python -m pip install pytest hypothesis mock -r optional-package.in
+          python -m pytest -q -m "not requires_bash" \
+            tests/orchestrator \
+            tests/model_execution/test_resource_monitor.py \
+            tests/model_execution/test_runner.py::TestRunWithOrchestrator
+          python -m pytest -q -m "not requires_bash" -k orchestrator tests/computation/test_generate_losses.py
