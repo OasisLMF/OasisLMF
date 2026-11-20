@@ -218,6 +218,52 @@ def test_analytic_mean_is_the_weighted_mixture_of_the_positions(tmp_path, positi
     np.testing.assert_allclose(means(losses).reindex(expected.index), expected, rtol=1e-5)
 
 
+AGGREGATE = 900
+OTHER_VULNERABILITY = 1
+
+
+def with_aggregate_vulnerability(run_dir, member_at):
+    """Put every item on aggregate vulnerability ``AGGREGATE`` of VULNERABILITY and OTHER_VULNERABILITY.
+
+    Its weights are per cell: ``member_at`` maps an areaperil to the one member it uses there.
+    """
+    static = run_dir / 'static'
+    pd.DataFrame({'aggregate_vulnerability_id': AGGREGATE, 'vulnerability_id': [VULNERABILITY, OTHER_VULNERABILITY]}).to_csv(
+        static / 'aggregate_vulnerability.csv', index=False)
+    pd.DataFrame([(ap, v, int(v == member)) for ap, member in member_at.items() for v in (VULNERABILITY, OTHER_VULNERABILITY)],
+                 columns=['areaperil_id', 'vulnerability_id', 'weight']).to_csv(static / 'weights.csv', index=False)
+    items = pd.read_csv(run_dir / 'input' / 'items.csv')
+    items['vulnerability_id'] = AGGREGATE
+    items.to_csv(run_dir / 'input' / 'items.csv', index=False)
+    return run_dir
+
+
+@pytest.mark.parametrize('effective_damageability', [False, True], ids=['eff=False', 'eff=True'])
+def test_an_aggregate_vulnerability_is_weighted_at_each_position(tmp_path, effective_damageability):
+    """Aggregate vulnerability weights are per cell, and each position of a blended item uses its own.
+
+    At A the aggregate is all VULNERABILITY, at B all OTHER_VULNERABILITY. Only blended items read
+    B: an item placed directly on B would be computed first and could fill B's cached cdfs for them.
+    """
+    items = THREE_LOCATIONS
+    member_at = {A: VULNERABILITY, B: OTHER_VULNERABILITY}
+
+    def losses_of(name, model_items, member_at=member_at, blend=None):
+        run_dir = with_aggregate_vulnerability(write_model(tmp_path / name, model_items, blend), member_at)
+        return gul_losses(run_dir, effective_damageability=effective_damageability)
+
+    blended = losses_of('blended', items, blend=blend_rows([(3, A), (1, B)]))
+    at_a, at_b = (losses_of(f'at_{ap}', placed_on(items, ap)) for ap in (A, B))
+    # the two members differ at B, so a position read with A's weights would show
+    assert not means(losses_of('b_as_a', placed_on(items, B), {A: VULNERABILITY, B: VULNERABILITY})).equals(means(at_b))
+
+    if not effective_damageability:
+        assert set(placements(blended, [at_a, at_b])['position']) == {0, 1}
+    index = means(at_a).index.union(means(at_b).index)
+    expected = 0.75 * means(at_a).reindex(index, fill_value=0.) + 0.25 * means(at_b).reindex(index, fill_value=0.)
+    np.testing.assert_allclose(means(blended).reindex(index, fill_value=0.), expected, rtol=1e-5)
+
+
 @pytest.mark.parametrize('positions, share', [([(0.6, A)], 0.6), ([(3, A), (1, 0)], 0.75)],
                          ids=['float shortfall', 'not-at-risk position'])
 def test_a_building_placed_outside_the_hazard_loses_nothing(tmp_path, positions, share):

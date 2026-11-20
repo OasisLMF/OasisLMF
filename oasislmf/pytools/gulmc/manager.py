@@ -1114,7 +1114,7 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def draw_correlation_samples(compute_info, item, agg_block, hazard_rng_index, sample_size,
+def draw_correlation_samples(compute_info, item, is_aggregate, hazard_rng_index, sample_size,
                              haz_rndms_item, vuln_rndms_item, haz_eps_ij, damage_eps_ij,
                              norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
                              haz_z_unif, vuln_z_unif):
@@ -1130,7 +1130,7 @@ def draw_correlation_samples(compute_info, item, agg_block, hazard_rng_index, sa
     Args:
         compute_info (gulmc_compute_info_type): computation state (do_haz_correlation, do_correlation).
         item (np.void): the item record (correlation values, peril_correlation_group, vuln idx).
-        agg_block (int): the item areaperil's aggregate vulnerability block, or -1 if not aggregate.
+        is_aggregate (bool): whether the item's vulnerability is aggregate.
         hazard_rng_index (int): < 0 when the hazard is deterministic, in which case no hazard
             values are drawn. Only its sign is used; the caller has already sliced the values.
         sample_size (int): number of random samples to draw.
@@ -1173,7 +1173,7 @@ def draw_correlation_samples(compute_info, item, agg_block, hazard_rng_index, sa
         # do not use correlation
         vuln_z_unif[:] = vuln_rndms_item
 
-    if agg_block < 0:  # single vuln id (non-aggregate)
+    if not is_aggregate:  # single vuln id (non-aggregate)
         vuln_z_unif *= vuln_adj[item['vulnerability_idx']]
 
 
@@ -1526,7 +1526,9 @@ def compute_event_losses(compute_info,
             # of its marginal, including one areaperil read with probability below 1 (the rest of the
             # placements uncovered, or a float weight shortfall).
             mixing = n_areaperils > 1 or blended_areaperil_ja_probabilities[blended_start] < 1.
-            agg_block = item_areaperil_ja_areaperil_agg_vuln_idxs[item_areaperil_start]
+            # being aggregate is a property of the vulnerability, the same on every item areaperil;
+            # the block of member weights is per item areaperil, read where each one is resolved
+            is_aggregate = item_areaperil_ja_areaperil_agg_vuln_idxs[item_areaperil_start] >= 0
             intensity_adjustment = item['intensity_adjustment'] if dynamic_footprint is not None else nb_oasis_int(0)
 
             item_rho = item_event_data['damage_correlation_value']
@@ -1638,6 +1640,7 @@ def compute_event_losses(compute_info,
                 # determine if the CDFs for this CDF group are cached. A dependent's CDF is
                 # event-specific, so it is always recomputed.
                 cdf_group = nb_int64(item_areaperil_ja_cdf_group_idxs[item_areaperil_idx])
+                agg_block = item_areaperil_ja_areaperil_agg_vuln_idxs[item_areaperil_idx]
                 stored = cdf_cache_tag[cdf_group]
                 do_calc_vuln_ptf = is_dependent or (
                     stored < 0) or (compute_info['cdf_cache_ctr'] - stored >= cdf_cache_size)
@@ -1795,7 +1798,7 @@ def compute_event_losses(compute_info,
                     else:
                         haz_base_b = vuln_base_b  # unused; keeps the argument type stable
 
-                    draw_correlation_samples(compute_info, item, agg_block, hazard_rng_index, sample_size,
+                    draw_correlation_samples(compute_info, item, is_aggregate, hazard_rng_index, sample_size,
                                              haz_base_b, vuln_base_b, haz_eps_ij, damage_eps_ij,
                                              norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
                                              haz_z_unif, vuln_z_unif)
