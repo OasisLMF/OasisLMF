@@ -428,68 +428,95 @@ def test_build_set_status_rejects_unknown_status_value():
         fct(locations)
 
 
-class _FakeGeoTiffDataset:
-    """Minimal stand-in for a gdal dataset so build_geotiff can be tested without gdal."""
-
-    def __init__(self, array, geotransform):
-        self._array = array
-        self._geotransform = geotransform
-        self.RasterCount = array.shape[2]
-
-    def GetGeoTransform(self):
-        return self._geotransform
-
-    def GetVirtualMemArray(self):
-        return self._array
+def _write_geotiff(path, data, transform):
+    """Write ``data`` (band, row, col) to a GeoTIFF at ``path`` with the given affine transform."""
+    rasterio = pytest.importorskip("rasterio")
+    with rasterio.open(path, "w", driver="GTiff", height=data.shape[1], width=data.shape[2], count=data.shape[0],
+                       dtype=data.dtype, transform=transform, crs="EPSG:4326") as dst:
+        dst.write(data)
+    return path
 
 
-class _FakeGdal:
-    GA_ReadOnly = 0
+def _multi_band_geotiff(tmp_path):
+    """3 bands of 2 rows x 3 cols, 1-degree pixels with the top-left corner at (lon -10, lat 50), north up.
 
-    def __init__(self, dataset, inv_gt):
-        self._dataset = dataset
-        self._inv_gt = inv_gt
-
-    def Open(self, path, mode):
-        return self._dataset
-
-    def InvGeoTransform(self, geotransform):
-        return self._inv_gt
+    Pixel (row, col) of band b holds b * 100 + row * 10 + col, so every value names its band and pixel.
+    """
+    from affine import Affine
+    bands, rows, cols = np.meshgrid(np.arange(1, 4), np.arange(2), np.arange(3), indexing="ij")
+    data = (bands * 100 + rows * 10 + cols).astype("int32")
+    return _write_geotiff(tmp_path / "multi.tif", data, Affine(1.0, 0.0, -10.0, 0.0, -1.0, 50.0))
 
 
-def test_build_geotiff_out_of_range_uses_correct_default_per_column(monkeypatch):
-    """Out-of-raster locations must get each column's OWN default. The defaults
-    array is read by band column order, so it must be written that way too — the
-    bug wrote it by band id, swapping defaults across columns."""
-    # 1x1 raster, 3 bands with values 100/200/300 at the single pixel.
-    raster = np.array([[[100, 200, 300]]], dtype="int64")
-    # Identity inverse geo-transform: px = int(lon + 0.5), py = int(lat + 0.5).
-    inv_gt = np.array([0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
-    fake_gdal = _FakeGdal(_FakeGeoTiffDataset(raster, (0, 1, 0, 0, 0, 1)), inv_gt)
-    monkeypatch.setattr("oasislmf.lookup.builtin.gdal", fake_gdal)
-
-    # Columns map to bands in a permuted order so a wrong index is detectable.
+def test_build_geotiff_reads_each_column_from_its_band(tmp_path):
+    """Each column reads its own band (permuted ids) on a real multi-band file, and out-of-range
+    locations get each column's own default."""
     band_info = OrderedDict([
-        ("a", {"id": 3, "default": -11}),   # band index 2 -> 300
-        ("b", {"id": 1, "default": -22}),   # band index 0 -> 100
-        ("c", {"id": 2, "default": -33}),   # band index 1 -> 200
+        ("a", {"id": 3, "default": -11}),
+        ("b", {"id": 1, "default": -22}),
+        ("c", {"id": 2, "default": -33}),
     ])
-    geotiff_lookup = Lookup(config={}).build_geotiff(file_path="dummy.tif", band_info=band_info)
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)), band_info=band_info)
 
     locations = pd.DataFrame({
-        "longitude": [0.0, 99.0],   # row 0 in-range, row 1 out-of-range
-        "latitude": [0.0, 99.0],
+        "longitude": [-7.5, 20.0],  # col 2 / outside
+        "latitude": [48.5, 0.0],    # row 1 / outside
     })
     result = geotiff_lookup(locations)
 
-    # In-range: each column reads its own band.
-    assert result.loc[0, "a"] == 300
-    assert result.loc[0, "b"] == 100
-    assert result.loc[0, "c"] == 200
-    # Out-of-range: each column gets its own default (the bug swapped these).
-    assert result.loc[1, "a"] == -11
-    assert result.loc[1, "b"] == -22
-    assert result.loc[1, "c"] == -33
+    assert result[["a", "b", "c"]].values.tolist() == [[312, 112, 212], [-11, -22, -33]]
+
+
+@pytest.mark.parametrize("lon, lat, expected", [
+    (-9.9, 49.9, 100),    # just inside the top-left corner
+    (-9.3, 49.3, 100),    # 0.7 of a pixel in: still pixel (0, 0)
+    (-8.5, 49.5, 101),    # centre of pixel (0, 1)
+    (-7.01, 48.01, 112),  # just inside the bottom-right corner
+    (-10.3, 49.5, -1),    # 0.3 of a pixel west of the raster
+    (-9.5, 50.3, -1),     # 0.3 of a pixel north of the raster
+    (-6.9, 49.5, -1),     # just east of the raster
+    (np.nan, 49.5, -1),   # missing coordinates
+    (-9.5, np.inf, -1),
+])
+def test_build_geotiff_assigns_the_pixel_containing_each_location(tmp_path, lon, lat, expected):
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
+                                                     band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [lon], "latitude": [lat]}))
+
+    assert result["value"].tolist() == [expected]
+
+
+def test_build_geotiff_strip_reads_match_single_read(tmp_path, monkeypatch):
+    """Reading in strips bounded by GEOTIFF_READ_BUDGET_BYTES gives the same values as one read."""
+    from affine import Affine
+    rng = np.random.default_rng(0)
+    data = rng.integers(0, 1000, size=(2, 50, 40)).astype("int16")
+    path = _write_geotiff(tmp_path / "big.tif", data, Affine(0.1, 0.0, 0.0, 0.0, -0.1, 5.0))
+    band_info = {"first": {"id": 1, "default": -1}, "second": {"id": 2, "default": -2}}
+    locations = pd.DataFrame({
+        "longitude": rng.uniform(-0.5, 4.5, size=500),
+        "latitude": rng.uniform(-0.5, 5.5, size=500),
+    })
+
+    single = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)(locations.copy())
+    # one row of 40 columns x 2 bands x 2 bytes is 160 bytes: allow 3 rows per strip
+    monkeypatch.setattr("oasislmf.lookup.builtin.GEOTIFF_READ_BUDGET_BYTES", 3 * 160)
+    strips = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)(locations.copy())
+
+    pd.testing.assert_frame_equal(single, strips)
+    # and both match indexing the raster directly
+    col = np.floor(locations["longitude"].to_numpy() / 0.1)
+    row = np.floor((5.0 - locations["latitude"].to_numpy()) / 0.1)
+    inside = (col >= 0) & (col < 40) & (row >= 0) & (row < 50)
+    expected = np.where(inside, data[0, row.clip(0, 49).astype(int), col.clip(0, 39).astype(int)], -1)
+    assert single["first"].tolist() == expected.tolist()
+
+
+def test_build_geotiff_rejects_band_id_outside_file(tmp_path):
+    with pytest.raises(OasisException, match=r"outside of \[1-3\]"):
+        Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
+                                        band_info={"value": {"id": 4, "default": -1}})
 
 
 # --- geog_lookup (GeogScheme/GeogName resolution) -----------------------------

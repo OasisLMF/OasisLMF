@@ -426,6 +426,9 @@ Support several simple DataFrame preparation:
 Function Factory to associate a location to a geometry (e.g. ``area_peril``) based on the rtree method.
 
 .. note::
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
+
+.. note::
    !!!
    Please note that this method is quite time consuming (especially if you use the nearest neighbor option).
    If your geometries are square, you should use the ``fixed_size_geo_grid`` function instead.
@@ -506,10 +509,13 @@ Build a lookup function that assigns geotiff band values to each location from i
 
 ``band_info``: a dict where keys are the assigned column names, and values are dicts with:
    * ``id``: the id of the band in the tiff file
-   * ``default``: the value for locations outside of the geotiff's range
+   * ``default``: the value for locations outside of the geotiff's range or with missing coordinates
+
+Each location takes the values of the pixel that contains it. The file is read with ``rasterio``, which only loads
+the requested bands over the area covered by the locations, so large rasters do not need to fit in memory.
 
 .. note::
-   Requires ``gdal`` to be installed, see the error message raised at build time for installation instructions.
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 |
 
@@ -544,7 +550,7 @@ Config example::
    }
 
 .. note::
-   Requires the ``h3`` package to be installed (``pip install h3>=4``).
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 |
 
