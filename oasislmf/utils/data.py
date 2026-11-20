@@ -808,6 +808,29 @@ def prepare_reinsurance_df(ri_info, ri_scope):
     return ri_info, ri_scope
 
 
+OED_FILE_KEYS = ('location', 'account', 'ri_info', 'ri_scope')
+
+
+def local_oed_files_as_paths(data_config):
+    r"""Turn the OED file entries of an ``OedExposure`` config that are local files into ``Path`` objects.
+
+    ods_tools reads a string through oasis_data_manager's ``LocalStorage``, which turns it into the
+    URL ``file://<path>``. On Windows that is ``file://C:\...``, whose path part is empty (URLError);
+    a ``Path`` is opened by pandas directly on every OS. Anything else (URLs, buffers) is left as it is.
+
+    Args:
+        data_config (dict): keyword arguments for ``OedExposure``, modified in place
+
+    Returns:
+        dict: ``data_config``
+    """
+    for key in OED_FILE_KEYS:
+        value = data_config.get(key)
+        if isinstance(value, str) and os.path.isfile(value):
+            data_config[key] = Path(value)
+    return data_config
+
+
 def get_exposure_data(computation_step, add_internal_col=False):
     try:
         if 'exposure_data' in computation_step.kwargs:
@@ -825,7 +848,7 @@ def get_exposure_data(computation_step, add_internal_col=False):
                 data_config["base_df_engine"] = computation_step.kwargs.get('base_df_engine', data_config.get("base_df_engine", None))
                 data_config["exposure_df_engine"] = computation_step.kwargs.get('exposure_df_engine', data_config.get("exposure_df_engine", None))
                 data_config["additional_fields"] = DEFAULT_ADDITIONAL_FIELDS
-                exposure_data = OedExposure(**data_config)
+                exposure_data = OedExposure(**local_oed_files_as_paths(data_config))
             else:
                 logger.debug("ExposureData info was not created, oed input file must have default name (location, account, ...)")
                 # Set OED schema info/version priority based on CLI/config json first, then analysis_settings version

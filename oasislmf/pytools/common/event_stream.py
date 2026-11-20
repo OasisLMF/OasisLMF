@@ -2,7 +2,6 @@
 
 from oasislmf.utils.exceptions import OasisStreamException
 import selectors
-from select import select
 import sys
 
 import numpy as np
@@ -713,18 +712,12 @@ class EventReader:
 
 
 def write_mv_to_stream(stream, byte_mv, cursor):
-    """Write numpy byte array view to stream
-    - use select to handle forward pressure
-    - use a while loop in case the stream is non-blocking (meaning the ammount of byte written is not guarantied to be cursor len)
+    """Write the first ``cursor`` bytes of ``byte_mv`` to ``stream``.
 
-    Args:
-        stream: stream to write to
-        byte_mv: numpy byte view of the buffer to write
-        cursor: ammount of byte to write
+    A blocking write already waits for the reader, so there is no ``select``: it would add nothing
+    on a pipe, and it fails on a regular file on macOS (reported exceptional) and on Windows (sockets only).
+    The loop covers a raw stream that writes only part of the buffer.
     """
     written = 0
     while written < cursor:
-        _, writable, exceptional = select([], [stream], [stream])
-        if exceptional:
-            raise IOError(f'error with input stream, {exceptional}')
-        written += stream.write(byte_mv[written:cursor].tobytes())
+        written += stream.write(byte_mv[written:cursor])
