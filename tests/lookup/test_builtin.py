@@ -1,6 +1,5 @@
-import subprocess
+import re
 import sys
-import textwrap
 from collections import OrderedDict
 from pathlib import Path
 
@@ -551,25 +550,40 @@ def test_build_geotiff_rejects_band_id_outside_file(tmp_path):
                                         band_info={"value": {"id": 4, "default": -1}})
 
 
-def test_builtin_imports_without_spatial_packages():
-    """Without shapely and geopandas the module still imports, every spatial name is None, and rtree
-    raises an OasisException pointing at the spatial extra."""
-    code = textwrap.dedent("""
-        import sys
-        for name in ("shapely", "shapely.geometry", "geopandas", "sklearn", "sklearn.neighbors"):
-            sys.modules[name] = None  # makes any import of it raise ImportError
-        from oasislmf.lookup import builtin
-        from oasislmf.utils.exceptions import OasisException
-        assert builtin.Point is None and builtin.gpd is None and builtin.BallTree is None
-        try:
-            builtin.Lookup(config={}).build_rtree(file_path="unused.parquet", file_type="parquet", id_columns=[])
-        except OasisException as e:
-            assert "oasislmf[spatial]" in str(e), e
-        else:
-            raise AssertionError("build_rtree did not raise")
-    """)
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-    assert proc.returncode == 0, proc.stderr
+@pytest.fixture
+def builtin_without_spatial_packages(monkeypatch):
+    """A fresh copy of the builtin module imported with the spatial packages blocked.
+
+    The copy runs in this process, so coverage counts its import fallbacks; the real module is left untouched.
+    """
+    import importlib.util
+    from oasislmf.lookup import builtin
+
+    for name in ("shapely", "shapely.geometry", "geopandas", "sklearn", "sklearn.neighbors",
+                 "rasterio", "rasterio.windows"):
+        monkeypatch.setitem(sys.modules, name, None)  # makes any import of it raise ImportError
+    spec = importlib.util.spec_from_file_location("builtin_without_spatial_packages", builtin.__file__)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_builtin_imports_without_spatial_packages(builtin_without_spatial_packages):
+    """Without the spatial packages the module still imports and every spatial name is None."""
+    module = builtin_without_spatial_packages
+    assert module.Point is None and module.gpd is None and module.BallTree is None
+    assert module.rasterio is None and module.Window is None
+
+
+@pytest.mark.parametrize("build_method, kwargs", [
+    ("build_rtree", {"file_path": "unused.parquet", "file_type": "parquet", "id_columns": []}),
+    ("build_geotiff", {"file_path": "unused.tif", "band_info": {"value": {"id": 1, "default": -1}}}),
+])
+def test_spatial_lookups_without_spatial_packages_point_at_extra(builtin_without_spatial_packages, build_method, kwargs):
+    lookup = builtin_without_spatial_packages.Lookup(config={})
+
+    with pytest.raises(OasisException, match=re.escape("oasislmf[spatial]")):
+        getattr(lookup, build_method)(**kwargs)
 
 
 # --- geog_lookup (GeogScheme/GeogName resolution) -----------------------------
