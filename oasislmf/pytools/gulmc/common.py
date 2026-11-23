@@ -125,7 +125,6 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     # flushing part-way through one is safe.
     ('item_j', oasis_int),
     ('building_b', oasis_int),
-    ('cdf_cache_ctr', np.int64),
     ('mixed_cdf_cache_ctr', np.int64),
     ('max_bytes_per_item', np.int64),
     ('Ndamage_bins_max', oasis_int),

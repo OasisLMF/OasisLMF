@@ -12,7 +12,7 @@ from oasislmf.pytools.gul.random import PHILOX_SHIFT32, PHILOX_U32_MASK, _lh_phi
 from oasislmf.pytools.common.id_index import get_idx, NOT_FOUND
 from oasislmf.pytools.common.hashmap import (
     init_dict, unpack, rehash, _try_add_key,
-    i_add_key_fail, new_slot_bit, slot_mask,
+    i_add_key_fail, slot_mask,
     HM_INFO_N_VALID,
 )
 from oasislmf.pytools.getmodel.manager import encode_peril_id
@@ -160,92 +160,159 @@ def _fill_location_placements(location_keys, location_n_buildings, location_star
 mixed_cdf_group_dtype = np.dtype([('blended_areaperil_idx', oasis_int),
                                   ('vulnerability_id', np.int32),
                                   ('intensity_adjustment', oasis_int),
+                                  ('return_period', np.int64),
                                   ('vulnerability_idx', oasis_int)])
 
 
-def build_item_mixed_cdf_groups(items, dynamic_footprint):
-    """Group the items that read the same areaperils with the same vulnerability cdfs into item mixed_cdf_groups.
+def _group_keys(blended_areaperil_idx, vulnerability_id, intensity_adjustment, return_period, dynamic_footprint):
+    columns = [blended_areaperil_idx, vulnerability_id]
+    if dynamic_footprint:
+        columns += [intensity_adjustment, return_period]
+    return np.stack([np.asarray(column, dtype=np.int64) for column in columns], axis=1)
 
-    What an item reads from the footprint, and which cdfs it reads it through, depends only on its
-    blended areaperil, its vulnerability and, under a dynamic footprint, its intensity adjustment.
-    Items agreeing on those share every per-areaperil structure, so those structures are built per
-    group: a blended areaperil of K areaperils read by L items costs K entries per group rather than
-    K * L.
 
-    Under a dynamic footprint the protection return period is part of the key too. It decides which
-    areaperils are live for the item, so with it the group is also the set of items that report one
-    effective damage cdf, the blended cdf computed once per group and event.
+def _cell_blends(blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_placement_schemes):
+    """The size-1 blended areaperils (no placement scheme), as their areaperil ids sorted and their indices in that order."""
+    cell_blend_idxs = np.flatnonzero(blended_areaperil_placement_schemes == -1)
+    cell_ids = blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[cell_blend_idxs]]
+    order = np.argsort(cell_ids, kind='stable')
+    return cell_ids[order], cell_blend_idxs[order]
+
+
+def build_item_mixed_cdf_groups(items, dynamic_footprint, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
+                                blended_areaperil_placement_schemes):
+    """Group the items that report the same effective damage cdf into mixed cdf groups.
+
+    An item's effective damage cdf is its areaperils' cdfs mixed by the probability its building
+    stands on each. It depends only on its blended areaperil, its vulnerability and, under a dynamic
+    footprint, its intensity adjustment, so the items agreeing on those share it and every
+    per-areaperil structure. An areaperil read directly (its own size-1 blended areaperil) is the
+    case of one areaperil of probability 1.
+
+    The cdf of a size-1 group, an areaperil's own, does not depend on protection: protection only
+    decides whether an item of it is live. A blended group's mixture does, since it decides which
+    of its areaperils count, so under a dynamic footprint its key also holds the protection return
+    period.
+
+    A blended group's mixture is made of its areaperils' own cdfs, so every areaperil it reads has
+    its size-1 group, with no item when no item reads that areaperil directly (``build_blended_areaperils``
+    with ``cell_blends`` gives each such areaperil its size-1 blended areaperil).
 
     Groups are numbered in key order, and ``items`` is sorted by (areaperil_id, vulnerability_id),
     so with one group per (areaperil, vulnerability) a group's items, taken in item order, come in
     the order the items themselves are sorted in.
 
     Returns:
-        tuple: ``item_mixed_cdf_groups`` (int32, the group of each item), ``mixed_cdf_groups`` (mixed_cdf_group_dtype, one
-        row per group; ``vulnerability_idx`` is filled in later by ``generate_item_map``), and the
-        items of each group as ``mixed_cdf_group_items_ja_offsets`` / ``mixed_cdf_group_items_ja_item_idxs`` (in item
-        order).
+        tuple: ``item_mixed_cdf_groups`` (int32, the group of each item), ``mixed_cdf_groups``
+        (mixed_cdf_group_dtype, one row per group; ``vulnerability_idx`` is filled in later by
+        ``generate_item_map``), and the items of each group as ``mixed_cdf_group_items_ja_offsets`` /
+        ``mixed_cdf_group_items_ja_item_idxs`` (in item order).
     """
     n_items = items.shape[0]
-    columns = [items['blended_areaperil_idx'], items['vulnerability_id']]
+    blended_idx = np.asarray(items['blended_areaperil_idx'], dtype=np.int64)
+    is_cell_blend = blended_areaperil_placement_schemes == -1
     if dynamic_footprint:
-        columns += [items['intensity_adjustment'], items['return_period']]
-    if n_items:
-        keys = np.stack([np.asarray(column, dtype=np.int64) for column in columns], axis=1)
-        unique_keys, item_mixed_cdf_groups = np.unique(keys, axis=0, return_inverse=True)
-        item_mixed_cdf_groups = item_mixed_cdf_groups.reshape(-1).astype(np.int32)
+        intensity_adjustment = items['intensity_adjustment']
+        return_period = np.where(is_cell_blend[blended_idx], 0, items['return_period'])
     else:
-        unique_keys = np.zeros((0, len(columns)), dtype=np.int64)
+        intensity_adjustment = return_period = None
+    item_keys = _group_keys(blended_idx, items['vulnerability_id'], intensity_adjustment, return_period, dynamic_footprint)
+
+    # the size-1 group of every areaperil a blended group reads
+    n_key_columns = 3 if dynamic_footprint else 2
+    blended_keys = np.unique(item_keys[~is_cell_blend[blended_idx], :n_key_columns], axis=0)
+    k = (blended_areaperil_ja_offsets[blended_keys[:, 0] + 1] - blended_areaperil_ja_offsets[blended_keys[:, 0]]).astype(np.int64)
+    key_of_cell = np.repeat(np.arange(blended_keys.shape[0]), k)
+    j = np.arange(key_of_cell.shape[0]) - np.repeat(np.cumsum(k) - k, k)
+    cell_ids = blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[blended_keys[key_of_cell, 0]] + j]
+    sorted_cell_ids, cell_blend_idxs = _cell_blends(blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
+                                                    blended_areaperil_placement_schemes)
+    cell_keys = blended_keys[key_of_cell].copy()
+    cell_keys[:, 0] = cell_blend_idxs[np.searchsorted(sorted_cell_ids, cell_ids)]
+    if dynamic_footprint:
+        cell_keys = np.concatenate([cell_keys, np.zeros((cell_keys.shape[0], 1), dtype=np.int64)], axis=1)
+
+    keys = np.concatenate([item_keys, cell_keys])
+    if keys.shape[0]:
+        unique_keys, inverse = np.unique(keys, axis=0, return_inverse=True)
+        item_mixed_cdf_groups = inverse.reshape(-1)[:n_items].astype(np.int32)
+    else:
+        unique_keys = np.zeros((0, item_keys.shape[1]), dtype=np.int64)
         item_mixed_cdf_groups = np.zeros(0, dtype=np.int32)
     mixed_cdf_groups = np.zeros(unique_keys.shape[0], dtype=mixed_cdf_group_dtype)
     mixed_cdf_groups['blended_areaperil_idx'] = unique_keys[:, 0]
     mixed_cdf_groups['vulnerability_id'] = unique_keys[:, 1]
     if dynamic_footprint:
         mixed_cdf_groups['intensity_adjustment'] = unique_keys[:, 2]
+        mixed_cdf_groups['return_period'] = unique_keys[:, 3]
     mixed_cdf_group_items_ja_offsets = np.zeros(mixed_cdf_groups.shape[0] + 1, dtype=oasis_int)
     np.cumsum(np.bincount(item_mixed_cdf_groups, minlength=mixed_cdf_groups.shape[0]), out=mixed_cdf_group_items_ja_offsets[1:])
     mixed_cdf_group_items_ja_item_idxs = np.argsort(item_mixed_cdf_groups, kind='stable').astype(oasis_int)
     return item_mixed_cdf_groups, mixed_cdf_groups, mixed_cdf_group_items_ja_offsets, mixed_cdf_group_items_ja_item_idxs
 
 
-def build_mixed_cdf_group_areaperils(mixed_cdf_groups, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids):
+def build_mixed_cdf_group_areaperils(mixed_cdf_groups, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
+                                     blended_areaperil_placement_schemes, dynamic_footprint):
     """Expand each mixed cdf group into its group areaperils and sort them into item map order.
 
     A group reads one group areaperil per distinct areaperil of its blended areaperil; group
-    areaperil ``mixed_cdf_group_areaperil_ja_offsets[mixed_cdf_group_idx] + j`` is the group's j-th. The item map visits
-    them grouped by areaperil, then by vulnerability, then by group: with K = 1 everywhere, and one
-    group per (areaperil, vulnerability), that is the (areaperil_id, vulnerability_id) order the
-    items are sorted in, so traversal order, rng assignment and CDF group numbering are unchanged.
+    areaperil ``mixed_cdf_group_areaperil_ja_offsets[mixed_cdf_group_idx] + j`` is the group's j-th.
+    The item map visits them grouped by areaperil, then by vulnerability, then by group.
 
     Args:
-        mixed_cdf_groups (np.ndarray[mixed_cdf_group_dtype]): item mixed_cdf_groups, in key order.
+        mixed_cdf_groups (np.ndarray[mixed_cdf_group_dtype]): mixed cdf groups, in key order.
         blended_areaperil_ja_offsets (np.ndarray[oasis_int]): CSR offsets over a blended
             areaperil's areaperils.
         blended_areaperil_ja_areaperil_ids (np.ndarray[areaperil_int]): footprint areaperil ids.
+        blended_areaperil_placement_schemes (np.ndarray[int64]): per blended areaperil, its
+            placement scheme, -1 for an areaperil's own size-1 one.
+        dynamic_footprint (bool): whether groups are keyed on intensity adjustment and protection.
 
     Returns:
-        tuple: ``mixed_cdf_group_areaperil_ja_offsets`` (N_mixed_cdf_groups + 1), and the group areaperils in item map
-        order as four parallel arrays: areaperil id, vulnerability id, group index and group
-        areaperil index.
+        tuple: ``mixed_cdf_group_areaperil_ja_offsets`` (N_mixed_cdf_groups + 1),
+        ``mixed_cdf_group_areaperil_ja_cell_groups`` (per group areaperil, the size-1 group of its
+        areaperil under the group's vulnerability, which is the group itself for a size-1 group),
+        and the group areaperils in item map order as four parallel arrays: areaperil id,
+        vulnerability id, group index and group areaperil index.
     """
     n_mixed_cdf_groups = mixed_cdf_groups.shape[0]
-    blended_idx = mixed_cdf_groups['blended_areaperil_idx']
+    blended_idx = mixed_cdf_groups['blended_areaperil_idx'].astype(np.int64)
     mixed_cdf_group_k = (blended_areaperil_ja_offsets[blended_idx + 1] - blended_areaperil_ja_offsets[blended_idx]).astype(np.int64)
     mixed_cdf_group_areaperil_ja_offsets = np.zeros(n_mixed_cdf_groups + 1, dtype=oasis_int)
     np.cumsum(mixed_cdf_group_k, out=mixed_cdf_group_areaperil_ja_offsets[1:])
     n_mixed_cdf_group_areaperils = int(mixed_cdf_group_areaperil_ja_offsets[-1])
 
-    entry_mixed_cdf_group_idx = np.repeat(np.arange(n_mixed_cdf_groups, dtype=oasis_int), mixed_cdf_group_k)
+    entry_group = np.repeat(np.arange(n_mixed_cdf_groups, dtype=oasis_int), mixed_cdf_group_k)
     # j of each group areaperil: its position within its group's run
-    entry_j = np.arange(n_mixed_cdf_group_areaperils, dtype=np.int64) - mixed_cdf_group_areaperil_ja_offsets[entry_mixed_cdf_group_idx]
-    entry_areaperil_id = blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[blended_idx[entry_mixed_cdf_group_idx]] + entry_j]
-    entry_vuln_id = mixed_cdf_groups['vulnerability_id'][entry_mixed_cdf_group_idx]
+    entry_j = np.arange(n_mixed_cdf_group_areaperils, dtype=np.int64) - mixed_cdf_group_areaperil_ja_offsets[entry_group]
+    entry_areaperil_id = blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[blended_idx[entry_group]] + entry_j]
+    entry_vuln_id = mixed_cdf_groups['vulnerability_id'][entry_group]
 
-    order = np.lexsort((entry_mixed_cdf_group_idx, entry_vuln_id, entry_areaperil_id))
+    # the size-1 group of each group areaperil's areaperil: same vulnerability and intensity
+    # adjustment, no protection. build_item_mixed_cdf_groups made one for every areaperil read.
+    sorted_cell_ids, cell_blend_idxs = _cell_blends(blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
+                                                    blended_areaperil_placement_schemes)
+    group_keys = _group_keys(blended_idx, mixed_cdf_groups['vulnerability_id'], mixed_cdf_groups['intensity_adjustment'],
+                             mixed_cdf_groups['return_period'], dynamic_footprint)
+    cell_keys = group_keys[entry_group].copy()
+    cell_keys[:, 0] = cell_blend_idxs[np.searchsorted(sorted_cell_ids, entry_areaperil_id)]
+    if dynamic_footprint:
+        cell_keys[:, 3] = 0
+    if n_mixed_cdf_group_areaperils:
+        # group_keys are unique and sorted, so each cell key's position among them is its group
+        unique_keys, inverse = np.unique(np.concatenate([group_keys, cell_keys]), axis=0, return_inverse=True)
+        if unique_keys.shape[0] != n_mixed_cdf_groups:
+            raise OasisException("gulmc structure: a blended areaperil reads an areaperil with no mixed cdf group of its own")
+        mixed_cdf_group_areaperil_ja_cell_groups = inverse.reshape(-1)[n_mixed_cdf_groups:].astype(np.int32)
+    else:
+        mixed_cdf_group_areaperil_ja_cell_groups = np.zeros(0, dtype=np.int32)
+
+    order = np.lexsort((entry_group, entry_vuln_id, entry_areaperil_id))
     return (mixed_cdf_group_areaperil_ja_offsets,
+            mixed_cdf_group_areaperil_ja_cell_groups,
             np.ascontiguousarray(entry_areaperil_id[order]),
             np.ascontiguousarray(entry_vuln_id[order]),
-            np.ascontiguousarray(entry_mixed_cdf_group_idx[order]),
+            np.ascontiguousarray(entry_group[order]),
             order.astype(oasis_int))
 
 
@@ -386,86 +453,76 @@ def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_mixed_cdf_group
 
 
 @nb.njit(cache=True)
-def build_cdf_group_indices(item_map_ja_offsets, item_map_ja_mixed_cdf_group_idxs, item_map_ja_mixed_cdf_group_areaperil_idxs,
-                            mixed_cdf_groups, n_mixed_cdf_group_areaperils, dynamic_footprint):
-    """Assign a sequential CDF group index to each group areaperil.
+def _normalised_member_weights(agg_offsets, agg_weights, out):
+    """Each aggregate block's member weights over their positive total, or equal when none is positive."""
+    for block in range(agg_offsets.shape[0] - 1):
+        total = 0.
+        for m in range(agg_offsets[block], agg_offsets[block + 1]):
+            if agg_weights[m] > 0:
+                total += agg_weights[m]
+        n_members = agg_offsets[block + 1] - agg_offsets[block]
+        for m in range(agg_offsets[block], agg_offsets[block + 1]):
+            if total > 0:
+                out[m] = agg_weights[m] / total if agg_weights[m] > 0 else 0.
+            else:
+                out[m] = 1. / n_members
 
-    A CDF group is a set of group areaperils that share identical vulnerability CDFs: the same
-    areaperil and vulnerability, and under a dynamic footprint the same intensity adjustment.
-    Groups are numbered in item map order, the order the cache is filled in.
 
-    Numba compiles two specializations based on whether dynamic_footprint is None or not.
+def build_vuln_member_blocks(n_vulns, vuln_idx_to_cond_idx, areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
+                             mixed_cdf_group_areaperil_ja_agg_blocks, mixed_cdf_groups, mixed_cdf_group_areaperil_ja_offsets):
+    """Give every group areaperil the vulnerabilities its damage cdf is a weighted sum of.
+
+    An aggregate vulnerability is a weighted sum of member vulnerabilities, with weights that
+    depend on the areaperil; any other vulnerability is the one-member case of weight 1. Block
+    ``v`` for ``v < n_vulns`` is that single member, so an ordinary group areaperil's block is its
+    vulnerability index, and the aggregate blocks follow. Weights are normalised here: the members'
+    positive weights over their total, or equal weights when none is positive.
+
+    A member's row is its row in the cdf table it is read from: the vulnerability index in
+    ``vuln_cdf``, or, for a conditional vulnerability (only ever a dependent's), its row in
+    ``cond_cdf``.
 
     Args:
-        item_map_ja_offsets (np.array[oasis_int]): item map CSR offsets.
-        item_map_ja_mixed_cdf_group_idxs (np.array[oasis_int]): mixed cdf group index per entry.
-        item_map_ja_mixed_cdf_group_areaperil_idxs (np.array[oasis_int]): group areaperil index per entry.
-        mixed_cdf_groups (np.ndarray[mixed_cdf_group_dtype]): mixed cdf groups ('vulnerability_id', and
-            'intensity_adjustment' when dynamic).
-        n_mixed_cdf_group_areaperils (int): number of group areaperils.
-        dynamic_footprint: None for static footprints, truthy for dynamic.
+        n_vulns (int): number of dense vulnerability indices.
+        vuln_idx_to_cond_idx (np.array[int64]): dense vulnerability index -> conditional row, or -1.
+        areaperil_agg_vuln_idx_ja_offsets (np.array[oasis_int]): aggregate blocks' member offsets.
+        areaperil_agg_vuln_idx_ja_data (np.array[agg_vuln_idx_weight_dtype]): (vuln_idx, weight) per member.
+        mixed_cdf_group_areaperil_ja_agg_blocks (np.array[oasis_int]): aggregate block per group
+            areaperil, -1 when its vulnerability is not aggregate.
+        mixed_cdf_groups (np.ndarray[mixed_cdf_group_dtype]): with 'vulnerability_idx' filled in.
+        mixed_cdf_group_areaperil_ja_offsets (np.array[oasis_int]): per group, its group areaperils.
 
     Returns:
-        mixed_cdf_group_areaperil_ja_cdf_group_idxs (np.array[int64]): CDF group index per group areaperil.
-        n_cdf_groups (int): total number of CDF groups.
+        tuple: ``vuln_member_ja_offsets``, ``vuln_member_ja_rows`` (int32), ``vuln_member_ja_weights``
+        (float64), and ``mixed_cdf_group_areaperil_ja_member_blocks`` (int32, per group areaperil).
     """
-    mixed_cdf_group_areaperil_ja_cdf_group_idxs = np.empty(n_mixed_cdf_group_areaperils, dtype=np.int64)
-    n_areaperils = item_map_ja_offsets.shape[0] - 1
-    n_cdf_groups = 0
-
-    if dynamic_footprint is None:
-        for ap_idx in range(n_areaperils):
-            for e in range(item_map_ja_offsets[ap_idx], item_map_ja_offsets[ap_idx + 1]):
-                # entries of an areaperil are sorted by vulnerability, so a pair starts where it changes
-                same_pair = e > item_map_ja_offsets[ap_idx] and (
-                    mixed_cdf_groups[item_map_ja_mixed_cdf_group_idxs[e]]['vulnerability_id']
-                    == mixed_cdf_groups[item_map_ja_mixed_cdf_group_idxs[e - 1]]['vulnerability_id'])
-                if not same_pair:
-                    n_cdf_groups += 1
-                mixed_cdf_group_areaperil_ja_cdf_group_idxs[item_map_ja_mixed_cdf_group_areaperil_idxs[e]] = n_cdf_groups - 1
-    else:
-        n_entries = item_map_ja_mixed_cdf_group_idxs.shape[0]
-        adj_key_storage = np.empty(max(n_entries, 1), dtype=oasis_int)
-        adj_cache_ids = np.empty(max(n_entries, 1), dtype=np.int64)
-        for ap_idx in range(n_areaperils):
-            pair_start = item_map_ja_offsets[ap_idx]
-            ap_end = item_map_ja_offsets[ap_idx + 1]
-            while pair_start < ap_end:
-                vuln = mixed_cdf_groups[item_map_ja_mixed_cdf_group_idxs[pair_start]]['vulnerability_id']
-                pair_end = pair_start + 1
-                while pair_end < ap_end and mixed_cdf_groups[item_map_ja_mixed_cdf_group_idxs[pair_end]]['vulnerability_id'] == vuln:
-                    pair_end += 1
-                # fresh hashmap per (areaperil, vulnerability) pair: intensity_adjustment -> dense index
-                adj_table = init_dict(max(pair_end - pair_start, 1))
-                adj_info, adj_lookup, adj_index = unpack(adj_table)
-                for e in range(pair_start, pair_end):
-                    adj = mixed_cdf_groups[item_map_ja_mixed_cdf_group_idxs[e]]['intensity_adjustment']
-                    result = _try_add_key(adj_info, adj_lookup, adj_index, adj_key_storage, adj)
-                    while result == i_add_key_fail:
-                        adj_table = rehash(adj_table, adj_key_storage)
-                        adj_info, adj_lookup, adj_index = unpack(adj_table)
-                        result = _try_add_key(adj_info, adj_lookup, adj_index, adj_key_storage, adj)
-                    dense_idx = adj_index[result & slot_mask]
-                    if result & new_slot_bit:  # new unique adjustment
-                        adj_cache_ids[dense_idx] = n_cdf_groups
-                        n_cdf_groups += 1
-                    mixed_cdf_group_areaperil_ja_cdf_group_idxs[item_map_ja_mixed_cdf_group_areaperil_idxs[e]] = adj_cache_ids[dense_idx]
-                pair_start = pair_end
-
-    return mixed_cdf_group_areaperil_ja_cdf_group_idxs, n_cdf_groups
+    n_agg_blocks = areaperil_agg_vuln_idx_ja_offsets.shape[0] - 1
+    single_rows = np.arange(n_vulns, dtype=np.int64)
+    single_rows = np.where(vuln_idx_to_cond_idx >= 0, vuln_idx_to_cond_idx, single_rows)
+    agg_weights = np.empty(areaperil_agg_vuln_idx_ja_data.shape[0], dtype=np.float64)
+    _normalised_member_weights(areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data['weight'].astype(np.float64),
+                               agg_weights)
+    vuln_member_ja_offsets = np.concatenate([np.arange(n_vulns, dtype=oasis_int),
+                                             (n_vulns + areaperil_agg_vuln_idx_ja_offsets[:n_agg_blocks + 1]).astype(oasis_int)])
+    vuln_member_ja_rows = np.concatenate([single_rows, areaperil_agg_vuln_idx_ja_data['vuln_idx']]).astype(np.int32)
+    vuln_member_ja_weights = np.concatenate([np.ones(n_vulns, dtype=np.float64), agg_weights])
+    entry_group = np.repeat(np.arange(mixed_cdf_groups.shape[0]), np.diff(mixed_cdf_group_areaperil_ja_offsets))
+    mixed_cdf_group_areaperil_ja_member_blocks = np.where(
+        mixed_cdf_group_areaperil_ja_agg_blocks >= 0, n_vulns + mixed_cdf_group_areaperil_ja_agg_blocks,
+        mixed_cdf_groups['vulnerability_idx'][entry_group]).astype(np.int32)
+    return vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights, mixed_cdf_group_areaperil_ja_member_blocks
 
 
-def item_is_aggregate_vuln(item_mixed_cdf_groups, mixed_cdf_group_areaperil_ja_offsets, mixed_cdf_group_areaperil_ja_areaperil_agg_vuln_idxs):
+def item_is_aggregate_vuln(item_mixed_cdf_groups, mixed_cdf_group_areaperil_ja_offsets, group_areaperil_is_aggregate):
     """Per item, whether its vulnerability is aggregate.
 
     Being aggregate is a property of the vulnerability, so all of a group's group areaperils agree
-    and the first one is read. The block index itself is per group areaperil, because the aggregate
-    weights are keyed by areaperil. An item with no group areaperil (K = 0: every placement of its
+    and the first one is read. An item with no group areaperil (K = 0: every placement of its
     blended areaperil uncovered) is never computed, and reads as not aggregate.
     """
     is_aggregate = np.zeros(mixed_cdf_group_areaperil_ja_offsets.shape[0] - 1, dtype=bool)
     has_areaperil = mixed_cdf_group_areaperil_ja_offsets[1:] > mixed_cdf_group_areaperil_ja_offsets[:-1]
-    is_aggregate[has_areaperil] = mixed_cdf_group_areaperil_ja_areaperil_agg_vuln_idxs[mixed_cdf_group_areaperil_ja_offsets[:-1][has_areaperil]] >= 0
+    is_aggregate[has_areaperil] = group_areaperil_is_aggregate[mixed_cdf_group_areaperil_ja_offsets[:-1][has_areaperil]]
     return is_aggregate[item_mixed_cdf_groups]
 
 

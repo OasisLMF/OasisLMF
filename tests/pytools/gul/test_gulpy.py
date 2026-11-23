@@ -19,6 +19,10 @@ from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 # get tests dirs
 TESTS_DIR = Path(__file__).parent.parent.parent
 TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
+# gulpy against gulmc: the same distribution summed in a different order in float32, compared
+# through the csv, which keeps two decimals
+GULPY_VS_GULMC_RTOL = 1e-6
+GULPY_VS_GULMC_ATOL = 0.01
 
 # get all available test models
 # gulpy only supports model data in test_model_1
@@ -97,8 +101,11 @@ def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
             df_ref = pd.read_csv(ref_out_bin_fname.with_suffix('.csv'))
             df_test = pd.read_csv(test_out_bin_fname.with_suffix('.csv'))
 
-            # compare the `loss` columns
-            assert_allclose(df_ref['loss'], df_test['loss'], rtol=gul_rtol, atol=gul_atol, x_name='expected', y_name='test')
+            # compare the `loss` columns. The reference is gulmc's effective damageability output, which
+            # mixes the stored float32 damage cdfs while getmodel sums the pdfs, so the two engines agree
+            # to float32 rounding, not bit for bit.
+            assert_allclose(df_ref['loss'], df_test['loss'], rtol=max(gul_rtol, GULPY_VS_GULMC_RTOL),
+                            atol=max(gul_atol, GULPY_VS_GULMC_ATOL), x_name='expected', y_name='test')
 
         finally:
             # remove temporary files; the csv files exist only if the bitwise comparison

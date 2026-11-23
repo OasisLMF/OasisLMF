@@ -387,7 +387,7 @@ def validate(blend, label='blended areaperil table'):
 # Blended areaperils of a run
 # ---------------------------------------------------------------------------------------------
 
-def build_blended_areaperils(items, blend=None):
+def build_blended_areaperils(items, blend=None, cell_blends=False):
     """Give every distinct item ``areaperil_id`` its blended areaperil.
 
     A blended areaperil is what an item's ``areaperil_id`` names: weighted placements, each read
@@ -404,6 +404,10 @@ def build_blended_areaperils(items, blend=None):
         items (np.ndarray): items table with 'areaperil_id'.
         blend (BlendTable, optional): the validated blend table, sorted by (blended id,
             placement), or None when the model has none.
+        cell_blends (bool): also give every areaperil of a listed blended areaperil a size-1
+            blended areaperil of its own, after the items' ones, when no item has it already. gulmc
+            keys an areaperil's effective cdf on it, whether or not an item reads that areaperil
+            directly.
 
     Returns:
         tuple: ``items_blended_areaperil_idx`` (dense blended areaperil index per item), then the
@@ -463,6 +467,18 @@ def build_blended_areaperils(items, blend=None):
         blended_parts[b] = (distinct, probabilities, cum_weights, areaperil_j, scale)
         k[b] = distinct.shape[0]
         n_placements[b] = cum_weights.shape[0]
+
+    if cell_blends and blended_parts:
+        # appended, so the items' indices are unchanged
+        cells = np.unique(np.concatenate([parts[0] for parts in blended_parts.values()]))
+        extra = np.setdiff1d(cells, blended_ids[~is_blended])
+        blended_ids = np.concatenate([blended_ids, extra.astype(blended_ids.dtype)])
+        is_blended = np.concatenate([is_blended, np.zeros(extra.shape[0], dtype=bool)])
+        k = np.concatenate([k, np.ones(extra.shape[0], dtype=np.int64)])
+        n_placements = np.concatenate([n_placements, np.ones(extra.shape[0], dtype=np.int64)])
+        blended_areaperil_placement_schemes = np.concatenate(
+            [blended_areaperil_placement_schemes, np.full(extra.shape[0], -1, dtype=np.int64)])
+        n_blended = blended_ids.shape[0]
 
     blended_areaperil_ja_offsets = np.zeros(n_blended + 1, dtype=oasis_int)
     np.cumsum(k, out=blended_areaperil_ja_offsets[1:])

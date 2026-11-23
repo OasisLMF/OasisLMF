@@ -41,7 +41,7 @@ from oasislmf.pytools.gulmc.common import (
 )
 from oasislmf.pytools.gulmc.items import (
     read_items, build_item_mixed_cdf_groups, build_mixed_cdf_group_areaperils, build_item_placements, generate_item_map,
-    build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln, item_is_computed,
+    build_vuln_member_blocks, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln, item_is_computed,
 )
 from oasislmf.utils.path import setcwd
 
@@ -53,7 +53,7 @@ DYNAMIC_FOOTPRINT_DIR = 'dynamic_footprint'
 
 # (variable_name, filename) pairs for all arrays that are saved/loaded.
 # number of scalars load_gulmc_structure reads out of metadata.npy
-N_METADATA_FIELDS = 4
+N_METADATA_FIELDS = 3
 # metadata value for "no placements were drawn": the model has no blended areaperil of more than one
 # placement, so the structure is valid for any sample size
 NO_PLACEMENT_SAMPLE_SIZE = -1
@@ -70,8 +70,8 @@ ARRAY_FILES = [
     'mixed_cdf_group_items_ja_offsets',
     'mixed_cdf_group_items_ja_item_idxs',
     'mixed_cdf_group_areaperil_ja_offsets',
-    'mixed_cdf_group_areaperil_ja_cdf_group_idxs',
-    'mixed_cdf_group_areaperil_ja_areaperil_agg_vuln_idxs',
+    'mixed_cdf_group_areaperil_ja_cell_groups',
+    'mixed_cdf_group_areaperil_ja_member_blocks',
     'blended_areaperil_ja_offsets',
     'blended_areaperil_ja_probabilities',
     'blended_areaperil_placement_ja_offsets',
@@ -80,12 +80,15 @@ ARRAY_FILES = [
     'placement_item_ind',
     'placement_item_starts',
     'location_placements',
-    'areaperil_agg_vuln_idx_ja_offsets',
-    'areaperil_agg_vuln_idx_ja_data',
+    'vuln_member_ja_offsets',
+    'vuln_member_ja_rows',
+    'vuln_member_ja_weights',
     'damage_bins',
     'vuln_adj',
-    'vuln_array',
-    'conditional_vuln_array',
+    'vuln_cdf',
+    'vuln_cdf_lengths',
+    'cond_cdf',
+    'cond_cdf_lengths',
     'vuln_idx_to_cond_idx',
     'unique_peril_correlation_groups',
     'norm_inv_cdf',
@@ -368,6 +371,47 @@ def align_conditional_damage_axis(conditional_vuln_array, Ndamage_bins_max):
     )
 
 
+@nb.njit(cache=True)
+def build_cdf_table(pdf):
+    """Turn damage pdfs into the damage cdfs gulmc samples and mixes, one row per condition.
+
+    ``pdf[v, d, c]`` is the probability of damage bin ``d`` for vulnerability ``v`` under condition
+    ``c``: an intensity bin for a vulnerability, a source damage bin for a conditional one. The table
+    is ``cdf[v, c, d]``, the damage axis last so a row is contiguous. A row is the running sum over
+    the whole damage axis, so it can be read at any bin; a condition with no probability at all is
+    no damage, a point mass on damage bin 0.
+
+    The second array is each row's length as a cdf: up to the first bin that reaches 1 to float
+    precision, less the bins it ends flat on. Sampling searches no further.
+    """
+    n_rows, n_damage_bins, n_conditions = pdf.shape
+    cdf = np.empty((n_rows, n_conditions, max(n_damage_bins, 1)), dtype=oasis_float)
+    lengths = np.ones((n_rows, n_conditions), dtype=np.int32)
+    for v in range(n_rows):
+        for c in range(n_conditions):
+            total = 0.
+            for d in range(n_damage_bins):
+                total += pdf[v, d, c]
+            if total <= 0.:
+                for d in range(n_damage_bins):
+                    cdf[v, c, d] = 1.
+                continue
+            cumsum = 0.
+            length = -1
+            for d in range(n_damage_bins):
+                cumsum += pdf[v, d, c]
+                cdf[v, c, d] = cumsum
+                if length < 0 and cumsum >= 0.999999940:
+                    length = d
+            if length < 0:
+                length = n_damage_bins - 1
+            last_prob = cdf[v, c, length]
+            while length > 0 and cdf[v, c, length - 1] == last_prob:
+                length -= 1
+            lengths[v, c] = length + 1
+    return cdf, lengths
+
+
 def build_vuln_idx_to_cond_idx(items, item_is_aggregate, cond_vuln_ids, n_vulns):
     """Map each vulnerability's dense index to its conditional (damage-transition) matrix row.
 
@@ -490,8 +534,10 @@ def gulmc_structure_exists(run_dir):
     if not os.path.isfile(metadata_path):
         return False
     try:
-        if np.load(metadata_path).shape[0] < N_METADATA_FIELDS:
-            logger.info('pre-computed gulmc structures are incomplete: rebuilding')
+        structure_path = _structure_path(run_dir)
+        if np.load(metadata_path).shape[0] != N_METADATA_FIELDS or not all(
+                os.path.isfile(os.path.join(structure_path, f'{name}.npy')) for name in ARRAY_FILES):
+            logger.info('pre-computed gulmc structures are incomplete or from another version: rebuilding')
             return False
     except Exception:
         logger.info('pre-computed gulmc structures are unreadable: rebuilding')
@@ -656,14 +702,16 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     (items['blended_areaperil_idx'],
      blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_ja_probabilities,
      blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_schemes) = build_blended_areaperils(items, blend)
+     blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_schemes) = build_blended_areaperils(
+        items, blend, cell_blends=True)
     # per-areaperil structures are kept per mixed cdf group, not per item: a blended areaperil of K
     # areaperils read by L items of one vulnerability costs K entries, not K * L
     item_mixed_cdf_groups, mixed_cdf_groups, mixed_cdf_group_items_ja_offsets, mixed_cdf_group_items_ja_item_idxs = build_item_mixed_cdf_groups(
-        items, dynamic_footprint)
-    (mixed_cdf_group_areaperil_ja_offsets, entry_areaperil_ids, entry_vuln_ids, entry_mixed_cdf_group_idxs,
-     entry_mixed_cdf_group_areaperil_idxs) = build_mixed_cdf_group_areaperils(mixed_cdf_groups, blended_areaperil_ja_offsets,
-                                                                              blended_areaperil_ja_areaperil_ids)
+        items, dynamic_footprint, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_placement_schemes)
+    (mixed_cdf_group_areaperil_ja_offsets, mixed_cdf_group_areaperil_ja_cell_groups, entry_areaperil_ids, entry_vuln_ids,
+     entry_mixed_cdf_group_idxs, entry_mixed_cdf_group_areaperil_idxs) = build_mixed_cdf_group_areaperils(
+        mixed_cdf_groups, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_placement_schemes,
+        bool(dynamic_footprint))
     n_mixed_cdf_group_areaperils = int(mixed_cdf_group_areaperil_ja_offsets[-1])
     placement_item_ind, placement_item_starts, location_placements, placement_sample_size = build_placements(
         input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
@@ -674,7 +722,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # --- item map (areaperil -> group areaperils) ------------------------------
     (item_map_ja_areaperil_ids, item_map_ja_offsets,
      item_map_ja_mixed_cdf_group_idxs, item_map_ja_mixed_cdf_group_areaperil_idxs,
-     mixed_cdf_group_areaperil_ja_areaperil_agg_vuln_idxs,
+     mixed_cdf_group_areaperil_ja_agg_blocks,
      vuln_map, vuln_map_keys,
      areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
      areaperil_agg_vuln_idx_ja_areaperil_ids) = generate_item_map(
@@ -685,11 +733,6 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     item_map_ja_id_ind = id_index_build(item_map_ja_areaperil_ids)
     # an aggregate group keeps vulnerability_idx 0, never read (see generate_item_map)
     items['vulnerability_idx'] = mixed_cdf_groups['vulnerability_idx'][item_mixed_cdf_groups]
-
-    # CDF group indices
-    mixed_cdf_group_areaperil_ja_cdf_group_idxs, n_cdf_groups = build_cdf_group_indices(
-        item_map_ja_offsets, item_map_ja_mixed_cdf_group_idxs, item_map_ja_mixed_cdf_group_areaperil_idxs,
-        mixed_cdf_groups, n_mixed_cdf_group_areaperils, dynamic_footprint if dynamic_footprint else None)
 
     if aggregate_weights is not None:
         logger.debug('reconstruct aggregate vulnerability definitions and weights')
@@ -731,18 +774,30 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                                  num_intensity_bins, ignore_file_type, df_engine=model_df_engine,
                                  allow_missing_vuln_ids=cond_vuln_ids)
 
-    # the kernel copies a conditional column into a vuln_pdf row of width vuln_array.shape[1]
-    # (Ndamage_bins_max), which the vulnerability file — not the damage_bin_dict — determines.
+    # a conditional cdf has the damage axis of the vulnerability cdfs, which the vulnerability file
+    # -- not the damage_bin_dict -- determines
     conditional_vuln_array = align_conditional_damage_axis(conditional_vuln_array, vuln_array.shape[1])
 
     # an item with no group areaperil (every placement uncovered) is never computed and was never
     # given a vulnerability_idx, so it must not scatter into the mapping
+    n_vulns = vuln_array.shape[0]
     computed = item_is_computed(item_mixed_cdf_groups, mixed_cdf_group_areaperil_ja_offsets)
     vuln_idx_to_cond_idx = build_vuln_idx_to_cond_idx(
         items[computed],
         item_is_aggregate_vuln(item_mixed_cdf_groups, mixed_cdf_group_areaperil_ja_offsets,
-                               mixed_cdf_group_areaperil_ja_areaperil_agg_vuln_idxs)[computed],
-        cond_vuln_ids, vuln_array.shape[0])
+                               mixed_cdf_group_areaperil_ja_agg_blocks >= 0)[computed],
+        cond_vuln_ids, n_vulns)
+
+    # the damage cdfs every sample and every effective cdf is read from, built once
+    vuln_cdf, vuln_cdf_lengths = build_cdf_table(vuln_array)
+    cond_cdf, cond_cdf_lengths = build_cdf_table(conditional_vuln_array)
+    del vuln_array, conditional_vuln_array
+    (vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
+     mixed_cdf_group_areaperil_ja_member_blocks) = build_vuln_member_blocks(
+        n_vulns, vuln_idx_to_cond_idx, areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
+        mixed_cdf_group_areaperil_ja_agg_blocks, mixed_cdf_groups, mixed_cdf_group_areaperil_ja_offsets)
+    # the damage random values of a single vulnerability are adjusted; an aggregate's are not
+    vuln_adj = np.concatenate([vuln_adj, np.ones(vuln_member_ja_offsets.shape[0] - 1 - n_vulns, dtype=vuln_adj.dtype)])
 
     # --- Gaussian lookup tables (deterministic constants) ----------------------
     norm_inv_parameters = np.array(
@@ -775,8 +830,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'mixed_cdf_group_items_ja_offsets': mixed_cdf_group_items_ja_offsets,
         'mixed_cdf_group_items_ja_item_idxs': mixed_cdf_group_items_ja_item_idxs,
         'mixed_cdf_group_areaperil_ja_offsets': mixed_cdf_group_areaperil_ja_offsets,
-        'mixed_cdf_group_areaperil_ja_cdf_group_idxs': mixed_cdf_group_areaperil_ja_cdf_group_idxs,
-        'mixed_cdf_group_areaperil_ja_areaperil_agg_vuln_idxs': mixed_cdf_group_areaperil_ja_areaperil_agg_vuln_idxs,
+        'mixed_cdf_group_areaperil_ja_cell_groups': mixed_cdf_group_areaperil_ja_cell_groups,
+        'mixed_cdf_group_areaperil_ja_member_blocks': mixed_cdf_group_areaperil_ja_member_blocks,
         'blended_areaperil_ja_offsets': blended_areaperil_ja_offsets,
         'blended_areaperil_ja_probabilities': blended_areaperil_ja_probabilities,
         'blended_areaperil_placement_ja_offsets': blended_areaperil_placement_ja_offsets,
@@ -785,12 +840,15 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'placement_item_ind': placement_item_ind,
         'placement_item_starts': placement_item_starts,
         'location_placements': location_placements,
-        'areaperil_agg_vuln_idx_ja_offsets': areaperil_agg_vuln_idx_ja_offsets,
-        'areaperil_agg_vuln_idx_ja_data': areaperil_agg_vuln_idx_ja_data,
+        'vuln_member_ja_offsets': vuln_member_ja_offsets,
+        'vuln_member_ja_rows': vuln_member_ja_rows,
+        'vuln_member_ja_weights': vuln_member_ja_weights,
         'damage_bins': damage_bins,
         'vuln_adj': vuln_adj,
-        'vuln_array': vuln_array,
-        'conditional_vuln_array': conditional_vuln_array,
+        'vuln_cdf': vuln_cdf,
+        'vuln_cdf_lengths': vuln_cdf_lengths,
+        'cond_cdf': cond_cdf,
+        'cond_cdf_lengths': cond_cdf_lengths,
         'vuln_idx_to_cond_idx': vuln_idx_to_cond_idx,
         'unique_peril_correlation_groups': unique_peril_correlation_groups,
         'norm_inv_cdf': norm_inv_cdf,
@@ -803,7 +861,6 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'coverage_dependents_ja_data': coverage_dependents_ja_data,
         'source_item_idx': source_item_idx,
         # scalars
-        'n_cdf_groups': n_cdf_groups,
         'n_unique_groups': n_unique_groups,
         'n_unique_haz_groups': n_unique_haz_groups,
         'placement_sample_size': placement_sample_size,
@@ -839,7 +896,6 @@ def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
 
     # save scalar metadata
     metadata = np.array([
-        structures['n_cdf_groups'],
         structures['n_unique_groups'],
         structures['n_unique_haz_groups'],
         structures['placement_sample_size'],
@@ -872,9 +928,8 @@ def load_gulmc_structure(run_dir):
         result[name] = np.load(os.path.join(structure_path, f'{name}.npy'), mmap_mode='r')
 
     metadata = np.load(os.path.join(structure_path, 'metadata.npy'))
-    result['n_cdf_groups'] = int(metadata[0])
-    result['n_unique_groups'] = int(metadata[1])
-    result['n_unique_haz_groups'] = int(metadata[2])
-    result['placement_sample_size'] = int(metadata[3])
+    result['n_unique_groups'] = int(metadata[0])
+    result['n_unique_haz_groups'] = int(metadata[1])
+    result['placement_sample_size'] = int(metadata[2])
 
     return result
