@@ -1449,7 +1449,10 @@ def write_exposure_summary(
     if keys_errors_df is not None:
         if not keys_errors_df.empty:
             write_gul_errors_map(target_dir, exposure_df, keys_errors_df, exposure_profile, intermediary_csv=intermediary_csv)
-        keys_parts.append(keys_errors_df[EXPOSURE_SUMMARY_KEYS_COLS])
+        # an empty errors frame has object columns, which would turn the concatenated loc_id and
+        # coverage_type_id keys columns into object too; keep it only when it is the sole part
+        if not keys_errors_df.empty or not keys_parts:
+            keys_parts.append(keys_errors_df[EXPOSURE_SUMMARY_KEYS_COLS])
 
     exposure_summary = get_exposure_summary(exposure_df, keys_parts, exposure_profile, additional_fields)
 

@@ -14,11 +14,14 @@ loc_ids shared by several exposure rows, keys rows repeated or carrying several 
 outside the exposure, and missing values.
 """
 
+import json
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from oasislmf.preparation.summaries import convert_col_name, get_exposure_summary, select_keys_columns
+from oasislmf.preparation.summaries import convert_col_name, get_exposure_summary, select_keys_columns, write_exposure_summary
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.defaults import get_default_exposure_profile
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
@@ -369,6 +372,40 @@ def test_split_and_categorical_keys_with_file_headers_match_reference():
     # the reference sees them concatenated, the way write_exposure_summary used to concatenate them
     assert_matches_reference(exposure_df, pd.concat([keys_df[success], keys_df[~success]], ignore_index=True), FIELDS,
                              keys_input=[keys_success, keys_errors])
+
+
+@pytest.mark.parametrize('with_successes', [True, False])
+def test_empty_keys_errors_keep_the_keys_columns_numeric(tmp_path, with_successes):
+    """An empty keys errors frame, as GenerateFiles passes when every location returns keys, is left
+    out of the keys handed to get_exposure_summary unless there is nothing else, so its object
+    columns do not turn the concatenated loc_id and coverage_type_id columns into object."""
+    exposure_df, keys_df = make_portfolio(18)
+    keys_success = keys_df[keys_df['status'] == 'success'].drop(columns='status').rename(
+        columns={'loc_id': 'locid', 'peril_id': 'perilid', 'coverage_type_id': 'coveragetypeid'})
+    calls = []
+
+    def spy(exposure_df, keys_parts, *args, **kwargs):
+        calls.append(keys_parts)
+        return get_exposure_summary(exposure_df, keys_parts, *args, **kwargs)
+
+    with patch('oasislmf.preparation.summaries.get_exposure_summary', side_effect=spy):
+        write_exposure_summary(str(tmp_path), exposure_df, additional_fields=FIELDS,
+                               keys_df=keys_success if with_successes else None,
+                               keys_errors_df=pd.DataFrame(columns=['locid']))
+
+    keys_parts = calls[0]
+    assert len(keys_parts) == 1
+    if with_successes:
+        for col in ['loc_id', 'coverage_type_id']:
+            assert pd.api.types.is_integer_dtype(pd.concat([part[col] for part in keys_parts]))
+    with open(tmp_path / 'exposure_summary_report.json') as f:
+        summary = json.load(f)
+    if with_successes:
+        expected = reference_exposure_summary(exposure_df, keys_df[keys_df['status'] == 'success'],
+                                              additional_fields=FIELDS)
+    else:  # the reference cannot build a summary without keys
+        expected = get_exposure_summary(exposure_df, keys_df.iloc[:0], additional_fields=FIELDS)
+    assert_summaries_equal(summary, json.loads(json.dumps(expected)))
 
 
 @pytest.mark.parametrize('missing', [np.nan, None, pd.NA])
