@@ -132,6 +132,42 @@ def validate_coverage_dependency(items, item_is_aggregate, vuln_idx_to_cond_idx)
 
 
 @redirect_logging(exec_name='gulmc')
+def cdf_cache_slots(n_cdf_groups, n_classes, cdfs_per_group, budget_slots):
+    """Size the cell and item class cdf caches, in slots of one cdf each.
+
+    Both caches are cleared every event, since a cdf depends on the event's hazard, so neither
+    needs more slots than one event can write: ``cdfs_per_group`` per CDF group in the cell cache
+    and one per item class in the class cache. Each is that, rounded up to a power of two for
+    masking. When the two do not fit ``budget_slots`` together, each is rounded down to fit, the
+    class cache taking at most half. The cell cache never drops below one group's block of
+    ``cdfs_per_group``, which would otherwise overwrite itself while wrapping round, so a tiny
+    budget can be exceeded.
+
+    Args:
+        n_cdf_groups (int): number of CDF groups, the cell cache's keys.
+        n_classes (int): number of item classes, the class cache's keys.
+        cdfs_per_group (int): cdfs a group writes: its effective cdf, plus one per intensity bin
+          in full Monte Carlo.
+        budget_slots (int): slots that fit ``max_cached_vuln_cdf_size_MB``.
+
+    Returns:
+        tuple[int, int]: (cell cache slots, class cache slots), both powers of two.
+    """
+    def pow2_ceil(n):
+        return 1 << max(n - 1, 0).bit_length()
+
+    def pow2_floor(n):
+        return 1 << (max(n, 1).bit_length() - 1)
+
+    min_cell_slots = pow2_ceil(cdfs_per_group)
+    cell_slots = max(pow2_ceil(n_cdf_groups * cdfs_per_group), min_cell_slots)
+    class_slots = pow2_ceil(n_classes)
+    if cell_slots + class_slots > budget_slots:
+        class_slots = min(class_slots, pow2_floor(budget_slots // 2))
+        cell_slots = max(min(cell_slots, pow2_floor(budget_slots - class_slots)), min_cell_slots)
+    return cell_slots, class_slots
+
+
 def run(run_dir,
         ignore_file_type,
         sample_size,
@@ -489,31 +525,19 @@ def run(run_dir,
         max_bytes_per_block = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
         max_bytes_per_item = max_bytes_per_block * max_emitted_blocks(items['packed_buildings'])
 
-        # define vulnerability cdf cache size
-        max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cache size in bytes
-        max_Nnumbers_cached_vuln_cdf = max_cached_vuln_cdf_size_bytes // oasis_float.itemsize  # total numbers that can fit in the cache
-        # max number of cdfs that can be stored in cache
-        max_Nvulnerability_cached_vuln_cdf = int(max_Nnumbers_cached_vuln_cdf // Ndamage_bins_max)
-        # The budget is shared with the item classes' effective cdfs, which have a ring of their own:
-        # in the cell ring, the cells each item resolves for its samples would evict its class's cdf
-        # and send the next item back over all of the class's areaperils. The class ring takes up to
-        # half the budget, one slot per class, rounded down to a power of two.
+        # Size the cdf caches. The item classes' cdfs have a ring of their own: in the cell ring, the
+        # cells each item resolves for its samples would evict its class's cdf and send the next item
+        # back over all of the class's areaperils. max_cached_vuln_cdf_size_MB caps the two together.
+        cdf_size_bytes = Ndamage_bins_max * oasis_float.itemsize
+        budget_slots = int(max_cached_vuln_cdf_size_MB * 1024 * 1024 // cdf_size_bytes)
         n_classes = class_items_ja_offsets.shape[0] - 1
-        n_class_cdf_slots = min(1 << max(n_classes - 1, 0).bit_length(),
-                                1 << (max(max_Nvulnerability_cached_vuln_cdf // 2, 1).bit_length() - 1))
-        max_Nvulnerability_cached_vuln_cdf = max(max_Nvulnerability_cached_vuln_cdf - n_class_cdf_slots, 1)
-        # number of vulnerability functions to be cached, rounded up to power of two for bitwise masking.
-        # The cache must fit at least one full multi-block write for a single item — that is
-        # 1 effective damage CDF + Nintensity_bins per-bin vuln CDFs — otherwise a block can
-        # trample itself while wrapping around, producing silently corrupted CDF reads.
-        Nvulns_cached = min(Nvulnerability * Nintensity_bins, max_Nvulnerability_cached_vuln_cdf)
-        Nvulns_cached = max(Nvulns_cached, Nintensity_bins + 1)
-        Nvulns_cached = 1 << (max(Nvulns_cached, 1) - 1).bit_length()  # next power of two
+        cdfs_per_group = 1 if effective_damageability else 1 + Nintensity_bins
+        Nvulns_cached, n_class_cdf_slots = cdf_cache_slots(n_cdf_groups, n_classes, cdfs_per_group, budget_slots)
         cdf_cache_mask = np.int64(Nvulns_cached - 1)
         logger.info(f"max vulnerability cdf cache size is {max_cached_vuln_cdf_size_MB}MB")
-        logger.info(
-            f"generating a cache of shape ({Nvulns_cached}, {Ndamage_bins_max}) and size {Nvulns_cached * Ndamage_bins_max * oasis_float.itemsize / 1024 / 1024:8.3f}MB")
-        logger.info(f"generating a class cdf cache of {n_class_cdf_slots} slots for {n_classes} item classes")
+        logger.info(f"generating a cell cdf cache of {Nvulns_cached} slots for {n_cdf_groups} cdf groups and "
+                    f"a class cdf cache of {n_class_cdf_slots} slots for {n_classes} item classes, "
+                    f"{(Nvulns_cached + n_class_cdf_slots) * cdf_size_bytes / 1024 / 1024:.3f}MB")
 
         # maximum bytes to be written in the output stream for 1 item
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj

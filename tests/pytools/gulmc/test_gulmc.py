@@ -16,7 +16,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import FootprintHeader
 from oasislmf.pytools.getmodel.footprint import SHARED_MANIFEST, Footprint
 from oasislmf.pytools.gulmc.items import get_dynamic_footprint_adjustments
-from oasislmf.pytools.gulmc.manager import run as run_gulmc
+from oasislmf.pytools.gulmc.manager import cdf_cache_slots, run as run_gulmc
 from oasislmf.pytools.gulmc.structure import create_gulmc_structure, dynamic_footprint_path
 from oasislmf.pytools.utils import assert_allclose
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
@@ -618,3 +618,17 @@ def test_dynamic_footprint_structures_build_from_a_relative_run_directory(tmp_pa
     monkeypatch.chdir(tmp_path)
     structures = build_structures('run', set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
     assert len(structures['vuln_array'])
+
+
+@pytest.mark.parametrize("n_cdf_groups, n_classes, cdfs_per_group, budget_slots, expected", [
+    # fits: one event's writes each, rounded up to a power of two, whatever the budget left over
+    (440, 440, 59, 1 << 22, (1 << 15, 1 << 9)),
+    (100_000, 1, 1, 1 << 22, (1 << 17, 1)),
+    # too big: the class cache takes at most half, the cell cache the rest, both rounded down
+    (100_000, 1, 59, 1 << 22, (1 << 21, 1)),
+    (100_000, 100_000, 59, 1 << 20, (1 << 19, 1 << 17)),
+    # the cell cache keeps room for one group's block even past a tiny budget
+    (10, 10, 59, 2, (64, 1)),
+])
+def test_cdf_caches_hold_one_event_within_the_budget(n_cdf_groups, n_classes, cdfs_per_group, budget_slots, expected):
+    assert cdf_cache_slots(n_cdf_groups, n_classes, cdfs_per_group, budget_slots) == expected

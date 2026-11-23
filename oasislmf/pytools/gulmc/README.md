@@ -52,7 +52,7 @@ gul/
                      │  4. reconstruct_coverages()                           │
                      │     → items_event_data, seeds, eff_cdf_ids            │
                      │  5. 2 sample draws + 2 correlation draws              │
-                     │  6. Reset CDF cache lookup (Dict only, array reused)  │
+                     │  6. Reset CDF cache tags (arrays reused)              │
                      │  7. compute_event_losses() [may loop for large events]│
                      │  8. Write output buffer to stream                     │
                      └───────────────────────────────────────────────────────┘
@@ -175,34 +175,28 @@ location.
 | `class_areaperil_event_rp` | class areaperil | per event: the event's return period there (dynamic footprint) |
 | `class_event_tag` | item class | per event: the event it was last reached in, so its items register once |
 
-### Vulnerability CDF Cache
+### Vulnerability CDF Caches
 
-A circular buffer that caches computed CDFs to avoid recomputation when multiple items
-share the same vulnerability function and hazard conditions.
+Two rings of cdfs, pre-allocated once before the event loop and cleared (by tag, not by
+rewriting) at the start of every event, since a cdf depends on the event's hazard.
 
-**Storage**: `cached_vuln_cdfs` — 2d array of shape `(Nvulns_cached, Ndamage_bins_max)`.
-Pre-allocated once before the event loop (up to 200MB, configurable via `--vuln-cache-size`).
-Reused across events without reallocation.
+- **Cell cache** (`cached_vuln_cdfs`, `cdf_cache_tag`, `cdf_cache_nbins`): per CDF group
+  (`class_areaperil_ja_cdf_group_idxs`: areaperil, vulnerability and, under a dynamic footprint,
+  intensity adjustment), a contiguous block of its effective damage cdf and, in full Monte Carlo,
+  one cdf per intensity bin.
+- **Class cdf cache** (`class_cdf_cache`, `class_cdf_cache_tag`, `class_cdf_cache_nbins`): per
+  item class, the mixed effective damage cdf its items share.
 
-**Lookup**: `cached_vuln_cdf_lookup` — Numba Dict mapping `int64` keys to
-`(slot_index, cdf_length)` tuples. Rebuilt (cleared) each event.
+Each ring writes at a counter (`compute_info['cdf_cache_ctr']`, `['class_cdf_cache_ctr']`) masked
+to its power-of-two size, and records the counter in its key's tag. A key's entry is valid until
+the ring has taken as many writes after it as it has slots; a miss recomputes and rewrites it.
 
-**Key encoding** (composite int64):
-```
-┌─────────────────────────────────┬─────────────────────────────────┐
-│  upper 32 bits: eff_cdf_id      │  lower 32 bits: discriminator   │
-└─────────────────────────────────┴─────────────────────────────────┘
-```
-- **Effective damage CDF**: `eff_cdf_id << 32 | 0xFFFFFFFF`
-- **Per-bin vulnerability CDF**: `eff_cdf_id << 32 | haz_bin_id`
-
-The `eff_cdf_id` is a sequential integer assigned per unique `(areaperil_id, vulnerability_id)`
-pair during `reconstruct_coverages`. This avoids putting `areaperil_id` (potentially uint64)
-in the cache key.
-
-**Eviction**: circular (LRU-like). A write cursor advances through slots; when reusing a slot,
-the old key is removed from the Dict. A reverse mapping (`cached_vuln_cdf_lookup_keys` list)
-tracks which key occupies each slot.
+**Size** (`cdf_cache_slots`): what one event can write, so that nothing is evicted within an
+event: CDF groups x (1 + Nintensity_bins) cell slots in full Monte Carlo, CDF groups with
+effective damageability, and one class slot per item class, each rounded up to a power of two.
+`--vuln-cache-size` (MB, default 200) caps the two together: past it the class cache takes at most
+half and the cell cache the rest, both rounded down. The cell cache never drops below one group's
+block, which would otherwise overwrite itself while wrapping round.
 
 ## Core Functions (manager.py)
 
@@ -234,17 +228,12 @@ group deduplication instead of per-event Numba Dict creation.
 Core loss computation. For each coverage and item:
 1. Retrieves hazard pdf via its class areaperil's `class_areaperil_haz_arr_i`.
 2. Looks up or computes the effective damage CDF (and per-bin CDFs when
-   `effective_damageability=False`), using the int64 cache key.
+   `effective_damageability=False`), through the cdf caches.
 3. Computes mean loss statistics.
 4. Samples losses using correlated or uncorrelated random values.
 5. Writes results to the output byte buffer.
 
 May return early (False) if the output buffer is full; the caller flushes and re-invokes.
-
-### `cache_cdf(next_i, cdfs, lookup, keys, cdf, key)`
-
-Stores a CDF in the circular cache. If the target slot is occupied, evicts the old entry
-from the lookup Dict before overwriting.
 
 ## Building packing
 
@@ -395,6 +384,6 @@ Key flags:
 - `-L`: loss threshold
 - `-a`: allocation rule (0, 1, 2, or 3)
 - `--random-generator`: 0 = Mersenne Twister, 1 = Latin Hypercube, 2 = Latin Hypercube on Philox4x32-7 (counter-based; default)
-- `--vuln-cache-size`: CDF cache size in MB (default 200)
+- `--vuln-cache-size`: cap in MB on the two CDF caches together (default 200)
 - `--effective-damageability`: use effective damageability mode
 - `--ignore-correlation`: skip hazard/damage correlation
