@@ -7,6 +7,8 @@ from tempfile import TemporaryDirectory
 import numpy as np
 import psutil
 import pytest
+from oasislmf.pytools.kat import manager
+from oasislmf.pytools.kat.data import KAT_MAP, KAT_SELT, KAT_SPLT
 from oasislmf.pytools.kat.manager import main
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_katpy")
@@ -133,6 +135,76 @@ def test_katpy_bin_unsorted():
 def test_katpy_parquet_unsorted():
     """Test katpy with parquet inputs (using QPLT) unsorted"""
     case_runner("pqplt", "upkatpy_qplt.parquet", False)
+
+
+def merge_inputs(file_type):
+    """Rows of three sorted binary inputs, and the same rows in merged order.
+
+    Events go to the inputs in turn and have one to four rows each. Event 4 is in every input,
+    with three rows in two periods. SummaryId numbers the rows in input order.
+
+    Args:
+        file_type (int): katpy table type (index into KAT_MAP)
+
+    Returns:
+        arrays (List[np.ndarray]): rows of each input, sorted by EventId and, for PLT, Period
+        expected (np.ndarray): all rows sorted by the same columns, ties in input order
+    """
+    dtype = KAT_MAP[file_type]["dtype"]
+    events = [[], [], []]
+    periods = [[], [], []]
+    for event_id in range(1, 13):
+        event_rows = 3 if event_id == 4 else 1 + event_id % 4
+        for file_idx in range(3) if event_id == 4 else [(event_id - 1) % 3]:
+            events[file_idx] += [event_id] * event_rows
+            periods[file_idx] += [1 + row // 2 for row in range(event_rows)]
+
+    arrays = []
+    n_rows = 0
+    for file_events, file_periods in zip(events, periods):
+        data = np.zeros(len(file_events), dtype=dtype)
+        data["EventId"] = file_events
+        data["SummaryId"] = np.arange(n_rows, n_rows + len(data))
+        if "Period" in dtype.names:
+            data["Period"] = file_periods
+        n_rows += len(data)
+        arrays.append(data)
+
+    rows = np.concatenate(arrays)
+    keys = [rows["Period"], rows["EventId"]] if "Period" in dtype.names else [rows["EventId"]]
+    return arrays, rows[np.lexsort(keys)]
+
+
+@pytest.mark.parametrize("flag, file_type", [("selt", KAT_SELT), ("splt", KAT_SPLT)])
+def test_katpy_bin_sorted_merge_order(tmp_path, flag, file_type):
+    """Sorted bin inputs are merged by EventId and, for PLT, Period. Rows with equal keys keep the input order."""
+    arrays, expected = merge_inputs(file_type)
+    files_in = [tmp_path / f"{flag}_P{file_idx + 1}.bin" for file_idx in range(len(arrays))]
+    for file_path, data in zip(files_in, arrays):
+        data.tofile(file_path)
+    out_file = tmp_path / f"{flag}.bin"
+
+    main(files_in=files_in, out=out_file, unsorted=False, **{flag: True})
+
+    np.testing.assert_array_equal(np.fromfile(out_file, dtype=expected.dtype), expected)
+
+
+@pytest.mark.parametrize("merge_name, file_type", [("merge_elt_data", KAT_SELT), ("merge_plt_data", KAT_SPLT)])
+def test_merge_yields_full_buffers(monkeypatch, merge_name, file_type):
+    """The merged rows are yielded in buffers of DEFAULT_BUFFER_SIZE rows, followed by the remaining rows.
+
+    The buffer size is a compile time constant of the jitted functions, so their Python implementations run here.
+    """
+    buffer_size = 4
+    monkeypatch.setattr(manager, "DEFAULT_BUFFER_SIZE", buffer_size)
+    merge = getattr(manager, merge_name)
+    merge = getattr(merge, "py_func", merge)
+    arrays, expected = merge_inputs(file_type)
+
+    chunks = [chunk.copy() for chunk in merge(arrays)]
+
+    assert [len(chunk) for chunk in chunks] == [buffer_size] * (len(expected) // buffer_size) + [len(expected) % buffer_size]
+    np.testing.assert_array_equal(np.concatenate(chunks), expected)
 
 
 REAL_UNLINK = Path.unlink
