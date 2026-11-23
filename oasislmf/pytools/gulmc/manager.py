@@ -1347,17 +1347,19 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                        areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins,
                        areaperil_j_to_eff_damage_cdf, areaperil_j_to_Neff_damage_bins,
                        areaperil_j_to_damage_bin_scaling,
+                       mixed_eff_damage_cdf, n_mixed, mixed_damage_bin_scaling,
                        haz_cdf_buf, haz_i_to_Ndamage_bins_buf, haz_i_to_vuln_cdf_buf,
                        damage_bins, out,
                        is_dependent, src_bin_out, parent_bins):
     """Write the per-sample gul (or debug random values) for one building of one item into ``out``.
 
-    Each sample reads the item areaperil its building's placement falls on,
+    Under effective_damageability every sample is drawn from the item's mixed effective damage cdf:
+    the building is not placed, so where it stands is folded into the cdf as hazard uncertainty is.
+    Otherwise each sample reads the item areaperil its building's placement falls on,
     ``areaperil_j_of_sample[s]``; an item of a single placement reads areaperil 0 throughout. A
     sample on an uncovered placement (-1) or on an areaperil that is dead this event loses nothing.
-    On a live areaperil the gul is computed as for any item: under effective_damageability from that
-    areaperil's effective damage CDF; with a single hazard bin from that bin's vulnerability CDF;
-    and in the general case by drawing the hazard bin and using its vulnerability CDF.
+    On a live areaperil the gul is drawn, with a single hazard bin, from that bin's vulnerability
+    CDF, and in the general case by drawing the hazard bin and using its vulnerability CDF.
 
     Coverage dependency: a dependent item (``is_dependent``, full Monte Carlo) selects its hazard
     bin as its source's per-sample sampled damage bin, read from ``parent_bins``, rather than by
@@ -1372,12 +1374,17 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
         haz_z_unif (np.array[float]): hazard random values for this building.
         vuln_z_unif (np.array[float]): damage random values for this building.
         areaperil_j_of_sample (np.array[int32]): per sample, the item areaperil read, -1 for none.
+          Not read under effective_damageability.
         areaperil_j_live (np.array[bool]): per item areaperil, whether it has hazard this event.
         areaperil_j_to_haz_start (np.array[int64]): per item areaperil, its first row in the haz buffers.
         areaperil_j_to_Nhaz_bins (np.array[int64]): per item areaperil, its number of hazard bins.
         areaperil_j_to_eff_damage_cdf (np.array[oasis_float, 2d]): per item areaperil, its effective damage cdf.
         areaperil_j_to_Neff_damage_bins (np.array[int64]): per item areaperil, its effective cdf length.
         areaperil_j_to_damage_bin_scaling (np.array[float64]): per item areaperil, its tiv scaling.
+        mixed_eff_damage_cdf (np.array[oasis_float]): the item's mixed effective damage cdf, its
+          first ``n_mixed`` entries valid. Read under effective_damageability only.
+        n_mixed (int): length of ``mixed_eff_damage_cdf``.
+        mixed_damage_bin_scaling (float): tiv scaling of ``mixed_eff_damage_cdf``.
         haz_cdf_buf (np.array[oasis_float]): hazard cdfs of the item areaperils, packed by row.
         haz_i_to_Ndamage_bins_buf (np.array[oasis_int]): per hazard row, its vulnerability cdf length.
         haz_i_to_vuln_cdf_buf (np.array[float, 2d]): per hazard row, its vulnerability cdf.
@@ -1402,7 +1409,12 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
         out[:] = vuln_z_unif[:]
 
     else:  # calculate gul
-        effective_damageability = compute_info['effective_damageability']
+        if compute_info['effective_damageability']:
+            for sample_idx in range(sample_size):
+                out[sample_idx] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx], mixed_eff_damage_cdf,
+                                                        n_mixed, damage_bins, mixed_damage_bin_scaling,
+                                                        src_bin_out, sample_idx)
+            return
         for sample_idx in range(sample_size):
             areaperil_j = areaperil_j_of_sample[sample_idx]
             if areaperil_j < 0 or not areaperil_j_live[areaperil_j]:
@@ -1410,12 +1422,6 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                 src_bin_out[sample_idx] = 0
                 continue
             damage_bin_scaling = areaperil_j_to_damage_bin_scaling[areaperil_j]
-            if effective_damageability:
-                Neff_damage_bins = areaperil_j_to_Neff_damage_bins[areaperil_j]
-                out[sample_idx] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx], areaperil_j_to_eff_damage_cdf[areaperil_j],
-                                                        Neff_damage_bins, damage_bins, damage_bin_scaling,
-                                                        src_bin_out, sample_idx)
-                continue
             haz_start = areaperil_j_to_haz_start[areaperil_j]
             Nhaz_bins = areaperil_j_to_Nhaz_bins[areaperil_j]
             if Nhaz_bins == 1:  # only one hazard possible
@@ -1727,8 +1733,9 @@ def compute_event_losses(compute_info,
             # within the item's protection. Dead areaperils and uncovered placements carry no loss.
             # An item reports the effective damage cdf of its item class: its areaperils' cdfs mixed
             # by probability, computed by the class's first item this event. An ordinary item is the
-            # case of one areaperil of probability 1, whose mixture is its cdf exactly. Its samples
-            # resolve an areaperil only when one of them lands there (below). A dependent's CDFs come
+            # case of one areaperil of probability 1, whose mixture is its cdf exactly. In full Monte
+            # Carlo its samples resolve an areaperil only when one of them lands there (below); under
+            # effective damageability they are drawn from the mixture itself. A dependent's CDFs come
             # from its own source's damage, so it walks its areaperils.
             protection_rp = item_event_data['return_period']
             n_live = 0
@@ -1951,8 +1958,9 @@ def compute_event_losses(compute_info,
             # the analytic values are those of the item's marginal: its areaperils' effective cdfs
             # mixed by probability, the mass no live areaperil carries on bin 0. This is the cdf
             # getmodel streams to gulpy for the same item.
+            mixed_damage_bin_scaling = compute_damage_bin_scaling(damage_bins, n_mixed, tiv)
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                compute_damage_bin_scaling(damage_bins, n_mixed, tiv),
+                mixed_damage_bin_scaling,
                 mixed_eff_damage_cdf[:n_mixed],
                 damage_bins['interpolation'],
                 n_mixed,
@@ -1974,12 +1982,14 @@ def compute_event_losses(compute_info,
             if sample_size > 0:  # compute random losses
                 # full Monte Carlo: record this coverage's per-sample damage bin for any dependent
                 # below it in the DFS
-                store_source_bin = has_dependents_below and not compute_info['effective_damageability']
+                full_monte_carlo = not compute_info['effective_damageability']
+                store_source_bin = has_dependents_below and full_monte_carlo
                 # placements were drawn per (location, building) when the structure was built;
-                # this item reads them through its own blended areaperil's placement -> j map
+                # this item reads them through its own blended areaperil's placement -> j map.
+                # Effective damageability samples the mixture and reads none.
                 item_placement_start = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx']]
                 n_placements = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx'] + 1] - item_placement_start
-                has_placements = n_placements > 1
+                has_placements = n_placements > 1 and full_monte_carlo
                 if has_placements:
                     location_start = placement_item_starts[id_index_get_idx(placement_item_ind, item_idx)]
                 else:
@@ -2050,7 +2060,7 @@ def compute_event_losses(compute_info,
                     else:
                         areaperil_j_of_sample = areaperil_j_single[:sample_size]
 
-                    if not is_dependent:
+                    if not is_dependent and full_monte_carlo:
                         # resolve the areaperils this building's samples land on, each once per item:
                         # at most S per building whatever the number of areaperils
                         for sample_idx in range(sample_size):
@@ -2085,6 +2095,7 @@ def compute_event_losses(compute_info,
                                        areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins,
                                        areaperil_j_to_eff_damage_cdf, areaperil_j_to_Neff_damage_bins,
                                        areaperil_j_to_damage_bin_scaling,
+                                       mixed_eff_damage_cdf, n_mixed, mixed_damage_bin_scaling,
                                        haz_cdf_buf, haz_i_to_Ndamage_bins_buf, haz_i_to_vuln_cdf_buf,
                                        damage_bins, building_losses[:, item_j, b - 1],
                                        is_dependent, src_bin_out, parent_bins)

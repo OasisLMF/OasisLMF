@@ -219,6 +219,23 @@ def test_analytic_mean_is_the_weighted_mixture_of_the_positions(tmp_path, positi
     np.testing.assert_allclose(means(losses).reindex(expected.index), expected, rtol=1e-5)
 
 
+def test_effective_damageability_samples_the_mixture_without_placing_the_building(tmp_path):
+    """Under effective damageability a sample is drawn from the mixed cdf, not from one position's.
+
+    The runs placed on A and on B draw the same damage random numbers, and a quantile of the mixture
+    lies between the two positions' quantiles: every blended sample is between the two losses, and
+    some are strictly between, which no sample of a placed building can be.
+    """
+    blend = blend_rows([(1, A), (1, B)])
+    losses = sampled(gul_losses(write_model(tmp_path / 'blended', THREE_LOCATIONS, blend), effective_damageability=True))
+    at_a, at_b = (sampled(gul_losses(write_model(tmp_path / f'at_{ap}', placed_on(THREE_LOCATIONS, ap)),
+                                     effective_damageability=True)).reindex(losses.index, fill_value=0.) for ap in (A, B))
+    low, high = np.minimum(at_a, at_b), np.maximum(at_a, at_b)
+    tolerance = 1e-4 * high.max()
+    assert ((losses >= low - tolerance) & (losses <= high + tolerance)).all()
+    assert ((losses > low + tolerance) & (losses < high - tolerance)).any()
+
+
 AGGREGATE = 900
 OTHER_VULNERABILITY = 1
 

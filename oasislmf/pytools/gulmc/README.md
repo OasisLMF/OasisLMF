@@ -147,9 +147,10 @@ areaperils once and mixes their effective damage cdfs, weighted by
 (below) and the class's other items read it. Every item that is not a coverage-dependency
 dependent takes this path: an ordinary item is the case of one areaperil of probability 1, whose
 mixture is its cdf exactly. The analytic values (mean, standard deviation, Hermite terms of a
-summed correlated item) come from the class cdf. Its samples then resolve an areaperil only when one
-of them lands there, at most S per building. A dependent is live or dead per placement like any
-item, but walks its own areaperils, since its CDFs come from its source's damage. Dead areaperils, uncovered
+summed correlated item) come from the class cdf. In full Monte Carlo its samples then resolve an
+areaperil only when one of them lands there, at most S per building; under effective damageability
+they are drawn from the mixed cdf itself. A dependent is live or dead per placement like any item,
+but walks its own areaperils, since its CDFs come from its source's damage. Dead areaperils, uncovered
 placements and a float weight shortfall carry no loss: in the mixed effective damage cdf
 (`mix_effective_damage_cdfs`, shared with getmodel) their probability sits on damage bin 0, which
 must be the zero-loss bin of the damage bin dictionary. Under a dynamic footprint the event's return
@@ -323,7 +324,9 @@ written packed it could not tell which to collapse.
 ### Effective Damageability (default: off)
 
 When enabled (`--effective-damageability`), the effective damage CDF is sampled directly:
-one CDF lookup per item per sample. Faster but less precise.
+one CDF lookup per item per sample. Faster but less precise. Each item samples its item class's
+mixed cdf, so a blended building is not placed: where it stands is folded into the cdf as hazard
+uncertainty is, and only full Monte Carlo reads the placements.
 
 When disabled (default), the full Monte Carlo approach is used: for each sample, a hazard
 intensity bin is first sampled from the hazard CDF, then the damage is sampled from the

@@ -185,6 +185,11 @@ standard deviation, and in the distribution getmodel sends to gulpy.
 
 - **gulpy** gets each item's mixed distribution but not one position shared by a building's
   perils. Use gulmc for that.
+- **Effective damageability** (gulmc `--effective-damageability`) does not place the building
+  either: each item samples its mixed distribution directly, as it samples the effective damage
+  distribution instead of drawing a hazard intensity. Each item's distribution is unchanged, but
+  a building's perils and coverages no longer share a position within a sample. Use full Monte
+  Carlo, the default, for that.
 - A location's weights cannot differ by building type or coverage type: all its blended
   areaperils share one scheme.
 
