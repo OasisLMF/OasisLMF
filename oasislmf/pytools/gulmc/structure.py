@@ -325,13 +325,13 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
 def align_conditional_damage_axis(conditional_vuln_array, Ndamage_bins_max):
     """Align a conditional vulnerability matrix's dependent-damage axis to the vuln array's.
 
-    ``get_conditional_vulns`` sizes both axes from the damage_bin_dict, but the kernel copies a
-    conditional column straight into a ``vuln_pdf`` row (``resolve_item_cdfs``), whose width is
+    ``get_conditional_vulns`` sizes both axes from the damage_bin_dict, but a conditional cdf shares
+    the damage axis of the vulnerability cdfs (``build_cdf_table``), whose width is
     ``Ndamage_bins_max == vuln_array.shape[1]``. That comes from the vulnerability file (parquet
     metadata, the ``vulnerability.bin`` header, or ``max(damage_bin_id)`` for csv) and is not
     guaranteed to equal the damage_bin_dict size — a vulnerability file whose top damage bin is
-    unused makes it smaller. Drop the unreachable tail of the dependent-damage axis so the copy is
-    always a matching-shape assignment, and refuse the run outright in the opposite case, where a
+    unused makes it smaller. Drop the unreachable tail of the dependent-damage axis so the two
+    tables share one damage axis, and refuse the run outright in the opposite case, where a
     source's sampled damage bin could fall outside the conditional matrix's source axis.
 
     Args:

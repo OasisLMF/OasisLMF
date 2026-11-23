@@ -171,6 +171,29 @@ def _group_keys(blended_areaperil_idx, vulnerability_id, intensity_adjustment, r
     return np.stack([np.asarray(column, dtype=np.int64) for column in columns], axis=1)
 
 
+def _unique_rows(keys):
+    """``np.unique(keys, axis=0, return_inverse=True)`` for a 2-d int64 array, much faster.
+
+    Each row becomes one int64 code, its columns' ranks in mixed radix, which orders the codes as
+    the rows sort lexicographically, so the result is the same. Row-wise unique sorts the rows as
+    structured records and is an order of magnitude slower. Falls back to it should the code
+    overflow.
+    """
+    if keys.shape[0] == 0:
+        return keys.copy(), np.zeros(0, dtype=np.int64)
+    codes = np.zeros(keys.shape[0], dtype=np.int64)
+    n_codes = 1
+    for column in range(keys.shape[1]):
+        values, ranks = np.unique(keys[:, column], return_inverse=True)
+        n_codes *= values.shape[0]
+        if n_codes >= 1 << 62:
+            unique_keys, inverse = np.unique(keys, axis=0, return_inverse=True)
+            return unique_keys, inverse.reshape(-1)
+        codes = codes * values.shape[0] + ranks.reshape(-1)
+    _, first, inverse = np.unique(codes, return_index=True, return_inverse=True)
+    return keys[first], inverse.reshape(-1)
+
+
 def _cell_blends(blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_placement_schemes):
     """The size-1 blended areaperils (no placement scheme), as their areaperil ids sorted and their indices in that order."""
     cell_blend_idxs = np.flatnonzero(blended_areaperil_placement_schemes == -1)
@@ -220,7 +243,7 @@ def build_item_mixed_cdf_groups(items, dynamic_footprint, blended_areaperil_ja_o
 
     # the size-1 group of every areaperil a blended group reads
     n_key_columns = 3 if dynamic_footprint else 2
-    blended_keys = np.unique(item_keys[~is_cell_blend[blended_idx], :n_key_columns], axis=0)
+    blended_keys, _ = _unique_rows(np.ascontiguousarray(item_keys[~is_cell_blend[blended_idx], :n_key_columns]))
     k = (blended_areaperil_ja_offsets[blended_keys[:, 0] + 1] - blended_areaperil_ja_offsets[blended_keys[:, 0]]).astype(np.int64)
     key_of_cell = np.repeat(np.arange(blended_keys.shape[0]), k)
     j = np.arange(key_of_cell.shape[0]) - np.repeat(np.cumsum(k) - k, k)
@@ -234,8 +257,8 @@ def build_item_mixed_cdf_groups(items, dynamic_footprint, blended_areaperil_ja_o
 
     keys = np.concatenate([item_keys, cell_keys])
     if keys.shape[0]:
-        unique_keys, inverse = np.unique(keys, axis=0, return_inverse=True)
-        item_mixed_cdf_groups = inverse.reshape(-1)[:n_items].astype(np.int32)
+        unique_keys, inverse = _unique_rows(keys)
+        item_mixed_cdf_groups = inverse[:n_items].astype(np.int32)
     else:
         unique_keys = np.zeros((0, item_keys.shape[1]), dtype=np.int64)
         item_mixed_cdf_groups = np.zeros(0, dtype=np.int32)
@@ -300,7 +323,7 @@ def build_mixed_cdf_group_areaperils(mixed_cdf_groups, blended_areaperil_ja_offs
         cell_keys[:, 3] = 0
     if n_mixed_cdf_group_areaperils:
         # group_keys are unique and sorted, so each cell key's position among them is its group
-        unique_keys, inverse = np.unique(np.concatenate([group_keys, cell_keys]), axis=0, return_inverse=True)
+        unique_keys, inverse = _unique_rows(np.concatenate([group_keys, cell_keys]))
         if unique_keys.shape[0] != n_mixed_cdf_groups:
             raise OasisException("gulmc structure: a blended areaperil reads an areaperil with no mixed cdf group of its own")
         mixed_cdf_group_areaperil_ja_cell_groups = inverse.reshape(-1)[n_mixed_cdf_groups:].astype(np.int32)

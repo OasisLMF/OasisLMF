@@ -36,7 +36,7 @@ gul/
                        ┌──────────────────────────────────────────────────────┐
                        │                     run() setup                      │
                        │                                                      │
-                       │  Load: items, coverages, correlations, vuln_array,  │
+                       │  Load: items, coverages, correlations, vuln_cdf,    │
                        │        damage_bins, footprint index                  │
                        │  Build: item_map, areaperil_ids_map                  │
                        │  Pre-allocate: seeds, cdf cache, buffers             │
@@ -154,8 +154,10 @@ group's is its live areaperils' own cdfs, read from their size-1 groups, mixed b
 `blended_areaperil_ja_probabilities`. The analytic values (mean, standard deviation, Hermite terms
 of a summed correlated item) come from the mixed cdf. In full Monte Carlo a sample reads the
 areaperil its placement falls on: it draws an intensity bin from that areaperil's hazard cdf and its
-damage from the table, so a sampled areaperil needs only its hazard, read when a sample first lands
-there. Under effective damageability the samples are drawn from the mixed cdf itself. A dependent
+damage from that bin's damage cdf, so a sampled areaperil needs only its hazard, read when a sample
+first lands there. The damage cdf is copied from the table (an aggregate's members summed) into a
+small per-item row buffer the first time a sample reaches it, so every sample searches a short,
+contiguous row. Under effective damageability the samples are drawn from the mixed cdf itself. A dependent
 is live or dead per placement like any item; its cdf is its conditional curves weighted by its
 source's damage pmf, the same on every areaperil, and is never cached. Dead areaperils, uncovered
 placements and a float weight shortfall carry no loss: their probability sits on damage bin 0,
@@ -190,8 +192,8 @@ location spans must be in sections.csv, which is the lookup's job, as for any lo
 One ring of cdfs (`mixed_cdf_cache`, `mixed_cdf_cache_tag`, `mixed_cdf_cache_nbins`), pre-allocated
 once before the event loop and cleared (by tag, not by rewriting) at the start of every event, since
 a cdf depends on the event's hazard. It holds the mixed cdf of each mixed cdf group an event reaches,
-an areaperil's own cdf being its size-1 group's. Nothing per intensity bin is cached: a sample reads
-the damage cdf table directly.
+an areaperil's own cdf being its size-1 group's. Nothing per intensity bin is cached across items: a
+sample's damage cdf comes from the table, into a per-item row buffer (above).
 
 The ring writes at a counter (`compute_info['mixed_cdf_cache_ctr']`) masked to its power-of-two size
 and records the counter in its group's tag. A group's entry is valid until the ring has taken as many
@@ -332,14 +334,14 @@ uncertainty is, and only full Monte Carlo reads the placements.
 
 When disabled (default), the full Monte Carlo approach is used: for each sample, a hazard
 intensity bin is first sampled from the hazard CDF, then the damage is sampled from that bin's
-damage cdf, read from the table (`vuln_cdf`) built once per run.
+damage cdf, taken from the table (`vuln_cdf`) built once per run.
 
 ### Aggregate Vulnerabilities
 
 When a vulnerability_id maps to multiple underlying vulnerability functions, its damage cdf is
 their weighted sum, with per-areaperil weights normalised at build time: a member block of
-`vuln_member_ja_*`, of which an ordinary vulnerability is the one-member case. Sampling evaluates
-the weighted sum at the bins its search probes, so nothing is built per sample.
+`vuln_member_ja_*`, of which an ordinary vulnerability is the one-member case. The sum is built once
+per item for each intensity bin its samples reach, into the item's row buffer.
 
 ### Dynamic Footprints
 

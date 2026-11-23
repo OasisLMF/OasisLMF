@@ -20,9 +20,9 @@ items_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
 
 items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('item_idx', oasis_int),
-                                             # the hazard row, event return period and CDF group
-                                             # are per item areaperil, not per item: see
-                                             # item_areaperil_haz_arr_i and friends
+                                             # the hazard row and event return period are per
+                                             # group areaperil, not per item: see
+                                             # mixed_cdf_group_areaperil_haz_arr_i and friends
                                              ('rng_index', oasis_int),
                                              ('hazard_rng_index', oasis_int),
                                              ('intensity_adjustment', oasis_int),

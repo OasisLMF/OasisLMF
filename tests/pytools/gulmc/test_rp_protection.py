@@ -552,7 +552,7 @@ def test_rp_protection_only_affects_protected_items():
     items_event_data[1]['item_idx'] = 1
     items_event_data[1]['return_period'] = 0
 
-    # each item its own group, of one group areaperil (K = 1), both on the same areaperil and CDF group
+    # each item its own group, of one group areaperil (K = 1), both on the same areaperil
     item_mixed_cdf_groups = np.arange(2, dtype=np.int32)
     item_areaperil_ja_offsets = np.array([0, 1, 2], dtype=oasis_int)
     item_areaperil_ja_cell_groups = np.arange(2, dtype=np.int32)

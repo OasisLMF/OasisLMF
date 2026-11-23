@@ -1126,12 +1126,13 @@ def member_cdf_at(table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_membe
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def add_member_cdfs(acc, weight, table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights, block, condition):
-    """Add ``weight`` times a member block's damage cdf under one condition into ``acc``, over the whole damage axis."""
+def add_member_cdfs(acc, weight, table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights, block, condition,
+                    n_bins):
+    """Add ``weight`` times a member block's damage cdf under one condition into the first ``n_bins`` of ``acc``."""
     for member in range(vuln_member_ja_offsets[block], vuln_member_ja_offsets[block + 1]):
         member_weight = weight * vuln_member_ja_weights[member]
         row = vuln_member_ja_rows[member]
-        for damage_bin_i in range(table.shape[2]):
+        for damage_bin_i in range(n_bins):
             acc[damage_bin_i] += member_weight * table[row, condition, damage_bin_i]
 
 
@@ -1157,12 +1158,8 @@ def convolve_damage_cdf(acc, table, table_lengths, vuln_member_ja_offsets, vuln_
     for condition_i in range(n_conditions):
         probability = condition_probs[condition_i]
         if probability > 0.:
-            condition = condition_ids[condition_i] - 1
-            for member in range(vuln_member_ja_offsets[block], vuln_member_ja_offsets[block + 1]):
-                member_weight = probability * vuln_member_ja_weights[member]
-                row = vuln_member_ja_rows[member]
-                for damage_bin_i in range(n_bins):
-                    acc[damage_bin_i] += member_weight * table[row, condition, damage_bin_i]
+            add_member_cdfs(acc, probability, table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
+                            block, condition_ids[condition_i] - 1, n_bins)
     return cdf_length(acc, n_bins)
 
 
@@ -1183,7 +1180,7 @@ def accumulate_condition_hermite(scaling_factor, table, vuln_member_ja_offsets, 
         for damage_bin_i in range(table.shape[2]):
             curve_buf[damage_bin_i] = 0.
         add_member_cdfs(curve_buf, 1., table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
-                        block, condition_ids[condition_i] - 1)
+                        block, condition_ids[condition_i] - 1, table.shape[2])
         accumulate_hermite_coeffs(scaling_factor, curve_buf, damage_bins_interpolation, cdf_length(curve_buf, table.shape[2]),
                                   weight * probability, norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'],
                                   norm_inv_cdf, hermite_part)
@@ -1261,46 +1258,27 @@ def areaperil_cdf_slot(compute_info, cell_group, haz_arr_i, member_block, item, 
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def sample_member_cdfs(vuln_rval, table, table_lengths, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
-                       block, condition, damage_bins, bin_scaling, src_bin_out, out_i):
-    """Draw one loss from a member block's damage cdf under one condition, read from the table as it goes.
+def fill_damage_row(row_cdf_buf, row_lengths, row, table, table_lengths, vuln_member_ja_offsets, vuln_member_ja_rows,
+                    vuln_member_ja_weights, block, condition):
+    """Write a member block's damage cdf under one condition into row ``row`` of the item's row buffer.
 
-    The cdf is never built: the search evaluates the members' weighted sum at the bins it probes. A
-    single vulnerability is the one-member case, a plain search of its table row. The sampled damage
-    bin also goes to ``src_bin_out[out_i]``, the signal a coverage dependency is driven by.
+    A single vulnerability's is its table row; an aggregate's, its members' cdfs by weight. Only the
+    first ``row_lengths[row]`` entries are valid.
     """
     n_bins = 0
     for member in range(vuln_member_ja_offsets[block], vuln_member_ja_offsets[block + 1]):
         n_bins = max(n_bins, table_lengths[vuln_member_ja_rows[member], condition])
-    # the first bin whose cdf reaches the random value; the last bin is not searched, so a value
-    # above its cdf for rounding reasons still gives the last bin
-    lo = 0
-    hi = n_bins - 1
-    while lo < hi:
-        mid = (lo + hi) >> 1
-        if member_cdf_at(table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights, block, condition,
-                         mid) < vuln_rval:
-            lo = mid + 1
-        else:
-            hi = mid
-    damage_bin_i = lo
-    src_bin_out[out_i] = damage_bin_i
-    prob_to = member_cdf_at(table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights, block, condition,
-                            damage_bin_i)
-    prob_from = 0.
-    if damage_bin_i > 0:
-        prob_from = member_cdf_at(table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights, block, condition,
-                                  damage_bin_i - 1)
-    damage_bin = damage_bins[damage_bin_i]
-    return get_gul(damage_bin['bin_from'], damage_bin['bin_to'], damage_bin['interpolation'], prob_from, prob_to, vuln_rval,
-                   bin_scaling)
+    for damage_bin_i in range(n_bins):
+        row_cdf_buf[row, damage_bin_i] = member_cdf_at(table, vuln_member_ja_offsets, vuln_member_ja_rows,
+                                                       vuln_member_ja_weights, block, condition, damage_bin_i)
+    row_lengths[row] = n_bins
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
 def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                        haz_z_unif, vuln_z_unif, areaperil_j_of_sample, areaperil_j_live,
                        areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
-                       haz_cdf_buf, haz_bin_id_buf,
+                       haz_cdf_buf, haz_bin_id_buf, row_cdf_buf, row_lengths, row_stamp, item_stamp,
                        table, table_lengths, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
                        mixed_eff_damage_cdf, n_mixed, damage_bin_scaling,
                        damage_bins, out, is_dependent, src_bin_out, parent_bins):
@@ -1312,7 +1290,9 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
     ``areaperil_j_of_sample[s]``; an item of a single placement reads areaperil 0 throughout. A
     sample on an uncovered placement (-1) or on an areaperil that is dead this event loses nothing.
     On a live areaperil the sample's condition is drawn from the areaperil's hazard cdf (an intensity
-    bin), and its loss from the damage cdf of the areaperil's member block under that condition.
+    bin), and its loss from the damage cdf of the areaperil's member block under that condition. That
+    cdf is written to the item's row buffer the first time a sample needs it, so the search is over a
+    short contiguous row; a row is one hazard row of the item (one source damage bin for a dependent).
 
     Coverage dependency: a dependent item (``is_dependent``, full Monte Carlo) takes as its
     condition its source's per-sample sampled damage bin, read from ``parent_bins``, and reads the
@@ -1334,6 +1314,11 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
         areaperil_j_to_member_block (np.array[int32]): per item areaperil, its vulnerability member block.
         haz_cdf_buf (np.array[oasis_float]): hazard cdfs of the item areaperils, packed by row.
         haz_bin_id_buf (np.array[int32]): the intensity bin id of each of those rows.
+        row_cdf_buf (np.array[oasis_float, 2d]): per row, the damage cdf the samples on it read.
+        row_lengths (np.array[int64]): per row, the length of that cdf.
+        row_stamp (np.array[int64]): per row, the item it was written for; a row is written at most
+          once per item.
+        item_stamp (int): this item's stamp.
         table (np.array[oasis_float, 3d]): the damage cdfs sampled from, ``vuln_cdf`` or, for a
           dependent, ``cond_cdf``.
         table_lengths (np.array[int32, 2d]): their lengths.
@@ -1379,8 +1364,10 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                 continue
             if is_dependent:
                 # the dependent's condition is the source's sampled damage bin, read straight from
-                # the stack -- no ratio round-trip, so a source of any damage type works
+                # the stack -- no ratio round-trip, so a source of any damage type works. Its cdf is
+                # the same on every areaperil, so the row is the bin.
                 condition = parent_bins[sample_idx]
+                row = condition
             else:
                 haz_start = areaperil_j_to_haz_start[areaperil_j]
                 Nhaz_bins = areaperil_j_to_Nhaz_bins[areaperil_j]
@@ -1391,10 +1378,14 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                     # last bin, Nhaz_bins - 1, not one past it.
                     haz_row += binary_search(haz_z_unif[sample_idx], haz_cdf_buf[haz_start:haz_start + Nhaz_bins], Nhaz_bins - 1)
                 condition = haz_bin_id_buf[haz_row] - 1
-            out[sample_idx] = sample_member_cdfs(vuln_z_unif[sample_idx], table, table_lengths, vuln_member_ja_offsets,
-                                                 vuln_member_ja_rows, vuln_member_ja_weights,
-                                                 areaperil_j_to_member_block[areaperil_j], condition, damage_bins,
-                                                 damage_bin_scaling, src_bin_out, sample_idx)
+                row = haz_row
+            if row_stamp[row] != item_stamp:
+                row_stamp[row] = item_stamp
+                fill_damage_row(row_cdf_buf, row_lengths, row, table, table_lengths, vuln_member_ja_offsets,
+                                vuln_member_ja_rows, vuln_member_ja_weights, areaperil_j_to_member_block[areaperil_j],
+                                condition)
+            out[sample_idx] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx], row_cdf_buf[row], row_lengths[row],
+                                                    damage_bins, damage_bin_scaling, src_bin_out, sample_idx)
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -1589,6 +1580,12 @@ def compute_event_losses(compute_info,
     haz_rows = max_haz_bins * max(1, min(max_areaperils_per_item, sample_size * building_losses.shape[2]))
     haz_bin_id_buf = np.empty(haz_rows, dtype=np.int32)
     haz_cdf_buf = np.empty(haz_rows, dtype=oasis_float)
+    # per row an item's samples reach -- a hazard row, or a source damage bin for a dependent -- its
+    # damage cdf, written once per item when a sample first needs it
+    n_rows = max(haz_rows, cond_cdf.shape[1])
+    row_cdf_buf = np.empty((n_rows, vuln_cdf.shape[2]), dtype=oasis_float)
+    row_lengths = np.zeros(n_rows, dtype=np.int64)
+    row_stamp = np.full(n_rows, -1, dtype=np.int64)
     areaperil_j_live = np.zeros(max_areaperils_per_item, dtype=np.bool_)
     # an areaperil is resolved for an item's samples when one first lands there: resolved for this
     # item when its stamp is the item's
@@ -1925,7 +1922,7 @@ def compute_event_losses(compute_info,
                     if not is_dependent and full_monte_carlo:
                         # resolve the areaperils this building's samples land on, each once per item:
                         # at most S per building whatever the number of areaperils. A sample needs only
-                        # the areaperil's hazard; its damage cdfs are read from the table.
+                        # the areaperil's hazard; its damage cdf row is written when first drawn.
                         for sample_idx in range(sample_size):
                             areaperil_j = areaperil_j_of_sample[sample_idx]
                             if areaperil_j < 0 or areaperil_j_stamp[areaperil_j] == item_stamp:
@@ -1949,7 +1946,7 @@ def compute_event_losses(compute_info,
                     sample_item_losses(compute_info, sample_size, hazard_rng_index,
                                        haz_z_unif, vuln_z_unif, areaperil_j_of_sample, areaperil_j_live,
                                        areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
-                                       haz_cdf_buf, haz_bin_id_buf,
+                                       haz_cdf_buf, haz_bin_id_buf, row_cdf_buf, row_lengths, row_stamp, item_stamp,
                                        table, table_lengths, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
                                        mixed_eff_damage_cdf, n_mixed, damage_bin_scaling,
                                        damage_bins, building_losses[:, item_j, b - 1],
