@@ -115,14 +115,14 @@ the j-th is its areaperil_j. A blended areaperil whose placements are all `areap
 none, and its items never produce a loss.
 
 What an item reads, and through which cdfs, depends only on its blended areaperil, its
-vulnerability and, under a dynamic footprint, its intensity adjustment. Items agreeing on those
-form an **item class** (`build_item_classes`), and the per-areaperil structures are kept per class:
+vulnerability and, under a dynamic footprint, its intensity adjustment and protection. Items
+agreeing on those form an **item class** (`build_item_classes`), and the per-areaperil structures are kept per class:
 one **class areaperil** per areaperil of the class's blended areaperil,
 `class_areaperil_ja_offsets[item_classes[item_idx]] + j` for an item's j-th. A blended areaperil of
 K cells read by L items of one vulnerability therefore costs K entries, not K * L, both in the
 structure and in the per-event walk of `reconstruct_coverages`. Without blending there is one class
-per (areaperil, vulnerability[, intensity adjustment]) and items are visited in the order they
-always were.
+per (areaperil, vulnerability[, intensity adjustment, protection]) and items are visited in the
+order they always were.
 
 Placement is drawn once per run, when the structure is built: one Latin Hypercube block of S
 uniforms per (location, building), keyed on the location's OED identifiers and not on the event, so
@@ -141,12 +141,15 @@ Size: one byte per (location, building, sample) of the blended locations, so it 
 S = 1000, 250k single-building blended locations take 250 MB, memory-mapped and shared by the gulmc
 processes.
 
-Per event, `compute_event_losses` resolves the CDFs of all an item's live areaperils before
-sampling, so each sample reads the one its placement falls on. The analytic values are the mixture
-over the areaperils, weighted by `blended_areaperil_ja_probabilities`, for every item that does not
-stand on its one areaperil with certainty (one areaperil read with probability below 1 is mixed
-too). A coverage-dependency dependent is live or dead per placement like any item, and shares one set
-of CDFs across them, since its CDFs come from its source's damage. Dead areaperils, uncovered
+Per event, the first item of a class that `compute_event_losses` reaches walks the class's
+areaperils once and mixes their effective damage cdfs, weighted by
+`blended_areaperil_ja_probabilities`, into the **class cdf**; it is kept in the class cdf cache
+(below) and the class's other items read it. Every item that is not a coverage-dependency
+dependent takes this path: an ordinary item is the case of one areaperil of probability 1, whose
+mixture is its cdf exactly. The analytic values (mean, standard deviation, Hermite terms of a
+summed correlated item) come from the class cdf. Its samples then resolve an areaperil only when one
+of them lands there, at most S per building. A dependent is live or dead per placement like any
+item, but walks its own areaperils, since its CDFs come from its source's damage. Dead areaperils, uncovered
 placements and a float weight shortfall carry no loss: in the mixed effective damage cdf
 (`mix_effective_damage_cdfs`, shared with getmodel) their probability sits on damage bin 0, which
 must be the zero-loss bin of the damage bin dictionary. Under a dynamic footprint the event's return
