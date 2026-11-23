@@ -1067,9 +1067,9 @@ def test_conditional_convolution_reference():
         [0.0, 0.0, 0.0, 0.0, 0.1, 0.9],
     ], dtype='f8')
     # the conditional array is indexed [cond, dependent damage bin, source damage bin]
-    cond_cdf, _ = build_cdf_table(np.ascontiguousarray(dependent_vuln.T[None, :, :]))
+    cond_cdf, cond_cdf_lengths = build_cdf_table(np.ascontiguousarray(dependent_vuln.T[None, :, :]))
     acc = np.zeros(dependent_vuln.shape[1], dtype='f8')
-    n_bins = convolve_damage_cdf(acc, cond_cdf, np.array([0, 1]), np.array([0], dtype=np.int32), np.ones(1),
+    n_bins = convolve_damage_cdf(acc, cond_cdf, cond_cdf_lengths, np.array([0, 1]), np.array([0], dtype=np.int32), np.ones(1),
                                  0, np.arange(1, 7, dtype=np.int32), source_pmf, 6)
     eff_cdf = acc[:n_bins]
     eff_pmf = np.diff(np.concatenate(([0.0], eff_cdf)))
