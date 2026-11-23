@@ -620,15 +620,15 @@ def test_dynamic_footprint_structures_build_from_a_relative_run_directory(tmp_pa
     assert len(structures['vuln_array'])
 
 
-@pytest.mark.parametrize("n_cdf_groups, n_classes, cdfs_per_group, budget_slots, expected", [
+@pytest.mark.parametrize("n_cdf_groups, n_mixed_cdf_groups, cdfs_per_group, budget_slots, expected", [
     # fits: one event's writes each, rounded up to a power of two, whatever the budget left over
     (440, 440, 59, 1 << 22, (1 << 15, 1 << 9)),
     (100_000, 1, 1, 1 << 22, (1 << 17, 1)),
-    # too big: the class cache takes at most half, the cell cache the rest, both rounded down
+    # too big: the mixed cdf cache takes at most half, the cell cache the rest, both rounded down
     (100_000, 1, 59, 1 << 22, (1 << 21, 1)),
     (100_000, 100_000, 59, 1 << 20, (1 << 19, 1 << 17)),
     # the cell cache keeps room for one group's block even past a tiny budget
     (10, 10, 59, 2, (64, 1)),
 ])
-def test_cdf_caches_hold_one_event_within_the_budget(n_cdf_groups, n_classes, cdfs_per_group, budget_slots, expected):
-    assert cdf_cache_slots(n_cdf_groups, n_classes, cdfs_per_group, budget_slots) == expected
+def test_cdf_caches_hold_one_event_within_the_budget(n_cdf_groups, n_mixed_cdf_groups, cdfs_per_group, budget_slots, expected):
+    assert cdf_cache_slots(n_cdf_groups, n_mixed_cdf_groups, cdfs_per_group, budget_slots) == expected

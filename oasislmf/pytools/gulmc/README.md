@@ -116,11 +116,11 @@ none, and its items never produce a loss.
 
 What an item reads, and through which cdfs, depends only on its blended areaperil, its
 vulnerability and, under a dynamic footprint, its intensity adjustment and protection. Items
-agreeing on those form an **item class** (`build_item_classes`), and the per-areaperil structures are kept per class:
-one **class areaperil** per areaperil of the class's blended areaperil,
-`class_areaperil_ja_offsets[item_classes[item_idx]] + j` for an item's j-th. A blended areaperil of
+agreeing on those form a **mixed cdf group** (`build_item_mixed_cdf_groups`), and the per-areaperil structures are kept per group:
+one **group areaperil** per areaperil of the group's blended areaperil,
+`mixed_cdf_group_areaperil_ja_offsets[item_mixed_cdf_groups[item_idx]] + j` for an item's j-th. A blended areaperil of
 K cells read by L items of one vulnerability therefore costs K entries, not K * L, both in the
-structure and in the per-event walk of `reconstruct_coverages`. Without blending there is one class
+structure and in the per-event walk of `reconstruct_coverages`. Without blending there is one group
 per (areaperil, vulnerability[, intensity adjustment, protection]) and items are visited in the
 order they always were.
 
@@ -141,20 +141,20 @@ Size: one byte per (location, building, sample) of the blended locations, so it 
 S = 1000, 250k single-building blended locations take 250 MB, memory-mapped and shared by the gulmc
 processes.
 
-Per event, the first item of a class that `compute_event_losses` reaches walks the class's
+Per event, the first item of a group that `compute_event_losses` reaches walks the group's
 areaperils once and mixes their effective damage cdfs, weighted by
-`blended_areaperil_ja_probabilities`, into the **class cdf**; it is kept in the class cdf cache
-(below) and the class's other items read it. Every item that is not a coverage-dependency
+`blended_areaperil_ja_probabilities`, into the **mixed cdf**; it is kept in the mixed cdf cache
+(below) and the group's other items read it. Every item that is not a coverage-dependency
 dependent takes this path: an ordinary item is the case of one areaperil of probability 1, whose
 mixture is its cdf exactly. The analytic values (mean, standard deviation, Hermite terms of a
-summed correlated item) come from the class cdf. In full Monte Carlo its samples then resolve an
+summed correlated item) come from the mixed cdf. In full Monte Carlo its samples then resolve an
 areaperil only when one of them lands there, at most S per building; under effective damageability
 they are drawn from the mixed cdf itself. A dependent is live or dead per placement like any item,
 but walks its own areaperils, since its CDFs come from its source's damage. Dead areaperils, uncovered
 placements and a float weight shortfall carry no loss: in the mixed effective damage cdf
 (`mix_effective_damage_cdfs`, shared with getmodel) their probability sits on damage bin 0, which
 must be the zero-loss bin of the damage bin dictionary. Under a dynamic footprint the event's return
-period is held per class areaperil, so an item's standard of protection is decided per placement: a
+period is held per group areaperil, so an item's standard of protection is decided per placement: a
 building can be protected where the event is a 1-in-20 and exposed where it is a 1-in-50. The
 sections a blended location spans must be in sections.csv, which is the lookup's job, as for any
 location.
@@ -166,15 +166,15 @@ location.
 | `blended_areaperil_placement_ja_offsets` / `_ja_cum_weights` / `_ja_areaperil_j` | blended areaperil | placements: running weight, and which areaperil j covers each (-1 none). The uniform is scaled by `max(1, total weight)`, which is 1 for float weights and the total for counts |
 | `location_placements` | (location, building, sample) | placement index, shared by the location's items; the placement count means unplaced |
 | `placement_item_ind` / `placement_item_starts` | item with more than one placement | where its first building's samples start in `location_placements` |
-| `item_classes` | item | its item class |
-| `class_items_ja_offsets` / `class_items_ja_item_idxs` | item class | its items, in item order |
-| `class_areaperil_ja_offsets` | item class | its run of class areaperils |
-| `class_areaperil_ja_cdf_group_idxs` | class areaperil | CDF group, the cache key (one per areaperil, vulnerability and, under a dynamic footprint, intensity adjustment) |
-| `class_areaperil_ja_areaperil_agg_vuln_idxs` | class areaperil | aggregate vulnerability block, -1 when not aggregate |
-| `item_map_ja_id_ind` / `_ja_areaperil_ids` / `_ja_offsets` | footprint areaperil | the class areaperils that read it, as `item_map_ja_class_idxs` / `item_map_ja_class_areaperil_idxs` |
-| `class_areaperil_haz_arr_i` | class areaperil | per event: index into haz_arr_ptr, -1 when its areaperil has no hazard this event |
-| `class_areaperil_event_rp` | class areaperil | per event: the event's return period there (dynamic footprint) |
-| `class_event_tag` | item class | per event: the event it was last reached in, so its items register once |
+| `item_mixed_cdf_groups` | item | its mixed cdf group |
+| `mixed_cdf_group_items_ja_offsets` / `mixed_cdf_group_items_ja_item_idxs` | mixed cdf group | its items, in item order |
+| `mixed_cdf_group_areaperil_ja_offsets` | mixed cdf group | its run of group areaperils |
+| `mixed_cdf_group_areaperil_ja_cdf_group_idxs` | group areaperil | CDF group, the cache key (one per areaperil, vulnerability and, under a dynamic footprint, intensity adjustment) |
+| `mixed_cdf_group_areaperil_ja_areaperil_agg_vuln_idxs` | group areaperil | aggregate vulnerability block, -1 when not aggregate |
+| `item_map_ja_id_ind` / `_ja_areaperil_ids` / `_ja_offsets` | footprint areaperil | the group areaperils that read it, as `item_map_ja_mixed_cdf_group_idxs` / `item_map_ja_mixed_cdf_group_areaperil_idxs` |
+| `mixed_cdf_group_areaperil_haz_arr_i` | group areaperil | per event: index into haz_arr_ptr, -1 when its areaperil has no hazard this event |
+| `mixed_cdf_group_areaperil_event_rp` | group areaperil | per event: the event's return period there (dynamic footprint) |
+| `mixed_cdf_group_event_tag` | mixed cdf group | per event: the event it was last reached in, so its items register once |
 
 ### Vulnerability CDF Caches
 
@@ -182,20 +182,20 @@ Two rings of cdfs, pre-allocated once before the event loop and cleared (by tag,
 rewriting) at the start of every event, since a cdf depends on the event's hazard.
 
 - **Cell cache** (`cached_vuln_cdfs`, `cdf_cache_tag`, `cdf_cache_nbins`): per CDF group
-  (`class_areaperil_ja_cdf_group_idxs`: areaperil, vulnerability and, under a dynamic footprint,
+  (`mixed_cdf_group_areaperil_ja_cdf_group_idxs`: areaperil, vulnerability and, under a dynamic footprint,
   intensity adjustment), a contiguous block of its effective damage cdf and, in full Monte Carlo,
   one cdf per intensity bin.
-- **Class cdf cache** (`class_cdf_cache`, `class_cdf_cache_tag`, `class_cdf_cache_nbins`): per
-  item class, the mixed effective damage cdf its items share.
+- **Mixed cdf cache** (`mixed_cdf_cache`, `mixed_cdf_cache_tag`, `mixed_cdf_cache_nbins`): per
+  mixed cdf group, the mixed effective damage cdf its items share.
 
-Each ring writes at a counter (`compute_info['cdf_cache_ctr']`, `['class_cdf_cache_ctr']`) masked
+Each ring writes at a counter (`compute_info['cdf_cache_ctr']`, `['mixed_cdf_cache_ctr']`) masked
 to its power-of-two size, and records the counter in its key's tag. A key's entry is valid until
 the ring has taken as many writes after it as it has slots; a miss recomputes and rewrites it.
 
 **Size** (`cdf_cache_slots`): what one event can write, so that nothing is evicted within an
 event: CDF groups x (1 + Nintensity_bins) cell slots in full Monte Carlo, CDF groups with
-effective damageability, and one class slot per item class, each rounded up to a power of two.
-`--vuln-cache-size` (MB, default 200) caps the two together: past it the class cache takes at most
+effective damageability, and one mixed cdf slot per mixed cdf group, each rounded up to a power of two.
+`--vuln-cache-size` (MB, default 200) caps the two together: past it the mixed cdf cache takes at most
 half and the cell cache the rest, both rounded down. The cell cache never drops below one group's
 block, which would otherwise overwrite itself while wrapping round.
 
@@ -215,8 +215,8 @@ used as the index into `haz_arr_ptr` for accessing the hazard intensity pdf.
 ### `reconstruct_coverages(...)`
 
 Per-event preparation phase. Walks the item map for every areaperil in the footprint, recording
-each class areaperil's hazard row and noting which item classes are reached. Then registers every
-item of each class reached:
+each group areaperil's hazard row and noting which mixed cdf groups are reached. Then registers every
+item of each group reached:
 - Computes hash-based random seeds (deduplicated by group using array lookups).
 - Maps items to their coverage structures.
 - Gives the item a hazard rng row if any of its areaperils' hazard is non-deterministic.
@@ -227,7 +227,7 @@ group deduplication instead of per-event Numba Dict creation.
 ### `compute_event_losses(...)`
 
 Core loss computation. For each coverage and item:
-1. Retrieves hazard pdf via its class areaperil's `class_areaperil_haz_arr_i`.
+1. Retrieves hazard pdf via its group areaperil's `mixed_cdf_group_areaperil_haz_arr_i`.
 2. Looks up or computes the effective damage CDF (and per-bin CDFs when
    `effective_damageability=False`), through the cdf caches.
 3. Computes mean loss statistics.
@@ -324,7 +324,7 @@ written packed it could not tell which to collapse.
 ### Effective Damageability (default: off)
 
 When enabled (`--effective-damageability`), the effective damage CDF is sampled directly:
-one CDF lookup per item per sample. Faster but less precise. Each item samples its item class's
+one CDF lookup per item per sample. Faster but less precise. Each item samples its mixed cdf group's
 mixed cdf, so a blended building is not placed: where it stands is folded into the cdf as hazard
 uncertainty is, and only full Monte Carlo reads the placements.
 
@@ -344,7 +344,7 @@ per-areaperil weights from `areaperil_vuln_idx_to_weight`.
 When enabled, intensity values in the hazard footprint are adjusted per item using
 `intensity_adjustment` factors. The adjusted intensity is remapped to intensity_bin_ids
 via `intensity_bin_dict`. Items with different adjustments in the same (areaperil, vuln)
-group are in different item classes, and so receive different CDF groups (`class_areaperil_ja_cdf_group_idxs`).
+group are in different mixed cdf groups, and so receive different CDF groups (`mixed_cdf_group_areaperil_ja_cdf_group_idxs`).
 
 The footprint itself is built per event by `FootprintParquetDynamic` (`getmodel/footprint.py`),
 including the merge of an areaperil lying in several sections (`--section-merge`); see the
