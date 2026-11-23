@@ -166,7 +166,8 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     items_event_data[0]['return_period'] = item_rp
     items_event_data[0]['packed_buildings'] = 1   # one building: the unpacked identity
 
-    # --- item areaperils: the item reads one areaperil (K = 1) ---
+    # --- class areaperils: the item is its own class and reads one areaperil (K = 1) ---
+    item_classes = np.zeros(1, dtype=np.int32)
     item_areaperil_ja_offsets = np.array([0, 1], dtype=oasis_int)
     item_areaperil_ja_cdf_group_idxs = np.zeros(1, dtype=np.int64)
     item_areaperil_ja_areaperil_agg_vuln_idxs = np.full(1, -1, dtype=oasis_int)   # not aggregate
@@ -292,7 +293,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         source_damage_bin_stack[0, 0, :] = Ndamage_bins - 1
 
     args = (
-        compute_info, coverages, coverage_ids, items_event_data, items,
+        compute_info, coverages, coverage_ids, items_event_data, items, item_classes,
         item_areaperil_ja_offsets, item_areaperil_ja_cdf_group_idxs, item_areaperil_ja_areaperil_agg_vuln_idxs,
         item_areaperil_haz_arr_i, item_areaperil_event_rp,
         placement_item_ind, placement_item_starts, location_placements,
@@ -551,7 +552,8 @@ def test_rp_protection_only_affects_protected_items():
     items_event_data[1]['item_idx'] = 1
     items_event_data[1]['return_period'] = 0
 
-    # one item areaperil each (K = 1), both on the same areaperil and CDF group
+    # each item its own class, of one class areaperil (K = 1), both on the same areaperil and CDF group
+    item_classes = np.arange(2, dtype=np.int32)
     item_areaperil_ja_offsets = np.array([0, 1, 2], dtype=oasis_int)
     item_areaperil_ja_cdf_group_idxs = np.zeros(2, dtype=np.int64)
     item_areaperil_ja_areaperil_agg_vuln_idxs = np.full(2, -1, dtype=oasis_int)
@@ -631,7 +633,7 @@ def test_rp_protection_only_affects_protected_items():
     source_eff_damage_cdf_len_stack = np.zeros((1, 1), dtype=np.int64)
 
     compute_event_losses(
-        compute_info, coverages, coverage_ids, items_event_data, items,
+        compute_info, coverages, coverage_ids, items_event_data, items, item_classes,
         item_areaperil_ja_offsets, item_areaperil_ja_cdf_group_idxs, item_areaperil_ja_areaperil_agg_vuln_idxs,
         item_areaperil_haz_arr_i, item_areaperil_event_rp,
         placement_item_ind, placement_item_starts, location_placements,

@@ -51,7 +51,7 @@ def read_items(input_path, ignore_file_type=set()):
     return items
 
 
-def build_blended_cdf_groups(items, item_areaperil_ja_offsets, blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
+def build_blended_cdf_groups(items, blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
                              dynamic_footprint):
     """Number the blended cdf groups: the blended items that read one effective damage cdf.
 
@@ -72,8 +72,8 @@ def build_blended_cdf_groups(items, item_areaperil_ja_offsets, blended_areaperil
         tuple: ``blended_cdf_item_idxs`` (int32, the blended items' item_idx, increasing), their
         ``blended_cdf_groups`` (int64) and the number of groups.
     """
-    n_areaperils = np.diff(item_areaperil_ja_offsets)
     blended_idx = items['blended_areaperil_idx']
+    n_areaperils = blended_areaperil_ja_offsets[blended_idx + 1] - blended_areaperil_ja_offsets[blended_idx]
     # the probability of an item's first areaperil, read only for an item that has one
     first = np.minimum(blended_areaperil_ja_offsets[blended_idx], max(blended_areaperil_ja_probabilities.shape[0] - 1, 0))
     first_probability = (blended_areaperil_ja_probabilities[first] if blended_areaperil_ja_probabilities.shape[0]
@@ -198,71 +198,119 @@ def _fill_location_placements(location_keys, location_n_buildings, location_star
                 location_placements[out + s] = select_placement(cum_weights, uniforms[s])
 
 
-def build_item_areaperils(items, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids):
-    """Expand each item into its item areaperils and sort them into item map order.
+item_class_dtype = np.dtype([('blended_areaperil_idx', oasis_int),
+                             ('vulnerability_id', np.int32),
+                             ('intensity_adjustment', oasis_int),
+                             ('vulnerability_idx', oasis_int)])
 
-    An item reads one item areaperil per distinct areaperil of its blended areaperil; item
-    areaperil ``item_areaperil_ja_offsets[item_idx] + j`` is the item's j-th. The item map visits
-    them grouped by areaperil, then by vulnerability, then by item: with K = 1 everywhere that is
-    exactly the (areaperil_id, vulnerability_id) order the items are sorted in, so traversal order,
-    rng assignment and CDF group numbering are unchanged.
+
+def build_item_classes(items, dynamic_footprint):
+    """Group the items that read the same areaperils with the same vulnerability cdfs into item classes.
+
+    What an item reads from the footprint, and which cdfs it reads it through, depends only on its
+    blended areaperil, its vulnerability and, under a dynamic footprint, its intensity adjustment.
+    Items agreeing on those share every per-areaperil structure, so those structures are built per
+    class: a blended areaperil of K areaperils read by L items costs K entries per class rather than
+    K * L. The protection return period is not part of the key; it is applied per item when the
+    item is computed.
+
+    Classes are numbered in key order, and ``items`` is sorted by (areaperil_id, vulnerability_id),
+    so with one class per (areaperil, vulnerability) a class's items, taken in item order, come in
+    the order the items themselves are sorted in.
+
+    Returns:
+        tuple: ``item_classes`` (int32, the class of each item), ``classes`` (item_class_dtype, one
+        row per class; ``vulnerability_idx`` is filled in later by ``generate_item_map``), and the
+        items of each class as ``class_items_ja_offsets`` / ``class_items_ja_item_idxs`` (in item
+        order).
+    """
+    n_items = items.shape[0]
+    columns = [items['blended_areaperil_idx'], items['vulnerability_id']]
+    if dynamic_footprint:
+        columns.append(items['intensity_adjustment'])
+    if n_items:
+        keys = np.stack([np.asarray(column, dtype=np.int64) for column in columns], axis=1)
+        unique_keys, item_classes = np.unique(keys, axis=0, return_inverse=True)
+        item_classes = item_classes.reshape(-1).astype(np.int32)
+    else:
+        unique_keys = np.zeros((0, len(columns)), dtype=np.int64)
+        item_classes = np.zeros(0, dtype=np.int32)
+    classes = np.zeros(unique_keys.shape[0], dtype=item_class_dtype)
+    classes['blended_areaperil_idx'] = unique_keys[:, 0]
+    classes['vulnerability_id'] = unique_keys[:, 1]
+    if dynamic_footprint:
+        classes['intensity_adjustment'] = unique_keys[:, 2]
+    class_items_ja_offsets = np.zeros(classes.shape[0] + 1, dtype=oasis_int)
+    np.cumsum(np.bincount(item_classes, minlength=classes.shape[0]), out=class_items_ja_offsets[1:])
+    class_items_ja_item_idxs = np.argsort(item_classes, kind='stable').astype(oasis_int)
+    return item_classes, classes, class_items_ja_offsets, class_items_ja_item_idxs
+
+
+def build_class_areaperils(classes, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids):
+    """Expand each item class into its class areaperils and sort them into item map order.
+
+    A class reads one class areaperil per distinct areaperil of its blended areaperil; class
+    areaperil ``class_areaperil_ja_offsets[class_idx] + j`` is the class's j-th. The item map visits
+    them grouped by areaperil, then by vulnerability, then by class: with K = 1 everywhere, and one
+    class per (areaperil, vulnerability), that is the (areaperil_id, vulnerability_id) order the
+    items are sorted in, so traversal order, rng assignment and CDF group numbering are unchanged.
 
     Args:
-        items (np.ndarray): items table, sorted by (areaperil_id, vulnerability_id), with
-            'blended_areaperil_idx'.
+        classes (np.ndarray[item_class_dtype]): item classes, in key order.
         blended_areaperil_ja_offsets (np.ndarray[oasis_int]): CSR offsets over a blended
             areaperil's areaperils.
         blended_areaperil_ja_areaperil_ids (np.ndarray[areaperil_int]): footprint areaperil ids.
 
     Returns:
-        tuple: ``item_areaperil_ja_offsets`` (N_items + 1), and the item areaperils in item map
-        order as four parallel arrays: areaperil id, vulnerability id, item index and item
+        tuple: ``class_areaperil_ja_offsets`` (N_classes + 1), and the class areaperils in item map
+        order as four parallel arrays: areaperil id, vulnerability id, class index and class
         areaperil index.
     """
-    n_items = items.shape[0]
-    blended_idx = items['blended_areaperil_idx']
-    item_k = (blended_areaperil_ja_offsets[blended_idx + 1] - blended_areaperil_ja_offsets[blended_idx]).astype(np.int64)
-    item_areaperil_ja_offsets = np.zeros(n_items + 1, dtype=oasis_int)
-    np.cumsum(item_k, out=item_areaperil_ja_offsets[1:])
-    n_item_areaperils = int(item_areaperil_ja_offsets[-1])
+    n_classes = classes.shape[0]
+    blended_idx = classes['blended_areaperil_idx']
+    class_k = (blended_areaperil_ja_offsets[blended_idx + 1] - blended_areaperil_ja_offsets[blended_idx]).astype(np.int64)
+    class_areaperil_ja_offsets = np.zeros(n_classes + 1, dtype=oasis_int)
+    np.cumsum(class_k, out=class_areaperil_ja_offsets[1:])
+    n_class_areaperils = int(class_areaperil_ja_offsets[-1])
 
-    entry_item_idx = np.repeat(np.arange(n_items, dtype=oasis_int), item_k)
-    # j of each item areaperil: its position within its item's run
-    entry_j = np.arange(n_item_areaperils, dtype=np.int64) - item_areaperil_ja_offsets[entry_item_idx]
-    entry_areaperil_id = blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[blended_idx[entry_item_idx]] + entry_j]
-    entry_vuln_id = items['vulnerability_id'][entry_item_idx]
+    entry_class_idx = np.repeat(np.arange(n_classes, dtype=oasis_int), class_k)
+    # j of each class areaperil: its position within its class's run
+    entry_j = np.arange(n_class_areaperils, dtype=np.int64) - class_areaperil_ja_offsets[entry_class_idx]
+    entry_areaperil_id = blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[blended_idx[entry_class_idx]] + entry_j]
+    entry_vuln_id = classes['vulnerability_id'][entry_class_idx]
 
-    order = np.lexsort((entry_item_idx, entry_vuln_id, entry_areaperil_id))
-    return (item_areaperil_ja_offsets,
+    order = np.lexsort((entry_class_idx, entry_vuln_id, entry_areaperil_id))
+    return (class_areaperil_ja_offsets,
             np.ascontiguousarray(entry_areaperil_id[order]),
             np.ascontiguousarray(entry_vuln_id[order]),
-            np.ascontiguousarray(entry_item_idx[order]),
+            np.ascontiguousarray(entry_class_idx[order]),
             order.astype(oasis_int))
 
 
 @nb.njit(cache=True, fastmath=True)
-def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entry_item_areaperil_idxs,
-                      items, n_item_areaperils,
+def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_class_idxs, entry_class_areaperil_idxs,
+                      classes, n_class_areaperils,
                       agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids):
-    """Build the item map from the item areaperils, and assign the dense vulnerability indices.
+    """Build the item map from the class areaperils, and assign the dense vulnerability indices.
 
-    The item map is a jagged array from each footprint areaperil an item can read to the item
-    areaperils that read it::
+    The item map is a jagged array from each footprint areaperil an item class can read to the
+    class areaperils that read it::
 
         item_map_ja_id_ind:      areaperil_id -> areaperil index        (built by the caller)
         item_map_ja_offsets:     areaperil index -> range of entries
-        item_map_ja_item_idxs / item_map_ja_item_areaperil_idxs: one entry per item areaperil
+        item_map_ja_class_idxs / item_map_ja_class_areaperil_idxs: one entry per class areaperil
 
-    The entries must already be in item map order (``build_item_areaperils``). Dense vulnerability
+    The entries must already be in item map order (``build_class_areaperils``). Dense vulnerability
     indices are assigned in that order, so with K = 1 they come out as before.
 
     Args:
         entry_areaperil_ids (np.array[areaperil_int]): areaperil id per entry, in item map order.
         entry_vuln_ids (np.array[int32]): vulnerability id per entry.
-        entry_item_idxs (np.array[oasis_int]): item index per entry.
-        entry_item_areaperil_idxs (np.array[oasis_int]): item areaperil index per entry.
-        items (np.ndarray): items table; 'vulnerability_idx' is written for non-aggregate items.
-        n_item_areaperils (int): number of item areaperils.
+        entry_class_idxs (np.array[oasis_int]): item class index per entry.
+        entry_class_areaperil_idxs (np.array[oasis_int]): class areaperil index per entry.
+        classes (np.ndarray[item_class_dtype]): item classes; 'vulnerability_idx' is written for
+            non-aggregate ones.
+        n_class_areaperils (int): number of class areaperils.
         agg_vuln_id_ja_id_ind (np.array): id_index for aggregate vulnerability ids.
         agg_vuln_id_ja_offsets (np.array[oasis_int]): jagged array offsets for agg_vuln_id_ja_vuln_ids.
         agg_vuln_id_ja_vuln_ids (np.array[oasis_int]): flat jagged array of constituent vulnerability ids.
@@ -270,9 +318,9 @@ def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entr
     Returns:
         item_map_ja_areaperil_ids (np.array[areaperil_int]): sorted unique footprint areaperil ids.
         item_map_ja_offsets (np.array[oasis_int]): CSR offsets (N_areaperil + 1).
-        item_map_ja_item_idxs (np.array[oasis_int]): item index per entry.
-        item_map_ja_item_areaperil_idxs (np.array[oasis_int]): item areaperil index per entry.
-        item_areaperil_ja_areaperil_agg_vuln_idxs (np.array[oasis_int]): aggregate block per item areaperil, -1 if not aggregate.
+        item_map_ja_class_idxs (np.array[oasis_int]): item class index per entry.
+        item_map_ja_class_areaperil_idxs (np.array[oasis_int]): class areaperil index per entry.
+        class_areaperil_ja_areaperil_agg_vuln_idxs (np.array[oasis_int]): aggregate block per class areaperil, -1 if not aggregate.
         vuln_map (np.ndarray[uint8]): packed hashmap table mapping vuln_id to dense index.
         vuln_map_keys (np.ndarray[int32]): array of unique vulnerability ids.
         areaperil_agg_vuln_idx_ja_offsets (np.array[oasis_int]): CSR offsets for aggregate vulns.
@@ -297,9 +345,9 @@ def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entr
 
     item_map_ja_areaperil_ids = np.empty(n_unique_areaperils, dtype=areaperil_int)
     item_map_ja_offsets = np.empty(n_unique_areaperils + 1, dtype=oasis_int)
-    item_map_ja_item_idxs = np.empty(n_entries, dtype=oasis_int)
-    item_map_ja_item_areaperil_idxs = np.empty(n_entries, dtype=oasis_int)
-    item_areaperil_ja_areaperil_agg_vuln_idxs = np.full(n_item_areaperils, -1, dtype=oasis_int)
+    item_map_ja_class_idxs = np.empty(n_entries, dtype=oasis_int)
+    item_map_ja_class_areaperil_idxs = np.empty(n_entries, dtype=oasis_int)
+    class_areaperil_ja_areaperil_agg_vuln_idxs = np.full(n_class_areaperils, -1, dtype=oasis_int)
 
     # --- Hashmap for iterative vuln_id -> dense_index construction ---------------------------
     max_unique_vulns = n_entries + len(agg_vuln_id_ja_vuln_ids)
@@ -329,9 +377,9 @@ def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entr
             item_map_ja_areaperil_ids[ap_idx] = ap
             item_map_ja_offsets[ap_idx] = e
 
-        item_idx = entry_item_idxs[e]
-        item_map_ja_item_idxs[e] = item_idx
-        item_map_ja_item_areaperil_idxs[e] = entry_item_areaperil_idxs[e]
+        class_idx = entry_class_idxs[e]
+        item_map_ja_class_idxs[e] = class_idx
+        item_map_ja_class_areaperil_idxs[e] = entry_class_areaperil_idxs[e]
 
         agg_idx = get_idx(agg_vuln_id_ja_id_ind, vuln)
         if agg_idx != NOT_FOUND:
@@ -354,7 +402,7 @@ def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entr
                 ja_ptr += n_sub
                 n_agg_vuln_groups += 1
                 areaperil_agg_vuln_idx_ja_offsets[n_agg_vuln_groups] = ja_ptr
-            item_areaperil_ja_areaperil_agg_vuln_idxs[entry_item_areaperil_idxs[e]] = last_block_idx
+            class_areaperil_ja_areaperil_agg_vuln_idxs[entry_class_areaperil_idxs[e]] = last_block_idx
         else:
             vuln_id_int32 = np.int32(vuln)
             result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vuln_id_int32)
@@ -362,13 +410,13 @@ def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entr
                 vuln_table = rehash(vuln_table, vuln_key_table)
                 hm_info, hm_lookup, hm_index = unpack(vuln_table)
                 result = _try_add_key(hm_info, hm_lookup, hm_index, vuln_key_table, vuln_id_int32)
-            items[item_idx]['vulnerability_idx'] = nb_oasis_int(hm_index[result & slot_mask])
+            classes[class_idx]['vulnerability_idx'] = nb_oasis_int(hm_index[result & slot_mask])
 
     item_map_ja_offsets[n_unique_areaperils] = n_entries
 
     return (item_map_ja_areaperil_ids, item_map_ja_offsets,
-            item_map_ja_item_idxs, item_map_ja_item_areaperil_idxs,
-            item_areaperil_ja_areaperil_agg_vuln_idxs,
+            item_map_ja_class_idxs, item_map_ja_class_areaperil_idxs,
+            class_areaperil_ja_areaperil_agg_vuln_idxs,
             vuln_table, vuln_key_table[:hm_info[HM_INFO_N_VALID]],
             areaperil_agg_vuln_idx_ja_offsets[:n_agg_vuln_groups + 1],
             areaperil_agg_vuln_idx_ja_data[:ja_ptr],
@@ -376,11 +424,11 @@ def generate_item_map(entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entr
 
 
 @nb.njit(cache=True)
-def build_cdf_group_indices(item_map_ja_offsets, item_map_ja_item_idxs, item_map_ja_item_areaperil_idxs,
-                            items, n_item_areaperils, dynamic_footprint):
-    """Assign a sequential CDF group index to each item areaperil.
+def build_cdf_group_indices(item_map_ja_offsets, item_map_ja_class_idxs, item_map_ja_class_areaperil_idxs,
+                            classes, n_class_areaperils, dynamic_footprint):
+    """Assign a sequential CDF group index to each class areaperil.
 
-    A CDF group is a set of item areaperils that share identical vulnerability CDFs: the same
+    A CDF group is a set of class areaperils that share identical vulnerability CDFs: the same
     areaperil and vulnerability, and under a dynamic footprint the same intensity adjustment.
     Groups are numbered in item map order, the order the cache is filled in.
 
@@ -388,17 +436,18 @@ def build_cdf_group_indices(item_map_ja_offsets, item_map_ja_item_idxs, item_map
 
     Args:
         item_map_ja_offsets (np.array[oasis_int]): item map CSR offsets.
-        item_map_ja_item_idxs (np.array[oasis_int]): item index per entry.
-        item_map_ja_item_areaperil_idxs (np.array[oasis_int]): item areaperil index per entry.
-        items (np.ndarray): items table ('vulnerability_id', and 'intensity_adjustment' when dynamic).
-        n_item_areaperils (int): number of item areaperils.
+        item_map_ja_class_idxs (np.array[oasis_int]): item class index per entry.
+        item_map_ja_class_areaperil_idxs (np.array[oasis_int]): class areaperil index per entry.
+        classes (np.ndarray[item_class_dtype]): item classes ('vulnerability_id', and
+            'intensity_adjustment' when dynamic).
+        n_class_areaperils (int): number of class areaperils.
         dynamic_footprint: None for static footprints, truthy for dynamic.
 
     Returns:
-        item_areaperil_ja_cdf_group_idxs (np.array[int64]): CDF group index per item areaperil.
+        class_areaperil_ja_cdf_group_idxs (np.array[int64]): CDF group index per class areaperil.
         n_cdf_groups (int): total number of CDF groups.
     """
-    item_areaperil_ja_cdf_group_idxs = np.empty(n_item_areaperils, dtype=np.int64)
+    class_areaperil_ja_cdf_group_idxs = np.empty(n_class_areaperils, dtype=np.int64)
     n_areaperils = item_map_ja_offsets.shape[0] - 1
     n_cdf_groups = 0
 
@@ -407,27 +456,27 @@ def build_cdf_group_indices(item_map_ja_offsets, item_map_ja_item_idxs, item_map
             for e in range(item_map_ja_offsets[ap_idx], item_map_ja_offsets[ap_idx + 1]):
                 # entries of an areaperil are sorted by vulnerability, so a pair starts where it changes
                 same_pair = e > item_map_ja_offsets[ap_idx] and (
-                    items[item_map_ja_item_idxs[e]]['vulnerability_id'] == items[item_map_ja_item_idxs[e - 1]]['vulnerability_id'])
+                    classes[item_map_ja_class_idxs[e]]['vulnerability_id'] == classes[item_map_ja_class_idxs[e - 1]]['vulnerability_id'])
                 if not same_pair:
                     n_cdf_groups += 1
-                item_areaperil_ja_cdf_group_idxs[item_map_ja_item_areaperil_idxs[e]] = n_cdf_groups - 1
+                class_areaperil_ja_cdf_group_idxs[item_map_ja_class_areaperil_idxs[e]] = n_cdf_groups - 1
     else:
-        n_entries = item_map_ja_item_idxs.shape[0]
+        n_entries = item_map_ja_class_idxs.shape[0]
         adj_key_storage = np.empty(max(n_entries, 1), dtype=oasis_int)
         adj_cache_ids = np.empty(max(n_entries, 1), dtype=np.int64)
         for ap_idx in range(n_areaperils):
             pair_start = item_map_ja_offsets[ap_idx]
             ap_end = item_map_ja_offsets[ap_idx + 1]
             while pair_start < ap_end:
-                vuln = items[item_map_ja_item_idxs[pair_start]]['vulnerability_id']
+                vuln = classes[item_map_ja_class_idxs[pair_start]]['vulnerability_id']
                 pair_end = pair_start + 1
-                while pair_end < ap_end and items[item_map_ja_item_idxs[pair_end]]['vulnerability_id'] == vuln:
+                while pair_end < ap_end and classes[item_map_ja_class_idxs[pair_end]]['vulnerability_id'] == vuln:
                     pair_end += 1
                 # fresh hashmap per (areaperil, vulnerability) pair: intensity_adjustment -> dense index
                 adj_table = init_dict(max(pair_end - pair_start, 1))
                 adj_info, adj_lookup, adj_index = unpack(adj_table)
                 for e in range(pair_start, pair_end):
-                    adj = items[item_map_ja_item_idxs[e]]['intensity_adjustment']
+                    adj = classes[item_map_ja_class_idxs[e]]['intensity_adjustment']
                     result = _try_add_key(adj_info, adj_lookup, adj_index, adj_key_storage, adj)
                     while result == i_add_key_fail:
                         adj_table = rehash(adj_table, adj_key_storage)
@@ -437,24 +486,29 @@ def build_cdf_group_indices(item_map_ja_offsets, item_map_ja_item_idxs, item_map
                     if result & new_slot_bit:  # new unique adjustment
                         adj_cache_ids[dense_idx] = n_cdf_groups
                         n_cdf_groups += 1
-                    item_areaperil_ja_cdf_group_idxs[item_map_ja_item_areaperil_idxs[e]] = adj_cache_ids[dense_idx]
+                    class_areaperil_ja_cdf_group_idxs[item_map_ja_class_areaperil_idxs[e]] = adj_cache_ids[dense_idx]
                 pair_start = pair_end
 
-    return item_areaperil_ja_cdf_group_idxs, n_cdf_groups
+    return class_areaperil_ja_cdf_group_idxs, n_cdf_groups
 
 
-def item_is_aggregate_vuln(item_areaperil_ja_offsets, item_areaperil_ja_areaperil_agg_vuln_idxs):
+def item_is_aggregate_vuln(item_classes, class_areaperil_ja_offsets, class_areaperil_ja_areaperil_agg_vuln_idxs):
     """Per item, whether its vulnerability is aggregate.
 
-    Being aggregate is a property of the vulnerability, so all of an item's item areaperils agree
-    and the first one is read. The block index itself is per item areaperil, because the aggregate
-    weights are keyed by areaperil. An item with no item areaperil (K = 0: every placement of its
+    Being aggregate is a property of the vulnerability, so all of a class's class areaperils agree
+    and the first one is read. The block index itself is per class areaperil, because the aggregate
+    weights are keyed by areaperil. An item with no class areaperil (K = 0: every placement of its
     blended areaperil uncovered) is never computed, and reads as not aggregate.
     """
-    is_aggregate = np.zeros(item_areaperil_ja_offsets.shape[0] - 1, dtype=bool)
-    has_areaperil = item_areaperil_ja_offsets[1:] > item_areaperil_ja_offsets[:-1]
-    is_aggregate[has_areaperil] = item_areaperil_ja_areaperil_agg_vuln_idxs[item_areaperil_ja_offsets[:-1][has_areaperil]] >= 0
-    return is_aggregate
+    is_aggregate = np.zeros(class_areaperil_ja_offsets.shape[0] - 1, dtype=bool)
+    has_areaperil = class_areaperil_ja_offsets[1:] > class_areaperil_ja_offsets[:-1]
+    is_aggregate[has_areaperil] = class_areaperil_ja_areaperil_agg_vuln_idxs[class_areaperil_ja_offsets[:-1][has_areaperil]] >= 0
+    return is_aggregate[item_classes]
+
+
+def item_is_computed(item_classes, class_areaperil_ja_offsets):
+    """Per item, whether it reads any areaperil; one that reads none (every placement uncovered) is never computed."""
+    return (np.diff(class_areaperil_ja_offsets) > 0)[item_classes]
 
 
 def get_dynamic_footprint_adjustments(input_path):

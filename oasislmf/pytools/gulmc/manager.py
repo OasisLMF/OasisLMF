@@ -38,7 +38,7 @@ from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, genera
                                          generate_hash_hazard, get_corr_rval, get_random_generator,
                                          _lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
 from oasislmf.pytools.gul.utils import binary_search
-from oasislmf.pytools.gulmc.items import item_is_aggregate_vuln
+from oasislmf.pytools.gulmc.items import item_is_aggregate_vuln, item_is_computed
 from oasislmf.pytools.common.blended_areaperil import mix_effective_damage_cdfs
 from oasislmf.pytools.gulmc.structure import NO_PLACEMENT_SAMPLE_SIZE
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
@@ -245,12 +245,15 @@ def run(run_dir,
         coverages = structures['coverages'].copy()
         item_map_ja_areaperil_ids = structures['item_map_ja_areaperil_ids']
         item_map_ja_offsets = structures['item_map_ja_offsets']
-        item_map_ja_item_idxs = structures['item_map_ja_item_idxs']
-        item_map_ja_item_areaperil_idxs = structures['item_map_ja_item_areaperil_idxs']
+        item_map_ja_class_idxs = structures['item_map_ja_class_idxs']
+        item_map_ja_class_areaperil_idxs = structures['item_map_ja_class_areaperil_idxs']
         item_map_ja_id_ind = structures['item_map_ja_id_ind']
-        item_areaperil_ja_offsets = structures['item_areaperil_ja_offsets']
-        item_areaperil_ja_cdf_group_idxs = structures['item_areaperil_ja_cdf_group_idxs']
-        item_areaperil_ja_areaperil_agg_vuln_idxs = structures['item_areaperil_ja_areaperil_agg_vuln_idxs']
+        item_classes = structures['item_classes']
+        class_items_ja_offsets = structures['class_items_ja_offsets']
+        class_items_ja_item_idxs = structures['class_items_ja_item_idxs']
+        class_areaperil_ja_offsets = structures['class_areaperil_ja_offsets']
+        class_areaperil_ja_cdf_group_idxs = structures['class_areaperil_ja_cdf_group_idxs']
+        class_areaperil_ja_areaperil_agg_vuln_idxs = structures['class_areaperil_ja_areaperil_agg_vuln_idxs']
         placement_item_ind = structures['placement_item_ind']
         placement_item_starts = structures['placement_item_starts']
         location_placements = structures['location_placements']
@@ -262,7 +265,7 @@ def run(run_dir,
         blended_cdf_groups = structures['blended_cdf_groups']
         n_blended_cdf_groups = structures['n_blended_cdf_groups']
         # the most areaperils one item reads, sizing the per-areaperil scratch; at least 1
-        max_areaperils_per_item = int(np.diff(item_areaperil_ja_offsets).max(initial=1))
+        max_areaperils_per_item = int(np.diff(class_areaperil_ja_offsets).max(initial=1))
         n_cdf_groups = structures['n_cdf_groups']
         areaperil_agg_vuln_idx_ja_offsets = structures['areaperil_agg_vuln_idx_ja_offsets']
         areaperil_agg_vuln_idx_ja_data = structures['areaperil_agg_vuln_idx_ja_data']
@@ -292,11 +295,11 @@ def run(run_dir,
         if do_coverage_dependency or conditional_vuln_array.shape[0] > 0:
             if do_coverage_dependency:
                 logger.info(f"coverage dependency: switched ON ({coverage_dependents_ja_data.shape[0]} dependent coverages).")
-            # items with no item areaperil (every placement uncovered) are never computed
-            computed = np.diff(item_areaperil_ja_offsets) > 0
+            # items with no areaperil (every placement uncovered) are never computed
+            computed = item_is_computed(item_classes, class_areaperil_ja_offsets)
             validate_coverage_dependency(
                 items[computed],
-                item_is_aggregate_vuln(item_areaperil_ja_offsets, item_areaperil_ja_areaperil_agg_vuln_idxs)[computed],
+                item_is_aggregate_vuln(item_classes, class_areaperil_ja_offsets, class_areaperil_ja_areaperil_agg_vuln_idxs)[computed],
                 vuln_idx_to_cond_idx)
 
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
@@ -556,14 +559,18 @@ def run(run_dir,
         fp_ap_inds = np.empty(n_max_areaperils, dtype=np.uint32)
         fp_event_rps = np.empty(n_max_areaperils, dtype=np.int32)
         fp_haz_arr_ptr = np.empty(n_max_areaperils + 1, dtype=np.int64)
-        # Per item areaperil, this event's hazard row (-1 when its areaperil has no hazard this
-        # event) and, under a dynamic footprint, its return period. Only the item areaperils of
-        # items present in the event are written, so they need no reset between events.
-        n_item_areaperils = int(item_areaperil_ja_offsets[-1])
-        item_areaperil_haz_arr_i = np.empty(n_item_areaperils, dtype=oasis_int)
-        item_areaperil_event_rp = np.zeros(n_item_areaperils, dtype=np.int32)
-        # per item, the event_tag of the last event it was registered in
-        item_event_tag = np.full(items.shape[0], -1, dtype=np.int64)
+        # Per class areaperil, this event's hazard row (-1 when its areaperil has no hazard this
+        # event) and, under a dynamic footprint, its return period. Only the class areaperils of
+        # classes present in the event are written, so they need no reset between events.
+        n_class_areaperils = int(class_areaperil_ja_offsets[-1])
+        class_areaperil_haz_arr_i = np.empty(n_class_areaperils, dtype=oasis_int)
+        class_areaperil_event_rp = np.zeros(n_class_areaperils, dtype=np.int32)
+        # per item class, the event_tag of the last event it was reached in, and the scratch
+        # reconstruct_coverages lists the classes reached in
+        n_classes = class_items_ja_offsets.shape[0] - 1
+        class_event_tag = np.full(n_classes, -1, dtype=np.int64)
+        event_classes = np.empty(n_classes, dtype=np.int32)
+        class_needs_haz_rng = np.zeros(n_classes, dtype=np.bool_)
         event_tag = 0
 
         # Pre-allocate CDF cache once (reused across events, no need to zero)
@@ -619,14 +626,18 @@ def run(run_dir,
                     fp_haz_arr_ptr,
                     fp_event_rps,
                     item_map_ja_offsets,
-                    item_map_ja_item_idxs,
-                    item_map_ja_item_areaperil_idxs,
+                    item_map_ja_class_idxs,
+                    item_map_ja_class_areaperil_idxs,
                     items,
-                    item_areaperil_ja_offsets,
-                    item_areaperil_haz_arr_i,
-                    item_areaperil_event_rp,
-                    item_event_tag,
+                    class_areaperil_ja_offsets,
+                    class_items_ja_offsets,
+                    class_items_ja_item_idxs,
+                    class_areaperil_haz_arr_i,
+                    class_areaperil_event_rp,
+                    class_event_tag,
                     event_tag,
+                    event_classes,
+                    class_needs_haz_rng,
                     coverages,
                     compute,
                     haz_seeds,
@@ -681,11 +692,12 @@ def run(run_dir,
                             compute,
                             items_event_data,
                             items,
-                            item_areaperil_ja_offsets,
-                            item_areaperil_ja_cdf_group_idxs,
-                            item_areaperil_ja_areaperil_agg_vuln_idxs,
-                            item_areaperil_haz_arr_i,
-                            item_areaperil_event_rp,
+                            item_classes,
+                            class_areaperil_ja_offsets,
+                            class_areaperil_ja_cdf_group_idxs,
+                            class_areaperil_ja_areaperil_agg_vuln_idxs,
+                            class_areaperil_haz_arr_i,
+                            class_areaperil_event_rp,
                             placement_item_ind,
                             placement_item_starts,
                             location_placements,
@@ -1017,8 +1029,8 @@ def build_vuln_pdf(vulnerability_idx, agg_block, Nhaz_bins, haz_bin_id, vuln_arr
 
     Args:
         vulnerability_idx (int): the item's dense vulnerability index; read when not aggregate.
-        agg_block (int): the item areaperil's block in ``areaperil_agg_vuln_idx_ja_*``, or -1
-            when its vulnerability is not aggregate. Per item areaperil, not per item, because
+        agg_block (int): the class areaperil's block in ``areaperil_agg_vuln_idx_ja_*``, or -1
+            when its vulnerability is not aggregate. Per class areaperil, not per class, because
             the aggregate weights are keyed by areaperil.
         Nhaz_bins (int): number of hazard bins for this item.
         haz_bin_id (np.array): intensity bin id per hazard record.
@@ -1146,18 +1158,18 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def item_areaperil_is_live(item_areaperil_haz_arr_i, item_areaperil_event_rp, item_areaperil_idx, protection_rp,
-                           dynamic_footprint):
+def class_areaperil_is_live(class_areaperil_haz_arr_i, class_areaperil_event_rp, class_areaperil_idx, protection_rp,
+                            dynamic_footprint):
     """Whether an item areaperil can take a loss this event.
 
     It cannot when its areaperil has no hazard this event, or, under a dynamic footprint, when the
     event's return period there is within the item's protection. The return period is read only for
     an areaperil with hazard this event, which is when reconstruct_coverages wrote it.
     """
-    if item_areaperil_haz_arr_i[item_areaperil_idx] < 0:
+    if class_areaperil_haz_arr_i[class_areaperil_idx] < 0:
         return False
     if dynamic_footprint is not None and protection_rp > 0 \
-            and item_areaperil_event_rp[item_areaperil_idx] < protection_rp:
+            and class_areaperil_event_rp[class_areaperil_idx] < protection_rp:
         return False
     return True
 
@@ -1415,11 +1427,12 @@ def compute_event_losses(compute_info,
                          coverage_ids,
                          items_event_data,
                          items,
-                         item_areaperil_ja_offsets,
-                         item_areaperil_ja_cdf_group_idxs,
-                         item_areaperil_ja_areaperil_agg_vuln_idxs,
-                         item_areaperil_haz_arr_i,
-                         item_areaperil_event_rp,
+                         item_classes,
+                         class_areaperil_ja_offsets,
+                         class_areaperil_ja_cdf_group_idxs,
+                         class_areaperil_ja_areaperil_agg_vuln_idxs,
+                         class_areaperil_haz_arr_i,
+                         class_areaperil_event_rp,
                          placement_item_ind,
                          placement_item_starts,
                          location_placements,
@@ -1500,13 +1513,15 @@ def compute_event_losses(compute_info,
         items_event_data (numpy.array[items_MC_data_type]): per-item event data populated by
           reconstruct_coverages, containing item_idx, rng_index and hazard_rng_index.
         items (np.ndarray): items table merged with correlation parameters.
-        item_areaperil_ja_offsets (np.array[oasis_int]): per item, its run of item areaperils.
-        item_areaperil_ja_cdf_group_idxs (np.array[int64]): CDF group per item areaperil.
-        item_areaperil_ja_areaperil_agg_vuln_idxs (np.array[oasis_int]): aggregate block per item
+        item_classes (np.array[int32]): per item, its item class (see ``build_item_classes``).
+        class_areaperil_ja_offsets (np.array[oasis_int]): per item class, its run of class
+          areaperils, j-th for the class's j-th areaperil.
+        class_areaperil_ja_cdf_group_idxs (np.array[int64]): CDF group per class areaperil.
+        class_areaperil_ja_areaperil_agg_vuln_idxs (np.array[oasis_int]): aggregate block per class
           areaperil, -1 when not aggregate.
-        item_areaperil_haz_arr_i (np.array[oasis_int]): this event's hazard row per item
+        class_areaperil_haz_arr_i (np.array[oasis_int]): this event's hazard row per class
           areaperil, -1 when its areaperil has no hazard this event.
-        item_areaperil_event_rp (np.array[int32]): this event's return period per item areaperil
+        class_areaperil_event_rp (np.array[int32]): this event's return period per class areaperil
           (dynamic footprint only).
         placement_item_ind (np.array): id_index from item_idx to its rank among the items that
           read a placement; looked up only for an item whose blended areaperil has more than one.
@@ -1684,17 +1699,18 @@ def compute_event_losses(compute_info,
             item = items[item_idx]
             # an item is dependent only if it resolved to a source item (< 0 means it did not)
             is_dependent = coverage_is_dependent and item_event_data['source_item_j'] >= 0
-            item_areaperil_start = item_areaperil_ja_offsets[item_idx]
-            n_areaperils = item_areaperil_ja_offsets[item_idx + 1] - item_areaperil_start
+            item_class = item_classes[item_idx]
+            class_areaperil_start = class_areaperil_ja_offsets[item_class]
+            n_areaperils = class_areaperil_ja_offsets[item_class + 1] - class_areaperil_start
             blended_start = blended_areaperil_ja_offsets[item['blended_areaperil_idx']]
             # An item that stands on its one areaperil with certainty -- every ordinary item --
             # keeps that areaperil's analytic values as they are. Any other item reports the mixture
             # of its marginal, including one areaperil read with probability below 1 (the rest of the
             # placements uncovered, or a float weight shortfall).
             mixing = n_areaperils > 1 or blended_areaperil_ja_probabilities[blended_start] < 1.
-            # being aggregate is a property of the vulnerability, the same on every item areaperil;
-            # the block of member weights is per item areaperil, read where each one is resolved
-            is_aggregate = item_areaperil_ja_areaperil_agg_vuln_idxs[item_areaperil_start] >= 0
+            # being aggregate is a property of the vulnerability, the same on every class areaperil;
+            # the block of member weights is per class areaperil, read where each one is resolved
+            is_aggregate = class_areaperil_ja_areaperil_agg_vuln_idxs[class_areaperil_start] >= 0
             intensity_adjustment = item['intensity_adjustment'] if dynamic_footprint is not None else nb_oasis_int(0)
 
             item_rho = item_event_data['damage_correlation_value']
@@ -1734,18 +1750,18 @@ def compute_event_losses(compute_info,
                             hermite_per_tiv[k] = 0.
                             hermite_fixed[k] = 0.
                     for areaperil_j in range(n_areaperils):
-                        item_areaperil_idx = item_areaperil_start + areaperil_j
+                        class_areaperil_idx = class_areaperil_start + areaperil_j
                         areaperil_j_live[areaperil_j] = False
-                        if not item_areaperil_is_live(item_areaperil_haz_arr_i, item_areaperil_event_rp, item_areaperil_idx,
-                                                      protection_rp, dynamic_footprint):
+                        if not class_areaperil_is_live(class_areaperil_haz_arr_i, class_areaperil_event_rp, class_areaperil_idx,
+                                                       protection_rp, dynamic_footprint):
                             continue
                         Nhaz_bins = footprint_hazard(
-                            haz_pdf, haz_arr_ptr, item_areaperil_haz_arr_i[item_areaperil_idx], item, intensity_adjustment,
+                            haz_pdf, haz_arr_ptr, class_areaperil_haz_arr_i[class_areaperil_idx], item, intensity_adjustment,
                             dynamic_footprint, intensity_bin_peril_ids, intensity_bins, bin_slot,
                             haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf, 0)
                         Neff_damage_bins = resolve_areaperil_j(
-                            compute_info, areaperil_j, item_areaperil_ja_cdf_group_idxs[item_areaperil_idx],
-                            item_areaperil_ja_areaperil_agg_vuln_idxs[item_areaperil_idx], 0, Nhaz_bins, item,
+                            compute_info, areaperil_j, class_areaperil_ja_cdf_group_idxs[class_areaperil_idx],
+                            class_areaperil_ja_areaperil_agg_vuln_idxs[class_areaperil_idx], 0, Nhaz_bins, item,
                             haz_bin_id_buf, haz_pdf_prob_buf, False,
                             vuln_array, areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
                             cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs, vuln_pdf_empty,
@@ -1796,12 +1812,12 @@ def compute_event_losses(compute_info,
                 item_stamp += 1
             else:
                 for areaperil_j in range(n_areaperils):
-                    item_areaperil_idx = item_areaperil_start + areaperil_j
+                    class_areaperil_idx = class_areaperil_start + areaperil_j
                     areaperil_j_live[areaperil_j] = False
                     # protection applies to a dependent too: protected, its coverage takes no loss
                     # whatever its source suffered
-                    if not item_areaperil_is_live(item_areaperil_haz_arr_i, item_areaperil_event_rp, item_areaperil_idx,
-                                                  protection_rp, dynamic_footprint):
+                    if not class_areaperil_is_live(class_areaperil_haz_arr_i, class_areaperil_event_rp, class_areaperil_idx,
+                                                   protection_rp, dynamic_footprint):
                         continue
 
                     if is_dependent and first_live_j >= 0:
@@ -1862,13 +1878,13 @@ def compute_event_losses(compute_info,
                     else:
                         haz_pdf_prob_item = haz_pdf_prob_buf
                         Nhaz_bins = footprint_hazard(
-                            haz_pdf, haz_arr_ptr, item_areaperil_haz_arr_i[item_areaperil_idx], item, intensity_adjustment,
+                            haz_pdf, haz_arr_ptr, class_areaperil_haz_arr_i[class_areaperil_idx], item, intensity_adjustment,
                             dynamic_footprint, intensity_bin_peril_ids, intensity_bins, bin_slot,
                             haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf, haz_used)
 
                     Neff_damage_bins = resolve_areaperil_j(
-                        compute_info, areaperil_j, item_areaperil_ja_cdf_group_idxs[item_areaperil_idx],
-                        item_areaperil_ja_areaperil_agg_vuln_idxs[item_areaperil_idx], haz_used, Nhaz_bins, item,
+                        compute_info, areaperil_j, class_areaperil_ja_cdf_group_idxs[class_areaperil_idx],
+                        class_areaperil_ja_areaperil_agg_vuln_idxs[class_areaperil_idx], haz_used, Nhaz_bins, item,
                         haz_bin_id_buf, haz_pdf_prob_item, is_dependent,
                         vuln_array, areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
                         cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs, vuln_pdf_empty,
@@ -2058,18 +2074,18 @@ def compute_event_losses(compute_info,
                             if areaperil_j < 0 or areaperil_j_stamp[areaperil_j] == item_stamp:
                                 continue
                             areaperil_j_stamp[areaperil_j] = item_stamp
-                            item_areaperil_idx = item_areaperil_start + areaperil_j
+                            class_areaperil_idx = class_areaperil_start + areaperil_j
                             areaperil_j_live[areaperil_j] = False
-                            if not item_areaperil_is_live(item_areaperil_haz_arr_i, item_areaperil_event_rp,
-                                                          item_areaperil_idx, protection_rp, dynamic_footprint):
+                            if not class_areaperil_is_live(class_areaperil_haz_arr_i, class_areaperil_event_rp,
+                                                           class_areaperil_idx, protection_rp, dynamic_footprint):
                                 continue
                             Nhaz_bins = footprint_hazard(
-                                haz_pdf, haz_arr_ptr, item_areaperil_haz_arr_i[item_areaperil_idx], item, intensity_adjustment,
+                                haz_pdf, haz_arr_ptr, class_areaperil_haz_arr_i[class_areaperil_idx], item, intensity_adjustment,
                                 dynamic_footprint, intensity_bin_peril_ids, intensity_bins, bin_slot,
                                 haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf, haz_used)
                             Neff_damage_bins = resolve_areaperil_j(
-                                compute_info, areaperil_j, item_areaperil_ja_cdf_group_idxs[item_areaperil_idx],
-                                item_areaperil_ja_areaperil_agg_vuln_idxs[item_areaperil_idx], haz_used, Nhaz_bins, item,
+                                compute_info, areaperil_j, class_areaperil_ja_cdf_group_idxs[class_areaperil_idx],
+                                class_areaperil_ja_areaperil_agg_vuln_idxs[class_areaperil_idx], haz_used, Nhaz_bins, item,
                                 haz_bin_id_buf, haz_pdf_prob_buf, False,
                                 vuln_array, areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
                                 cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs, vuln_pdf_empty,
@@ -2210,14 +2226,18 @@ def reconstruct_coverages(compute_info,
                           haz_arr_ptr,
                           event_rps,
                           item_map_ja_offsets,
-                          item_map_ja_item_idxs,
-                          item_map_ja_item_areaperil_idxs,
+                          item_map_ja_class_idxs,
+                          item_map_ja_class_areaperil_idxs,
                           items,
-                          item_areaperil_ja_offsets,
-                          item_areaperil_haz_arr_i,
-                          item_areaperil_event_rp,
-                          item_event_tag,
+                          class_areaperil_ja_offsets,
+                          class_items_ja_offsets,
+                          class_items_ja_item_idxs,
+                          class_areaperil_haz_arr_i,
+                          class_areaperil_event_rp,
+                          class_event_tag,
                           event_tag,
+                          event_classes,
+                          class_needs_haz_rng,
                           coverages,
                           compute,
                           haz_seeds,
@@ -2241,20 +2261,22 @@ def reconstruct_coverages(compute_info,
                           ):
     """Register each item to its coverage and prepare per-item event data for loss computation.
 
-    For each areaperil present in the event footprint, visits every item areaperil that reads it
-    (item map order: areaperil, vulnerability, item). The first visit to an item this event
-    registers it:
+    First, for each areaperil present in the event footprint, visits every class areaperil that
+    reads it (item map order: areaperil, vulnerability, class) and records its hazard row (and
+    return period). A class's areaperils are marked as having no hazard on its first visit, so the
+    ones its walk never reaches stay at -1. The walk is over item classes, not items, so its cost
+    does not grow with the number of items sharing a blended areaperil.
+
+    Then every item of each class reached, classes in the order they were reached:
 
       1. Computes deterministic hash-based random seeds for damage sampling, using group_id.
          Seeds are deduplicated via pre-allocated arrays indexed by sequential group ids.
       2. Maps the item to its coverage structure, tracking the start offset and count.
-      3. Stores per-item event data (item_idx, rng_index, ...) in items_event_data, and marks
-         all its item areaperils as having no hazard.
+      3. Stores per-item event data (item_idx, rng_index, ...) in items_event_data, with a hazard
+         rng row if any of its areaperils' hazard is non-deterministic.
 
-    Every visit then records the hazard row (and return period) of its own item areaperil, and
-    gives the item a hazard rng row if this areaperil's hazard is non-deterministic. An item is
-    thus registered when any of its areaperils has hazard, and the ones that don't stay at -1.
-    With K = 1 there is one visit per item, in the same order as before.
+    An item is thus registered when any of its areaperils has hazard. With K = 1, and one class per
+    (areaperil, vulnerability), items are registered in the item map order they always were.
 
     Args:
         compute_info (gulmc_compute_info_type): computation state; coverage_i, coverage_n,
@@ -2267,18 +2289,24 @@ def reconstruct_coverages(compute_info,
           A count of 1 means the hazard is deterministic and no hazard rng row is needed.
         event_rps (np.array[int32]): parallel array of return periods per areaperil (dynamic only).
         item_map_ja_offsets (np.array[oasis_int]): item map CSR offsets (N_areaperil + 1).
-        item_map_ja_item_idxs (np.array[oasis_int]): item index per entry.
-        item_map_ja_item_areaperil_idxs (np.array[oasis_int]): item areaperil index per entry.
+        item_map_ja_class_idxs (np.array[oasis_int]): item class index per entry.
+        item_map_ja_class_areaperil_idxs (np.array[oasis_int]): class areaperil index per entry.
         items (np.ndarray): items table merged with correlation parameters, containing
           group_id, hazard_group_id, coverage_id, group_seq_id, hazard_group_seq_id, etc.
-        item_areaperil_ja_offsets (np.array[oasis_int]): per item, its run of item areaperils.
-        item_areaperil_haz_arr_i (np.array[oasis_int]): written: hazard row per item areaperil of
-          a registered item, -1 when its areaperil has no hazard this event.
-        item_areaperil_event_rp (np.array[int32]): written: return period per item areaperil
+        class_areaperil_ja_offsets (np.array[oasis_int]): per item class, its run of class areaperils.
+        class_items_ja_offsets (np.array[oasis_int]): per item class, its run of items.
+        class_items_ja_item_idxs (np.array[oasis_int]): the items of each class, in item order.
+        class_areaperil_haz_arr_i (np.array[oasis_int]): written: hazard row per class areaperil of
+          a class reached, -1 when its areaperil has no hazard this event.
+        class_areaperil_event_rp (np.array[int32]): written: return period per class areaperil
           (dynamic footprint only).
-        item_event_tag (np.array[int64]): per item, the event_tag it was last registered in.
-        event_tag (int): distinct for every event, so an item registers once per event without
-          resetting item_event_tag.
+        class_event_tag (np.array[int64]): per item class, the event_tag it was last reached in.
+        event_tag (int): distinct for every event, so a class is reached once per event without
+          resetting class_event_tag.
+        event_classes (np.array[int32]): scratch, of one entry per class: the classes reached this
+          event, in the order reached.
+        class_needs_haz_rng (np.array[bool]): scratch per class: whether one of its areaperils'
+          hazard is non-deterministic this event, under full Monte Carlo.
         coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
         compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed.
         haz_seeds (numpy.array[int]): output buffer for hazard intensity random seeds.
@@ -2335,83 +2363,92 @@ def reconstruct_coverages(compute_info,
     # for each item:
     #  - compute the seeds for the hazard intensity sampling and for the damage sampling
     #  - store data for later processing (hazard cdf index, etc.)
+    # Pass 1: for each areaperil with hazard this event, record its hazard row (and return period)
+    # in the class areaperils that read it. A class is registered on its first visit, its class
+    # areaperils first marked as having no hazard, so those its walk never reaches stay at -1.
+    n_event_classes = 0
     for ap_i in range(Nhaz_arr_this_event):
         ap_ind = ap_inds[ap_i]
         # A hazard rng row is only consumed when the hazard intensity is non-deterministic
         # (more than one intensity bin for this areaperil) and we are running full Monte Carlo.
         ap_needs_haz_rng = (not compute_info['effective_damageability']) and (haz_arr_ptr[ap_i + 1] - haz_arr_ptr[ap_i] > 1)
         for item_pos in range(item_map_ja_offsets[ap_ind], item_map_ja_offsets[ap_ind + 1]):
-            item_idx = item_map_ja_item_idxs[item_pos]
+            class_idx = item_map_ja_class_idxs[item_pos]
+            if class_event_tag[class_idx] != event_tag:
+                class_event_tag[class_idx] = event_tag
+                event_classes[n_event_classes] = class_idx
+                n_event_classes += 1
+                class_needs_haz_rng[class_idx] = False
+                for class_areaperil_idx in range(class_areaperil_ja_offsets[class_idx], class_areaperil_ja_offsets[class_idx + 1]):
+                    class_areaperil_haz_arr_i[class_areaperil_idx] = -1
+            class_areaperil_idx = item_map_ja_class_areaperil_idxs[item_pos]
+            class_areaperil_haz_arr_i[class_areaperil_idx] = ap_i
+            if dynamic_footprint is not None:
+                class_areaperil_event_rp[class_areaperil_idx] = event_rps[ap_i]
+            if ap_needs_haz_rng:
+                class_needs_haz_rng[class_idx] = True
+
+    # Pass 2: register the items of each class reached, in the order the classes were reached and
+    # each class's items in item order. With K = 1 and one class per (areaperil, vulnerability), that
+    # is the item map's (areaperil, vulnerability, item) order.
+    for event_class_i in range(n_event_classes):
+        class_idx = event_classes[event_class_i]
+        for class_item_pos in range(class_items_ja_offsets[class_idx], class_items_ja_offsets[class_idx + 1]):
+            item_idx = class_items_ja_item_idxs[class_item_pos]
             coverage_id = items[item_idx]['coverage_id']
             coverage = coverages[coverage_id]
-            if item_event_tag[item_idx] != event_tag:
-                # first of this item's areaperils with hazard this event: register the item
-                item_event_tag[item_idx] = event_tag
-                # if this group_id was not seen yet, process it.
-                # it assumes that hash only depends on event_id and group_id
-                # and that only 1 event_id is processed at a time.
-                # Use sequential index for array-based lookup instead of Dict
-                group_seq_id = items[item_idx]['group_seq_id']
-                # Signed: magnitude is the count, negative means keep the buildings separate.
-                # The signed form goes on to items_event_data for the writer.
-                item_n_buildings_signed = items[item_idx]['packed_buildings']
-                if group_seq_rng_index[group_seq_id] == NO_RNG_INDEX:
-                    group_seq_rng_index[group_seq_id] = rng_index
-                    vuln_seeds[rng_index] = generate_hash(items[item_idx]['group_id'], compute_info['event_id'])
-                    this_rng_index = rng_index
-                    rng_index += 1
-                else:
-                    this_rng_index = group_seq_rng_index[group_seq_id]
-
-                if coverage['cur_items'] == 0:
-                    # no items were collected for this coverage yet: set up the structure.
-                    # Appended in footprint order; reordered into DFS order below when
-                    # coverage dependency is active.
-                    compute[compute_i], compute_i = coverage_id, compute_i + 1
-
-                    while items_event_data.shape[0] < items_data_i + coverage['max_items']:
-                        # if items_data needs to be larger to store all the items, double it in size
-                        temp_items_data = np.empty(items_event_data.shape[0] * 2, dtype=items_event_data.dtype)
-                        temp_items_data[:items_data_i] = items_event_data[:items_data_i]
-                        items_event_data = temp_items_data
-
-                    coverage['start_items'], items_data_i = items_data_i, items_data_i + coverage['max_items']
-
-                # append the data of this item
-                item_i = coverage['start_items'] + coverage['cur_items']
-                # remember where this item landed within its coverage, so a dependent item can be
-                # paired with its own source item rather than with whatever shares its position
-                item_idx_to_item_j[item_idx] = coverage['cur_items']
-                items_event_data[item_i]['item_idx'] = item_idx
-                items_event_data[item_i]['item_id'] = items[item_idx]['item_id']
-                items_event_data[item_i]['rng_index'] = this_rng_index
-                # deterministic hazard (or effective damageability) until one of its areaperils
-                # needs a hazard rng row, below. The NO_RNG_INDEX sentinel is never used as an
-                # index (guarded at consumption).
-                items_event_data[item_i]['hazard_rng_index'] = NO_RNG_INDEX
-                # stored signed: the writer needs the sign to decide separate-vs-summed
-                items_event_data[item_i]['packed_buildings'] = item_n_buildings_signed
-                # the EFFECTIVE correlation: draw_correlation_samples applies it only when
-                # do_correlation is set, and the writer must agree with what was drawn
-                items_event_data[item_i]['damage_correlation_value'] = (
-                    items[item_idx]['damage_correlation_value'] if compute_info['do_correlation'] else 0.)
-                if dynamic_footprint is not None:
-                    items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
-                    items_event_data[item_i]['return_period'] = items[item_idx]['return_period']
-
-                coverage['cur_items'] += 1
-                # its areaperils have no hazard until the walk reaches them
-                for item_areaperil_idx in range(item_areaperil_ja_offsets[item_idx], item_areaperil_ja_offsets[item_idx + 1]):
-                    item_areaperil_haz_arr_i[item_areaperil_idx] = -1
+            # if this group_id was not seen yet, process it.
+            # it assumes that hash only depends on event_id and group_id
+            # and that only 1 event_id is processed at a time.
+            # Use sequential index for array-based lookup instead of Dict
+            group_seq_id = items[item_idx]['group_seq_id']
+            # Signed: magnitude is the count, negative means keep the buildings separate.
+            # The signed form goes on to items_event_data for the writer.
+            item_n_buildings_signed = items[item_idx]['packed_buildings']
+            if group_seq_rng_index[group_seq_id] == NO_RNG_INDEX:
+                group_seq_rng_index[group_seq_id] = rng_index
+                vuln_seeds[rng_index] = generate_hash(items[item_idx]['group_id'], compute_info['event_id'])
+                this_rng_index = rng_index
+                rng_index += 1
             else:
-                item_i = coverage['start_items'] + item_idx_to_item_j[item_idx]
+                this_rng_index = group_seq_rng_index[group_seq_id]
 
-            item_areaperil_idx = item_map_ja_item_areaperil_idxs[item_pos]
-            item_areaperil_haz_arr_i[item_areaperil_idx] = ap_i
+            if coverage['cur_items'] == 0:
+                # no items were collected for this coverage yet: set up the structure.
+                # Appended in footprint order; reordered into DFS order below when
+                # coverage dependency is active.
+                compute[compute_i], compute_i = coverage_id, compute_i + 1
+
+                while items_event_data.shape[0] < items_data_i + coverage['max_items']:
+                    # if items_data needs to be larger to store all the items, double it in size
+                    temp_items_data = np.empty(items_event_data.shape[0] * 2, dtype=items_event_data.dtype)
+                    temp_items_data[:items_data_i] = items_event_data[:items_data_i]
+                    items_event_data = temp_items_data
+
+                coverage['start_items'], items_data_i = items_data_i, items_data_i + coverage['max_items']
+
+            # append the data of this item
+            item_i = coverage['start_items'] + coverage['cur_items']
+            # remember where this item landed within its coverage, so a dependent item can be
+            # paired with its own source item rather than with whatever shares its position
+            item_idx_to_item_j[item_idx] = coverage['cur_items']
+            items_event_data[item_i]['item_idx'] = item_idx
+            items_event_data[item_i]['item_id'] = items[item_idx]['item_id']
+            items_event_data[item_i]['rng_index'] = this_rng_index
+            # stored signed: the writer needs the sign to decide separate-vs-summed
+            items_event_data[item_i]['packed_buildings'] = item_n_buildings_signed
+            # the EFFECTIVE correlation: draw_correlation_samples applies it only when
+            # do_correlation is set, and the writer must agree with what was drawn
+            items_event_data[item_i]['damage_correlation_value'] = (
+                items[item_idx]['damage_correlation_value'] if compute_info['do_correlation'] else 0.)
             if dynamic_footprint is not None:
-                item_areaperil_event_rp[item_areaperil_idx] = event_rps[ap_i]
+                items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
+                items_event_data[item_i]['return_period'] = items[item_idx]['return_period']
+            coverage['cur_items'] += 1
 
-            if ap_needs_haz_rng and items_event_data[item_i]['hazard_rng_index'] == NO_RNG_INDEX:
+            # a hazard rng row only when one of its areaperils' hazard is non-deterministic;
+            # otherwise the NO_RNG_INDEX sentinel, never used as an index (guarded at consumption)
+            if class_needs_haz_rng[class_idx]:
                 hazard_group_seq_id = items[item_idx]['hazard_group_seq_id']
                 if hazard_group_seq_rng_index[hazard_group_seq_id] == NO_RNG_INDEX:
                     hazard_group_seq_rng_index[hazard_group_seq_id] = hazard_rng_index
@@ -2420,6 +2457,8 @@ def reconstruct_coverages(compute_info,
                     hazard_rng_index += 1
                 else:
                     items_event_data[item_i]['hazard_rng_index'] = hazard_group_seq_rng_index[hazard_group_seq_id]
+            else:
+                items_event_data[item_i]['hazard_rng_index'] = NO_RNG_INDEX
 
     # Pair each dependent item with its source item. A linked pair shares an areaperil, so both are
     # present together and item_idx_to_item_j holds a value written this event — which is why it

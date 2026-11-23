@@ -441,15 +441,18 @@ def build_blended_areaperils(items, blend=None):
         blended_areaperil_placement_schemes[b] = rows['placement_scheme_id'][0]
         areaperil_ids = rows['areaperil_id']
         covered = areaperil_ids != 0
-        _, first_seen = np.unique(areaperil_ids[covered], return_index=True)
-        distinct = areaperil_ids[covered][np.sort(first_seen)]
+        _, first_seen, sorted_j = np.unique(areaperil_ids[covered], return_index=True, return_inverse=True)
+        # j numbers the distinct areaperils in order of first placement: rank each sorted id's first row
+        first_order = np.argsort(first_seen, kind='stable')
+        distinct = areaperil_ids[covered][first_seen[first_order]]
+        j_of_sorted = np.empty(first_order.shape[0], dtype=np.int32)
+        j_of_sorted[first_order] = np.arange(first_order.shape[0], dtype=np.int32)
         areaperil_j = np.full(rows.shape[0], -1, dtype=np.int32)
-        for j, areaperil_id in enumerate(distinct):
-            areaperil_j[areaperil_ids == areaperil_id] = j
+        areaperil_j[covered] = j_of_sorted[sorted_j.reshape(-1)]
         cum_weights = np.cumsum(rows['weight'], dtype=np.float64)
         scale = placement_scale(cum_weights)
-        probabilities = np.array([rows['weight'][areaperil_j == j].sum() for j in range(distinct.shape[0])],
-                                 dtype=np.float64) / scale
+        probabilities = np.bincount(areaperil_j[covered], weights=rows['weight'][covered].astype(np.float64),
+                                    minlength=distinct.shape[0]) / scale
         if cum_weights[-1] < 1.:
             # Float weights falling short of 1: the shortfall is a placement of its own, covered by
             # no areaperil, so it is drawn like any other -- even when the scheme has a single real

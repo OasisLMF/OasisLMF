@@ -110,10 +110,19 @@ An item's `areaperil_id` names a **blended areaperil**: weighted placements, eac
 one footprint areaperil. Ids listed in the model's `blended_areaperil_id` table (see
 `pytools/common/blended_areaperil.py`) take their placements from it. Every other id is a base
 areaperil, the size-1 case: one placement of weight 1, read through the id itself. The item reads
-one **item areaperil** per distinct non-zero footprint areaperil of its blended areaperil, in
-order of first placement; `item_areaperil_ja_offsets[item_idx] + j` is its j-th. A blended
-areaperil whose placements are all `areaperil_id = 0` has none, and its items never produce a
-loss.
+each distinct non-zero footprint areaperil of its blended areaperil, in order of first placement;
+the j-th is its areaperil_j. A blended areaperil whose placements are all `areaperil_id = 0` has
+none, and its items never produce a loss.
+
+What an item reads, and through which cdfs, depends only on its blended areaperil, its
+vulnerability and, under a dynamic footprint, its intensity adjustment. Items agreeing on those
+form an **item class** (`build_item_classes`), and the per-areaperil structures are kept per class:
+one **class areaperil** per areaperil of the class's blended areaperil,
+`class_areaperil_ja_offsets[item_classes[item_idx]] + j` for an item's j-th. A blended areaperil of
+K cells read by L items of one vulnerability therefore costs K entries, not K * L, both in the
+structure and in the per-event walk of `reconstruct_coverages`. Without blending there is one class
+per (areaperil, vulnerability[, intensity adjustment]) and items are visited in the order they
+always were.
 
 Placement is drawn once per run, when the structure is built: one Latin Hypercube block of S
 uniforms per (location, building), keyed on the location's OED identifiers and not on the event, so
@@ -141,7 +150,7 @@ of CDFs across them, since its CDFs come from its source's damage. Dead areaperi
 placements and a float weight shortfall carry no loss: in the mixed effective damage cdf
 (`mix_effective_damage_cdfs`, shared with getmodel) their probability sits on damage bin 0, which
 must be the zero-loss bin of the damage bin dictionary. Under a dynamic footprint the event's return
-period is held per item areaperil, so an item's standard of protection is decided per placement: a
+period is held per class areaperil, so an item's standard of protection is decided per placement: a
 building can be protected where the event is a 1-in-20 and exposed where it is a 1-in-50. The
 sections a blended location spans must be in sections.csv, which is the lookup's job, as for any
 location.
@@ -153,13 +162,15 @@ location.
 | `blended_areaperil_placement_ja_offsets` / `_ja_cum_weights` / `_ja_areaperil_j` | blended areaperil | placements: running weight, and which areaperil j covers each (-1 none). The uniform is scaled by `max(1, total weight)`, which is 1 for float weights and the total for counts |
 | `location_placements` | (location, building, sample) | placement index, shared by the location's items; the placement count means unplaced |
 | `placement_item_ind` / `placement_item_starts` | item with more than one placement | where its first building's samples start in `location_placements` |
-| `item_areaperil_ja_offsets` | item | its run of item areaperils |
-| `item_areaperil_ja_cdf_group_idxs` | item areaperil | CDF group, the cache key (one per areaperil, vulnerability and, under a dynamic footprint, intensity adjustment) |
-| `item_areaperil_ja_areaperil_agg_vuln_idxs` | item areaperil | aggregate vulnerability block, -1 when not aggregate |
-| `item_map_ja_id_ind` / `_ja_areaperil_ids` / `_ja_offsets` | footprint areaperil | the item areaperils that read it, as `item_map_ja_item_idxs` / `item_map_ja_item_areaperil_idxs` |
-| `item_areaperil_haz_arr_i` | item areaperil | per event: index into haz_arr_ptr, -1 when its areaperil has no hazard this event |
-| `item_areaperil_event_rp` | item areaperil | per event: the event's return period there (dynamic footprint) |
-| `item_event_tag` | item | per event: the event it was last registered in, so it registers once |
+| `item_classes` | item | its item class |
+| `class_items_ja_offsets` / `class_items_ja_item_idxs` | item class | its items, in item order |
+| `class_areaperil_ja_offsets` | item class | its run of class areaperils |
+| `class_areaperil_ja_cdf_group_idxs` | class areaperil | CDF group, the cache key (one per areaperil, vulnerability and, under a dynamic footprint, intensity adjustment) |
+| `class_areaperil_ja_areaperil_agg_vuln_idxs` | class areaperil | aggregate vulnerability block, -1 when not aggregate |
+| `item_map_ja_id_ind` / `_ja_areaperil_ids` / `_ja_offsets` | footprint areaperil | the class areaperils that read it, as `item_map_ja_class_idxs` / `item_map_ja_class_areaperil_idxs` |
+| `class_areaperil_haz_arr_i` | class areaperil | per event: index into haz_arr_ptr, -1 when its areaperil has no hazard this event |
+| `class_areaperil_event_rp` | class areaperil | per event: the event's return period there (dynamic footprint) |
+| `class_event_tag` | item class | per event: the event it was last reached in, so its items register once |
 
 ### Vulnerability CDF Cache
 
@@ -205,13 +216,12 @@ used as the index into `haz_arr_ptr` for accessing the hazard intensity pdf.
 
 ### `reconstruct_coverages(...)`
 
-Per-event preparation phase. Walks the item map for every areaperil in the footprint. The first
-visit to an item registers it:
+Per-event preparation phase. Walks the item map for every areaperil in the footprint, recording
+each class areaperil's hazard row and noting which item classes are reached. Then registers every
+item of each class reached:
 - Computes hash-based random seeds (deduplicated by group using array lookups).
 - Maps items to their coverage structures.
-
-Every visit records its item areaperil's hazard row, and gives the item a hazard rng row if that
-areaperil's hazard is non-deterministic.
+- Gives the item a hazard rng row if any of its areaperils' hazard is non-deterministic.
 
 Uses pre-allocated arrays (`group_seq_rng_index`, `hazard_group_seq_rng_index`) for O(1)
 group deduplication instead of per-event Numba Dict creation.
@@ -219,7 +229,7 @@ group deduplication instead of per-event Numba Dict creation.
 ### `compute_event_losses(...)`
 
 Core loss computation. For each coverage and item:
-1. Retrieves hazard pdf via its item areaperil's `item_areaperil_haz_arr_i`.
+1. Retrieves hazard pdf via its class areaperil's `class_areaperil_haz_arr_i`.
 2. Looks up or computes the effective damage CDF (and per-bin CDFs when
    `effective_damageability=False`), using the int64 cache key.
 3. Computes mean loss statistics.
@@ -339,7 +349,7 @@ per-areaperil weights from `areaperil_vuln_idx_to_weight`.
 When enabled, intensity values in the hazard footprint are adjusted per item using
 `intensity_adjustment` factors. The adjusted intensity is remapped to intensity_bin_ids
 via `intensity_bin_dict`. Items with different adjustments in the same (areaperil, vuln)
-group receive different CDF groups (`item_areaperil_ja_cdf_group_idxs`).
+group are in different item classes, and so receive different CDF groups (`class_areaperil_ja_cdf_group_idxs`).
 
 The footprint itself is built per event by `FootprintParquetDynamic` (`getmodel/footprint.py`),
 including the merge of an areaperil lying in several sections (`--section-merge`); see the

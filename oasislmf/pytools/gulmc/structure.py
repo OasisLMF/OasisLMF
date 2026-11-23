@@ -40,8 +40,8 @@ from oasislmf.pytools.gulmc.common import (
     NormInversionParameters, coverage_type,
 )
 from oasislmf.pytools.gulmc.items import (
-    read_items, build_item_areaperils, build_item_placements, build_blended_cdf_groups, generate_item_map,
-    build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln,
+    read_items, build_item_classes, build_class_areaperils, build_item_placements, build_blended_cdf_groups, generate_item_map,
+    build_cdf_group_indices, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln, item_is_computed,
 )
 from oasislmf.utils.path import setcwd
 
@@ -63,12 +63,15 @@ ARRAY_FILES = [
     'coverages',
     'item_map_ja_areaperil_ids',
     'item_map_ja_offsets',
-    'item_map_ja_item_idxs',
-    'item_map_ja_item_areaperil_idxs',
+    'item_map_ja_class_idxs',
+    'item_map_ja_class_areaperil_idxs',
     'item_map_ja_id_ind',
-    'item_areaperil_ja_offsets',
-    'item_areaperil_ja_cdf_group_idxs',
-    'item_areaperil_ja_areaperil_agg_vuln_idxs',
+    'item_classes',
+    'class_items_ja_offsets',
+    'class_items_ja_item_idxs',
+    'class_areaperil_ja_offsets',
+    'class_areaperil_ja_cdf_group_idxs',
+    'class_areaperil_ja_areaperil_agg_vuln_idxs',
     'blended_areaperil_ja_offsets',
     'blended_areaperil_ja_probabilities',
     'blended_areaperil_placement_ja_offsets',
@@ -656,37 +659,42 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
      blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_ja_probabilities,
      blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
      blended_areaperil_placement_ja_areaperil_j, blended_areaperil_placement_schemes) = build_blended_areaperils(items, blend)
-    (item_areaperil_ja_offsets, entry_areaperil_ids, entry_vuln_ids, entry_item_idxs,
-     entry_item_areaperil_idxs) = build_item_areaperils(items, blended_areaperil_ja_offsets,
-                                                        blended_areaperil_ja_areaperil_ids)
-    n_item_areaperils = int(item_areaperil_ja_offsets[-1])
+    # per-areaperil structures are kept per item class, not per item: a blended areaperil of K
+    # areaperils read by L items of one vulnerability costs K entries, not K * L
+    item_classes, classes, class_items_ja_offsets, class_items_ja_item_idxs = build_item_classes(items, dynamic_footprint)
+    (class_areaperil_ja_offsets, entry_areaperil_ids, entry_vuln_ids, entry_class_idxs,
+     entry_class_areaperil_idxs) = build_class_areaperils(classes, blended_areaperil_ja_offsets,
+                                                          blended_areaperil_ja_areaperil_ids)
+    n_class_areaperils = int(class_areaperil_ja_offsets[-1])
     placement_item_ind, placement_item_starts, location_placements, placement_sample_size = build_placements(
         input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
         blended_areaperil_placement_schemes, sample_size)
     blended_cdf_item_idxs, blended_cdf_groups, n_blended_cdf_groups = build_blended_cdf_groups(
-        items, item_areaperil_ja_offsets, blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
+        items, blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
         dynamic_footprint)
     blended_cdf_item_ind = id_index_build(blended_cdf_item_idxs)
     # an item counts once in its coverage however many areaperils it reads
     np.add.at(coverages['max_items'], items['coverage_id'], 1)
 
-    # --- item map (areaperil -> item areaperils) -------------------------------
+    # --- item map (areaperil -> class areaperils) ------------------------------
     (item_map_ja_areaperil_ids, item_map_ja_offsets,
-     item_map_ja_item_idxs, item_map_ja_item_areaperil_idxs,
-     item_areaperil_ja_areaperil_agg_vuln_idxs,
+     item_map_ja_class_idxs, item_map_ja_class_areaperil_idxs,
+     class_areaperil_ja_areaperil_agg_vuln_idxs,
      vuln_map, vuln_map_keys,
      areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
      areaperil_agg_vuln_idx_ja_areaperil_ids) = generate_item_map(
-        entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entry_item_areaperil_idxs,
-        items, n_item_areaperils,
+        entry_areaperil_ids, entry_vuln_ids, entry_class_idxs, entry_class_areaperil_idxs,
+        classes, n_class_areaperils,
         agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids)
-    del entry_areaperil_ids, entry_vuln_ids, entry_item_idxs, entry_item_areaperil_idxs
+    del entry_areaperil_ids, entry_vuln_ids, entry_class_idxs, entry_class_areaperil_idxs
     item_map_ja_id_ind = id_index_build(item_map_ja_areaperil_ids)
+    # an aggregate class keeps vulnerability_idx 0, never read (see generate_item_map)
+    items['vulnerability_idx'] = classes['vulnerability_idx'][item_classes]
 
     # CDF group indices
-    item_areaperil_ja_cdf_group_idxs, n_cdf_groups = build_cdf_group_indices(
-        item_map_ja_offsets, item_map_ja_item_idxs, item_map_ja_item_areaperil_idxs,
-        items, n_item_areaperils, dynamic_footprint if dynamic_footprint else None)
+    class_areaperil_ja_cdf_group_idxs, n_cdf_groups = build_cdf_group_indices(
+        item_map_ja_offsets, item_map_ja_class_idxs, item_map_ja_class_areaperil_idxs,
+        classes, n_class_areaperils, dynamic_footprint if dynamic_footprint else None)
 
     if aggregate_weights is not None:
         logger.debug('reconstruct aggregate vulnerability definitions and weights')
@@ -732,12 +740,12 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # (Ndamage_bins_max), which the vulnerability file — not the damage_bin_dict — determines.
     conditional_vuln_array = align_conditional_damage_axis(conditional_vuln_array, vuln_array.shape[1])
 
-    # an item with no item areaperil (every placement uncovered) is never computed and was never
+    # an item with no class areaperil (every placement uncovered) is never computed and was never
     # given a vulnerability_idx, so it must not scatter into the mapping
-    computed = np.diff(item_areaperil_ja_offsets) > 0
+    computed = item_is_computed(item_classes, class_areaperil_ja_offsets)
     vuln_idx_to_cond_idx = build_vuln_idx_to_cond_idx(
         items[computed],
-        item_is_aggregate_vuln(item_areaperil_ja_offsets, item_areaperil_ja_areaperil_agg_vuln_idxs)[computed],
+        item_is_aggregate_vuln(item_classes, class_areaperil_ja_offsets, class_areaperil_ja_areaperil_agg_vuln_idxs)[computed],
         cond_vuln_ids, vuln_array.shape[0])
 
     # --- Gaussian lookup tables (deterministic constants) ----------------------
@@ -764,12 +772,15 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'coverages': coverages,
         'item_map_ja_areaperil_ids': item_map_ja_areaperil_ids,
         'item_map_ja_offsets': item_map_ja_offsets,
-        'item_map_ja_item_idxs': item_map_ja_item_idxs,
-        'item_map_ja_item_areaperil_idxs': item_map_ja_item_areaperil_idxs,
+        'item_map_ja_class_idxs': item_map_ja_class_idxs,
+        'item_map_ja_class_areaperil_idxs': item_map_ja_class_areaperil_idxs,
         'item_map_ja_id_ind': item_map_ja_id_ind,
-        'item_areaperil_ja_offsets': item_areaperil_ja_offsets,
-        'item_areaperil_ja_cdf_group_idxs': item_areaperil_ja_cdf_group_idxs,
-        'item_areaperil_ja_areaperil_agg_vuln_idxs': item_areaperil_ja_areaperil_agg_vuln_idxs,
+        'item_classes': item_classes,
+        'class_items_ja_offsets': class_items_ja_offsets,
+        'class_items_ja_item_idxs': class_items_ja_item_idxs,
+        'class_areaperil_ja_offsets': class_areaperil_ja_offsets,
+        'class_areaperil_ja_cdf_group_idxs': class_areaperil_ja_cdf_group_idxs,
+        'class_areaperil_ja_areaperil_agg_vuln_idxs': class_areaperil_ja_areaperil_agg_vuln_idxs,
         'blended_areaperil_ja_offsets': blended_areaperil_ja_offsets,
         'blended_areaperil_ja_probabilities': blended_areaperil_ja_probabilities,
         'blended_areaperil_placement_ja_offsets': blended_areaperil_placement_ja_offsets,
