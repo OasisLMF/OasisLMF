@@ -1054,7 +1054,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             function to assign band value to each corresponding lat lon
         """
         if rasterio is None:
-            raise OasisException(f"rasterio module is needed for geotiff, {OPT_INSTALL_MESSAGE}")
+            raise OasisException(
+                f"rasterio module is needed for geotiff (it replaces gdal, which geotiff no longer uses), {OPT_INSTALL_MESSAGE}"
+            )
 
         abs_file_path = self.to_abs_filepath(file_path)
         with rasterio.open(abs_file_path) as dataset:
