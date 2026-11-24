@@ -107,10 +107,10 @@ def build_model(tmp_path, event_definition=None, hazard_case=None,
 
 @contextmanager
 def open_footprint(storage, run_dir, areaperil_ids=None,
-                   df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
+                   df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader", lazy=False):
     """Open a FootprintParquetDynamic with the run directory as cwd, as gulmc does."""
     with setcwd(run_dir):
-        with FootprintParquetDynamic(storage, df_engine=df_engine, areaperil_ids=areaperil_ids) as footprint:
+        with FootprintParquetDynamic(storage, df_engine=df_engine, areaperil_ids=areaperil_ids, lazy=lazy) as footprint:
             yield footprint
 
 
@@ -219,7 +219,7 @@ def test_portfolio_needing_most_sections_reads_each_file_once(tmp_path, monkeypa
 
 @pytest.mark.parametrize('partition_event_definition', [True, False])
 def test_failed_first_load_is_retried_not_silent(tmp_path, monkeypatch, partition_event_definition):
-    """A load that fails once must not leave every later event looking unaffected.
+    """A lazy footprint's load that fails once must not leave every later event looking unaffected.
 
     The footprint server catches exceptions per request and keeps serving, so a silently
     empty footprint after one transient error would turn the rest of the run into zero losses.
@@ -235,22 +235,37 @@ def test_failed_first_load_is_retried_not_silent(tmp_path, monkeypatch, partitio
 
     monkeypatch.setattr(FootprintParquetDynamic, 'get_df_reader', failing_once_get_df_reader)
 
-    with open_footprint(storage, run_dir) as footprint:
+    with open_footprint(storage, run_dir, lazy=True) as footprint:
         with pytest.raises(OSError, match='transient read failure'):
             footprint.get_event(1)
         assert intensity_by_areaperil(footprint.get_event(1)) == {100: 6, 101: 8, 200: 4}
 
 
-def test_opening_the_footprint_reads_no_section_data(tmp_path, monkeypatch):
-    """gulmc opens the footprint once just for num_intensity_bins, so the sections load on first use."""
+def test_opening_a_lazy_footprint_reads_no_section_data(tmp_path, monkeypatch):
+    """gulmc's structure build opens the footprint just for num_intensity_bins, so lazily."""
     storage, run_dir = build_model(tmp_path)
     reads = record_reads(monkeypatch)
 
-    with open_footprint(storage, run_dir) as footprint:
+    with open_footprint(storage, run_dir, lazy=True) as footprint:
         assert footprint.num_intensity_bins == 10
         assert reads == []
         footprint.get_event(1)
         assert reads
+
+
+def test_opening_the_footprint_loads_its_sections(tmp_path, monkeypatch):
+    """By default the sections load when the footprint is opened, so unusable model data is refused there.
+
+    The footprint server catches each request's error and keeps serving: data refused only by a
+    get_event would leave its client waiting, or with an empty footprint, rather than stop the run.
+    """
+    storage, run_dir = build_model(tmp_path)
+    reads = record_reads(monkeypatch)
+
+    with open_footprint(storage, run_dir) as footprint:
+        assert sorted(reads) == [event_defintion_filename, hazard_case_filename]
+        footprint.get_event(1)
+        assert sorted(reads) == [event_defintion_filename, hazard_case_filename]
 
 
 # ---------------------------------------------------------------------------
@@ -572,13 +587,12 @@ def test_modelpy_refusal_holds_for_a_relative_run_directory(tmp_path, monkeypatc
     ('return_period', np.nan, 'return_period that is missing or not a whole number'),
 ])
 def test_unusable_hazard_values_are_refused_at_load(tmp_path, column, value, reason):
-    """Refused when the hazard case is loaded, by the first get_event, whichever event it asks for."""
     hazard_case = make_hazard_case().astype({'intensity': 'float64', 'return_period': 'float64'}).assign(probability=1.0)
     hazard_case.loc[0, column] = value
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case)
     with pytest.raises(OasisFootPrintError, match=reason):
-        with open_footprint(storage, run_dir) as footprint:
-            footprint.get_event(1)
+        with open_footprint(storage, run_dir):
+            pass
 
 
 @pytest.mark.parametrize('partition_event_definition', [True, False], ids=['partitioned', 'flat'])
@@ -603,5 +617,5 @@ def test_a_distribution_with_no_probability_is_refused_at_load(tmp_path):
     hazard_case.loc[hazard_case['areaperil_id'] == 200, 'probability'] = 0.0
     storage, run_dir = build_model(tmp_path, hazard_case=hazard_case)
     with pytest.raises(OasisFootPrintError, match='adding up to 0'):
-        with open_footprint(storage, run_dir) as footprint:
-            footprint.get_event(1)
+        with open_footprint(storage, run_dir):
+            pass

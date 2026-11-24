@@ -190,6 +190,7 @@ class Footprint:
         areaperil_ids=None,
         section_merge=None,
         shared_dir=None,
+        lazy=False,
         **kwargs
     ):
         """Loads the loading classes defined in this file checking to see if the files are in the static path
@@ -223,6 +224,9 @@ class Footprint:
             shared_dir (str or None): directory where a dynamic footprint's hazard was saved by
                 FootprintParquetDynamic.save_shared, memory-mapped instead of read from the model data
                 when present. Ignored by the other footprint formats.
+            lazy (bool): if True, a dynamic footprint does not load its sections when opened (it
+                reads its metadata and the portfolio's sections and areaperils) but on first use,
+                for a caller that only needs num_intensity_bins. Ignored by the other footprint formats.
             **kwargs: additional keyword arguments, accepted and ignored so that callers can
                 forward a wider parameter dict
 
@@ -240,7 +244,7 @@ class Footprint:
                     logger.debug(f"loading {filename}")
                 if footprint_class is FootprintParquetDynamic:
                     return footprint_class(storage, df_engine=df_engine, areaperil_ids=areaperil_ids,
-                                           section_merge=section_merge, shared_dir=shared_dir)
+                                           section_merge=section_merge, shared_dir=shared_dir, lazy=lazy)
                 return footprint_class(storage, df_engine=df_engine, areaperil_ids=areaperil_ids)
         else:
             if storage.isfile("footprint.parquet"):
@@ -630,9 +634,10 @@ class FootprintParquetDynamic(Footprint):
     dataset costs time in the number of sections the model has. Otherwise, and for an
     unpartitioned file, it is read in one go with a section_id filter pushed down to the reader.
 
-    __enter__ reads only the metadata, so opening the footprint just for num_intensity_bins
-    is cheap. The first get_event call bulk-loads the hazard case for this portfolio's
-    sections and areaperils, which is all get_event ever needs of it. Every process loading it
+    __enter__ bulk-loads the hazard case for this portfolio's sections and areaperils, which is
+    all get_event ever needs of it, so model data the footprint cannot use is refused when it is
+    opened. A lazy footprint (lazy=True) loads its sections on first use instead, for a caller
+    that only needs num_intensity_bins. Every process loading the hazard case
     holds its own copy, so it can be saved once with save_shared and memory-mapped by each
     process instead (shared_dir), in which case __enter__ maps it straight away. The event
     definition is bulk-loaded too when it is partitioned, giving indexed per-event lookups;
@@ -656,7 +661,7 @@ class FootprintParquetDynamic(Footprint):
     partition_read_max_share = 1 / 8
 
     def __init__(self, storage: BaseStorage, df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
-                 areaperil_ids=None, section_merge=None, shared_dir=None) -> None:
+                 areaperil_ids=None, section_merge=None, shared_dir=None, lazy=False) -> None:
         """The constructor for the FootprintParquetDynamic class.
 
         Args:
@@ -668,6 +673,8 @@ class FootprintParquetDynamic(Footprint):
             shared_dir (str or None): directory written by save_shared. When it holds a complete save,
                 the hazard case and partitioned event definition are memory-mapped from it rather than
                 read from the model data.
+            lazy (bool): if True, __enter__ does not load the sections; save_shared or the first
+                get_event does. Then unusable model data is only refused by that first use.
 
         Raises:
             OasisFootPrintError: if section_merge is not a known option
@@ -675,6 +682,7 @@ class FootprintParquetDynamic(Footprint):
         super().__init__(storage, df_engine=df_engine, areaperil_ids=areaperil_ids)
         self.section_merge = validate_section_merge(section_merge)
         self.shared_dir = shared_dir
+        self.lazy = lazy
 
     def _section_partitions(self, filename):
         """List the section_ids a parquet file is partitioned into.
@@ -722,11 +730,20 @@ class FootprintParquetDynamic(Footprint):
         if self.shared_dir is not None and self._load_shared():
             return self
 
-        self.get_event = self._load_and_get_event
+        if self.lazy:
+            self.get_event = self._load_and_get_event
+        else:
+            # here rather than on first use: the footprint server catches each request's error and
+            # keeps serving, so model data refused by a get_event would not stop the run
+            self._load()
         return self
 
     def _load_and_get_event(self, event_id):
-        """First get_event call: load the portfolio's sections, then answer through the layout's path."""
+        """A lazy footprint's first get_event call: load the portfolio's sections, then answer through the layout's path.
+
+        gulmc's structure build, the lazy caller, never calls get_event; this keeps a lazy footprint
+        correct for one that does.
+        """
         self._load()
         return self.get_event(event_id)
 
