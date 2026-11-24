@@ -339,6 +339,28 @@ class SplitLocations(TestCase):
         self.assertEqual(len(loc_df['LocNumber'].cat.categories), 4)  # the source frame is untouched
 
 
+class ParquetKeysFile(TestCase):
+    def test_result_chunks_with_different_category_counts(self):
+        # pyarrow sizes a categorical's indices from its category count, so a later chunk with more
+        # categories than the first used to fail the cast to the first chunk's schema
+        def result(start, n_categories):
+            return pd.DataFrame({'loc_id': range(start, start + 300), 'peril_id': 'WTC', 'coverage_type': 1,
+                                 'area_peril_id': 1, 'vulnerability_id': 1, 'status': OASIS_KEYS_STATUS['success']['id'],
+                                 'message': pd.Categorical([f'm{i % n_categories}' for i in range(300)])})
+
+        results = [result(1, 50), result(301, 200)]
+        with TemporaryDirectory() as d:
+            keys_fp = os.path.join(d, 'keys.parquet')
+            BasicKeyServer({'builtin_lookup_type': 'peril_covered_deterministic'}).write_keys_file(
+                results, successes_fp=keys_fp, errors_fp=os.path.join(d, 'keys-errors.parquet'),
+                output_format='parquet', keys_success_msg=True)
+            written = pd.read_parquet(keys_fp)
+
+        self.assertEqual(written['LocID'].tolist(), list(range(1, 601)))
+        self.assertEqual(written['Message'].astype(str).tolist(),
+                         [str(m) for r in results for m in r['message']])
+
+
 class GenerateKeysWithBuiltinLookup(TestCase):
     def test_built_in_lookup_step(self):
         with TemporaryDirectory() as d:
