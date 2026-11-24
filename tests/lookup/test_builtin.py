@@ -8,6 +8,7 @@ import pytest
 
 from oasislmf.lookup.builtin import (
     Lookup,
+    PerilCoveredDeterministicLookup,
     create_lat_lon_id_functions,
     get_step,
     jit_geo_grid_lookup,
@@ -187,7 +188,7 @@ def test_build_rtree_associates_correctly(locations_by_name, expected_ids, reque
 
 def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinates):
     """Test that the rtree builtin still works with the deprecated parameter."""
-    with pytest.warns(DeprecationWarning):
+    with pytest.warns(FutureWarning):
         rtree = Lookup(config={}).build_rtree(
             file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
             file_type="parquet",
@@ -237,6 +238,70 @@ def test_build_rtree_reprojects_non_4326_geometries(target_crs, rtree_locations_
     )
 
 
+@pytest.fixture
+def overlapping_sections_path(tmp_path):
+    """Three overlapping squares; id 10 checks the ids are sorted as numbers, not as strings."""
+    gpd = pytest.importorskip("geopandas")
+    from shapely.geometry import box
+    gdf = gpd.GeoDataFrame(
+        {"section_id": [2, 1, 10]},
+        geometry=[box(1, 0, 3, 2), box(0, 0, 2, 2), box(1, 1, 3, 3)],
+        crs="EPSG:4326",
+    )
+    path = tmp_path / "sections.parquet"
+    gdf.to_parquet(path)
+    return path.as_posix()
+
+
+@pytest.fixture
+def overlapping_sections_locations():
+    return pd.DataFrame(columns=["longitude", "latitude", "locname"], data=[
+        [0.5, 0.5, "one"],
+        [1.5, 0.5, "two"],
+        [1.5, 1.5, "three"],
+        [5.0, 5.0, "none"],
+        [None, None, "no_coordinates"],
+    ])
+
+
+def test_build_rtree_keeps_one_row_per_match(overlapping_sections_path, overlapping_sections_locations):
+    rtree = Lookup(config={}).build_rtree(
+        file_path=overlapping_sections_path, file_type="parquet", id_columns="section_id",
+    )
+    output = rtree(overlapping_sections_locations)
+    assert sorted(output.loc[output["locname"] == "three", "section_id"]) == [1, 2, 10]
+    assert len(output) == 1 + 2 + 3 + 1 + 1
+
+
+@pytest.mark.parametrize("id_columns", [["section_id"], []], ids=["section_id an id column", "not listed"])
+def test_process_locations_fails_a_location_in_no_section(overlapping_sections_path, overlapping_sections_locations, id_columns):
+    """A location the section step cannot place is a keys error, not a success with no section."""
+    config = {
+        "step_definition": {
+            "section": {
+                "type": "rtree",
+                "columns": ["latitude", "longitude"],
+                "parameters": {"file_path": overlapping_sections_path, "file_type": "parquet", "id_columns": id_columns},
+            },
+            "pivot": {
+                "type": "simple_pivot",
+                "parameters": {"pivots": [{"new_cols": {
+                    "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]},
+            },
+        },
+        "strategy": ["section", "pivot"],
+    }
+    locations = overlapping_sections_locations.assign(loc_id=range(1, 6))
+
+    keys = Lookup(config=config).process_locations(locations)
+
+    success = keys[keys["status"] == OASIS_KEYS_STATUS["success"]["id"]]
+    assert sorted(success["section_id"]) == [1, 1, 1, 2, 2, 10]
+    failed = keys[keys["status"] == OASIS_KEYS_STATUS["fail"]["id"]].set_index("loc_id")
+    assert sorted(failed.index) == [4, 5]
+    assert set(failed["message"]) == {"section_id has an unknown id"}
+
+
 @pytest.mark.parametrize("preparations, values, expected", [
     ({"min": 5}, [1, 5, 7], [5, 5, 7]),           # values below min are raised to min
     ({"max": 10}, [7, 10, 20], [7, 10, 10]),      # values above max are lowered to max
@@ -283,6 +348,50 @@ def test_split_loc_perils_covered_not_covered_status_restores_previous_behaviour
     not_covered = result[result["loc_id"] == 2]
     assert len(not_covered) == 1
     assert not_covered["status"].iloc[0] == OASIS_KEYS_STATUS["notatrisk"]["id"]
+
+
+def test_split_loc_perils_covered_group_listed_with_its_perils_gives_each_peril_once():
+    """OO1 is the group {ORF, OSF}: listing it with ORF and OSF must not give those perils twice."""
+    fct = Lookup(config={}).build_split_loc_perils_covered()
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "LocPerilsCovered": ["OO1;ORF;OSF", "ORF;OSF"],
+    })
+
+    result = fct(locations)
+
+    perils = result.groupby("loc_id")["peril_id"].apply(sorted)
+    assert perils[1] == perils[2] == ["ORF", "OSF"]
+    assert "peril_group_id" not in locations
+
+
+@pytest.mark.parametrize("perils_covered, expected_group", [("OO1;ORF", "OO1"), ("ORF;OO1", "ORF")])
+def test_split_loc_perils_covered_peril_in_several_groups_keeps_the_first_listed(perils_covered, expected_group):
+    """A peril reached through several listed groups keeps the first listed group as peril_group_id."""
+    fct = Lookup(config={}).build_split_loc_perils_covered()
+
+    result = fct(pd.DataFrame({"loc_id": [1], "LocPerilsCovered": [perils_covered]}))
+
+    orf = result[result["peril_id"] == "ORF"]
+    assert len(orf) == 1
+    assert orf["peril_group_id"].iloc[0] == expected_group
+
+
+def test_peril_covered_deterministic_lookup_group_listed_with_its_perils_gives_each_peril_once():
+    lookup = PerilCoveredDeterministicLookup(config={
+        "model_perils_covered": ["OO1"],
+        "supported_oed_coverage_types": [1, 3],
+    })
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "LocPerilsCovered": ["OO1;ORF;OSF", "ORF;OSF"],
+    })
+
+    keys_df = lookup.process_locations(locations)
+
+    assert not keys_df.duplicated(["loc_id", "peril_id", "coverage_type"]).any()
+    assert (keys_df["loc_id"].value_counts() == 4).all()  # 2 perils x 2 coverage types each
+    assert "peril_group_id" not in locations
 
 
 def test_split_loc_perils_covered_rejects_unknown_not_covered_status():

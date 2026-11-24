@@ -156,7 +156,7 @@ def get_max_summary_id__single_static_path(static_path, summary_set_id):
     Raises:
         OasisException: if the summary set is not in the rlsummaryxref
     """
-    _, set_id_to_idx, set_idx_to_loss, _, _ = load_summary_object(static_path, 'rl')
+    _, set_id_to_idx, set_idx_to_loss, *_ = load_summary_object(static_path, 'rl')
     set_idx = set_id_to_idx[summary_set_id]
     if set_idx == null_index:
         raise OasisException(f'summary_set_id {summary_set_id} not in {static_path} rlsummaryxref')

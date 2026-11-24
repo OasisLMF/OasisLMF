@@ -489,14 +489,15 @@ to items (2) in proportion to the losses from the prior level calculation.
     $ fmpy -a 1 # Losses are back-allocated to items on the basis of the input losses (e.g. ground up loss)
     $ fmpy -a 2 # Losses are back-allocated to items on the basis of the prior level losses
 
-The rules for specifying the ``output_ids`` in the xref table are as follows:
+The xref table has an ``output_id`` for every ``from_agg_id`` of the first level in the **programme** table, and for
+every ``layer_id`` in the final level of the **policytc** table, whatever the allocation rule. To make sense of this,
+if there is more than one output at the contract level, then each one must be back-allocated to all of the items, with
+each individual loss represented by a unique ``output_id``.
 
-* **Rule 1**: there is an ``output_id`` for every ``agg_id`` and ``layer_id`` of the final level in the **policytc** table
-* **Rule 2**: there is an ``output_id`` for every ``from_agg_id`` of the first level in the **programme** table, and for
-  every ``layer_id`` in the final level of the **policytc** table
-
-To make sense of this, if there is more than one output at the contract level, then each one must be back-allocated
-to all of the items, with each individual loss represented by a unique ``output_id``.
+With ``-a 0`` the losses are not back-allocated, so each contract-level loss is written under the ``output_id`` that
+one of its items has for that layer. The items of a contract share its portfolio, account and policy, so summaries at
+those levels are exact; a breakdown by location does not exist without back-allocation. Reinsurance needs the insured
+loss of each item, so a model run refuses ``-a 0`` for insured losses when reinsurance is requested.
 
 To avoid unnecessary computation, it is recommended not to back-allocate unless losses are required to be reported at
 a more detailed level than the contract level (site or zip code, for example). In this case, losses are re-aggregated
