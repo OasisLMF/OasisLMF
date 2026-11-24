@@ -10,7 +10,7 @@ from unittest.mock import patch
 from oasislmf.pytools.common.data import occurrence_dtype
 from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.aal.manager import _SUMMARIES_DTYPE_size, main
-from tests.pytools.utils import make_idx_from_bin
+from tests.pytools.utils import SUMMARY_BIN_TRUNCATIONS, make_idx_from_bin, truncate_last_summary_bin
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_aalpy")
 
@@ -318,3 +318,21 @@ def test_aal_oversize_event_raises(use_idx):
         with patch("oasislmf.pytools.aal.manager.OASIS_AAL_MEMORY", tiny_memory):
             with pytest.raises(ValueError, match="OASIS_AAL_MEMORY is too small"):
                 main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / "aal.csv")
+
+
+# ---------------------------------------------------------------------------
+# Truncated summary file
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("how", SUMMARY_BIN_TRUNCATIONS)
+def test_aal_truncated_summary_file_raises(how):
+    """A truncated summary .bin raises instead of reading past the end of the file."""
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "all_files"), tmp_dir)
+        truncate_last_summary_bin(tmp_dir / "work" / "gul", how)
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+
+        with pytest.raises(RuntimeError, match="broken summary file"):
+            main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / "py_aalgul.csv")

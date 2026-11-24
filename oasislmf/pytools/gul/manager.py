@@ -4,7 +4,6 @@ from math import sqrt
 import os
 import sys
 from contextlib import ExitStack
-from select import select
 
 import numpy as np
 from numba import njit
@@ -13,7 +12,7 @@ from oasislmf.utils.ping import EventProgress
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, check_packing_supported,
                                                   encode_sidx, max_emitted_blocks,
-                                                  mv_write_item_header,
+                                                  mv_write_item_header, write_mv_to_stream,
                                                   mv_write_sidx_loss,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM,
                                                   ITEM_PACKED_STREAM)
@@ -222,8 +221,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
-        select_stream_list = [stream_out]
-
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
@@ -399,10 +396,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                         f"coverage whole.")
 
                 # write the losses to the output stream
-                write_start = 0
-                while write_start < cursor:
-                    select([], select_stream_list, select_stream_list)
-                    write_start += stream_out.write(byte_mv[write_start:cursor].tobytes())
+                write_mv_to_stream(stream_out, byte_mv, cursor)
 
                 cursor = 0
 

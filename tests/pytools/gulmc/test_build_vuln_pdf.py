@@ -34,7 +34,9 @@ def _run(vuln_array, weights, haz_bin_id=HAZ_BIN_ID):
         ja_data[i]['vuln_idx'] = i
         ja_data[i]['weight'] = w
     vuln_pdf_empty = np.empty((len(haz_bin_id), NDAMAGE_BINS), dtype=np.float32)
-    return build_vuln_pdf(item, len(haz_bin_id), haz_bin_id, vuln_array, NDAMAGE_BINS, offsets, ja_data, vuln_pdf_empty)
+    # build_vuln_pdf writes the pdf into rows [:Nhaz_bins] of the buffer rather than returning it
+    build_vuln_pdf(item, len(haz_bin_id), haz_bin_id, vuln_array, NDAMAGE_BINS, offsets, ja_data, vuln_pdf_empty)
+    return vuln_pdf_empty[:len(haz_bin_id)]
 
 
 def test_weighted_sums_to_one_with_undefined_constituent():
