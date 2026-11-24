@@ -25,7 +25,7 @@ import logging
 import numpy as np
 import numba as nb
 
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_write_sidx_loss, mv_write_summary_header, stream_info_to_bytes, write_mv_to_stream
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, SUMMARY_STREAM_ID, mv_write_sidx_loss, mv_write_summary_header, stream_info_to_bytes, write_mv_to_stream
 
 from oasislmf.pytools.common.data import def_to_type_and_size, null_index, summary_stream_index_dtype
 from oasislmf.pytools.summary.manager import load_summary_object
@@ -94,32 +94,25 @@ class EventAccumulator:
 
 
 def init_summary_streams_in(files_in, stack):
-    """Open the input summary streams and check that their headers agree.
-
-    init_streams_in only reads the stream type and len_sample, the summary_set_id that follows them
-    in a summary stream header is read here.
+    """Open the input summary streams and read their headers, without blocking on any single input.
 
     Args:
         files_in (List[str]): paths of the input summary streams, one per inuring priority
-        stack (ExitStack): context stack the opened streams are added to
+        stack (ExitStack): context stack the opened streams and the reader are added to
 
     Returns:
-        streams_in (List[BinaryIO]): opened input streams, positioned after the header
+        reader (SummaryCombineReader): reader of the streams, positioned after their headers
         len_sample (int): number of samples
         summary_set_id (summaryset_id_dtype): summary set of the streams
 
     Raises:
-        OasisException: if a stream is not a summary stream or the streams have different summary_set_id
+        OasisException: if a stream is not a summary stream or the stream headers differ
     """
-    streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
-    if stream_source_type != SUMMARY_STREAM_ID or stream_agg_type != ITEM_STREAM:
-        raise OasisException(f"unsupported stream type {stream_source_type}, {stream_agg_type}, expected summary stream")
-
-    summary_set_ids = [np.frombuffer(stream_in.read(summaryset_id_dtype_size), summaryset_id_dtype)[0] for stream_in in streams_in]
-    if len(set(summary_set_ids)) > 1:
-        raise OasisException(f"input streams have different summary_set_id {summary_set_ids}")
-
-    return streams_in, len_sample, summary_set_ids[0]
+    streams_in = [stack.enter_context(open(file_in, 'rb', buffering=0)) for file_in in files_in]
+    reader = SummaryCombineReader(streams_in)
+    stack.callback(reader.close)
+    len_sample, summary_set_id = reader.read_headers()
+    return reader, len_sample, summary_set_id
 
 
 def parse_intermediate_outputs(intermediate_outputs_arg):
@@ -461,7 +454,7 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
 
     with ExitStack() as stack:
         # gather inputs and read meta
-        streams_in, len_sample, summary_set_id = init_summary_streams_in(summary_files_in, stack)
+        summary_stream_reader, len_sample, summary_set_id = init_summary_streams_in(summary_files_in, stack)
         max_summary_id = get_max_summary_id(static_paths, summary_set_id)
 
         acc = EventAccumulator(max_summary_id, len_sample)
@@ -492,10 +485,9 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
             intermediate_idx_pipes = {i: stack.enter_context(open(intermediate_path.rsplit('.', 1)[0] + '.idx', 'wb'))
                                       for i, intermediate_path in intermediate_outputs.items()}
 
-        summary_stream_reader = SummaryCombineReader(n_inputs, max_summary_id, len_sample)
         input_queues = [[] for _ in range(n_inputs)]
 
-        for file_idx, event_id, event_buffer in summary_stream_reader.read_events(streams_in):
+        for file_idx, event_id, event_buffer in summary_stream_reader.read_events(max_summary_id):
             # pass through requested IP
             if file_idx in intermediate_pipes:
                 write_passthrough_event(intermediate_pipes[file_idx],

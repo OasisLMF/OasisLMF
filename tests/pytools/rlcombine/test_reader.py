@@ -1,4 +1,4 @@
-"""Tests for SummaryCombineReader.read_events, which reads the summary streams of several inuring
+"""Tests for SummaryCombineReader, which reads the summary streams of several inuring
 priorities and yields each input's events as soon as that input has closed them with E:S0."""
 from contextlib import ExitStack
 
@@ -122,9 +122,17 @@ def test_init_summary_streams_in_not_a_summary_stream(tmp_path):
 
 
 def test_init_summary_streams_in_returns_header(tmp_path):
-    """The streams come back positioned after the header, with len_sample and summary_set_id."""
+    """The reader comes back with len_sample and summary_set_id, and the events after the headers are still read."""
     files = write_stream_files(tmp_path, [make_summary_stream(IP1), make_summary_stream(IP2)])
     with ExitStack() as stack:
-        streams_in, len_sample, summary_set_id = init_summary_streams_in(files, stack)
-        assert (len(streams_in), len_sample, summary_set_id) == (2, 3, 1)
-        assert all(stream.tell() == 12 for stream in streams_in)
+        reader, len_sample, summary_set_id = init_summary_streams_in(files, stack)
+        assert (len_sample, summary_set_id) == (3, 1)
+        assert [(file_idx, event_id) for file_idx, event_id, _ in reader.read_events(10)] == \
+            [(0, 10), (0, 7), (0, 12), (1, 10), (1, 7), (1, 12)]
+
+
+def test_init_summary_streams_in_input_ends_before_header(tmp_path):
+    """An input that ends before its full header is rejected."""
+    files = write_stream_files(tmp_path, [make_summary_stream(IP1), make_summary_stream([])[:6]])
+    with ExitStack() as stack, pytest.raises(OasisException, match='input 1 ended before its stream header'):
+        init_summary_streams_in(files, stack)

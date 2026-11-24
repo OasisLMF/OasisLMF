@@ -8,8 +8,8 @@ import numpy as np
 from oasislmf.pytools.common.data import fm_summary_xref_dtype
 from oasislmf.pytools.common.event_stream import ITEM_STREAM, SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.rlcombine.manager import init_summary_streams_in, run
-from oasislmf.pytools.rlcombine.reader import (SENTINEL_SUMMARY_ID, SummaryCombineReader, event_id_dtype, loss_dtype,
-                                               sidx_dtype, summary_id_dtype, summaryset_id_dtype)
+from oasislmf.pytools.rlcombine.reader import (SENTINEL_SUMMARY_ID, event_id_dtype, loss_dtype, sidx_dtype,
+                                               summary_id_dtype, summaryset_id_dtype)
 from oasislmf.utils.defaults import SUMMARY_OUTPUT
 
 SUMMARYPY_ASSETS = Path(__file__).parent.parent.parent / 'assets' / 'test_summarypy'
@@ -144,9 +144,8 @@ def read_events(files_in, max_summary_id=10):
         list: ``(file_idx, event_id, event_buffer)`` for every event, in the order they were yielded
     """
     with ExitStack() as stack:
-        streams_in, len_sample, _ = init_summary_streams_in(files_in, stack)
-        reader = SummaryCombineReader(len(streams_in), max_summary_id, len_sample)
-        return list(reader.read_events(streams_in))
+        reader, _, _ = init_summary_streams_in(files_in, stack)
+        return list(reader.read_events(max_summary_id))
 
 
 def read_all(files_in, max_summary_id=10):

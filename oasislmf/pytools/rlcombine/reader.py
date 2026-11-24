@@ -1,16 +1,20 @@
 """Reader for the rl summary streams of several inuring priorities, used by rlcombine.
 
-SummaryCombineReader yields each event of an input as soon as that input has sent it in full,
-closed by its ``E:S0`` sentinel record. Combining the inputs is left to the caller (see manager.py).
+SummaryCombineReader reads whatever data each input has, without blocking on any single input, and
+yields each event of an input as soon as that input has sent it in full, closed by its ``E:S0``
+sentinel record. Combining the inputs is left to the caller (see manager.py).
 """
+import io
 import logging
+import selectors
 
 import numba as nb
 import numpy as np
 
 from oasislmf.pytools.common.data import def_to_type_and_size
-from oasislmf.pytools.common.event_stream import MEAN_IDX, MAX_LOSS_IDX, EventReader, mv_read
-from oasislmf.utils.exceptions import OasisException
+from oasislmf.pytools.common.event_stream import (ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, PIPE_CAPACITY, SUMMARY_STREAM_ID,
+                                                  get_and_check_header_in, mv_read)
+from oasislmf.utils.exceptions import OasisException, OasisStreamException
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +24,7 @@ summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset
 sidx_dtype, sidx_dtype_size = def_to_type_and_size('sidx')
 loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
 
+HEADER_SIZE = 8 + summaryset_id_dtype_size  # stream type, len_sample and summary_set_id
 RECORD_HEADER_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size
 PAIR_SIZE = sidx_dtype_size + loss_dtype_size
 SENTINEL_SUMMARY_ID = 0
@@ -140,44 +145,107 @@ def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, exp
             state['summary_id'] = summary_id
 
 
-class SummaryCombineReader(EventReader):
+class SummaryCombineReader:
     """Read the summary streams of several inuring priorities and yield each event per input.
 
-    EventReader.read_streams reads one whole event from whichever input is ready, so events
-    are yielded in the order they arrive, interleaved across inputs. Each input's stream is
-    expected to close every event with an E:S0 sentinel record.
+    The inputs are fed by one fmpy chain, so they depend on each other: if one input is not read,
+    its summarypy blocks, then the fmpy feeding it, and the later inuring priorities stop sending.
+    The reader therefore never blocks on a single input. It waits until any input has data, reads
+    only what is available and keeps it in that input's buffer, for the headers as for the events.
+
+    Each input's stream is expected to close every event with an E:S0 sentinel record.
     """
 
-    def __init__(self, n_inputs, max_summary_id, len_samples):
-        """Set up the read state and an EventBuffer for each input.
+    def __init__(self, streams_in):
+        """Register the inputs in a selector.
 
         Args:
-            n_inputs (int): number of input streams
-            max_summary_id (int): largest summary_id in the summary set
-            len_samples (int): number of samples
+            streams_in (List[BinaryIO]): input streams, unbuffered (``buffering=0``) so the selector sees
+                every byte that is not read yet
         """
-        self.logger = logger
-        self.state = np.zeros(n_inputs, dtype=read_state_dtype)  # one row per input (file_idx)
-        self.len_sample = len_samples
-        self.buffers = [EventBuffer(max_summary_id, len_samples) for _ in range(n_inputs)]
-        self.file_idx = 0
+        self.streams_in = streams_in
+        try:
+            self.selector = self.register_streams_in(selectors.DefaultSelector())
+        except PermissionError:  # regular files can't be registered with epoll
+            self.selector = self.register_streams_in(selectors.SelectSelector())
+        self.pending = [bytearray() for _ in streams_in]  # bytes read but not parsed yet, per input
+        self.headers = [None] * len(streams_in)
+        self.len_sample = None
+        self.state = None
+        self.buffers = None
 
-    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx=0, **kwargs):
-        """EventReader hook: read the buffer of input file_idx into its EventBuffer, see read_buffer."""
-        self.file_idx = file_idx
-        buffer = self.buffers[file_idx]
-        return read_buffer(byte_mv, cursor, valid_buff, self.state[file_idx], self.len_sample,
-                           buffer.summary_ids, buffer.expval, buffer.offsets, buffer.sidx, buffer.loss)
+    def register_streams_in(self, selector):
+        """Register every input in selector, with its index as data, and return it (closed on failure)."""
+        try:
+            for file_idx, stream_in in enumerate(self.streams_in):
+                selector.register(stream_in, selectors.EVENT_READ, file_idx)
+        except BaseException:
+            selector.close()
+            raise
+        return selector
 
-    def read_events(self, streams_in):
+    def close(self):
+        """Close the selector."""
+        self.selector.close()
+
+    def read_available(self):
+        """Wait until any input has data or ends, and read what each ready input has.
+
+        Returns:
+            List[int]: inputs that reached the end of their stream
+        """
+        ended = []
+        for key, _ in self.selector.select():
+            data = key.fileobj.read(PIPE_CAPACITY)
+            if data:
+                self.pending[key.data] += data
+            else:
+                self.selector.unregister(key.fileobj)
+                ended.append(key.data)
+        return ended
+
+    def read_headers(self):
+        """Read the header of every input, keeping the data that follows in its buffer.
+
+        Returns:
+            len_sample (int): number of samples
+            summary_set_id (summaryset_id_dtype): summary set of the streams
+
+        Raises:
+            OasisException: if a stream ends before its header, is not a summary stream, or the streams have
+                different summary_set_id
+            OSError: if the streams have different stream types or len_sample, see get_and_check_header_in
+        """
+        while any(header is None for header in self.headers):
+            ended = self.read_available()
+            for file_idx, pending in enumerate(self.pending):
+                if self.headers[file_idx] is None and len(pending) >= HEADER_SIZE:
+                    self.headers[file_idx] = io.BytesIO(pending[:HEADER_SIZE])
+                    del pending[:HEADER_SIZE]
+            for file_idx in ended:
+                if self.headers[file_idx] is None:
+                    raise OasisException(f"input {file_idx} ended before its stream header")
+
+        # the headers are complete, read them as the other pytools do
+        stream_source_type, stream_agg_type, len_sample = get_and_check_header_in(self.headers)
+        if stream_source_type != SUMMARY_STREAM_ID or stream_agg_type != ITEM_STREAM:
+            raise OasisException(f"unsupported stream type {stream_source_type}, {stream_agg_type}, expected summary stream")
+
+        summary_set_ids = [np.frombuffer(header.read(summaryset_id_dtype_size), summaryset_id_dtype)[0] for header in self.headers]
+        if len(set(summary_set_ids)) > 1:
+            raise OasisException(f"input streams have different summary_set_id {summary_set_ids}")
+        self.len_sample = len_sample
+        return self.len_sample, summary_set_ids[0]
+
+    def read_events(self, max_summary_id):
         """Yield every event of every input as soon as that input has sent it in full.
 
-        The event buffer holds copies of the event's records: ``summary_ids``, ``expval``, ``offsets``,
-        ``sidx`` and ``loss``. Record i is summary_ids[i] with expval[i] and the pairs
-        sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]].
+        Must be called after read_headers. The event buffer holds copies of the event's records:
+        ``summary_ids``, ``expval``, ``offsets``, ``sidx`` and ``loss``. Record i is summary_ids[i]
+        with expval[i] and the pairs sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]].
 
         Args:
-            streams_in (List[BinaryIO]): input streams, positioned after their header
+            max_summary_id (int): largest summary_id in the summary set
 
         Yields:
             file_idx (int): index of the input in streams_in
@@ -185,27 +253,61 @@ class SummaryCombineReader(EventReader):
             event_buffer (Dict[str, ndarray]): copies of the event's records, as described above
 
         Raises:
+            OasisStreamException: if a record breaks the summary stream format, see read_buffer
             OasisException: if an input ends in the middle of an event
         """
-        for event_id in self.read_streams(streams_in):
-            file_idx = self.file_idx
-            state = self.state[file_idx]
-            if state['event_id'] != 0:  # read_streams also yields an event cut off by the end of the stream
-                raise OasisException(f"input {file_idx} ended in the middle of event {event_id}")
-            buffer = self.buffers[file_idx]
-            n_records, n_pairs = state['n_records'], state['n_pairs']
+        self.state = np.zeros(len(self.streams_in), dtype=read_state_dtype)
+        self.buffers = [EventBuffer(max_summary_id, self.len_sample) for _ in self.streams_in]
 
-            output_buffer = {
+        # data that came after the headers
+        for file_idx in range(len(self.streams_in)):
+            yield from self.parse_pending(file_idx)
+
+        while self.selector.get_map():
+            ended = self.read_available()
+            for file_idx in range(len(self.streams_in)):
+                yield from self.parse_pending(file_idx)
+            for file_idx in ended:
+                state = self.state[file_idx]
+                if state['event_id'] != 0 or self.pending[file_idx]:
+                    raise OasisException(f"input {file_idx} ended in the middle of event {state['event_id']}")
+
+    def parse_pending(self, file_idx):
+        """Parse the bytes waiting in the buffer of one input and yield its complete events.
+
+        A record cut at the end of the buffer is kept for the next read.
+
+        Args:
+            file_idx (int): index of the input
+
+        Yields:
+            file_idx (int), event_id (event_id_dtype), event_buffer (Dict[str, ndarray]), see read_events
+        """
+        pending = self.pending[file_idx]
+        if not pending:
+            return
+        byte_mv = np.frombuffer(pending, dtype='b')
+        state = self.state[file_idx]
+        buffer = self.buffers[file_idx]
+        cursor = 0
+        while True:
+            try:
+                cursor, event_id, _, yield_event = read_buffer(byte_mv, cursor, len(pending), state, self.len_sample,
+                                                               buffer.summary_ids, buffer.expval, buffer.offsets,
+                                                               buffer.sidx, buffer.loss)
+            except ValueError as e:
+                raise OasisStreamException(f"Error reading input {file_idx}", e)
+            if not yield_event:
+                break
+            n_records, n_pairs = state['n_records'], state['n_pairs']
+            event_buffer = {
                 'summary_ids': buffer.summary_ids[:n_records].copy(),
                 'expval': buffer.expval[:n_records].copy(),
                 'offsets': buffer.offsets[:n_records + 1].copy(),
                 'sidx': buffer.sidx[:n_pairs].copy(),
                 'loss': buffer.loss[:n_pairs].copy()
             }
-
-            yield (file_idx, event_id, output_buffer)
+            yield file_idx, event_id, event_buffer
             state['n_records'] = 0
             state['n_pairs'] = 0
-
-        if (self.state['summary_id'] != 0).any() or (self.state['event_id'] != 0).any():
-            raise OasisException("an input ended in the middle of an event")
+        self.pending[file_idx] = pending[cursor:]  # a new bytearray, as byte_mv still views this one
