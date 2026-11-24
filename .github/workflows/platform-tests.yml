@@ -1,18 +1,23 @@
 # Runs OasisModels test cases through the OasisPlatform API with this oasislmf commit installed in
 # the model worker (replaces the old PiWind checks, piwind-test-v1.yml / piwind-test-v2.yml).
 #
-# Same flow as OasisModels' platform-tests-internal.yml:
+# Same steps as OasisModels' platform-tests-internal.yml + platform-tests.yml, but in one workflow, with
+# OasisModels cloned for its test suite and worker patch Dockerfile:
 #   1. resolve         OasisPlatform `platform_branch` and optionally ODS_Tools `ods_branch` to commits,
 #                      and work out which images already exist
 #   2. build-platform  server + worker images from that OasisPlatform commit with OasisPlatform's
 #                      build-images.yml -> coreoasis/github-actions:{api_server,model_worker}-<platform sha>
-#   3. patch-worker    that worker with this oasislmf commit (+ ODS_Tools) installed
-#                      (OasisModels .github/docker/Dockerfile.worker-patch)
-#                      -> coreoasis/github-actions:model_worker-<platform sha>-lmf-<oasislmf sha>[-ods-<ods sha>]
-#   4. test            OasisModels platform-tests.yml on the server image and the patched worker, v1 and v2
+#   3. test            per API version, on one runner:
+#                        - patch that worker with this oasislmf commit (+ ODS_Tools)
+#                          (OasisModels .github/docker/Dockerfile.worker-patch)
+#                          -> coreoasis/github-actions:model_worker-<platform sha>-lmf-<oasislmf sha>[-ods-<ods sha>]
+#                          or pull it when it already exists
+#                        - run OasisModels tests/test_platform_runs.py on the server image and that worker
 #
-# Steps 2 and 3 are skipped when their image already exists, so re-runs only test. Both push to Docker Hub
-# and need the DOCKERHUB_* secrets, which PRs from forks don't get: those only pass when the images exist.
+# The patched worker is built on the runner that tests it, so it doesn't have to be pushed: PRs from forks
+# (no DOCKERHUB_* secrets) still run, the image just isn't pushed for re-use. Only step 2 needs the secrets,
+# so fork PRs fail when the platform images for the OasisPlatform commit don't exist yet; a maintainer can
+# build them by running this workflow (any oasislmf ref) on the same platform_branch.
 
 name: Platform Tests
 
@@ -52,15 +57,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # TODO: 'main' once OasisModels#65 is merged (also the `uses:` ref of the test job below)
+  # TODO: needs OasisModels#65 (feature/platform-tests) merged, main has no platform tests yet
   MODELS_BRANCH: ${{ inputs.models_branch || 'main' }}
+  IMAGE_REPO: coreoasis/github-actions
 
 jobs:
   resolve:
     runs-on: ubuntu-latest
     name: Resolve images
     outputs:
-      models_branch: ${{ env.MODELS_BRANCH }}
       oasislmf_sha: ${{ steps.resolve.outputs.oasislmf_sha }}
       ods_sha: ${{ steps.resolve.outputs.ods_sha }}
       platform_sha: ${{ steps.resolve.outputs.platform_sha }}
@@ -78,7 +83,6 @@ jobs:
           OASISLMF_SHA: ${{ github.sha }}
           ODS_REF: ${{ inputs.ods_branch }}
           HAVE_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
-          IMAGE_REPO: coreoasis/github-actions
         run: |
           # branch, tag (annotated tags to their commit) or commit sha -> commit sha
           resolve_ref() {
@@ -109,8 +113,9 @@ jobs:
           echo "oasislmf @ $OASISLMF_SHA"
           [ -z "$ODS_REF" ] || echo "ODS_Tools $ODS_REF @ $ODS_SHA"
           echo "build platform images: $BUILD, patch worker: $PATCH"
-          if [ "$HAVE_DOCKERHUB" != true ] && { [ "$BUILD" = true ] || [ "$PATCH" = true ]; }; then
-            echo "::error::Images need building but the DOCKERHUB_* secrets aren't available (PR from a fork?). A maintainer can build them by running this workflow on the same commits."
+          # patching happens on the test runner and doesn't need a push, only the platform build does
+          if [ "$HAVE_DOCKERHUB" != true ] && [ "$BUILD" = true ]; then
+            echo "::error::The OasisPlatform images for $PLATFORM_SHA need building but the DOCKERHUB_* secrets aren't available (PR from a fork?). A maintainer can build them by running this workflow with platform_branch=$PLATFORM_BRANCH."
             exit 1
           fi
 
@@ -138,29 +143,49 @@ jobs:
       # the commit resolved above, so the built image tags match
       checkout_ref: ${{ needs.resolve.outputs.platform_sha }}
 
-  patch-worker:
+  test:
     runs-on: ubuntu-latest
-    name: Patch worker image
+    name: Test (${{ matrix.api }} API)
     needs: [resolve, build-platform]
     # build-platform is skipped when its images already exist
-    if: ${{ !failure() && !cancelled() && needs.resolve.outputs.patch_worker == 'true' }}
+    if: ${{ !failure() && !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [v1, v2]
     env:
+      SERVER_IMAGE: coreoasis/github-actions:${{ needs.resolve.outputs.server_tag }}
       BASE_IMAGE: coreoasis/github-actions:${{ needs.resolve.outputs.base_worker_tag }}
-      PATCHED_IMAGE: coreoasis/github-actions:${{ needs.resolve.outputs.worker_tag }}
+      WORKER_IMAGE: coreoasis/github-actions:${{ needs.resolve.outputs.worker_tag }}
+      HAVE_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
     steps:
-      # the patch Dockerfile lives in OasisModels, next to the workflow that runs the tests
-      - uses: actions/checkout@v4
+      - name: Checkout oasislmf
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.oasislmf_sha }}
+          path: oasislmf
+
+      - name: Checkout OasisModels
+        uses: actions/checkout@v4
         with:
           repository: OasisLMF/OasisModels
-          ref: ${{ needs.resolve.outputs.models_branch }}
-          sparse-checkout: .github/docker
+          ref: ${{ env.MODELS_BRANCH }}
+          path: OasisModels
 
       - uses: docker/login-action@v3
+        if: env.HAVE_DOCKERHUB == 'true'
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push the patched worker
+      - name: Pull the patched worker
+        if: needs.resolve.outputs.patch_worker != 'true'
+        run: docker pull "$WORKER_IMAGE"
+
+      # local build, pushed only when the secrets are available (not on PRs from forks); both matrix
+      # legs build and push the same tag, which is harmless
+      - name: Patch the worker
+        if: needs.resolve.outputs.patch_worker == 'true'
         env:
           OASISLMF_REF: ${{ needs.resolve.outputs.oasislmf_sha }}
           ODS_REF: ${{ needs.resolve.outputs.ods_sha }}
@@ -174,32 +199,58 @@ jobs:
             --build-arg OASISLMF_REF="$OASISLMF_REF" \
             --build-arg ODS_REF="$ODS_REF" \
             --secret id=github_token,env=GITHUB_TOKEN \
-            -t "$PATCHED_IMAGE" \
-            -f .github/docker/Dockerfile.worker-patch .github/docker
-          docker run --rm --entrypoint pip "$PATCHED_IMAGE" list 2>/dev/null | grep -i -E "^(oasislmf|ods.tools|oasis.data.manager) "
-          docker push "$PATCHED_IMAGE"
+            -t "$WORKER_IMAGE" \
+            -f OasisModels/.github/docker/Dockerfile.worker-patch OasisModels/.github/docker
+          docker run --rm --entrypoint pip "$WORKER_IMAGE" list 2>/dev/null | grep -i -E "^(oasislmf|ods.tools|oasis.data.manager) "
+          if [ "$HAVE_DOCKERHUB" = true ]; then
+            docker push "$WORKER_IMAGE"
+          else
+            echo "No DOCKERHUB_* secrets (PR from a fork?), testing the local image without pushing it"
+          fi
 
-  test:
-    name: Test
-    needs: [resolve, build-platform, patch-worker]
-    # build-platform / patch-worker are skipped when their images already exist
-    if: ${{ !failure() && !cancelled() }}
-    strategy:
-      fail-fast: false
-      matrix:
-        api: [v1, v2]
-    uses: OasisLMF/OasisModels/.github/workflows/platform-tests.yml@feature/platform-tests  # TODO: @main once OasisModels#65 is merged
-    with:
-      models_branch: ${{ needs.resolve.outputs.models_branch }}
-      server_image: coreoasis/github-actions
-      server_tag: ${{ needs.resolve.outputs.server_tag }}
-      worker_image: coreoasis/github-actions
-      worker_tag: ${{ needs.resolve.outputs.worker_tag }}
+      - name: Pull the server image
+        run: docker pull "$SERVER_IMAGE"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       # test client on the same oasislmf as the worker
-      oasislmf_branch: ${{ needs.resolve.outputs.oasislmf_sha }}
-      worker_api_ver: ${{ matrix.api }}
-      platform_tests: ${{ inputs.platform_tests || 'default' }}
-      debug_mode: ${{ inputs.debug_mode || '1' }}
-      pytest_opts: ${{ inputs.pytest_opts }}
-      storage_suffix: -${{ matrix.api }}
-      job_name: ${{ matrix.api }} API
+      - name: Install test dependencies
+        run: pip install ./oasislmf pytest "testcontainers>=4.14,<5" pandas requests
+
+      - name: Run platform tests
+        working-directory: OasisModels
+        env:
+          PLATFORM_TESTS: ${{ inputs.platform_tests || 'default' }}
+          DEBUG_FLAG: ${{ (inputs.debug_mode || '1') == '1' && '--platform-debug' || '' }}
+        run: |
+          pytest tests/test_platform_runs.py -v -rs \
+            --platform-tests "$PLATFORM_TESTS" \
+            --server-image "$SERVER_IMAGE" \
+            --worker-image "$WORKER_IMAGE" \
+            --api-version "${{ matrix.api }}" \
+            --platform-logs platform-logs \
+            $DEBUG_FLAG ${{ inputs.pytest_opts }}
+
+      # container logs and generated stack config (written by the fixture)
+      - name: Store platform logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-logs-${{ matrix.api }}
+          path: |
+            OasisModels/platform-logs
+            !OasisModels/platform-logs/runs
+          retention-days: 3
+          if-no-files-found: ignore
+
+      # per-case analysis inputs, outputs and run logs (platform-logs/runs/<api_ver>/<Model>/test_N)
+      - name: Store platform runs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-runs-${{ matrix.api }}
+          path: OasisModels/platform-logs/runs
+          retention-days: 3
+          if-no-files-found: ignore
