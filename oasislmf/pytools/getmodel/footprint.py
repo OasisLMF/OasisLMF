@@ -78,11 +78,13 @@ def select_row_groups(metadata, sorted_areaperil_ids):
 
 
 @nb.njit(cache=True)
-def has_number_in_range(areaperil_ids, min_areaperil_id, max_areaperil_id):
-    for apid in areaperil_ids:
-        if min_areaperil_id <= apid <= max_areaperil_id:
-            return True
-    return False
+def has_number_in_range(sorted_areaperil_ids, min_areaperil_id, max_areaperil_id):
+    """Whether any of sorted_areaperil_ids lies in [min_areaperil_id, max_areaperil_id].
+
+    sorted_areaperil_ids must be sorted ascending; unsorted ids give a wrong answer, not an error.
+    """
+    j = np.searchsorted(sorted_areaperil_ids, min_areaperil_id)
+    return j < sorted_areaperil_ids.shape[0] and sorted_areaperil_ids[j] <= max_areaperil_id
 
 
 def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
@@ -152,13 +154,14 @@ class Footprint:
         Args:
             storage (BaseStorage): the storage object used to lookup files
             df_engine (str): the engine to use when loading dataframes
-            areaperil_ids (list): areaperil_ids that will be useful
+            areaperil_ids (list): areaperil_ids that will be useful. Stored sorted and unique, which
+              areaperil_in_range relies on.
         """
         self.storage = storage
         self.stack = ExitStack()
         self.df_engine = df_engine
         if areaperil_ids is not None:
-            self.areaperil_ids = np.array(areaperil_ids, dtype=areaperil_int)
+            self.areaperil_ids = np.unique(np.array(areaperil_ids, dtype=areaperil_int))
         else:
             self.areaperil_ids = None
 

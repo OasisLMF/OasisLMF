@@ -16,7 +16,6 @@ import os
 import sys
 import json
 from contextlib import ExitStack
-from select import select
 import time
 
 import numpy as np
@@ -28,7 +27,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, ITEM_PACKED_STREAM, ITEM_STREAM, LOSS_STREAM_ID,
                                                   check_packed_item_fits, check_packing_supported,
-                                                  max_emitted_blocks, stream_info_to_bytes)
+                                                  max_emitted_blocks, stream_info_to_bytes, write_mv_to_stream)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
@@ -353,8 +352,6 @@ def run(run_dir,
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
-        select_stream_list = [stream_out]
-
         # prepare output stream. The aggregation type says whether a reader may meet a packed
         # sidx, and only a kept-separate item emits one -- a run that packs nothing, or packs only
         # items summed at source, declares ITEM_STREAM and is byte-for-byte pre-packing.
@@ -368,9 +365,11 @@ def run(run_dir,
         # create the array to store the seeds
         haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
-        # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts)
-        group_seq_rng_index = np.empty(n_unique_groups, dtype=np.int64)
-        hazard_group_seq_rng_index = np.empty(n_unique_haz_groups, dtype=np.int64)
+        # Pre-allocated arrays for group_id -> rng_index mapping. Initialised once; reconstruct_coverages
+        # restores the entries it used, so they are never reset in full (their size is that of the
+        # portfolio, not of the event).
+        group_seq_rng_index = np.full(n_unique_groups, NO_RNG_INDEX, dtype=np.int64)
+        hazard_group_seq_rng_index = np.full(n_unique_haz_groups, NO_RNG_INDEX, dtype=np.int64)
         # haz correlation
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
             # there will be some hazard correlation
@@ -507,11 +506,18 @@ def run(run_dir,
         fp_ap_inds = np.empty(n_max_areaperils, dtype=np.uint32)
         fp_event_rps = np.empty(n_max_areaperils, dtype=np.int32)
         fp_haz_arr_ptr = np.empty(n_max_areaperils + 1, dtype=np.int64)
+        # per-item event data, kept across events: reconstruct_coverages only grows it, and every
+        # field it reads back is written for the event first
+        items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
         # Pre-allocate CDF cache once (reused across events, no need to zero)
         cached_vuln_cdfs = np.empty((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
         cdf_cache_tag = np.full(n_cdf_groups, CDF_CACHE_EMPTY, dtype=np.int64)
         cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
+
+        # per-event coverage state starts at zero; reconstruct_coverages then only resets the
+        # coverages touched by the previous event
+        coverages['cur_items'].fill(0)
 
         counter = 0
         timer = time.time()
@@ -568,6 +574,7 @@ def run(run_dir,
                     damage_corr_seeds,
                     dynamic_footprint,
                     byte_mv,
+                    items_event_data,
                     group_seq_rng_index,
                     hazard_group_seq_rng_index,
                     coverage_source_id,
@@ -595,9 +602,11 @@ def run(run_dir,
                         haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
-                # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
-                cdf_cache_tag[:] = CDF_CACHE_EMPTY
-                compute_info['cdf_cache_ctr'] = 0
+                # Invalidate the CDF cache for the new event without touching cdf_cache_tag, whose size
+                # is the number of CDF groups of the portfolio: a cached entry is valid only while
+                # cdf_cache_ctr - tag < cdf_cache_size, so advancing the counter by the cache size
+                # invalidates every tag written for previous events.
+                compute_info['cdf_cache_ctr'] += cdf_cache_mask + 1
 
                 processing_done = False
                 logger.info(f"event {event_ids[0]} STARTED")
@@ -677,10 +686,7 @@ def run(run_dir,
                             f"{compute_info['cursor']} bytes into a {byte_mv.shape[0]} byte "
                             f"buffer, which must hold the largest coverage whole.")
                     # write the losses to the output stream
-                    write_start = 0
-                    while write_start < compute_info['cursor']:
-                        select([], select_stream_list, select_stream_list)
-                        write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
+                    write_mv_to_stream(stream_out, byte_mv, compute_info['cursor'])
 
                 logger.info(f"event {event_ids[0]} DONE")
 
@@ -1396,7 +1402,9 @@ def _compute_event_losses_core(compute_info,
                 if item_event_data['return_period'] > 0 \
                         and item_event_data['event_rp'] < item_event_data['return_period']:
                     losses[:, item_j] = 0
-                    building_losses[:, item_j, :] = 0
+                    # only this item's buildings: write_losses reads no further for it, and zeroes
+                    # the rest of the coverage's building range itself when an alloc rule needs it
+                    building_losses[:, item_j, :abs(item_event_data['packed_buildings'])] = 0
                     if has_dependents_below:
                         # a dependent below this one in the DFS still reads (depth, item_j), so
                         # leave "no damage" there rather than the last coverage's values
@@ -1913,6 +1921,7 @@ def reconstruct_coverages(compute_info,
                           damage_corr_seeds,
                           dynamic_footprint,
                           byte_mv,
+                          items_event_data,
                           group_seq_rng_index,
                           hazard_group_seq_rng_index,
                           coverage_source_id,
@@ -1953,8 +1962,11 @@ def reconstruct_coverages(compute_info,
         items (np.ndarray): items table merged with correlation parameters, containing
           group_id, hazard_group_id, coverage_id, group_seq_id, hazard_group_seq_id, etc.
         item_cdf_group_idx (np.array[int64]): pre-computed mapping from item_idx to CDF group index.
-        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
-        compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed.
+        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id. On entry,
+          cur_items is non-zero only for the coverages in ``compute[:compute_info['coverage_n']]``
+          (the previous event's), which are the only ones reset here.
+        compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed. Must
+          still hold the previous event's list on entry, see ``coverages``.
         haz_seeds (numpy.array[int]): output buffer for hazard intensity random seeds.
         haz_peril_correlation_groups (numpy.array[int]): unique peril correlation groups for hazard.
         haz_corr_seeds (numpy.array[int]): output buffer for hazard correlation seeds.
@@ -1963,8 +1975,12 @@ def reconstruct_coverages(compute_info,
         damage_corr_seeds (numpy.array[int]): output buffer for damage correlation seeds.
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
         byte_mv (numpy.array[byte]): output byte buffer, may be resized if needed.
+        items_event_data (numpy.array[items_MC_data_type]): per-item event data buffer, reused
+          across events and grown (doubled) when an event needs more room. Its contents on entry
+          are irrelevant: every field read for an item is written for this event first.
         group_seq_rng_index (numpy.array[int64]): pre-allocated array of size n_unique_groups,
-          used for O(1) group_id to rng_index mapping (reset to NO_RNG_INDEX each event).
+          used for O(1) group_id to rng_index mapping. All NO_RNG_INDEX on entry; only the
+          entries of this event's groups are set, and they are restored before returning.
         coverage_source_id (numpy.array): source coverage_id per coverage_id, 0 for a root.
         coverage_dependents_ja_offsets (numpy.array[oasis_int]): CSR offsets into
           ``coverage_dependents_ja_data``, indexed by source coverage_id.
@@ -1980,12 +1996,14 @@ def reconstruct_coverages(compute_info,
         item_idx_to_item_j (numpy.array[oasis_int]): scratch mapping an item index to its position
           within its coverage for this event, used to pair a dependent item with its source item.
         hazard_group_seq_rng_index (numpy.array[int64]): pre-allocated array of size
-          n_unique_haz_groups, for hazard_group_id to rng_index mapping.
+          n_unique_haz_groups, for hazard_group_id to rng_index mapping. Same contract as
+          ``group_seq_rng_index``.
 
     Returns:
         tuple: (items_event_data, rng_index, hazard_rng_index, byte_mv)
           - items_event_data (numpy.array[items_MC_data_type]): per-item data including
-            item_idx, haz_arr_i, rng_index, hazard_rng_index, eff_cdf_id.
+            item_idx, haz_arr_i, rng_index, hazard_rng_index, eff_cdf_id. The buffer passed in, or a
+            grown copy of it: the caller must keep the returned one for the next event.
           - rng_index (int): number of unique damage random seeds generated.
           - hazard_rng_index (int): number of unique hazard random seeds generated. Only hazard
             groups touching a non-deterministic areaperil (and only under full Monte Carlo, not
@@ -1995,15 +2013,13 @@ def reconstruct_coverages(compute_info,
           - byte_mv (numpy.array[byte]): output buffer, possibly resized.
     """
     # init data structures
-    # Reset pre-allocated arrays instead of creating new Numba Dicts
-    group_seq_rng_index[:] = NO_RNG_INDEX
-    hazard_group_seq_rng_index[:] = NO_RNG_INDEX
+    # only the previous event's coverages can have cur_items > 0 (see ``coverages``): reset just those
+    for position in range(compute_info['coverage_n']):
+        coverages[compute[position]]['cur_items'] = 0
     rng_index = 0
     hazard_rng_index = 0
     compute_i = 0
     items_data_i = 0
-    coverages['cur_items'].fill(0)
-    items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
     # for each areaperil_id, loop over all vulnerability functions used in that areaperil_id and,
     # for each item:
@@ -2149,6 +2165,14 @@ def reconstruct_coverages(compute_info,
     else:
         for position in range(compute_i):
             compute_depth[position] = 0
+
+    # restore the group -> rng index maps for the groups seen in this event only
+    for position in range(compute_i):
+        coverage = coverages[compute[position]]
+        for item_j in range(coverage['cur_items']):
+            item_idx = items_event_data[coverage['start_items'] + item_j]['item_idx']
+            group_seq_rng_index[items[item_idx]['group_seq_id']] = NO_RNG_INDEX
+            hazard_group_seq_rng_index[items[item_idx]['hazard_group_seq_id']] = NO_RNG_INDEX
 
     compute_info['coverage_i'] = 0
     compute_info['coverage_n'] = compute_i
