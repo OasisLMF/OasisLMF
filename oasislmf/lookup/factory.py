@@ -40,29 +40,33 @@ def _split_locations(loc_df, part_count):
     loc_ids_parts = np.array_split(np.unique(loc_df['loc_id']), part_count)
     category_cols = loc_df.select_dtypes('category').columns
     for loc_ids in loc_ids_parts:
-        chunk_df = loc_df[loc_df['loc_id'].isin(loc_ids)]
-        if len(category_cols):
-            # the masked slice is already new data; the shallow copy only avoids pandas 2's SettingWithCopyWarning
-            chunk_df = chunk_df.copy(deep=False)
-            for col in category_cols:
-                chunk_df[col] = chunk_df[col].cat.remove_unused_categories()
+        # the masked slice is already new data; the shallow copy only avoids pandas 2's SettingWithCopyWarning
+        chunk_df = loc_df[loc_df['loc_id'].isin(loc_ids)].copy(deep=False)
+        for col in category_cols:
+            chunk_df[col] = chunk_df[col].cat.remove_unused_categories()
         yield chunk_df
 
 
 def _keys_table(df):
-    """Arrow table of df, with every dictionary column's indices widened to int32.
+    """Arrow table of df, typed so that any result chunk can be cast to the first chunk's schema.
 
-    pyarrow sizes a categorical's indices from its own category count (int8 up to 127), so the
-    same column can get a different type in each result chunk. The parquet writer fixes its schema
-    from the first chunk, and casting a later, wider chunk down to it fails.
+    The parquet writer fixes its schema from the first chunk and casts the later ones to it. Two
+    arrow types depend on the chunk's own data and would break that cast:
+
+    - a categorical's indices are sized from its category count (int8 up to 127): widened to int32;
+    - an all-null column, or on pandas 2 a categorical with no categories, has the null type, which
+      nothing casts to: written as string. An all-null keys column is text (e.g. message); an all-NaN
+      numeric column is float, not null.
     """
+    def chunk_independent(arrow_type):
+        if pa.types.is_dictionary(arrow_type):
+            return pa.dictionary(pa.int32(), chunk_independent(arrow_type.value_type), arrow_type.ordered)
+        return pa.string() if pa.types.is_null(arrow_type) else arrow_type
+
     table = pa.Table.from_pandas(df, preserve_index=False)
-    if not any(pa.types.is_dictionary(field.type) for field in table.schema):
-        return table
-    schema = pa.schema([field.with_type(pa.dictionary(pa.int32(), field.type.value_type, field.type.ordered))
-                        if pa.types.is_dictionary(field.type) else field
-                        for field in table.schema], metadata=table.schema.metadata)
-    return table.cast(schema)
+    schema = pa.schema([field.with_type(chunk_independent(field.type)) for field in table.schema],
+                       metadata=table.schema.metadata)
+    return table if schema.equals(table.schema) else table.cast(schema)
 
 
 class KeyServerFactory(object):
