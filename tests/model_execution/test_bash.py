@@ -359,6 +359,34 @@ class Genbash_rl(GenbashBase):
                          [{'text': 'IP1_', 'level': 1}, {'text': 'IP2_', 'level': 2}, {'text': '', 'level': 4}])
 
 
+class Genbash_ri_full_correlation(TestCase):
+    """Fully correlated ri outputs are only produced for the final inuring priority."""
+
+    def test_full_correlation_ri_final_inuring_priority_only(self):
+        analysis_settings = {
+            'gul_output': False,
+            'il_output': False,
+            'ri_output': True,
+            'full_correlation': True,
+            'ri_inuring_priorities': [1, 2],
+            'ri_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}],
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script_path = os.path.join(tmp_dir, 'run_ri_fc.sh')
+            genbash(1, analysis_settings, filename=script_path, num_reinsurance_iterations=2, gulmc=False)
+            with open(script_path) as f:
+                full_correlation_lines = [line for line in f if 'full_correlation' in line]
+
+        # the intermediate inuring priority is not computed for the fully correlated output
+        self.assertFalse([line for line in full_correlation_lines if 'ri_IP1_' in line])
+
+        # the final inuring priority is collected and copied to ri_S1 in the fully correlated output dir
+        self.assertIn('katpy -s -f bin -i work/full_correlation/kat/ri_IP2_S1_elt_sample_P1 -o output/full_correlation/ri_IP2_S1_selt.csv',
+                      ''.join(full_correlation_lines))
+        self.assertIn('cp "$f" "output/full_correlation/ri_${f#output/full_correlation/ri_IP2_}"',
+                      ''.join(full_correlation_lines))
+
+
 # Special case: Custom gulcalc tests
 class Genbash_CustomGulcalc(GenbashBase):
     """Tests for custom gulcalc commands"""

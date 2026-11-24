@@ -1380,6 +1380,7 @@ def ri(
     stderr_guard=True,
     process_number=None,
     summarypy_low_memory=False,
+    final_only=False,
 ):
     """Write all reinsurance net loss (RI) consumer commands.
 
@@ -1400,8 +1401,14 @@ def ri(
         process_number (int or None): If set, restrict to a single process.
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
+        final_only (bool): If True only the final inuring priority is
+            consumed, as for fully correlated outputs.
     """
-    for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+    inuring_priorities = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)
+    if final_only:
+        inuring_priorities = inuring_priorities[-1:]
+
+    for inuring_priority in inuring_priorities:
 
         for process_id in process_range(max_process_id, process_number):
             do_ord(
@@ -2488,9 +2495,12 @@ def create_bash_analysis(
                 inuring_priority=inuring_priority['text']
             )
         if full_correlation:
+            # fully correlated outputs are only produced for the final inuring priority
+            final_inuring_priority = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)[-1]
             create_workfolders(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings,
-                filename, work_full_correlation_dir
+                filename, work_full_correlation_dir,
+                inuring_priority=final_inuring_priority['text']
             )
     if rl_output:
         for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
@@ -2532,7 +2542,11 @@ def create_bash_analysis(
             fifo_list += do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number,
                                        summarypy_low_memory=summarypy_low_memory)
         if ri_output:
-            for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+            ri_inuring_priorities = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)
+            if fifo_dir == fifo_full_correlation_dir:
+                # fully correlated outputs are only produced for the final inuring priority
+                ri_inuring_priorities = ri_inuring_priorities[-1:]
+            for inuring_priority in ri_inuring_priorities:
                 fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
@@ -2617,6 +2631,7 @@ def create_bash_analysis(
                     'stderr_guard': stderr_guard,
                     'process_number': process_number,
                     'summarypy_low_memory': summarypy_low_memory,
+                    'final_only': _fifo_dir == fifo_full_correlation_dir,
                 }
             }
             compute_outputs.append(ri_computes)
@@ -2809,6 +2824,10 @@ def create_bash_analysis(
             #######################################################
 
             if ri_output or rl_output:
+                ri_inuring_priorities = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)
+                if fifo_dir == fifo_full_correlation_dir:
+                    # fully correlated outputs are only produced for the final inuring priority
+                    ri_inuring_priorities = ri_inuring_priorities[-1:]
                 main_cmd = get_main_cmd_ri_stream(
                     getmodel_cmd,
                     process_id,
@@ -2823,8 +2842,7 @@ def create_bash_analysis(
                     fmpy_sort_output,
                     step_flag,
                     process_counter=process_counter,
-                    ri_inuring_priorities={ip['level']: ip['text'] for ip in get_reinsurance_inuring_priorities(
-                        analysis_settings, num_reinsurance_iterations) if ip['level'] and ri_output},
+                    ri_inuring_priorities={ip['level']: ip['text'] for ip in ri_inuring_priorities if ip['level'] and ri_output},
                     rl_inuring_priorities={ip['level']: ip['text'] for ip in get_reinsurance_inuring_priorities(
                         analysis_settings, num_reinsurance_iterations, perspective='rl', all_layers=True) if rl_output}
                 )
@@ -2952,10 +2970,12 @@ def create_bash_outputs(
                 '# --- Do reinsurance loss kats for fully correlated output ---'
             )
             print_command(filename, '')
+            final_inuring_priority = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)[-1]
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
+                output_full_correlation_dir, kat_sort_by_event,
+                inuring_priority=final_inuring_priority['text'], join_summary_info=join_summary_info
             )
             post_wait_cmds.extend(cmds)
 
@@ -3044,9 +3064,11 @@ def create_bash_outputs(
     if full_correlation:
         work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
         if ri_output:
+            final_inuring_priority = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)[-1]
             post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                work_sub_dir, output_full_correlation_dir, stderr_guard,
+                inuring_priority=final_inuring_priority['text'], join_summary_info=join_summary_info,
             ))
         if il_output:
             post_wait_cmds.extend(do_post_wait_processing(
@@ -3068,6 +3090,8 @@ def create_bash_outputs(
 
     if ri_output:
         do_ri_final_output(filename, analysis_settings, num_reinsurance_iterations, output_dir)
+        if full_correlation:
+            do_ri_final_output(filename, analysis_settings, num_reinsurance_iterations, output_full_correlation_dir)
 
     if remove_working_files:
         print_command(filename, '')
