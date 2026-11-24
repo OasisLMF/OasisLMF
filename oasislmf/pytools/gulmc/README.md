@@ -162,7 +162,7 @@ is live or dead per placement like any item; its cdf is its conditional curves w
 source's damage pmf, the same on every areaperil, and is never cached. Dead areaperils, uncovered
 placements and a float weight shortfall carry no loss: their probability sits on damage bin 0,
 which must be the zero-loss bin of the damage bin dictionary (getmodel mixes the same way, with
-`mix_effective_damage_cdfs`). Under a dynamic footprint the event's return period is held per group
+the shared code in `common/damage_cdf.py`). Under a dynamic footprint the event's return period is held per group
 areaperil, so an item's standard of protection is decided per placement: a building can be
 protected where the event is a 1-in-20 and exposed where it is a 1-in-50. The sections a blended
 location spans must be in sections.csv, which is the lookup's job, as for any location.

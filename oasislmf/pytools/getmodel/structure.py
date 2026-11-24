@@ -15,6 +15,7 @@ import pandas as pd
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import Keys
 from oasislmf.pytools.common.blended_areaperil import read_blended_areaperil
+from oasislmf.pytools.common.damage_cdf import build_cdf_table
 from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.manager import (
@@ -26,7 +27,8 @@ logger = logging.getLogger(__name__)
 STRUCTURE_DIR = 'getmodel_structure'
 
 ARRAY_FILES = [
-    'vuln_array',
+    'vuln_cdf',
+    'vuln_cdf_lengths',
     'vulns_id',
     'areaperil_id_ind',
     'areaperil_to_vulns_idx_array',
@@ -49,8 +51,9 @@ def _structure_path(run_dir):
 
 
 def getmodel_structure_exists(run_dir):
-    """Check whether pre-computed getmodel structures exist."""
-    return os.path.isfile(os.path.join(_structure_path(run_dir), 'metadata.npy'))
+    """Check whether pre-computed getmodel structures exist, every array of them."""
+    structure_path = _structure_path(run_dir)
+    return all(os.path.isfile(os.path.join(structure_path, f'{name}.npy')) for name in ['metadata'] + ARRAY_FILES)
 
 
 def build_structures(run_dir, ignore_file_type, peril_filter,
@@ -138,6 +141,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
         model_storage, run_dir, vuln_map, vuln_map_keys,
         num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
 
+    # the damage cdfs the pairs' cdfs are summed from, as gulmc builds them
+    vuln_cdf, vuln_cdf_lengths = build_cdf_table(vuln_array)
+
     # convert vulnerability IDs in areaperil_to_vulns to dense indices
     convert_vuln_id_to_index(vuln_map, vuln_map_keys, areaperil_to_vulns)
     blended_cdf_vuln_idxs = blended_cdfs.pop('blended_cdf_vuln_ids')
@@ -149,7 +155,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
 
     # --- pack everything into a dict -------------------------------------------
     return {
-        'vuln_array': vuln_array,
+        'vuln_cdf': vuln_cdf,
+        'vuln_cdf_lengths': vuln_cdf_lengths,
         'vulns_id': vulns_id,
         'areaperil_id_ind': areaperil_id_ind,
         'areaperil_to_vulns_idx_array': areaperil_to_vulns_idx_array,

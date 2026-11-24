@@ -9,7 +9,7 @@ import pytest
 from oasislmf.pytools.gulmc.common import agg_vuln_idx_weight_dtype
 from oasislmf.pytools.gulmc.items import build_vuln_member_blocks, mixed_cdf_group_dtype
 from oasislmf.pytools.gulmc.manager import member_cdf_at
-from oasislmf.pytools.gulmc.structure import build_cdf_table
+from oasislmf.pytools.common.damage_cdf import build_cdf_table
 
 NDAMAGE_BINS = 4
 

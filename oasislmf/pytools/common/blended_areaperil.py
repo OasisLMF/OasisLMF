@@ -39,7 +39,7 @@ A sample whose placement has no hazard behind it -- an areaperil with no footpri
 is within the item's standard of protection -- loses nothing. Where that has to be expressed as a
 damage distribution (the analytic mean and std in gulmc, the cdf getmodel streams to gulpy), the
 mass goes to **damage bin 0, which is assumed to be the zero-loss bin** of the damage bin
-dictionary. See ``mix_effective_damage_cdfs``.
+dictionary. See ``oasislmf.pytools.common.damage_cdf.add_no_loss_mass``.
 
 The trap is the float scale. One routine that divides every mode by its total looks tidier, and
 silently turns "10% of this postcode is outside the model" into "all of it is inside".
@@ -545,46 +545,3 @@ def select_placement(cumulative, u):
         # range, which is the last position, or unplaced when float weights fall short of 1.
         x = np.nextafter(scale, 0.0)
     return np.searchsorted(cumulative, x, side='right')
-
-
-# ---------------------------------------------------------------------------------------------
-# Mixture
-# ---------------------------------------------------------------------------------------------
-
-@nb.njit(cache=True)
-def mix_effective_damage_cdfs(eff_cdfs, eff_lens, probabilities, live, out):
-    """Effective damage cdf of a blended areaperil: its areaperils' cdfs weighted by probability.
-
-    ``out[k] = sum over live j of probabilities[j] * cdf_j[k] + (1 - sum over live j of probabilities[j])``,
-    where a cdf shorter than ``k`` reads as complete (1). The mass that no live areaperil carries --
-    dead areaperils, placements no areaperil covers, and a float weight shortfall -- loses nothing,
-    so it is put on damage bin 0. **Damage bin 0 must therefore be the zero-loss bin** of the damage
-    bin dictionary, which is the convention every Oasis model follows.
-
-    This is the per-item marginal of a blended item: what getmodel streams to gulpy, and what gulmc
-    reports as the analytic mean, standard deviation, chance of loss and max. gulmc never samples
-    from it: each of its samples reads the areaperil its placement falls on.
-
-    Args:
-        eff_cdfs (np.ndarray[float, 2d]): row j is areaperil j's effective damage cdf.
-        eff_lens (np.ndarray[int]): valid length of each row.
-        probabilities (np.ndarray[float64]): probability the building stands on each areaperil.
-        live (np.ndarray[bool]): whether each areaperil has hazard (and no protection) here.
-        out (np.ndarray[float]): output buffer, at least as long as the longest live row.
-
-    Returns:
-        int: the length of the mixed cdf, the longest live row; 0 when nothing is live.
-    """
-    n = 0
-    live_probability = 0.
-    for j in range(eff_lens.shape[0]):
-        if live[j]:
-            n = max(n, eff_lens[j])
-            live_probability += probabilities[j]
-    for k in range(n):
-        acc = 1. - live_probability
-        for j in range(eff_lens.shape[0]):
-            if live[j]:
-                acc += probabilities[j] * eff_cdfs[j, min(k, eff_lens[j] - 1)]
-        out[k] = acc
-    return n

@@ -22,7 +22,7 @@ from oasislmf.pytools.gulmc.common import (
 )
 from oasislmf.pytools.gul.core import HERMITE_TERMS
 from oasislmf.pytools.gulmc.manager import process_areaperils_in_footprint, compute_event_losses
-from oasislmf.pytools.gulmc.structure import build_cdf_table
+from oasislmf.pytools.common.damage_cdf import build_cdf_table
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 
 

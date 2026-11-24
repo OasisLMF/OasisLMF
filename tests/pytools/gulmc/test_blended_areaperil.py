@@ -544,20 +544,20 @@ def test_every_blended_item_needs_its_location(tmp_path):
 # getmodel + gulpy: a blended item's cdf is the mixture of its positions'
 # --------------------------------------------------------------------------------------------------
 
-def gulpy_losses(run_dir, sample_size=10):
+def gulpy_losses(run_dir, sample_size=SAMPLES):
     out = run_dir / 'gulpy.bin'
-    subprocess.run(f'evepy 1 1 | modelpy | gulpy -a0 -S{sample_size} -L0 --random-generator=1 > {out}',
+    subprocess.run(f'evepy 1 1 | modelpy | gulpy -a0 -S{sample_size} -L0 --random-generator=2 > {out}',
                    cwd=run_dir, shell=True, check=True)
     return read_gul_stream(out)[2].set_index(['event_id', 'item_id', 'sidx'])['loss']
 
 
-def test_gulpy_mean_is_the_mixture_gulmc_computes(tmp_path):
-    """getmodel streams a blended item the mixture of its positions' cdfs, so gulpy's mean is gulmc's."""
+def test_gulpy_samples_what_gulmc_samples_under_effective_damageability(tmp_path):
+    """getmodel streams a blended item the mixed cdf gulmc computes, so gulpy draws gulmc's losses."""
     run_dir = write_model(tmp_path / 'blended', THREE_LOCATIONS, blend_rows([(0.6, A), (0.3, B)]))
-    gulmc_mean = means(gul_losses(run_dir))
-    gulpy_mean = means(gulpy_losses(run_dir))
-    assert (gulmc_mean > 0).any()
-    np.testing.assert_allclose(gulpy_mean.reindex(gulmc_mean.index), gulmc_mean, rtol=1e-5)
+    gulmc = gul_losses(run_dir, effective_damageability=True)
+    gulpy = gulpy_losses(run_dir)
+    assert (sampled(gulmc) > 0).any()
+    pd.testing.assert_series_equal(gulpy.sort_index(), gulmc.sort_index())
 
 
 def test_gulpy_is_unchanged_for_a_model_without_blending(tmp_path):

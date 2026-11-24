@@ -21,6 +21,7 @@ from oasislmf.pytools.common.data import (building_count_dtype, load_as_ndarray,
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.blended_areaperil import build_blended_areaperils, read_blended_areaperil
+from oasislmf.pytools.common.damage_cdf import build_cdf_table
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverages, read_correlations
 from oasislmf.pytools.gul.structure import coverage_building_counts
 from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
@@ -369,47 +370,6 @@ def align_conditional_damage_axis(conditional_vuln_array, Ndamage_bins_max):
         f"the damage_bin_dict has {num_damage_bins}; a source coverage's sampled damage bin would "
         "fall outside the conditional_vulnerability source axis. The two must agree."
     )
-
-
-@nb.njit(cache=True)
-def build_cdf_table(pdf):
-    """Turn damage pdfs into the damage cdfs gulmc samples and mixes, one row per condition.
-
-    ``pdf[v, d, c]`` is the probability of damage bin ``d`` for vulnerability ``v`` under condition
-    ``c``: an intensity bin for a vulnerability, a source damage bin for a conditional one. The table
-    is ``cdf[v, c, d]``, the damage axis last so a row is contiguous. A row is the running sum over
-    the whole damage axis, so it can be read at any bin; a condition with no probability at all is
-    no damage, a point mass on damage bin 0.
-
-    The second array is each row's length as a cdf: up to the first bin that reaches 1 to float
-    precision, less the bins it ends flat on. Sampling searches no further.
-    """
-    n_rows, n_damage_bins, n_conditions = pdf.shape
-    cdf = np.empty((n_rows, n_conditions, max(n_damage_bins, 1)), dtype=oasis_float)
-    lengths = np.ones((n_rows, n_conditions), dtype=np.int32)
-    for v in range(n_rows):
-        for c in range(n_conditions):
-            total = 0.
-            for d in range(n_damage_bins):
-                total += pdf[v, d, c]
-            if total <= 0.:
-                for d in range(n_damage_bins):
-                    cdf[v, c, d] = 1.
-                continue
-            cumsum = 0.
-            length = -1
-            for d in range(n_damage_bins):
-                cumsum += pdf[v, d, c]
-                cdf[v, c, d] = cumsum
-                if length < 0 and cumsum >= 0.999999940:
-                    length = d
-            if length < 0:
-                length = n_damage_bins - 1
-            last_prob = cdf[v, c, length]
-            while length > 0 and cdf[v, c, length - 1] == last_prob:
-                length -= 1
-            lengths[v, c] = length + 1
-    return cdf, lengths
 
 
 def build_vuln_idx_to_cond_idx(items, item_is_aggregate, cond_vuln_ids, n_vulns):

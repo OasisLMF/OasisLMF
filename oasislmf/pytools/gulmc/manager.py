@@ -38,6 +38,8 @@ from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, genera
                                          generate_hash_hazard, get_corr_rval, get_random_generator,
                                          _lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
 from oasislmf.pytools.gul.utils import binary_search
+from oasislmf.pytools.common.damage_cdf import (add_cdf_row, add_member_cdfs, add_no_loss_mass, cdf_length, convolve_damage_cdf,
+                                                pdf_to_cdf)
 from oasislmf.pytools.gulmc.items import item_is_aggregate_vuln, item_is_computed
 from oasislmf.pytools.gulmc.structure import NO_PLACEMENT_SAMPLE_SIZE
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
@@ -787,45 +789,6 @@ def run(run_dir,
     return 0
 
 
-@nb.njit(cache=True, fastmath=True)
-def get_last_non_empty(cdf, bin_i):
-    """Remove empty bucket from the end
-
-    Args:
-        cdf: cumulative distribution
-        bin_i: last valid bin index
-
-    Returns:
-        last bin index with an increased in the cdf
-    """
-    last_prob = cdf[bin_i]
-    while bin_i > 0 and cdf[bin_i - 1] == last_prob:
-        bin_i -= 1
-    return bin_i
-
-
-@nb.njit(cache=True, fastmath=True)
-def pdf_to_cdf(pdf, empty_cdf):
-    """Return the cumulative distribution from the probality distribution
-
-    Args:
-        pdf (np.array[float]): probality distribution
-        empty_cdf (np.array[float]): cumulative distribution buffer for output
-    Returns:
-         cdf (np.array[float]): here we return only the valid part if needed
-    """
-    cumsum = 0
-    i = 0
-    while i < pdf.shape[0]:
-        cumsum += pdf[i]
-        empty_cdf[i] = cumsum
-        i += 1
-        if cumsum >= 0.999999940:
-            break
-    i = get_last_non_empty(empty_cdf, i - 1)
-    return empty_cdf[: i + 1]
-
-
 @nb.njit(cache=True)
 def compute_max_dependency_depth(coverage_source_id):
     """Return the longest parent chain length in the coverage dependency forest.
@@ -1104,63 +1067,12 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def cdf_length(cdf, n_bins):
-    """The length of a cdf held in its first ``n_bins`` entries.
-
-    Up to the first bin that reaches 1 to float precision, less the bins it ends flat on: the rule
-    ``pdf_to_cdf`` applies, for a cdf summed over its whole width.
-    """
-    bin_i = 0
-    while bin_i < n_bins - 1 and cdf[bin_i] < 0.999999940:
-        bin_i += 1
-    return get_last_non_empty(cdf, bin_i) + 1
-
-
-@nb.njit(cache=True, fastmath=True, inline='always')
 def member_cdf_at(table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights, block, condition, damage_bin):
     """A member block's damage cdf at one damage bin, under one condition: its members' cdfs by weight."""
     value = 0.
     for member in range(vuln_member_ja_offsets[block], vuln_member_ja_offsets[block + 1]):
         value += vuln_member_ja_weights[member] * table[vuln_member_ja_rows[member], condition, damage_bin]
     return value
-
-
-@nb.njit(cache=True, fastmath=True, inline='always')
-def add_member_cdfs(acc, weight, table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights, block, condition,
-                    n_bins):
-    """Add ``weight`` times a member block's damage cdf under one condition into the first ``n_bins`` of ``acc``."""
-    for member in range(vuln_member_ja_offsets[block], vuln_member_ja_offsets[block + 1]):
-        member_weight = weight * vuln_member_ja_weights[member]
-        row = vuln_member_ja_rows[member]
-        for damage_bin_i in range(n_bins):
-            acc[damage_bin_i] += member_weight * table[row, condition, damage_bin_i]
-
-
-@nb.njit(cache=True, fastmath=True, inline='always')
-def convolve_damage_cdf(acc, table, table_lengths, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
-                        block, condition_ids, condition_probs, n_conditions):
-    """Write into ``acc`` a member block's damage cdf weighted by a distribution over its conditions; return its length.
-
-    A condition is an intensity bin for a vulnerability (the distribution is the areaperil's hazard)
-    or a source damage bin for a conditional one (the source's damage pmf). ``condition_ids`` are
-    1-based, as intensity bin ids are. The sum runs only as far as the longest cdf in it: past its
-    length every row has reached 1, so the result can end no later. Only that many entries of
-    ``acc`` are written.
-    """
-    n_bins = 1
-    for condition_i in range(n_conditions):
-        if condition_probs[condition_i] > 0.:
-            condition = condition_ids[condition_i] - 1
-            for member in range(vuln_member_ja_offsets[block], vuln_member_ja_offsets[block + 1]):
-                n_bins = max(n_bins, table_lengths[vuln_member_ja_rows[member], condition])
-    for damage_bin_i in range(n_bins):
-        acc[damage_bin_i] = 0.
-    for condition_i in range(n_conditions):
-        probability = condition_probs[condition_i]
-        if probability > 0.:
-            add_member_cdfs(acc, probability, table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
-                            block, condition_ids[condition_i] - 1, n_bins)
-    return cdf_length(acc, n_bins)
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
@@ -1719,19 +1631,15 @@ def compute_event_losses(compute_info,
                             cell_bins = mixed_cdf_cache_nbins[cell_slot]
                             n_mixed = max(n_mixed, cell_bins)
                             live_probability += p_areaperil
-                            for damage_bin_i in range(Ndamage_bins_max):
-                                mix_acc[damage_bin_i] += p_areaperil * mixed_cdf_cache[cell_slot, min(damage_bin_i, cell_bins - 1)]
+                            add_cdf_row(mix_acc, p_areaperil, mixed_cdf_cache, cell_slot, cell_bins, Ndamage_bins_max)
                             if needs_hermite:
                                 # the terms are linear in the weights, so a blended group's are its
                                 # areaperils' weighted by p
                                 for k in range(HERMITE_TERMS):
                                     mixed_cdf_group_hermite[mixed_cdf_group, 0, k] += p_areaperil * mixed_cdf_group_hermite[cell_group, 0, k]
                                     mixed_cdf_group_hermite[mixed_cdf_group, 1, k] += p_areaperil * mixed_cdf_group_hermite[cell_group, 1, k]
-                        # the mass no live areaperil carries -- dead areaperils, uncovered placements, a
-                        # float weight shortfall -- loses nothing, so it goes on damage bin 0. An empty
-                        # cdf means nothing is live.
-                        for damage_bin_i in range(n_mixed):
-                            mix_acc[damage_bin_i] += 1. - live_probability
+                        # an empty cdf means nothing is live
+                        add_no_loss_mass(mix_acc, live_probability, n_mixed)
                         slot = store_mixed_cdf(compute_info, mixed_cdf_group, mix_acc, n_mixed, mixed_cdf_cache_tag,
                                                mixed_cdf_cache, mixed_cdf_cache_nbins)
                 n_mixed = mixed_cdf_cache_nbins[slot]

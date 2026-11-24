@@ -1053,8 +1053,8 @@ def test_conditional_dependency_eff_dam_marginal():
 def test_conditional_convolution_reference():
     """A dependent's effective damage cdf is its conditional curves weighted by its source's damage pmf.
     Lock that convolution against a hand-computed reference (the walked-through example)."""
-    from oasislmf.pytools.gulmc.manager import convolve_damage_cdf
-    from oasislmf.pytools.gulmc.structure import build_cdf_table
+    from oasislmf.pytools.common.damage_cdf import convolve_damage_cdf
+    from oasislmf.pytools.common.damage_cdf import build_cdf_table
 
     # source damage pmf and a dependent conditional vuln (rows = source damage bin, cols = dep bin)
     source_pmf = np.array([0.10, 0.20, 0.30, 0.20, 0.10, 0.10], dtype='f8')
