@@ -1223,6 +1223,19 @@ def do_ord(
                     print_command(filename, cmd)
 
 
+def get_valid_reinsurance_levels(requested_levels, num_reinsurance_iterations):
+    """Keep the requested RI levels that exist, without duplicates.
+
+    Args:
+        requested_levels (list): RI levels requested in ``ri_inuring_priorities`` or ``rl_inuring_priorities``.
+        num_reinsurance_iterations (int): Total number of reinsurance iterations.
+
+    Returns:
+        list[int]: Sorted levels between 1 and ``num_reinsurance_iterations``.
+    """
+    return sorted({int(level) for level in requested_levels if 1 <= int(level) <= num_reinsurance_iterations})
+
+
 def get_reinsurance_inuring_priorities(analysis_settings,
                                        num_reinsurance_iterations,
                                        perspective='ri', all_layers=False,
@@ -1251,7 +1264,8 @@ def get_reinsurance_inuring_priorities(analysis_settings,
     if all_layers:
         intermediate_inuring_priorities = list(range(1, num_reinsurance_iterations + 1))
     else:
-        intermediate_inuring_priorities = sorted(list(analysis_settings.get(f'{perspective}_inuring_priorities', [])))
+        intermediate_inuring_priorities = get_valid_reinsurance_levels(
+            analysis_settings.get(f'{perspective}_inuring_priorities', []), num_reinsurance_iterations)
 
     if include_final and num_reinsurance_iterations not in intermediate_inuring_priorities:
         intermediate_inuring_priorities.append(num_reinsurance_iterations)
@@ -2124,6 +2138,18 @@ def bash_params(
                         _ip_to_level[int(p)] for p in valid_ips
                     ],
                 }
+
+    # Drop RI levels outside 1..num_reinsurance_iterations and duplicates. Without the mapping file
+    # (older input directories), the requested values are used as RI levels as they are.
+    for perspective in ('ri', 'rl'):
+        requested_levels = analysis_settings.get(f'{perspective}_inuring_priorities')
+        if requested_levels:
+            valid_levels = get_valid_reinsurance_levels(requested_levels, num_reinsurance_iterations)
+            invalid_levels = sorted({int(p) for p in requested_levels} - set(valid_levels))
+            if invalid_levels:
+                logger.warning(f'{perspective}_inuring_priorities requested outside the {num_reinsurance_iterations} '
+                               f'reinsurance levels so ignored: {", ".join(str(p) for p in invalid_levels)}')
+            analysis_settings = {**analysis_settings, f'{perspective}_inuring_priorities': valid_levels}
 
     if model_storage_json:
         bash_params['model_storage_json'] = model_storage_json

@@ -411,3 +411,13 @@ class TestBashParamsInuringPriorityConversion(TestCase):
             result = self._call_bash_params(d, settings)
             # 99 is not in the mapping so it is dropped; 1 → 2
             self.assertEqual(result['analysis_settings']['ri_inuring_priorities'], [2])
+
+    def test_out_of_range_and_duplicate_levels_dropped(self):
+        """Without the mapping file, levels outside 1..num_reinsurance_iterations and duplicates are dropped with a warning."""
+        settings = {**self._make_analysis_settings([5, 1, 1, 0]), 'rl_inuring_priorities': [2, 4, 2]}
+        with self.assertLogs('oasislmf.execution.bash', level='WARNING') as logs:
+            result = self._call_bash_params('', settings)
+        self.assertEqual(result['analysis_settings']['ri_inuring_priorities'], [1])
+        self.assertEqual(result['analysis_settings']['rl_inuring_priorities'], [2])
+        self.assertIn('ri_inuring_priorities requested outside the 3 reinsurance levels so ignored: 0, 5', logs.output[0])
+        self.assertIn('rl_inuring_priorities requested outside the 3 reinsurance levels so ignored: 4', logs.output[1])

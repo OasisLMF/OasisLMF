@@ -7,7 +7,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-from oasislmf.execution.bash import get_rl_output_levels
+from oasislmf.execution.bash import (get_reinsurance_inuring_priorities,
+                                     get_rl_output_levels)
 from oasislmf.model_execution.bash import (bash_params, bash_wrapper,
                                            create_bash_analysis,
                                            create_bash_outputs, genbash)
@@ -357,6 +358,12 @@ class Genbash_rl(GenbashBase):
         self.assertEqual(get_rl_output_levels({}, 3), [{'text': '', 'level': 4}])
         self.assertEqual(get_rl_output_levels({'rl_inuring_priorities': [2, 1]}, 3),
                          [{'text': 'IP1_', 'level': 1}, {'text': 'IP2_', 'level': 2}, {'text': '', 'level': 4}])
+
+    def test_get_reinsurance_inuring_priorities_drops_invalid_levels(self):
+        """Levels outside 1..num_reinsurance_iterations and duplicates are dropped, and the final level is always last."""
+        self.assertEqual(get_reinsurance_inuring_priorities({'ri_inuring_priorities': [5, 1, 1, 0]}, 3),
+                         [{'text': 'IP1_', 'level': 1}, {'text': 'IP3_', 'level': 3}])
+        self.assertEqual(get_rl_output_levels({'rl_inuring_priorities': [5]}, 3), [{'text': '', 'level': 4}])
 
 
 class Genbash_ri_full_correlation(TestCase):
