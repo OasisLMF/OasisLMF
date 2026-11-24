@@ -510,10 +510,13 @@ Build a lookup function that assigns geotiff band values to each location from i
 ``band_info``: a dict where keys are the assigned column names, and values are dicts with:
    * ``id``: the id of the band in the tiff file
    * ``default``: the value for pixels the geotiff marks as nodata, and for locations outside of the geotiff's
-     range or with missing coordinates
+     range or with missing coordinates. If the band's type cannot hold it (e.g. ``-1`` for a ``uint8`` band, or
+     ``NaN`` for an integer band), the column's type is widened to one that can.
 
-Each location takes the values of the pixel that contains it. The file is read with ``rasterio``, which only loads
-the requested bands over the area covered by the locations, so large rasters do not need to fit in memory.
+Each location takes the values of the pixel that contains it. The geotiff must use a geographic CRS such as
+EPSG:4326, or have no CRS, in which case its coordinates are taken as longitude/latitude; a projected CRS is
+rejected. The file is read with ``rasterio``, which only loads the requested bands of the raster blocks holding
+locations, so large rasters do not need to fit in memory.
 
 .. note::
    Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
