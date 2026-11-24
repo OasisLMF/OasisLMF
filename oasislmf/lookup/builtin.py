@@ -707,19 +707,56 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
         return fct
 
+    PREPARE_OPTIONS = ('default', 'strip', 'upper', 'lower', 'max', 'min', 'type', 'rename', 'drop')
+
     @staticmethod
     def build_prepare(**kwargs):
-        """Prepare the dataframe by setting default, min and max values and type.
+        """Prepare the dataframe column by column.
 
-        Supports several simple DataFrame preparations:
+        Each key is a column name and each value a dict of preparations, applied in this order:
 
         - **default**: create the column if missing and replace the nan value with the default value
+        - **strip**: (``true``) remove leading and trailing whitespace from text values
+        - **upper**: (``true``) upper-case text values
+        - **lower**: (``true``) lower-case text values (cannot be combined with ``upper``)
         - **max**: truncate the values in a column to the specified max
         - **min**: truncate the values in a column to the specified min
         - **type**: convert the type of the column to the specified numpy dtype. Note that we use
           the string representation of numpy dtype available at
           https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing
+        - **rename**: rename the column to this name. An existing column with that name is replaced.
+        - **drop**: (``true``) remove the column. A missing column is ignored.
+
+        ``strip``, ``upper`` and ``lower`` only change string values; null and non-text values
+        (e.g. a numeric postcode) are left as they are. Use them to normalise a column before a
+        ``merge`` on it, as ``merge`` matches values exactly.
+
+        Columns are processed in the order they are listed, so a later entry sees the result of an
+        earlier ``rename``.
         """
+        for column_name, preparations in kwargs.items():
+            if not isinstance(preparations, dict):
+                raise OasisException(
+                    f"prepare step: the preparations for column '{column_name}' must be a dict, got {preparations!r}")
+            unknown = set(preparations) - set(Lookup.PREPARE_OPTIONS)
+            if unknown:
+                raise OasisException(
+                    f"prepare step: unknown option(s) {sorted(unknown)} for column '{column_name}'. "
+                    f"Valid options are {list(Lookup.PREPARE_OPTIONS)}")
+            if preparations.get('upper') and preparations.get('lower'):
+                raise OasisException(
+                    f"prepare step: column '{column_name}' cannot have both 'upper' and 'lower'")
+            if 'rename' in preparations and not (isinstance(preparations['rename'], str) and preparations['rename']):
+                raise OasisException(
+                    f"prepare step: 'rename' for column '{column_name}' must be a non-empty column name")
+
+        def text_op(series, op):
+            if isinstance(series.dtype, pd.StringDtype):
+                return getattr(series.str, op)()
+            if pd.api.types.is_object_dtype(series.dtype):
+                return series.map(lambda value: getattr(value, op)() if isinstance(value, str) else value)
+            return series  # numeric, bool, datetime...: nothing to normalise
+
         def prepare(locations):
             for column_name, preparations in kwargs.items():
                 if "default" in preparations:
@@ -727,12 +764,29 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                         locations[column_name] = preparations["default"]
                     else:
                         fill_empty(locations, column_name, preparations["default"])
+                if preparations.get('drop'):
+                    locations = locations.drop(columns=column_name, errors='ignore')
+                    continue
+                if column_name not in locations.columns and set(preparations) - {'default'}:
+                    raise OasisException(
+                        f"prepare step: column '{column_name}' is missing. List it in the step's 'columns' "
+                        f"so it is kept, or give it a 'default' to create it")
+                for op in ('strip', 'upper', 'lower'):
+                    if preparations.get(op):
+                        locations[column_name] = text_op(locations[column_name], op)
                 if 'max' in preparations:
                     locations.loc[locations[column_name] > preparations['max'], column_name] = preparations['max']
                 if 'min' in preparations:
                     locations.loc[locations[column_name] < preparations['min'], column_name] = preparations['min']
                 if 'type' in preparations:
                     locations[column_name] = locations[column_name].astype(preparations['type'])
+                new_name = preparations.get('rename')
+                if new_name is not None and new_name != column_name:
+                    if column_name not in locations.columns:
+                        raise OasisException(
+                            f"prepare step: cannot rename missing column '{column_name}' to '{new_name}'")
+                    locations = (locations.drop(columns=new_name, errors='ignore')
+                                 .rename(columns={column_name: new_name}))
             return locations
         return prepare
 

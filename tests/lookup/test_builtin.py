@@ -313,6 +313,85 @@ def test_build_prepare_min_max_clamp(preparations, values, expected):
     assert result["my_col"].tolist() == expected
 
 
+@pytest.mark.parametrize("preparations, values, expected", [
+    ({"strip": True}, ["  ab ", "cd", None], ["ab", "cd", None]),
+    ({"upper": True}, ["Ab", "cd", None], ["AB", "CD", None]),
+    ({"lower": True}, ["Ab", "CD", None], ["ab", "cd", None]),
+    ({"strip": True, "upper": True}, [" sw1a 1aa ", "Sw1A1aa"], ["SW1A 1AA", "SW1A1AA"]),
+    ({"upper": True}, ["ab", 12, None], ["AB", 12, None]),   # non-text values in an object column are kept
+    ({"strip": True, "type": "int64"}, [" 1", "2 "], [1, 2]),  # strip runs before type
+])
+def test_build_prepare_text_normalisation(preparations, values, expected):
+    prepare = Lookup(config={}).build_prepare(my_col=preparations)
+    result = prepare(pd.DataFrame({"my_col": values}, dtype=object))
+    assert [None if pd.isna(v) else v for v in result["my_col"]] == expected
+
+
+def test_build_prepare_text_normalisation_string_dtype_and_numeric():
+    prepare = Lookup(config={}).build_prepare(s={"strip": True, "upper": True}, n={"upper": True})
+    df = pd.DataFrame({"s": pd.array([" ab", None], dtype="string"), "n": [1, 2]})
+    result = prepare(df)
+    assert result["s"].tolist()[0] == "AB" and pd.isna(result["s"].tolist()[1])
+    assert result["n"].tolist() == [1, 2]
+
+
+def test_build_prepare_rename_and_drop():
+    prepare = Lookup(config={}).build_prepare(
+        tmp_id={"rename": "area_peril_id"},
+        unused={"drop": True},
+        not_there={"drop": True},  # dropping a missing column is fine
+    )
+    df = pd.DataFrame({"loc_id": [1, 2], "tmp_id": [5, 6], "area_peril_id": [0, 0], "unused": ["x", "y"]})
+    result = prepare(df)
+    assert list(result.columns) == ["loc_id", "area_peril_id"]
+    assert result["area_peril_id"].tolist() == [5, 6]  # the existing column is replaced
+
+
+def test_build_prepare_rename_then_prepare_new_name():
+    prepare = Lookup(config={}).build_prepare(PostCode={"rename": "postalcode"}, postalcode={"upper": True})
+    result = prepare(pd.DataFrame({"PostCode": ["ab1"]}))
+    assert result.to_dict("list") == {"postalcode": ["AB1"]}
+
+
+@pytest.mark.parametrize("kwargs, match", [
+    ({"c": {"uper": True}}, "unknown option"),
+    ({"c": {"upper": True, "lower": True}}, "both 'upper' and 'lower'"),
+    ({"c": {"rename": ""}}, "non-empty column name"),
+    ({"c": "upper"}, "must be a dict"),
+])
+def test_build_prepare_invalid_config(kwargs, match):
+    with pytest.raises(OasisException, match=match):
+        Lookup(config={}).build_prepare(**kwargs)
+
+
+def test_build_prepare_missing_column_message():
+    prepare = Lookup(config={}).build_prepare(postalcode={"upper": True})
+    with pytest.raises(OasisException, match="'postalcode' is missing"):
+        prepare(pd.DataFrame({"loc_id": [1]}))
+
+
+def test_prepare_upper_strip_lets_merge_match_mixed_case(tmp_path):
+    """Issue #2284 item 1: normalising a column with prepare lets merge match it against an upper-case table."""
+    table = tmp_path / "postcode_areaperil.csv"
+    pd.DataFrame({"postalcode": ["AB1", "CD2"], "area_peril_id": [11, 22]}).to_csv(table, index=False)
+    config = {
+        "strategy": ["normalise", "areaperil", "pivot"],
+        "step_definition": {
+            "normalise": {"type": "prepare", "columns": ["postalcode"],
+                          "parameters": {"postalcode": {"strip": True, "upper": True}}},
+            "areaperil": {"type": "merge", "columns": ["postalcode"],
+                          "parameters": {"file_path": str(table), "id_columns": ["area_peril_id"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1, 2, 3], "PostalCode": [" ab1", "Cd2 ", "zz9"]})
+    keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
+    assert keys.loc[1, "area_peril_id"] == 11
+    assert keys.loc[2, "area_peril_id"] == 22
+    assert keys.loc[3, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
+
+
 def test_split_loc_perils_covered_marks_not_modelled():
     """A location whose perils are outside the model's scope is flagged 'not modelled'
     (not 'not at risk' — we don't know whether an unmodelled peril is a risk or not). The
