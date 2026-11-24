@@ -35,6 +35,33 @@ def make_idx_from_bin(bin_path: Path, idx_path: Path) -> None:
         idx_path.touch()  # empty partition → 0-byte idx
 
 
+def truncate_last_summary_bin(work_dir, how):
+    """Damage the last summary .bin the way a killed writer or a partial copy would.
+
+    The ``idx_`` cases index every .bin first (a tool only takes its idx path when all of them have one),
+    so the reader reaches the damaged record through its .idx offset rather than a sequential scan.
+    """
+    bin_paths = sorted(work_dir.glob("*.bin"))
+    if how.startswith("idx_"):
+        for path in bin_paths:
+            make_idx_from_bin(path, path.with_suffix(".idx"))
+    bin_path = bin_paths[-1]
+    data = bin_path.read_bytes()
+    if how in ("partial_pair", "idx_partial_pair"):  # last (sidx, loss) pair cut mid-loss
+        data = data[:-3]
+    elif how == "missing_terminator":  # last record ends without its (0, 0) pair
+        data = data[:-8]
+    elif how == "partial_header":  # a record header cut after event_id and half of summary_id
+        data = data + data[12:18]
+    elif how == "idx_partial_header":  # the .idx points at a record whose header is cut
+        last_offset = int(np.fromfile(bin_path.with_suffix(".idx"), dtype=summary_stream_index_dtype)["offset"][-1])
+        data = data[:last_offset + 6]
+    bin_path.write_bytes(data)
+
+
+SUMMARY_BIN_TRUNCATIONS = ["partial_pair", "missing_terminator", "partial_header", "idx_partial_header", "idx_partial_pair"]
+
+
 def set_coverage_buildings(input_dir, n_building, item_to_coverage=None):
     """Write a test input dir's coverage_buildings file with the given signed building count.
 
