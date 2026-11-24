@@ -233,10 +233,24 @@ def accumulate_hermite_coeffs(bin_scaling, prob_to, bin_mean, bin_count, weight,
             the copula itself inverts through, so the correction cannot disagree with the draws.
         coeffs (numpy.array[float64]): length HERMITE_TERMS, added to in place.
     """
+    accumulate_hermite_coeffs_into(bin_scaling, prob_to, bin_mean, bin_count, weight,
+                                   x_min, inv_factor, norm_inv_cdf, coeffs,
+                                   np.empty(HERMITE_TERMS), np.empty(HERMITE_TERMS))
+
+
+@njit(cache=True, fastmath=True)
+def accumulate_hermite_coeffs_into(bin_scaling, prob_to, bin_mean, bin_count, weight,
+                                   x_min, inv_factor, norm_inv_cdf, coeffs, he_lo, he_hi):
+    """accumulate_hermite_coeffs with its two work arrays passed in, so it does not allocate.
+
+    For callers compiled without the numba runtime (gulmc's _compute_event_losses_core), which
+    cannot allocate. ``he_lo`` and ``he_hi`` are length HERMITE_TERMS scratch; their contents on
+    entry are ignored.
+    """
     # He_{k-1} at the lower edge of the current bin, k = 1..HERMITE_TERMS, starting at -infinity
     # where the density is zero, so only the upper edge of the first bin contributes.
-    he_lo = np.zeros(HERMITE_TERMS)
-    he_hi = np.zeros(HERMITE_TERMS)
+    for k in range(HERMITE_TERMS):
+        he_lo[k] = 0.
     phi_lo = 0.
     table_len = len(norm_inv_cdf)
     for i in range(bin_count):
