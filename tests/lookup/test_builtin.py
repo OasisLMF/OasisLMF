@@ -767,3 +767,71 @@ def test_combine_and_raises_when_child_columns_are_missing():
     locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no AutoCode
     with pytest.raises(OasisException, match="by_autocode"):
         AutoLookup(config=config).process_locations(locations)
+
+
+# --- transform_coordinates (#2284 item 5) -------------------------------------
+
+
+def _bng_locations():
+    return pd.DataFrame({
+        "loc_id": [1, 2, 3, 4],
+        "latitude": [51.5072, None, -33.87, 55.9533],      # London, missing, Sydney, Edinburgh
+        "longitude": [-0.1276, -0.1, 151.21, -3.1883],
+    })
+
+
+def test_transform_coordinates_to_british_national_grid():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
+    result = fct(_bng_locations())
+    assert result["x"].iloc[0] == pytest.approx(530043, abs=1)
+    assert result["y"].iloc[0] == pytest.approx(180358, abs=1)
+    assert result["x"].iloc[3] == pytest.approx(326000, abs=1000)
+    assert result[["x", "y"]].iloc[[1, 2]].isna().all().all()  # missing input, and Sydney is outside GB
+
+
+def test_transform_coordinates_without_area_check_and_custom_columns():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(
+        target_crs=27700, x_column="easting", y_column="northing", area_of_use_only=False)
+    result = fct(_bng_locations())
+    assert result["easting"].notna().tolist() == [True, False, True, True]  # Sydney projected, however meaningless
+
+
+def test_transform_coordinates_area_crossing_antimeridian():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:3832")  # PDC Mercator, 98.69E..68W
+    result = fct(pd.DataFrame({"latitude": [-17.7, -17.7, 51.5], "longitude": [178.0, -150.0, 0.0]}))
+    assert result["x"].notna().tolist() == [True, True, False]
+
+
+def test_transform_coordinates_errors():
+    pytest.importorskip("pyproj")
+    with pytest.raises(OasisException, match="invalid CRS"):
+        Lookup(config={}).build_transform_coordinates(target_crs="EPSG:not-a-crs")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
+    with pytest.raises(OasisException, match="'latitude' is not in the locations"):
+        fct(pd.DataFrame({"lat": [51.5], "longitude": [0.0]}))
+
+
+def test_transform_coordinates_then_interval_to_index_end_to_end(tmp_path):
+    """Issue #2284 item 5: project to a CRS, then index a regular grid in it with interval_to_index."""
+    pytest.importorskip("pyproj")
+    edges = [500000, 510000, 520000, 530000, 540000]  # 10 km columns of a BNG grid
+    config = {
+        "strategy": ["project", "column", "areaperil", "pivot"],
+        "step_definition": {
+            "project": {"type": "transform_coordinates", "columns": ["latitude", "longitude"],
+                        "parameters": {"target_crs": "EPSG:27700"}},
+            "column": {"type": "interval_to_index",
+                       "parameters": {"value_column_name": "x", "sorted_array": edges,
+                                      "index_column_name": "area_peril_id"}},
+            "areaperil": {"type": "prepare", "parameters": {"area_peril_id": {"default": -1}}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "ORF", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1, 2], "Latitude": [51.5072, -33.87], "Longitude": [-0.1276, 151.21]})
+    keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
+    assert (keys.loc[1, "status"], keys.loc[1, "area_peril_id"]) == ("success", 4)  # x = 530043
+    assert keys.loc[2, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
