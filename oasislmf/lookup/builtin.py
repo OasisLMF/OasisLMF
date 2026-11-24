@@ -1044,8 +1044,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         def geotiff_lookup(locations):
             row, col, inside = geotiff_pixel_index(inv_transform,
-                                                   locations['longitude'].to_numpy(dtype='float64'),
-                                                   locations['latitude'].to_numpy(dtype='float64'),
+                                                   locations['longitude'].to_numpy(dtype='float64', na_value=np.nan),
+                                                   locations['latitude'].to_numpy(dtype='float64', na_value=np.nan),
                                                    height, width)
             res = np.empty((len(locations), len(band_ids)), dtype=dtype)
             res[:] = defaults

@@ -495,6 +495,20 @@ def test_build_geotiff_assigns_the_pixel_containing_each_location(tmp_path, lon,
     assert result["value"].tolist() == [expected]
 
 
+def test_build_geotiff_accepts_nullable_coordinates(tmp_path):
+    """pd.NA in nullable Float64 coordinates is treated as missing and gets the default."""
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
+                                                     band_info={"value": {"id": 1, "default": -1}})
+    locations = pd.DataFrame({
+        "longitude": pd.array([-9.5, pd.NA, -8.5], dtype="Float64"),
+        "latitude": pd.array([49.5, 49.5, pd.NA], dtype="Float64"),
+    })
+
+    result = geotiff_lookup(locations)
+
+    assert result["value"].tolist() == [100, -1, -1]
+
+
 def test_build_geotiff_strip_reads_match_single_read(tmp_path, monkeypatch):
     """Reading in strips bounded by GEOTIFF_READ_BUDGET_BYTES gives the same values as one read."""
     rng = np.random.default_rng(0)
