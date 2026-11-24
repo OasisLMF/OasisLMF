@@ -508,7 +508,14 @@ def test_build_geotiff_assigns_the_pixel_containing_each_location(tmp_path, lon,
     (["uint8", "int16"], [0, 0], "int16"),
 ])
 def test_geotiff_value_dtype(band_dtypes, defaults, expected):
+    defaults = {f"col_{i}": default for i, default in enumerate(defaults)}
     assert geotiff_value_dtype(band_dtypes, defaults) == np.dtype(expected)
+
+
+@pytest.mark.parametrize("default", ["none", None, 2 ** 70])
+def test_geotiff_value_dtype_rejects_defaults_that_are_not_numbers(default):
+    with pytest.raises(OasisException, match="geotiff band flood_depth has default"):
+        geotiff_value_dtype(["float32"], {"flood_depth": default})
 
 
 def test_build_geotiff_default_outside_band_dtype_widens_column(tmp_path):

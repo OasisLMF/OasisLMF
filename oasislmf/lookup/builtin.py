@@ -131,21 +131,23 @@ def geotiff_value_dtype(band_dtypes, defaults):
 
     Args:
         band_dtypes (list): dtypes of the requested bands
-        defaults (list): default value of each requested band
+        defaults (dict): default value of each requested band, by output column name
 
     Returns:
         np.dtype: dtype for the lookup's output columns
+
+    Raises:
+        OasisException: if a default is not a number numpy can store (e.g. a string, None or a huge int)
     """
     dtype = np.result_type(*band_dtypes)
-    for default in defaults:
-        try:
-            with np.errstate(invalid='ignore', over='ignore'):
-                cast = np.array(default).astype(dtype)
-            fits = bool(cast == default) or bool(np.isnan(cast) and np.isnan(default))
-        except (OverflowError, TypeError, ValueError):
-            fits = False
-        if not fits:
-            dtype = np.result_type(dtype, np.min_scalar_type(default))
+    for col_name, default in defaults.items():
+        default_dtype = np.min_scalar_type(default)
+        if default_dtype.kind not in 'biuf':
+            raise OasisException(f"geotiff band {col_name} has default {default!r}, which is not a number numpy can store")
+        with np.errstate(invalid='ignore', over='ignore'):
+            cast = np.array(default, dtype=default_dtype).astype(dtype)
+        if not (cast == default or (np.isnan(cast) and np.isnan(default))):
+            dtype = np.result_type(dtype, default_dtype)
     return dtype
 
 
@@ -1134,7 +1136,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 raise OasisException(f"band {col_name}, {info} has id outside of [1-{band_count}]")
             band_ids.append(info['id'])
         dtype = geotiff_value_dtype([band_dtypes[band_id - 1] for band_id in band_ids],
-                                    [info['default'] for info in band_info.values()])
+                                    {col_name: info['default'] for col_name, info in band_info.items()})
         defaults = np.array([info['default'] for info in band_info.values()], dtype=dtype)
         # bands of a GeoTIFF normally share a block shape; reads follow the first requested band's
         block_shape = block_shapes[band_ids[0] - 1]
