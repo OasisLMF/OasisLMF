@@ -118,8 +118,8 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     return closest_points
 
 
-# upper bound on the raster data read at once by a geotiff lookup; locations are read in strips of rows
-# that each fit within it, so a large raster never has to be held in memory in full
+# upper bound on the memory one read of a geotiff lookup may use, counting the values, their masks and any dtype
+# conversion copy, so a large raster never has to be held in memory in full
 GEOTIFF_READ_BUDGET_BYTES = 256 * 1024 ** 2
 
 
@@ -147,6 +147,60 @@ def geotiff_value_dtype(band_dtypes, defaults):
         if not fits:
             dtype = np.result_type(dtype, np.min_scalar_type(default))
     return dtype
+
+
+def geotiff_read_plan(row, col, block_shape, bytes_per_pixel, height, width, budget):
+    """Group located pixels into reads of the raster blocks that hold them.
+
+    Compressed rasters are decompressed a whole block at a time, so reading only the blocks holding locations
+    avoids decompressing the space between them. Adjacent blocks in a block row are merged into one read, up to
+    the budget, to keep the number of reads low where locations are dense. A block that alone exceeds the budget
+    (e.g. a file stored as a single strip) is split into smaller tiles.
+
+    Args:
+        row (np.ndarray): pixel row of each location, all inside the raster
+        col (np.ndarray): pixel column of each location, all inside the raster
+        block_shape (tuple): (height, width) of the raster's blocks
+        bytes_per_pixel (int): memory a read uses per pixel, over all requested bands
+        height (int): number of rows in the raster
+        width (int): number of columns in the raster
+        budget (int): upper bound on the memory of a single read, in bytes
+
+    Returns:
+        tuple: (order, reads) where order sorts the locations by block and reads is a list of
+            (start, end, window): the rasterio Window to read for the sorted locations order[start:end].
+    """
+    tile_h, tile_w = block_shape
+    if tile_h * tile_w * bytes_per_pixel > budget:
+        tile_h = max(1, budget // (tile_w * bytes_per_pixel))
+        if tile_h * tile_w * bytes_per_pixel > budget:
+            tile_w = max(1, budget // bytes_per_pixel)
+    max_tiles = max(1, budget // (tile_h * tile_w * bytes_per_pixel))
+
+    tile_row, tile_col = row // tile_h, col // tile_w
+    order = np.lexsort((tile_col, tile_row))
+    if not order.size:
+        return order, []
+    tile_row, tile_col = tile_row[order], tile_col[order]
+
+    # first location of each distinct tile, then of each run of adjacent tiles in a tile row, split to fit the budget
+    tile_start = np.flatnonzero(np.r_[True, (tile_row[1:] != tile_row[:-1]) | (tile_col[1:] != tile_col[:-1])])
+    tiles_row, tiles_col = tile_row[tile_start], tile_col[tile_start]
+    new_run = np.r_[True, (tiles_row[1:] != tiles_row[:-1]) | (tiles_col[1:] != tiles_col[:-1] + 1)]
+    run_first_col = tiles_col[np.flatnonzero(new_run)][np.cumsum(new_run) - 1]
+    run_chunk = (tiles_col - run_first_col) // max_tiles
+    read_first_tile = np.flatnonzero(new_run | np.r_[True, run_chunk[1:] != run_chunk[:-1]])
+    read_last_tile = np.r_[read_first_tile[1:], tiles_row.size] - 1
+
+    starts = tile_start[read_first_tile]
+    ends = np.r_[starts[1:], order.size]
+    reads = []
+    for start, end, first, last in zip(starts, ends, read_first_tile, read_last_tile):
+        row_off, col_off = int(tiles_row[first]) * tile_h, int(tiles_col[first]) * tile_w
+        row_end = min(row_off + tile_h, height)
+        col_end = min((int(tiles_col[last]) + 1) * tile_w, width)
+        reads.append((int(start), int(end), Window(col_off, row_off, col_end - col_off, row_end - row_off)))
+    return order, reads
 
 
 def geotiff_pixel_index(inv_transform, lon, lat, height, width):
@@ -1035,8 +1089,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     def build_geotiff(self, file_path, band_info):
         """Build a lookup function that assigns geotiff band values to each lat/lon.
 
-        The raster is not held in memory: each call reads only the requested bands over the rows and columns spanned
-        by its locations, in strips that fit within GEOTIFF_READ_BUDGET_BYTES.
+        The raster is not held in memory: each call reads only the requested bands of the raster blocks holding its
+        locations, in reads that fit within GEOTIFF_READ_BUDGET_BYTES (see geotiff_read_plan).
 
         The raster must use a geographic CRS (or none, in which case it is assumed to be in longitude/latitude).
 
@@ -1065,6 +1119,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             inv_transform = ~dataset.transform
             height, width = dataset.height, dataset.width
             crs = dataset.crs
+            block_shapes = dataset.block_shapes
 
         # locations are matched by longitude/latitude, which only line up with the pixels of a geographic raster
         if crs and not crs.is_geographic:
@@ -1081,6 +1136,12 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         dtype = geotiff_value_dtype([band_dtypes[band_id - 1] for band_id in band_ids],
                                     [info['default'] for info in band_info.values()])
         defaults = np.array([info['default'] for info in band_info.values()], dtype=dtype)
+        # bands of a GeoTIFF normally share a block shape; reads follow the first requested band's
+        block_shape = block_shapes[band_ids[0] - 1]
+        # per pixel and band: the value in dtype, the value as read before conversion to dtype, and the mask both
+        # as GDAL's uint8 and as numpy's bool
+        native_itemsize = max(np.dtype(band_dtypes[band_id - 1]).itemsize for band_id in band_ids)
+        bytes_per_pixel = len(band_ids) * (dtype.itemsize + native_itemsize + 2)
 
         def geotiff_lookup(locations):
             row, col, inside = geotiff_pixel_index(inv_transform,
@@ -1092,27 +1153,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
             loc_idx = np.flatnonzero(inside)
             if loc_idx.size:
-                order = np.argsort(row[loc_idx], kind='stable')
+                order, reads = geotiff_read_plan(row[loc_idx], col[loc_idx], block_shape, bytes_per_pixel,
+                                                 height, width, GEOTIFF_READ_BUDGET_BYTES)
                 loc_idx = loc_idx[order]
                 row, col = row[loc_idx], col[loc_idx]
-                # bound each read: strips of rows, each as wide as the columns the locations span
-                row_bytes = (int(col.max() - col.min()) + 1) * len(band_ids) * dtype.itemsize
-                strip_height = max(1, GEOTIFF_READ_BUDGET_BYTES // row_bytes)
                 with rasterio.open(abs_file_path) as dataset:
-                    start = 0
-                    while start < loc_idx.size:
-                        row_start = int(row[start])
-                        end = int(np.searchsorted(row, row_start + strip_height, side='left'))
-                        strip_row, strip_col = row[start:end], col[start:end]
-                        col_start = int(strip_col.min())
-                        window = Window(col_start, row_start,
-                                        int(strip_col.max()) + 1 - col_start, int(strip_row[-1]) + 1 - row_start)
+                    for start, end, window in reads:
+                        read_row = row[start:end] - window.row_off
+                        read_col = col[start:end] - window.col_off
                         # (band, row, col), masked where the band's nodata value or mask band marks a pixel invalid
                         data = dataset.read(band_ids, window=window, out_dtype=dtype, masked=True)
-                        values = data.data[:, strip_row - row_start, strip_col - col_start].T
-                        invalid = np.ma.getmaskarray(data)[:, strip_row - row_start, strip_col - col_start].T
+                        values = data.data[:, read_row, read_col].T
+                        invalid = np.ma.getmaskarray(data)[:, read_row, read_col].T
                         res[loc_idx[start:end]] = np.where(invalid, defaults, values)
-                        start = end
 
             for col_i, col_name in enumerate(band_info.keys()):
                 locations[col_name] = res[:, col_i]

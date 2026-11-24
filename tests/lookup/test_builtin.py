@@ -10,6 +10,7 @@ import pytest
 
 from oasislmf.lookup.builtin import (
     Lookup,
+    geotiff_read_plan,
     geotiff_value_dtype,
     PerilCoveredDeterministicLookup,
     create_lat_lon_id_functions,
@@ -536,8 +537,8 @@ def test_build_geotiff_accepts_nullable_coordinates(tmp_path):
     assert result["value"].tolist() == [100, -1, -1]
 
 
-def test_build_geotiff_strip_reads_match_single_read(tmp_path, monkeypatch):
-    """Reading in strips bounded by GEOTIFF_READ_BUDGET_BYTES gives the same values as one read."""
+def test_build_geotiff_budget_bounded_reads_match_single_read(tmp_path, monkeypatch):
+    """Reads split to fit a tiny GEOTIFF_READ_BUDGET_BYTES give the same values as one read."""
     rng = np.random.default_rng(0)
     data = rng.integers(0, 1000, size=(2, 50, 40)).astype("int16")
     path = _write_geotiff(tmp_path / "big.tif", data, _affine(0.1, 0.0, 0.0, 0.0, -0.1, 5.0))
@@ -548,8 +549,9 @@ def test_build_geotiff_strip_reads_match_single_read(tmp_path, monkeypatch):
     })
 
     single = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)(locations.copy())
-    # one row of 40 columns x 2 bands x 2 bytes is 160 bytes: allow 3 rows per strip
-    monkeypatch.setattr("oasislmf.lookup.builtin.GEOTIFF_READ_BUDGET_BYTES", 3 * 160)
+    # 2 int16 bands cost 12 bytes per pixel (value, value before conversion, two masks): allow 30 pixels per read,
+    # less than one 40-column row, so the file's single block is split along both axes
+    monkeypatch.setattr("oasislmf.lookup.builtin.GEOTIFF_READ_BUDGET_BYTES", 30 * 12)
     strips = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)(locations.copy())
 
     pd.testing.assert_frame_equal(single, strips)
@@ -586,6 +588,68 @@ def test_build_geotiff_without_nodata_keeps_every_value(tmp_path):
     result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5], "latitude": [0.5, 0.5]}))
 
     assert result["value"].tolist() == [7, -9999]
+
+
+def _plan_reads(rows, cols, block_shape=(16, 16), bytes_per_pixel=1, height=64, width=64, budget=10 ** 6):
+    """geotiff_read_plan as ((row_off, col_off, height, width), sorted locations) per read, for readable asserts."""
+    pytest.importorskip("rasterio")
+    rows, cols = np.array(rows), np.array(cols)
+    order, reads = geotiff_read_plan(rows, cols, block_shape, bytes_per_pixel, height, width, budget)
+    return [((w.row_off, w.col_off, w.height, w.width), list(zip(rows[order][s:e].tolist(), cols[order][s:e].tolist())))
+            for s, e, w in reads]
+
+
+def test_geotiff_read_plan_merges_adjacent_blocks_and_skips_gaps():
+    # blocks (0, 0) and (0, 1) are adjacent, (0, 3) is past a gap, (2, 2) is in another block row
+    reads = _plan_reads(rows=[40, 3, 5, 1], cols=[40, 20, 1, 50])
+    assert reads == [
+        ((0, 0, 16, 32), [(5, 1), (3, 20)]),
+        ((0, 48, 16, 16), [(1, 50)]),
+        ((32, 32, 16, 16), [(40, 40)]),
+    ]
+
+
+def test_geotiff_read_plan_splits_runs_to_fit_the_budget():
+    # four adjacent blocks of 16 x 16 pixels at 1 byte each, with room for two blocks per read
+    reads = _plan_reads(rows=[0, 0, 0, 0], cols=[0, 16, 32, 48], budget=2 * 256)
+    assert [window for window, _ in reads] == [(0, 0, 16, 32), (0, 32, 16, 32)]
+
+
+def test_geotiff_read_plan_splits_a_block_larger_than_the_budget():
+    # a file stored as one 64 x 64 block, with room for 100 pixels per read: tiles shrink to single 64-pixel rows
+    reads = _plan_reads(rows=[0, 63], cols=[0, 63], block_shape=(64, 64), budget=100)
+    assert [window for window, _ in reads] == [(0, 0, 1, 64), (63, 0, 1, 64)]
+    # and a single row too wide for the budget is cut into columns
+    reads = _plan_reads(rows=[0, 0], cols=[0, 63], block_shape=(1, 64), budget=10)
+    assert [window for window, _ in reads] == [(0, 0, 1, 10), (0, 60, 1, 4)]
+
+
+def test_geotiff_read_plan_clips_edge_blocks_to_the_raster():
+    reads = _plan_reads(rows=[59], cols=[59], height=60, width=60)
+    assert reads == [((48, 48, 12, 12), [(59, 59)])]
+
+
+def test_build_geotiff_reads_only_the_blocks_holding_locations(tmp_path, monkeypatch):
+    """On a tiled raster each read covers whole blocks that hold locations, never the blocks between them."""
+    rasterio = pytest.importorskip("rasterio")
+    data = np.arange(64 * 64, dtype="int32").reshape(1, 64, 64)
+    path = _write_geotiff(tmp_path / "tiled.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 64.0),
+                          tiled=True, blockxsize=16, blockysize=16)
+    windows = []
+    real_read = rasterio.io.DatasetReader.read
+
+    def spy_read(self, *args, **kwargs):
+        windows.append(kwargs["window"])
+        return real_read(self, *args, **kwargs)
+
+    monkeypatch.setattr(rasterio.io.DatasetReader, "read", spy_read)
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+    # pixel (row, col) is at lon = col + 0.5, lat = 64 - row - 0.5; pixels in two far-apart blocks
+    rows, cols = np.array([2, 60, 5]), np.array([3, 61, 9])
+    result = geotiff_lookup(pd.DataFrame({"longitude": cols + 0.5, "latitude": 64 - rows - 0.5}))
+
+    assert result["value"].tolist() == (rows * 64 + cols).tolist()
+    assert sorted((w.row_off, w.col_off, w.height, w.width) for w in windows) == [(0, 0, 16, 16), (48, 48, 16, 16)]
 
 
 def test_build_geotiff_rejects_projected_crs(tmp_path):
