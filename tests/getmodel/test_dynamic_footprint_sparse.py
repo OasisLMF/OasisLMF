@@ -202,39 +202,15 @@ def test_portfolio_needing_most_sections_reads_each_file_once(tmp_path, footprin
     assert sorted(footprint_reads) == [event_defintion_filename, hazard_case_filename]
 
 
-@pytest.mark.parametrize('partition_event_definition', [True, False])
-def test_failed_first_load_is_retried_not_silent(tmp_path, monkeypatch, partition_event_definition):
-    """A lazy footprint's load that fails once must not leave every later event looking unaffected.
-
-    The footprint server catches exceptions per request and keeps serving, so a silently
-    empty footprint after one transient error would turn the rest of the run into zero losses.
-    """
-    storage, run_dir = build_model(tmp_path, partition_event_definition=partition_event_definition)
-    original_get_df_reader = FootprintParquetDynamic.get_df_reader
-    failures = [OSError('transient read failure')]
-
-    def failing_once_get_df_reader(self, filepath, **kwargs):
-        if failures and filepath.split('/')[0] == hazard_case_filename:
-            raise failures.pop()
-        return original_get_df_reader(self, filepath, **kwargs)
-
-    monkeypatch.setattr(FootprintParquetDynamic, 'get_df_reader', failing_once_get_df_reader)
-
-    with open_footprint(storage, run_dir, lazy=True) as footprint:
-        with pytest.raises(OSError, match='transient read failure'):
-            footprint.get_event(1)
-        assert intensity_by_areaperil(footprint.get_event(1)) == {100: 6, 101: 8, 200: 4}
-
-
-def test_opening_a_lazy_footprint_reads_no_section_data(tmp_path, footprint_reads):
-    """gulmc's structure build opens the footprint just for num_intensity_bins, so lazily."""
+def test_a_lazy_footprint_loads_only_to_save(tmp_path, footprint_reads):
+    """gulmc's structure build opens the footprint for num_intensity_bins, and to save its sections when asked."""
     storage, run_dir = build_model(tmp_path)
 
     with open_footprint(storage, run_dir, lazy=True) as footprint:
         assert footprint.num_intensity_bins == 10
         assert footprint_reads == []
-        footprint.get_event(1)
-        assert footprint_reads
+        assert footprint.save_shared(str(tmp_path / 'shared'))
+        assert sorted(footprint_reads) == [event_defintion_filename, hazard_case_filename]
 
 
 def test_opening_the_footprint_loads_its_sections(tmp_path, footprint_reads):

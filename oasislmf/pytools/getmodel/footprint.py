@@ -16,9 +16,8 @@ import pyarrow.compute as pc
 import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 
-from oasis_data_manager.config import load_class
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
-from oasis_data_manager.df_reader.reader import OasisPandasReader, OasisReader
+from oasis_data_manager.df_reader.reader import OasisReader
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from .common import (
     FootprintHeader, EventIndexBin, EventIndexBinZ, Event,
@@ -39,7 +38,8 @@ from oasislmf.pytools.getmodel.dynamic_footprint import (
 
 logger = logging.getLogger(__name__)
 
-# the key of a hive dataset partitioned by section, section_id=N/
+# the section_id key of a file partitioned by section (section_id=N/), given as an integer so that
+# a reader does not infer its type from every partition name
 SECTION_PARTITIONING = ds.partitioning(pa.schema([("section_id", pa.int64())]), flavor="hive")
 
 # files of a dynamic footprint's hazard saved for sharing between processes, see FootprintParquetDynamic.save_shared
@@ -232,9 +232,8 @@ class Footprint:
             shared_dir (str or None): directory where a dynamic footprint's hazard was saved by
                 FootprintParquetDynamic.save_shared, memory-mapped instead of read from the model data
                 when present. Ignored by the other footprint formats.
-            lazy (bool): if True, a dynamic footprint does not load its sections when opened (it
-                reads its metadata and the portfolio's sections and areaperils) but on first use,
-                for a caller that only needs num_intensity_bins. Ignored by the other footprint formats.
+            lazy (bool): if True, a dynamic footprint does not load its sections when opened, only in
+                save_shared: for a caller that needs num_intensity_bins. Ignored by the other footprint formats.
             **kwargs: additional keyword arguments, accepted and ignored so that callers can
                 forward a wider parameter dict
 
@@ -637,16 +636,14 @@ class FootprintParquetDynamic(Footprint):
 
     Either file may be partitioned by section_id (i.e. be a directory of section_id=N/
     subdirectories) or be a single unpartitioned parquet file, independently of the other.
-    When the portfolio needs only a small share of a partitioned file's sections, the file is
-    read by opening those section_id=N/ directories one by one, as discovering the whole
-    dataset costs time in the number of sections the model has. Otherwise, and for an
-    unpartitioned file, it is read in one go with a section_id filter pushed down to the reader.
+    A partitioned file is read by opening the portfolio's section_id=N/ directories one by one
+    when it needs only a small share of them, otherwise in one go with a section_id filter, as
+    an unpartitioned file is.
 
     __enter__ bulk-loads the hazard case for this portfolio's sections and areaperils, which is
     all get_event ever needs of it, so model data the footprint cannot use is refused when it is
-    opened. A lazy footprint (lazy=True) loads its sections on first use instead, for a caller
-    that only needs num_intensity_bins. Every process loading the hazard case
-    holds its own copy, so it can be saved once with save_shared and memory-mapped by each
+    opened. A lazy footprint (lazy=True) only loads in save_shared, for a caller that needs
+    num_intensity_bins. Every process loading the hazard case holds its own copy, so it can be saved once with save_shared and memory-mapped by each
     process instead (shared_dir), in which case __enter__ maps it straight away. The event
     definition is bulk-loaded too when it is partitioned, giving indexed per-event lookups;
     when it is unpartitioned it is instead filtered to the event per get_event call.
@@ -663,12 +660,7 @@ class FootprintParquetDynamic(Footprint):
     """
     footprint_filenames: List[str] = [event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename]
 
-    # Partitions are opened one by one only when the portfolio needs at most this share of them.
-    # Opening one costs far more than one section of a read in one go (about 3 ms on local disk,
-    # 0.5 s on S3), while the read in one go costs about 1 s locally and 15 s on S3 per 20,000
-    # sections. Measured with 1,000 to 20,000 sections, one by one is faster below about 1/100 of
-    # them on local disk and 1/1000 on S3; between the two, locally, the read in one go costs at
-    # most about a second more.
+    # partitions are opened one by one when the portfolio needs at most this share of them
     partition_read_max_share = 1 / 1000
 
     def __init__(self, storage: BaseStorage, df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -684,8 +676,8 @@ class FootprintParquetDynamic(Footprint):
             shared_dir (str or None): directory written by save_shared. When it holds a complete save,
                 the hazard case and partitioned event definition are memory-mapped from it rather than
                 read from the model data.
-            lazy (bool): if True, __enter__ does not load the sections; save_shared or the first
-                get_event does. Then unusable model data is only refused by that first use.
+            lazy (bool): if True, __enter__ does not load the sections, save_shared does; get_event
+                is then not available.
 
         Raises:
             OasisFootPrintError: if section_merge is not a known option
@@ -737,42 +729,26 @@ class FootprintParquetDynamic(Footprint):
         self.confluence_areaperils = np.empty(0, np.uint64)
         self.event_set = set()
         self.shared_hazard = None
-        self.load_pending = False
 
         if self.shared_dir is not None and self._load_shared():
             return self
 
-        if self.lazy:
-            self.load_pending = True
-            self.get_event = self._load_and_get_event
-        else:
-            # here rather than on first use: the footprint server catches each request's error and
+        if not self.lazy:
+            # at open rather than on first use: the footprint server catches each request's error and
             # keeps serving, so model data refused by a get_event would not stop the run
             self._load()
         return self
 
-    def _load_and_get_event(self, event_id):
-        """A lazy footprint's first get_event call: load the portfolio's sections, then answer through the layout's path.
-
-        gulmc's structure build, the lazy caller, never calls get_event; this keeps a lazy footprint
-        correct for one that does.
-        """
-        self._load()
-        return self.get_event(event_id)
-
     def _load(self):
-        """Load the portfolio's sections from the model data and hand get_event to the layout's path.
+        """Load the portfolio's sections from the model data and set get_event to the layout's path.
 
-        get_event is only handed over once every load has succeeded, so a load that raises is
-        retried by the next call rather than leaving every later event silently empty. The hazard
-        case is not read when no event in the model data affects the portfolio.
+        The hazard case is not read when no event in the model data affects the portfolio.
         """
         partitions = self._section_partitions(event_defintion_filename)
         self.event_definition_partitioned = partitions is not None
         if not self.event_definition_partitioned or self._load_event_definitions(partitions):
             self._load_hazard_case(self._section_partitions(hazard_case_filename))
         self.get_event = self._get_event_partitioned if self.event_definition_partitioned else self._get_event_flat
-        self.load_pending = False
 
     def _report_absent_sections(self, filename, absent):
         reported = self.absent_sections_reported.setdefault(filename, set())
@@ -805,28 +781,13 @@ class FootprintParquetDynamic(Footprint):
             df_sections = self._read_partitions(filename, sorted(partitions.intersection(sections)), filters)
         else:
             section_filters = (filters or []) + [("section_id", "in", sections)]
-            reader_kwargs = self._partitioned_read_kwargs() if partitions is not None else {}
-            df_sections = self.get_df_reader(filename, filters=section_filters, **reader_kwargs).as_pandas()
+            df_sections = self.get_df_reader(filename, filters=section_filters, partitioning=SECTION_PARTITIONING).as_pandas()
         # one integer type whichever layout the file has, so the fillna and merge in
         # _build_footprint behave the same for partitioned and flat files
         df_sections['section_id'] = df_sections['section_id'].astype('int64')
         present = set() if df_sections.empty else set(df_sections['section_id'])
         self._report_absent_sections(filename, set(sections) - present)
         return df_sections
-
-    def _partitioned_read_kwargs(self):
-        """Reader arguments for reading a section-partitioned file in one go.
-
-        Left to itself, pandas infers the type of the section_id key from every section_id=N/ name,
-        which is most of the read on local disk (10 s of 11 s with 20,000 sections); giving the key
-        as an integer avoids it. Only the pandas reader is given the key: the pyarrow reader ignores
-        extra arguments and is fast without it, and the dask reader would hand it to dd.read_parquet
-        untested.
-        """
-        engine = clean_config(InputReaderConfig(filepath='', engine=self.df_engine))['engine']['path']
-        if issubclass(load_class(engine, OasisReader), OasisPandasReader):
-            return {'partitioning': SECTION_PARTITIONING}
-        return {}
 
     def _read_partitions(self, filename, sections, filters=None):
         """Read the section_id=N/ directories of a partitioned file.
@@ -910,7 +871,7 @@ class FootprintParquetDynamic(Footprint):
             the portfolio) or a column it uses is missing or not numeric, in which case each process reads
             the model data
         """
-        if self.load_pending:
+        if self.lazy:
             self._load()
         if self.df_hazard_case is None or (self.event_definition_partitioned and self.df_event_definition is None):
             return False
