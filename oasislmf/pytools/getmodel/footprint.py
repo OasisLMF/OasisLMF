@@ -13,10 +13,12 @@ import pandas as pd
 import numba as nb
 import pyarrow as pa
 import pyarrow.compute as pc
+import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 
+from oasis_data_manager.config import load_class
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
-from oasis_data_manager.df_reader.reader import OasisReader
+from oasis_data_manager.df_reader.reader import OasisPandasReader, OasisReader
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from .common import (
     FootprintHeader, EventIndexBin, EventIndexBinZ, Event,
@@ -36,6 +38,9 @@ from oasislmf.pytools.getmodel.dynamic_footprint import (
     LEVEL_SCALE, MERGE_MAX, MERGE_MAX_INDEPENDENT, MERGE_SUM, collapse, interpolate_brackets, is_sorted, merge_sections)
 
 logger = logging.getLogger(__name__)
+
+# the key of a hive dataset partitioned by section, section_id=N/
+SECTION_PARTITIONING = ds.partitioning(pa.schema([("section_id", pa.int64())]), flavor="hive")
 
 # files of a dynamic footprint's hazard saved for sharing between processes, see FootprintParquetDynamic.save_shared
 SHARED_MANIFEST = 'manifest.json'
@@ -655,10 +660,13 @@ class FootprintParquetDynamic(Footprint):
     """
     footprint_filenames: List[str] = [event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename]
 
-    # opening one partition costs several times what one section costs in a whole-dataset read
-    # (about 8x on local disk, more on remote storage), so partitions are only opened one by one
-    # when the portfolio needs at most this share of them
-    partition_read_max_share = 1 / 8
+    # Partitions are opened one by one only when the portfolio needs at most this share of them.
+    # Opening one costs far more than one section of a read in one go (about 3 ms on local disk,
+    # 0.5 s on S3), while the read in one go costs about 1 s locally and 15 s on S3 per 20,000
+    # sections. Measured with 1,000 to 20,000 sections, one by one is faster below about 1/100 of
+    # them on local disk and 1/1000 on S3; between the two, locally, the read in one go costs at
+    # most about a second more.
+    partition_read_max_share = 1 / 1000
 
     def __init__(self, storage: BaseStorage, df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
                  areaperil_ids=None, section_merge=None, shared_dir=None, lazy=False) -> None:
@@ -797,13 +805,28 @@ class FootprintParquetDynamic(Footprint):
             df_sections = self._read_partitions(filename, sorted(partitions.intersection(sections)), filters)
         else:
             section_filters = (filters or []) + [("section_id", "in", sections)]
-            df_sections = self.get_df_reader(filename, filters=section_filters).as_pandas()
+            reader_kwargs = self._partitioned_read_kwargs() if partitions is not None else {}
+            df_sections = self.get_df_reader(filename, filters=section_filters, **reader_kwargs).as_pandas()
         # one integer type whichever layout the file has, so the fillna and merge in
         # _build_footprint behave the same for partitioned and flat files
         df_sections['section_id'] = df_sections['section_id'].astype('int64')
         present = set() if df_sections.empty else set(df_sections['section_id'])
         self._report_absent_sections(filename, set(sections) - present)
         return df_sections
+
+    def _partitioned_read_kwargs(self):
+        """Reader arguments for reading a section-partitioned file in one go.
+
+        Left to itself, pandas infers the type of the section_id key from every section_id=N/ name,
+        which is most of the read on local disk (10 s of 11 s with 20,000 sections); giving the key
+        as an integer avoids it. Only the pandas reader is given the key: the pyarrow reader ignores
+        extra arguments and is fast without it, and the dask reader would hand it to dd.read_parquet
+        untested.
+        """
+        engine = clean_config(InputReaderConfig(filepath='', engine=self.df_engine))['engine']['path']
+        if issubclass(load_class(engine, OasisReader), OasisPandasReader):
+            return {'partitioning': SECTION_PARTITIONING}
+        return {}
 
     def _read_partitions(self, filename, sections, filters=None):
         """Read the section_id=N/ directories of a partitioned file.

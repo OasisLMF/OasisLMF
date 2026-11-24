@@ -196,6 +196,7 @@ def test_partitioned_files_read_only_the_portfolio_sections(tmp_path, monkeypatc
     which takes minutes on a large model even when the portfolio needs only a few sections.
     """
     storage, run_dir = build_many_section_model(tmp_path, num_sections=16, sections=[1, 99])
+    monkeypatch.setattr(FootprintParquetDynamic, 'partition_read_max_share', 1 / 8)  # a few sections of a small model
     reads = record_reads(monkeypatch)
 
     with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
@@ -209,6 +210,7 @@ def test_partitioned_files_read_only_the_portfolio_sections(tmp_path, monkeypatc
 def test_portfolio_needing_most_sections_reads_each_file_once(tmp_path, monkeypatch, df_engine):
     """Past a small share of the sections, one filtered read beats opening every partition in turn."""
     storage, run_dir = build_many_section_model(tmp_path, num_sections=16, sections=list(range(1, 13)))
+    monkeypatch.setattr(FootprintParquetDynamic, 'partition_read_max_share', 1 / 8)  # as above: 12 is past it
     reads = record_reads(monkeypatch)
 
     with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
