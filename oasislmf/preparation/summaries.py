@@ -430,7 +430,7 @@ def get_ri_inuring_priority_output_levels(run_dir):
         run_dir (str): Directory containing ``ri_inuring_priority_output_levels.json``
 
     Returns:
-        dict: mapping ``{output_level: inuring_priority}`` with integer keys/values
+        dict: mapping ``{inuring_priority: output_level}`` with integer keys/values
     """
     raw = get_json(src_fp=os.path.join(run_dir, 'ri_inuring_priority_output_levels.json'))
     return {int(k): int(v) for k, v in raw.items()}
