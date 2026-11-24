@@ -10,6 +10,7 @@ import pytest
 
 from oasislmf.lookup.builtin import (
     Lookup,
+    geotiff_value_dtype,
     PerilCoveredDeterministicLookup,
     create_lat_lon_id_functions,
     get_step,
@@ -493,6 +494,32 @@ def test_build_geotiff_assigns_the_pixel_containing_each_location(tmp_path, lon,
     result = geotiff_lookup(pd.DataFrame({"longitude": [lon], "latitude": [lat]}))
 
     assert result["value"].tolist() == [expected]
+
+
+@pytest.mark.parametrize("band_dtypes, defaults, expected", [
+    (["uint8"], [0], "uint8"),           # fits: dtype unchanged
+    (["int16"], [0.0], "int16"),         # integral float fits an integer band
+    (["uint8"], [-1], "int16"),          # negative default on an unsigned band
+    (["int16"], [np.nan], "float32"),    # NaN default on an integer band
+    (["int16"], [1.5], "float32"),       # fractional default on an integer band
+    (["uint8"], [1000], "uint16"),       # default above the band's range
+    (["float32"], [np.nan], "float32"),  # NaN already fits a float band
+    (["uint8", "int16"], [0, 0], "int16"),
+])
+def test_geotiff_value_dtype(band_dtypes, defaults, expected):
+    assert geotiff_value_dtype(band_dtypes, defaults) == np.dtype(expected)
+
+
+def test_build_geotiff_default_outside_band_dtype_widens_column(tmp_path):
+    """A -1 default on a uint8 band used to raise OverflowError; the column now widens to hold it."""
+    data = np.array([[[7, 255]]], dtype="uint8")
+    path = _write_geotiff(tmp_path / "uint8.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0))
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5, 5.0], "latitude": [0.5, 0.5, 0.5]}))
+
+    assert result["value"].dtype == np.dtype("int16")
+    assert result["value"].tolist() == [7, 255, -1]
 
 
 def test_build_geotiff_accepts_nullable_coordinates(tmp_path):

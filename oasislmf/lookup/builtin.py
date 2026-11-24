@@ -123,6 +123,32 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 GEOTIFF_READ_BUDGET_BYTES = 256 * 1024 ** 2
 
 
+def geotiff_value_dtype(band_dtypes, defaults):
+    """Dtype holding every requested band's values and every default exactly.
+
+    The bands' common dtype is widened only for a default it cannot hold, such as -1 for a uint8 band (int16) or
+    NaN for an integer band (a float dtype), so defaults that fit leave the output dtype as it was.
+
+    Args:
+        band_dtypes (list): dtypes of the requested bands
+        defaults (list): default value of each requested band
+
+    Returns:
+        np.dtype: dtype for the lookup's output columns
+    """
+    dtype = np.result_type(*band_dtypes)
+    for default in defaults:
+        try:
+            with np.errstate(invalid='ignore', over='ignore'):
+                cast = np.array(default).astype(dtype)
+            fits = bool(cast == default) or bool(np.isnan(cast) and np.isnan(default))
+        except (OverflowError, TypeError, ValueError):
+            fits = False
+        if not fits:
+            dtype = np.result_type(dtype, np.min_scalar_type(default))
+    return dtype
+
+
 def geotiff_pixel_index(inv_transform, lon, lat, height, width):
     """Find the raster pixel containing each location.
 
@@ -1020,7 +1046,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             band_info: a dict where keys are assigned column name, and values are dicts with
                 id is the id of the band in the tiff file (starting at 1)
                 default is the value for nodata pixels and for locations outside of the raster or with missing
-                coordinates
+                coordinates; a default the band's dtype cannot hold (e.g. -1 for uint8, NaN for an integer band)
+                widens the column's dtype
         Returns:
             function to assign band value to each corresponding lat lon
         """
@@ -1039,7 +1066,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if not 1 <= info['id'] <= band_count:
                 raise OasisException(f"band {col_name}, {info} has id outside of [1-{band_count}]")
             band_ids.append(info['id'])
-        dtype = np.result_type(*[band_dtypes[band_id - 1] for band_id in band_ids])
+        dtype = geotiff_value_dtype([band_dtypes[band_id - 1] for band_id in band_ids],
+                                    [info['default'] for info in band_info.values()])
         defaults = np.array([info['default'] for info in band_info.values()], dtype=dtype)
 
         def geotiff_lookup(locations):
