@@ -114,19 +114,6 @@ def open_footprint(storage, run_dir, areaperil_ids=None,
             yield footprint
 
 
-def record_reads(monkeypatch):
-    """Record the path of every parquet read the footprint makes."""
-    reads = []
-    original_get_df_reader = FootprintParquetDynamic.get_df_reader
-
-    def recording_get_df_reader(self, filepath, **kwargs):
-        reads.append(filepath)
-        return original_get_df_reader(self, filepath, **kwargs)
-
-    monkeypatch.setattr(FootprintParquetDynamic, 'get_df_reader', recording_get_df_reader)
-    return reads
-
-
 def areaperils_of(event_footprint):
     return set() if event_footprint is None else set(event_footprint['areaperil_id'])
 
@@ -158,8 +145,7 @@ def test_every_partitioning_layout_builds_the_same_footprint(tmp_path, df_engine
 
 @pytest.mark.parametrize('partition_event_definition', [True, False])
 @pytest.mark.parametrize('partition_hazard_case', [True, False])
-def test_hazard_case_is_read_once_per_run(tmp_path, monkeypatch, partition_event_definition,
-                                          partition_hazard_case):
+def test_hazard_case_is_read_once_per_run(tmp_path, footprint_reads, partition_event_definition, partition_hazard_case):
     """The hazard case does not depend on the event, so no layout may re-read it per event.
 
     Re-reading it per call would cost a read of every portfolio section each time, which
@@ -167,13 +153,12 @@ def test_hazard_case_is_read_once_per_run(tmp_path, monkeypatch, partition_event
     """
     storage, run_dir = build_model(tmp_path, partition_event_definition=partition_event_definition,
                                    partition_hazard_case=partition_hazard_case)
-    reads = record_reads(monkeypatch)
 
     with open_footprint(storage, run_dir) as footprint:
         for event_id in (1, 2, 3, 1, 2, 3):
             footprint.get_event(event_id)
 
-    hazard_reads = [path for path in reads if path.split('/')[0] == hazard_case_filename]
+    hazard_reads = [path for path in footprint_reads if path.split('/')[0] == hazard_case_filename]
     assert hazard_reads
     assert len(hazard_reads) == len(set(hazard_reads))
 
@@ -189,7 +174,7 @@ def build_many_section_model(tmp_path, num_sections, sections):
 
 
 @pytest.mark.parametrize('df_engine', DF_ENGINES)
-def test_partitioned_files_read_only_the_portfolio_sections(tmp_path, monkeypatch, df_engine):
+def test_partitioned_files_read_only_the_portfolio_sections(tmp_path, footprint_reads, monkeypatch, df_engine):
     """A portfolio needing few of a partitioned file's sections reads only their section_id=N/ directories.
 
     Discovering the whole dataset lists every section of the model before any filter applies,
@@ -197,26 +182,24 @@ def test_partitioned_files_read_only_the_portfolio_sections(tmp_path, monkeypatc
     """
     storage, run_dir = build_many_section_model(tmp_path, num_sections=16, sections=[1, 99])
     monkeypatch.setattr(FootprintParquetDynamic, 'partition_read_max_share', 1 / 8)  # a few sections of a small model
-    reads = record_reads(monkeypatch)
 
     with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
         assert areaperils_of(footprint.get_event(1)) == {1001}
         assert footprint.get_event(2) is None
 
-    assert sorted(reads) == [f'{event_defintion_filename}/section_id=1', f'{hazard_case_filename}/section_id=1']
+    assert sorted(footprint_reads) == [f'{event_defintion_filename}/section_id=1', f'{hazard_case_filename}/section_id=1']
 
 
 @pytest.mark.parametrize('df_engine', DF_ENGINES)
-def test_portfolio_needing_most_sections_reads_each_file_once(tmp_path, monkeypatch, df_engine):
+def test_portfolio_needing_most_sections_reads_each_file_once(tmp_path, footprint_reads, monkeypatch, df_engine):
     """Past a small share of the sections, one filtered read beats opening every partition in turn."""
     storage, run_dir = build_many_section_model(tmp_path, num_sections=16, sections=list(range(1, 13)))
     monkeypatch.setattr(FootprintParquetDynamic, 'partition_read_max_share', 1 / 8)  # as above: 12 is past it
-    reads = record_reads(monkeypatch)
 
     with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
         assert areaperils_of(footprint.get_event(1)) == {1000 + section for section in range(1, 13)}
 
-    assert sorted(reads) == [event_defintion_filename, hazard_case_filename]
+    assert sorted(footprint_reads) == [event_defintion_filename, hazard_case_filename]
 
 
 @pytest.mark.parametrize('partition_event_definition', [True, False])
@@ -243,31 +226,29 @@ def test_failed_first_load_is_retried_not_silent(tmp_path, monkeypatch, partitio
         assert intensity_by_areaperil(footprint.get_event(1)) == {100: 6, 101: 8, 200: 4}
 
 
-def test_opening_a_lazy_footprint_reads_no_section_data(tmp_path, monkeypatch):
+def test_opening_a_lazy_footprint_reads_no_section_data(tmp_path, footprint_reads):
     """gulmc's structure build opens the footprint just for num_intensity_bins, so lazily."""
     storage, run_dir = build_model(tmp_path)
-    reads = record_reads(monkeypatch)
 
     with open_footprint(storage, run_dir, lazy=True) as footprint:
         assert footprint.num_intensity_bins == 10
-        assert reads == []
+        assert footprint_reads == []
         footprint.get_event(1)
-        assert reads
+        assert footprint_reads
 
 
-def test_opening_the_footprint_loads_its_sections(tmp_path, monkeypatch):
+def test_opening_the_footprint_loads_its_sections(tmp_path, footprint_reads):
     """By default the sections load when the footprint is opened, so unusable model data is refused there.
 
     The footprint server catches each request's error and keeps serving: data refused only by a
     get_event would leave its client waiting, or with an empty footprint, rather than stop the run.
     """
     storage, run_dir = build_model(tmp_path)
-    reads = record_reads(monkeypatch)
 
     with open_footprint(storage, run_dir) as footprint:
-        assert sorted(reads) == [event_defintion_filename, hazard_case_filename]
+        assert sorted(footprint_reads) == [event_defintion_filename, hazard_case_filename]
         footprint.get_event(1)
-        assert sorted(reads) == [event_defintion_filename, hazard_case_filename]
+        assert sorted(footprint_reads) == [event_defintion_filename, hazard_case_filename]
 
 
 # ---------------------------------------------------------------------------

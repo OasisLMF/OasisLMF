@@ -737,11 +737,13 @@ class FootprintParquetDynamic(Footprint):
         self.confluence_areaperils = np.empty(0, np.uint64)
         self.event_set = set()
         self.shared_hazard = None
+        self.load_pending = False
 
         if self.shared_dir is not None and self._load_shared():
             return self
 
         if self.lazy:
+            self.load_pending = True
             self.get_event = self._load_and_get_event
         else:
             # here rather than on first use: the footprint server catches each request's error and
@@ -762,20 +764,15 @@ class FootprintParquetDynamic(Footprint):
         """Load the portfolio's sections from the model data and hand get_event to the layout's path.
 
         get_event is only handed over once every load has succeeded, so a load that raises is
-        retried by the next call rather than leaving every later event silently empty.
+        retried by the next call rather than leaving every later event silently empty. The hazard
+        case is not read when no event in the model data affects the portfolio.
         """
-        event_definition_partitions = self._section_partitions(event_defintion_filename)
-        self.event_definition_partitioned = event_definition_partitions is not None
-        if event_definition_partitions is None:
-            get_event = self._get_event_flat
-        else:
-            get_event = self._get_event_partitioned
-            if not self._load_event_definitions(event_definition_partitions):
-                self.get_event = get_event
-                return
-
-        self._load_hazard_case(self._section_partitions(hazard_case_filename))
-        self.get_event = get_event
+        partitions = self._section_partitions(event_defintion_filename)
+        self.event_definition_partitioned = partitions is not None
+        if not self.event_definition_partitioned or self._load_event_definitions(partitions):
+            self._load_hazard_case(self._section_partitions(hazard_case_filename))
+        self.get_event = self._get_event_partitioned if self.event_definition_partitioned else self._get_event_flat
+        self.load_pending = False
 
     def _report_absent_sections(self, filename, absent):
         reported = self.absent_sections_reported.setdefault(filename, set())
@@ -913,7 +910,7 @@ class FootprintParquetDynamic(Footprint):
             the portfolio) or a column it uses is missing or not numeric, in which case each process reads
             the model data
         """
-        if self.get_event == self._load_and_get_event:
+        if self.load_pending:
             self._load()
         if self.df_hazard_case is None or (self.event_definition_partitioned and self.df_event_definition is None):
             return False

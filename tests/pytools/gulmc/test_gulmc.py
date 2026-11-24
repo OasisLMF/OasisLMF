@@ -14,7 +14,7 @@ import pytest
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import FootprintHeader
-from oasislmf.pytools.getmodel.footprint import SHARED_MANIFEST, Footprint, FootprintParquetDynamic
+from oasislmf.pytools.getmodel.footprint import SHARED_MANIFEST, Footprint
 from oasislmf.pytools.gulmc.items import get_dynamic_footprint_adjustments
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 from oasislmf.pytools.gulmc.structure import create_gulmc_structure, dynamic_footprint_path
@@ -620,7 +620,7 @@ def test_dynamic_footprint_structures_build_from_a_relative_run_directory(tmp_pa
     assert len(structures['vuln_array'])
 
 
-def test_dynamic_footprint_structures_load_no_sections_unless_saved(tmp_path, monkeypatch):
+def test_dynamic_footprint_structures_load_no_sections_unless_saved(tmp_path, footprint_reads):
     """A gulmc process building its own structures loads the footprint's sections once, to run.
 
     The structure build only needs num_intensity_bins from the footprint; it loads the sections
@@ -629,16 +629,8 @@ def test_dynamic_footprint_structures_load_no_sections_unless_saved(tmp_path, mo
     from oasislmf.pytools.gulmc.structure import build_structures
 
     make_dynamic_test_model(tmp_path / 'run')
-    reads = []
-    original_get_df_reader = FootprintParquetDynamic.get_df_reader
-
-    def recording_get_df_reader(self, filepath, **kwargs):
-        reads.append(filepath)
-        return original_get_df_reader(self, filepath, **kwargs)
-
-    monkeypatch.setattr(FootprintParquetDynamic, 'get_df_reader', recording_get_df_reader)
     build_structures(str(tmp_path / 'run'), set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
-    assert reads == []
+    assert footprint_reads == []
 
     create_gulmc_structure(str(tmp_path / 'run'), set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
-    assert reads
+    assert footprint_reads
