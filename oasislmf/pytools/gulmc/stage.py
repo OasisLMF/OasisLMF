@@ -23,10 +23,12 @@ from oasislmf.pytools.gul.common import NUM_IDX
 from oasislmf.pytools.gul.core import HERMITE_TERMS
 from oasislmf.pytools.gul.random import get_random_generator
 from oasislmf.pytools.gulmc import manager as gulmc_manager
-from oasislmf.pytools.gulmc.common import (NormInversionParameters,
+from oasislmf.pytools.gulmc.common import (NP_BASE_ARRAY_SIZE,
+                                           NormInversionParameters,
                                            gulSampleslevelHeader_size,
                                            gulSampleslevelRec_size,
-                                           gulmc_compute_info_type)
+                                           gulmc_compute_info_type,
+                                           items_MC_data_type)
 from oasislmf.pytools.gulmc.structure import (gulmc_structure_exists, load_gulmc_structure, build_structures,
                                               dynamic_footprint_path)
 
@@ -147,6 +149,9 @@ class GulmcStage:
         items = structures['items']
         # coverages needs a writable copy: reconstruct_coverages writes cur_items / start_items per event
         coverages = structures['coverages'].copy()
+        # per-event coverage state starts at zero; reconstruct_coverages then only resets the
+        # coverages touched by the previous event
+        coverages['cur_items'].fill(0)
         item_map_ja_areaperil_ids = structures['item_map_ja_areaperil_ids']
         self.item_map_ja_offsets = structures['item_map_ja_offsets']
         self.item_map_ja_vuln_ja_offsets = structures['item_map_ja_vuln_ja_offsets']
@@ -277,9 +282,11 @@ class GulmcStage:
         self.generate_rndm = get_random_generator(random_generator)
         self.haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         self.vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
-        # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts)
-        self.group_seq_rng_index = np.empty(n_unique_groups, dtype=np.int64)
-        self.hazard_group_seq_rng_index = np.empty(n_unique_haz_groups, dtype=np.int64)
+        # Pre-allocated arrays for group_id -> rng_index mapping. Initialised once; reconstruct_coverages
+        # restores the entries it used, so they are never reset in full (their size is that of the
+        # portfolio, not of the event).
+        self.group_seq_rng_index = np.full(n_unique_groups, gulmc_manager.NO_RNG_INDEX, dtype=np.int64)
+        self.hazard_group_seq_rng_index = np.full(n_unique_haz_groups, gulmc_manager.NO_RNG_INDEX, dtype=np.int64)
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
             do_haz_correlation = True
             haz_peril_correlation_groups = unique_peril_correlation_groups
@@ -411,6 +418,9 @@ class GulmcStage:
         self.fp_ap_inds = np.empty(n_max_areaperils, dtype=np.uint32)
         self.fp_event_rps = np.empty(n_max_areaperils, dtype=np.int32)
         self.fp_haz_arr_ptr = np.empty(n_max_areaperils + 1, dtype=np.int64)
+        # per-item event data, kept across events: reconstruct_coverages only grows it, and every
+        # field it reads back is written for the event first
+        self.items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
         # Pre-allocate CDF cache once (reused across events, no need to zero)
         self.cached_vuln_cdfs = np.empty((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
@@ -477,7 +487,7 @@ class GulmcStage:
             logger.info(f"event {event_id} SKIPPED - no items")
             return False
 
-        items_event_data, rng_index, hazard_rng_index, self.byte_mv = gulmc_manager.reconstruct_coverages(
+        self.items_event_data, rng_index, hazard_rng_index, self.byte_mv = gulmc_manager.reconstruct_coverages(
             compute_info,
             self.fp_ap_inds,
             Nhaz_arr_this_event,
@@ -498,6 +508,7 @@ class GulmcStage:
             self.damage_corr_seeds,
             self.dynamic_footprint,
             self.byte_mv,
+            self.items_event_data,
             self.group_seq_rng_index,
             self.hazard_group_seq_rng_index,
             self.coverage_source_id,
@@ -526,9 +537,11 @@ class GulmcStage:
                 self.haz_eps_ij = self.generate_rndm(self.haz_corr_seeds, sample_size, skip_seeds=1)
             self.damage_eps_ij = self.generate_rndm(self.damage_corr_seeds, sample_size, skip_seeds=1)
 
-        # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
-        self.cdf_cache_tag[:] = gulmc_manager.CDF_CACHE_EMPTY
-        compute_info['cdf_cache_ctr'] = 0
+        # Invalidate the CDF cache for the new event without touching cdf_cache_tag, whose size
+        # is the number of CDF groups of the portfolio: a cached entry is valid only while
+        # cdf_cache_ctr - tag < cdf_cache_size, so advancing the counter by the cache size
+        # invalidates every tag written for previous events.
+        compute_info['cdf_cache_ctr'] += self.cdf_cache_mask + 1
 
         processing_done = False
         logger.info(f"event {event_id} STARTED")
@@ -539,7 +552,7 @@ class GulmcStage:
                     compute_info,
                     self.coverages,
                     self.compute,
-                    items_event_data,
+                    self.items_event_data,
                     self.items,
                     sample_size,
                     haz_pdf,

@@ -25,6 +25,8 @@ event based intermediary data structure::
     loss_summary : 2D array of losses for each summary
                    loss_summary[loss_index[summary_set_index], sidx] = loss
     is_risk_affected : array to store in if a risk has already been affected or not in this event
+    affected_risks : risks_i set in is_risk_affected during the event (the first affected_risks_n[0] entries),
+                     so that only those are reset at the end of the event
 """
 import json
 import logging
@@ -202,7 +204,7 @@ def extract_risk_info(len_item_id, summary_map):
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                 loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-                item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk):
+                item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk, affected_risks, affected_risks_n):
     """Read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
     # A summary is per item, so a packed item's buildings share a bucket: decode onto the sample the
@@ -260,6 +262,8 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 else:
                     is_risk_affected[risk_i] = 1
                     new_risk = risk_count
+                    affected_risks[affected_risks_n[0]] = risk_i
+                    affected_risks_n[0] += 1
             else:
                 risk_count = 1
 
@@ -284,6 +288,30 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
     # Buffer exhausted; caller may re-enter to accumulate more sidx_loss for this event.
     # SummaryReader.finalize_event handles the per-event sort once, just before yield.
     return cursor, event_id, item_id, 0
+
+
+@nb.njit(cache=True)
+def reset_event(summary_set_indices, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end,
+                present_summary_id, loss_summary, is_risk_affected, affected_risks, affected_risks_n):
+    """Reset the per-event state for the next event, touching only the entries the event used.
+
+    Zeroes the loss_summary rows of the summary ids present in the event (for each requested set) and
+    clears the risks it affected. present_summary_id needs no clearing: only [start, end) is ever read,
+    and read_buffer rewrites it from start once the end pointer is reset.
+
+    Relies on read_buffer listing every loss_summary row it touches in present_summary_id, which it does
+    on the row's first touch in the event (its NUMBER_OF_AFFECTED_RISK_IDX column is still 0). Call once
+    per event, after every requested set is written: mv_write_event and fill_event_rows return early when
+    the buffer fills and skip zero rows, so the reset cannot live in them.
+    """
+    for summary_set_index in summary_set_indices:
+        start = summary_set_index_to_loss_ptr[summary_set_index]
+        for present_i in range(start, summary_set_index_to_present_loss_ptr_end[summary_set_index]):
+            loss_summary[start + present_summary_id[present_i] - 1, :] = 0
+        summary_set_index_to_present_loss_ptr_end[summary_set_index] = start
+    for risk_j in range(affected_risks_n[0]):
+        is_risk_affected[affected_risks[risk_j]] = 0
+    affected_risks_n[0] = 0
 
 
 @nb.njit(cache=True)
@@ -434,7 +462,7 @@ class SummaryReader(EventReader):
 
     def __init__(self, summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                  loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-                 item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk):
+                 item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk, affected_risks, affected_risks_n):
         self.summary_set_indices = summary_set_indices
         self.summary_set_index_to_loss_ptr = summary_set_index_to_loss_ptr
         self.item_id_to_summary_id = item_id_to_summary_id
@@ -446,6 +474,8 @@ class SummaryReader(EventReader):
         self.risk_i_to_n_buildings = risk_i_to_n_buildings
         self.is_risk_affected = is_risk_affected
         self.has_affected_risk = has_affected_risk
+        self.affected_risks = affected_risks
+        self.affected_risks_n = affected_risks_n
         self.logger = logger
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
@@ -453,7 +483,8 @@ class SummaryReader(EventReader):
             byte_mv, cursor, valid_buff, event_id, item_id,
             self.summary_set_indices, self.summary_set_index_to_loss_ptr, self.item_id_to_summary_id,
             self.loss_index, self.loss_summary, self.present_summary_id, self.summary_set_index_to_present_loss_ptr_end,
-            self.item_id_to_risks_i, self.risk_i_to_n_buildings, self.is_risk_affected, self.has_affected_risk
+            self.item_id_to_risks_i, self.risk_i_to_n_buildings, self.is_risk_affected, self.has_affected_risk,
+            self.affected_risks, self.affected_risks_n
         )
 
     def finalize_event(self, **kwargs):
@@ -461,7 +492,7 @@ class SummaryReader(EventReader):
         for summary_set_index in self.summary_set_indices:
             start = self.summary_set_index_to_loss_ptr[summary_set_index]
             end = self.summary_set_index_to_present_loss_ptr_end[summary_set_index]
-            self.present_summary_id[start:end] = np.sort(self.present_summary_id[start:end])
+            self.present_summary_id[start:end].sort()  # in place: the slice is a view
 
 
 def get_summary_set_id_to_summary_set_index(summary_sets_id):
@@ -559,11 +590,14 @@ class SummaryStage:
         self.summary_set_index_to_present_loss_ptr_end = np.array(summary_set_index_to_loss_ptr)
         self.loss_summary = np.zeros((summary_set_index_to_loss_ptr[-1], len_sample + SPECIAL_SIDX_COUNT), dtype=oasis_float)
         self.is_risk_affected = np.zeros(summary_info[0]['nb_risk'], dtype=oasis_int)
+        self.affected_risks = np.empty(summary_info[0]['nb_risk'], dtype=oasis_int)
+        self.affected_risks_n = np.zeros(1, dtype=np.int64)
 
         self.reader = SummaryReader(
             self.summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
             loss_index, self.loss_summary, self.present_summary_id, self.summary_set_index_to_present_loss_ptr_end,
-            item_id_to_risks_i, risk_i_to_n_buildings, self.is_risk_affected, self.has_affected_risk)
+            item_id_to_risks_i, risk_i_to_n_buildings, self.is_risk_affected, self.has_affected_risk,
+            self.affected_risks, self.affected_risks_n)
         """SummaryReader: the reader loading events into the aggregation arrays."""
 
         self.out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
@@ -680,11 +714,17 @@ class SummaryStage:
                 writer.flush()
 
     def _clear_event(self):
-        """Clear what the event just written loaded into the aggregation arrays."""
+        """Clear what the event just written loaded into the aggregation arrays, touching only the entries it used."""
+        reset_event(self.summary_set_indices, self.summary_set_index_to_loss_ptr, self.summary_set_index_to_present_loss_ptr_end,
+                    self.present_summary_id, self.loss_summary, self.is_risk_affected, self.affected_risks, self.affected_risks_n)
+
+    def _clear_all(self):
+        """Clear the aggregation arrays in full."""
         self.loss_summary.fill(0)
         self.present_summary_id.fill(0)
         self.summary_set_index_to_present_loss_ptr_end[:] = self.summary_set_index_to_loss_ptr
         self.is_risk_affected.fill(0)
+        self.affected_risks_n[0] = 0
 
     def reset(self):
         """Make the stage behave as a freshly built one for the events that follow.
@@ -695,7 +735,7 @@ class SummaryStage:
         self.summary_sets_cursor.fill(0)
         for summary_set_id, summary_set_index in zip(self.summary_set_ids, self.summary_set_indices):
             self.summary_sets_cursor[summary_set_index] = len(self.headers[summary_set_id])
-        self._clear_event()
+        self._clear_all()
         self.event_id = None
 
     def close(self):

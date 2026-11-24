@@ -23,7 +23,8 @@ from oasislmf.pytools.elt.data import SELT_dtype, SELT_fmt, SELT_headers, VALID_
 from oasislmf.pytools.summary.stage import (SPECIAL_SIDX_COUNT, SUMMARY_HEADER_SIZE, SUMMARY_META_SIZE, SIDX_LOSS_WRITE_SIZE,  # noqa: F401
                                             SUPPORTED_RUN_TYPE, SummaryReader, SummaryStage, get_summary_object, load_summary_object,
                                             load_summary_map, read_summary_objects, extract_risk_info, read_buffer, mv_write_event,
-                                            fill_event_rows, get_summary_set_id_to_summary_set_index, get_summary_xref_info)
+                                            fill_event_rows, get_summary_set_id_to_summary_set_index, get_summary_xref_info,
+                                            reset_event)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
