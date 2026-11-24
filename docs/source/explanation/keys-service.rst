@@ -292,6 +292,21 @@ class otherwise this will try and run and the ``build_simple_add`` function will
 that we have signposted our ``["example"]`` column name in the ``"columns"`` field. This is to ensure that our ``example`` 
 field is not wiped at the end of the process.
 
+Every column listed in a step's ``"columns"`` is required: the lookup fails with ``missing columns ... for step ...`` if
+the location file doesn't have it. For a column that is optional in OED (``Latitude``/``Longitude``, for example), list
+it in ``"optional_columns"`` instead. It is kept if present, and a missing one doesn't fail the step, so the step must
+cope with it being absent (for instance a ``prepare`` step giving it a ``default``):
+
+.. code-block:: JSON
+
+   "coordinates": {
+       "type": "prepare",
+       "optional_columns": ["latitude", "longitude"],
+       "parameters": {"latitude": {"default": null}, "longitude": {"default": null}}
+   }
+
+A ``geog_lookup`` step treats the ``GeogScheme{N}``/``GeogName{N}`` slots it scans as optional automatically.
+
 |
 
 .. _built_in_functions_keys:

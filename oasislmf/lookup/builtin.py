@@ -312,6 +312,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     - **columns**: the columns required to apply the step. These matter because any column
       (except ``loc_id``) from the original Locations DataFrame that is not used by any step is
       dropped to reduce memory consumption.
+    - **optional_columns**: columns the step uses if the location file has them. They are kept
+      like ``columns`` but a missing one doesn't fail the step (e.g. ``latitude``/``longitude``,
+      which are optional in OED). The step must cope with them being absent.
     - **parameters**: the parameters passed to the function factory.
 
     Once all the functions have been defined, the order in which they are applied is set in the
@@ -408,7 +411,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
-        useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))
+        useful_cols = set(['loc_id'])
+        for step_config in self.config['step_definition'].values():
+            useful_cols.update(step_config.get("columns", []))
+        # an optional column already named by some step's 'columns' keeps that spelling
+        known_lower = {col.lower() for col in useful_cols}
+        for step_config in self.config['step_definition'].values():
+            for col in self.step_optional_columns(step_config):
+                if col.lower() not in known_lower:
+                    useful_cols.add(col)
+                    known_lower.add(col.lower())
 
         useful_cols_map = {lower_case_column_map[useful_col.lower()]: useful_col
                            for useful_col in useful_cols
@@ -460,6 +472,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             success_locations = success_locations.loc[~unknown_ids]
 
         return locations
+
+    @staticmethod
+    def step_optional_columns(step_config):
+        """Columns a step uses if the location file has them, without requiring them.
+
+        These are kept through the column filter in ``process_locations`` but, unlike ``columns``,
+        a missing one doesn't fail the step. They are the step's ``optional_columns`` plus, for a
+        ``geog_lookup`` step, the ``GeogScheme{N}``/``GeogName{N}`` slots it scans.
+        """
+        optional_columns = step_config.get("optional_columns", [])
+        if isinstance(optional_columns, str):
+            optional_columns = [optional_columns]
+        optional_columns = list(optional_columns)
+        if step_config.get("type") == "geog_lookup":
+            slots = step_config.get("parameters", {}).get("slots", 30)
+            for n in range(1, slots + 1):
+                optional_columns += [f"geogscheme{n}", f"geogname{n}"]
+        return optional_columns
 
     def to_abs_filepath(self, filepath):
         """Replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
@@ -1250,9 +1280,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         The lowest-numbered matching slot wins. Rows with no matching scheme get a null in
         ``output_column`` (``on_missing='null'``) or raise (``on_missing='error'``).
 
-        Note: the ``GeogScheme{N}``/``GeogName{N}`` columns to consult must be listed in this
-        step's ``columns``, otherwise they are dropped before the step runs (see
-        ``process_locations``).
+        The ``GeogScheme{N}``/``GeogName{N}`` columns for ``N`` in ``1..slots`` are kept
+        automatically and are optional, so they don't need to be listed in the step's
+        ``columns``. Listing one there makes it required.
 
         Args:
             geog_scheme (str): the OED GeogScheme value to resolve (e.g. ``"W3W"``).
