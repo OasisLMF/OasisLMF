@@ -631,6 +631,10 @@ def test_geotiff_read_plan_splits_a_block_larger_than_the_budget():
     assert [window for window, _ in reads] == [(0, 0, 1, 10), (0, 60, 1, 4)]
 
 
+def test_geotiff_read_plan_without_locations_reads_nothing():
+    assert _plan_reads(rows=[], cols=[]) == []
+
+
 def test_geotiff_read_plan_clips_edge_blocks_to_the_raster():
     reads = _plan_reads(rows=[59], cols=[59], height=60, width=60)
     assert reads == [((48, 48, 12, 12), [(59, 59)])]
