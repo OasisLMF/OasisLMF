@@ -12,10 +12,12 @@ from oasislmf.lookup.builtin import (
     create_lat_lon_id_functions,
     get_step,
     jit_geo_grid_lookup,
+    load_sorted_lookup,
     normal_to_z_index,
     undo_z_index,
     z_index,
     z_index_to_normal,
+    write_sorted_lookup,
 )
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import (
@@ -767,3 +769,101 @@ def test_combine_and_raises_when_child_columns_are_missing():
     locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no AutoCode
     with pytest.raises(OasisException, match="by_autocode"):
         AutoLookup(config=config).process_locations(locations)
+
+
+# --- sorted_lookup (#2284 item 6) ---------------------------------------------
+
+@pytest.fixture
+def cell_table():
+    # deliberately unsorted, with a key beyond 2**53 to check integer keys stay exact
+    return pd.DataFrame({
+        "cell_id": np.array([30, 10, 2**60 + 1, 20], dtype="int64"),
+        "area_peril_id": np.array([3, 1, 9, 2], dtype="int32"),
+        "weight": [0.3, 0.1, 0.9, 0.2],
+    })
+
+
+def test_write_sorted_lookup_writes_sorted_arrays(cell_table, tmp_path):
+    out = write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id")
+    keys, values, key_column = load_sorted_lookup(str(out))
+    assert key_column == "cell_id"
+    assert isinstance(keys, np.memmap)
+    assert keys.tolist() == [10, 20, 30, 2**60 + 1]
+    assert values["area_peril_id"].tolist() == [1, 2, 3, 9]
+    assert values["weight"].tolist() == [0.1, 0.2, 0.3, 0.9]
+
+
+@pytest.mark.parametrize("file_type", ["csv", "parquet"])
+def test_write_sorted_lookup_from_file(cell_table, tmp_path, file_type):
+    path = tmp_path / f"table.{file_type}"
+    getattr(cell_table, f"to_{file_type}")(path, index=False)
+    out = write_sorted_lookup(str(path), tmp_path / "cells", key_column="cell_id", value_columns=["area_peril_id"])
+    _, values, _ = load_sorted_lookup(str(out))
+    assert list(values) == ["area_peril_id"]
+
+
+@pytest.mark.parametrize("table, match", [
+    (pd.DataFrame({"cell_id": [1, 1], "v": [1, 2]}), "duplicated"),
+    (pd.DataFrame({"cell_id": [1.0, None], "v": [1, 2]}), "integers with no nulls"),
+    (pd.DataFrame({"cell_id": [1, 2], "v": ["a", "b"]}), "must be numeric"),
+    (pd.DataFrame({"cell_id": [1, 2], "v": [1.0, None]}), "has nulls"),
+])
+def test_write_sorted_lookup_rejects_bad_tables(table, match, tmp_path):
+    with pytest.raises(OasisException, match=match):
+        write_sorted_lookup(table, tmp_path / "out", key_column="cell_id")
+
+
+def test_sorted_lookup_matches(cell_table, tmp_path):
+    write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id")
+    fct = Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"), id_columns=["area_peril_id"])
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3, 4, 5, 6],
+        "cell_id": pd.array([20, 15, None, 2**60 + 1, 99, 10], dtype="Int64"),
+    })
+    result = fct(locations)
+    assert result["area_peril_id"].tolist() == [2, OASIS_UNKNOWN_ID, OASIS_UNKNOWN_ID, 9, OASIS_UNKNOWN_ID, 1]
+    assert result["weight"].iloc[[0, 3, 5]].tolist() == [0.2, 0.9, 0.1]
+    assert result["weight"].iloc[[1, 2, 4]].isna().all()
+    assert result["loc_id"].tolist() == [1, 2, 3, 4, 5, 6]  # order and rows unchanged
+
+
+@pytest.mark.parametrize("keys", [
+    [20.0, 10.5, np.nan, -1.0],          # float keys: non-integral and NaN don't match
+    ["20", "x", None, "-1"],             # text keys are parsed
+])
+def test_sorted_lookup_non_integer_keys(cell_table, tmp_path, keys):
+    write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id", value_columns=["area_peril_id"])
+    fct = Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"), id_columns="area_peril_id")
+    result = fct(pd.DataFrame({"cell_id": pd.Series(keys, dtype=object if isinstance(keys[0], str) else float)}))
+    assert result["area_peril_id"].tolist() == [2, OASIS_UNKNOWN_ID, OASIS_UNKNOWN_ID, OASIS_UNKNOWN_ID]
+
+
+def test_sorted_lookup_errors(cell_table, tmp_path):
+    with pytest.raises(OasisException, match="not found"):
+        Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "nothing"))
+    write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id")
+    with pytest.raises(OasisException, match="not in"):
+        Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"), value_columns=["nope"])
+    with pytest.raises(OasisException, match="id_columns"):
+        Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"), id_columns=["vulnerability_id"])
+    fct = Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"))
+    with pytest.raises(OasisException, match="key column 'cell_id'"):
+        fct(pd.DataFrame({"loc_id": [1]}))
+
+
+def test_sorted_lookup_end_to_end(cell_table, tmp_path):
+    write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id", value_columns=["area_peril_id"])
+    config = {
+        "keys_data_path": str(tmp_path),
+        "strategy": ["areaperil", "pivot"],
+        "step_definition": {
+            "areaperil": {"type": "sorted_lookup", "columns": ["cell_id"],
+                          "parameters": {"file_path": "%%KEYS_DATA_PATH%%/cells", "id_columns": ["area_peril_id"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "ORF", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1, 2], "CELL_ID": [30, 31]})
+    keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
+    assert (keys.loc[1, "status"], keys.loc[1, "area_peril_id"]) == ("success", 3)
+    assert keys.loc[2, "status"] == OASIS_KEYS_STATUS["fail"]["id"]

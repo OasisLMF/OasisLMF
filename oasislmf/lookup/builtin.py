@@ -44,8 +44,10 @@ try:  # needed for h3 lookup
 except ImportError:
     h3 = h3_int = None
 
+import json
 import logging
 import math
+import os
 import re
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
@@ -228,6 +230,157 @@ def get_step(grid):
     length = round((grid["lon_max"] - grid["lon_min"]) / grid["arc_size"])
     width = round((grid["lat_max"] - grid["lat_min"]) / grid["arc_size"])
     return length * width
+
+
+SORTED_LOOKUP_META = 'sorted_lookup.json'
+
+
+def write_sorted_lookup(table, out_dir, key_column, value_columns=None, file_type=None):
+    """Write a table as the sorted arrays read by the builtin lookup's ``sorted_lookup`` step.
+
+    Run once when building the model's keys data, not at lookup time.
+
+    Args:
+        table (pd.DataFrame, str): the table, or the path of a csv or parquet file holding it.
+        out_dir (str): directory to write ``<column>.npy`` arrays and ``sorted_lookup.json`` into.
+        key_column (str): integer column to look up on; its values must be unique and not null.
+        value_columns (list, None): columns to return (default: every other column).
+        file_type (str, None): ``'csv'`` or ``'parquet'`` when ``table`` is a path (default: from
+            its extension).
+    """
+    if not isinstance(table, pd.DataFrame):
+        file_type = file_type or ('parquet' if str(table).endswith(('.parquet', '.pq')) else 'csv')
+        columns = None if value_columns is None else [key_column, *value_columns]
+        if file_type == 'parquet':
+            table = pd.read_parquet(table, columns=columns)
+        else:
+            table = pd.read_csv(table, usecols=columns)
+    if key_column not in table.columns:
+        raise OasisException(f"write_sorted_lookup: key column '{key_column}' not in {sorted(table.columns)}")
+    if value_columns is None:
+        value_columns = [col for col in table.columns if col != key_column]
+    missing = [col for col in value_columns if col not in table.columns]
+    if missing or not value_columns:
+        raise OasisException(f"write_sorted_lookup: value columns {missing or value_columns} not usable; "
+                             f"table columns are {sorted(table.columns)}")
+    if key_column in value_columns:
+        raise OasisException("write_sorted_lookup: the key column cannot also be a value column")
+
+    key_series = table[key_column]
+    if key_series.isna().any() or not pd.api.types.is_integer_dtype(key_series.dtype):
+        raise OasisException(f"write_sorted_lookup: key column '{key_column}' must be integers with no nulls, "
+                             f"got dtype {key_series.dtype}")
+    keys = plain_numpy(key_series)
+    order = np.argsort(keys, kind='stable')
+    keys = keys[order]
+    duplicated = keys[1:] == keys[:-1]
+    if duplicated.any():
+        raise OasisException(f"write_sorted_lookup: key column '{key_column}' has {int(duplicated.sum())} duplicated "
+                             f"value(s), e.g. {np.unique(keys[1:][duplicated])[:3].tolist()}")
+
+    os.makedirs(out_dir, exist_ok=True)
+    np.save(os.path.join(out_dir, f'{key_column}.npy'), keys)
+    meta_values = {}
+    for column in value_columns:
+        series = table[column]
+        if pd.api.types.is_integer_dtype(series.dtype) or pd.api.types.is_float_dtype(series.dtype) \
+                or pd.api.types.is_bool_dtype(series.dtype):
+            if series.isna().any():
+                raise OasisException(f"write_sorted_lookup: value column '{column}' has nulls")
+            array = plain_numpy(series)
+        else:
+            raise OasisException(f"write_sorted_lookup: value column '{column}' must be numeric, got {series.dtype}")
+        np.save(os.path.join(out_dir, f'{column}.npy'), array[order])
+        meta_values[column] = str(array.dtype)
+    with open(os.path.join(out_dir, SORTED_LOOKUP_META), 'w') as meta_file:
+        json.dump({'key_column': key_column, 'rows': int(len(keys)), 'key_dtype': str(keys.dtype),
+                   'value_columns': meta_values}, meta_file, indent=2)
+    return out_dir
+
+
+def plain_numpy(series):
+    """A null-free numeric or boolean column as a plain numpy array (nullable pandas dtypes included)."""
+    numpy_dtype = getattr(series.dtype, 'numpy_dtype', None)
+    return series.to_numpy(dtype=numpy_dtype) if numpy_dtype is not None else series.to_numpy()
+
+
+def load_sorted_lookup(directory, value_columns=None):
+    """Open the arrays written by :func:`write_sorted_lookup`, memory-mapped.
+
+    Returns:
+        (keys, {value_column: array}, key_column)
+    """
+    meta_path = os.path.join(directory, SORTED_LOOKUP_META)
+    if not os.path.isfile(meta_path):
+        raise OasisException(f"sorted_lookup: '{meta_path}' not found. Build the directory with "
+                             "oasislmf.lookup.builtin.write_sorted_lookup")
+    with open(meta_path) as meta_file:
+        meta = json.load(meta_file)
+    key_column = meta['key_column']
+    if value_columns is None:
+        value_columns = list(meta['value_columns'])
+    elif isinstance(value_columns, str):
+        value_columns = [value_columns]
+    unknown = [col for col in value_columns if col not in meta['value_columns']]
+    if unknown:
+        raise OasisException(f"sorted_lookup: value columns {unknown} not in '{directory}' "
+                             f"({sorted(meta['value_columns'])})")
+
+    def open_array(column):
+        array = np.load(os.path.join(directory, f'{column}.npy'), mmap_mode='r')
+        if array.ndim != 1 or len(array) != meta['rows']:
+            raise OasisException(f"sorted_lookup: '{column}.npy' in '{directory}' has shape {array.shape}, "
+                                 f"expected ({meta['rows']},) per {SORTED_LOOKUP_META}")
+        return array
+
+    keys = open_array(key_column)
+    if not np.issubdtype(keys.dtype, np.integer):
+        raise OasisException(f"sorted_lookup: keys in '{directory}' must be integers, got {keys.dtype}")
+    return keys, {col: open_array(col) for col in value_columns}, key_column
+
+
+def integer_keys(series, key_dtype):
+    """Return (keys, valid) for a location key column: ``valid`` is False where the value is null,
+    not an integer, or outside the range of ``key_dtype``. Invalid positions hold 0.
+    """
+    n = len(series)
+    info = np.iinfo(key_dtype)
+    if pd.api.types.is_integer_dtype(series.dtype):
+        valid = series.notna().to_numpy()
+        numpy_dtype = getattr(series.dtype, 'numpy_dtype', None)
+        raw = series.to_numpy(dtype=numpy_dtype, na_value=0) if numpy_dtype is not None else series.to_numpy()
+        if not np.issubdtype(raw.dtype, np.signedinteger):  # uint64 may exceed int64
+            valid = valid & (raw <= info.max)
+        else:
+            valid = valid & (raw >= info.min) & (raw <= info.max)
+        keys = np.zeros(n, dtype=key_dtype)
+        keys[valid] = raw[valid]
+        return keys, valid
+    # float, object or text keys: float64 is exact for integers up to 2**53
+    numeric = pd.to_numeric(series, errors='coerce').to_numpy(dtype='float64', na_value=np.nan)
+    valid = ~np.isnan(numeric)
+    valid[valid] = (numeric[valid] == np.floor(numeric[valid])) & (numeric[valid] >= info.min) & (numeric[valid] <= info.max)
+    keys = np.zeros(n, dtype=key_dtype)
+    keys[valid] = numeric[valid]
+    return keys, valid
+
+
+def masked_take(array, position, rows, n):
+    """Values of ``array`` at ``position`` placed at ``rows`` of a length ``n`` column; other rows are null.
+    Integer and boolean values come back as pandas nullable arrays, floats with NaN.
+    """
+    taken = np.asarray(array[position])
+    if np.issubdtype(array.dtype, np.integer) or np.issubdtype(array.dtype, np.bool_):
+        data = np.zeros(n, dtype=array.dtype)
+        data[rows] = taken
+        mask = np.ones(n, dtype=bool)
+        mask[rows] = False
+        if np.issubdtype(array.dtype, np.bool_):
+            return pd.arrays.BooleanArray(data, mask)
+        return pd.arrays.IntegerArray(data, mask)
+    data = np.full(n, np.nan, dtype=array.dtype)
+    data[rows] = taken
+    return data
 
 
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
@@ -1235,6 +1388,53 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 df_to_merge.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
             return self.set_id_columns(locations, id_columns)
         return merge
+
+    def build_sorted_lookup(self, file_path, value_columns=None, id_columns=()):
+        """Look up one integer key column in a large table stored as sorted, memory-mapped arrays.
+
+        For a table too large for ``merge`` (e.g. hundreds of millions of grid cell -> area peril
+        rows), which reads the whole file into every lookup process. ``file_path`` is a directory
+        written by :func:`write_sorted_lookup`: one ``.npy`` array of unique keys in ascending order,
+        one ``.npy`` array per value column, and a ``sorted_lookup.json`` describing them. The arrays
+        are opened with ``np.load(..., mmap_mode='r')``, so the OS page cache holds one copy shared
+        by every process, and each chunk of locations is matched with ``np.searchsorted``.
+
+        The key column named in ``sorted_lookup.json`` must be in the locations (list it in the
+        step's ``columns``). Locations whose key is null, not an integer, or not in the table get
+        null values, and -1 in ``id_columns``.
+
+        Args:
+            file_path (str): directory written by ``write_sorted_lookup``; supports placeholders.
+            value_columns (list, None): value columns to add to the locations (default: all).
+            id_columns (list): columns to transform to an id column (Int64 with nulls replaced by -1).
+        """
+        directory = self.to_abs_filepath(file_path)
+        keys, values, key_column = load_sorted_lookup(directory, value_columns)
+        if isinstance(id_columns, str):
+            id_columns = [id_columns]
+        unknown_ids = [col for col in id_columns if col not in values]
+        if unknown_ids:
+            raise OasisException(
+                f"sorted_lookup step: id_columns {unknown_ids} are not value columns of '{file_path}' "
+                f"({sorted(values)})")
+
+        def sorted_lookup(locations):
+            if key_column not in locations.columns:
+                raise OasisException(
+                    f"sorted_lookup step: key column '{key_column}' of '{file_path}' is not in the locations. "
+                    f"Location columns available to this step: {sorted(locations.columns)}")
+            query, valid = integer_keys(locations[key_column], keys.dtype)
+            position = np.searchsorted(keys, query[valid])
+            in_range = position < len(keys)
+            found_in_valid = np.zeros(len(position), dtype=bool)
+            found_in_valid[in_range] = keys[position[in_range]] == query[valid][in_range]
+            rows = np.flatnonzero(valid)[found_in_valid]
+            position = position[found_in_valid]
+            logger.debug("sorted_lookup(%s): matched %d/%d locations", file_path, len(rows), len(locations))
+            for column, array in values.items():
+                locations[column] = masked_take(array, position, rows, len(locations))
+            return self.set_id_columns(locations, id_columns)
+        return sorted_lookup
 
     def build_geog_lookup(self, geog_scheme, output_column, slots=30,
                           case_insensitive=True, on_missing='null'):

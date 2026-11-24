@@ -588,6 +588,50 @@ dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupa
 
 |
 
+* **sorted_lookup**
+
+Looks up one integer key column (a grid cell id, for example) in a table too large for ``merge``, which reads its whole
+file into every lookup process. The table is stored as sorted ``.npy`` arrays opened memory-mapped, so the operating
+system's page cache holds one copy shared by every process and every run, and each chunk of locations is matched with
+``np.searchsorted``.
+
+Build the arrays once, when preparing the model's keys data:
+
+.. code-block:: python
+
+   from oasislmf.lookup.builtin import write_sorted_lookup
+
+   write_sorted_lookup("cell_areaperil.parquet", "keys_data/cell_areaperil",
+                       key_column="cell_id", value_columns=["area_peril_id"])
+
+The key column must be integers, unique and not null, and the value columns numeric with no nulls. The directory holds
+one ``.npy`` per column and a ``sorted_lookup.json`` describing them.
+
+``file_path``: the directory written by ``write_sorted_lookup``, supports the ``%%KEYS_DATA_PATH%%`` placeholder.
+
+``value_columns`` (optional): the value columns to add to the locations. Defaults to all of them.
+
+``id_columns`` (optional): column(s) to transform to an id column (nulls replaced by -1).
+
+The key column named in ``sorted_lookup.json`` must be in the locations, so list it in the step's ``"columns"`` (or
+create it in an earlier step). Locations whose key is null, not an integer, or not in the table get null values, and
+-1 in ``id_columns``.
+
+.. versionadded:: NEXT
+
+.. code-block:: JSON
+
+   "areaperil": {
+       "type": "sorted_lookup",
+       "columns": ["cell_id"],
+       "parameters": {
+           "file_path": "%%KEYS_DATA_PATH%%/cell_areaperil",
+           "id_columns": ["area_peril_id"]
+       }
+   }
+
+|
+
 * **simple_pivot**
 
 Allow pivoting of columns of the locations dataframe into multiple rows.
