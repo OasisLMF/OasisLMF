@@ -12,7 +12,7 @@ import pandas as pd
 from hypothesis import HealthCheck, given, settings
 from hypothesis.strategies import just, sampled_from, text
 
-from oasislmf.lookup.factory import BasicKeyServer, KeyServerFactory
+from oasislmf.lookup.factory import BasicKeyServer, KeyServerFactory, _split_locations
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
 
@@ -317,6 +317,26 @@ class OasisLookupFactoryWriteJsonFiles(TestCase):
 
             self.assertEqual(nonsuccesses_count, len(nonsuccesses))
             self.assertEqual(written_nonsuccesses, nonsuccesses)
+
+
+class SplitLocations(TestCase):
+    def test_chunks_only_hold_their_own_categories(self):
+        # a slice keeps a categorical's full category list, which every chunk pickled to a lookup
+        # worker would then carry (OasisLMF/OasisPlatform#1508)
+        loc_df = pd.DataFrame({
+            'loc_id': [1, 2, 3, 4],
+            'LocNumber': pd.Categorical(['a', 'b', 'c', 'd']),
+            'PostalCode': pd.Categorical(['x', None, 'y', 'x']),
+            'BuildingTIV': [1., 2., 3., 4.],
+        })
+
+        chunks = list(_split_locations(loc_df, 2))
+
+        self.assertEqual(chunks[0]['LocNumber'].cat.categories.to_list(), ['a', 'b'])
+        self.assertEqual(chunks[1]['LocNumber'].cat.categories.to_list(), ['c', 'd'])
+        self.assertEqual(chunks[0]['PostalCode'].cat.categories.to_list(), ['x'])
+        pd.testing.assert_frame_equal(pd.concat(chunks).astype(loc_df.dtypes.to_dict()), loc_df)
+        self.assertEqual(len(loc_df['LocNumber'].cat.categories), 4)  # the source frame is untouched
 
 
 class GenerateKeysWithBuiltinLookup(TestCase):

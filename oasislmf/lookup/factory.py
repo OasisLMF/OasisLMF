@@ -31,9 +31,21 @@ from .builtin import Lookup as NewLookup
 
 
 def _split_locations(loc_df, part_count):
-    """Yield part_count chunks of loc_df, split by unique 'loc_id' values."""
+    """Yield part_count chunks of loc_df, split by unique 'loc_id' values.
+
+    A slice of a categorical column keeps the full category list, so each chunk drops its unused
+    categories. Otherwise every chunk pickled to a worker carries the whole portfolio's values of a
+    column such as a unique LocNumber.
+    """
     loc_ids_parts = np.array_split(np.unique(loc_df['loc_id']), part_count)
-    return (loc_df[loc_df['loc_id'].isin(loc_ids_parts[i])] for i in range(part_count))
+    category_cols = loc_df.select_dtypes('category').columns
+    for loc_ids in loc_ids_parts:
+        chunk_df = loc_df[loc_df['loc_id'].isin(loc_ids)]
+        if len(category_cols):
+            chunk_df = chunk_df.copy()
+            for col in category_cols:
+                chunk_df[col] = chunk_df[col].cat.remove_unused_categories()
+        yield chunk_df
 
 
 class KeyServerFactory(object):
