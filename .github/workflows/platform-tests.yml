@@ -53,7 +53,7 @@ concurrency:
 
 env:
   # TODO: 'main' once OasisModels#65 is merged (also the `uses:` ref of the test job below)
-  MODELS_BRANCH: ${{ inputs.models_branch || 'feature/platform-tests' }}
+  MODELS_BRANCH: ${{ inputs.models_branch || 'main' }}
 
 jobs:
   resolve:
