@@ -438,11 +438,11 @@ def _affine(*args):
     return Affine(*args)
 
 
-def _write_geotiff(path, data, transform, nodata=None):
+def _write_geotiff(path, data, transform, nodata=None, crs="EPSG:4326", **profile):
     """Write ``data`` (band, row, col) to a GeoTIFF at ``path`` with the given affine transform and nodata value."""
     rasterio = pytest.importorskip("rasterio")
     with rasterio.open(path, "w", driver="GTiff", height=data.shape[1], width=data.shape[2], count=data.shape[0],
-                       dtype=data.dtype, transform=transform, crs="EPSG:4326", nodata=nodata) as dst:
+                       dtype=data.dtype, transform=transform, crs=crs, nodata=nodata, **profile) as dst:
         dst.write(data)
     return path
 
@@ -586,6 +586,27 @@ def test_build_geotiff_without_nodata_keeps_every_value(tmp_path):
     result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5], "latitude": [0.5, 0.5]}))
 
     assert result["value"].tolist() == [7, -9999]
+
+
+def test_build_geotiff_rejects_projected_crs(tmp_path):
+    """A raster in metres (Web Mercator) cannot be indexed by longitude/latitude, so it is rejected at build time."""
+    data = np.zeros((1, 2, 2), dtype="int16")
+    path = _write_geotiff(tmp_path / "mercator.tif", data, _affine(1000.0, 0.0, 0.0, 0.0, -1000.0, 2000.0),
+                          crs="EPSG:3857")
+
+    with pytest.raises(OasisException, match="projected CRS EPSG:3857"):
+        Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+
+@pytest.mark.parametrize("crs", ["EPSG:4269", None])  # geographic NAD83, and no CRS at all
+def test_build_geotiff_accepts_geographic_or_missing_crs(tmp_path, crs):
+    data = np.array([[[7]]], dtype="int16")
+    path = _write_geotiff(tmp_path / "geographic.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0), crs=crs)
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5], "latitude": [0.5]}))
+
+    assert result["value"].tolist() == [7]
 
 
 def test_build_geotiff_rejects_band_id_outside_file(tmp_path):

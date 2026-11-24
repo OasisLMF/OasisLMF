@@ -1038,6 +1038,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         The raster is not held in memory: each call reads only the requested bands over the rows and columns spanned
         by its locations, in strips that fit within GEOTIFF_READ_BUDGET_BYTES.
 
+        The raster must use a geographic CRS (or none, in which case it is assumed to be in longitude/latitude).
+
         Pixels the raster marks as invalid, through a band's nodata value or a GDAL mask band, take the band's
         default, as do locations outside the raster or with missing coordinates.
 
@@ -1060,6 +1062,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             band_dtypes = dataset.dtypes
             inv_transform = ~dataset.transform
             height, width = dataset.height, dataset.width
+            crs = dataset.crs
+
+        # locations are matched by longitude/latitude, which only line up with the pixels of a geographic raster
+        if crs and not crs.is_geographic:
+            raise OasisException(
+                f"geotiff {file_path} uses the projected CRS {crs.to_string()}, but locations are matched by "
+                "longitude/latitude: reproject the raster to a geographic CRS such as EPSG:4326"
+            )
 
         band_ids = []
         for col_name, info in band_info.items():
