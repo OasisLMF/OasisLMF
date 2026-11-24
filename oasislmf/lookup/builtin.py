@@ -57,7 +57,7 @@ from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 
 logger = logging.getLogger(__name__)
 
-OPT_INSTALL_MESSAGE = "install oasislmf with the spatial packages by running 'pip install oasislmf[spatial]'"
+OPT_INSTALL_MESSAGE = 'install oasislmf with the spatial packages by running \'pip install "oasislmf[spatial]"\''
 
 
 def get_nearest(src_points, candidates, k_neighbors=1):

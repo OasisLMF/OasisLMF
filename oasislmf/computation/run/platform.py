@@ -980,7 +980,7 @@ class PlatformPlot(PlatformBase):
         except ImportError:
             raise OasisException(
                 "matplotlib is required for 'oasislmf api plot' but is not installed. "
-                "Install with: pip install oasislmf[plot]"
+                'Install with: pip install "oasislmf[plot]"'
             )
 
         analysis = self.server.analyses.get(self.analysis_id).json()

@@ -386,7 +386,7 @@ def _generate_plots(rows, report_dir, system_memory_mb=None):
         import matplotlib.ticker as ticker
     except ImportError:
         logger.warning("matplotlib not installed — skipping resource monitor plots. "
-                       "Install with: pip install oasislmf[plot]")
+                       'Install with: pip install "oasislmf[plot]"')
         return {}
 
     tool_series = _aggregate_by_tool_and_time(rows)

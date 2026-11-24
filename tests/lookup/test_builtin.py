@@ -430,6 +430,13 @@ def test_build_set_status_rejects_unknown_status_value():
         fct(locations)
 
 
+def _affine(*args):
+    """An affine transform, skipping the test when rasterio (which provides affine) is not installed."""
+    pytest.importorskip("rasterio")
+    from rasterio.transform import Affine
+    return Affine(*args)
+
+
 def _write_geotiff(path, data, transform, nodata=None):
     """Write ``data`` (band, row, col) to a GeoTIFF at ``path`` with the given affine transform and nodata value."""
     rasterio = pytest.importorskip("rasterio")
@@ -444,10 +451,9 @@ def _multi_band_geotiff(tmp_path):
 
     Pixel (row, col) of band b holds b * 100 + row * 10 + col, so every value names its band and pixel.
     """
-    from affine import Affine
     bands, rows, cols = np.meshgrid(np.arange(1, 4), np.arange(2), np.arange(3), indexing="ij")
     data = (bands * 100 + rows * 10 + cols).astype("int32")
-    return _write_geotiff(tmp_path / "multi.tif", data, Affine(1.0, 0.0, -10.0, 0.0, -1.0, 50.0))
+    return _write_geotiff(tmp_path / "multi.tif", data, _affine(1.0, 0.0, -10.0, 0.0, -1.0, 50.0))
 
 
 def test_build_geotiff_reads_each_column_from_its_band(tmp_path):
@@ -491,10 +497,9 @@ def test_build_geotiff_assigns_the_pixel_containing_each_location(tmp_path, lon,
 
 def test_build_geotiff_strip_reads_match_single_read(tmp_path, monkeypatch):
     """Reading in strips bounded by GEOTIFF_READ_BUDGET_BYTES gives the same values as one read."""
-    from affine import Affine
     rng = np.random.default_rng(0)
     data = rng.integers(0, 1000, size=(2, 50, 40)).astype("int16")
-    path = _write_geotiff(tmp_path / "big.tif", data, Affine(0.1, 0.0, 0.0, 0.0, -0.1, 5.0))
+    path = _write_geotiff(tmp_path / "big.tif", data, _affine(0.1, 0.0, 0.0, 0.0, -0.1, 5.0))
     band_info = {"first": {"id": 1, "default": -1}, "second": {"id": 2, "default": -2}}
     locations = pd.DataFrame({
         "longitude": rng.uniform(-0.5, 4.5, size=500),
@@ -519,10 +524,9 @@ def test_build_geotiff_strip_reads_match_single_read(tmp_path, monkeypatch):
 def test_build_geotiff_replaces_nodata_with_band_default(tmp_path, dtype, nodata):
     """Pixels holding the raster's nodata value take the column's default; other pixels keep their value,
     and a value equal to another column's default is not mistaken for nodata."""
-    from affine import Affine
     # 1 band, 1 row, 3 cols: valid, nodata, valid
     data = np.array([[[7, nodata, 9]]], dtype=dtype)
-    path = _write_geotiff(tmp_path / "nodata.tif", data, Affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0), nodata=nodata)
+    path = _write_geotiff(tmp_path / "nodata.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0), nodata=nodata)
     band_info = OrderedDict([("first", {"id": 1, "default": -1}), ("again", {"id": 1, "default": -2})])
     geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)
 
@@ -534,9 +538,8 @@ def test_build_geotiff_replaces_nodata_with_band_default(tmp_path, dtype, nodata
 
 def test_build_geotiff_without_nodata_keeps_every_value(tmp_path):
     """A raster with no nodata value has no invalid pixels, even ones holding a typical nodata number."""
-    from affine import Affine
     data = np.array([[[7, -9999]]], dtype="int16")
-    path = _write_geotiff(tmp_path / "no_nodata.tif", data, Affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0))
+    path = _write_geotiff(tmp_path / "no_nodata.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0))
     geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
 
     result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5], "latitude": [0.5, 0.5]}))
