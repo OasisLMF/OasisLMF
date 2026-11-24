@@ -28,6 +28,8 @@ item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
 summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
 sidx_dtype, sidx_size = def_to_type_and_size('sidx')
 loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+# event_id, summary_id, expval
+summary_header_size = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size
 
 
 def read_input_files(
@@ -100,6 +102,8 @@ def get_max_summary_id(file_handles):
 
         valid_buff = len(fin)
         while cursor < valid_buff:
+            if valid_buff - cursor < summary_header_size:
+                raise RuntimeError("Error: broken summary file, not enough data")
             # header (event_id, summary_id, exposure_value)
             _, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
             summary_id, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)
@@ -107,7 +111,9 @@ def get_max_summary_id(file_handles):
 
             max_summary_id = max(max_summary_id, summary_id)
 
-            while cursor < valid_buff:
+            while True:
+                if valid_buff - cursor < sidx_size + loss_dtype_size:
+                    raise RuntimeError("Error: broken summary file, not enough data")
                 sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
                 _, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
                 if sidx == 0:
@@ -157,7 +163,9 @@ def accumulate_summary_record(
         int: cursor after the record's terminator
     """
     valid_buff = len(fin)
-    while cursor < valid_buff:
+    while True:
+        if valid_buff - cursor < sidx_size + loss_dtype_size:
+            raise RuntimeError("Error: broken summary file, not enough data")
         sidx, cursor = mv_read(fin, cursor, sidx_dtype, sidx_size)
         loss, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)
         if sidx == 0:
@@ -202,6 +210,8 @@ def process_summary_entries(
     """
     occ_flat = occ_csr.occ_flat
     for offset in offsets:
+        if len(fin) - offset < summary_header_size:
+            raise RuntimeError("Error: broken summary file, not enough data")
         cursor = offset
         event_id, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
         _, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)    # summary_id known from idx
@@ -274,6 +284,8 @@ def process_input_file(
     valid_buff = len(fin)
     occ_flat = occ_csr.occ_flat
     while cursor < valid_buff:
+        if valid_buff - cursor < summary_header_size:
+            raise RuntimeError("Error: broken summary file, not enough data")
         event_id, cursor = mv_read(fin, cursor, event_id_dtype, event_id_dtype_size)
         summary_id, cursor = mv_read(fin, cursor, summary_id_dtype, summary_id_dtype_size)
         expval, cursor = mv_read(fin, cursor, loss_dtype, loss_dtype_size)

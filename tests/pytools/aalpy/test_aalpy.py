@@ -7,7 +7,7 @@ import pytest
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from oasislmf.pytools.common.data import occurrence_dtype
+from oasislmf.pytools.common.data import occurrence_dtype, summary_stream_index_dtype
 from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.aal.manager import _SUMMARIES_DTYPE_size, main
 from tests.pytools.utils import make_idx_from_bin
@@ -318,3 +318,41 @@ def test_aal_oversize_event_raises(use_idx):
         with patch("oasislmf.pytools.aal.manager.OASIS_AAL_MEMORY", tiny_memory):
             with pytest.raises(ValueError, match="OASIS_AAL_MEMORY is too small"):
                 main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / "aal.csv")
+
+
+# ---------------------------------------------------------------------------
+# Truncated summary file
+# ---------------------------------------------------------------------------
+
+def _truncate_last_bin(work_dir, how):
+    """Damage the last summary .bin the way a killed writer or a partial copy would."""
+    bin_path = sorted(work_dir.glob("*.bin"))[-1]
+    data = bin_path.read_bytes()
+    if how == "partial_pair":  # last (sidx, loss) pair cut mid-loss
+        data = data[:-3]
+    elif how == "missing_terminator":  # last record ends without its (0, 0) pair
+        data = data[:-8]
+    elif how == "partial_header":  # a record header cut after event_id and half of summary_id
+        data = data + data[12:18]
+    elif how == "idx_partial_header":  # the .idx points at a record whose header is cut
+        make_idx_from_bin(bin_path, bin_path.with_suffix(".idx"))
+        last_offset = int(np.fromfile(bin_path.with_suffix(".idx"), dtype=summary_stream_index_dtype)["offset"][-1])
+        data = data[:last_offset + 6]
+    bin_path.write_bytes(data)
+
+
+TRUNCATIONS = ["partial_pair", "missing_terminator", "partial_header", "idx_partial_header"]
+
+
+@pytest.mark.parametrize("how", TRUNCATIONS)
+def test_aal_truncated_summary_file_raises(how):
+    """A truncated summary .bin raises instead of reading past the end of the file."""
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "all_files"), tmp_dir)
+        _truncate_last_bin(tmp_dir / "work" / "gul", how)
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+
+        with pytest.raises(RuntimeError, match="broken summary file"):
+            main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / "py_aalgul.csv")

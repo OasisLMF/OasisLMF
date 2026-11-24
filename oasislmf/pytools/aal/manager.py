@@ -28,6 +28,8 @@ summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
 _, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
 sidx_dtype, sidx_size = def_to_type_and_size('sidx')
 loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+# event_id, summary_id, expval
+summary_header_size = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size
 
 
 # Total amount of memory AAL summary index should use before raising an error (GB)
@@ -80,6 +82,8 @@ def process_bin_file(
         offset (int): file offset to read from
     """
     while offset < len(fbin):
+        if len(fbin) - offset < summary_header_size:
+            raise RuntimeError("Error: broken summary file, not enough data")
         cursor = offset
         event_id, cursor = mv_read(fbin, cursor, event_id_dtype, event_id_dtype_size)
         summary_id, cursor = mv_read(fbin, cursor, summary_id_dtype, summary_id_dtype_size)
@@ -156,6 +160,8 @@ def process_idx_file(
     while idx_cursor < n_idx:
         summary_id = idx_data[idx_cursor]['summary_id']
         offset = idx_data[idx_cursor]['offset']
+        if len(fbin) - offset < summary_header_size:
+            raise RuntimeError("Error: broken summary file, not enough data")
 
         event_id, _ = mv_read(fbin, offset, event_id_dtype, event_id_dtype_size)
 
@@ -707,7 +713,7 @@ def run_aal(
         summary_fin = files_handles[file_idx]
 
         # Read summary header values (event_id, summary_id, expval)
-        cursor = file_offset + (event_id_dtype_size + summary_id_dtype_size) + loss_dtype_size
+        cursor = file_offset + summary_header_size
 
         read_losses(summary_fin, cursor, vec_sample_sum_loss)
 
