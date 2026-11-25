@@ -37,9 +37,9 @@ def accumulate(acc, records):
                             acc.present, acc.expval, acc.max_loss, acc.mean, acc.losses)
 
 
-def test_accumulate_sums_all_fields():
-    """Two inputs' records for event 10 are summed field by field into the rows of their summary_ids;
-    rows of summary_ids neither input has stay 0."""
+def test_accumulate_sums_losses_and_keeps_largest_expval():
+    """Two inputs' records for event 10 are combined into the rows of their summary_ids: losses are
+    summed and the expval is the largest of the inputs. Rows of summary_ids neither input has stay 0."""
     acc = EventAccumulator(MAX_SUMMARY_ID, LEN_SAMPLE)
     accumulate(acc, dict(IP1)[10])
     accumulate(acc, dict(IP2)[10])
@@ -116,7 +116,7 @@ def test_write_combined_event_output_zeros(tmp_path, output_zeros, samples):
     sample is written, with it every sample is. The max loss and mean are always written."""
     records_per_input = [[(1, 10.0, [(-5, 4.0), (-1, 1.0), (1, 2.0), (2, 0.0)])],
                          [(1, 5.0, [(-5, 1.0), (-1, 0.5), (2, 0.0)])]]
-    expected = [(1, 15.0, [(-5, 5.0), (-1, 1.5)] + samples)]
+    expected = [(1, 10.0, [(-5, 5.0), (-1, 1.5)] + samples)]
 
     written = write_event(tmp_path, 7, records_per_input, LEN_SAMPLE, output_zeros)
     assert written == event_bytes(7, expected, sentinel=False)
@@ -129,7 +129,7 @@ def test_write_combined_event_larger_than_pipe_capacity(tmp_path):
     summary_ids = range(1, 201)
     records = [(summary_id, 10.0, [(-5, 2.0), (-1, 1.0)] + [(sidx, 1.0) for sidx in range(1, len_sample + 1)])
                for summary_id in summary_ids]
-    expected = event_bytes(1, [(summary_id, 20.0, [(-5, 4.0), (-1, 2.0)] + [(sidx, 2.0) for sidx in range(1, len_sample + 1)])
+    expected = event_bytes(1, [(summary_id, 10.0, [(-5, 4.0), (-1, 2.0)] + [(sidx, 2.0) for sidx in range(1, len_sample + 1)])
                                for summary_id in summary_ids], sentinel=False)
     assert len(expected) > 2 * PIPE_CAPACITY
 

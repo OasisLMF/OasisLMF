@@ -278,9 +278,10 @@ rlcombine -i rl_IP1_S1_rlcombine_P1 rl_IP2_S1_rlcombine_P1 rl_IP3_S1_rlcombine_P
 **Calculation** — the inputs must carry the same events in the same order; the `E:S0`
 sentinel marks the end of each event on each input, including events an input has no loss
 for. For each event, the records with the same `summary_id` are summed across the inputs:
-the samples, the mean (sidx -1), the maximum loss (sidx -5) and the `expval` in the record
-header. The combined records are written in `summary_id` order, mean and maximum loss
-first, then the non-zero samples (every sample with `-z`).
+the samples, the mean (sidx -1) and the maximum loss (sidx -5). The `expval` (TIV) in the
+record header is not summed, as every input summarises the same exposure: the largest
+`expval` of the inputs is kept. The combined records are written in `summary_id` order, mean
+and maximum loss first, then the non-zero samples (every sample with `-z`).
 
 ---
 

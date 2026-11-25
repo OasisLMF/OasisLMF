@@ -175,7 +175,8 @@ IP3 = [(10, []),
        (12, [(1, 8, [(-5, 8), (-1, 8), (2, 8)])])]
 
 # IP1 and IP2 combined as rlcombine writes them with len_sample 3: records with the same summary_id
-# summed, in summary_id order, max loss and mean first, then the non-zero samples.
-IP1_IP2_COMBINED = [(10, [(1, 100, [(-5, 50), (-1, 5), (1, 4)]), (3, 110, [(-5, 10), (-1, 2), (2, 7)])]),
+# summed, in summary_id order, max loss and mean first, then the non-zero samples. The expval is the
+# largest of the inputs (summary_id 3 in event 10: 100 from IP1, not 100 + 10).
+IP1_IP2_COMBINED = [(10, [(1, 100, [(-5, 50), (-1, 5), (1, 4)]), (3, 100, [(-5, 10), (-1, 2), (2, 7)])]),
                     (7, [(1, 5, [(-5, 2), (-1, 2)])]),
                     (12, [(2, 30, [(-5, 30), (-1, 3), (3, 2.5)])])]

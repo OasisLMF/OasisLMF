@@ -13,7 +13,8 @@ For each event:
 2. If the input is requested with ``-I``, the event is written unchanged to its pass-through stream
    (``rl_IP{i}_S{j}``).
 3. Once every input has sent the event, records with the same summary_id are summed across inputs:
-   the samples, the mean (sidx -1), the max loss (sidx -5) and the expval (TIV) in the header. The
+   the samples, the mean (sidx -1) and the max loss (sidx -5). The expval (TIV) in the header is not
+   summed, as every input summarises the same exposure: the largest expval of the inputs is kept. The
    combined event is written to the output stream (``rl_S{j}``) in summary_id order.
 
 The writers stop before their PIPE_CAPACITY buffer is full and resume after it is flushed, so events
@@ -60,7 +61,7 @@ class EventAccumulator:
 
     Attributes:
         present (ndarray[bool]): True for the summary_ids that have a record in the event
-        expval (ndarray[loss_dtype]): summed expval (TIV) of each summary_id
+        expval (ndarray[loss_dtype]): largest expval (TIV) of each summary_id across the inputs
         max_loss (ndarray[loss_dtype]): summed max loss (sidx -5) of each summary_id
         mean (ndarray[loss_dtype]): summed mean loss (sidx -1) of each summary_id
         losses (ndarray[loss_dtype]): summed sample losses, shape (max_summary_id, len_sample)
@@ -186,6 +187,9 @@ def accumulate_input_events(summary_ids, expval_event, offsets_event, sidx_event
                             present, expval, max_loss, mean, losses):
     """Add the records of one input's event to the event accumulator arrays.
 
+    Losses are summed across inputs. The expval (TIV) is not, as every input summarises the same
+    exposure: the largest expval seen for the summary_id is kept.
+
     Record i of the event is summary_ids[i] with expval_event[i] and the (sidx, loss) pairs
     sidx_event[offsets_event[i]:offsets_event[i + 1]], loss_event[offsets_event[i]:offsets_event[i + 1]].
 
@@ -214,7 +218,8 @@ def accumulate_input_events(summary_ids, expval_event, offsets_event, sidx_event
 
         row = summary_id - 1
         present[row] = True
-        expval[row] += expval_event[i]
+        if expval_event[i] > expval[row]:
+            expval[row] = expval_event[i]
         for j in range(offsets_event[i], offsets_event[i + 1]):
             if sidx_event[j] > 0:
                 losses[row, sidx_event[j] - 1] += loss_event[j]
