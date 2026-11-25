@@ -37,6 +37,11 @@ try:  # needed for geotiff
 except ImportError:
     rasterio = Window = None
 
+try:  # needed for transform_coordinates
+    import pyproj
+except ImportError:
+    pyproj = None
+
 try:  # needed for h3 lookup
     import h3
     # the int flavour of the api returns cell indexes as python ints, which saves building
@@ -702,8 +707,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         for id_col in id_cols:
             unknown_ids = success_locations[id_col] == OASIS_UNKNOWN_ID
             fail_locations = success_locations.loc[unknown_ids].index
-            locations.loc[fail_locations, ['status', 'message']] = OASIS_KEYS_STATUS['fail'][
-                'id'], f'{id_col} has an unknown id'
+            # keep a step's explanation (e.g. why transform_coordinates gave no coordinates)
+            detail = success_locations.loc[unknown_ids, 'message']
+            locations.loc[fail_locations, 'status'] = OASIS_KEYS_STATUS['fail']['id']
+            locations.loc[fail_locations, 'message'] = (f'{id_col} has an unknown id'
+                                                        + detail.where(detail == '', ': ' + detail))
             success_locations = success_locations.loc[~unknown_ids]
 
         return locations
@@ -1674,6 +1682,85 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 locations[column] = masked_take(array, position, rows, len(locations))
             return self.set_id_columns(locations, id_columns)
         return sorted_lookup
+
+    @staticmethod
+    def build_transform_coordinates(target_crs, source_crs='EPSG:4326', x_column='x', y_column='y',
+                                    latitude_column='latitude', longitude_column='longitude', area_of_use_only=True):
+        """Project the locations' latitude/longitude into another coordinate reference system.
+
+        Writes the projected coordinates to ``x_column`` and ``y_column`` (easting and northing for
+        most projected CRSs), so a following step can index a grid defined in that CRS, e.g. one
+        ``interval_to_index`` step per axis. Uses ``pyproj`` with ``always_xy``, so ``x`` is the
+        longitude-like axis whatever the CRS's own axis order.
+
+        Locations with a null latitude or longitude, or that can't be projected, get NaN in both
+        columns. pyproj projects points far outside a CRS's area of use without complaint, so by
+        default locations outside the target CRS's area of use (as published with the CRS, e.g.
+        Great Britain for EPSG:27700) also get NaN.
+
+        Args:
+            target_crs (str, int): CRS to project to, in any form ``pyproj.CRS`` accepts
+                (``"EPSG:27700"``, ``27700``, a PROJ string or WKT).
+            source_crs (str, int): CRS of the latitude/longitude columns (default WGS 84).
+            x_column (str): output column for the x coordinate.
+            y_column (str): output column for the y coordinate.
+            latitude_column (str): input latitude column.
+            longitude_column (str): input longitude column.
+            area_of_use_only (bool): give NaN to locations outside the target CRS's area of use.
+                Only applies when ``source_crs`` is geographic and the target CRS has an area of use.
+        """
+        if pyproj is None:
+            raise OasisException(f"pyproj module is needed for transform_coordinates, {OPT_INSTALL_MESSAGE}")
+        try:
+            source, target = pyproj.CRS.from_user_input(source_crs), pyproj.CRS.from_user_input(target_crs)
+        except pyproj.exceptions.CRSError as error:
+            raise OasisException(f"transform_coordinates step: invalid CRS: {error}") from error
+        bounds = None
+        if area_of_use_only:
+            if not source.is_geographic:
+                logger.info(f"transform_coordinates step: area_of_use_only ignored, source CRS {source_crs} is not geographic")
+            elif target.area_of_use is None:
+                logger.info(f"transform_coordinates step: area_of_use_only ignored, target CRS {target_crs} has no area of use")
+            else:
+                bounds = target.area_of_use.bounds  # (west, south, east, north) in degrees
+        transformers = {}  # one per process: a pyproj Transformer is not safe to share across a fork
+
+        def transform_coordinates(locations):
+            for column in (latitude_column, longitude_column):
+                if column not in locations.columns:
+                    raise OasisException(
+                        f"transform_coordinates step: column '{column}' is not in the locations. "
+                        f"Location columns available to this step: {sorted(locations.columns)}")
+            transformer = transformers.get(os.getpid())
+            if transformer is None:
+                transformer = transformers[os.getpid()] = pyproj.Transformer.from_crs(source, target, always_xy=True)
+            lon = pd.to_numeric(locations[longitude_column], errors='coerce').to_numpy(dtype='float64', na_value=np.nan)
+            lat = pd.to_numeric(locations[latitude_column], errors='coerce').to_numpy(dtype='float64', na_value=np.nan)
+            x, y = transformer.transform(lon, lat, errcheck=False)
+            x, y = np.asarray(x, dtype='float64'), np.asarray(y, dtype='float64')
+            missing = np.isnan(lon) | np.isnan(lat)
+            not_projected = ~missing & ~(np.isfinite(x) & np.isfinite(y))
+            out_of_area = np.zeros(len(locations), dtype=bool)
+            if bounds is not None:
+                west, south, east, north = bounds
+                # an area crossing the antimeridian has west > east
+                in_lon = (lon >= west) & (lon <= east) if west <= east else (lon >= west) | (lon <= east)
+                out_of_area = ~missing & ~not_projected & ~(in_lon & (lat >= south) & (lat <= north))
+            failed = missing | not_projected | out_of_area
+            x[failed] = np.nan
+            y[failed] = np.nan
+            locations[x_column] = x
+            locations[y_column] = y
+            if 'message' in locations.columns and failed.any():
+                # explain why x/y are null; the status is set later, when the id they lead to is missing
+                for mask, reason in ((missing, f"missing {latitude_column} or {longitude_column}"),
+                                     (not_projected, f"could not be projected to {target_crs}"),
+                                     (out_of_area, f"outside the area of use of {target_crs}")):
+                    mask = mask & (locations['message'] == '').to_numpy()
+                    if mask.any():
+                        locations.loc[mask, 'message'] = f"transform_coordinates failure: {reason}"
+            return locations
+        return transform_coordinates
 
     def build_geog_lookup(self, geog_scheme, output_column, slots=GEOG_LOOKUP_DEFAULT_SLOTS,
                           case_insensitive=True, on_missing='null'):
