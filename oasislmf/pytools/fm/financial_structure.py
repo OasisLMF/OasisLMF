@@ -699,9 +699,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             raise ValueError("fm_xref names an agg_id beyond the items: it must list items and layers, whatever the "
                              "allocation rule")
 
-        # under allocation rule 0 fm_xref still lists item level agg_ids, which may not exist at the output level
-        if xref['agg_id'] <= max_agg_id_out:
-            output_id_arr[xref['agg_id'], xref['layer_id']] = xref['output']
+        output_id_arr[xref['agg_id'], xref['layer_id']] = xref['output']
 
     ##### programme ####
     # node_layers will contain the number of layers for each node
