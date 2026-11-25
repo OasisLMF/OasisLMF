@@ -14,15 +14,18 @@ import pandas as pd
 
 from oasislmf.computation.base import DISAGGREGATION_HELP, ComputationStep
 from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
+                                                            CorrelationsFile,
                                                             CoveragesFile,
                                                             DamageBinDictFile,
                                                             EventsFile,
                                                             FMPolicyTCFile,
                                                             FMProfileFile,
                                                             FMProgrammeFile,
+                                                            FMSummaryMapFile,
                                                             FMSummaryXrefFile,
                                                             FMXrefFile,
                                                             FootprintBinFile,
+                                                            GULSummaryMapFile,
                                                             GULSummaryXrefFile,
                                                             ItemsFile,
                                                             LossFactorsFile,
@@ -344,7 +347,10 @@ class GenerateFiles(ComputationStep):
             'coveragetypeid': 'uint8',
             'areaperilid': 'uint64',
             'vulnerabilityid': 'uint32',
-            'modeldata': 'str'
+            'modeldata': 'str',
+            # kept as written: a blank among ints would otherwise turn 3 into 3.0, and one
+            # value may list several sections ('3001;3002')
+            'section_id': 'str',
         }
         keys_error_fp = os.path.join(os.path.dirname(_keys_fp), 'keys-errors.csv') if _keys_fp else 'Missing'
         missing_keys_msg = 'No successful lookup results found in the keys file - '
@@ -370,11 +376,25 @@ class GenerateFiles(ComputationStep):
             keys_errors_df = pd.DataFrame(columns=['locid'])
 
         returned_locid = set(keys_errors_df['locid']).union(set(keys_df['locid']))
-        del keys_errors_df
 
         missing_ids = set(location_df['loc_id']).difference(returned_locid)
         if len(missing_ids) > 0:
             raise OasisException(f'Lookup error: missing "loc_id" values from keys return: {list(missing_ids)}')
+
+        # If not in det. loss gen. scenario, write exposure summary file. Done before the GUL inputs
+        # so that it uses the keys already in memory, and the keys errors can be freed after it.
+        if summarise_exposure:
+            write_exposure_summary(
+                target_dir,
+                location_df,
+                exposure_profile=location_profile,
+                additional_fields=(self.settings.get('model_settings', {})
+                                   .get('summary_report_fields', [])),
+                intermediary_csv=self.intermediary_csv,
+                keys_df=keys_df,
+                keys_errors_df=keys_errors_df,
+            )
+        del keys_errors_df
 
         # Columns from loc file to assign group_id
         model_damage_group_fields = []
@@ -427,19 +447,6 @@ class GenerateFiles(ComputationStep):
             disaggregation=disaggregation,
             coverage_dependency_settings=get_coverage_dependency_settings(data=model_settings)
         )
-
-        # If not in det. loss gen. scenario, write exposure summary file
-        if summarise_exposure:
-            write_exposure_summary(
-                target_dir,
-                location_df,
-                keys_fp=_keys_fp,
-                keys_errors_fp=_keys_errors_fp,
-                exposure_profile=location_profile,
-                additional_fields=(model_settings.get('model_settings', {})
-                                   .get('summary_report_fields', [])),
-                intermediary_csv=self.intermediary_csv,
-            )
 
         # If exposure summary set, write valid columns for summary levels to file
         if summarise_exposure:
@@ -709,7 +716,8 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
 
     def _get_gul_file_objects(self):
 
-        # coverages.bin, items.bin and gulsummaryxref.bin
+        # coverages.bin, items.bin, correlations.bin, gulsummaryxref.bin and
+        # gul_summary_map.csv
         self.gul_files = [
             CoveragesFile(
                 self.num_locations, self.coverages_per_location,
@@ -720,7 +728,13 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
                 self.num_areaperils, self.num_vulnerabilities,
                 self.random_seed, self.input_dir
             ),
+            CorrelationsFile(
+                self.num_locations, self.coverages_per_location, self.input_dir
+            ),
             GULSummaryXrefFile(
+                self.num_locations, self.coverages_per_location, self.input_dir
+            ),
+            GULSummaryMapFile(
                 self.num_locations, self.coverages_per_location, self.input_dir
             )
         ]
@@ -734,8 +748,8 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
 
     def _get_fm_file_objects(self):
 
-        # fm_programme.bin, fm_policytc.bin, fm_profile.bin, fm_xref.bin and
-        # fmsummaryxref.bin
+        # fm_programme.bin, fm_policytc.bin, fm_profile.bin, fm_xref.bin,
+        # fmsummaryxref.bin and fm_summary_map.csv
         self.fm_files = [
             FMProgrammeFile(
                 self.num_locations, self.coverages_per_location, self.input_dir
@@ -750,6 +764,10 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
                 self.num_layers, self.input_dir
             ),
             FMSummaryXrefFile(
+                self.num_locations, self.coverages_per_location,
+                self.num_layers, self.input_dir
+            ),
+            FMSummaryMapFile(
                 self.num_locations, self.coverages_per_location,
                 self.num_layers, self.input_dir
             )

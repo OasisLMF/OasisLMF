@@ -2,10 +2,11 @@
 
 import logging
 
+import numpy as np
 import pandas as pd
 import pytest
 
-from oasislmf.preparation.gul_inputs import get_gul_input_items, prepare_sections_df
+from oasislmf.preparation.gul_inputs import get_gul_input_items, prepare_sections_df, write_gul_input_files
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -37,7 +38,7 @@ def test_one_row_per_item_keeps_sections_unchanged():
     gul_inputs = get_gul_input_items(make_exposure(), keys)
 
     assert len(gul_inputs) == 4
-    assert gul_inputs['section_id'].tolist() == [3, 3, 4, 4]
+    assert gul_inputs['section_id'].tolist() == ['3', '3', '4', '4']
     assert sections_of(gul_inputs) == [3, 4]
 
 
@@ -70,11 +71,21 @@ def test_rows_differing_in_areaperil_warn_and_keep_the_first(caplog):
     assert 'loc_id 1 peril WTC coverage type 1 building 1: differing areaperil_id' in message
 
 
-@pytest.mark.parametrize('bad_section', ['A', float('nan')])
-def test_invalid_section_on_item_with_several_rows_raises(bad_section):
-    keys = make_keys([(1, 1, 10, 1, bad_section), (1, 1, 10, 1, 2), (2, 1, 11, 1, 3)])
-    with pytest.raises(OasisException, match=r"section_id value\(s\) are missing or not integers.*item 1"):
+@pytest.mark.parametrize('bad_section', ['A', float('nan'), '', '2.5', '3;'])
+@pytest.mark.parametrize('several_rows', [True, False], ids=['several rows', 'one row'])
+def test_invalid_section_raises(bad_section, several_rows):
+    keys = make_keys([(1, 1, 10, 1, bad_section)] + [(1, 1, 10, 1, 2)] * several_rows + [(2, 1, 11, 1, 3)])
+    with pytest.raises(OasisException, match=r"section_id value\(s\) are missing or not whole numbers, e\.g\. loc_id 1 peril WTC"):
         get_gul_input_items(make_exposure(), keys)
+
+
+def test_float_sections_are_read_as_whole_numbers():
+    # a left join leaves section_id float once a row has none; 3.0 is section 3, not '3.0'
+    keys = make_keys([(1, 1, 10, 1, 1.0), (1, 1, 10, 1, 2.0), (2, 1, 11, 1, 3.0)])
+    gul_inputs = get_gul_input_items(make_exposure(), keys)
+
+    assert gul_inputs['section_id'].tolist() == ['1;2', '3']
+    assert sections_of(gul_inputs) == [1, 2, 3]
 
 
 def test_keys_columns_are_matched_case_insensitively():
@@ -105,3 +116,41 @@ def test_empty_join_reports_both_sides_loc_ids():
     keys = make_keys([(7, 1, 10, 1, 1), (8, 1, 11, 1, 2)])
     with pytest.raises(OasisException, match=r"matched no row.*keys loc_id values: \[7, 8\].*location loc_id values: \[1, 2\]"):
         get_gul_input_items(make_exposure(), keys)
+
+
+def test_item_ids_do_not_depend_on_keys_row_order():
+    """item_id and coverage_id follow (loc_id, peril_id, coverage_type_id, building_id), not the
+    keys row order - which depends on the lookup, e.g. on how many chunks a multiprocessed lookup
+    split the locations into (#2211)."""
+    exposure = make_exposure(num_locations=3)
+    exposure['NumberOfBuildings'] = [1, 2, 1]
+    keys = pd.DataFrame(
+        [(loc_id, peril_id, cov_type, 10 * loc_id, cov_type)
+         for cov_type in (1, 3) for peril_id in ('WTC', 'WSS') for loc_id in (3, 1, 2)],
+        columns=['loc_id', 'peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'])
+    keys['status'] = 'success'
+
+    expected = get_gul_input_items(exposure.copy(), keys.copy())
+    item_key = ['loc_id', 'peril_id', 'coverage_type_id', 'building_id']
+    assert expected[item_key].apply(tuple, axis=1).is_monotonic_increasing
+    assert expected['item_id'].tolist() == list(range(1, len(expected) + 1))
+
+    cols = item_key + ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'tiv', 'group_id']
+    for seed in range(5):
+        shuffled = keys.sample(frac=1, random_state=seed).reset_index(drop=True)
+        pd.testing.assert_frame_equal(get_gul_input_items(exposure.copy(), shuffled)[cols], expected[cols])
+
+
+def test_coverages_bin_follows_coverage_id_when_first_peril_lacks_a_coverage(tmp_path):
+    """coverage_id is numbered by (loc_id, coverage_type_id, building_id), so it need not follow
+    item_id order: here the first peril (WSS) only carries contents. coverages.bin is positional,
+    so it must still hold the TIVs in coverage_id order."""
+    keys = pd.DataFrame(
+        [(1, 'WSS', 3, 10, 3), (1, 'WTC', 1, 10, 1), (1, 'WTC', 3, 10, 3)],
+        columns=['loc_id', 'peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'])
+    keys['status'] = 'success'
+    gul_inputs = get_gul_input_items(make_exposure(num_locations=1), keys)
+    assert gul_inputs[['coverage_type_id', 'coverage_id']].drop_duplicates().values.tolist() == [[3, 2], [1, 1]]
+
+    write_gul_input_files(gul_inputs, str(tmp_path), None, str(tmp_path))
+    assert np.fromfile(tmp_path / 'coverages.bin', dtype='f4').tolist() == [1000., 100.]

@@ -1,9 +1,14 @@
+from pathlib import Path
+from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock
 import numpy as np
 import pandas as pd
+from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from oasislmf.utils.data import (
+    get_exposure_data,
+    local_oed_files_as_paths,
     prepare_account_df,
     prepare_location_df,
     prepare_oed_exposure,
@@ -143,3 +148,37 @@ class TestPrepareOedExposure(TestCase):
         prepare_oed_exposure(mock_exposure)
         self.assertIn("acc_idx", mock_exposure.account.dataframe.columns)
         self.assertIn("layer_id", mock_exposure.account.dataframe.columns)
+
+
+EXPOSURE_RUN_DIR = Path(__file__).resolve().parents[1] / "assets" / "test_exposure_run"
+
+
+def test_local_oed_files_as_paths():
+    location = str(EXPOSURE_RUN_DIR / "location.csv")
+    config = {"location": location, "account": "https://example.com/account.csv", "ri_info": None, "check_oed": False}
+    assert local_oed_files_as_paths(config) is config
+    assert config == {"location": Path(location), "account": "https://example.com/account.csv", "ri_info": None, "check_oed": False}
+
+
+def test_get_exposure_data_reads_string_paths_without_storage_url(monkeypatch):
+    """OED files given as strings are not read through ``LocalStorage.get_storage_url``.
+
+    That URL is ``file://C:\\...`` on Windows, whose path part is empty; the fake below fails the same way on any OS.
+    """
+
+    def windows_storage_url(self, filename=None, **kwargs):
+        raise OSError(f"<urlopen error [WinError 3] The system cannot find the path specified: ''> ({filename})")
+
+    monkeypatch.setattr(LocalStorage, "get_storage_url", windows_storage_url)
+    config = {
+        "location": str(EXPOSURE_RUN_DIR / "location.csv"),
+        "account": str(EXPOSURE_RUN_DIR / "account.csv"),
+        "check_oed": False,
+        "use_field": True,
+    }
+    step = SimpleNamespace(kwargs={}, get_exposure_data_config=lambda: dict(config))
+
+    exposure = get_exposure_data(step)
+
+    assert len(exposure.location.dataframe) == len(pd.read_csv(config["location"]))
+    assert len(exposure.account.dataframe) == len(pd.read_csv(config["account"]))

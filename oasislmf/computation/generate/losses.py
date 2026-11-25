@@ -41,6 +41,7 @@ from ...execution.bin import OPTIONAL_MODEL_SETS, move_bin, prepare_run_director
 from ...preparation.summaries import generate_summaryxref_files, get_ri_summaryxref_dirs
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...pytools.fm.manager import run as fmpy_run
+from ...pytools.getmodel.common import SECTION_MERGE_DEFAULT, SECTION_MERGE_OPTIONS
 from oasislmf.pytools.summary.manager import create_summary_object_file
 from ...utils.data import (get_dataframe, get_exposure_data, get_json,
                            get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes,
@@ -57,7 +58,7 @@ from ...utils.inputs import str2bool
 from ...utils.path import setcwd
 from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
-from ...utils.ping import oasis_ping
+from ...utils.ping import oasis_ping, platform_progress_configured
 
 
 IL_RULE_0_UNDER_RI = (
@@ -195,6 +196,21 @@ class GenerateLossesBase(ComputationStep):
     def _is_run_settings_stored(self, target_dir):
         """Checks if analysis settings file is under target_dir path"""
         return os.path.isfile(os.path.join(target_dir, 'analysis_settings.json'))
+
+    def _load_stored_run_settings(self, model_run_fp):
+        """Use the run settings stored by `GenerateLossesDir`, or run it if they aren't stored yet.
+
+        The chunked workflow runs `GenerateLossesDir` once and each chunk / output step separately.
+        Those steps rebuild `self.settings` from the original settings files, so they must take the
+        stored ones to see the updates made while preparing the run directory (e.g. `number_of_samples`
+        set from `model_default_samples`, outputs disabled for missing IL/RI inputs).
+        """
+        output_dir = os.path.join(model_run_fp, 'output')
+        if self._is_run_settings_stored(output_dir):
+            with io.open(os.path.join(output_dir, 'analysis_settings.json'), 'r', encoding='utf-8') as f:
+                self.settings = json.load(f)
+        else:
+            GenerateLossesDir.run(self)
 
     def _get_num_ri_layers(self, analysis_settings, model_run_fp):
         """Find the number of Reinsurance layers based on `'ri_layers.json'`, returns pos int()"""
@@ -522,6 +538,9 @@ class GenerateLossesPartial(GenerateLossesDir):
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
          'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
+        {'name': 'dynamic_footprint_section_merge', 'default': SECTION_MERGE_DEFAULT, 'choices': list(SECTION_MERGE_OPTIONS),
+         'help': 'How a dynamic footprint merges the intensities of an areaperil lying in several sections of one '
+                 f'event (gulmc only). Default: {SECTION_MERGE_DEFAULT}'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
@@ -548,11 +567,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         GenerateLossesDir._check_ktool_rules(self)
         GenerateLossesDir._check_packed_inputs_can_be_run(self, self.settings)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-
-        # distributed worker will pass in run settings as JSON, if not given load settings
-        # and re-load input dir.
-        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
-            GenerateLossesDir.run(self)
+        self._load_stored_run_settings(model_run_fp)
 
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
@@ -581,6 +596,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             gul_random_generator=self.gul_random_generator,
             gulmc_effective_damageability=self.gulmc_effective_damageability,
             gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
+            section_merge=self.dynamic_footprint_section_merge,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
             summarypy_low_memory=self.summarypy_low_memory,
@@ -645,8 +661,7 @@ class GenerateLossesOutput(GenerateLossesDir):
 
     def run(self):
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
-            GenerateLossesDir.run(self)
+        self._load_stored_run_settings(model_run_fp)
 
         model_runner_module, _ = self._get_model_runner()
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
@@ -670,6 +685,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             model_run_dir=model_run_fp,
         )
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
+        bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
         bash_params['disable_resource_report'] = self.disable_resource_report
         with setcwd(model_run_fp):
             try:
@@ -737,6 +753,9 @@ class GenerateLosses(GenerateLossesDir):
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
          'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
+        {'name': 'dynamic_footprint_section_merge', 'default': SECTION_MERGE_DEFAULT, 'choices': list(SECTION_MERGE_OPTIONS),
+         'help': 'How a dynamic footprint merges the intensities of an areaperil lying in several sections of one '
+                 f'event (gulmc only). Default: {SECTION_MERGE_DEFAULT}'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
@@ -776,9 +795,7 @@ class GenerateLosses(GenerateLossesDir):
         with setcwd(model_run_fp):
             socket_server_size = None
             socket_server_port = None
-            has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
-            has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
-            if 'analysis_pk' in self.kwargs and not (has_websocket or has_http):
+            if 'analysis_pk' in self.kwargs and not platform_progress_configured():
                 self.logger.info("Set `OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT` or `OASIS_ANALYSIS_STATUS_URL` "
                                  "environment variables for run progress updates")
             elif 'analysis_pk' in self.kwargs:
@@ -810,6 +827,7 @@ class GenerateLosses(GenerateLossesDir):
                         gul_random_generator=self.gul_random_generator,
                         gulmc_effective_damageability=self.gulmc_effective_damageability,
                         gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
+                        section_merge=self.dynamic_footprint_section_merge,
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
                         summarypy_low_memory=self.summarypy_low_memory,
@@ -1232,9 +1250,10 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
                 if self.settings[param['output']]:
                     # We should only have one summary now
                     self.settings[param['summary']][0]['id'] = 1
-                    if self.settings[param['summary']][0]['leccalc']['return_period_file']:
+                    ord_output = self.settings[param['summary']][0].get('ord_output', {})
+                    if ord_output.get('return_period_file'):
                         warnings.warn('Return period file is not generated. Please use "return_periods" field in analysis settings JSON.')
-                        self.settings[param['summary']][0]['leccalc']['return_period_file'] = False
+                        ord_output['return_period_file'] = False
                     loss_types[idx] = True
         (self.gul, self.il) = loss_types
 
@@ -1302,6 +1321,9 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         output_files = self.model_files + self.gul_files + self.fm_files
         for output_file in output_files:
             output_file.write_file()
+
+        if self.il:
+            create_financial_structure(self.kernel_alloc_rule_il, self.input_dir)
 
         self.logger.info(f'\nGenerating losses (GUL=True, IL={self.il})')
 
