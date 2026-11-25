@@ -525,17 +525,17 @@ class TestRunCustomGulcalcCommand(TestCase):
         return mock_genbash.call_args.kwargs['_get_getmodel_cmd']
 
     @staticmethod
-    def _build(getmodel_cmd, item_output='-', stderr_guard=False):
+    def _build(getmodel_cmd, item_output=' | tee fifo/gul_P2', stderr_guard=False):
         return getmodel_cmd(number_of_samples=10, gul_threshold=0, use_random_number_file=False, item_output=item_output,
                             process_id=2, max_process_id=4, gul_alloc_rule=1, stderr_guard=stderr_guard)
 
     def test_custom_gulcalc_builds_its_own_command(self):
         getmodel_cmd = self._getmodel_cmd_passed_to_genbash(executables=['fake_gulcalc'], custom_gulcalc_cmd='fake_gulcalc')
 
-        self.assertEqual(self._build(getmodel_cmd),
-                         'fake_gulcalc -e 2 4 -a {} -p input -i -'.format(os.path.abspath('analysis_settings.json')))
+        binary_cmd = 'fake_gulcalc -e 2 4 -a {} -p input'.format(os.path.abspath('analysis_settings.json'))
+        self.assertEqual(self._build(getmodel_cmd), binary_cmd + ' | tee fifo/gul_P2')
+        self.assertEqual(self._build(getmodel_cmd, item_output=''), binary_cmd)
         self.assertTrue(self._build(getmodel_cmd, stderr_guard=True).endswith(') 2>> log/gul_stderror.err'))
-        self.assertNotIn(' -i ', self._build(getmodel_cmd, item_output=''))
 
     def test_custom_gulcalc_missing_from_path_is_an_error(self):
         with self.assertRaises(OasisException):
