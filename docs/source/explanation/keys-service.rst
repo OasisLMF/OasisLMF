@@ -445,6 +445,9 @@ Support several simple DataFrame preparation:
 Function Factory to associate a location to a geometry (e.g. ``area_peril``) based on the rtree method.
 
 .. note::
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
+
+.. note::
    !!!
    Please note that this method is quite time consuming (especially if you use the nearest neighbor option).
    If your geometries are square, you should use the ``fixed_size_geo_grid`` function instead.
@@ -525,10 +528,17 @@ Build a lookup function that assigns geotiff band values to each location from i
 
 ``band_info``: a dict where keys are the assigned column names, and values are dicts with:
    * ``id``: the id of the band in the tiff file
-   * ``default``: the value for locations outside of the geotiff's range
+   * ``default``: the value for pixels the geotiff marks as nodata, and for locations outside of the geotiff's
+     range or with missing coordinates. If the band's type cannot hold it (e.g. ``-1`` for a ``uint8`` band, or
+     ``NaN`` for an integer band), the column's type is widened to one that can.
+
+Each location takes the values of the pixel that contains it. The geotiff must use a geographic CRS such as
+EPSG:4326, or have no CRS, in which case its coordinates are taken as longitude/latitude; a projected CRS is
+rejected. The file is read with ``rasterio``, which only loads the requested bands of the raster blocks holding
+locations, so large rasters do not need to fit in memory.
 
 .. note::
-   Requires ``gdal`` to be installed, see the error message raised at build time for installation instructions.
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 |
 
@@ -563,7 +573,7 @@ Config example::
    }
 
 .. note::
-   Requires the ``h3`` package to be installed (``pip install h3>=4``).
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 |
 
