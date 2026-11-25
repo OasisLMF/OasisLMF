@@ -14,7 +14,7 @@ from oasislmf.pytools.common.data import occurrence_dtype, periods_dtype
 from oasislmf.pytools.common.event_stream import MEAN_IDX, SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.aal.manager import (_AAL_REC_DTYPE, _AAL_REC_PERIOD_DTYPE, _SUMMARIES_DTYPE, _SUMMARIES_DTYPE_size,
                                           get_num_subsets, main, run_aal)
-from tests.pytools.utils import make_idx_from_bin
+from tests.pytools.utils import SUMMARY_BIN_TRUNCATIONS, make_idx_from_bin, truncate_last_summary_bin
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_aalpy")
 
@@ -383,3 +383,21 @@ def test_run_aal_releases_its_chunks():
     del chunks, chunk
     gc.collect()
     assert [ref() for ref in chunk_refs] == [None, None]
+
+
+# ---------------------------------------------------------------------------
+# Truncated summary file
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("how", SUMMARY_BIN_TRUNCATIONS)
+def test_aal_truncated_summary_file_raises(how):
+    """A truncated summary .bin raises instead of reading past the end of the file."""
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "all_files"), tmp_dir)
+        truncate_last_summary_bin(tmp_dir / "work" / "gul", how)
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+
+        with pytest.raises(RuntimeError, match="broken summary file"):
+            main(run_dir=tmp_dir, subfolder="gul", ext="csv", aal=out_dir / "py_aalgul.csv")

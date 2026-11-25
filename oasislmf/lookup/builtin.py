@@ -49,12 +49,14 @@ import math
 import re
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
+from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.peril import get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 
 logger = logging.getLogger(__name__)
 
+GEOG_LOOKUP_DEFAULT_SLOTS = 30  # GeogScheme{N}/GeogName{N} pairs a geog_lookup step scans by default
 OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
 
 
@@ -241,9 +243,11 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
                                          .merge(peril_groups_df)['peril_id'])
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
-        locations['peril_group_id'] = locations[peril_covered_column].astype(str).str.split(';')
-        keys_df = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)[['loc_id', 'peril_id']]
-        locations.drop(columns='peril_group_id')
+        # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
+        # de-duplicate after expanding the groups, ignoring which group a peril came from
+        keys_df = (locations.assign(peril_group_id=locations[peril_covered_column].astype(str).str.split(';'))
+                   .explode('peril_group_id').merge(peril_groups_df))
+        keys_df = keys_df.drop_duplicates(subset=keys_df.columns.drop('peril_group_id'))[['loc_id', 'peril_id']]
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
         keys_df = keys_df.merge(coverage_df, how="cross").sort_values(['loc_id', 'peril_id', 'coverage_type'], kind='stable')
@@ -309,6 +313,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     - **columns**: the columns required to apply the step. These matter because any column
       (except ``loc_id``) from the original Locations DataFrame that is not used by any step is
       dropped to reduce memory consumption.
+    - **optional_columns**: columns the step uses if the location file has them. They are kept
+      like ``columns`` but a missing one doesn't fail the step (e.g. ``latitude``/``longitude``,
+      which are optional in OED). The step must cope with them being absent.
     - **parameters**: the parameters passed to the function factory.
 
     Once all the functions have been defined, the order in which they are applied is set in the
@@ -405,7 +412,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
-        useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))
+        useful_cols = self.useful_columns()
 
         useful_cols_map = {lower_case_column_map[useful_col.lower()]: useful_col
                            for useful_col in useful_cols
@@ -442,6 +449,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         id_cols = ['coverage_type', 'area_peril_id', 'vulnerability_id']
         if 'amplification_id' in locations.columns:
             id_cols += ['amplification_id']
+        # a location with no section fails like one with no areaperil; a step that already joined
+        # sections into text ('3001;3002') is left as it is
+        if 'section_id' in locations.columns and pd.api.types.is_numeric_dtype(locations['section_id']):
+            id_cols += ['section_id']
         self.set_id_columns(locations, id_cols)
         # check all success location have all ids set correctly
         success_locations = locations.loc[locations['status'] == OASIS_KEYS_STATUS['success']['id']]
@@ -453,6 +464,52 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             success_locations = success_locations.loc[~unknown_ids]
 
         return locations
+
+    def useful_columns(self):
+        """The location columns kept for the steps, each under the one spelling the steps use.
+
+        A column is kept under a single name, so two steps naming it with different capitalisation
+        (in ``columns`` or ``optional_columns``) can't both find it: raise rather than let one of
+        them fail with a KeyError. The ``geog_lookup`` slots are matched ignoring case, so they take
+        whatever spelling a step lists and never clash.
+        """
+        spellings = {'loc_id': {'loc_id': ['(always kept)']}}  # lower -> spelling -> steps naming it
+        for step_name, step_config in self.config['step_definition'].items():
+            for col in list(step_config.get("columns", [])) + self.step_optional_columns(step_config, geog_slots=False):
+                spellings.setdefault(col.lower(), {}).setdefault(col, []).append(step_name)
+        clashes = {lower: steps for lower, steps in spellings.items() if len(steps) > 1}
+        if clashes:
+            details = "; ".join(
+                ", ".join(f"'{spelling}' in {sorted(set(names))}" for spelling, names in steps.items())
+                for steps in clashes.values())
+            raise OasisException(
+                f"Lookup config names the same location column with different capitalisation: {details}. "
+                f"Use one spelling in every step's 'columns' and 'optional_columns'")
+        useful_cols = {next(iter(steps)) for steps in spellings.values()}
+        for step_config in self.config['step_definition'].values():
+            for col in self.step_optional_columns(step_config):
+                if col.lower() not in spellings:
+                    useful_cols.add(col)
+                    spellings[col.lower()] = {col: []}
+        return useful_cols
+
+    @staticmethod
+    def step_optional_columns(step_config, geog_slots=True):
+        """Columns a step uses if the location file has them, without requiring them.
+
+        These are kept through the column filter in ``process_locations`` but, unlike ``columns``,
+        a missing one doesn't fail the step. They are the step's ``optional_columns`` plus, for a
+        ``geog_lookup`` step, the ``GeogScheme{N}``/``GeogName{N}`` slots it scans.
+        """
+        optional_columns = step_config.get("optional_columns", [])
+        if isinstance(optional_columns, str):
+            optional_columns = [optional_columns]
+        optional_columns = list(optional_columns)
+        if geog_slots and step_config.get("type") == "geog_lookup":
+            slots = step_config.get("parameters", {}).get("slots", GEOG_LOOKUP_DEFAULT_SLOTS)
+            for n in range(1, slots + 1):
+                optional_columns += [f"geogscheme{n}", f"geogname{n}"]
+        return optional_columns
 
     def to_abs_filepath(self, filepath):
         """Replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
@@ -611,6 +668,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """Split the value of LocPerilsCovered into multiple line, taking peril group into account
         drop all line that are not in the list model_perils_covered
 
+        Each peril gives one row per location. When it is reached through more than one listed
+        group (e.g. ``OO1;ORF``), the row kept has as ``peril_group_id`` the first listed group
+        that contains it.
+
         Useful inspirational code:
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
 
@@ -639,9 +700,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing PerilsCovered column in location')
 
-            locations['peril_group_id'] = locations[perils_covered_column].astype(str).str.split(';')
-            peril_locations = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)
-            locations.drop(columns='peril_group_id')
+            # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
+            # de-duplicate after expanding the groups, ignoring which group a peril came from
+            peril_locations = (locations.assign(peril_group_id=locations[perils_covered_column].astype(str).str.split(';'))
+                               .explode('peril_group_id').merge(peril_groups_df))
+            peril_locations = peril_locations.drop_duplicates(subset=peril_locations.columns.drop('peril_group_id'))
 
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
@@ -768,18 +831,21 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
+
+        A location falling in several overlapping geometries gets one row per geometry. For
+        section_id that is the expected form: the keys rows of an item that differ only in
+        section_id are combined when the GUL inputs are built.
         """
         if nearest_neighbor_min_distance > 0:
-            warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
-                          "removed in a future version. Please use `nearest_neighbor_max_distance` "
-                          "instead.",
-                          DeprecationWarning)
+            warn_deprecated("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
+                            "removed in a future version. Please use `nearest_neighbor_max_distance` "
+                            "instead.")
             if not nearest_neighbor_max_distance > 0:
                 nearest_neighbor_max_distance = nearest_neighbor_min_distance
 
         if area_peril_read_params:
-            warnings.warn("Parameter `area_peril_read_params` is deprecated and may be removed in a "
-                          "future version. Please use `file_read_params` instead.", DeprecationWarning)
+            warn_deprecated("Parameter `area_peril_read_params` is deprecated and may be removed in a "
+                            "future version. Please use `file_read_params` instead.")
             if not file_read_params:
                 file_read_params = area_peril_read_params
 
@@ -1220,7 +1286,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return self.set_id_columns(locations, id_columns)
         return merge
 
-    def build_geog_lookup(self, geog_scheme, output_column, slots=30,
+    def build_geog_lookup(self, geog_scheme, output_column, slots=GEOG_LOOKUP_DEFAULT_SLOTS,
                           case_insensitive=True, on_missing='null'):
         """Resolve an OED scheme-tagged value into a single column so it can be joined on.
 
@@ -1234,9 +1300,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         The lowest-numbered matching slot wins. Rows with no matching scheme get a null in
         ``output_column`` (``on_missing='null'``) or raise (``on_missing='error'``).
 
-        Note: the ``GeogScheme{N}``/``GeogName{N}`` columns to consult must be listed in this
-        step's ``columns``, otherwise they are dropped before the step runs (see
-        ``process_locations``).
+        The ``GeogScheme{N}``/``GeogName{N}`` columns for ``N`` in ``1..slots`` are kept
+        automatically and are optional, so they don't need to be listed in the step's
+        ``columns``. Listing one there makes it required.
 
         Args:
             geog_scheme (str): the OED GeogScheme value to resolve (e.g. ``"W3W"``).

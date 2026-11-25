@@ -1,11 +1,12 @@
-import os
 from pathlib import Path
 import pandas as pd
-import pytest
 import shutil
+import tempfile
 from tempfile import TemporaryDirectory
 
 import numpy as np
+import psutil
+import pytest
 from oasislmf.pytools.kat.manager import main
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_katpy")
@@ -114,38 +115,6 @@ def test_katpy_bin_sorted():
     case_runner("bqplt", "bkatpy_qplt.csv", True)
 
 
-def _mapped_or_open(path):
-    path = str(Path(path).resolve())
-    with open("/proc/self/maps") as f:
-        if any(line.rstrip("\n").endswith(" " + path) for line in f):
-            return True
-    return any(os.path.realpath(f"/proc/self/fd/{fd}") == path for fd in os.listdir("/proc/self/fd"))
-
-
-@pytest.mark.skipif(not os.path.exists("/proc/self/maps"), reason="checks mappings through /proc")
-@pytest.mark.parametrize("out_name", ["bkatpy_qplt.csv", "bkatpy_qplt.parquet"])
-def test_katpy_bin_releases_temp_file_before_deleting_it(out_name, monkeypatch):
-    """Bin inputs are merged into a temp file that is converted and then deleted. Windows can't delete a file
-    that is still mapped or open, so nothing may hold it by then (#2238)"""
-    held_at_unlink = []
-    real_unlink = Path.unlink
-
-    def unlink(self, *args, **kwargs):
-        held_at_unlink.append(_mapped_or_open(self))
-        return real_unlink(self, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "unlink", unlink)
-    monkeypatch.setattr("oasislmf.pytools.kat.manager.DEFAULT_BUFFER_SIZE", 7)  # several buffers per file
-    with TemporaryDirectory() as tmp_dir:
-        actual_out = Path(tmp_dir, out_name)
-        main(dir_in=Path(TESTS_ASSETS_DIR, "bqplt"), qplt=True, out=actual_out, unsorted=False)
-        expected = pd.read_csv(Path(TESTS_ASSETS_DIR, "bkatpy_qplt.csv"))
-        actual = pd.read_csv(actual_out) if actual_out.suffix == ".csv" else pd.read_parquet(actual_out)
-        np.testing.assert_allclose(actual.to_numpy(dtype=float), expected.to_numpy(dtype=float), rtol=1e-5, atol=1e-8)
-
-    assert held_at_unlink and not any(held_at_unlink)
-
-
 def test_katpy_parquet_sorted():
     """Test katpy with parquet inputs (using QPLT) sorted"""
     case_runner("pqplt", "pkatpy_qplt.parquet", True)
@@ -164,3 +133,74 @@ def test_katpy_bin_unsorted():
 def test_katpy_parquet_unsorted():
     """Test katpy with parquet inputs (using QPLT) unsorted"""
     case_runner("pqplt", "upkatpy_qplt.parquet", False)
+
+
+REAL_UNLINK = Path.unlink
+
+
+def windows_unlink(self, *args, **kwargs):
+    """``Path.unlink`` failing as on Windows when the file is still open or memory mapped (WinError 32)."""
+    process = psutil.Process()
+    in_use = {Path(f.path) for f in process.open_files()}
+    if hasattr(process, "memory_maps"):
+        in_use |= {Path(m.path) for m in process.memory_maps() if m.path}
+    if Path(self).resolve() in in_use:
+        raise PermissionError(f"[WinError 32] The process cannot access the file because it is being used by another process: '{self}'")
+    return REAL_UNLINK(self, *args, **kwargs)
+
+
+@pytest.fixture
+def temp_dir(monkeypatch, tmp_path):
+    """Directory where katpy creates its temporary .bin, apart from the output."""
+    temp_dir = tmp_path / "tmp"
+    temp_dir.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp_dir))
+    return temp_dir
+
+
+@pytest.mark.parametrize("out_name", ["katpy_qplt.csv", "katpy_qplt.parquet"])
+def test_bin_to_tabular_releases_temp_file(monkeypatch, tmp_path, temp_dir, out_name):
+    """The temporary .bin of a bin to csv/parquet run is closed and unmapped before it is deleted.
+
+    Windows refuses to delete a file that is still open or memory mapped (WinError 32); deleting
+    such a file is made to fail the same way here.
+    """
+    monkeypatch.setattr(Path, "unlink", windows_unlink)
+
+    out_file = tmp_path / out_name
+    main(dir_in=Path(TESTS_ASSETS_DIR, "bqplt"), qplt=True, out=out_file, unsorted=False)
+
+    assert out_file.stat().st_size > 0
+    assert list(temp_dir.iterdir()) == []
+
+
+@pytest.mark.parametrize("out_name", ["katpy_qplt.csv", "katpy_qplt.parquet"])
+def test_bin_to_tabular_removes_temp_file_on_error(monkeypatch, tmp_path, temp_dir, out_name):
+    """The temporary .bin is deleted when the concatenation fails before the conversion starts."""
+    def failing_concat(*args, **kwargs):
+        raise RuntimeError("concatenation failed")
+
+    monkeypatch.setattr("oasislmf.pytools.kat.manager.bin_concat_sort_by_headers", failing_concat)
+
+    with pytest.raises(RuntimeError, match="concatenation failed"):
+        main(dir_in=Path(TESTS_ASSETS_DIR, "bqplt"), qplt=True, out=tmp_path / out_name, unsorted=False)
+
+    assert list(temp_dir.iterdir()) == []
+
+
+@pytest.mark.parametrize("out_name, failing", [("katpy_qplt.csv", "write_ndarray_to_fmt_csv"), ("katpy_qplt.parquet", "pa.array")])
+def test_bin_to_tabular_releases_temp_file_on_conversion_error(monkeypatch, tmp_path, temp_dir, out_name, failing):
+    """A conversion that fails part way still lets the temporary .bin be deleted, and its error is the one raised.
+
+    The failing callee keeps its arguments, as a real one would: its frame stays in the traceback with the chunk read.
+    """
+    def fail(*args, **kwargs):
+        raise ValueError("conversion failed")
+
+    monkeypatch.setattr(f"oasislmf.pytools.kat.manager.{failing}", fail)
+    monkeypatch.setattr(Path, "unlink", windows_unlink)
+
+    with pytest.raises(ValueError, match="conversion failed"):
+        main(dir_in=Path(TESTS_ASSETS_DIR, "bqplt"), qplt=True, out=tmp_path / out_name, unsorted=False)
+
+    assert list(temp_dir.iterdir()) == []

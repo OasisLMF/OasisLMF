@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
+from oasislmf.pytools.utils import redirect_logging
 
 TESTS_ASSETS_DIR = Path(__file__).parents[1].joinpath("assets")
 
@@ -41,3 +42,20 @@ def test_engine_run_leaves_a_third_party_logger_alone():
         assert third_party.propagate is False, "a third-party logger's propagate was overwritten"
     finally:
         third_party.propagate = True
+
+
+def test_engine_run_leaves_a_configured_oasislmf_logger_as_it_was(tmp_path):
+    """A caller that configured an 'oasislmf.*' logger itself gets that configuration back, not
+    the defaults: the run puts back what it found."""
+    logger = logging.getLogger('oasislmf.tests.configured_by_the_caller')
+    own_handler = logging.NullHandler()
+    logger.addHandler(own_handler)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+    try:
+        redirect_logging(exec_name='probe', log_dir=str(tmp_path))(lambda: None)()
+        assert (logger.level, logger.propagate, logger.handlers) == (logging.DEBUG, False, [own_handler])
+    finally:
+        logger.handlers.clear()
+        logger.setLevel(logging.NOTSET)
+        logger.propagate = True

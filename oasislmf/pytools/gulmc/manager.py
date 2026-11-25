@@ -16,8 +16,6 @@ import os
 import sys
 import json
 from contextlib import ExitStack
-from select import select
-import time
 
 import numpy as np
 import numba as nb
@@ -26,29 +24,30 @@ from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, ITEM_PACKED_STREAM, ITEM_STREAM, LOSS_STREAM_ID,
+                                                  check_packed_item_fits, check_packing_supported,
+                                                  max_emitted_blocks, stream_info_to_bytes, write_mv_to_stream)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
-from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
+from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, accumulate_hermite_coeffs_into, loss_correlation, HERMITE_TERMS)
 from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
-                                         generate_hash_hazard, get_corr_rval, get_random_generator)
+                                         generate_hash_hazard, get_corr_rval, get_random_generator,
+                                         _lh_philox_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            DAMAGE_TYPE_DURATION,
                                            DAMAGE_TYPE_RELATIVE,
                                            NP_BASE_ARRAY_SIZE,
                                            NormInversionParameters,
-                                           gul_header,
                                            gulSampleslevelHeader_size,
                                            gulSampleslevelRec_size,
                                            haz_arr_type, items_MC_data_type,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async
-from oasislmf.utils.defaults import SERVER_UPDATE_TIME
+from oasislmf.utils.ping import EventProgress
 from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
@@ -143,6 +142,7 @@ def run(run_dir,
         max_cached_vuln_cdf_size_MB=200,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         dynamic_footprint=False,
+        section_merge=None,
         **kwargs):
     """Execute the main gulmc workflow.
 
@@ -167,8 +167,11 @@ def run(run_dir,
         model_df_engine (str, optional): The engine to use when loading model dataframes. Defaults to OasisPandasReader.
         dynamic_footprint (bool, optional): if True, load the dynamic footprint data and adjust hazard intensities at
           runtime. Defaults to False.
-        **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
-          the port to override; analysis_pk is reported with each ping.
+        section_merge (str, optional): how a dynamic footprint merges an areaperil's intensities across the sections of
+          one event (see Footprint.load). Defaults to None, the footprint's default.
+        **kwargs: additional keyword arguments. socket_server (str) enables the progress pings (a `gul_ready` ping once
+          the model is loaded, then `events_complete` counts) and, when numeric, gives the port to override; analysis_pk
+          is reported with each ping.
 
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
@@ -206,9 +209,12 @@ def run(run_dir,
 
         # --- load or build read-only structures --------------------------------
         from oasislmf.pytools.gulmc.structure import (
-            gulmc_structure_exists, load_gulmc_structure, build_structures,
+            gulmc_structure_exists, load_gulmc_structure, build_structures, dynamic_footprint_path,
         )
+        # the dynamic footprint's hazard is memory-mapped when create_gulmc_structure saved it
+        footprint_shared_dir = None
         if gulmc_structure_exists(run_dir):
+            footprint_shared_dir = dynamic_footprint_path(run_dir)
             logger.info("loading pre-computed gulmc structures (shared memory)")
             structures = load_gulmc_structure(run_dir)
         else:
@@ -260,6 +266,28 @@ def run(run_dir,
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
+        if debug:
+            # debug writes the random values drawn, one per building; summed at source they would
+            # add up to anywhere in [0, N] instead of [0, 1], so every item keeps its buildings separate
+            # (a copy: the structure is memory-mapped read-only)
+            items = items.copy()
+            items['packed_buildings'] = -np.abs(items['packed_buildings'])
+        # building-packing: a single stream item per (loc, peril, coverage_type) multiplexes its
+        # N buildings into the sample dimension (see write_losses / encode_sidx). Packing is
+        # enabled only when some item carries more than one building. alloc_rule caps a coverage's
+        # item losses at its TIV; write_losses applies that cap within each building block,
+        # the coverage TIV being the per-building share.
+        # signed field: take the magnitude, or the keep-separate items (negative) are skipped.
+        # It is read off the item's COVERAGE, so a coverage's items cannot disagree on it -- the
+        # alloc-rule cap pairs them by building index and relies on that.
+        max_buildings = int(np.abs(items['packed_buildings']).max()) if items.shape[0] > 0 else 1
+        # only kept-separate items meet either stream ceiling: a summed one writes a single
+        # block at sidx 1..S however many buildings it carries
+        check_packed_item_fits(max_emitted_blocks(items['packed_buildings']), sample_size)
+        check_packing_supported(random_generator, items['packed_buildings'])
+        if max_buildings > 1:
+            logger.info(f"building-packing ENABLED: up to {max_buildings} buildings packed per item.")
+
         # import array to store the coverages to be computed
         # coverages are numbered from 1, therefore skip element 0.
         compute = np.zeros(coverages.shape[0] + 1, items_dtype['coverage_id'])
@@ -273,11 +301,30 @@ def run(run_dir,
         item_idx_to_item_j = np.zeros(items.shape[0], dtype=oasis_int)
         # longest dependency chain: sizes the per-depth parent-result stacks
         max_dependency_depth = compute_max_dependency_depth(coverage_source_id) if do_coverage_dependency else 0
+        # a coverage needs its sampled damage bins kept only if something below it will read them
+        coverage_has_dependents = np.zeros(coverages.shape[0] + 1, dtype=np.int8)
+        if do_coverage_dependency:
+            coverage_has_dependents[:coverage_dependents_ja_offsets.shape[0] - 1] = (
+                np.diff(coverage_dependents_ja_offsets) > 0)
+        # Only coverages in the dependency forest touch the stack, so it is sized to the buildings
+        # they actually carry rather than to max_buildings -- one outsized location elsewhere in
+        # the portfolio would otherwise set the width for the whole run. Dependents are included,
+        # not just sources: a dependent reads its source's slice at its OWN building offset, so a
+        # dependent packing more buildings than its source would read past a source-only bound.
+        if do_coverage_dependency and items.shape[0] > 0:
+            in_forest = (coverage_has_dependents[items['coverage_id']] == 1) | (
+                coverage_source_id[items['coverage_id']] != 0)
+            max_source_buildings = int(np.abs(items['packed_buildings'][in_forest]).max()) if in_forest.any() else 1
+        else:
+            max_source_buildings = 1
         # per-depth stacks holding a source's result while its subtree is computed, indexed
-        # [depth, item_j] so a dependent reads its source's matching peril
+        # [depth, item_j] so a dependent reads its source's matching peril. The bins are per
+        # sample and so per building: laid out as (b - 1) * S + (s - 1), the same encoding the
+        # stream uses for a packed sidx.
         max_items_per_coverage = int(np.max(coverages[1:]['max_items']))
         source_damage_bin_stack = np.zeros(
-            (max_dependency_depth + 1, max_items_per_coverage, sample_size if sample_size > 0 else 1), dtype=np.int32)
+            (max_dependency_depth + 1, max_items_per_coverage,
+             max_source_buildings * (sample_size if sample_size > 0 else 1)), dtype=np.int32)
         source_eff_damage_cdf_stack = np.zeros(
             (max_dependency_depth + 1, max_items_per_coverage, Ndamage_bins_max), dtype=oasis_float)
         source_eff_damage_cdf_len_stack = np.zeros((max_dependency_depth + 1, max_items_per_coverage), dtype=np.int64)
@@ -293,7 +340,9 @@ def run(run_dir,
             footprint_obj = None
         else:
             footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
-                                                df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids))
+                                                df_engine=model_df_engine, areaperil_ids=item_map_ja_areaperil_ids,
+                                                section_merge=section_merge,
+                                                shared_dir=footprint_shared_dir))
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         # set up streams
@@ -302,10 +351,12 @@ def run(run_dir,
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
-        select_stream_list = [stream_out]
-
-        # prepare output stream
-        stream_out.write(gul_header)
+        # prepare output stream. The aggregation type says whether a reader may meet a packed
+        # sidx, and only a kept-separate item emits one -- a run that packs nothing, or packs only
+        # items summed at source, declares ITEM_STREAM and is byte-for-byte pre-packing.
+        stream_out.write(stream_info_to_bytes(
+            LOSS_STREAM_ID,
+            ITEM_PACKED_STREAM if max_emitted_blocks(items['packed_buildings']) > 1 else ITEM_STREAM))
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function
@@ -313,10 +364,11 @@ def run(run_dir,
         # create the array to store the seeds
         haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
-        # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts)
-        group_seq_rng_index = np.empty(n_unique_groups, dtype=np.int64)
-        hazard_group_seq_rng_index = np.empty(n_unique_haz_groups, dtype=np.int64)
-
+        # Pre-allocated arrays for group_id -> rng_index mapping. Initialised once; reconstruct_coverages
+        # restores the entries it used, so they are never reset in full (their size is that of the
+        # portfolio, not of the event).
+        group_seq_rng_index = np.full(n_unique_groups, NO_RNG_INDEX, dtype=np.int64)
+        hazard_group_seq_rng_index = np.full(n_unique_haz_groups, NO_RNG_INDEX, dtype=np.int64)
         # haz correlation
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
             # there will be some hazard correlation
@@ -372,10 +424,33 @@ def run(run_dir,
 
         # create buffers to be reused when computing losses
         byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
-        losses = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
+        max_items_per_coverage = int(np.max(coverages[1:]['max_items']))
+        losses = np.zeros((sample_size + NUM_IDX + 1, max_items_per_coverage), dtype=oasis_float)
 
-        # maximum bytes to be written in the output stream for 1 item
-        max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
+        # Per-building sample buffer. write_losses reduces across items at a fixed building and
+        # then sums the buildings, so a coverage's every building has to be resident before any of
+        # it can be written.
+        building_losses = np.zeros((max(sample_size, 1), max_items_per_coverage, max_buildings),
+                                   dtype=oasis_float)
+        # Generator 2 is counter-based: a building's block is a pure function of the group key
+        # and the building index, so it can be produced where it is consumed instead of the
+        # whole event's draws being materialised up front. These hold one building's worth.
+        vuln_draw_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+        haz_draw_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+        perm_scratch = np.zeros(max(sample_size, 1), dtype='float64')
+        # Per item of the current coverage, the correlation between two of its buildings'
+        # LOSSES -- what the variance of their sum actually needs. 0 unless the item is summed
+        # and correlated, which is the only case that reads it.
+        loss_correlation_by_item = np.zeros(max_items_per_coverage, dtype=oasis_float)
+        hermite_coeffs = np.zeros(HERMITE_TERMS, dtype='float64')
+
+        # maximum bytes to be written in the output stream for 1 item. A kept-separate item emits
+        # one block of that per building; a summed one emits a single block whatever it carries.
+        # One block: the item header, this building's NUM_IDX specials and S samples, and the
+        # delimiter. Only the first block of an item carries the header and only the last the
+        # delimiter, so charging every block for both is a deliberate over-estimate.
+        max_bytes_per_block = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
+        max_bytes_per_item = max_bytes_per_block * max_emitted_blocks(items['packed_buildings'])
 
         # define vulnerability cdf cache size
         max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cache size in bytes
@@ -403,6 +478,7 @@ def run(run_dir,
         compute_info = np.zeros(1, dtype=gulmc_compute_info_type)[0]
 
         compute_info['max_bytes_per_item'] = max_bytes_per_item
+        compute_info['sample_size'] = sample_size
         compute_info['Ndamage_bins_max'] = Ndamage_bins_max
         compute_info['loss_threshold'] = loss_threshold
         compute_info['alloc_rule'] = alloc_rule
@@ -413,10 +489,13 @@ def run(run_dir,
         compute_info['do_coverage_dependency'] = do_coverage_dependency
 
         # default random values array for sample_size==0 case
-        haz_rndms_base = np.empty((1, sample_size), dtype='float64')
-        vuln_rndms_base = np.empty((1, sample_size), dtype='float64')
         haz_eps_ij = np.empty((1, sample_size), dtype='float64')
         damage_eps_ij = np.empty((1, sample_size), dtype='float64')
+
+        # one row of sample_size per rng group; not built at all on generator 2, which draws
+        # each building's block where it is used
+        vuln_rndms_base = np.empty((1, 1), dtype='float64')
+        haz_rndms_base = np.empty((1, 1), dtype='float64')
 
         # Pre-allocate per-event footprint arrays (reused across events, no per-event allocation)
         # fp_ap_inds stores dense areaperil indices (from item_map_ja_id_ind) rather than raw
@@ -426,24 +505,24 @@ def run(run_dir,
         fp_ap_inds = np.empty(n_max_areaperils, dtype=np.uint32)
         fp_event_rps = np.empty(n_max_areaperils, dtype=np.int32)
         fp_haz_arr_ptr = np.empty(n_max_areaperils + 1, dtype=np.int64)
+        # per-item event data, kept across events: reconstruct_coverages only grows it, and every
+        # field it reads back is written for the event first
+        items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
         # Pre-allocate CDF cache once (reused across events, no need to zero)
         cached_vuln_cdfs = np.empty((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
         cdf_cache_tag = np.full(n_cdf_groups, CDF_CACHE_EMPTY, dtype=np.int64)
         cdf_cache_nbins = np.zeros(Nvulns_cached, dtype=np.int32)
 
-        counter = 0
-        timer = time.time()
-        socket_server_val = kwargs.get('socket_server', 'False')
-        ping = socket_server_val != 'False'
-        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
+        # per-event coverage state starts at zero; reconstruct_coverages then only resets the
+        # coverages touched by the previous event
+        coverages['cur_items'].fill(0)
+
+        progress = EventProgress(kwargs.get('socket_server', 'False'), kwargs.get("analysis_pk", None))
+        progress.ready()
         while True:
             if not streams_in.readinto(event_id_mv):
-                if ping:
-                    ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                    if ping_port is not None:
-                        ping_data['port_override'] = ping_port
-                    oasis_ping(ping_data)
+                progress.finish()
                 break
 
             # get the next event_id from the input stream
@@ -462,7 +541,7 @@ def run(run_dir,
                     fp_haz_arr_ptr)
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
-                    counter += 1
+                    progress.event_done()
                     logger.info(f"event {event_ids[0]} SKIPPED - no items")
                     continue
 
@@ -487,6 +566,7 @@ def run(run_dir,
                     damage_corr_seeds,
                     dynamic_footprint,
                     byte_mv,
+                    items_event_data,
                     group_seq_rng_index,
                     hazard_group_seq_rng_index,
                     coverage_source_id,
@@ -504,20 +584,26 @@ def run(run_dir,
                 # for random values accounts for 25% of the runtime of the losses step not including
                 # the get_event despite having a sample size of 0.
                 if sample_size > 0:
-                    # generation of "base" random values for hazard intensity and vulnerability sampling.
-                    haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
+                    # One row of sample_size per rng GROUP, which is what a packed item's first
+                    # building gets too: random_LatinHypercube_Philox7 is a loop over
+                    # _lh_philox_block at building coordinate 0. So this row is shared by every
+                    # item of the group, and only buildings 2..N are drawn per item below.
                     vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
+                    haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
                     if hazard_rng_index > 0:
                         haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
-                # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
-                cdf_cache_tag[:] = CDF_CACHE_EMPTY
-                compute_info['cdf_cache_ctr'] = 0
+                # Invalidate the CDF cache for the new event without touching cdf_cache_tag, whose size
+                # is the number of CDF groups of the portfolio: a cached entry is valid only while
+                # cdf_cache_ctr - tag < cdf_cache_size, so advancing the counter by the cache size
+                # invalidates every tag written for previous events.
+                compute_info['cdf_cache_ctr'] += cdf_cache_mask + 1
 
                 processing_done = False
                 logger.info(f"event {event_ids[0]} STARTED")
                 while not processing_done:
+                    resume_point_before = int(compute_info['coverage_i'])
                     try:
                         processing_done = compute_event_losses(
                             compute_info,
@@ -539,8 +625,6 @@ def run(run_dir,
                             areaperil_agg_vuln_idx_ja_offsets,
                             areaperil_agg_vuln_idx_ja_data,
                             losses,
-                            haz_rndms_base,
-                            vuln_rndms_base,
                             vuln_adj,
                             haz_eps_ij,
                             damage_eps_ij,
@@ -553,6 +637,17 @@ def run(run_dir,
                             dynamic_footprint,
                             intensity_bin_peril_ids,
                             intensity_bins,
+                            building_losses,
+                            loss_correlation_by_item,
+                            hermite_coeffs,
+                            vuln_rndms_base,
+                            haz_rndms_base,
+                            vuln_seeds,
+                            haz_seeds,
+                            vuln_draw_scratch,
+                            haz_draw_scratch,
+                            perm_scratch,
+                            coverage_has_dependents,
                             compute_depth,
                             source_damage_bin_stack,
                             source_eff_damage_cdf_stack,
@@ -567,22 +662,27 @@ def run(run_dir,
 
                         logger.error(f"event id={event_ids[0]} failed in summary")
                         raise
+                    # A call that asks to be resumed must have advanced the resume point. It
+                    # only stops because the buffer is full, and the buffer is empty on entry, so
+                    # if it stops at the same place it will keep stopping there -- an infinite
+                    # loop with no error. Note it is the RESUME POINT that has to move, not the
+                    # cursor: a resume that restarts an item re-emits the same blocks forever and
+                    # writes plenty while never finishing. The sizing in reconstruct_coverages
+                    # makes this unreachable today; the check turns a future violation of that
+                    # into a failure rather than a hang.
+                    if not processing_done and int(compute_info['coverage_i']) <= resume_point_before:
+                        raise RuntimeError(
+                            f"gulmc made no progress on event {compute_info['event_id']}: it asked "
+                            f"to resume at coverage {int(compute_info['coverage_i'])}, no further "
+                            f"on than the {resume_point_before} it started from, having written "
+                            f"{compute_info['cursor']} bytes into a {byte_mv.shape[0]} byte "
+                            f"buffer, which must hold the largest coverage whole.")
                     # write the losses to the output stream
-                    write_start = 0
-                    while write_start < compute_info['cursor']:
-                        select([], select_stream_list, select_stream_list)
-                        write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
+                    write_mv_to_stream(stream_out, byte_mv, compute_info['cursor'])
 
                 logger.info(f"event {event_ids[0]} DONE")
 
-            counter += 1
-            if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                timer = time.time()
-                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                if ping_port is not None:
-                    ping_data['port_override'] = ping_port
-                oasis_ping_async(ping_data)
-                counter = 0
+            progress.event_done()
 
     return 0
 
@@ -605,50 +705,50 @@ def get_last_non_empty(cdf, bin_i):
 
 
 @nb.njit(cache=True, fastmath=True)
-def pdf_to_cdf(pdf, empty_cdf):
-    """Return the cumulative distribution from the probality distribution
+def pdf_to_cdf(pdf, n_pdf, cdf):
+    """Write the cumulative distribution of ``pdf[:n_pdf]`` into ``cdf`` and return its valid length.
 
-    Args:
-        pdf (np.array[float]): probality distribution
-        empty_cdf (np.array[float]): cumulative distribution buffer for output
-    Returns:
-         cdf (np.array[float]): here we return only the valid part if needed
+    The cdf stops once it reaches 1 (to float32 precision) and drops trailing bins that add no
+    probability, so the returned length can be shorter than ``n_pdf``. It returns a length rather
+    than a ``cdf[:n]`` slice so the per-item loop creates no array view (see the refcount note in common/event_stream.py).
     """
     cumsum = 0
     i = 0
-    while i < pdf.shape[0]:
+    while i < n_pdf:
         cumsum += pdf[i]
-        empty_cdf[i] = cumsum
+        cdf[i] = cumsum
         i += 1
         if cumsum >= 0.999999940:
             break
-    i = get_last_non_empty(empty_cdf, i - 1)
-    return empty_cdf[: i + 1]
+    return get_last_non_empty(cdf, i - 1) + 1
 
 
 @nb.njit(cache=True, fastmath=True)
-def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
-    """Calculate the covoluted cumulative distribution between vulnerability damage and hazard probability distribution
+def calc_eff_damage_cdf(vuln_pdf, haz_pdf, Nhaz_bins, eff_damage_cdf):
+    """Convolve the vulnerability pdf with the hazard pdf into an effective damage cdf.
 
     Args:
-        vuln_pdf (np.array[float]) : vulnerability damage probability distribution
-        haz_pdf (np.array[float]): hazard probability distribution
-        eff_damage_cdf_empty (np.array[float]): output buffer
+        vuln_pdf (np.array[float]): 2d vulnerability pdf; rows ``[:Nhaz_bins]`` are used, one per
+          hazard bin, columns are damage bins.
+        haz_pdf (np.array[float]): hazard probabilities; ``[:Nhaz_bins]`` are used.
+        Nhaz_bins (int): number of hazard bins.
+        eff_damage_cdf (np.array[float]): output buffer, at least ``vuln_pdf.shape[1]`` long.
+
     Returns:
-        eff_damage_cdf (np.array[float]): cdf is stored in eff_damage_cdf_empty, here we return only the valid part if needed
+        int: valid length of the cdf written to ``eff_damage_cdf`` (see ``pdf_to_cdf`` for why a
+          length rather than a slice).
     """
     eff_damage_cdf_cumsum = 0.
     damage_bin_i = 0
     while damage_bin_i < vuln_pdf.shape[1]:
-        for haz_i in range(vuln_pdf.shape[0]):
+        for haz_i in range(Nhaz_bins):
             eff_damage_cdf_cumsum += vuln_pdf[haz_i, damage_bin_i] * haz_pdf[haz_i]
 
-        eff_damage_cdf_empty[damage_bin_i] = eff_damage_cdf_cumsum
+        eff_damage_cdf[damage_bin_i] = eff_damage_cdf_cumsum
         damage_bin_i += 1
         if eff_damage_cdf_cumsum >= 0.999999940:
             break
-    damage_bin_i = get_last_non_empty(eff_damage_cdf_empty, damage_bin_i - 1)
-    return eff_damage_cdf_empty[:damage_bin_i + 1]
+    return get_last_non_empty(eff_damage_cdf, damage_bin_i - 1) + 1
 
 
 @nb.njit(cache=True)
@@ -680,12 +780,17 @@ def compute_max_dependency_depth(coverage_source_id):
 
 
 @nb.njit(fastmath=True, cache=True)
-def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_scaling):
+def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_scaling,
+                          src_bin_out, out_i):
     # find the damage cdf bin in which the random value `vuln_rval` falls into
     vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins - 1)
 
-    # compute ground-up losses; also return the sampled damage bin index (needed as the driving
-    # signal for coverage dependency — captured here rather than re-derived from the loss).
+    # The sampled bin is the driving signal for coverage dependency, captured here rather than
+    # re-derived from the loss. It goes to the caller's array rather than out with the loss: a
+    # tuple has to be materialised across the call, and this is called once per sample.
+    # src_bin_out is always a sample_size slice, so the store is unconditional and the caller
+    # keeps no branch in its loop.
+    src_bin_out[out_i] = vuln_bin_idx
     gul = get_gul(
         damage_bins['bin_from'][vuln_bin_idx],
         damage_bins['bin_to'][vuln_bin_idx],
@@ -695,7 +800,7 @@ def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_sc
         vuln_rval,
         bin_scaling,
     )
-    return gul, vuln_bin_idx
+    return gul
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
@@ -741,47 +846,102 @@ def compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv):
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def compute_haz_bin_id(haz_pdf_record, item, intensity_adjustment, dynamic_footprint,
-                       intensity_bin_peril_ids, intensity_bins):
-    """Resolve the hazard intensity bin ids for an item's hazard pdf records.
+def merge_dynamic_haz_records_per_bin(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment,
+                                      intensity_bin_peril_ids, intensity_bins, bin_slot, haz_bin_id_out, haz_prob_out):
+    """Bin a dynamic footprint areaperil's records for one item, summing the probability of the
+    records that fall in the same intensity bin.
 
-    With no dynamic footprint the intensity bin ids are read directly from the hazard pdf.
-    With a dynamic footprint the recorded intensities are shifted by ``intensity_adjustment``,
-    clamped to the valid range, and re-mapped to bin ids via the per-peril ``intensity_bins``
-    lookup table.
+    A dynamic footprint record holds a raw intensity, binned here because the item's
+    intensity_adjustment shifts it first. An areaperil lying in several sections of an event can
+    hold many more records than the model has intensity bins, but all the per-hazard-bin work that
+    follows (vulnerability rows, their CDFs, the CDF cache, sampling) depends on the bin alone. So
+    the hazard axis is the bins the records fall in, never longer than the number of intensity bins,
+    which the per-hazard-bin buffers and the CDF cache are sized on.
+
+    Entries are kept in the order of each bin's first record. Records come largest intensity first
+    and intensity_bins does not decrease with intensity, so the records of a bin are adjacent and
+    the hazard CDF keeps its bin boundaries: a random number picks the same bin as unmerged.
 
     Args:
-        haz_pdf_record (np.array[haz_arr_type]): hazard pdf records for this item's areaperil.
+        haz_pdf (np.array[haz_arr_type]): hazard pdf records of all areaperils for the event.
+        haz_start (int): index of the areaperil's first record in ``haz_pdf``.
+        Nhaz_records (int): number of records of the areaperil.
+        item (np.void): the item record (uses peril_id).
+        intensity_adjustment (int): intensity shift applied before binning.
+        intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids.
+        intensity_bins (np.array[int32, 2d]): [peril_idx, intensity_value] -> intensity_bin_id.
+        bin_slot (np.array[int64]): scratch indexed by bin id, -1 everywhere on entry and on return.
+        haz_bin_id_out (np.array[int32]): receives the bin id of each entry.
+        haz_prob_out (np.array[oasis_float]): receives the summed probability of each entry.
+
+    Returns:
+        int: the number of entries written.
+    """
+    peril_id = item['peril_id']
+    # find peril index (linear scan of small array, typically 1-3 perils)
+    peril_idx = nb_int32(0)
+    for pi in range(intensity_bin_peril_ids.shape[0]):
+        if intensity_bin_peril_ids[pi] == peril_id:
+            peril_idx = nb_int32(pi)
+            break
+    max_intensity = nb_int32(intensity_bins.shape[1] - 1)
+    n_entries = 0
+    for record_i in range(haz_start, haz_start + Nhaz_records):
+        intensity_val = haz_pdf[record_i]['intensity'] - intensity_adjustment
+        if intensity_val < 0:
+            intensity_val = nb_int32(0)
+        elif intensity_val > max_intensity:
+            # past the table, its last intensity stands for that much or more
+            intensity_val = max_intensity
+        bin_id = intensity_bins[peril_idx, intensity_val]
+        entry = bin_slot[bin_id]
+        if entry < 0:
+            entry = n_entries
+            bin_slot[bin_id] = entry
+            haz_bin_id_out[entry] = bin_id
+            haz_prob_out[entry] = 0.
+            n_entries += 1
+        haz_prob_out[entry] += haz_pdf[record_i]['probability']
+    for entry in range(n_entries):
+        bin_slot[haz_bin_id_out[entry]] = -1
+    return n_entries
+
+
+@nb.njit(cache=True, fastmath=True, inline='always')
+def fill_haz_bins(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment, dynamic_footprint,
+                  intensity_bin_peril_ids, intensity_bins, bin_slot, haz_bin_id, haz_pdf_prob):
+    """Copy an item's hazard intensity bin ids and probabilities into the per-item scratch buffers.
+
+    The item's records are ``haz_pdf[haz_start:haz_start + Nhaz_records]``, read by index and copied
+    rather than sliced or field-viewed (see the refcount note in common/event_stream.py). With no
+    dynamic footprint each record is one hazard entry, its bin id read from the hazard pdf. With a
+    dynamic footprint the records are binned and merged per bin (merge_dynamic_haz_records_per_bin).
+
+    Args:
+        haz_pdf (np.array[haz_arr_type]): hazard pdf records of all areaperils for the event.
+        haz_start (int): index of this item's first record in ``haz_pdf``.
+        Nhaz_records (int): number of records for this item.
         item (np.void): the item record (needs peril_id when dynamic footprint is active).
         intensity_adjustment (int): intensity shift to apply under a dynamic footprint.
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
         intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids.
         intensity_bins (np.array[int32, 2d]): [peril_idx, intensity_value] -> intensity_bin_id.
+        bin_slot (np.array[int64]): scratch for merge_dynamic_haz_records_per_bin.
+        haz_bin_id (np.array[int32]): output, intensity bin id per hazard entry.
+        haz_pdf_prob (np.array[float]): output, probability per hazard entry.
 
     Returns:
-        np.array: intensity bin ids, one per hazard pdf record.
+        int: the number of hazard entries written.
     """
     if dynamic_footprint is not None:
-        # adjust intensity in dynamic footprint
-        haz_intensity = haz_pdf_record['intensity']
-        haz_intensity = haz_intensity - intensity_adjustment
-        haz_bin_id = np.zeros_like(haz_pdf_record['intensity_bin_id'])
-        peril_id = item['peril_id']
-        # find peril index (linear scan of small array, typically 1-3 perils)
-        peril_idx = nb_int32(0)
-        for pi in range(intensity_bin_peril_ids.shape[0]):
-            if intensity_bin_peril_ids[pi] == peril_id:
-                peril_idx = nb_int32(pi)
-                break
-        max_intensity = nb_int32(intensity_bins.shape[1] - 1)
-        for haz_bin_idx in range(haz_bin_id.shape[0]):
-            intensity_val = haz_intensity[haz_bin_idx]
-            if intensity_val < 0 or intensity_val > max_intensity:
-                intensity_val = nb_int32(0)
-            haz_bin_id[haz_bin_idx] = intensity_bins[peril_idx, intensity_val]
-    else:
-        haz_bin_id = haz_pdf_record['intensity_bin_id']
-    return haz_bin_id
+        return merge_dynamic_haz_records_per_bin(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment,
+                                                 intensity_bin_peril_ids, intensity_bins, bin_slot,
+                                                 haz_bin_id, haz_pdf_prob)
+    for haz_i in range(Nhaz_records):
+        record = haz_pdf[haz_start + haz_i]
+        haz_bin_id[haz_i] = record['intensity_bin_id']
+        haz_pdf_prob[haz_i] = record['probability']
+    return Nhaz_records
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
@@ -792,8 +952,11 @@ def build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, Ndamage_bins_max,
     For a single (non-aggregate) vulnerability the pdf is read straight out of ``vuln_array``.
     For an aggregate vulnerability the weighted sum of the member vulnerabilities is built from
     the jagged arrays; bins with no probability collapse to 100% no-loss in the first damage bin,
-    and the result is normalised by the total weight (or by the member count when all weights are
-    zero).
+    and the result is normalised by the total weight. When no member has a positive weight, each
+    counts once and the result is their plain average.
+
+    The pdf is written to rows ``[:Nhaz_bins]`` of ``vuln_pdf_empty`` with explicit loops rather
+    than through views or row slices (see the refcount note in common/event_stream.py).
 
     Args:
         item (np.void): the item record (uses areaperil_agg_vuln_idx / vulnerability_idx).
@@ -804,57 +967,58 @@ def build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, Ndamage_bins_max,
         Ndamage_bins_max (int): maximum number of damage bins.
         areaperil_agg_vuln_idx_ja_offsets (np.array[oasis_int]): jagged array offsets.
         areaperil_agg_vuln_idx_ja_data (np.array): merged structured array with 'vuln_idx' and 'weight'.
-        vuln_pdf_empty (np.array[float]): reusable buffer sliced to (Nhaz_bins, Ndamage_bins_max).
-
-    Returns:
-        np.array[float]: the vulnerability pdf, shape (Nhaz_bins, Ndamage_bins_max).
+        vuln_pdf_empty (np.array[float]): output buffer of shape (>= Nhaz_bins, Ndamage_bins_max);
+          rows ``[:Nhaz_bins]`` are overwritten.
     """
-    vuln_pdf = vuln_pdf_empty[:Nhaz_bins]
-    vuln_pdf[:] = 0
+    for haz_i in range(Nhaz_bins):
+        for damage_bin_i in range(Ndamage_bins_max):
+            vuln_pdf_empty[haz_i, damage_bin_i] = 0
     if item['areaperil_agg_vuln_idx'] >= 0:  # aggregate vulnerability — use jagged arrays
         tot_weights = 0.
         blk = item['areaperil_agg_vuln_idx']
         ptr = areaperil_agg_vuln_idx_ja_offsets[blk]
         n_sub = areaperil_agg_vuln_idx_ja_offsets[blk + 1] - ptr
         for j in range(n_sub):
-            entry = areaperil_agg_vuln_idx_ja_data[ptr + j]
-            vuln_i = entry['vuln_idx']
-            weight = np.float64(entry['weight'])
+            weight = np.float64(areaperil_agg_vuln_idx_ja_data[ptr + j]['weight'])
             if weight > 0:
                 tot_weights += weight
+
+        use_weights = tot_weights > 0
+        for j in range(n_sub):
+            entry = areaperil_agg_vuln_idx_ja_data[ptr + j]
+            vuln_i = entry['vuln_idx']
+            weight = np.float64(entry['weight']) if use_weights else 1.
+            if weight > 0:
                 for haz_i in range(Nhaz_bins):
                     has_prob = False
                     for damage_bin_i in range(Ndamage_bins_max):
-                        if vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1] > 0:
+                        probability = vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1]
+                        if probability > 0:
                             has_prob = True
-                            vuln_pdf[haz_i, damage_bin_i] += vuln_array[vuln_i, damage_bin_i, haz_bin_id[
-                                haz_i] - 1] * weight
+                            vuln_pdf_empty[haz_i, damage_bin_i] += probability * weight
                     if not has_prob:
                         # the pdf is all zeros, i.e. probability of no loss is 100%
                         # store it as 100% * weight in the first damage bin
-                        vuln_pdf[haz_i, 0] += weight
+                        vuln_pdf_empty[haz_i, 0] += weight
 
-        if tot_weights > 0:
-            vuln_pdf /= tot_weights
-        else:
-            for j in range(n_sub):
-                vuln_i = areaperil_agg_vuln_idx_ja_data[ptr + j]['vuln_idx']
-                for haz_i in range(Nhaz_bins):
-                    vuln_pdf[haz_i] += vuln_array[vuln_i, :, haz_bin_id[haz_i] - 1]
-            vuln_pdf /= n_sub
-    else:
+        norm = tot_weights if use_weights else n_sub
         for haz_i in range(Nhaz_bins):
-            vuln_pdf[haz_i] = vuln_array[item['vulnerability_idx'], :, haz_bin_id[haz_i] - 1]
-    return vuln_pdf
+            for damage_bin_i in range(Ndamage_bins_max):
+                vuln_pdf_empty[haz_i, damage_bin_i] /= norm
+    else:
+        vuln_idx = item['vulnerability_idx']
+        for haz_i in range(Nhaz_bins):
+            for damage_bin_i in range(Ndamage_bins_max):
+                vuln_pdf_empty[haz_i, damage_bin_i] = vuln_array[vuln_idx, damage_bin_i, haz_bin_id[haz_i] - 1]
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
 def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item, haz_bin_id, haz_pdf_prob,
                       vuln_array, areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
                       cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
-                      vuln_pdf_empty, eff_damage_cdf_empty, haz_i_to_Ndamage_bins_empty, haz_i_to_vuln_cdf_empty,
+                      vuln_pdf_empty, eff_damage_cdf, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
                       is_dependent, conditional_vuln_array, vuln_idx_to_cond_idx):
-    """Return an item's effective-damage CDF (and per-hazard-bin vuln CDFs), computing or reading the cache.
+    """Compute or read from the cache an item's effective-damage CDF (and per-hazard-bin vuln CDFs).
 
     On a cache miss the vulnerability pdf is (re)built, the effective damage CDF is computed and
     written to cache slot 0, and — when not running effective_damageability — each per-hazard-bin
@@ -862,9 +1026,11 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
     same CDFs are read back from those slots. ``compute_info['cdf_cache_ctr']``, ``cdf_cache_tag``,
     ``cdf_cache_nbins`` and ``cached_vuln_cdfs`` are mutated in place.
 
-    The ``haz_i_to_*`` outputs are always returned (sliced from their reusable buffers) so the
-    return type is stable; they are only populated when ``effective_damageability`` is False, which
-    is also the only case in which the caller reads them.
+    Results are written into the caller's buffers, never returned as views: the effective damage
+    CDF always ends up in ``eff_damage_cdf`` (a cache hit copies it there), and the per-hazard-bin
+    CDFs in rows ``[:Nhaz_bins]`` of ``haz_i_to_vuln_cdf`` with their lengths in
+    ``haz_i_to_Ndamage_bins`` (only when ``effective_damageability`` is False, the only case in which
+    the caller reads them). Copying a few tens of floats is cheaper than a view (see the refcount note in common/event_stream.py).
 
     Coverage dependency: for a dependent item (``is_dependent``) the vuln pdf is assembled from the
     conditional (damage-transition) matrix ``conditional_vuln_array`` — column ``haz_i`` is the
@@ -873,61 +1039,64 @@ def resolve_item_cdfs(compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item
     they are event-specific and never cached (the caller forces ``do_calc_vuln_ptf`` for dependents).
 
     Returns:
-        tuple: (eff_damage_cdf, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf).
+        int: length of the effective damage CDF in ``eff_damage_cdf``.
     """
-    haz_i_to_Ndamage_bins = haz_i_to_Ndamage_bins_empty[:Nhaz_bins]
-    haz_i_to_vuln_cdf = haz_i_to_vuln_cdf_empty[:Nhaz_bins]
-
+    n_damage_bins = vuln_pdf_empty.shape[1]
     if do_calc_vuln_ptf:  # cache miss — compute (and, unless dependent, cache) CDFs
         # we get the vuln_pdf, needed for effcdf and each cdf
         if is_dependent:
-            vuln_pdf = vuln_pdf_empty[:Nhaz_bins]
             cond_idx = vuln_idx_to_cond_idx[item['vulnerability_idx']]
             for haz_i in range(Nhaz_bins):
-                vuln_pdf[haz_i] = conditional_vuln_array[cond_idx, :, haz_i]
+                for damage_bin_i in range(n_damage_bins):
+                    vuln_pdf_empty[haz_i, damage_bin_i] = conditional_vuln_array[cond_idx, damage_bin_i, haz_i]
         else:
-            vuln_pdf = build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, compute_info['Ndamage_bins_max'],
-                                      areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data, vuln_pdf_empty)
+            build_vuln_pdf(item, Nhaz_bins, haz_bin_id, vuln_array, compute_info['Ndamage_bins_max'],
+                           areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data, vuln_pdf_empty)
 
         # calculate and cache all CDFs as a contiguous block (dependent CDFs are event-specific,
         # so they are computed but not cached)
-        eff_damage_cdf = calc_eff_damage_cdf(vuln_pdf, haz_pdf_prob, eff_damage_cdf_empty)
+        Neff_damage_bins = calc_eff_damage_cdf(vuln_pdf_empty, haz_pdf_prob, Nhaz_bins, eff_damage_cdf)
         if not is_dependent:
             cdf_cache_tag[cdf_group] = compute_info['cdf_cache_ctr']
             # slot 0: effective damage CDF
             cache_idx = compute_info['cdf_cache_ctr'] & cdf_cache_mask
-            cached_vuln_cdfs[cache_idx, :eff_damage_cdf.shape[0]] = eff_damage_cdf
-            cdf_cache_nbins[cache_idx] = nb_int32(eff_damage_cdf.shape[0])
+            for damage_bin_i in range(Neff_damage_bins):
+                cached_vuln_cdfs[cache_idx, damage_bin_i] = eff_damage_cdf[damage_bin_i]
+            cdf_cache_nbins[cache_idx] = nb_int32(Neff_damage_bins)
             compute_info['cdf_cache_ctr'] += 1
 
         if not compute_info['effective_damageability']:  # also (unless dependent) cache per-bin vuln CDFs
             for haz_i in range(Nhaz_bins):
-                haz_i_to_Ndamage_bins[haz_i] = pdf_to_cdf(vuln_pdf[haz_i], haz_i_to_vuln_cdf[haz_i]).shape[0]
+                ndamage_bins = pdf_to_cdf(vuln_pdf_empty[haz_i], n_damage_bins, haz_i_to_vuln_cdf[haz_i])
+                haz_i_to_Ndamage_bins[haz_i] = ndamage_bins
                 if not is_dependent:
                     cache_idx = compute_info['cdf_cache_ctr'] & cdf_cache_mask
-                    ndamage_bins = haz_i_to_Ndamage_bins[haz_i]
-                    cached_vuln_cdfs[cache_idx, :ndamage_bins] = haz_i_to_vuln_cdf[haz_i][:ndamage_bins]
+                    for damage_bin_i in range(ndamage_bins):
+                        cached_vuln_cdfs[cache_idx, damage_bin_i] = haz_i_to_vuln_cdf[haz_i, damage_bin_i]
                     cdf_cache_nbins[cache_idx] = nb_int32(ndamage_bins)
                     compute_info['cdf_cache_ctr'] += 1
 
     else:  # cache hit — read CDFs from cache
         block_start = cdf_cache_tag[cdf_group]
         cache_idx = block_start & cdf_cache_mask
-        eff_damage_cdf = cached_vuln_cdfs[cache_idx, :cdf_cache_nbins[cache_idx]]
+        Neff_damage_bins = cdf_cache_nbins[cache_idx]
+        for damage_bin_i in range(Neff_damage_bins):
+            eff_damage_cdf[damage_bin_i] = cached_vuln_cdfs[cache_idx, damage_bin_i]
 
         if not compute_info['effective_damageability']:
             for haz_i in range(Nhaz_bins):
                 cache_idx = (block_start + 1 + haz_i) & cdf_cache_mask
                 ndamage_bins = cdf_cache_nbins[cache_idx]
                 haz_i_to_Ndamage_bins[haz_i] = ndamage_bins
-                haz_i_to_vuln_cdf[haz_i][:ndamage_bins] = cached_vuln_cdfs[cache_idx, :ndamage_bins]
+                for damage_bin_i in range(ndamage_bins):
+                    haz_i_to_vuln_cdf[haz_i, damage_bin_i] = cached_vuln_cdfs[cache_idx, damage_bin_i]
 
-    return eff_damage_cdf, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf
+    return Neff_damage_bins
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sample_size,
-                             haz_rndms_base, vuln_rndms_base, haz_eps_ij, damage_eps_ij,
+def draw_correlation_samples(compute_info, item, hazard_rng_index, sample_size,
+                             haz_rndms_item, vuln_rndms_item, haz_eps_ij, damage_eps_ij,
                              norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
                              haz_z_unif, vuln_z_unif):
     """Draw the (optionally correlated) hazard and damage random values for one item.
@@ -942,11 +1111,13 @@ def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sa
     Args:
         compute_info (gulmc_compute_info_type): computation state (do_haz_correlation, do_correlation).
         item (np.void): the item record (correlation values, peril_correlation_group, vuln idx).
-        hazard_rng_index (int): index into haz_rndms_base, or < 0 if hazard is deterministic.
-        rng_index (int): index into vuln_rndms_base for damage sampling.
+        hazard_rng_index (int): < 0 when the hazard is deterministic, in which case no hazard
+            values are drawn. Only its sign is used; the caller has already sliced the values.
         sample_size (int): number of random samples to draw.
-        haz_rndms_base (np.array[float64]): base random values for hazard sampling.
-        vuln_rndms_base (np.array[float64]): base random values for damage sampling.
+        haz_rndms_item (np.array[float64]): this item's ``sample_size`` hazard random values.
+            Under building packing this is one building's slice of the group's block, which is
+            what lets one routine serve every building of an item.
+        vuln_rndms_item (np.array[float64]): this item's ``sample_size`` damage random values.
         haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
         damage_eps_ij (np.array[float]): correlated random values for damage sampling.
         norm_inv_parameters (NormInversionParameters): parameters for Gaussian inversion.
@@ -962,36 +1133,40 @@ def draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sa
         if compute_info['do_haz_correlation'] and item['hazard_correlation_value'] > 0:
             # use correlation definitions to draw correlated random values into haz_z_unif
             get_corr_rval(
-                haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], item['hazard_correlation_value'],
+                haz_eps_ij[item['peril_correlation_group']], haz_rndms_item, item['hazard_correlation_value'],
                 norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
                 norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
                 sample_size, haz_z_unif
             )
         else:
-            haz_z_unif[:] = haz_rndms_base[hazard_rng_index]
+            for sample_i in range(haz_z_unif.shape[0]):
+                haz_z_unif[sample_i] = haz_rndms_item[sample_i]
 
     if compute_info['do_correlation'] and item['damage_correlation_value'] > 0:
         # use correlation definitions to draw correlated random values into vuln_z_unif
         get_corr_rval(
-            damage_eps_ij[item['peril_correlation_group']], vuln_rndms_base[rng_index], item['damage_correlation_value'],
+            damage_eps_ij[item['peril_correlation_group']], vuln_rndms_item, item['damage_correlation_value'],
             norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
             norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
             sample_size, vuln_z_unif
         )
     else:
         # do not use correlation
-        vuln_z_unif[:] = vuln_rndms_base[rng_index]
+        for sample_i in range(vuln_z_unif.shape[0]):
+            vuln_z_unif[sample_i] = vuln_rndms_item[sample_i]
 
     if item['areaperil_agg_vuln_idx'] < 0:  # single vuln id (non-aggregate)
-        vuln_z_unif *= vuln_adj[item['vulnerability_idx']]
+        adj = vuln_adj[item['vulnerability_idx']]
+        for sample_i in range(vuln_z_unif.shape[0]):
+            vuln_z_unif[sample_i] *= adj
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item_event_data,
+def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                        haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
                        eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
-                       damage_bins, damage_bin_scaling, losses,
-                       is_dependent, store_source_bin, source_damage_bin_stack, depth):
+                       damage_bins, damage_bin_scaling, out,
+                       is_dependent, src_bin_out, parent_bins):
     """Write the per-sample gul (or debug random values) for one item into ``losses``.
 
     In debug modes 1/2 the drawn hazard/damage random values are stored directly. Otherwise the
@@ -1001,86 +1176,418 @@ def sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item
     not handled here: the caller skips a protected item whole, before any sampling.
 
     Coverage dependency: a dependent item (``is_dependent``, full Monte Carlo) selects its hazard
-    bin as its source's per-sample sampled damage bin, read from ``source_damage_bin_stack`` at the
-    parent depth, rather than by drawing from the hazard CDF. When ``store_source_bin`` is set (any
-    coverage under full-MC coverage dependency), this coverage's own sampled damage bin is recorded
-    at ``source_damage_bin_stack[depth]`` so a dependent below it in the DFS can consume it.
+    bin as its source's per-sample sampled damage bin, read from ``parent_bins``, rather than by
+    drawing from the hazard CDF. This item's own sampled damage
+    bin is recorded in ``src_bin_out`` so a dependent below it in the DFS can consume it. Both are
+    slices of one building's bins, so a packed item's buildings each drive their own dependent.
 
     Args:
         compute_info (gulmc_compute_info_type): computation state (debug, effective_damageability).
-        item_j (int): column index of this item within the coverage's loss buffer.
         sample_size (int): number of random samples.
         hazard_rng_index (int): index into hazard random values, or < 0 if hazard deterministic.
-        item_event_data (np.void): per-item event data (source_item_j for a dependent item).
         haz_z_unif (np.array[float]): hazard random values for this item.
         vuln_z_unif (np.array[float]): damage random values for this item.
-        haz_cdf_prob (np.array[float]): hazard intensity cdf.
+        haz_cdf_prob (np.array[float]): hazard intensity cdf buffer; ``[:Nhaz_bins]`` is valid.
         Nhaz_bins (int): number of hazard bins.
-        eff_damage_cdf (np.array[oasis_float]): effective damage cdf.
+        eff_damage_cdf (np.array[oasis_float]): effective damage cdf buffer; ``[:Neff_damage_bins]`` is valid.
         Neff_damage_bins (int): number of effective damage bins.
         haz_i_to_Ndamage_bins (np.array[oasis_int]): per-hazard-bin vulnerability cdf lengths.
         haz_i_to_vuln_cdf (np.array): per-hazard-bin vulnerability cdfs.
         damage_bins (np.array): damage bin dictionary.
         damage_bin_scaling (float): tiv scaling factor.
-        losses (np.array[oasis_float]): loss buffer written in place at column item_j.
+        out (np.array[oasis_float]): 1-d view of length ``sample_size`` written in place, holding
+            this item's samples only. Callers pass one building's column of ``building_losses``;
+            an unpacked item is the single-building case. Taking a view rather than
+            (buffer, index) is what lets both use this routine.
         is_dependent (bool): True if this item is driven by a source item's sampled damage bin.
-        store_source_bin (bool): True if this coverage's own sampled damage bin must be recorded
-          for the dependents below it in the DFS.
-        source_damage_bin_stack (np.array[int32]): per-depth, per-item sampled damage bins, read at
-          the parent depth for a dependent item and written at this coverage's depth.
-        depth (int): this coverage's depth in the dependency forest (0 for a root).
+        src_bin_out (np.array[int32]): where the sampled damage bin is written, one per sample.
+          The caller points it at this item's slice of the stack when something below will read
+          it, and at a discard slot otherwise, so the store here needs no condition.
+        parent_bins (np.array[int32]): the source item's bins for the SAME building, read when
+          ``is_dependent``. Aliases ``src_bin_out`` otherwise, which keeps the argument typed
+          without giving it a meaning.
     """
     if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
         if hazard_rng_index >= 0:
-            losses[1:, item_j] = haz_z_unif[:]
+            for sample_k in range(sample_size):
+                out[sample_k] = haz_z_unif[sample_k]
         else:
             # deterministic hazard / effective damageability: no hazard intensity sampled
-            losses[1:, item_j] = 0
+            out[:] = 0
 
     elif compute_info['debug'] == 2:  # store the random value used for the damage sampling instead of the loss
-        losses[1:, item_j] = vuln_z_unif[:]
+        for sample_k in range(sample_size):
+            out[sample_k] = vuln_z_unif[sample_k]
 
     else:  # calculate gul
         if compute_info['effective_damageability']:
             for sample_idx in range(1, sample_size + 1):
-                losses[sample_idx, item_j], _ = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
-                                                                      Neff_damage_bins, damage_bins, damage_bin_scaling)
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
+                                                            Neff_damage_bins, damage_bins, damage_bin_scaling,
+                                                            src_bin_out, sample_idx - 1)
         elif Nhaz_bins == 1:  # only one hazard possible
             Ndamage_bins = haz_i_to_Ndamage_bins[0]
-            vuln_cdf = haz_i_to_vuln_cdf[0][:Ndamage_bins]
+            vuln_cdf = haz_i_to_vuln_cdf[0]
             for sample_idx in range(1, sample_size + 1):
-                losses[sample_idx, item_j], src_bin = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                            Ndamage_bins, damage_bins, damage_bin_scaling)
-                if store_source_bin:
-                    source_damage_bin_stack[depth, item_j, sample_idx - 1] = src_bin
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling,
+                                                            src_bin_out, sample_idx - 1)
         elif is_dependent:
             # the dependent's "hazard bin" is the source's sampled damage bin, read straight from
             # the stack — no ratio round-trip, so a source of any damage type works
-            parent_damage_bin = source_damage_bin_stack[depth - 1, item_event_data['source_item_j']]
             for sample_idx in range(1, sample_size + 1):
-                haz_bin_idx = parent_damage_bin[sample_idx - 1]
+                haz_bin_idx = parent_bins[sample_idx - 1]
                 Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
-                vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
-                losses[sample_idx, item_j], src_bin = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                            Ndamage_bins, damage_bins, damage_bin_scaling)
-                if store_source_bin:
-                    source_damage_bin_stack[depth, item_j, sample_idx - 1] = src_bin
+                vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx]
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling,
+                                                            src_bin_out, sample_idx - 1)
         else:
             for sample_idx in range(1, sample_size + 1):
                 # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
                 # we don't need to use last haz_cdf_prob value because if for rounding reason haz_rval
                 # is bigger, we want the index Nhaz_bins-1 anyway. if we were using Nhaz_bins,
-                # bigger than haz_cdf_prob[-1] haz_rval would have index Nhaz_bins, outside haz_i_to_Ndamage_bins
+                # bigger than haz_cdf_prob[Nhaz_bins - 1] haz_rval would have index Nhaz_bins, outside haz_i_to_Ndamage_bins
                 haz_bin_idx = binary_search(haz_z_unif[sample_idx - 1], haz_cdf_prob, Nhaz_bins - 1)
 
                 # get the individual vulnerability cdf
                 Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
-                vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
+                vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx]
 
-                losses[sample_idx, item_j], src_bin = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                            Ndamage_bins, damage_bins, damage_bin_scaling)
-                if store_source_bin:
-                    source_damage_bin_stack[depth, item_j, sample_idx - 1] = src_bin
+                out[sample_idx - 1] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                            Ndamage_bins, damage_bins, damage_bin_scaling,
+                                                            src_bin_out, sample_idx - 1)
+
+
+@nb.njit(cache=True, fastmath=True, _nrt=False)
+def _compute_event_losses_core(compute_info,
+                               coverages,
+                               coverage_ids,
+                               items_event_data,
+                               items,
+                               sample_size,
+                               haz_pdf,
+                               haz_arr_ptr,
+                               vuln_array,
+                               conditional_vuln_array,
+                               vuln_idx_to_cond_idx,
+                               damage_bins,
+                               cdf_cache_tag,
+                               cdf_cache_nbins,
+                               cdf_cache_mask,
+                               cached_vuln_cdfs,
+                               areaperil_agg_vuln_idx_ja_offsets,
+                               areaperil_agg_vuln_idx_ja_data,
+                               losses,
+                               vuln_adj,
+                               haz_eps_ij,
+                               damage_eps_ij,
+                               norm_inv_parameters,
+                               norm_inv_cdf,
+                               norm_cdf,
+                               vuln_z_unif,
+                               haz_z_unif,
+                               byte_mv,
+                               dynamic_footprint,
+                               intensity_bin_peril_ids,
+                               intensity_bins,
+                               building_losses,
+                               loss_correlation_by_item,
+                               hermite_coeffs,
+                               vuln_rndms_base,
+                               haz_rndms_base,
+                               vuln_seeds,
+                               haz_seeds,
+                               vuln_draw_scratch,
+                               haz_draw_scratch,
+                               perm_scratch,
+                               coverage_has_dependents,
+                               compute_depth,
+                               source_damage_bin_stack,
+                               source_eff_damage_cdf_stack,
+                               source_eff_damage_cdf_len_stack,
+                               haz_cdf_empty,
+                               vuln_pdf_empty,
+                               eff_damage_cdf_empty,
+                               haz_i_to_Ndamage_bins_empty,
+                               haz_i_to_vuln_cdf_empty,
+                               bin_slot,
+                               haz_bin_id,
+                               haz_pdf_prob,
+                               hermite_he_lo,
+                               hermite_he_hi):
+    """Body of compute_event_losses, compiled without the numba runtime (``_nrt=False``).
+
+    Without the runtime numba emits no NRT incref/decref at all, which removes the per-item
+    refcounting the inlined helpers' array arguments still cost (see the refcount note in
+    common/event_stream.py): ~16% of gulmc's CPU on a PiWind run with numba 0.68. In exchange
+    nothing in here, or in any helper it calls, may allocate (numba refuses to compile it), so the
+    scratch buffers are allocated by compute_event_losses and passed in. Every array here is an
+    argument or a view of one, kept alive by the caller for the whole call. ``_nrt`` is a private
+    numba option.
+
+    The arguments are those of compute_event_losses, followed by its scratch buffers.
+    """
+    cdf_cache_size = nb_int64(cdf_cache_mask + 1)
+    n_damage_bins_total = damage_bins.shape[0]
+    damage_bins_interpolation = damage_bins['interpolation']  # one field view per call, not per item
+
+    # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
+    compute_info['cursor'] = 0
+
+    # loop through all the coverages that remain to be computed. `compute` is in DFS order — a
+    # root (compute_depth == 0) is followed by its subtree — so a source precedes its dependents.
+    for coverage_i in range(compute_info['coverage_i'], compute_info['coverage_n']):
+        coverage_id = coverage_ids[coverage_i]
+        coverage = coverages[coverage_id]
+        depth = compute_depth[coverage_i]
+        tiv = coverage['tiv']
+        Nitems = coverage['cur_items']
+        exposureValue = tiv / Nitems
+
+        alloc_rule_l = compute_info['alloc_rule']          # hoisted out of the per-sample loops
+
+        # Every coverage is emitted whole -- there is no return between the first byte of a
+        # coverage and its last -- so its output has to fit before we start. The bound
+        # OVER-reserves: max_bytes_per_item carries max_emitted_blocks over EVERY item in the
+        # portfolio, so a coverage of one-building items is charged for the largest packed item
+        # that exists anywhere. Safe, since it can only over-reserve, but sizing it from this
+        # coverage's own items is a known improvement.
+        # Bailing here can land inside a dependency subtree, which is sound: a flush only writes
+        # bytes out, and the stacks a dependent reads (source_damage_bin_stack,
+        # source_eff_damage_cdf_stack) are caller-owned and outlive the call.
+        if compute_info['cursor'] + Nitems * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
+            return False
+
+        coverage_is_dependent = compute_info['do_coverage_dependency'] == 1 and depth > 0
+        # nothing below reads this coverage's sampled bins unless it actually has dependents, and
+        # the stack is sized on that basis -- storing anyway would write past its width
+        has_dependents_below = (compute_info['do_coverage_dependency'] == 1
+                                and coverage_has_dependents[coverage_id] == 1)
+        # compute losses for each item, resuming where a flush interrupted this coverage
+        for item_j in range(Nitems):
+            item_event_data = items_event_data[coverage['start_items'] + item_j]
+            rng_index = item_event_data['rng_index']
+            hazard_rng_index = item_event_data['hazard_rng_index']
+            # signed; this loop only needs how many buildings to draw for. 1 when nothing is
+            # packed, which is what makes the unpacked case just N == 1 here.
+            n_buildings = abs(item_event_data['packed_buildings'])
+
+            item = items[item_event_data['item_idx']]
+            # an item is dependent only if it resolved to a source item (< 0 means it did not)
+            is_dependent = coverage_is_dependent and item_event_data['source_item_j'] >= 0
+            haz_arr_i = item_event_data['haz_arr_i']
+            haz_start = haz_arr_ptr[haz_arr_i]
+            Nhaz_records = haz_arr_ptr[haz_arr_i + 1] - haz_start
+
+            if dynamic_footprint is not None:
+                intensity_adjustment = item['intensity_adjustment']
+                # RP protection skips the item whole, samples and analytic sidx alike. The return
+                # period is per item-event, not per hazard bin, so this needs no per-sample check.
+                if item_event_data['return_period'] > 0 \
+                        and item_event_data['event_rp'] < item_event_data['return_period']:
+                    losses[:, item_j] = 0
+                    # only this item's buildings: write_losses reads no further for it, and zeroes
+                    # the rest of the coverage's building range itself when an alloc rule needs it
+                    building_losses[:, item_j, :abs(item_event_data['packed_buildings'])] = 0
+                    if has_dependents_below:
+                        # a dependent below this one in the DFS still reads (depth, item_j), so
+                        # leave "no damage" there rather than the last coverage's values
+                        source_damage_bin_stack[depth, item_j, :] = 0
+                        source_eff_damage_cdf_stack[depth, item_j, 0] = 1.
+                        source_eff_damage_cdf_len_stack[depth, item_j] = 1
+                    continue
+            else:
+                intensity_adjustment = nb_oasis_int(0)
+
+            # copy this item's (possibly intensity-adjusted) hazard bins and probabilities out of
+            # the array containing all hazard pdfs
+            Nhaz_entries = fill_haz_bins(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment, dynamic_footprint,
+                                         intensity_bin_peril_ids, intensity_bins, bin_slot, haz_bin_id, haz_pdf_prob)
+
+            cdf_group = nb_int64(item_event_data['eff_cdf_id'])
+
+            # drive a dependent from its source's damage instead of the footprint hazard: hazard
+            # bins become the source's damage bins, the hazard pdf its damage pmf (derived from the
+            # source's stored eff-damage CDF), so the assembly / CDF / sampling below is reused
+            if is_dependent:
+                Nhaz_bins = n_damage_bins_total
+                src_j = item_event_data['source_item_j']
+                parent_eff_cdf_len = source_eff_damage_cdf_len_stack[depth - 1, src_j]
+                prev_cdf = 0.0
+                for damage_bin_k in range(Nhaz_bins):
+                    if damage_bin_k < parent_eff_cdf_len:
+                        parent_cdf = source_eff_damage_cdf_stack[depth - 1, src_j, damage_bin_k]
+                        haz_pdf_prob[damage_bin_k] = parent_cdf - prev_cdf
+                        prev_cdf = parent_cdf
+                    else:
+                        haz_pdf_prob[damage_bin_k] = 0.0
+            else:
+                # the hazard cdf is left in haz_cdf_empty (unused on the dependent path)
+                Nhaz_bins = pdf_to_cdf(haz_pdf_prob, Nhaz_entries, haz_cdf_empty)
+
+            # determine if the CDFs for this CDF group are cached. A dependent's CDF is
+            # event-specific, so it is always recomputed.
+            stored = cdf_cache_tag[cdf_group]
+            do_calc_vuln_ptf = is_dependent or (
+                stored < 0) or (compute_info['cdf_cache_ctr'] - stored >= cdf_cache_size)
+
+            Neff_damage_bins = resolve_item_cdfs(
+                compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item, haz_bin_id, haz_pdf_prob,
+                vuln_array, areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
+                cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
+                vuln_pdf_empty, eff_damage_cdf_empty, haz_i_to_Ndamage_bins_empty, haz_i_to_vuln_cdf_empty,
+                is_dependent, conditional_vuln_array, vuln_idx_to_cond_idx)
+
+            damage_bin_scaling = compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv)
+
+            # compute mean loss values
+            gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
+                damage_bin_scaling,
+                eff_damage_cdf_empty,
+                damage_bins_interpolation,
+                Neff_damage_bins,
+                damage_bins[Neff_damage_bins - 1]['bin_to'],
+            )
+
+            losses[MAX_LOSS_IDX, item_j] = max_loss
+            losses[CHANCE_OF_LOSS_IDX, item_j] = chance_of_loss
+            losses[TIV_IDX, item_j] = exposureValue
+            losses[STD_DEV_IDX, item_j] = std_dev
+            losses[MEAN_IDX, item_j] = gul_mean
+
+            # Only a SUMMED item reports the spread of a sum, and only then does the correlation
+            # between two buildings' losses matter. Everything else keeps 0 and pays nothing.
+            # Hazard correlation is not included: with no damage correlation the buildings count
+            # as independent, so the reported std_dev is low when their hazard draws are correlated
+            # (a documented limitation; the sampled losses are unaffected).
+            item_rho = item_event_data['damage_correlation_value']
+            if item_event_data['packed_buildings'] > 1 and item_rho > 0.:
+                for k in range(HERMITE_TERMS):
+                    hermite_coeffs[k] = 0.
+                if compute_info['effective_damageability']:
+                    # one uniform drives the loss, so its CDF is the whole story
+                    accumulate_hermite_coeffs_into(
+                        damage_bin_scaling, eff_damage_cdf_empty, damage_bins_interpolation,
+                        Neff_damage_bins, 1., norm_inv_parameters['x_min'],
+                        norm_inv_parameters['inv_factor'], norm_inv_cdf, hermite_coeffs,
+                        hermite_he_lo, hermite_he_hi)
+                else:
+                    # the hazard bin is drawn independently per building, so what the damage
+                    # copula correlates is E[loss | damage uniform] -- the hazard-probability
+                    # weighted mixture of the per-bin vulnerability curves. The hazard's own
+                    # spread still counts in std_dev below, which is what dilutes the result.
+                    # The weights are haz_pdf_prob, not haz_cdf_prob: a dependent has no hazard
+                    # cdf, and its pdf is the source's damage pmf. That treats the source's
+                    # buildings as independent, so a correlated source makes this an underestimate.
+                    for haz_i in range(Nhaz_bins):
+                        haz_weight = haz_pdf_prob[haz_i]
+                        if haz_weight <= 0.:
+                            continue
+                        accumulate_hermite_coeffs_into(
+                            damage_bin_scaling, haz_i_to_vuln_cdf_empty[haz_i],
+                            damage_bins_interpolation, haz_i_to_Ndamage_bins_empty[haz_i],
+                            haz_weight, norm_inv_parameters['x_min'],
+                            norm_inv_parameters['inv_factor'], norm_inv_cdf, hermite_coeffs,
+                            hermite_he_lo, hermite_he_hi)
+                loss_correlation_by_item[item_j] = loss_correlation(
+                    hermite_coeffs, std_dev * std_dev, item_rho)
+            else:
+                loss_correlation_by_item[item_j] = 0.
+
+            if sample_size > 0:  # compute random losses
+                # full Monte Carlo: record this coverage's per-sample damage bin for any dependent
+                # below it in the DFS
+                store_source_bin = has_dependents_below and not compute_info['effective_damageability']
+
+                # One block per building; an unpacked item is the N == 1 case, whose single block
+                # is the legacy draw. The two routines below take the random values and the output
+                # column as views, so a building is just a different pair.
+
+                for b in range(1, n_buildings + 1):
+                    # Building 1 is the group's shared row, already drawn once for the event.
+                    # Only 2..N are per item, and reaching them at all means the item is packed,
+                    # which check_packing_supported allows on generator 2 alone -- so the block
+                    # generator is always the right one here.
+                    if b == 1:
+                        vuln_base_b = vuln_rndms_base[rng_index]
+                    else:
+                        vs = np.uint64(vuln_seeds[rng_index])
+                        _lh_philox_block(np.uint32(vs & PHILOX_U32_MASK),
+                                         np.uint32(vs >> PHILOX_SHIFT32), b - 1, sample_size,
+                                         perm_scratch[:sample_size], vuln_draw_scratch[:sample_size])
+                        vuln_base_b = vuln_draw_scratch[:sample_size]
+                    if hazard_rng_index >= 0:
+                        if b == 1:
+                            haz_base_b = haz_rndms_base[hazard_rng_index]
+                        else:
+                            hs = np.uint64(haz_seeds[hazard_rng_index])
+                            _lh_philox_block(np.uint32(hs & PHILOX_U32_MASK),
+                                             np.uint32(hs >> PHILOX_SHIFT32), b - 1, sample_size,
+                                             perm_scratch[:sample_size], haz_draw_scratch[:sample_size])
+                            haz_base_b = haz_draw_scratch[:sample_size]
+                    else:
+                        haz_base_b = vuln_base_b  # unused; keeps the argument type stable
+
+                    draw_correlation_samples(compute_info, item, hazard_rng_index, sample_size,
+                                             haz_base_b, vuln_base_b, haz_eps_ij, damage_eps_ij,
+                                             norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
+                                             haz_z_unif, vuln_z_unif)
+
+                    # this building's slice of the bin stack, same (b - 1) * S + (s - 1) encoding
+                    # as a packed sidx. A dependent reads its source's slice for the SAME building,
+                    # so building b of the dependent is driven by building b of the source.
+                    bin_off = (b - 1) * sample_size
+                    if store_source_bin:
+                        src_bin_out = source_damage_bin_stack[depth, item_j, bin_off: bin_off + sample_size]
+                    else:
+                        # The sampler stores the bin unconditionally, to keep the branch out of its
+                        # per-sample loop, so it needs somewhere in bounds to put a value nothing
+                        # will read. bin_off can run past the stack's width, which is only as wide
+                        # as a SOURCE item's buildings; the first building's slot never does, and
+                        # this item's slice is read only when it IS a source, which is the branch
+                        # above.
+                        src_bin_out = source_damage_bin_stack[depth, item_j, 0: sample_size]
+                    if is_dependent:
+                        parent_bins = source_damage_bin_stack[depth - 1, item_event_data['source_item_j'],
+                                                              bin_off: bin_off + sample_size]
+                    else:
+                        parent_bins = src_bin_out  # unused; keeps the argument type stable
+
+                    sample_item_losses(compute_info, sample_size, hazard_rng_index,
+                                       haz_z_unif, vuln_z_unif, haz_cdf_empty, Nhaz_bins,
+                                       eff_damage_cdf_empty, Neff_damage_bins, haz_i_to_Ndamage_bins_empty,
+                                       haz_i_to_vuln_cdf_empty, damage_bins, damage_bin_scaling,
+                                       building_losses[:, item_j, b - 1],
+                                       is_dependent, src_bin_out, parent_bins)
+
+            # effective damageability: record the eff-damage CDF instead, for a dependent below
+            # to build its damage pmf from
+            if has_dependents_below:
+                for damage_bin_k in range(Neff_damage_bins):
+                    source_eff_damage_cdf_stack[depth, item_j, damage_bin_k] = eff_damage_cdf_empty[damage_bin_k]
+                source_eff_damage_cdf_len_stack[depth, item_j] = Neff_damage_bins
+
+        # write the losses to the output memoryview. A zero-TIV coverage (an uninsured dependency
+        # source) yields zero losses and is written like any other — not special-cased.
+        compute_info['cursor'] = write_losses(
+            compute_info['event_id'],
+            sample_size,
+            compute_info['loss_threshold'],
+            losses[:, :Nitems],
+            building_losses[:, :Nitems, :],
+            items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
+            items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['packed_buildings'],
+            loss_correlation_by_item[:Nitems],
+            compute_info['alloc_rule'],
+            tiv,
+            byte_mv,
+            compute_info['cursor'])
+
+        # register that another `coverage_id` has been processed
+        compute_info['coverage_i'] += 1
+
+    return True
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -1103,8 +1610,6 @@ def compute_event_losses(compute_info,
                          areaperil_agg_vuln_idx_ja_offsets,
                          areaperil_agg_vuln_idx_ja_data,
                          losses,
-                         haz_rndms_base,
-                         vuln_rndms_base,
                          vuln_adj,
                          haz_eps_ij,
                          damage_eps_ij,
@@ -1117,11 +1622,21 @@ def compute_event_losses(compute_info,
                          dynamic_footprint,
                          intensity_bin_peril_ids,
                          intensity_bins,
+                         building_losses,
+                         loss_correlation_by_item,
+                         hermite_coeffs,
+                         vuln_rndms_base,
+                         haz_rndms_base,
+                         vuln_seeds,
+                         haz_seeds,
+                         vuln_draw_scratch,
+                         haz_draw_scratch,
+                         perm_scratch,
+                         coverage_has_dependents,
                          compute_depth,
                          source_damage_bin_stack,
                          source_eff_damage_cdf_stack,
-                         source_eff_damage_cdf_len_stack
-                         ):
+                         source_eff_damage_cdf_len_stack):
     """Compute ground-up losses for all coverages in a single event.
 
     Iterates over coverages and their items, looking up or computing the vulnerability cdf
@@ -1161,8 +1676,6 @@ def compute_event_losses(compute_info,
         areaperil_agg_vuln_idx_ja_data (np.array[agg_vuln_idx_weight_dtype]): merged structured array
           with fields 'vuln_idx' (dense vulnerability index) and 'weight' (vulnerability weight).
         losses (numpy.array[oasis_float]): reusable 2d buffer for loss values.
-        haz_rndms_base (numpy.array[float64]): base random values for hazard intensity sampling.
-        vuln_rndms_base (numpy.array[float64]): base random values for damage sampling.
         vuln_adj (np.array[float]): per-vulnerability adjustment factors.
         haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
         damage_eps_ij (np.array[float]): correlated random values for damage sampling.
@@ -1179,6 +1692,9 @@ def compute_event_losses(compute_info,
         conditional_vuln_array (np.array[oasis_float]): damage-transition matrices, indexed
           [cond_idx, dependent damage bin - 1, source damage bin - 1]. Empty when no dependency.
         vuln_idx_to_cond_idx (np.array[int64]): dense vuln index -> conditional row, or -1.
+        coverage_has_dependents (np.array[int8]): per coverage_id, 1 if any coverage names it as
+          its source. Only those coverages' sampled damage bins are stored, and the bin stack is
+          sized on that basis, so storing for any other coverage would write past its width.
         compute_depth (np.array[int32]): per entry of ``coverage_ids``, its depth in the dependency
           forest (0 for a root), matching the DFS order the caller put them in.
         source_damage_bin_stack (np.array[int32]): per-depth, per-item sampled damage bins, holding
@@ -1187,181 +1703,106 @@ def compute_event_losses(compute_info,
           cdfs, the effective-damageability counterpart of the sampled bins.
         source_eff_damage_cdf_len_stack (np.array[int64]): valid length of each entry of
           ``source_eff_damage_cdf_stack``.
+        building_losses (numpy.array[oasis_float]): 3d (S, max_items, max_buildings) reusable
+          buffer for the per-building sample losses. Every coverage holds all of its buildings
+          here before write_losses emits it, so it is sized by the portfolio's largest location.
+        loss_correlation_by_item (numpy.array[oasis_float]): per item of the current coverage,
+          the correlation between two of its buildings' losses, written where the analytic
+          moments are and read when its summed specials are emitted. 0 for everything that
+          does not report the spread of a sum.
+        hermite_coeffs (numpy.array[float64]): length HERMITE_TERMS scratch for that.
+        vuln_rndms_base (numpy.array[float64]): 2d (damage rng groups, S) random draws, one row
+          per group, which is also every packed item's first building.
+        haz_rndms_base (numpy.array[float64]): the same for the hazard rng groups.
+        vuln_seeds (numpy.array[int]): per damage rng group, the Philox key. Read for a packed
+          item's buildings 2..N, which are drawn per item rather than shared.
+        haz_seeds (numpy.array[int]): the same for the hazard rng groups.
+        vuln_draw_scratch (numpy.array[float64]): length-S buffer for one building's damage block.
+        haz_draw_scratch (numpy.array[float64]): the same for hazard.
+        perm_scratch (numpy.array[float64]): length-S scratch the block generator permutes in.
 
     Returns:
         bool: True if all coverages have been processed, False if the buffer is full and
           the caller should flush and call again.
     """
-    cdf_cache_size = nb_int64(cdf_cache_mask + 1)
-    # a dependent's "hazard bins" are its source's damage bins, so the per-hazard-bin scratch
-    # buffers must be sized to the larger of num_damage_bins and num_intensity_bins
-    n_damage_bins_total = damage_bins.shape[0]
-    max_haz_bins = max(vuln_array.shape[2], n_damage_bins_total)
+    # scratch buffers for _compute_event_losses_core, which cannot allocate (compiled without NRT)
+    # Upper bound on an item's hazard bins: one per intensity bin (a dynamic footprint's records are
+    # merged per bin), so at most vuln_array.shape[2], or, on the dependent path, the source's damage
+    # bins. The per-item buffers below are not bounds-checked outside NUMBA_BOUNDSCHECK.
+    max_haz_bins = max(vuln_array.shape[2], damage_bins.shape[0])
     haz_cdf_empty = np.empty(max_haz_bins, dtype=oasis_float)
     vuln_pdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
     eff_damage_cdf_empty = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
     haz_i_to_Ndamage_bins_empty = np.empty(max_haz_bins, dtype=oasis_int)
     haz_i_to_vuln_cdf_empty = np.empty((max_haz_bins, compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
-    # the source's damage pmf plays the role of the hazard pdf for a dependent
-    source_damage_pmf_empty = np.empty(n_damage_bins_total, dtype=oasis_float)
+    # per-item hazard records, copied out of haz_pdf (see fill_haz_bins); for a dependent the
+    # source's damage pmf is written to haz_pdf_prob instead, playing the role of the hazard pdf
+    # A dynamic footprint's records are merged per intensity bin (see merge_dynamic_haz_records_per_bin),
+    # so its entries are at most the number of bin ids.
+    n_bin_ids = intensity_bins.max() + 1 if intensity_bins.size > 0 else 1
+    bin_slot = np.full(n_bin_ids, -1, dtype=np.int64)
+    haz_bin_id = np.empty(max(max_haz_bins, n_bin_ids), dtype=np.int32)
+    haz_pdf_prob = np.empty(max(max_haz_bins, n_bin_ids), dtype=oasis_float)
+    # work arrays for accumulate_hermite_coeffs_into
+    hermite_he_lo = np.empty(HERMITE_TERMS, dtype=np.float64)
+    hermite_he_hi = np.empty(HERMITE_TERMS, dtype=np.float64)
 
-    # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
-    compute_info['cursor'] = 0
-
-    # loop through all the coverages that remain to be computed. `compute` is in DFS order — a
-    # root (compute_depth == 0) is followed by its subtree — so a source precedes its dependents.
-    for coverage_i in range(compute_info['coverage_i'], compute_info['coverage_n']):
-        coverage_id = coverage_ids[coverage_i]
-        coverage = coverages[coverage_id]
-        depth = compute_depth[coverage_i]
-        tiv = coverage['tiv']
-        Nitems = coverage['cur_items']
-        exposureValue = tiv / Nitems
-
-        # A root and its dependent subtree are written as one atomic unit so the source's
-        # per-sample damage bin (held on source_damage_bin_stack, indexed by depth) stays
-        # valid across the whole subtree. We therefore only check the buffer at subtree roots,
-        # estimating the bytes for the entire subtree (conservatively assuming all samples are
-        # printed).
-        if depth == 0:
-            subtree_item_count = Nitems
-            lookahead_index = coverage_i + 1
-            while lookahead_index < compute_info['coverage_n'] and compute_depth[lookahead_index] > 0:
-                subtree_item_count += coverages[coverage_ids[lookahead_index]]['cur_items']
-                lookahead_index += 1
-            if compute_info['cursor'] + subtree_item_count * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
-                return False
-
-        coverage_has_dependents = compute_info['do_coverage_dependency'] == 1 and depth > 0
-        # compute losses for each item
-        for item_j in range(Nitems):
-            item_event_data = items_event_data[coverage['start_items'] + item_j]
-            rng_index = item_event_data['rng_index']
-            hazard_rng_index = item_event_data['hazard_rng_index']
-
-            item = items[item_event_data['item_idx']]
-            # an item is dependent only if it resolved to a source item (< 0 means it did not)
-            is_dependent = coverage_has_dependents and item_event_data['source_item_j'] >= 0
-            haz_arr_i = item_event_data['haz_arr_i']
-            haz_pdf_record = haz_pdf[haz_arr_ptr[haz_arr_i]:haz_arr_ptr[haz_arr_i + 1]]
-
-            if dynamic_footprint is not None:
-                intensity_adjustment = item['intensity_adjustment']
-                # RP protection skips the item whole, samples and analytic sidx alike. The return
-                # period is per item-event, not per hazard bin, so this needs no per-sample check.
-                if item_event_data['return_period'] > 0 \
-                        and item_event_data['event_rp'] < item_event_data['return_period']:
-                    losses[:, item_j] = 0
-                    if compute_info['do_coverage_dependency'] == 1:
-                        # a dependent below this one in the DFS still reads (depth, item_j), so
-                        # leave "no damage" there rather than the last coverage's values
-                        source_damage_bin_stack[depth, item_j, :] = 0
-                        source_eff_damage_cdf_stack[depth, item_j, 0] = 1.
-                        source_eff_damage_cdf_len_stack[depth, item_j] = 1
-                    continue
-            else:
-                intensity_adjustment = nb_oasis_int(0)
-
-            # we calculate this adjusted hazard pdf
-            # get the right hazard pdf from the array containing all hazard cdfs
-            haz_bin_id = compute_haz_bin_id(haz_pdf_record, item, intensity_adjustment, dynamic_footprint,
-                                            intensity_bin_peril_ids, intensity_bins)
-            haz_pdf_prob = haz_pdf_record['probability']
-
-            cdf_group = nb_int64(item_event_data['eff_cdf_id'])
-
-            # drive a dependent from its source's damage instead of the footprint hazard: hazard
-            # bins become the source's damage bins, the hazard pdf its damage pmf (derived from the
-            # source's stored eff-damage CDF), so the assembly / CDF / sampling below is reused
-            if is_dependent:
-                Nhaz_bins = n_damage_bins_total
-                # unused on this path, but stays defined so numba sees it everywhere
-                haz_cdf_prob = haz_cdf_empty[:0]
-                src_j = item_event_data['source_item_j']
-                parent_eff_cdf = source_eff_damage_cdf_stack[depth - 1, src_j, :source_eff_damage_cdf_len_stack[depth - 1, src_j]]
-                haz_pdf_prob = source_damage_pmf_empty
-                prev_cdf = 0.0
-                for damage_bin_k in range(Nhaz_bins):
-                    if damage_bin_k < parent_eff_cdf.shape[0]:
-                        haz_pdf_prob[damage_bin_k] = parent_eff_cdf[damage_bin_k] - prev_cdf
-                        prev_cdf = parent_eff_cdf[damage_bin_k]
-                    else:
-                        haz_pdf_prob[damage_bin_k] = 0.0
-            else:
-                haz_cdf_prob = pdf_to_cdf(haz_pdf_prob, haz_cdf_empty)
-                Nhaz_bins = haz_cdf_prob.shape[0]
-
-            # determine if the CDFs for this CDF group are cached. A dependent's CDF is
-            # event-specific, so it is always recomputed.
-            stored = cdf_cache_tag[cdf_group]
-            do_calc_vuln_ptf = is_dependent or (
-                stored < 0) or (compute_info['cdf_cache_ctr'] - stored >= cdf_cache_size)
-
-            eff_damage_cdf, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf = resolve_item_cdfs(
-                compute_info, cdf_group, do_calc_vuln_ptf, Nhaz_bins, item, haz_bin_id, haz_pdf_prob,
-                vuln_array, areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_data,
-                cdf_cache_tag, cdf_cache_nbins, cdf_cache_mask, cached_vuln_cdfs,
-                vuln_pdf_empty, eff_damage_cdf_empty, haz_i_to_Ndamage_bins_empty, haz_i_to_vuln_cdf_empty,
-                is_dependent, conditional_vuln_array, vuln_idx_to_cond_idx)
-
-            Neff_damage_bins = eff_damage_cdf.shape[0]
-            damage_bin_scaling = compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv)
-
-            # compute mean loss values
-            gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                damage_bin_scaling,
-                eff_damage_cdf,
-                damage_bins['interpolation'],
-                Neff_damage_bins,
-                damage_bins[Neff_damage_bins - 1]['bin_to'],
-            )
-
-            losses[MAX_LOSS_IDX, item_j] = max_loss
-            losses[CHANCE_OF_LOSS_IDX, item_j] = chance_of_loss
-            losses[TIV_IDX, item_j] = exposureValue
-            losses[STD_DEV_IDX, item_j] = std_dev
-            losses[MEAN_IDX, item_j] = gul_mean
-
-            if sample_size > 0:  # compute random losses
-                # full Monte Carlo: record this coverage's per-sample damage bin for any dependent
-                # below it in the DFS
-                store_source_bin = compute_info['do_coverage_dependency'] == 1 and not compute_info['effective_damageability']
-
-                draw_correlation_samples(compute_info, item, hazard_rng_index, rng_index, sample_size,
-                                         haz_rndms_base, vuln_rndms_base, haz_eps_ij, damage_eps_ij,
-                                         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_adj,
-                                         haz_z_unif, vuln_z_unif)
-
-                sample_item_losses(compute_info, item_j, sample_size, hazard_rng_index, item_event_data,
-                                   haz_z_unif, vuln_z_unif, haz_cdf_prob, Nhaz_bins,
-                                   eff_damage_cdf, Neff_damage_bins, haz_i_to_Ndamage_bins, haz_i_to_vuln_cdf,
-                                   damage_bins, damage_bin_scaling, losses,
-                                   is_dependent, store_source_bin, source_damage_bin_stack, depth)
-
-            # effective damageability: record the eff-damage CDF instead, for a dependent below
-            # to build its damage pmf from
-            if compute_info['do_coverage_dependency'] == 1:
-                num_damage_bins = eff_damage_cdf.shape[0]
-                source_eff_damage_cdf_stack[depth, item_j, :num_damage_bins] = eff_damage_cdf
-                source_eff_damage_cdf_len_stack[depth, item_j] = num_damage_bins
-
-        # write the losses to the output memoryview. A zero-TIV coverage (an uninsured dependency
-        # source) yields zero losses and is written like any other — not special-cased.
-        compute_info['cursor'] = write_losses(
-            compute_info['event_id'],
-            sample_size,
-            compute_info['loss_threshold'],
-            losses[:, :Nitems],
-            items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
-            compute_info['alloc_rule'],
-            tiv,
-            byte_mv,
-            compute_info['cursor'])
-
-        # register that another `coverage_id` has been processed
-        compute_info['coverage_i'] += 1
-
-    return True
+    return _compute_event_losses_core(compute_info,
+                                      coverages,
+                                      coverage_ids,
+                                      items_event_data,
+                                      items,
+                                      sample_size,
+                                      haz_pdf,
+                                      haz_arr_ptr,
+                                      vuln_array,
+                                      conditional_vuln_array,
+                                      vuln_idx_to_cond_idx,
+                                      damage_bins,
+                                      cdf_cache_tag,
+                                      cdf_cache_nbins,
+                                      cdf_cache_mask,
+                                      cached_vuln_cdfs,
+                                      areaperil_agg_vuln_idx_ja_offsets,
+                                      areaperil_agg_vuln_idx_ja_data,
+                                      losses,
+                                      vuln_adj,
+                                      haz_eps_ij,
+                                      damage_eps_ij,
+                                      norm_inv_parameters,
+                                      norm_inv_cdf,
+                                      norm_cdf,
+                                      vuln_z_unif,
+                                      haz_z_unif,
+                                      byte_mv,
+                                      dynamic_footprint,
+                                      intensity_bin_peril_ids,
+                                      intensity_bins,
+                                      building_losses,
+                                      loss_correlation_by_item,
+                                      hermite_coeffs,
+                                      vuln_rndms_base,
+                                      haz_rndms_base,
+                                      vuln_seeds,
+                                      haz_seeds,
+                                      vuln_draw_scratch,
+                                      haz_draw_scratch,
+                                      perm_scratch,
+                                      coverage_has_dependents,
+                                      compute_depth,
+                                      source_damage_bin_stack,
+                                      source_eff_damage_cdf_stack,
+                                      source_eff_damage_cdf_len_stack,
+                                      haz_cdf_empty,
+                                      vuln_pdf_empty,
+                                      eff_damage_cdf_empty,
+                                      haz_i_to_Ndamage_bins_empty,
+                                      haz_i_to_vuln_cdf_empty,
+                                      bin_slot,
+                                      haz_bin_id,
+                                      haz_pdf_prob,
+                                      hermite_he_lo,
+                                      hermite_he_hi)
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -1427,6 +1868,7 @@ def process_areaperils_in_footprint(event_footprint,
                     haz_pdf['intensity_bin_id'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity_bin_id'][last_areaperil_id_start: footprint_i]
                     if dynamic_footprint is not None:
                         haz_pdf['intensity'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity'][last_areaperil_id_start: footprint_i]
+                        # only the first row's return period is the event's (see dynamic_footprint.collapse)
                         event_rps[haz_arr_i - 1] = nb_int32(event_footprint[last_areaperil_id_start]['return_period'])
 
                     haz_arr_ptr[haz_arr_i] = arr_ptr_end
@@ -1464,6 +1906,7 @@ def reconstruct_coverages(compute_info,
                           damage_corr_seeds,
                           dynamic_footprint,
                           byte_mv,
+                          items_event_data,
                           group_seq_rng_index,
                           hazard_group_seq_rng_index,
                           coverage_source_id,
@@ -1473,7 +1916,8 @@ def reconstruct_coverages(compute_info,
                           compute_footprint_order,
                           dependency_dfs_stack,
                           source_item_idx,
-                          item_idx_to_item_j):
+                          item_idx_to_item_j,
+                          ):
     """Register each item to its coverage and prepare per-item event data for loss computation.
 
     For each (areaperil_id, vulnerability_id) pair present in the event footprint, iterates
@@ -1503,8 +1947,11 @@ def reconstruct_coverages(compute_info,
         items (np.ndarray): items table merged with correlation parameters, containing
           group_id, hazard_group_id, coverage_id, group_seq_id, hazard_group_seq_id, etc.
         item_cdf_group_idx (np.array[int64]): pre-computed mapping from item_idx to CDF group index.
-        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
-        compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed.
+        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id. On entry,
+          cur_items is non-zero only for the coverages in ``compute[:compute_info['coverage_n']]``
+          (the previous event's), which are the only ones reset here.
+        compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed. Must
+          still hold the previous event's list on entry, see ``coverages``.
         haz_seeds (numpy.array[int]): output buffer for hazard intensity random seeds.
         haz_peril_correlation_groups (numpy.array[int]): unique peril correlation groups for hazard.
         haz_corr_seeds (numpy.array[int]): output buffer for hazard correlation seeds.
@@ -1513,8 +1960,12 @@ def reconstruct_coverages(compute_info,
         damage_corr_seeds (numpy.array[int]): output buffer for damage correlation seeds.
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
         byte_mv (numpy.array[byte]): output byte buffer, may be resized if needed.
+        items_event_data (numpy.array[items_MC_data_type]): per-item event data buffer, reused
+          across events and grown (doubled) when an event needs more room. Its contents on entry
+          are irrelevant: every field read for an item is written for this event first.
         group_seq_rng_index (numpy.array[int64]): pre-allocated array of size n_unique_groups,
-          used for O(1) group_id to rng_index mapping (reset to NO_RNG_INDEX each event).
+          used for O(1) group_id to rng_index mapping. All NO_RNG_INDEX on entry; only the
+          entries of this event's groups are set, and they are restored before returning.
         coverage_source_id (numpy.array): source coverage_id per coverage_id, 0 for a root.
         coverage_dependents_ja_offsets (numpy.array[oasis_int]): CSR offsets into
           ``coverage_dependents_ja_data``, indexed by source coverage_id.
@@ -1530,12 +1981,14 @@ def reconstruct_coverages(compute_info,
         item_idx_to_item_j (numpy.array[oasis_int]): scratch mapping an item index to its position
           within its coverage for this event, used to pair a dependent item with its source item.
         hazard_group_seq_rng_index (numpy.array[int64]): pre-allocated array of size
-          n_unique_haz_groups, for hazard_group_id to rng_index mapping.
+          n_unique_haz_groups, for hazard_group_id to rng_index mapping. Same contract as
+          ``group_seq_rng_index``.
 
     Returns:
         tuple: (items_event_data, rng_index, hazard_rng_index, byte_mv)
           - items_event_data (numpy.array[items_MC_data_type]): per-item data including
-            item_idx, haz_arr_i, rng_index, hazard_rng_index, eff_cdf_id.
+            item_idx, haz_arr_i, rng_index, hazard_rng_index, eff_cdf_id. The buffer passed in, or a
+            grown copy of it: the caller must keep the returned one for the next event.
           - rng_index (int): number of unique damage random seeds generated.
           - hazard_rng_index (int): number of unique hazard random seeds generated. Only hazard
             groups touching a non-deterministic areaperil (and only under full Monte Carlo, not
@@ -1545,15 +1998,13 @@ def reconstruct_coverages(compute_info,
           - byte_mv (numpy.array[byte]): output buffer, possibly resized.
     """
     # init data structures
-    # Reset pre-allocated arrays instead of creating new Numba Dicts
-    group_seq_rng_index[:] = NO_RNG_INDEX
-    hazard_group_seq_rng_index[:] = NO_RNG_INDEX
+    # only the previous event's coverages can have cur_items > 0 (see ``coverages``): reset just those
+    for position in range(compute_info['coverage_n']):
+        coverages[compute[position]]['cur_items'] = 0
     rng_index = 0
     hazard_rng_index = 0
     compute_i = 0
     items_data_i = 0
-    coverages['cur_items'].fill(0)
-    items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
     # for each areaperil_id, loop over all vulnerability functions used in that areaperil_id and,
     # for each item:
@@ -1577,6 +2028,9 @@ def reconstruct_coverages(compute_info,
                 # and that only 1 event_id is processed at a time.
                 # Use sequential index for array-based lookup instead of Dict
                 group_seq_id = items[item_idx]['group_seq_id']
+                # Signed: magnitude is the count, negative means keep the buildings separate.
+                # The signed form goes on to items_event_data for the writer.
+                item_n_buildings_signed = items[item_idx]['packed_buildings']
                 if group_seq_rng_index[group_seq_id] == NO_RNG_INDEX:
                     group_seq_rng_index[group_seq_id] = rng_index
                     vuln_seeds[rng_index] = generate_hash(items[item_idx]['group_id'], compute_info['event_id'])
@@ -1626,6 +2080,12 @@ def reconstruct_coverages(compute_info,
                 items_event_data[item_i]['rng_index'] = this_rng_index
                 items_event_data[item_i]['hazard_rng_index'] = this_hazard_rng_index
                 items_event_data[item_i]['eff_cdf_id'] = item_cdf_group_idx[item_idx]
+                # stored signed: the writer needs the sign to decide separate-vs-summed
+                items_event_data[item_i]['packed_buildings'] = item_n_buildings_signed
+                # the EFFECTIVE correlation: draw_correlation_samples applies it only when
+                # do_correlation is set, and the writer must agree with what was drawn
+                items_event_data[item_i]['damage_correlation_value'] = (
+                    items[item_idx]['damage_correlation_value'] if compute_info['do_correlation'] else 0.)
                 if dynamic_footprint is not None:
                     items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
                     items_event_data[item_i]['return_period'] = items[item_idx]['return_period']
@@ -1653,7 +2113,6 @@ def reconstruct_coverages(compute_info,
         num_present_coverages = compute_i
         compute_footprint_order[:num_present_coverages] = compute[:num_present_coverages]  # footprint order snapshot
         write_index = 0
-        max_subtree_items = 0
         for position in range(num_present_coverages):
             root_coverage_id = compute_footprint_order[position]
             # A coverage is a root when it has no source, or when its source coverage contributes
@@ -1662,7 +2121,6 @@ def reconstruct_coverages(compute_info,
             source_coverage_id = coverage_source_id[root_coverage_id]
             if source_coverage_id != 0 and coverages[source_coverage_id]['cur_items'] > 0:
                 continue  # not a root: emitted as part of an ancestor's subtree
-            subtree_item_count = 0
             stack_pointer = 0
             dependency_dfs_stack[stack_pointer, 0] = root_coverage_id
             dependency_dfs_stack[stack_pointer, 1] = 0
@@ -1674,7 +2132,6 @@ def reconstruct_coverages(compute_info,
                 compute[write_index] = coverage_id
                 compute_depth[write_index] = depth
                 write_index += 1
-                subtree_item_count += coverages[coverage_id]['cur_items']
                 for dependent_pos in range(coverage_dependents_ja_offsets[coverage_id],
                                            coverage_dependents_ja_offsets[coverage_id + 1]):
                     dependent_coverage_id = coverage_dependents_ja_data[dependent_pos]
@@ -1682,8 +2139,6 @@ def reconstruct_coverages(compute_info,
                         dependency_dfs_stack[stack_pointer, 0] = dependent_coverage_id
                         dependency_dfs_stack[stack_pointer, 1] = depth + 1
                         stack_pointer += 1
-            if subtree_item_count > max_subtree_items:
-                max_subtree_items = subtree_item_count
         if write_index != num_present_coverages:
             # Every present coverage is reachable (root when its source is absent, emitted by its
             # source otherwise), so this is a logic error, not a data shape.
@@ -1695,11 +2150,28 @@ def reconstruct_coverages(compute_info,
     else:
         for position in range(compute_i):
             compute_depth[position] = 0
-        max_subtree_items = int(np.max(coverages['cur_items']))
+
+    # restore the group -> rng index maps for the groups seen in this event only
+    for position in range(compute_i):
+        coverage = coverages[compute[position]]
+        for item_j in range(coverage['cur_items']):
+            item_idx = items_event_data[coverage['start_items'] + item_j]['item_idx']
+            group_seq_rng_index[items[item_idx]['group_seq_id']] = NO_RNG_INDEX
+            hazard_group_seq_rng_index[items[item_idx]['hazard_group_seq_id']] = NO_RNG_INDEX
 
     compute_info['coverage_i'] = 0
     compute_info['coverage_n'] = compute_i
-    byte_mv = adjust_byte_mv_size(byte_mv, max_subtree_items * compute_info['max_bytes_per_item'])
+
+    # The buffer has to hold one whole coverage, since a coverage is emitted whole, but not a
+    # whole dependency subtree: a flush may fall between the coverages of a subtree.
+    # the extra header is what an item's first block is reserved WITH, so a buffer sized to
+    # exactly one block would reject that reservation on an empty buffer, forever
+    required_bytes = compute_info['max_bytes_per_item']
+    for position in range(compute_i):
+        coverage_bytes = coverages[compute[position]]['cur_items'] * compute_info['max_bytes_per_item']
+        if coverage_bytes > required_bytes:
+            required_bytes = coverage_bytes
+    byte_mv = adjust_byte_mv_size(byte_mv, required_bytes)
 
     generate_correlated_hash_vector(haz_peril_correlation_groups, compute_info['event_id'], haz_corr_seeds)
     generate_correlated_hash_vector(damage_peril_correlation_groups, compute_info['event_id'], damage_corr_seeds)

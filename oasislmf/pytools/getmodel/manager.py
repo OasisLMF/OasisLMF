@@ -46,7 +46,7 @@ from oasislmf.pytools.getmodel.common import (
 )
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping
+from oasislmf.utils.ping import oasis_ping_progress
 
 from .vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from ..common.data import null_index
@@ -214,7 +214,8 @@ def get_intensity_bin_dict(input_path):
             unique encoded peril_ids (length n_perils), and intensity_bins, a 2-d array of shape
             (n_perils, max_intensity + 1) mapping [peril_idx, intensity_value] ->
             intensity_bin_id. Slots not present in the CSV are pre-filled with the fallback bin
-            for intensity=0 of that peril.
+            for intensity=0 of that peril, except those above the peril's largest intensity, which
+            take its bin: the last intensity of the table stands for that much or more.
     """
     input_files = set(os.listdir(input_path))
     if "intensity_bin_dict.csv" not in input_files:
@@ -242,12 +243,14 @@ def get_intensity_bin_dict(input_path):
         peril_idx = np.searchsorted(intensity_bin_peril_ids, peril_id)
         intensity_bins[peril_idx, intensity_val] = bin_id
 
-    # pre-fill missing slots with the fallback value (bin for intensity=0)
+    # pre-fill missing slots with the fallback value (bin for intensity=0), and those above a
+    # peril's largest intensity with its bin, as gulmc clamps any larger intensity to the last slot
     for pi in range(n_perils):
         fallback = intensity_bins[pi, 0]
+        peril_max = int(data[data[:, 0] == intensity_bin_peril_ids[pi], 1].max())
         for i in range(max_intensity + 1):
             if intensity_bins[pi, i] == 0 and i != 0:
-                intensity_bins[pi, i] = fallback
+                intensity_bins[pi, i] = fallback if i < peril_max else intensity_bins[pi, peril_max]
 
     return intensity_bin_peril_ids, intensity_bins
 
@@ -991,7 +994,8 @@ def run(
     data_server,
     peril_filter,
     df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
-    analysis_pk=None
+    analysis_pk=None,
+    socket_server='False',
 ):
     """Runs the main process of the getmodel process.
 
@@ -1004,6 +1008,9 @@ def run(
         peril_filter (list[int]): list of perils to include in the computation (if None, all perils will be included).
         df_engine (str): The engine to use when loading dataframes
         analysis_pk (int): the analysis primary key reported alongside the completion ping
+        socket_server (str): 'False' disables the completion ping that reports the empty events modelpy
+            drops (gulpy never sees them, so it cannot count them); a numeric value is the local socket
+            server port to send it to.
     """
     model_storage = get_storage_from_config_path(
         os.path.join(run_dir, 'model_storage.json'),
@@ -1103,4 +1110,4 @@ def run(
                         break
             else:
                 empty_events += 1
-        oasis_ping({"events_complete": empty_events, 'analysis_pk': analysis_pk})
+        oasis_ping_progress(socket_server, analysis_pk, events_complete=empty_events)

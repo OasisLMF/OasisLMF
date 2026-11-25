@@ -6,13 +6,13 @@ __all__ = [
 import csv
 import json
 import os
-import shutil
+import re
 import tempfile
 from itertools import chain
 
 import pandas as pd
 
-from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.base import DISAGGREGATION_HELP, ComputationStep
 from oasislmf.computation.generate.files import GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
@@ -21,9 +21,11 @@ from oasislmf.preparation.il_inputs import get_oed_hierarchy
 from oasislmf.preparation.summaries import calculated_summary_cols, get_summary_map_fp
 from oasislmf.pytools.fm.portfolio_complexity import (
     compute_portfolio_complexity, format_complexity_report)
-from oasislmf.utils.data import (get_dataframe, get_exposure_data,
+from oasislmf.utils.data import (get_dataframe, get_exposure_data, resolve_disaggregation,
                                  print_dataframe)
-from oasislmf.utils.defaults import (KERNEL_ALLOC_FM_MAX,
+from oasislmf.utils.defaults import (DISAGGREGATION_ITEMS, DISAGGREGATION_MODES,
+                                     DISAGGREGATION_NONE,
+                                     KERNEL_ALLOC_FM_MAX,
                                      KERNEL_ALLOC_IL_DEFAULT,
                                      KERNEL_ALLOC_RI_DEFAULT,
                                      OASIS_FILES_PREFIXES,
@@ -31,6 +33,30 @@ from oasislmf.utils.defaults import (KERNEL_ALLOC_FM_MAX,
                                      find_exposure_fp)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
+
+
+# A whole CSV field holding a number in scientific notation, e.g. 1.7e+06.
+_SCI_NOTATION_FIELD = re.compile(r'(?<![^,\n])[-+]?\d+(?:\.\d+)?e[-+]\d+(?![^,\n])')
+
+
+# Test tooling: only runs when RunFmTest regenerates expected results (--update-expected),
+# which CI never does, so it is excluded from coverage rather than given a test of its own.
+def write_expected_file(generated, expected):  # pragma: no cover
+    """Copy a generated test output to the expected folder, numbers in plain notation.
+
+    Recent pandas/numpy write float32 columns in their shortest form, which is scientific
+    notation for round values (1700000 -> 1.7e+06), while older versions wrote 1700000.0, so
+    the expected files changed format with whichever version regenerated them. Each such field
+    is rewritten as its float64 repr (1700000.0), which is plain for the values these files
+    hold; very large or very small values (2.5e+16, 1e-05) keep the notation repr gives them.
+    Only whole, unquoted fields with a lowercase e are matched, so IDs and other text are left
+    as they are.
+    """
+    with open(generated) as f:
+        text = f.read()
+    text = _SCI_NOTATION_FIELD.sub(lambda m: repr(float(m.group())), text)
+    with open(expected, 'w') as f:
+        f.write(text)
 
 
 class RunExposure(ComputationStep):
@@ -66,8 +92,19 @@ class RunExposure(ComputationStep):
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
-        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
-         'help': 'if True run the oasis disaggregation.'},
+        # 'none' here, not the 'samples' that generation defaults to. A deterministic run exists to
+        # show what the terms do to a known loss, and splitting a location's TIV across buildings
+        # changes those numbers for reasons that have nothing to do with the policy under test.
+        # All three modes work; the other two are opt-in.
+        # The default is applied in run(), not here: the platform worker fills every parameter
+        # with its default and then sets only do_disaggregation, so a 'none' here would beat it.
+        {'name': 'disaggregation', 'type': str, 'default': None, 'choices': DISAGGREGATION_MODES,
+         'help': DISAGGREGATION_HELP + " Defaults to 'none' here rather than the 'samples' that "
+                 "generation defaults to, so a deterministic run reports the location's own TIV "
+                 "unless you ask for the buildings to be separated."},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': None,
+         'help': "DEPRECATED, and ignored when --disaggregation is given. Use --disaggregation items to split a location's "
+                 "buildings into separate items."},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
@@ -122,6 +159,8 @@ class RunExposure(ComputationStep):
 
         include_loss_factor = not (len(self.loss_factor) == 1)
 
+        disaggregation = resolve_disaggregation(self.disaggregation, self.do_disaggregation, default=DISAGGREGATION_NONE)
+
         self._check_alloc_rules()
 
         self.oasis_files_dir = src_dir
@@ -151,7 +190,8 @@ class RunExposure(ComputationStep):
             oasis_files_dir=run_dir,
             exposure_data=exposure_data,
             keys_data_path=keys_fp,
-            do_disaggregation=self.do_disaggregation,
+            # the resolved mode, not the deprecated boolean, which would warn again downstream
+            disaggregation=disaggregation,
             intermediary_csv=self.intermediary_csv,
         ).run()
 
@@ -374,6 +414,20 @@ class RunFmTest(ComputationStep):
         {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected', 'default': False},
         {'name': 'expected_output_dir', 'default': "expected"},
+        # Pinned to 'items', not RunExposure's 'none' default: the expected results of every unit
+        # with NumberOfBuildings > 1 were generated with the buildings split, and a test case means
+        # the mode it was written under. 'samples' packs them into the sample dimension instead,
+        # which is what a real model run does.
+        {'name': 'disaggregation', 'type': str, 'default': DISAGGREGATION_ITEMS,
+         'choices': DISAGGREGATION_MODES,
+         'help': "How a location's NumberOfBuildings is separated when running the test case."},
+        # Running a case under a different disaggregation mode is the reason this exists: the
+        # per-item files (items, coverages, the fm structure, the summary maps) describe where the
+        # buildings live and so differ by mode on purpose, while loc_summary.csv is the same risk
+        # either way. Comparing the full set across modes would report those by-design differences
+        # as failures.
+        {'name': 'compare_files', 'nargs': '+', 'default': None,
+         'help': 'Only compare these files against the expected directory, instead of all of them.'},
     ]
 
     def search_test_cases(self):
@@ -471,6 +525,7 @@ class RunFmTest(ComputationStep):
             fmpy_sort_output=self.fmpy_sort_output,
             keys_format='oasis',
             intermediary_csv=True,
+            disaggregation=self.disaggregation,
         ).run()
 
         expected_data_dir = os.path.join(test_dir, self.expected_output_dir)
@@ -486,16 +541,19 @@ class RunFmTest(ComputationStep):
                     'set of GUL, IL and optionally the RI loss files'
                 )
 
-        files = ['keys.csv', 'loc_summary.csv']
-        files += [
-            '{}.csv'.format(fn)
-            for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
-        ]
-        files += ['gul_summary_map.csv', 'guls.csv']
-        if il:
-            files += ['fm_summary_map.csv', 'ils.csv']
-        if ril:
-            files += ['rils.csv']
+        if self.compare_files:
+            files = list(self.compare_files)
+        else:
+            files = ['keys.csv', 'loc_summary.csv']
+            files += [
+                '{}.csv'.format(fn)
+                for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
+            ]
+            files += ['gul_summary_map.csv', 'guls.csv']
+            if il:
+                files += ['fm_summary_map.csv', 'ils.csv']
+            if ril:
+                files += ['rils.csv']
 
         test_result = True
         for f in files:
@@ -504,7 +562,7 @@ class RunFmTest(ComputationStep):
 
             if not os.path.exists(expected):
                 if self.update_expected and os.path.exists(generated):
-                    shutil.copyfile(generated, expected)
+                    write_expected_file(generated, expected)
                 continue
 
             try:
@@ -519,7 +577,7 @@ class RunFmTest(ComputationStep):
                 )
             except AssertionError:
                 if self.update_expected:
-                    shutil.copyfile(generated, expected)
+                    write_expected_file(generated, expected)
                 else:
                     print("Expected:")
                     with open(expected) as f:
