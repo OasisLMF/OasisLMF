@@ -1488,8 +1488,12 @@ def compute_event_losses(compute_info,
     haz_pdf_prob_buf = np.empty(max_haz_bins, dtype=oasis_float)
     # Per item areaperil its samples land on, its hazard rows stay resident until the item's samples
     # are drawn, packed one after another (areaperil_j_to_haz_start): at most S per building, or K.
-    # np.empty only reserves the rows; memory follows those used.
-    haz_rows = max_haz_bins * max(1, min(max_areaperils_per_item, sample_size * building_losses.shape[2]))
+    # An areaperil is resolved once per item and has no more rows than footprint records, so the
+    # rows also stay within this event's records (haz_pdf holds only the areaperils items read).
+    # Without that cap, K x intensity bins x damage bins can outgrow memory on a large blend.
+    # At least one areaperil's worth even when S is 0, for the effective damage cdf.
+    haz_rows = max(1, min(max_haz_bins * max(1, min(max_areaperils_per_item, sample_size * building_losses.shape[2])),
+                          haz_pdf.shape[0]))
     haz_bin_id_buf = np.empty(haz_rows, dtype=np.int32)
     haz_cdf_buf = np.empty(haz_rows, dtype=oasis_float)
     # per row an item's samples reach -- a hazard row, or a source damage bin for a dependent -- its
