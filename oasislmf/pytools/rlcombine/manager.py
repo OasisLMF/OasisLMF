@@ -479,7 +479,7 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         for i, int_pipe in intermediate_pipes.items():
             idx_file_cursors[i] += int_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
             idx_file_cursors[i] += int_pipe.write(len_sample.tobytes())
-            idx_file_cursors[i] += int_pipe.write(summary_id_dtype.type(summary_set_id).tobytes())
+            idx_file_cursors[i] += int_pipe.write(summaryset_id_dtype.type(summary_set_id).tobytes())
 
         # prepare index pipes
         output_index_pipe = None
