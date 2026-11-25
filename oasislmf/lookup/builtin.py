@@ -751,6 +751,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"prepare step: 'rename' for column '{column_name}' must be a non-empty column name")
 
         def text_op(series, op):
+            if isinstance(series.dtype, pd.CategoricalDtype):
+                # OED string columns are categories: transform each category once, not each row.
+                categories = series.cat.categories
+                new_categories = text_op(pd.Series(categories, dtype=categories.dtype), op)
+                if new_categories.is_unique:
+                    return series.cat.rename_categories(pd.Index(new_categories))
+                # e.g. 'ab' and 'AB ' both become 'AB': merge them into one category
+                return series.map(dict(zip(categories, new_categories))).astype('category')
             if isinstance(series.dtype, pd.StringDtype):
                 return getattr(series.str, op)()
             if pd.api.types.is_object_dtype(series.dtype):

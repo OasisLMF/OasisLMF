@@ -335,6 +335,20 @@ def test_build_prepare_text_normalisation_string_dtype_and_numeric():
     assert result["n"].tolist() == [1, 2]
 
 
+@pytest.mark.parametrize("preparations, values, expected", [
+    ({"strip": True, "upper": True}, [" ab", "cd ", None, "ab"], ["AB", "CD", None, "AB"]),
+    # categories that collide once normalised ('ab' / ' AB') are merged
+    ({"strip": True, "upper": True}, ["ab", " AB", "cd", None], ["AB", "AB", "CD", None]),
+    ({"lower": True}, ["Ab", 1, None], ["ab", 1, None]),  # non-text categories are kept
+])
+def test_build_prepare_text_normalisation_category_dtype(preparations, values, expected):
+    """OED string fields reach the lookup as ``category`` (ods_tools default_string_dtype)."""
+    prepare = Lookup(config={}).build_prepare(my_col=preparations)
+    result = prepare(pd.DataFrame({"my_col": pd.Series(values, dtype="category")}))
+    assert isinstance(result["my_col"].dtype, pd.CategoricalDtype)
+    assert [None if pd.isna(v) else v for v in result["my_col"]] == expected
+
+
 def test_build_prepare_rename_and_drop():
     prepare = Lookup(config={}).build_prepare(
         tmp_id={"rename": "area_peril_id"},
@@ -385,7 +399,8 @@ def test_prepare_upper_strip_lets_merge_match_mixed_case(tmp_path):
                 "peril_id": "WTC", "coverage_type": 1, "vulnerability_id": 1}}]}},
         },
     }
-    locations = pd.DataFrame({"loc_id": [1, 2, 3], "PostalCode": [" ab1", "Cd2 ", "zz9"]})
+    locations = pd.DataFrame({"loc_id": [1, 2, 3],
+                              "PostalCode": pd.Series([" ab1", "Cd2 ", "zz9"], dtype="category")})
     keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
     assert keys.loc[1, "area_peril_id"] == 11
     assert keys.loc[2, "area_peril_id"] == 22
