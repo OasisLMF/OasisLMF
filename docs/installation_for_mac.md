@@ -10,9 +10,9 @@ pre-built ARM64 macOS wheels on PyPI.
 
 ## Prerequisites
 
-### Python 3.10+
+### Python 3.11+
 
-OasisLMF requires Python 3.10 or later. The system Python on macOS is typically 3.9,
+OasisLMF requires Python 3.11 or later. The system Python on macOS is typically 3.9,
 so you will need to install a newer version.
 
 **Option A — Homebrew (recommended):**
@@ -33,7 +33,7 @@ Verify your Python version:
 
 ```bash
 python3 --version
-# Must show 3.10 or later
+# Must show 3.11 or later
 ```
 
 ### System Libraries (for optional extras only)
@@ -146,7 +146,7 @@ export PATH="$HOME/ktools-bin/bin:$PATH"
 
 ### "No matching distribution found for oasislmf"
 
-Your Python version is likely too old. OasisLMF requires Python 3.10+:
+Your Python version is likely too old. OasisLMF requires Python 3.11+:
 
 ```bash
 python3 --version
@@ -154,7 +154,7 @@ python3 --version
 
 ### numba / llvmlite installation failure
 
-If numba fails to install, ensure you're using Python 3.10-3.13 and pip 23+:
+If numba fails to install, ensure you're using Python 3.11 or later and pip 23+:
 
 ```bash
 pip install --upgrade pip
@@ -194,7 +194,7 @@ functions are defined at module level (not as class static methods or lambdas).
 - **ktools C binaries** are not distributed via pip for macOS ARM64. Use the
   Python-based kernel tools or build ktools from source.
 - **macOS < 12 (Monterey)**: scipy ARM64 wheels require macOS 12+.
-- **Python 3.14+**: not yet tested. Use Python 3.10–3.13.
+- **Python versions**: CI tests macOS on Python 3.12 and 3.15; 3.11, 3.13 and 3.14 are tested on Linux.
 
 ## Architecture Verification
 
