@@ -784,8 +784,10 @@ def test_transform_coordinates_to_british_national_grid():
     pytest.importorskip("pyproj")
     fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
     result = fct(_bng_locations())
-    assert result["x"].iloc[0] == pytest.approx(530043, abs=1)
-    assert result["y"].iloc[0] == pytest.approx(180358, abs=1)
+    # PROJ uses the OSTN15 grid when it is installed (x = 530041.5) and a Helmert fallback
+    # otherwise (x = 530043.2), so allow a few metres either way
+    assert result["x"].iloc[0] == pytest.approx(530042, abs=5)
+    assert result["y"].iloc[0] == pytest.approx(180358, abs=5)
     assert result["x"].iloc[3] == pytest.approx(326000, abs=1000)
     assert result[["x", "y"]].iloc[[1, 2]].isna().all().all()  # missing input, and Sydney is outside GB
 
@@ -803,6 +805,27 @@ def test_transform_coordinates_area_crossing_antimeridian():
     fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:3832")  # PDC Mercator, 98.69E..68W
     result = fct(pd.DataFrame({"latitude": [-17.7, -17.7, 51.5], "longitude": [178.0, -150.0, 0.0]}))
     assert result["x"].notna().tolist() == [True, True, False]
+
+
+def test_transform_coordinates_failure_messages():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
+    locations = _bng_locations()
+    locations["message"] = ["", "", "", "already set"]
+    result = fct(locations)
+    assert result["message"].tolist() == [
+        "",
+        "transform_coordinates failure: missing latitude or longitude",
+        "transform_coordinates failure: outside the area of use of EPSG:27700",
+        "already set",  # an earlier step's message is kept
+    ]
+
+
+def test_transform_coordinates_area_of_use_ignored_is_logged(caplog):
+    pytest.importorskip("pyproj")
+    with caplog.at_level("INFO", logger="oasislmf.lookup.builtin"):
+        Lookup(config={}).build_transform_coordinates(target_crs="EPSG:4326", source_crs="EPSG:27700")
+    assert "area_of_use_only ignored, source CRS EPSG:27700 is not geographic" in caplog.text
 
 
 def test_transform_coordinates_errors():
@@ -833,5 +856,7 @@ def test_transform_coordinates_then_interval_to_index_end_to_end(tmp_path):
     }
     locations = pd.DataFrame({"loc_id": [1, 2], "Latitude": [51.5072, -33.87], "Longitude": [-0.1276, 151.21]})
     keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
-    assert (keys.loc[1, "status"], keys.loc[1, "area_peril_id"]) == ("success", 4)  # x = 530043
+    assert (keys.loc[1, "status"], keys.loc[1, "area_peril_id"]) == ("success", 4)  # x ~ 530042
     assert keys.loc[2, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
+    assert keys.loc[2, "message"] == ("area_peril_id has an unknown id: "
+                                      "transform_coordinates failure: outside the area of use of EPSG:27700")

@@ -461,8 +461,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         for id_col in id_cols:
             unknown_ids = success_locations[id_col] == OASIS_UNKNOWN_ID
             fail_locations = success_locations.loc[unknown_ids].index
-            locations.loc[fail_locations, ['status', 'message']] = OASIS_KEYS_STATUS['fail'][
-                'id'], f'{id_col} has an unknown id'
+            # keep a step's explanation (e.g. why transform_coordinates gave no coordinates)
+            detail = success_locations.loc[unknown_ids, 'message']
+            locations.loc[fail_locations, 'status'] = OASIS_KEYS_STATUS['fail']['id']
+            locations.loc[fail_locations, 'message'] = (f'{id_col} has an unknown id'
+                                                        + detail.where(detail == '', ': ' + detail))
             success_locations = success_locations.loc[~unknown_ids]
 
         return locations
@@ -1269,14 +1272,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 Only applies when ``source_crs`` is geographic and the target CRS has an area of use.
         """
         if pyproj is None:
-            raise OasisException("transform_coordinates step needs pyproj, install it with 'pip install pyproj'")
+            raise OasisException(f"pyproj module is needed for transform_coordinates, {OPT_INSTALL_MESSAGE}")
         try:
             source, target = pyproj.CRS.from_user_input(source_crs), pyproj.CRS.from_user_input(target_crs)
         except pyproj.exceptions.CRSError as error:
             raise OasisException(f"transform_coordinates step: invalid CRS: {error}") from error
         bounds = None
-        if area_of_use_only and source.is_geographic and target.area_of_use is not None:
-            bounds = target.area_of_use.bounds  # (west, south, east, north) in degrees
+        if area_of_use_only:
+            if not source.is_geographic:
+                logger.info(f"transform_coordinates step: area_of_use_only ignored, source CRS {source_crs} is not geographic")
+            elif target.area_of_use is None:
+                logger.info(f"transform_coordinates step: area_of_use_only ignored, target CRS {target_crs} has no area of use")
+            else:
+                bounds = target.area_of_use.bounds  # (west, south, east, north) in degrees
         transformers = {}  # one per process: a pyproj Transformer is not safe to share across a fork
 
         def transform_coordinates(locations):
@@ -1292,16 +1300,27 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             lat = pd.to_numeric(locations[latitude_column], errors='coerce').to_numpy(dtype='float64', na_value=np.nan)
             x, y = transformer.transform(lon, lat, errcheck=False)
             x, y = np.asarray(x, dtype='float64'), np.asarray(y, dtype='float64')
-            failed = ~(np.isfinite(x) & np.isfinite(y))
+            missing = np.isnan(lon) | np.isnan(lat)
+            not_projected = ~missing & ~(np.isfinite(x) & np.isfinite(y))
+            out_of_area = np.zeros(len(locations), dtype=bool)
             if bounds is not None:
                 west, south, east, north = bounds
                 # an area crossing the antimeridian has west > east
                 in_lon = (lon >= west) & (lon <= east) if west <= east else (lon >= west) | (lon <= east)
-                failed |= ~(in_lon & (lat >= south) & (lat <= north))
+                out_of_area = ~missing & ~not_projected & ~(in_lon & (lat >= south) & (lat <= north))
+            failed = missing | not_projected | out_of_area
             x[failed] = np.nan
             y[failed] = np.nan
             locations[x_column] = x
             locations[y_column] = y
+            if 'message' in locations.columns and failed.any():
+                # explain why x/y are null; the status is set later, when the id they lead to is missing
+                for mask, reason in ((missing, f"missing {latitude_column} or {longitude_column}"),
+                                     (not_projected, f"could not be projected to {target_crs}"),
+                                     (out_of_area, f"outside the area of use of {target_crs}")):
+                    mask = mask & (locations['message'] == '').to_numpy()
+                    if mask.any():
+                        locations.loc[mask, 'message'] = f"transform_coordinates failure: {reason}"
             return locations
         return transform_coordinates
 
