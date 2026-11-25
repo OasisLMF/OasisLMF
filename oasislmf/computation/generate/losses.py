@@ -58,7 +58,7 @@ from ...utils.inputs import str2bool
 from ...utils.path import setcwd
 from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
-from ...utils.ping import oasis_ping
+from ...utils.ping import oasis_ping, platform_progress_configured
 
 
 IL_RULE_0_UNDER_RI = (
@@ -680,11 +680,12 @@ class GenerateLossesOutput(GenerateLossesDir):
             bash_trace=self.verbose,
             stderr_guard=not self.kernel_disable_guard,
             fifo_tmp_dir=not self.kernel_fifo_relative,
-            remove_working_file=self.remove_working_file,
+            remove_working_files=self.remove_working_file,
             max_process_id=self.max_process_id,
             model_run_dir=model_run_fp,
         )
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
+        bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
         bash_params['disable_resource_report'] = self.disable_resource_report
         with setcwd(model_run_fp):
             try:
@@ -794,9 +795,7 @@ class GenerateLosses(GenerateLossesDir):
         with setcwd(model_run_fp):
             socket_server_size = None
             socket_server_port = None
-            has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
-            has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
-            if 'analysis_pk' in self.kwargs and not (has_websocket or has_http):
+            if 'analysis_pk' in self.kwargs and not platform_progress_configured():
                 self.logger.info("Set `OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT` or `OASIS_ANALYSIS_STATUS_URL` "
                                  "environment variables for run progress updates")
             elif 'analysis_pk' in self.kwargs:

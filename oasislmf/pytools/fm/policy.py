@@ -392,6 +392,6 @@ def calc(policy, loss_out, loss_in, stepped):
         elif policy['calcrule_id'] == 38:
             calcrule_38(policy, loss_out, loss_in)
         else:
-            raise ValueError(f"UnknownCalcrule {policy['calcrule_id']}")
+            raise ValueError("UnknownCalcrule", policy['calcrule_id'])
     else:
-        raise ValueError(f"UnknownCalcrule {policy['calcrule_id']}")
+        raise ValueError("UnknownCalcrule", policy['calcrule_id'])
