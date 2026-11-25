@@ -9,13 +9,16 @@ __all__ = [
     'RandomFile',
     'CoveragesFile',
     'ItemsFile',
+    'CorrelationsFile',
     'AmplificationsFile',
     'FMProgrammeFile',
     'FMPolicyTCFile',
     'FMProfileFile',
     'FMXrefFile',
     'GULSummaryXrefFile',
-    'FMSummaryXrefFile'
+    'FMSummaryXrefFile',
+    'GULSummaryMapFile',
+    'FMSummaryMapFile'
 ]
 
 import os
@@ -24,6 +27,8 @@ from collections import OrderedDict
 from math import erf
 
 import numpy as np
+
+from oasislmf.pytools.common.data import correlations_dtype
 
 
 # the file layouts are declared as struct format characters, which the arrays written to
@@ -1034,6 +1039,68 @@ class ItemsFile(ModelFile):
         yield items
 
 
+class CorrelationsFile(ModelFile):
+    """Generate data for Correlations dummy model Oasis file.
+
+    gulmc requires one correlations row per item. The dummy model has no
+    correlation settings, so the rows match those written by GenerateOasisFiles
+    when none are configured: no peril correlation group, zero damage and hazard
+    correlation values and no source item. As with the damage group ID in
+    items.bin, the hazard group ID is mapped to the location.
+
+    Attributes:
+        generate_data: Generate Correlations dummy model Oasis file data.
+    """
+
+    def __init__(self, num_locations, coverages_per_location, directory):
+        """Initialise Correlations file class.
+
+        Args:
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            directory (str): dummy model file destination.
+        """
+        self.num_locations = num_locations
+        self.coverages_per_location = coverages_per_location
+        self.dtypes = OrderedDict((name, None) for name in correlations_dtype.names)
+        self.start_stats = None
+        self.data_length = num_locations * coverages_per_location
+        self.file_name = os.path.join(directory, 'correlations.bin')
+
+    @property
+    def array_dtype(self):
+        """Get the numpy dtype of the rows written to the file.
+
+        Returns:
+            numpy.dtype: the correlations dtype read by gulmc
+        """
+        return correlations_dtype
+
+    def generate_data(self):
+        """Generate Correlations dummy model file data.
+
+        Yields:
+            tuple: item ID, peril correlation group, damage correlation value,
+                hazard group ID (location ID), hazard correlation value and
+                source item ID.
+        """
+        for location in range(self.num_locations):
+            for coverage in range(self.coverages_per_location):
+                item = self.coverages_per_location * location + coverage + 1
+                yield item, 0, 0., location + 1, 0., 0
+
+    def generate_arrays(self):
+        """Generate Correlations dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of correlations data, in the file's dtype
+        """
+        correlations = np.zeros(self.data_length, dtype=self.array_dtype)
+        correlations['item_id'] = np.arange(1, self.data_length + 1)
+        correlations['hazard_group_id'] = np.repeat(np.arange(1, self.num_locations + 1), self.coverages_per_location)
+        yield correlations
+
+
 class AmplificationsFile(ModelFile):
     """Generate data for Amplifications dummy model Oasis file.
 
@@ -1506,3 +1573,131 @@ class FMSummaryXrefFile(FMFile):
         summary_xref['summary_id'] = 1
         summary_xref['summaryset_id'] = 1
         yield summary_xref
+
+
+class SummaryMapFile(FMFile):
+    """Parent class for generating the summary map dummy model Oasis files.
+
+    summarypy reads the location and building of each loss from a summary map.
+    Every dummy location holds one building. Unlike the other dummy model
+    files, summary maps are written in csv format, as GenerateOasisFiles does.
+
+    Attributes:
+        write_file: Write data to summary map file in csv format.
+    """
+
+    def write_file(self):
+        """Write data to summary map file in csv format."""
+        header = ','.join(self.dtypes.keys())
+        with open(self.file_name, 'w') as f:
+            f.write(header + '\n')
+            for chunk in self.generate_arrays():
+                np.savetxt(f, chunk, fmt='%d', delimiter=',')
+
+
+class GULSummaryMapFile(SummaryMapFile):
+    """Generate data for Ground Up Losses Summary Map dummy model Oasis file.
+
+    This file maps each item to its location and building.
+
+    Attributes:
+        generate_data: Generate Ground Up Losses Summary Map dummy model Oasis
+            file data.
+    """
+
+    def __init__(self, num_locations, coverages_per_location, directory):
+        """Initialise Ground Up Losses Summary Map file class.
+
+        Args:
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            directory (str): dummy model file destination.
+        """
+        super().__init__(num_locations, coverages_per_location)
+        self.dtypes = OrderedDict([
+            ('loc_id', 'i'), ('item_id', 'i'), ('building_id', 'i')
+        ])
+        self.data_length = num_locations * coverages_per_location
+        self.file_name = os.path.join(directory, 'gul_summary_map.csv')
+
+    def generate_data(self):
+        """Generate Ground Up Losses Summary Map dummy model file data.
+
+        Yields:
+            location (int): location ID.
+            item (int): item ID.
+            building_id (int): building ID.
+        """
+        for location in range(self.num_locations):
+            for coverage in range(self.coverages_per_location):
+                yield location + 1, self.coverages_per_location * location + coverage + 1, 1
+
+    def generate_arrays(self):
+        """Generate Ground Up Losses Summary Map dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of summary map data, in the file's dtype
+        """
+        summary_map = np.empty(self.data_length, dtype=self.array_dtype)
+        summary_map['loc_id'] = np.repeat(np.arange(1, self.num_locations + 1), self.coverages_per_location)
+        summary_map['item_id'] = np.arange(1, self.data_length + 1)
+        summary_map['building_id'] = 1
+        yield summary_map
+
+
+class FMSummaryMapFile(SummaryMapFile):
+    """Generate data for Financial Model Summary Map dummy model Oasis file.
+
+    This file maps each financial model output ID to its location and building.
+
+    Attributes:
+        generate_data: Generate Financial Model Summary Map dummy model Oasis
+            file data.
+    """
+
+    def __init__(
+        self, num_locations, coverages_per_location, num_layers, directory
+    ):
+        """Initialise Financial Model Summary Map file class.
+
+        Args:
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            num_layers (int): number of layers.
+            directory (str): dummy model file destination.
+        """
+        super().__init__(num_locations, coverages_per_location)
+        self.num_layers = num_layers
+        self.dtypes = OrderedDict([
+            ('loc_id', 'i'), ('output_id', 'i'), ('building_id', 'i')
+        ])
+        self.data_length = num_locations * coverages_per_location * num_layers
+        self.file_name = os.path.join(directory, 'fm_summary_map.csv')
+
+    def generate_data(self):
+        """Generate Financial Model Summary Map dummy model file data.
+
+        Output IDs follow fm_xref.bin: one per item and layer.
+
+        Yields:
+            location (int): location ID.
+            output_id (int): output ID.
+            building_id (int): building ID.
+        """
+        output_id = 1
+        for location in range(self.num_locations):
+            for _ in range(self.coverages_per_location * self.num_layers):
+                yield location + 1, output_id, 1
+                output_id += 1
+
+    def generate_arrays(self):
+        """Generate Financial Model Summary Map dummy model file data.
+
+        Yields:
+            numpy.ndarray: rows of summary map data, in the file's dtype
+        """
+        summary_map = np.empty(self.data_length, dtype=self.array_dtype)
+        summary_map['loc_id'] = np.repeat(np.arange(1, self.num_locations + 1), self.coverages_per_location * self.num_layers)
+        summary_map['output_id'] = np.arange(1, self.data_length + 1)
+        summary_map['building_id'] = 1
+        yield summary_map

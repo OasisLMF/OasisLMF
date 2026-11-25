@@ -48,7 +48,7 @@ from oasislmf.pytools.getmodel.common import (
 )
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping
+from oasislmf.utils.ping import oasis_ping_progress
 
 from .vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from ..common.data import null_index
@@ -382,9 +382,9 @@ def encode_peril_id(peril_id):
 @nb.njit(cache=True)
 def load_vuln_probability(vuln_array, vuln, vuln_id):
     if vuln_array.shape[0] < vuln['damage_bin_id']:
-        raise Exception("vulnerability_id " + str(vuln_id) + " has damage_bin_id bigger that expected maximum")
+        raise Exception("vulnerability_id", vuln_id, "has damage_bin_id bigger that expected maximum")
     if vuln['damage_bin_id'] < 1 or vuln['intensity_bin_id'] < 1:
-        raise Exception("vulnerability_id " + str(vuln_id) + " has a damage_bin_id or intensity_bin_id lower than 1")
+        raise Exception("vulnerability_id", vuln_id, "has a damage_bin_id or intensity_bin_id lower than 1")
     if vuln['intensity_bin_id'] <= vuln_array.shape[1]:  # intensity in vulnerability curve but not in the footprint, we can ignore
         vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
 
@@ -1025,7 +1025,7 @@ def doCdf(event_id, footprint,
             has_hazard |= haz_probs[haz_i] > 0
         if not has_hazard:
             continue
-        n_haz = pdf_to_cdf(haz_probs[:record_i - run_start], haz_cdf).shape[0]
+        n_haz = pdf_to_cdf(haz_probs, record_i - run_start, haz_cdf)
 
         pairs = areaperil_to_vulns_idx_array[areaperil_idx]
         for pair_idx in range(pairs['start'], pairs['end']):
@@ -1099,7 +1099,8 @@ def run(
     data_server,
     peril_filter,
     df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
-    analysis_pk=None
+    analysis_pk=None,
+    socket_server='False',
 ):
     """Runs the main process of the getmodel process.
 
@@ -1112,6 +1113,9 @@ def run(
         peril_filter (list[int]): list of perils to include in the computation (if None, all perils will be included).
         df_engine (str): The engine to use when loading dataframes
         analysis_pk (int): the analysis primary key reported alongside the completion ping
+        socket_server (str): 'False' disables the completion ping that reports the empty events modelpy
+            drops (gulpy never sees them, so it cannot count them); a numeric value is the local socket
+            server port to send it to.
     """
     model_storage = get_storage_from_config_path(
         os.path.join(run_dir, 'model_storage.json'),
@@ -1239,4 +1243,4 @@ def run(
                         break
             else:
                 empty_events += 1
-        oasis_ping({"events_complete": empty_events, 'analysis_pk': analysis_pk})
+        oasis_ping_progress(socket_server, analysis_pk, events_complete=empty_events)

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from oasislmf.execution import runner
 from oasislmf.execution.resource_monitor import ResourceMonitor
-from oasislmf.execution.bash import bash_params
+from oasislmf.execution.bash import bash_params, get_complex_model_cmd
 from oasislmf.execution.runner import rerun
 from oasislmf.utils.exceptions import OasisException
 
@@ -241,6 +241,38 @@ class TestBashParamsCustomGulcalcMarkers(TestCase):
         self.assertEqual(('start', 'finish'), (params['custom_gulcalc_log_start'], params['custom_gulcalc_log_finish']))
 
 
+class TestCustomGulcalcCommand(TestCase):
+    """The loss stream of a custom gulcalc binary goes to stdout: no ``-i`` is passed."""
+
+    ITEM_OUTPUT = ' | tee fifo/gul_P1'
+
+    def _args(self, item_output):
+        return dict(number_of_samples=10, gul_threshold=0, use_random_number_file=False, item_output=item_output,
+                    process_id=2, max_process_id=8, gul_alloc_rule=0, stderr_guard=False)
+
+    def _assert_command(self, get_cmd):
+        binary_cmd = f"my_gulcalc -e 2 8 -a {os.path.abspath('analysis_settings.json')} -p input"
+        self.assertEqual(get_cmd(**self._args(self.ITEM_OUTPUT)), binary_cmd + self.ITEM_OUTPUT)
+        self.assertEqual(get_cmd(**self._args('')), binary_cmd)
+
+    def test_bash_params_command(self):
+        with mock.patch('oasislmf.execution.bash.shutil.which', return_value='/usr/bin/my_gulcalc'):
+            self._assert_command(get_complex_model_cmd('my_gulcalc', {}))
+
+    def test_run_command(self):
+        proc = mock.Mock(pid=1, returncode=0)
+        proc.communicate.return_value = (b'', None)
+        with TemporaryDirectory() as tmp_dir, \
+                mock.patch('oasislmf.execution.runner.shutil.which', return_value='/usr/bin/my_gulcalc'), \
+                mock.patch('oasislmf.execution.runner.check_custom_gulcalc_can_read_inputs'), \
+                mock.patch('oasislmf.execution.runner.genbash') as genbash, \
+                mock.patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc), \
+                mock.patch('oasislmf.execution.runner._ensure_pytool_logs_complete'):
+            runner.run({}, filename=os.path.join(tmp_dir, 'run_kernel.sh'), custom_gulcalc_cmd='my_gulcalc',
+                       disable_resource_report=True)
+        self._assert_command(genbash.call_args.kwargs['_get_getmodel_cmd'])
+
+
 class TestEnsurePytoolLogsComplete(TestCase):
     def test_returns_immediately_when_all_logs_complete(self):
         with mock.patch('oasislmf.execution.runner._find_incomplete_pytool_logs', return_value={}) as mock_find, \
@@ -350,6 +382,59 @@ class RerunTestCase(TestCase):
         self.assertNotIn("/tmp/il_P1", fm_pipe)
         self.assertIn("-o 1_fm1.bin", fm_pipe)
         self.assertTrue(fm_pipe.startswith("fmcalc"))
+
+
+def _run_with_mocked_script(**kwargs):
+    with (patch.object(runner, 'genbash', return_value={'gul_processes': 4, 'outputs_total': 7}),
+          patch.object(runner, 'ResourceMonitor'),
+          patch.object(runner, '_ensure_pytool_logs_complete'),
+          patch.object(runner.subprocess, 'Popen') as mock_popen,
+          patch.object(runner, 'oasis_ping') as mock_ping):
+        mock_popen.return_value.communicate.return_value = (b'', None)
+        mock_popen.return_value.returncode = 0
+        runner.run({}, **kwargs)
+    return mock_ping
+
+
+def test_run_reports_outputs_total_to_platform(monkeypatch):
+    """A single-script platform run reports how many GUL and output processes will report progress."""
+    monkeypatch.setenv('OASIS_ANALYSIS_STATUS_URL', 'http://server/analysis-status/')
+    mock_ping = _run_with_mocked_script(analysis_pk=5)
+    mock_ping.assert_called_once_with({'analysis_pk': 5, 'gul_processes': 4, 'outputs_total': 7})
+
+
+def test_run_local_does_not_ping_outputs_total(monkeypatch):
+    monkeypatch.delenv('OASIS_ANALYSIS_STATUS_URL', raising=False)
+    monkeypatch.delenv('OASIS_WEBSOCKET_URL', raising=False)
+    mock_ping = _run_with_mocked_script(socket_server_size=10, socket_server_port=9999)
+    mock_ping.assert_not_called()
+
+
+def _run_analysis_with_mocked_script(**params):
+    with (patch.object(runner, 'create_bash_analysis', return_value=2),
+          patch.object(runner, 'bash_wrapper'),
+          patch.object(runner, 'ResourceMonitor'),
+          patch.object(runner, '_ensure_pytool_logs_complete'),
+          patch.object(runner.subprocess, 'Popen') as mock_popen,
+          patch.object(runner, 'oasis_ping') as mock_ping):
+        mock_popen.return_value.communicate.return_value = (b'', None)
+        mock_popen.return_value.returncode = 0
+        runner.run_analysis(filename='run.sh', bash_trace=False, stderr_guard=True, fifo_queue_dir='fifo/', **params)
+    return mock_ping
+
+
+def test_run_analysis_reports_gul_processes_to_platform(monkeypatch):
+    """Each analysis chunk on the platform reports how many of its GUL processes will report `gul_ready`."""
+    monkeypatch.setenv('OASIS_ANALYSIS_STATUS_URL', 'http://server/analysis-status/')
+    mock_ping = _run_analysis_with_mocked_script(analysis_pk=5, process_number=1)
+    mock_ping.assert_called_once_with({'analysis_pk': 5, 'gul_processes': 2})
+
+
+def test_run_analysis_local_does_not_ping_gul_processes(monkeypatch):
+    monkeypatch.delenv('OASIS_ANALYSIS_STATUS_URL', raising=False)
+    monkeypatch.delenv('OASIS_WEBSOCKET_URL', raising=False)
+    mock_ping = _run_analysis_with_mocked_script(process_number=1)
+    mock_ping.assert_not_called()
 
 
 class TestDisableResourceReport(TestCase):

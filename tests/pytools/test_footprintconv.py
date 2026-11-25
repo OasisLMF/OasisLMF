@@ -1,4 +1,3 @@
-from contextlib import ExitStack
 import numpy as np
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -68,8 +67,6 @@ def test_compress_footprint_clears_the_d_size_bit_when_not_writing_d_size():
             def with_fileno(self, name):
                 return open(Path(tmp, name), 'rb')
 
-        with ExitStack() as stack:
-            reader = FootprintBinZ(FakeStorage(), stack)
-            reader.__enter__()
+        with FootprintBinZ(FakeStorage()) as reader:
             assert reader.footprint_index.dtype.itemsize == EventIndexBin_dtype.itemsize
             assert reader.footprint_index['event_id'].tolist() == [1, 2]

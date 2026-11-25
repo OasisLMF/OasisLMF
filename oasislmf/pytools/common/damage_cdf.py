@@ -39,25 +39,22 @@ def get_last_non_empty(cdf, bin_i):
 
 
 @nb.njit(cache=True, fastmath=True)
-def pdf_to_cdf(pdf, empty_cdf):
-    """Return the cumulative distribution from the probality distribution
+def pdf_to_cdf(pdf, n_pdf, cdf):
+    """Write the cumulative distribution of ``pdf[:n_pdf]`` into ``cdf`` and return its valid length.
 
-    Args:
-        pdf (np.array[float]): probality distribution
-        empty_cdf (np.array[float]): cumulative distribution buffer for output
-    Returns:
-         cdf (np.array[float]): here we return only the valid part if needed
+    The cdf stops once it reaches 1 (to float32 precision) and drops trailing bins that add no
+    probability, so the returned length can be shorter than ``n_pdf``. It returns a length rather
+    than a ``cdf[:n]`` slice so the per-item loop creates no array view (see the refcount note in common/event_stream.py).
     """
     cumsum = 0
     i = 0
-    while i < pdf.shape[0]:
+    while i < n_pdf:
         cumsum += pdf[i]
-        empty_cdf[i] = cumsum
+        cdf[i] = cumsum
         i += 1
         if cumsum >= 0.999999940:
             break
-    i = get_last_non_empty(empty_cdf, i - 1)
-    return empty_cdf[: i + 1]
+    return get_last_non_empty(cdf, i - 1) + 1
 
 
 @nb.njit(cache=True)

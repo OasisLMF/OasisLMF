@@ -1,4 +1,5 @@
 import shutil
+import traceback
 from pathlib import Path
 from unittest.mock import patch
 from tempfile import TemporaryDirectory
@@ -10,7 +11,7 @@ from oasislmf.pytools.common.data import occurrence_dtype
 from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, stream_info_to_bytes
 from oasislmf.pytools.lec.data import EPT_dtype, PSEPT_dtype
 from oasislmf.pytools.lec.manager import main
-from tests.pytools.utils import make_idx_from_bin
+from tests.pytools.utils import SUMMARY_BIN_TRUNCATIONS, make_idx_from_bin, truncate_last_summary_bin
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_lecpy")
 
@@ -303,12 +304,15 @@ def test_lec_sequential_raises_on_insufficient_disk():
         fake_usage = type(real)(total=real.total, used=real.used, free=0)
 
         with patch("oasislmf.pytools.lec.manager.shutil.disk_usage", return_value=fake_usage):
-            with pytest.raises(RuntimeError, match="Insufficient disk space"):
+            with pytest.raises(RuntimeError, match="Insufficient disk space") as excinfo:
                 main(
                     run_dir=tmp_dir, subfolder="gul", use_return_period=False,
                     ept=out_dir / "py_ept.csv", psept=out_dir / "py_psept.csv", ext="csv",
                     **_ALL_OUTPUT_FLAGS,
                 )
+        # redirect_logging logs the error with its traceback and pytest keeps the record until the
+        # test ends, keeping the raising frames' memmaps open: Windows then can't delete tmp_dir (#2238)
+        traceback.clear_frames(excinfo.tb)
 
 
 def test_lec_idx_partial_coverage_falls_back_to_sequential():
@@ -423,3 +427,25 @@ def test_lec_idx_reused_buffer_matches_sequential_multi_summary():
             assert a.shape == b.shape, f"Shape mismatch for {name}: {a.shape} vs {b.shape}"
             np.testing.assert_allclose(a, b, rtol=1e-5, atol=1e-8,
                                        err_msg=f".idx (reused buffer) differs from sequential for {name}")
+
+
+# ---------------------------------------------------------------------------
+# Truncated summary file
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("how", SUMMARY_BIN_TRUNCATIONS)
+def test_lec_truncated_summary_file_raises(how):
+    """A truncated summary .bin raises instead of reading past the end of the file."""
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "lec"), tmp_dir)
+        truncate_last_summary_bin(tmp_dir / "work" / "gul", how)
+        out_dir = tmp_dir / "out"
+        out_dir.mkdir()
+
+        with pytest.raises(RuntimeError, match="broken summary file"):
+            main(
+                run_dir=tmp_dir, subfolder="gul", use_return_period=False,
+                ept=out_dir / "py_ept.csv", psept=out_dir / "py_psept.csv", ext="csv",
+                **_ALL_OUTPUT_FLAGS,
+            )

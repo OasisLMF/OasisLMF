@@ -16,8 +16,6 @@ import os
 import sys
 import json
 from contextlib import ExitStack
-from select import select
-import time
 
 import numpy as np
 import numba as nb
@@ -28,11 +26,11 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, ITEM_PACKED_STREAM, ITEM_STREAM, LOSS_STREAM_ID,
                                                   check_packed_item_fits, check_packing_supported,
-                                                  max_emitted_blocks, stream_info_to_bytes)
+                                                  max_emitted_blocks, stream_info_to_bytes, write_mv_to_stream)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
-from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, accumulate_hermite_coeffs, loss_correlation, HERMITE_TERMS)
+from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, accumulate_hermite_coeffs_into, loss_correlation, HERMITE_TERMS)
 from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval, get_random_generator,
@@ -53,8 +51,7 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async
-from oasislmf.utils.defaults import SERVER_UPDATE_TIME
+from oasislmf.utils.ping import EventProgress
 from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
@@ -198,8 +195,9 @@ def run(run_dir,
           runtime. Defaults to False.
         section_merge (str, optional): how a dynamic footprint merges an areaperil's intensities across the sections of
           one event (see Footprint.load). Defaults to None, the footprint's default.
-        **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
-          the port to override; analysis_pk is reported with each ping.
+        **kwargs: additional keyword arguments. socket_server (str) enables the progress pings (a `gul_ready` ping once
+          the model is loaded, then `events_complete` counts) and, when numeric, gives the port to override; analysis_pk
+          is reported with each ping.
 
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
@@ -412,8 +410,6 @@ def run(run_dir,
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
-        select_stream_list = [stream_out]
-
         # prepare output stream. The aggregation type says whether a reader may meet a packed
         # sidx, and only a kept-separate item emits one -- a run that packs nothing, or packs only
         # items summed at source, declares ITEM_STREAM and is byte-for-byte pre-packing.
@@ -427,9 +423,11 @@ def run(run_dir,
         # create the array to store the seeds
         haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
         vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
-        # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts)
-        group_seq_rng_index = np.empty(n_unique_groups, dtype=np.int64)
-        hazard_group_seq_rng_index = np.empty(n_unique_haz_groups, dtype=np.int64)
+        # Pre-allocated arrays for group_id -> rng_index mapping. Initialised once; reconstruct_coverages
+        # restores the entries it used, so they are never reset in full (their size is that of the
+        # portfolio, not of the event).
+        group_seq_rng_index = np.full(n_unique_groups, NO_RNG_INDEX, dtype=np.int64)
+        hazard_group_seq_rng_index = np.full(n_unique_haz_groups, NO_RNG_INDEX, dtype=np.int64)
         # haz correlation
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
             # there will be some hazard correlation
@@ -573,6 +571,10 @@ def run(run_dir,
         mixed_cdf_group_needs_haz_rng = np.zeros(n_mixed_cdf_groups, dtype=np.bool_)
         event_tag = 0
 
+        # per-item event data, kept across events: reconstruct_coverages only grows it, and every
+        # field it reads back is written for the event first
+        items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
+
         # Pre-allocate the cdf cache once (reused across events, no need to zero)
         mixed_cdf_cache_tag = np.full(n_mixed_cdf_groups, CDF_CACHE_EMPTY, dtype=np.int64)
         mixed_cdf_cache = np.empty((n_mixed_cdf_slots, Ndamage_bins_max), dtype=oasis_float)
@@ -581,18 +583,15 @@ def run(run_dir,
         needs_hermite = do_correlation and np.any((items['packed_buildings'] > 1) & (items['damage_correlation_value'] > 0))
         mixed_cdf_group_hermite = np.zeros((n_mixed_cdf_groups if needs_hermite else 0, 2, HERMITE_TERMS), dtype=np.float64)
 
-        counter = 0
-        timer = time.time()
-        socket_server_val = kwargs.get('socket_server', 'False')
-        ping = socket_server_val != 'False'
-        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
+        # per-event coverage state starts at zero; reconstruct_coverages then only resets the
+        # coverages touched by the previous event
+        coverages['cur_items'].fill(0)
+
+        progress = EventProgress(kwargs.get('socket_server', 'False'), kwargs.get("analysis_pk", None))
+        progress.ready()
         while True:
             if not streams_in.readinto(event_id_mv):
-                if ping:
-                    ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                    if ping_port is not None:
-                        ping_data['port_override'] = ping_port
-                    oasis_ping(ping_data)
+                progress.finish()
                 break
 
             # get the next event_id from the input stream
@@ -611,7 +610,7 @@ def run(run_dir,
                     fp_haz_arr_ptr)
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
-                    counter += 1
+                    progress.event_done()
                     logger.info(f"event {event_ids[0]} SKIPPED - no items")
                     continue
 
@@ -645,6 +644,7 @@ def run(run_dir,
                     damage_corr_seeds,
                     dynamic_footprint,
                     byte_mv,
+                    items_event_data,
                     group_seq_rng_index,
                     hazard_group_seq_rng_index,
                     coverage_source_id,
@@ -672,9 +672,11 @@ def run(run_dir,
                         haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
-                # Reset the cdf cache lookup per event (the cache array is reused, no reallocation)
-                mixed_cdf_cache_tag[:] = CDF_CACHE_EMPTY
-                compute_info['mixed_cdf_cache_ctr'] = 0
+                # Invalidate the cdf cache for the new event without touching mixed_cdf_cache_tag, whose
+                # size is the number of mixed cdf groups of the portfolio: a cached cdf is valid only while
+                # mixed_cdf_cache_ctr - tag <= n_mixed_cdf_slots, so advancing the counter by that many
+                # invalidates every tag written for previous events.
+                compute_info['mixed_cdf_cache_ctr'] += n_mixed_cdf_slots
 
                 processing_done = False
                 logger.info(f"event {event_ids[0]} STARTED")
@@ -770,21 +772,11 @@ def run(run_dir,
                             f"{compute_info['cursor']} bytes into a {byte_mv.shape[0]} byte "
                             f"buffer, which must hold the largest coverage whole.")
                     # write the losses to the output stream
-                    write_start = 0
-                    while write_start < compute_info['cursor']:
-                        select([], select_stream_list, select_stream_list)
-                        write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
+                    write_mv_to_stream(stream_out, byte_mv, compute_info['cursor'])
 
                 logger.info(f"event {event_ids[0]} DONE")
 
-            counter += 1
-            if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                timer = time.time()
-                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                if ping_port is not None:
-                    ping_data['port_override'] = ping_port
-                oasis_ping_async(ping_data)
-                counter = 0
+            progress.event_done()
 
     return 0
 
@@ -884,8 +876,8 @@ def compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv):
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
-def merge_dynamic_haz_records_per_bin(haz_pdf_record, item, intensity_adjustment, intensity_bin_peril_ids,
-                                      intensity_bins, bin_slot, haz_bin_id_out, haz_prob_out):
+def merge_dynamic_haz_records_per_bin(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment,
+                                      intensity_bin_peril_ids, intensity_bins, bin_slot, haz_bin_id_out, haz_prob_out):
     """Bin a dynamic footprint areaperil's records for one item, summing the probability of the
     records that fall in the same intensity bin.
 
@@ -901,7 +893,9 @@ def merge_dynamic_haz_records_per_bin(haz_pdf_record, item, intensity_adjustment
     the hazard CDF keeps its bin boundaries: a random number picks the same bin as unmerged.
 
     Args:
-        haz_pdf_record (np.array[haz_arr_type]): the areaperil's footprint records for this event.
+        haz_pdf (np.array[haz_arr_type]): hazard pdf records of all areaperils for the event.
+        haz_start (int): index of the areaperil's first record in ``haz_pdf``.
+        Nhaz_records (int): number of records of the areaperil.
         item (np.void): the item record (uses peril_id).
         intensity_adjustment (int): intensity shift applied before binning.
         intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids.
@@ -922,8 +916,8 @@ def merge_dynamic_haz_records_per_bin(haz_pdf_record, item, intensity_adjustment
             break
     max_intensity = nb_int32(intensity_bins.shape[1] - 1)
     n_entries = 0
-    for record_i in range(haz_pdf_record.shape[0]):
-        intensity_val = haz_pdf_record[record_i]['intensity'] - intensity_adjustment
+    for record_i in range(haz_start, haz_start + Nhaz_records):
+        intensity_val = haz_pdf[record_i]['intensity'] - intensity_adjustment
         if intensity_val < 0:
             intensity_val = nb_int32(0)
         elif intensity_val > max_intensity:
@@ -937,10 +931,47 @@ def merge_dynamic_haz_records_per_bin(haz_pdf_record, item, intensity_adjustment
             haz_bin_id_out[entry] = bin_id
             haz_prob_out[entry] = 0.
             n_entries += 1
-        haz_prob_out[entry] += haz_pdf_record[record_i]['probability']
+        haz_prob_out[entry] += haz_pdf[record_i]['probability']
     for entry in range(n_entries):
         bin_slot[haz_bin_id_out[entry]] = -1
     return n_entries
+
+
+@nb.njit(cache=True, fastmath=True, inline='always')
+def fill_haz_bins(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment, dynamic_footprint,
+                  intensity_bin_peril_ids, intensity_bins, bin_slot, haz_bin_id, haz_pdf_prob):
+    """Copy an item's hazard intensity bin ids and probabilities into the per-item scratch buffers.
+
+    The item's records are ``haz_pdf[haz_start:haz_start + Nhaz_records]``, read by index and copied
+    rather than sliced or field-viewed (see the refcount note in common/event_stream.py). With no
+    dynamic footprint each record is one hazard entry, its bin id read from the hazard pdf. With a
+    dynamic footprint the records are binned and merged per bin (merge_dynamic_haz_records_per_bin).
+
+    Args:
+        haz_pdf (np.array[haz_arr_type]): hazard pdf records of all areaperils for the event.
+        haz_start (int): index of this item's first record in ``haz_pdf``.
+        Nhaz_records (int): number of records for this item.
+        item (np.void): the item record (needs peril_id when dynamic footprint is active).
+        intensity_adjustment (int): intensity shift to apply under a dynamic footprint.
+        dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
+        intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids.
+        intensity_bins (np.array[int32, 2d]): [peril_idx, intensity_value] -> intensity_bin_id.
+        bin_slot (np.array[int64]): scratch for merge_dynamic_haz_records_per_bin.
+        haz_bin_id (np.array[int32]): output, intensity bin id per hazard entry.
+        haz_pdf_prob (np.array[float]): output, probability per hazard entry.
+
+    Returns:
+        int: the number of hazard entries written.
+    """
+    if dynamic_footprint is not None:
+        return merge_dynamic_haz_records_per_bin(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment,
+                                                 intensity_bin_peril_ids, intensity_bins, bin_slot,
+                                                 haz_bin_id, haz_pdf_prob)
+    for haz_i in range(Nhaz_records):
+        record = haz_pdf[haz_start + haz_i]
+        haz_bin_id[haz_i] = record['intensity_bin_id']
+        haz_pdf_prob[haz_i] = record['probability']
+    return Nhaz_records
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
@@ -973,18 +1004,10 @@ def footprint_hazard(haz_pdf, haz_arr_ptr, haz_arr_i, item, intensity_adjustment
     numba-hot-loop-refcount skill). Only the first ``Nhaz_bins`` rows of each are valid.
     """
     record_start = haz_arr_ptr[haz_arr_i]
-    record_end = haz_arr_ptr[haz_arr_i + 1]
-    if dynamic_footprint is not None:
-        n_entries = merge_dynamic_haz_records_per_bin(haz_pdf[record_start:record_end], item, intensity_adjustment,
-                                                      intensity_bin_peril_ids, intensity_bins,
-                                                      bin_slot, haz_bin_id_buf[haz_start:], haz_pdf_prob_buf)
-    else:
-        n_entries = record_end - record_start
-        for entry in range(n_entries):
-            record = haz_pdf[record_start + entry]
-            haz_bin_id_buf[haz_start + entry] = record['intensity_bin_id']
-            haz_pdf_prob_buf[entry] = record['probability']
-    return pdf_to_cdf(haz_pdf_prob_buf[:n_entries], haz_cdf_buf[haz_start:]).shape[0]
+    n_entries = fill_haz_bins(haz_pdf, record_start, haz_arr_ptr[haz_arr_i + 1] - record_start, item, intensity_adjustment,
+                              dynamic_footprint, intensity_bin_peril_ids, intensity_bins, bin_slot, haz_bin_id_buf[haz_start:],
+                              haz_pdf_prob_buf)
+    return pdf_to_cdf(haz_pdf_prob_buf, n_entries, haz_cdf_buf[haz_start:])
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
@@ -1049,7 +1072,8 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
                 sample_size, haz_z_unif
             )
         else:
-            haz_z_unif[:] = haz_rndms_item
+            for sample_i in range(haz_z_unif.shape[0]):
+                haz_z_unif[sample_i] = haz_rndms_item[sample_i]
 
     if compute_info['do_correlation'] and item['damage_correlation_value'] > 0:
         # use correlation definitions to draw correlated random values into vuln_z_unif
@@ -1061,9 +1085,11 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
         )
     else:
         # do not use correlation
-        vuln_z_unif[:] = vuln_rndms_item
+        for sample_i in range(vuln_z_unif.shape[0]):
+            vuln_z_unif[sample_i] = vuln_rndms_item[sample_i]
 
-    vuln_z_unif *= damage_rval_adj
+    for sample_i in range(vuln_z_unif.shape[0]):
+        vuln_z_unif[sample_i] *= damage_rval_adj
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
@@ -1078,7 +1104,7 @@ def member_cdf_at(table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_membe
 @nb.njit(cache=True, fastmath=True, inline='always')
 def accumulate_condition_hermite(scaling_factor, table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
                                  block, condition_ids, condition_probs, n_conditions, weight, damage_bins_interpolation,
-                                 norm_inv_parameters, norm_inv_cdf, curve_buf, hermite_part):
+                                 norm_inv_parameters, norm_inv_cdf, curve_buf, hermite_part, hermite_he_lo, hermite_he_hi):
     """Add the Hermite terms of E[loss | damage uniform] for one areaperil into ``hermite_part``.
 
     The condition (hazard bin, or source damage bin) is drawn independently of the damage uniform,
@@ -1093,9 +1119,9 @@ def accumulate_condition_hermite(scaling_factor, table, vuln_member_ja_offsets, 
             curve_buf[damage_bin_i] = 0.
         add_member_cdfs(curve_buf, 1., table, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
                         block, condition_ids[condition_i] - 1, table.shape[2])
-        accumulate_hermite_coeffs(scaling_factor, curve_buf, damage_bins_interpolation, cdf_length(curve_buf, table.shape[2]),
-                                  weight * probability, norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'],
-                                  norm_inv_cdf, hermite_part)
+        accumulate_hermite_coeffs_into(scaling_factor, curve_buf, damage_bins_interpolation, cdf_length(curve_buf, table.shape[2]),
+                                       weight * probability, norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'],
+                                       norm_inv_cdf, hermite_part, hermite_he_lo, hermite_he_hi)
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
@@ -1130,7 +1156,7 @@ def areaperil_cdf_slot(compute_info, cell_group, haz_arr_i, member_block, item, 
                        haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf,
                        vuln_cdf, vuln_cdf_lengths, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
                        mixed_cdf_cache_tag, mixed_cdf_cache, mixed_cdf_cache_nbins, mixed_cdf_group_hermite,
-                       damage_bins, norm_inv_parameters, norm_inv_cdf, cdf_acc, curve_buf):
+                       damage_bins, norm_inv_parameters, norm_inv_cdf, cdf_acc, curve_buf, hermite_he_lo, hermite_he_hi):
     """Convolve an areaperil's own effective damage cdf into the cache and return its slot.
 
     The cdf is its size-1 mixed cdf group's (``cell_group``): the areaperil's hazard this event
@@ -1157,14 +1183,14 @@ def areaperil_cdf_slot(compute_info, cell_group, haz_arr_i, member_block, item, 
         damage_bins_interpolation = damage_bins['interpolation']
         if compute_info['effective_damageability']:
             # one uniform drives the loss, so its cdf is the whole story
-            accumulate_hermite_coeffs(scaling_factor, cdf_acc, damage_bins_interpolation, n_bins, 1.,
-                                      norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'], norm_inv_cdf,
-                                      hermite_part)
+            accumulate_hermite_coeffs_into(scaling_factor, cdf_acc, damage_bins_interpolation, n_bins, 1.,
+                                           norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'], norm_inv_cdf,
+                                           hermite_part, hermite_he_lo, hermite_he_hi)
         else:
             accumulate_condition_hermite(scaling_factor, vuln_cdf, vuln_member_ja_offsets, vuln_member_ja_rows,
                                          vuln_member_ja_weights, member_block, haz_bin_id_buf, haz_pdf_prob_buf, n_haz_bins,
                                          1., damage_bins_interpolation, norm_inv_parameters, norm_inv_cdf, curve_buf,
-                                         hermite_part)
+                                         hermite_part, hermite_he_lo, hermite_he_hi)
     return store_mixed_cdf(compute_info, cell_group, cdf_acc, n_bins, mixed_cdf_cache_tag, mixed_cdf_cache,
                            mixed_cdf_cache_nbins)
 
@@ -1253,13 +1279,15 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
     """
     if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
         if hazard_rng_index >= 0:
-            out[:] = haz_z_unif[:]
+            for sample_k in range(sample_size):
+                out[sample_k] = haz_z_unif[sample_k]
         else:
             # deterministic hazard / effective damageability: no hazard intensity sampled
             out[:] = 0
 
     elif compute_info['debug'] == 2:  # store the random value used for the damage sampling instead of the loss
-        out[:] = vuln_z_unif[:]
+        for sample_k in range(sample_size):
+            out[sample_k] = vuln_z_unif[sample_k]
 
     else:  # calculate gul
         if compute_info['effective_damageability']:
@@ -1300,231 +1328,107 @@ def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                                                     damage_bins, damage_bin_scaling, src_bin_out, sample_idx)
 
 
-@nb.njit(cache=True, fastmath=True)
-def compute_event_losses(compute_info,
-                         coverages,
-                         coverage_ids,
-                         items_event_data,
-                         items,
-                         item_mixed_cdf_groups,
-                         mixed_cdf_group_areaperil_ja_offsets,
-                         mixed_cdf_group_areaperil_ja_cell_groups,
-                         mixed_cdf_group_areaperil_ja_member_blocks,
-                         mixed_cdf_group_areaperil_haz_arr_i,
-                         mixed_cdf_group_areaperil_event_rp,
-                         placement_item_ind,
-                         placement_item_starts,
-                         location_placements,
-                         blended_areaperil_placement_ja_offsets,
-                         blended_areaperil_placement_ja_areaperil_j,
-                         blended_areaperil_ja_offsets,
-                         blended_areaperil_ja_probabilities,
-                         mixed_cdf_cache_tag,
-                         mixed_cdf_cache,
-                         mixed_cdf_cache_nbins,
-                         mixed_cdf_group_hermite,
-                         max_areaperils_per_item,
-                         sample_size,
-                         haz_pdf,
-                         haz_arr_ptr,
-                         vuln_cdf,
-                         vuln_cdf_lengths,
-                         cond_cdf,
-                         cond_cdf_lengths,
-                         vuln_member_ja_offsets,
-                         vuln_member_ja_rows,
-                         vuln_member_ja_weights,
-                         damage_bins,
-                         losses,
-                         vuln_adj,
-                         haz_eps_ij,
-                         damage_eps_ij,
-                         norm_inv_parameters,
-                         norm_inv_cdf,
-                         norm_cdf,
-                         vuln_z_unif,
-                         haz_z_unif,
-                         byte_mv,
-                         dynamic_footprint,
-                         intensity_bin_peril_ids,
-                         intensity_bins,
-                         building_losses,
-                         loss_correlation_by_item,
-                         hermite_coeffs,
-                         vuln_rndms_base,
-                         haz_rndms_base,
-                         vuln_seeds,
-                         haz_seeds,
-                         vuln_draw_scratch,
-                         haz_draw_scratch,
-                         perm_scratch,
-                         coverage_has_dependents,
-                         compute_depth,
-                         source_damage_bin_stack,
-                         source_eff_damage_cdf_stack,
-                         source_eff_damage_cdf_len_stack
-                         ):
-    """Compute ground-up losses for all coverages in a single event.
+@nb.njit(cache=True, fastmath=True, _nrt=False)
+def _compute_event_losses_core(compute_info,
+                               coverages,
+                               coverage_ids,
+                               items_event_data,
+                               items,
+                               item_mixed_cdf_groups,
+                               mixed_cdf_group_areaperil_ja_offsets,
+                               mixed_cdf_group_areaperil_ja_cell_groups,
+                               mixed_cdf_group_areaperil_ja_member_blocks,
+                               mixed_cdf_group_areaperil_haz_arr_i,
+                               mixed_cdf_group_areaperil_event_rp,
+                               placement_item_ind,
+                               placement_item_starts,
+                               location_placements,
+                               blended_areaperil_placement_ja_offsets,
+                               blended_areaperil_placement_ja_areaperil_j,
+                               blended_areaperil_ja_offsets,
+                               blended_areaperil_ja_probabilities,
+                               mixed_cdf_cache_tag,
+                               mixed_cdf_cache,
+                               mixed_cdf_cache_nbins,
+                               mixed_cdf_group_hermite,
+                               max_areaperils_per_item,
+                               sample_size,
+                               haz_pdf,
+                               haz_arr_ptr,
+                               vuln_cdf,
+                               vuln_cdf_lengths,
+                               cond_cdf,
+                               cond_cdf_lengths,
+                               vuln_member_ja_offsets,
+                               vuln_member_ja_rows,
+                               vuln_member_ja_weights,
+                               damage_bins,
+                               losses,
+                               vuln_adj,
+                               haz_eps_ij,
+                               damage_eps_ij,
+                               norm_inv_parameters,
+                               norm_inv_cdf,
+                               norm_cdf,
+                               vuln_z_unif,
+                               haz_z_unif,
+                               byte_mv,
+                               dynamic_footprint,
+                               intensity_bin_peril_ids,
+                               intensity_bins,
+                               building_losses,
+                               loss_correlation_by_item,
+                               hermite_coeffs,
+                               vuln_rndms_base,
+                               haz_rndms_base,
+                               vuln_seeds,
+                               haz_seeds,
+                               vuln_draw_scratch,
+                               haz_draw_scratch,
+                               perm_scratch,
+                               coverage_has_dependents,
+                               compute_depth,
+                               source_damage_bin_stack,
+                               source_eff_damage_cdf_stack,
+                               source_eff_damage_cdf_len_stack,
+                               bin_slot,
+                               haz_pdf_prob_buf,
+                               haz_bin_id_buf,
+                               haz_cdf_buf,
+                               row_cdf_buf,
+                               row_lengths,
+                               row_stamp,
+                               areaperil_j_live,
+                               areaperil_j_stamp,
+                               areaperil_j_to_haz_start,
+                               areaperil_j_to_Nhaz_bins,
+                               areaperil_j_to_member_block,
+                               cdf_acc,
+                               mix_acc,
+                               curve_buf,
+                               mixed_eff_damage_cdf,
+                               areaperil_j_single,
+                               areaperil_j_of_building,
+                               source_bin_ids,
+                               source_damage_pmf,
+                               hermite_he_lo,
+                               hermite_he_hi):
+    """Body of compute_event_losses, compiled without the numba runtime (``_nrt=False``).
 
-    Iterates over coverages and their items. Each item reports the effective damage cdf of its
-    mixed cdf group, read from the cache or computed by the group's first item this event, and in
-    full Monte Carlo draws its samples from the damage cdf table. Results are written into a byte
-    buffer for streaming output.
+    Without the runtime numba emits no NRT incref/decref at all, which removes the per-item
+    refcounting the inlined helpers' array arguments still cost (see the refcount note in
+    common/event_stream.py). In exchange nothing in here, or in any helper it calls, may allocate
+    (numba refuses to compile it), so the scratch buffers are allocated by compute_event_losses and
+    passed in. Every array here is an argument or a view of one, kept alive by the caller for the
+    whole call. ``_nrt`` is a private numba option.
 
-    One cache holds the mixed cdf groups' cdfs, one ring of slots (a power of two) indexed by a
-    monotonic write counter: ``mixed_cdf_cache_tag[group]`` is the counter value of the group's
-    write, valid until the ring has taken as many writes after it as it has slots. An areaperil's
-    own cdf under a vulnerability is its size-1 group's, convolved once per event however many
-    blended groups read it; a blended group's is its areaperils' cdfs mixed by probability.
-
-    Args:
-        compute_info (gulmc_compute_info_type): computation state (event_id, cursor position,
-          coverage range, mixed_cdf_cache_ctr, thresholds, flags).
-        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
-        coverage_ids (numpy.array[int]): ordered list of coverage_ids to process in this event.
-        items_event_data (numpy.array[items_MC_data_type]): per-item event data populated by
-          reconstruct_coverages, containing item_idx, rng_index and hazard_rng_index.
-        items (np.ndarray): items table merged with correlation parameters.
-        item_mixed_cdf_groups (np.array[int32]): per item, its mixed cdf group (see ``build_item_mixed_cdf_groups``).
-        mixed_cdf_group_areaperil_ja_offsets (np.array[oasis_int]): per mixed cdf group, its run of group
-          areaperils, j-th for the group's j-th areaperil.
-        mixed_cdf_group_areaperil_ja_cell_groups (np.array[int32]): per group areaperil, the size-1
-          group of its areaperil, which is the group itself for a size-1 group.
-        mixed_cdf_group_areaperil_ja_member_blocks (np.array[int32]): per group areaperil, the
-          vulnerability member block its damage cdf is read from.
-        mixed_cdf_group_areaperil_haz_arr_i (np.array[oasis_int]): this event's hazard row per group
-          areaperil, -1 when its areaperil has no hazard this event.
-        mixed_cdf_group_areaperil_event_rp (np.array[int32]): this event's return period per group areaperil
-          (dynamic footprint only).
-        placement_item_ind (np.array): id_index from item_idx to its rank among the items that
-          read a placement; looked up only for an item whose blended areaperil has more than one.
-        placement_item_starts (np.array[int64]): per such item, where its first building's samples
-          start in ``location_placements``.
-        location_placements (np.array[uint8|uint16|int32]): per (location, building, sample) the
-          placement index, shared by the location's items; the placement count means unplaced.
-        blended_areaperil_placement_ja_offsets (np.array[oasis_int]): placements per blended areaperil.
-        blended_areaperil_placement_ja_areaperil_j (np.array[int32]): placement -> the areaperil_j
-          it reads, -1 when no areaperil covers it.
-        blended_areaperil_ja_offsets (np.array[oasis_int]): per blended areaperil, its areaperils.
-        blended_areaperil_ja_probabilities (np.array[float64]): probability the building is on
-          each areaperil, the weights of the analytic mixture.
-        mixed_cdf_cache_tag (np.array[int64]): per mixed cdf group, the value of
-          ``compute_info['mixed_cdf_cache_ctr']`` when its cdf was cached (CDF_CACHE_EMPTY = -1).
-        mixed_cdf_cache (np.array[oasis_float, 2d]): ring of mixed cdfs, one per slot; its row
-          count is a power of two.
-        mixed_cdf_cache_nbins (np.array[int32]): per slot, its cdf's length, 0 for a group none of
-          whose areaperils can take a loss this event.
-        mixed_cdf_group_hermite (np.array[float64, 3d]): per mixed cdf group, the Hermite terms of its
-          cdf without the tiv, as [part the tiv multiplies, part it does not]. Empty when no item
-          needs them.
-        max_areaperils_per_item (int): the largest K, sizing the per-areaperil scratch.
-        sample_size (int): number of random samples to draw.
-        haz_pdf (np.array[haz_arr_type]): hazard intensity pdf records for this event.
-        haz_arr_ptr (np.array[int64]): indices where each areaperil's hazard records start in haz_pdf.
-        vuln_cdf (np.array[oasis_float, 3d]): damage cdf per (vulnerability, intensity bin, damage bin).
-        vuln_cdf_lengths (np.array[int32, 2d]): their lengths.
-        cond_cdf (np.array[oasis_float, 3d]): damage cdf per (conditional vulnerability, source damage
-          bin, damage bin). Empty when no dependency.
-        cond_cdf_lengths (np.array[int32, 2d]): their lengths.
-        vuln_member_ja_offsets (np.array[oasis_int]): per member block, its members.
-        vuln_member_ja_rows (np.array[int32]): per member, its row of ``vuln_cdf`` (``cond_cdf`` for
-          a conditional vulnerability).
-        vuln_member_ja_weights (np.array[float64]): per member, its normalised weight.
-        damage_bins (np.array): damage bin dictionary with bin_from, bin_to, interpolation, damage_type.
-        losses (numpy.array[oasis_float]): reusable 2d buffer for loss values.
-        vuln_adj (np.array[float]): per member block, the damage random value adjustment.
-        haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
-        damage_eps_ij (np.array[float]): correlated random values for damage sampling.
-        norm_inv_parameters (NormInversionParameters): parameters for Gaussian inversion.
-        norm_inv_cdf (np.array[float]): inverse Gaussian cdf lookup table.
-        norm_cdf (np.array[float]): Gaussian cdf lookup table.
-        vuln_z_unif (np.array[float]): reusable buffer for correlated vulnerability random values.
-        haz_z_unif (np.array[float]): reusable buffer for correlated hazard random values.
-        byte_mv (numpy.array[byte]): output byte buffer for the binary stream.
-        dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
-        intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids (length n_perils).
-        intensity_bins (np.array[int32, 2d]): shape (n_perils, max_intensity + 1) mapping
-          [peril_idx, intensity_value] -> intensity_bin_id.
-        building_losses (numpy.array[oasis_float]): 3d (S, max_items, max_buildings) reusable
-          buffer for the per-building sample losses. Every coverage holds all of its buildings
-          here before write_losses emits it, so it is sized by the portfolio's largest location.
-        loss_correlation_by_item (numpy.array[oasis_float]): per item of the current coverage,
-          the correlation between two of its buildings' losses, written where the analytic
-          moments are and read when its summed specials are emitted. 0 for everything that
-          does not report the spread of a sum.
-        hermite_coeffs (numpy.array[float64]): length HERMITE_TERMS scratch for that.
-        vuln_rndms_base (numpy.array[float64]): 2d (damage rng groups, S) random draws, one row
-          per group, which is also every packed item's first building.
-        haz_rndms_base (numpy.array[float64]): the same for the hazard rng groups.
-        vuln_seeds (numpy.array[int]): per damage rng group, the Philox key. Read for a packed
-          item's buildings 2..N, which are drawn per item rather than shared.
-        haz_seeds (numpy.array[int]): the same for the hazard rng groups.
-        vuln_draw_scratch (numpy.array[float64]): length-S buffer for one building's damage block.
-        haz_draw_scratch (numpy.array[float64]): the same for hazard.
-        perm_scratch (numpy.array[float64]): length-S scratch the block generator permutes in.
-        coverage_has_dependents (np.array[int8]): per coverage_id, 1 if any coverage names it as
-          its source. Only those coverages' sampled damage bins are stored, and the bin stack is
-          sized on that basis, so storing for any other coverage would write past its width.
-        compute_depth (np.array[int32]): per entry of ``coverage_ids``, its depth in the dependency
-          forest (0 for a root), matching the DFS order the caller put them in.
-        source_damage_bin_stack (np.array[int32]): per-depth, per-item sampled damage bins, holding
-          a source coverage's result while its dependent subtree is computed.
-        source_eff_damage_cdf_stack (np.array[oasis_float]): per-depth, per-item effective damage
-          cdfs, the effective-damageability counterpart of the sampled bins.
-        source_eff_damage_cdf_len_stack (np.array[int64]): valid length of each entry of
-          ``source_eff_damage_cdf_stack``.
-
-    Returns:
-        bool: True if all coverages have been processed, False if the buffer is full and
-          the caller should flush and call again.
+    The arguments are those of compute_event_losses, followed by its scratch buffers.
     """
     mixed_cdf_cache_mask = nb_int64(mixed_cdf_cache.shape[0] - 1)
     Ndamage_bins_max = vuln_cdf.shape[2]
-    damage_bins_interpolation = damage_bins['interpolation']
-    # a dynamic footprint's records merged per intensity bin (see merge_dynamic_haz_records_per_bin)
-    n_bin_ids = intensity_bins.max() + 1 if intensity_bins.size > 0 else 1
-    bin_slot = np.full(n_bin_ids, -1, dtype=np.int64)
-    max_haz_bins = max(vuln_cdf.shape[1], n_bin_ids)
-    haz_pdf_prob_buf = np.empty(max_haz_bins, dtype=oasis_float)
-    # Per item areaperil its samples land on, its hazard rows stay resident until the item's samples
-    # are drawn, packed one after another (areaperil_j_to_haz_start): at most S per building, or K.
-    # An areaperil is resolved once per item and has no more rows than footprint records, so the
-    # rows also stay within this event's records (haz_pdf holds only the areaperils items read).
-    # Without that cap, K x intensity bins x damage bins can outgrow memory on a large blend.
-    # At least one areaperil's worth even when S is 0, for the effective damage cdf.
-    haz_rows = max(1, min(max_haz_bins * max(1, min(max_areaperils_per_item, sample_size * building_losses.shape[2])),
-                          haz_pdf.shape[0]))
-    haz_bin_id_buf = np.empty(haz_rows, dtype=np.int32)
-    haz_cdf_buf = np.empty(haz_rows, dtype=oasis_float)
-    # per row an item's samples reach -- a hazard row, or a source damage bin for a dependent -- its
-    # damage cdf, written once per item when a sample first needs it
-    n_rows = max(haz_rows, cond_cdf.shape[1])
-    row_cdf_buf = np.empty((n_rows, vuln_cdf.shape[2]), dtype=oasis_float)
-    row_lengths = np.zeros(n_rows, dtype=np.int64)
-    row_stamp = np.full(n_rows, -1, dtype=np.int64)
-    areaperil_j_live = np.zeros(max_areaperils_per_item, dtype=np.bool_)
-    # an areaperil is resolved for an item's samples when one first lands there: resolved for this
-    # item when its stamp is the item's
-    areaperil_j_stamp = np.full(max_areaperils_per_item, -1, dtype=np.int64)
+    damage_bins_interpolation = damage_bins['interpolation']  # one field view per call, not per item
     item_stamp = nb_int64(0)
-    areaperil_j_to_haz_start = np.zeros(max_areaperils_per_item, dtype=np.int64)
-    areaperil_j_to_Nhaz_bins = np.zeros(max_areaperils_per_item, dtype=np.int64)
-    areaperil_j_to_member_block = np.zeros(max_areaperils_per_item, dtype=np.int32)
-    # an areaperil's cdf and a group's mixture are summed here, in float64, over the whole damage axis
-    cdf_acc = np.empty(Ndamage_bins_max, dtype=np.float64)
-    mix_acc = np.empty(Ndamage_bins_max, dtype=np.float64)
-    curve_buf = np.empty(Ndamage_bins_max, dtype=np.float64)
-    # the effective damage cdf of the item: its group's
-    mixed_eff_damage_cdf = np.empty(Ndamage_bins_max, dtype=oasis_float)
-    # an item of a single placement reads areaperil 0 in every sample; a blended item's building
-    # maps its location's placements to its own areaperil_j here
-    areaperil_j_single = np.zeros(max(sample_size, 1), dtype=np.int32)
-    areaperil_j_of_building = np.zeros(max(sample_size, 1), dtype=np.int32)
-    # a dependent's conditions are its source's damage bins, 1-based like intensity bin ids, and
-    # their distribution the source's damage pmf
     n_source_bins = cond_cdf.shape[1]
-    source_bin_ids = np.arange(1, n_source_bins + 1).astype(np.int32)
-    source_damage_pmf = np.empty(max(n_source_bins, 1), dtype=oasis_float)
 
     # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
     compute_info['cursor'] = 0
@@ -1596,7 +1500,8 @@ def compute_event_losses(compute_info,
                             haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf,
                             vuln_cdf, vuln_cdf_lengths, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
                             mixed_cdf_cache_tag, mixed_cdf_cache, mixed_cdf_cache_nbins, mixed_cdf_group_hermite,
-                            damage_bins, norm_inv_parameters, norm_inv_cdf, cdf_acc, curve_buf)
+                            damage_bins, norm_inv_parameters, norm_inv_cdf, cdf_acc, curve_buf, hermite_he_lo,
+                            hermite_he_hi)
                     item_live = group_areaperil_is_live(mixed_cdf_group_areaperil_haz_arr_i, mixed_cdf_group_areaperil_event_rp,
                                                         group_start, protection_rp, dynamic_footprint)
                 else:
@@ -1629,7 +1534,8 @@ def compute_event_losses(compute_info,
                                     haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf,
                                     vuln_cdf, vuln_cdf_lengths, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
                                     mixed_cdf_cache_tag, mixed_cdf_cache, mixed_cdf_cache_nbins, mixed_cdf_group_hermite,
-                                    damage_bins, norm_inv_parameters, norm_inv_cdf, cdf_acc, curve_buf)
+                                    damage_bins, norm_inv_parameters, norm_inv_cdf, cdf_acc, curve_buf, hermite_he_lo,
+                                    hermite_he_hi)
                             # read at once: the next areaperil's cdf may take its slot
                             p_areaperil = blended_areaperil_ja_probabilities[blended_start + areaperil_j]
                             cell_bins = mixed_cdf_cache_nbins[cell_slot]
@@ -1693,9 +1599,10 @@ def compute_event_losses(compute_info,
                             hermite_coeffs[k] = 0.
                         damage_bin_scaling = compute_damage_bin_scaling(damage_bins, n_mixed, tiv)
                         if compute_info['effective_damageability']:
-                            accumulate_hermite_coeffs(damage_bin_scaling, cdf_acc, damage_bins_interpolation, n_mixed,
-                                                      live_probability, norm_inv_parameters['x_min'],
-                                                      norm_inv_parameters['inv_factor'], norm_inv_cdf, hermite_coeffs)
+                            accumulate_hermite_coeffs_into(damage_bin_scaling, cdf_acc, damage_bins_interpolation, n_mixed,
+                                                           live_probability, norm_inv_parameters['x_min'],
+                                                           norm_inv_parameters['inv_factor'], norm_inv_cdf, hermite_coeffs,
+                                                           hermite_he_lo, hermite_he_hi)
                         else:
                             # The weights are the source's damage pmf, which treats the source's
                             # buildings as independent, so a correlated source makes this an underestimate.
@@ -1703,13 +1610,15 @@ def compute_event_losses(compute_info,
                                                          vuln_member_ja_rows, vuln_member_ja_weights, live_block,
                                                          source_bin_ids, source_damage_pmf, n_source_bins, live_probability,
                                                          damage_bins_interpolation, norm_inv_parameters, norm_inv_cdf,
-                                                         curve_buf, hermite_coeffs)
+                                                         curve_buf, hermite_coeffs, hermite_he_lo, hermite_he_hi)
 
             if n_mixed == 0 or not item_live:
                 # every areaperil dead at this event (no hazard, or protected): the item is skipped
                 # whole, samples and analytic sidx alike
                 losses[:, item_j] = 0
-                building_losses[:, item_j, :] = 0
+                # only this item's buildings: write_losses reads no further for it, and zeroes
+                # the rest of the coverage's building range itself when an alloc rule needs it
+                building_losses[:, item_j, :abs(item_event_data['packed_buildings'])] = 0
                 if has_dependents_below:
                     # a dependent below this one in the DFS still reads (depth, item_j), so
                     # leave "no damage" there rather than the last coverage's values
@@ -1867,7 +1776,8 @@ def compute_event_losses(compute_info,
             # effective damageability: record the eff-damage CDF instead, for a dependent below
             # to build its damage pmf from; a blended source records its mixed cdf
             if has_dependents_below:
-                source_eff_damage_cdf_stack[depth, item_j, :n_mixed] = mixed_eff_damage_cdf[:n_mixed]
+                for damage_bin_k in range(n_mixed):
+                    source_eff_damage_cdf_stack[depth, item_j, damage_bin_k] = mixed_eff_damage_cdf[damage_bin_k]
                 source_eff_damage_cdf_len_stack[depth, item_j] = n_mixed
 
         # write the losses to the output memoryview. A zero-TIV coverage (an uninsured dependency
@@ -1890,6 +1800,319 @@ def compute_event_losses(compute_info,
         compute_info['coverage_i'] += 1
 
     return True
+
+
+@nb.njit(cache=True, fastmath=True)
+def compute_event_losses(compute_info,
+                         coverages,
+                         coverage_ids,
+                         items_event_data,
+                         items,
+                         item_mixed_cdf_groups,
+                         mixed_cdf_group_areaperil_ja_offsets,
+                         mixed_cdf_group_areaperil_ja_cell_groups,
+                         mixed_cdf_group_areaperil_ja_member_blocks,
+                         mixed_cdf_group_areaperil_haz_arr_i,
+                         mixed_cdf_group_areaperil_event_rp,
+                         placement_item_ind,
+                         placement_item_starts,
+                         location_placements,
+                         blended_areaperil_placement_ja_offsets,
+                         blended_areaperil_placement_ja_areaperil_j,
+                         blended_areaperil_ja_offsets,
+                         blended_areaperil_ja_probabilities,
+                         mixed_cdf_cache_tag,
+                         mixed_cdf_cache,
+                         mixed_cdf_cache_nbins,
+                         mixed_cdf_group_hermite,
+                         max_areaperils_per_item,
+                         sample_size,
+                         haz_pdf,
+                         haz_arr_ptr,
+                         vuln_cdf,
+                         vuln_cdf_lengths,
+                         cond_cdf,
+                         cond_cdf_lengths,
+                         vuln_member_ja_offsets,
+                         vuln_member_ja_rows,
+                         vuln_member_ja_weights,
+                         damage_bins,
+                         losses,
+                         vuln_adj,
+                         haz_eps_ij,
+                         damage_eps_ij,
+                         norm_inv_parameters,
+                         norm_inv_cdf,
+                         norm_cdf,
+                         vuln_z_unif,
+                         haz_z_unif,
+                         byte_mv,
+                         dynamic_footprint,
+                         intensity_bin_peril_ids,
+                         intensity_bins,
+                         building_losses,
+                         loss_correlation_by_item,
+                         hermite_coeffs,
+                         vuln_rndms_base,
+                         haz_rndms_base,
+                         vuln_seeds,
+                         haz_seeds,
+                         vuln_draw_scratch,
+                         haz_draw_scratch,
+                         perm_scratch,
+                         coverage_has_dependents,
+                         compute_depth,
+                         source_damage_bin_stack,
+                         source_eff_damage_cdf_stack,
+                         source_eff_damage_cdf_len_stack):
+    """Compute ground-up losses for all coverages in a single event.
+
+    Iterates over coverages and their items. Each item reports the effective damage cdf of its
+    mixed cdf group, read from the cache or computed by the group's first item this event, and in
+    full Monte Carlo draws its samples from the damage cdf table. Results are written into a byte
+    buffer for streaming output.
+
+    One cache holds the mixed cdf groups' cdfs, one ring of slots (a power of two) indexed by a
+    monotonic write counter: ``mixed_cdf_cache_tag[group]`` is the counter value of the group's
+    write, valid until the ring has taken as many writes after it as it has slots. An areaperil's
+    own cdf under a vulnerability is its size-1 group's, convolved once per event however many
+    blended groups read it; a blended group's is its areaperils' cdfs mixed by probability.
+
+    Args:
+        compute_info (gulmc_compute_info_type): computation state (event_id, cursor position,
+          coverage range, mixed_cdf_cache_ctr, thresholds, flags).
+        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
+        coverage_ids (numpy.array[int]): ordered list of coverage_ids to process in this event.
+        items_event_data (numpy.array[items_MC_data_type]): per-item event data populated by
+          reconstruct_coverages, containing item_idx, rng_index and hazard_rng_index.
+        items (np.ndarray): items table merged with correlation parameters.
+        item_mixed_cdf_groups (np.array[int32]): per item, its mixed cdf group (see ``build_item_mixed_cdf_groups``).
+        mixed_cdf_group_areaperil_ja_offsets (np.array[oasis_int]): per mixed cdf group, its run of group
+          areaperils, j-th for the group's j-th areaperil.
+        mixed_cdf_group_areaperil_ja_cell_groups (np.array[int32]): per group areaperil, the size-1
+          group of its areaperil, which is the group itself for a size-1 group.
+        mixed_cdf_group_areaperil_ja_member_blocks (np.array[int32]): per group areaperil, the
+          vulnerability member block its damage cdf is read from.
+        mixed_cdf_group_areaperil_haz_arr_i (np.array[oasis_int]): this event's hazard row per group
+          areaperil, -1 when its areaperil has no hazard this event.
+        mixed_cdf_group_areaperil_event_rp (np.array[int32]): this event's return period per group areaperil
+          (dynamic footprint only).
+        placement_item_ind (np.array): id_index from item_idx to its rank among the items that
+          read a placement; looked up only for an item whose blended areaperil has more than one.
+        placement_item_starts (np.array[int64]): per such item, where its first building's samples
+          start in ``location_placements``.
+        location_placements (np.array[uint8|uint16|int32]): per (location, building, sample) the
+          placement index, shared by the location's items; the placement count means unplaced.
+        blended_areaperil_placement_ja_offsets (np.array[oasis_int]): placements per blended areaperil.
+        blended_areaperil_placement_ja_areaperil_j (np.array[int32]): placement -> the areaperil_j
+          it reads, -1 when no areaperil covers it.
+        blended_areaperil_ja_offsets (np.array[oasis_int]): per blended areaperil, its areaperils.
+        blended_areaperil_ja_probabilities (np.array[float64]): probability the building is on
+          each areaperil, the weights of the analytic mixture.
+        mixed_cdf_cache_tag (np.array[int64]): per mixed cdf group, the value of
+          ``compute_info['mixed_cdf_cache_ctr']`` when its cdf was cached (CDF_CACHE_EMPTY = -1).
+        mixed_cdf_cache (np.array[oasis_float, 2d]): ring of mixed cdfs, one per slot; its row
+          count is a power of two.
+        mixed_cdf_cache_nbins (np.array[int32]): per slot, its cdf's length, 0 for a group none of
+          whose areaperils can take a loss this event.
+        mixed_cdf_group_hermite (np.array[float64, 3d]): per mixed cdf group, the Hermite terms of its
+          cdf without the tiv, as [part the tiv multiplies, part it does not]. Empty when no item
+          needs them.
+        max_areaperils_per_item (int): the largest K, sizing the per-areaperil scratch.
+        sample_size (int): number of random samples to draw.
+        haz_pdf (np.array[haz_arr_type]): hazard intensity pdf records for this event.
+        haz_arr_ptr (np.array[int64]): indices where each areaperil's hazard records start in haz_pdf.
+        vuln_cdf (np.array[oasis_float, 3d]): damage cdf per (vulnerability, intensity bin, damage bin).
+        vuln_cdf_lengths (np.array[int32, 2d]): their lengths.
+        cond_cdf (np.array[oasis_float, 3d]): damage cdf per (conditional vulnerability, source damage
+          bin, damage bin). Empty when no dependency.
+        cond_cdf_lengths (np.array[int32, 2d]): their lengths.
+        vuln_member_ja_offsets (np.array[oasis_int]): per member block, its members.
+        vuln_member_ja_rows (np.array[int32]): per member, its row of ``vuln_cdf`` (``cond_cdf`` for
+          a conditional vulnerability).
+        vuln_member_ja_weights (np.array[float64]): per member, its normalised weight.
+        damage_bins (np.array): damage bin dictionary with bin_from, bin_to, interpolation, damage_type.
+        losses (numpy.array[oasis_float]): reusable 2d buffer for loss values.
+        vuln_adj (np.array[float]): per member block, the damage random value adjustment.
+        haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
+        damage_eps_ij (np.array[float]): correlated random values for damage sampling.
+        norm_inv_parameters (NormInversionParameters): parameters for Gaussian inversion.
+        norm_inv_cdf (np.array[float]): inverse Gaussian cdf lookup table.
+        norm_cdf (np.array[float]): Gaussian cdf lookup table.
+        vuln_z_unif (np.array[float]): reusable buffer for correlated vulnerability random values.
+        haz_z_unif (np.array[float]): reusable buffer for correlated hazard random values.
+        byte_mv (numpy.array[byte]): output byte buffer for the binary stream.
+        dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
+        intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids (length n_perils).
+        intensity_bins (np.array[int32, 2d]): shape (n_perils, max_intensity + 1) mapping
+          [peril_idx, intensity_value] -> intensity_bin_id.
+        building_losses (numpy.array[oasis_float]): 3d (S, max_items, max_buildings) reusable
+          buffer for the per-building sample losses. Every coverage holds all of its buildings
+          here before write_losses emits it, so it is sized by the portfolio's largest location.
+        loss_correlation_by_item (numpy.array[oasis_float]): per item of the current coverage,
+          the correlation between two of its buildings' losses, written where the analytic
+          moments are and read when its summed specials are emitted. 0 for everything that
+          does not report the spread of a sum.
+        hermite_coeffs (numpy.array[float64]): length HERMITE_TERMS scratch for that.
+        vuln_rndms_base (numpy.array[float64]): 2d (damage rng groups, S) random draws, one row
+          per group, which is also every packed item's first building.
+        haz_rndms_base (numpy.array[float64]): the same for the hazard rng groups.
+        vuln_seeds (numpy.array[int]): per damage rng group, the Philox key. Read for a packed
+          item's buildings 2..N, which are drawn per item rather than shared.
+        haz_seeds (numpy.array[int]): the same for the hazard rng groups.
+        vuln_draw_scratch (numpy.array[float64]): length-S buffer for one building's damage block.
+        haz_draw_scratch (numpy.array[float64]): the same for hazard.
+        perm_scratch (numpy.array[float64]): length-S scratch the block generator permutes in.
+        coverage_has_dependents (np.array[int8]): per coverage_id, 1 if any coverage names it as
+          its source. Only those coverages' sampled damage bins are stored, and the bin stack is
+          sized on that basis, so storing for any other coverage would write past its width.
+        compute_depth (np.array[int32]): per entry of ``coverage_ids``, its depth in the dependency
+          forest (0 for a root), matching the DFS order the caller put them in.
+        source_damage_bin_stack (np.array[int32]): per-depth, per-item sampled damage bins, holding
+          a source coverage's result while its dependent subtree is computed.
+        source_eff_damage_cdf_stack (np.array[oasis_float]): per-depth, per-item effective damage
+          cdfs, the effective-damageability counterpart of the sampled bins.
+        source_eff_damage_cdf_len_stack (np.array[int64]): valid length of each entry of
+          ``source_eff_damage_cdf_stack``.
+
+    Returns:
+        bool: True if all coverages have been processed, False if the buffer is full and
+          the caller should flush and call again.
+    """
+    # scratch buffers for _compute_event_losses_core, which cannot allocate (compiled without NRT)
+    Ndamage_bins_max = vuln_cdf.shape[2]
+    # a dynamic footprint's records merged per intensity bin (see fill_haz_bins)
+    n_bin_ids = intensity_bins.max() + 1 if intensity_bins.size > 0 else 1
+    bin_slot = np.full(n_bin_ids, -1, dtype=np.int64)
+    max_haz_bins = max(vuln_cdf.shape[1], n_bin_ids)
+    haz_pdf_prob_buf = np.empty(max_haz_bins, dtype=oasis_float)
+    # Per item areaperil its samples land on, its hazard rows stay resident until the item's samples
+    # are drawn, packed one after another (areaperil_j_to_haz_start): at most S per building, or K.
+    # An areaperil is resolved once per item and has no more rows than footprint records, so the
+    # rows also stay within this event's records (haz_pdf holds only the areaperils items read).
+    # Without that cap, K x intensity bins x damage bins can outgrow memory on a large blend.
+    # At least one areaperil's worth even when S is 0, for the effective damage cdf.
+    haz_rows = max(1, min(max_haz_bins * max(1, min(max_areaperils_per_item, sample_size * building_losses.shape[2])),
+                          haz_pdf.shape[0]))
+    haz_bin_id_buf = np.empty(haz_rows, dtype=np.int32)
+    haz_cdf_buf = np.empty(haz_rows, dtype=oasis_float)
+    # per row an item's samples reach -- a hazard row, or a source damage bin for a dependent -- its
+    # damage cdf, written once per item when a sample first needs it
+    n_rows = max(haz_rows, cond_cdf.shape[1])
+    row_cdf_buf = np.empty((n_rows, vuln_cdf.shape[2]), dtype=oasis_float)
+    row_lengths = np.zeros(n_rows, dtype=np.int64)
+    row_stamp = np.full(n_rows, -1, dtype=np.int64)
+    areaperil_j_live = np.zeros(max_areaperils_per_item, dtype=np.bool_)
+    # an areaperil is resolved for an item's samples when one first lands there: resolved for this
+    # item when its stamp is the item's
+    areaperil_j_stamp = np.full(max_areaperils_per_item, -1, dtype=np.int64)
+    areaperil_j_to_haz_start = np.zeros(max_areaperils_per_item, dtype=np.int64)
+    areaperil_j_to_Nhaz_bins = np.zeros(max_areaperils_per_item, dtype=np.int64)
+    areaperil_j_to_member_block = np.zeros(max_areaperils_per_item, dtype=np.int32)
+    # an areaperil's cdf and a group's mixture are summed here, in float64, over the whole damage axis
+    cdf_acc = np.empty(Ndamage_bins_max, dtype=np.float64)
+    mix_acc = np.empty(Ndamage_bins_max, dtype=np.float64)
+    curve_buf = np.empty(Ndamage_bins_max, dtype=np.float64)
+    # the effective damage cdf of the item: its group's
+    mixed_eff_damage_cdf = np.empty(Ndamage_bins_max, dtype=oasis_float)
+    # an item of a single placement reads areaperil 0 in every sample; a blended item's building
+    # maps its location's placements to its own areaperil_j here
+    areaperil_j_single = np.zeros(max(sample_size, 1), dtype=np.int32)
+    areaperil_j_of_building = np.zeros(max(sample_size, 1), dtype=np.int32)
+    # a dependent's conditions are its source's damage bins, 1-based like intensity bin ids, and
+    # their distribution the source's damage pmf
+    n_source_bins = cond_cdf.shape[1]
+    source_bin_ids = np.arange(1, n_source_bins + 1).astype(np.int32)
+    source_damage_pmf = np.empty(max(n_source_bins, 1), dtype=oasis_float)
+
+    # work arrays for accumulate_hermite_coeffs_into
+    hermite_he_lo = np.empty(HERMITE_TERMS, dtype=np.float64)
+    hermite_he_hi = np.empty(HERMITE_TERMS, dtype=np.float64)
+
+    return _compute_event_losses_core(compute_info,
+                                      coverages,
+                                      coverage_ids,
+                                      items_event_data,
+                                      items,
+                                      item_mixed_cdf_groups,
+                                      mixed_cdf_group_areaperil_ja_offsets,
+                                      mixed_cdf_group_areaperil_ja_cell_groups,
+                                      mixed_cdf_group_areaperil_ja_member_blocks,
+                                      mixed_cdf_group_areaperil_haz_arr_i,
+                                      mixed_cdf_group_areaperil_event_rp,
+                                      placement_item_ind,
+                                      placement_item_starts,
+                                      location_placements,
+                                      blended_areaperil_placement_ja_offsets,
+                                      blended_areaperil_placement_ja_areaperil_j,
+                                      blended_areaperil_ja_offsets,
+                                      blended_areaperil_ja_probabilities,
+                                      mixed_cdf_cache_tag,
+                                      mixed_cdf_cache,
+                                      mixed_cdf_cache_nbins,
+                                      mixed_cdf_group_hermite,
+                                      max_areaperils_per_item,
+                                      sample_size,
+                                      haz_pdf,
+                                      haz_arr_ptr,
+                                      vuln_cdf,
+                                      vuln_cdf_lengths,
+                                      cond_cdf,
+                                      cond_cdf_lengths,
+                                      vuln_member_ja_offsets,
+                                      vuln_member_ja_rows,
+                                      vuln_member_ja_weights,
+                                      damage_bins,
+                                      losses,
+                                      vuln_adj,
+                                      haz_eps_ij,
+                                      damage_eps_ij,
+                                      norm_inv_parameters,
+                                      norm_inv_cdf,
+                                      norm_cdf,
+                                      vuln_z_unif,
+                                      haz_z_unif,
+                                      byte_mv,
+                                      dynamic_footprint,
+                                      intensity_bin_peril_ids,
+                                      intensity_bins,
+                                      building_losses,
+                                      loss_correlation_by_item,
+                                      hermite_coeffs,
+                                      vuln_rndms_base,
+                                      haz_rndms_base,
+                                      vuln_seeds,
+                                      haz_seeds,
+                                      vuln_draw_scratch,
+                                      haz_draw_scratch,
+                                      perm_scratch,
+                                      coverage_has_dependents,
+                                      compute_depth,
+                                      source_damage_bin_stack,
+                                      source_eff_damage_cdf_stack,
+                                      source_eff_damage_cdf_len_stack,
+                                      bin_slot,
+                                      haz_pdf_prob_buf,
+                                      haz_bin_id_buf,
+                                      haz_cdf_buf,
+                                      row_cdf_buf,
+                                      row_lengths,
+                                      row_stamp,
+                                      areaperil_j_live,
+                                      areaperil_j_stamp,
+                                      areaperil_j_to_haz_start,
+                                      areaperil_j_to_Nhaz_bins,
+                                      areaperil_j_to_member_block,
+                                      cdf_acc,
+                                      mix_acc,
+                                      curve_buf,
+                                      mixed_eff_damage_cdf,
+                                      areaperil_j_single,
+                                      areaperil_j_of_building,
+                                      source_bin_ids,
+                                      source_damage_pmf,
+                                      hermite_he_lo,
+                                      hermite_he_hi)
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -2001,6 +2224,7 @@ def reconstruct_coverages(compute_info,
                           damage_corr_seeds,
                           dynamic_footprint,
                           byte_mv,
+                          items_event_data,
                           group_seq_rng_index,
                           hazard_group_seq_rng_index,
                           coverage_source_id,
@@ -2060,8 +2284,11 @@ def reconstruct_coverages(compute_info,
           event, in the order reached.
         mixed_cdf_group_needs_haz_rng (np.array[bool]): scratch per group: whether one of its areaperils'
           hazard is non-deterministic this event, under full Monte Carlo.
-        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
-        compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed.
+        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id. On entry,
+          cur_items is non-zero only for the coverages in ``compute[:compute_info['coverage_n']]``
+          (the previous event's), which are the only ones reset here.
+        compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed. Must
+          still hold the previous event's list on entry, see ``coverages``.
         haz_seeds (numpy.array[int]): output buffer for hazard intensity random seeds.
         haz_peril_correlation_groups (numpy.array[int]): unique peril correlation groups for hazard.
         haz_corr_seeds (numpy.array[int]): output buffer for hazard correlation seeds.
@@ -2070,8 +2297,12 @@ def reconstruct_coverages(compute_info,
         damage_corr_seeds (numpy.array[int]): output buffer for damage correlation seeds.
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
         byte_mv (numpy.array[byte]): output byte buffer, may be resized if needed.
+        items_event_data (numpy.array[items_MC_data_type]): per-item event data buffer, reused
+          across events and grown (doubled) when an event needs more room. Its contents on entry
+          are irrelevant: every field read for an item is written for this event first.
         group_seq_rng_index (numpy.array[int64]): pre-allocated array of size n_unique_groups,
-          used for O(1) group_id to rng_index mapping (reset to NO_RNG_INDEX each event).
+          used for O(1) group_id to rng_index mapping. All NO_RNG_INDEX on entry; only the
+          entries of this event's groups are set, and they are restored before returning.
         coverage_source_id (numpy.array): source coverage_id per coverage_id, 0 for a root.
         coverage_dependents_ja_offsets (numpy.array[oasis_int]): CSR offsets into
           ``coverage_dependents_ja_data``, indexed by source coverage_id.
@@ -2087,12 +2318,14 @@ def reconstruct_coverages(compute_info,
         item_idx_to_item_j (numpy.array[oasis_int]): scratch mapping an item index to its position
           within its coverage for this event, used to pair a dependent item with its source item.
         hazard_group_seq_rng_index (numpy.array[int64]): pre-allocated array of size
-          n_unique_haz_groups, for hazard_group_id to rng_index mapping.
+          n_unique_haz_groups, for hazard_group_id to rng_index mapping. Same contract as
+          ``group_seq_rng_index``.
 
     Returns:
         tuple: (items_event_data, rng_index, hazard_rng_index, byte_mv)
           - items_event_data (numpy.array[items_MC_data_type]): per-item data including
-            item_idx, rng_index, hazard_rng_index.
+            item_idx, rng_index, hazard_rng_index. The buffer passed in, or a grown copy of it: the
+            caller must keep the returned one for the next event.
           - rng_index (int): number of unique damage random seeds generated.
           - hazard_rng_index (int): number of unique hazard random seeds generated. Only hazard
             groups touching a non-deterministic areaperil (and only under full Monte Carlo, not
@@ -2102,15 +2335,13 @@ def reconstruct_coverages(compute_info,
           - byte_mv (numpy.array[byte]): output buffer, possibly resized.
     """
     # init data structures
-    # Reset pre-allocated arrays instead of creating new Numba Dicts
-    group_seq_rng_index[:] = NO_RNG_INDEX
-    hazard_group_seq_rng_index[:] = NO_RNG_INDEX
+    # only the previous event's coverages can have cur_items > 0 (see ``coverages``): reset just those
+    for position in range(compute_info['coverage_n']):
+        coverages[compute[position]]['cur_items'] = 0
     rng_index = 0
     hazard_rng_index = 0
     compute_i = 0
     items_data_i = 0
-    coverages['cur_items'].fill(0)
-    items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
     # for each areaperil_id, loop over all vulnerability functions used in that areaperil_id and,
     # for each item:
@@ -2272,6 +2503,14 @@ def reconstruct_coverages(compute_info,
     else:
         for position in range(compute_i):
             compute_depth[position] = 0
+
+    # restore the group -> rng index maps for the groups seen in this event only
+    for position in range(compute_i):
+        coverage = coverages[compute[position]]
+        for item_j in range(coverage['cur_items']):
+            item_idx = items_event_data[coverage['start_items'] + item_j]['item_idx']
+            group_seq_rng_index[items[item_idx]['group_seq_id']] = NO_RNG_INDEX
+            hazard_group_seq_rng_index[items[item_idx]['hazard_group_seq_id']] = NO_RNG_INDEX
 
     compute_info['coverage_i'] = 0
     compute_info['coverage_n'] = compute_i

@@ -522,6 +522,40 @@ class TestGenLosses(ComputationChecker):
             self.manager.generate_losses_dir(**{**self.min_args, 'model_run_dir': model_run_dir})
         self.assertTrue(any('occurrence index not built' in line for line in logs.output))
 
+    @patch('subprocess.Popen')
+    def test_losses__output__remove_working_file_controls_cleanup(self, mock_popen):
+        """The ``remove_working_file`` option of the output step decides whether
+        the outputs script deletes the ``work/`` and fifo dirs once it has finished."""
+        mock_proc = Mock()
+        mock_proc.pid = 12345
+        mock_proc.communicate.return_value = (b'', None)
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        for remove_working_file in (True, False):
+            with self.tmp_dir() as model_run_dir, self.subTest(remove_working_file=remove_working_file):
+                call_args = {
+                    **self.min_args,
+                    'model_run_dir': model_run_dir,
+                    'kernel_fifo_relative': True,
+                    'max_process_id': 1,
+                }
+                self.manager.generate_losses_dir(**call_args)
+                self.manager.generate_losses_output(**call_args, remove_working_file=remove_working_file)
+
+                script = self.read_file(os.path.join(model_run_dir, 'run_outputs.sh')).decode()
+                cleanup_lines = [
+                    'rm -R -f {}'.format(os.path.join(model_run_dir, 'work', '*')),
+                    'rm -R -f {}'.format(os.path.join(model_run_dir, 'fifo', '*')),
+                ]
+                for line in cleanup_lines:
+                    if remove_working_file:
+                        self.assertIn(line, script)
+                    else:
+                        self.assertNotIn(line, script)
+
     def test_losses__chucked_workflow(self):
         num_chunks = 5
         self.manager.generate_files(**self.args_gen_files_ri)
@@ -557,6 +591,34 @@ class TestGenLosses(ComputationChecker):
                 merge_dirs(chunk_work_dir, main_work_dir)
 
             self.manager.generate_losses_output(**call_args)
+
+    @patch('oasislmf.execution.runner.run_outputs')
+    @patch('oasislmf.execution.runner.run_analysis')
+    def test_losses__chunked_workflow__samples_set__in_model_settings(self, mock_run_analysis, mock_run_outputs):
+        # each chunk / output step must use the settings stored by generate_losses_dir,
+        # which hold number_of_samples taken from model_default_samples
+        expected_samples = 250
+        model_settings = {**MIN_MODEL_SETTINGS, 'model_default_samples': expected_samples}
+        no_samples_settings = MIN_RUN_SETTINGS.copy()
+        no_samples_settings.pop('number_of_samples')
+        self.write_json(self.tmp_files.get('model_settings_json'), model_settings)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), no_samples_settings)
+        self.manager.generate_files(**self.args_gen_files_gul)
+
+        with self.tmp_dir() as model_run_dir:
+            call_args = {
+                **self.min_args,
+                'model_settings_json': self.tmp_files.get('model_settings_json').name,
+                'max_process_id': 2,
+                'model_run_dir': model_run_dir,
+            }
+            self.manager.generate_losses_dir(**call_args)
+            with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10022"}):
+                self.manager.generate_losses_partial(**{**call_args, 'process_number': 1, 'analysis_pk': 1})
+            self.manager.generate_losses_output(**call_args)
+
+        self.assertEqual(mock_run_analysis.call_args.kwargs['number_of_samples'], expected_samples)
+        self.assertEqual(mock_run_outputs.call_args.kwargs['analysis_settings']['number_of_samples'], expected_samples)
 
     @patch('oasislmf.execution.runner.run')
     def test_losses__supplier_model_ruuner(self, mock_run_func):
