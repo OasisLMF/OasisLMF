@@ -52,10 +52,10 @@ exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10
 
 
 aalpy -Kil_S1_summary_palt -c output/il_S1_alct.csv -l 0.95 -a output/il_S1_palt.csv & lpid1=$!
-aalpy -Kil_S1_summary_altmeanonly -a output/il_S1_altmeanonly.csv & lpid2=$!
+aalpy -Kil_S1_summary_altmeanonly -M -a output/il_S1_altmeanonly.csv & lpid2=$!
 lecpy -r -Kil_S1_summaryleccalc -F -f -S -s -M -m -W -w -O output/il_S1_ept.csv -o output/il_S1_psept.csv & lpid3=$!
 aalpy -Kgul_S1_summary_palt -c output/gul_S1_alct.csv -l 0.95 -a output/gul_S1_palt.csv & lpid4=$!
-aalpy -Kgul_S1_summary_altmeanonly -a output/gul_S1_altmeanonly.csv & lpid5=$!
+aalpy -Kgul_S1_summary_altmeanonly -M -a output/gul_S1_altmeanonly.csv & lpid5=$!
 lecpy -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -O output/gul_S1_ept.csv -o output/gul_S1_psept.csv & lpid6=$!
 exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
 
