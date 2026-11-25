@@ -426,13 +426,32 @@ is left untouched. Rows where this column is empty keep whatever message was alr
 
 * **prepare**
 
-Prepare the dataframe by setting default, min and max values and type.
-
-Support several simple DataFrame preparation:
+Prepare the dataframe column by column. Each parameter key is a column name and its value a dict of preparations,
+applied in this order:
    * default: create the column if missing and replace the nan value with the default value
+   * strip: (``true``) remove leading and trailing whitespace from text values
+   * upper: (``true``) upper-case text values
+   * lower: (``true``) lower-case text values (cannot be combined with ``upper``)
    * max: truncate the values in a column to the specified max
    * min: truncate the values in a column to the specified min
    * type: convert the type of the column to the specified numpy dtype
+   * rename: rename the column to this name. An existing column with that name is replaced.
+   * drop: (``true``) remove the column. A missing column is ignored.
+
+``strip``, ``upper`` and ``lower`` only change string values; null and non-text values are left as they are. ``merge``
+matches values exactly, so use them to normalise a column before joining on it. Columns are processed in the order
+they are listed, so a later entry sees the result of an earlier ``rename``. An unknown option raises an error.
+
+.. code-block:: JSON
+
+   "normalise": {
+       "type": "prepare",
+       "columns": ["postalcode", "intermediate_id"],
+       "parameters": {
+           "postalcode": {"strip": true, "upper": true},
+           "intermediate_id": {"rename": "area_peril_id"}
+       }
+   }
 
 .. note::
    We use the string representation of numpy dtype available at
