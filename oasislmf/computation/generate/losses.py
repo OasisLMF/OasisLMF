@@ -197,6 +197,21 @@ class GenerateLossesBase(ComputationStep):
         """Checks if analysis settings file is under target_dir path"""
         return os.path.isfile(os.path.join(target_dir, 'analysis_settings.json'))
 
+    def _load_stored_run_settings(self, model_run_fp):
+        """Use the run settings stored by `GenerateLossesDir`, or run it if they aren't stored yet.
+
+        The chunked workflow runs `GenerateLossesDir` once and each chunk / output step separately.
+        Those steps rebuild `self.settings` from the original settings files, so they must take the
+        stored ones to see the updates made while preparing the run directory (e.g. `number_of_samples`
+        set from `model_default_samples`, outputs disabled for missing IL/RI inputs).
+        """
+        output_dir = os.path.join(model_run_fp, 'output')
+        if self._is_run_settings_stored(output_dir):
+            with io.open(os.path.join(output_dir, 'analysis_settings.json'), 'r', encoding='utf-8') as f:
+                self.settings = json.load(f)
+        else:
+            GenerateLossesDir.run(self)
+
     def _get_num_ri_layers(self, analysis_settings, model_run_fp):
         """Find the number of Reinsurance layers based on `'ri_layers.json'`, returns pos int()"""
         ri_layers = 0
@@ -552,11 +567,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         GenerateLossesDir._check_ktool_rules(self)
         GenerateLossesDir._check_packed_inputs_can_be_run(self, self.settings)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-
-        # distributed worker will pass in run settings as JSON, if not given load settings
-        # and re-load input dir.
-        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
-            GenerateLossesDir.run(self)
+        self._load_stored_run_settings(model_run_fp)
 
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
@@ -650,8 +661,7 @@ class GenerateLossesOutput(GenerateLossesDir):
 
     def run(self):
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
-            GenerateLossesDir.run(self)
+        self._load_stored_run_settings(model_run_fp)
 
         model_runner_module, _ = self._get_model_runner()
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
