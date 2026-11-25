@@ -411,7 +411,7 @@ N2_LOC = """PortNumber,AccNumber,LocNumber,IsTenant,BuildingID,CountryCode,Latit
 """
 
 EXPECTED_KEYS = b'LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID,AmplificationID\n1,WSS,1,1000,8,2\n1,WTC,1,500,2,1\n1,WSS,3,1000,11,2\n1,WTC,3,500,5,1\n'
-EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n'
+EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n1,,1,notmodelled,WEC not modelled\n1,,3,notmodelled,WEC not modelled\n'
 
 EXPECTED_KEYS_COMPLEX = b'LocID,PerilID,CoverageTypeID,ModelData\n1,WTC,1,"{""area_peril_id"": 54, ""vulnerability_id"": 2}"\n1,WTC,3,"{""area_peril_id"": 54, ""vulnerability_id"": 5}"\n1,WSS,1,"{""area_peril_id"": 154, ""vulnerability_id"": 8}"\n1,WSS,3,"{""area_peril_id"": 154, ""vulnerability_id"": 11}"\n'
 EXPECTED_ERROR_COMPLEX = b'LocID,PerilID,CoverageTypeID,Status,Message\n'

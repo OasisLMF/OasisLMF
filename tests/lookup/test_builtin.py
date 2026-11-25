@@ -398,6 +398,7 @@ def test_split_loc_perils_covered_two_groups_containing_a_peril_give_it_once():
     """XX1 and AA1 both contain XHL."""
     fct = Lookup(config={}).build_split_loc_perils_covered(["XHL"])
     result = fct(pd.DataFrame({"loc_id": [1], "LocPerilsCovered": ["WTC;XX1;AA1"]}))
+    result = result[result["peril_id"].notna()]  # leave out the row listing the perils not modelled
 
     assert result[["loc_id", "peril_id", "peril_group_id"]].values.tolist() == [[1, "XHL", "XX1"]]
 
@@ -406,6 +407,7 @@ def test_split_loc_perils_covered_first_listed_group_wins_per_location():
     """XX1 and AA1 both contain XHL; each location keeps the group it lists first."""
     fct = Lookup(config={}).build_split_loc_perils_covered(["XHL"])
     result = fct(pd.DataFrame({"loc_id": [1, 2], "LocPerilsCovered": ["XX1;AA1", "AA1;XX1"]}))
+    result = result[result["peril_id"].notna()]  # leave out the rows listing the perils not modelled
 
     assert sorted(result[["loc_id", "peril_group_id"]].values.tolist()) == [[1, "XX1"], [2, "AA1"]]
 
@@ -455,6 +457,48 @@ def test_split_loc_perils_covered_accepts_a_single_peril_as_a_string():
 
     pd.testing.assert_frame_equal(from_string, from_list)
     assert from_list[["loc_id", "peril_id"]].values.tolist() == [[1, "WTC"], [2, np.nan]]
+
+
+@pytest.mark.parametrize("loc_ids, perils_covered, expected", [
+    ([1], ["WW1"], {1: "WEC;WSS"}),                               # modelled in part: the rest is listed
+    ([1, 2], ["QQ1;OO1", "WTC"], {1: "ORF;OSF;QEQ;QFF;QLF;QLS;QSL;QTS"}),  # nothing modelled, groups expanded
+    ([1, 1], ["WTC", "QEQ"], {1: "QEQ"}),                         # a row sharing a modelled location's loc_id
+    ([1, 1, 1], ["WTC;QEQ", "OO1", "QEQ"], {1: "ORF;OSF;QEQ"}),   # rows of one location give one line
+    ([1, 1, 2, 2], ["QEQ", "QEQ", "WTC", "WTC"], {1: "QEQ"}),     # identical rows give it once
+    ([1, 2], ["ZZZ", None], {1: "ZZZ", 2: "nan"}),                # no known peril: the codes as listed
+], ids=["partial", "none", "shared loc_id", "union", "duplicates", "unknown codes"])
+def test_split_loc_perils_covered_lists_the_perils_not_modelled_once_per_location(loc_ids, perils_covered, expected):
+    fct = Lookup(config={}).build_split_loc_perils_covered(["WTC"])
+
+    result = fct(pd.DataFrame({"loc_id": loc_ids, "LocPerilsCovered": perils_covered}))
+
+    not_modelled = result[result["status"] == OASIS_KEYS_STATUS["notmodelled"]["id"]]
+    assert not_modelled["peril_id"].isna().all()
+    assert dict(zip(not_modelled["loc_id"], not_modelled["message"])) == {
+        loc_id: f"{perils} not modelled" for loc_id, perils in expected.items()}
+    assert len(not_modelled) == len(expected)
+
+
+def test_lookup_keys_errors_list_the_perils_not_modelled():
+    """Through the whole lookup: the location keeps its modelled peril and gets one error row per coverage."""
+    config = {
+        "step_definition": {
+            "split": {"type": "split_loc_perils_covered", "columns": ["LocPerilsCovered"],
+                      "parameters": {"model_perils_covered": ["WTC"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [
+                {"new_cols": {"coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}},
+                {"new_cols": {"coverage_type": 3, "area_peril_id": 1, "vulnerability_id": 2}}]}},
+        },
+        "strategy": ["split", "pivot"],
+    }
+
+    keys = Lookup(config=config).process_locations(pd.DataFrame({"loc_id": [1], "LocPerilsCovered": ["WW1"]}))
+
+    success = keys["status"] == OASIS_KEYS_STATUS["success"]["id"]
+    assert sorted(keys.loc[success, ["peril_id", "coverage_type"]].values.tolist()) == [["WTC", 1], ["WTC", 3]]
+    errors = keys.loc[~success].sort_values("coverage_type")
+    assert errors[["coverage_type", "status", "message"]].values.tolist() == [
+        [1, "notmodelled", "WEC;WSS not modelled"], [3, "notmodelled", "WEC;WSS not modelled"]]
 
 
 def test_split_loc_perils_covered_rejects_unknown_not_covered_status():

@@ -1,5 +1,13 @@
 LocID,PerilID,CoverageTypeID,Status,Message
+1,,1,notmodelled,WEC not modelled
+2,,1,notmodelled,WEC not modelled
+3,,1,notmodelled,WEC not modelled
+4,,1,notmodelled,WEC not modelled
 4,WSS,1,fail,area_peril_id has an unknown id
 4,WTC,1,fail,area_peril_id has an unknown id
+1,,3,notmodelled,WEC not modelled
+2,,3,notmodelled,WEC not modelled
+3,,3,notmodelled,WEC not modelled
+4,,3,notmodelled,WEC not modelled
 4,WSS,3,fail,area_peril_id has an unknown id
 4,WTC,3,fail,area_peril_id has an unknown id

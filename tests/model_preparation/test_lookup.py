@@ -339,14 +339,17 @@ class GenerateKeysWithBuiltinLookup(TestCase):
         Row order must also be deterministic (#2211): the keys row order sets item_id downstream,
         so results are written in chunk order, not in whichever order workers finish. The builtin
         lookup orders rows within each block it processes, so the expected file is the singleproc
-        rows taken chunk by chunk (chunks split by sorted loc_id, see _split_locations)."""
+        rows taken chunk by chunk (chunks split by sorted loc_id, see _split_locations), for the keys
+        and the keys errors alike."""
         expected_keys = pd.read_csv(pathlib.Path(META_DATA_PATH, 'keys.csv'))
+        expected_errors = pd.read_csv(pathlib.Path(META_DATA_PATH, 'keys-errors.csv'))
         # loc_id is assigned 1..n in location file order; include locations that only produce errors
         loc_ids = np.arange(1, len(pd.read_csv(pathlib.Path(META_DATA_PATH, 'location.csv'))) + 1)
         for num_chunks in (2, 3):
             chunk_of = {loc_id: i for i, part in enumerate(np.array_split(loc_ids, num_chunks)) for loc_id in part}
-            expected = expected_keys.iloc[
-                expected_keys['LocID'].map(chunk_of).reset_index(drop=True).sort_values(kind='stable').index]
+
+            def by_chunk(rows):
+                return rows.iloc[rows['LocID'].map(chunk_of).reset_index(drop=True).sort_values(kind='stable').index].reset_index(drop=True)
             for _ in range(3):
                 with self.subTest(num_chunks=num_chunks), TemporaryDirectory() as d:
                     generate_keys = GenerateKeys(
@@ -359,10 +362,8 @@ class GenerateKeysWithBuiltinLookup(TestCase):
                         lookup_num_processes=num_chunks,
                     )
                     generate_keys.run()
-                    pd.testing.assert_frame_equal(pd.read_csv(pathlib.Path(d, 'keys.csv')),
-                                                  expected.reset_index(drop=True))
-                    assert filecmp.cmp(pathlib.Path(d, 'keys-errors.csv'),
-                                       pathlib.Path(META_DATA_PATH, 'keys-errors.csv'), shallow=False)
+                    pd.testing.assert_frame_equal(pd.read_csv(pathlib.Path(d, 'keys.csv')), by_chunk(expected_keys))
+                    pd.testing.assert_frame_equal(pd.read_csv(pathlib.Path(d, 'keys-errors.csv')), by_chunk(expected_errors))
 
     def test_builtin_geo_grid_peril(self):
         with TemporaryDirectory() as d:
