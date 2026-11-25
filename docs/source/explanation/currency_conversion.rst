@@ -79,7 +79,7 @@ FX Currency Rates
 *****************************
 
 OasisLMF also lets you use the external package `forex-python <https://forex-python.readthedocs.io/en/latest/usage.html>`_
-to perform the conversion. A date may be specified in ISO 8601 format (YYYY-MM-DD)
+to perform the conversion (``pip install "oasislmf[currency]"``). A date may be specified in ISO 8601 format (YYYY-MM-DD)
 currency_conversion_json:
 
 .. code-block:: json

@@ -522,6 +522,40 @@ class TestGenLosses(ComputationChecker):
             self.manager.generate_losses_dir(**{**self.min_args, 'model_run_dir': model_run_dir})
         self.assertTrue(any('occurrence index not built' in line for line in logs.output))
 
+    @patch('subprocess.Popen')
+    def test_losses__output__remove_working_file_controls_cleanup(self, mock_popen):
+        """The ``remove_working_file`` option of the output step decides whether
+        the outputs script deletes the ``work/`` and fifo dirs once it has finished."""
+        mock_proc = Mock()
+        mock_proc.pid = 12345
+        mock_proc.communicate.return_value = (b'', None)
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        for remove_working_file in (True, False):
+            with self.tmp_dir() as model_run_dir, self.subTest(remove_working_file=remove_working_file):
+                call_args = {
+                    **self.min_args,
+                    'model_run_dir': model_run_dir,
+                    'kernel_fifo_relative': True,
+                    'max_process_id': 1,
+                }
+                self.manager.generate_losses_dir(**call_args)
+                self.manager.generate_losses_output(**call_args, remove_working_file=remove_working_file)
+
+                script = self.read_file(os.path.join(model_run_dir, 'run_outputs.sh')).decode()
+                cleanup_lines = [
+                    'rm -R -f {}'.format(os.path.join(model_run_dir, 'work', '*')),
+                    'rm -R -f {}'.format(os.path.join(model_run_dir, 'fifo', '*')),
+                ]
+                for line in cleanup_lines:
+                    if remove_working_file:
+                        self.assertIn(line, script)
+                    else:
+                        self.assertNotIn(line, script)
+
     def test_losses__chucked_workflow(self):
         num_chunks = 5
         self.manager.generate_files(**self.args_gen_files_ri)

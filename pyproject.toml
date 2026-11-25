@@ -78,7 +78,12 @@ version = {attr = "oasislmf.__version__"}
 dependencies = {file = ["requirements-package.in"]}
 
 [tool.setuptools.dynamic.optional-dependencies]
-extra = {file = ["optional-package.in"]}
+currency = {file = ["optional-currency.in"]}
+spatial = {file = ["optional-spatial.in"]}
+plot = {file = ["optional-plot.in"]}
+all = {file = ["optional-currency.in", "optional-spatial.in", "optional-plot.in"]}
+# kept for backwards compatibility, same as all
+extra = {file = ["optional-currency.in", "optional-spatial.in", "optional-plot.in"]}
 
 [tool.cibuildwheel]
 build = "cp310-* cp311-* cp312-* cp313-* cp314-*"

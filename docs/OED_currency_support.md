@@ -64,7 +64,7 @@ if a currency pair is missing ValueError(f"currency pair {(cur_from, cur_to)} is
 
 ### FxCurrencyRates
 OasisLMF let you use the external package [forex-python](https://forex-python.readthedocs.io/en/latest/usage.html)
-to perform the conversion. A date may be specified in ISO 8601 format (YYYY-MM-DD)
+to perform the conversion (`pip install "oasislmf[currency]"`). A date may be specified in ISO 8601 format (YYYY-MM-DD)
 currency_conversion_json:
 ```json
 {
