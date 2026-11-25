@@ -6,7 +6,7 @@
 [![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
 [![Code Quality](https://github.com/OasisLMF/OasisLMF/actions/workflows/code-quality.yml/badge.svg)](https://github.com/OasisLMF/OasisLMF/actions/workflows/code-quality.yml)
 [![Platform Tests](https://github.com/OasisLMF/OasisLMF/actions/workflows/platform-tests.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/platform-tests.yml)
-[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
+[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/mdk-tests.yml)
 
 
 
