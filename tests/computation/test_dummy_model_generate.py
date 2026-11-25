@@ -8,14 +8,16 @@ import numpy as np
 import pytest
 
 from oasislmf.computation.data.dummy_model import generate
-from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile, CoveragesFile,
-                                                            DamageBinDictFile, EventsFile,
-                                                            FMPolicyTCFile, FMProfileFile,
-                                                            FMProgrammeFile, FMSummaryXrefFile,
+from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile, CorrelationsFile,
+                                                            CoveragesFile, DamageBinDictFile,
+                                                            EventsFile, FMPolicyTCFile,
+                                                            FMProfileFile, FMProgrammeFile,
+                                                            FMSummaryMapFile, FMSummaryXrefFile,
                                                             FMXrefFile, FootprintBinFile,
-                                                            GULSummaryXrefFile, ItemsFile,
-                                                            LossFactorsFile, OccurrenceFile,
-                                                            RandomFile, VulnerabilityFile)
+                                                            GULSummaryMapFile, GULSummaryXrefFile,
+                                                            ItemsFile, LossFactorsFile,
+                                                            OccurrenceFile, RandomFile,
+                                                            VulnerabilityFile)
 
 RANDOM_SEED = -1
 
@@ -53,6 +55,8 @@ def model_files(directory, **kwargs):
         'items': ItemsFile(
             settings['num_locations'], settings['coverages_per_location'],
             settings['num_areaperils'], settings['num_vulnerabilities'], seed, out),
+        'correlations': CorrelationsFile(
+            settings['num_locations'], settings['coverages_per_location'], out),
         'amplifications': AmplificationsFile(
             settings['num_locations'], settings['coverages_per_location'],
             settings['num_amplifications'], seed, out),
@@ -67,6 +71,10 @@ def model_files(directory, **kwargs):
             settings['num_locations'], settings['coverages_per_location'], settings['num_layers'], out),
         'fmsummaryxref': FMSummaryXrefFile(
             settings['num_locations'], settings['coverages_per_location'], settings['num_layers'], out),
+        'gul_summary_map': GULSummaryMapFile(
+            settings['num_locations'], settings['coverages_per_location'], out),
+        'fm_summary_map': FMSummaryMapFile(
+            settings['num_locations'], settings['coverages_per_location'], settings['num_layers'], out),
     }
 
 
@@ -80,6 +88,10 @@ def arrays_of(model_file):
 
 
 FILE_NAMES = list(model_files('.'))
+CSV_FILE_NAMES = ['gul_summary_map', 'fm_summary_map']
+BINARY_FILE_NAMES = [name for name in FILE_NAMES if name not in CSV_FILE_NAMES]
+# correlations.bin takes the dtype gulmc reads it with, rather than declaring struct format characters
+STRUCT_FORMAT_FILE_NAMES = [name for name in FILE_NAMES if name != 'correlations']
 
 
 @pytest.mark.parametrize('file_name', FILE_NAMES)
@@ -215,7 +227,7 @@ def test_footprint_index_written_to_file(tmp_path):
     np.testing.assert_array_equal(written, footprint.index)
 
 
-@pytest.mark.parametrize('file_name', FILE_NAMES)
+@pytest.mark.parametrize('file_name', STRUCT_FORMAT_FILE_NAMES)
 def test_array_dtype_is_packed_like_the_struct_format(file_name, tmp_path):
     """Every row written as an array occupies exactly the bytes its struct format declares.
 
@@ -247,7 +259,7 @@ def test_footprint_index_dtype_is_packed_like_the_struct_format(tmp_path):
     assert idx_file.array_dtype.itemsize == 20
 
 
-@pytest.mark.parametrize('file_name', FILE_NAMES)
+@pytest.mark.parametrize('file_name', BINARY_FILE_NAMES)
 def test_written_file_holds_the_generated_rows(file_name, tmp_path):
     model_file = model_files(tmp_path)[file_name]
     model_file.write_file()
@@ -256,5 +268,18 @@ def test_written_file_holds_the_generated_rows(file_name, tmp_path):
     start_stats_size = sum(struct.calcsize(stat['dtype']) for stat in model_file.start_stats or [])
     written = np.fromfile(model_file.file_name, dtype=model_file.array_dtype,
                           offset=start_stats_size)
+
+    np.testing.assert_array_equal(written, expected)
+
+
+@pytest.mark.parametrize('file_name', CSV_FILE_NAMES)
+def test_written_csv_file_holds_the_generated_rows(file_name, tmp_path):
+    model_file = model_files(tmp_path)[file_name]
+    model_file.write_file()
+
+    expected = arrays_of(model_files(tmp_path)[file_name])
+    with open(model_file.file_name) as f:
+        assert f.readline().strip() == ','.join(model_file.dtypes)
+        written = np.loadtxt(f, dtype=model_file.array_dtype, delimiter=',')
 
     np.testing.assert_array_equal(written, expected)

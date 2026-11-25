@@ -822,6 +822,138 @@ def test_geog_lookup_then_merge_end_to_end(geog_locations, tmp_path):
     assert list(result.sort_values("loc_id")["area_peril_id"]) == [101, 102, 103]
 
 
+def _geog_process_locations_config(table, step_columns=()):
+    return {
+        "strategy": ["resolve", "areaperil", "pivot"],
+        "step_definition": {
+            "resolve": {"type": "geog_lookup", "columns": list(step_columns),
+                        "parameters": {"geog_scheme": "W3W", "output_column": "w3w", "slots": 3}},
+            "areaperil": {"type": "merge",
+                          "parameters": {"file_path": str(table), "id_columns": ["area_peril_id"],
+                                         "join_columns": ["w3w"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+
+
+def test_geog_lookup_slots_kept_without_listing_them(tmp_path):
+    """Issue #2284 item 3: geog_lookup sees the GeogScheme/GeogName slots through process_locations
+    without them in 'columns', and slots missing from the file don't fail the run."""
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({"w3w": ["a.b.c", "d.e.f"], "area_peril_id": [101, 102]}).to_csv(table, index=False)
+    locations = pd.DataFrame({  # only slots 1 and 2 of the 3 scanned are present
+        "loc_id": [1, 2, 3],
+        "GeogScheme1": ["W3W", "ISO2", None], "GeogName1": ["a.b.c", "US", None],
+        "GeogScheme2": [None, "W3W", None], "GeogName2": [None, "d.e.f", None],
+    })
+    keys = Lookup(config=_geog_process_locations_config(table)).process_locations(locations).set_index("loc_id")
+    assert keys.loc[1, "area_peril_id"] == 101
+    assert keys.loc[2, "area_peril_id"] == 102
+    assert keys.loc[3, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
+
+
+def test_geog_lookup_slot_listed_in_another_step_keeps_its_spelling(tmp_path):
+    """A slot named by some step's 'columns' keeps that spelling, so that step's required check passes."""
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({"w3w": ["a.b.c"], "area_peril_id": [101]}).to_csv(table, index=False)
+    config = _geog_process_locations_config(table)
+    config["step_definition"]["areaperil"]["columns"] = ["GeogName1"]
+    locations = pd.DataFrame({"loc_id": [1], "geogscheme1": ["W3W"], "GEOGNAME1": ["a.b.c"]})
+    keys = Lookup(config=config).process_locations(locations)
+    assert keys["area_peril_id"].tolist() == [101]
+
+
+def test_listed_geog_slot_is_still_required(tmp_path):
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({"w3w": ["a.b.c"], "area_peril_id": [101]}).to_csv(table, index=False)
+    config = _geog_process_locations_config(table, step_columns=["GeogScheme3", "GeogName3"])
+    locations = pd.DataFrame({"loc_id": [1], "GeogScheme1": ["W3W"], "GeogName1": ["a.b.c"]})
+    with pytest.raises(OasisException, match="missing columns"):
+        Lookup(config=config).process_locations(locations)
+
+
+@pytest.mark.parametrize("has_coordinates", [True, False])
+def test_optional_columns_kept_if_present_and_not_required(has_coordinates):
+    """Issue #2284 item 3: optional_columns are kept through the column filter but don't fail the step."""
+    config = {
+        "strategy": ["coordinates", "pivot"],
+        "step_definition": {
+            "coordinates": {"type": "prepare", "optional_columns": ["latitude", "longitude"],
+                            "parameters": {"latitude": {"default": -999}, "longitude": {"default": -999}}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    seen = {}
+
+    class SpyLookup(Lookup):
+        def build_simple_pivot(self, pivots, remove_pivoted_col=True):
+            inner = Lookup.build_simple_pivot(pivots, remove_pivoted_col)
+
+            def fct(locations):
+                seen["lat"] = locations["latitude"].tolist()
+                return inner(locations)
+            return fct
+
+    locations = pd.DataFrame({"loc_id": [1], "unused": ["x"]})
+    if has_coordinates:
+        locations = locations.assign(LATITUDE=[51.5], Longitude=[-0.1])
+    SpyLookup(config=config).process_locations(locations)
+    assert seen["lat"] == ([51.5] if has_coordinates else [-999])
+
+
+def _two_step_config(columns_a, columns_b, key_a="columns", key_b="columns"):
+    return {
+        "strategy": ["a", "b", "pivot"],
+        "step_definition": {
+            "a": {"type": "prepare", key_a: columns_a, "parameters": {}},
+            "b": {"type": "prepare", key_b: columns_b, "parameters": {}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+
+
+@pytest.mark.parametrize("key_a, key_b", [
+    ("optional_columns", "optional_columns"),
+    ("columns", "columns"),
+    ("columns", "optional_columns"),
+])
+def test_column_named_with_different_capitalisation_raises(key_a, key_b):
+    """Each column is kept under one spelling, so steps must agree on it (review of #2322)."""
+    config = _two_step_config(["Latitude"], ["latitude"], key_a, key_b)
+    locations = pd.DataFrame({"loc_id": [1], "LATITUDE": [51.5]})
+    with pytest.raises(OasisException, match=r"different capitalisation: 'Latitude' in \['a'\], 'latitude' in \['b'\]"):
+        Lookup(config=config).process_locations(locations)
+
+
+def test_column_named_with_same_spelling_in_several_steps():
+    config = _two_step_config(["Latitude"], ["Latitude"], "columns", "optional_columns")
+    locations = pd.DataFrame({"loc_id": [1], "LATITUDE": [51.5]})
+    assert Lookup(config=config).useful_columns() == {"loc_id", "Latitude"}
+    Lookup(config=config).process_locations(locations)
+
+
+def test_geog_lookup_slot_takes_spelling_of_optional_column(tmp_path):
+    """The automatic geog_lookup slots never clash: they take the spelling another step lists."""
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({"w3w": ["a.b.c"], "area_peril_id": [101]}).to_csv(table, index=False)
+    config = _geog_process_locations_config(table)
+    config["step_definition"]["areaperil"]["optional_columns"] = ["GeogName1"]
+    locations = pd.DataFrame({"loc_id": [1], "geogscheme1": ["W3W"], "GEOGNAME1": ["a.b.c"]})
+    assert "GeogName1" in Lookup(config=config).useful_columns()
+    keys = Lookup(config=config).process_locations(locations)
+    assert keys["area_peril_id"].tolist() == [101]
+
+
+def test_step_optional_columns():
+    assert Lookup.step_optional_columns({"type": "merge"}) == []
+    assert Lookup.step_optional_columns({"type": "merge", "optional_columns": "latitude"}) == ["latitude"]
+    assert Lookup.step_optional_columns({"type": "geog_lookup", "parameters": {"slots": 2}}) == [
+        "geogscheme1", "geogname1", "geogscheme2", "geogname2"]
+
+
 def test_merge_empty_join_raises_clear_error(tmp_path):
     """build_merge against a table sharing no column raises a clear OasisException."""
     table = tmp_path / "unrelated.csv"
