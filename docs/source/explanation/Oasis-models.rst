@@ -137,6 +137,9 @@ pre-computed static hazard footprint files, the model generates footprint data d
 custom footprint module. This approach is suited to models where the hazard field is generated programmatically or
 where stochastic hazard selection is required.
 
+It also includes an example of areaperils lying in several sections (confluences), run by its ``tests/test_2``; see
+:doc:`dynamic-footprint`.
+
 This model is availible to use `here <https://github.com/OasisLMF/OasisModels/tree/main/DynamicFootprint>`_.
 
 ----

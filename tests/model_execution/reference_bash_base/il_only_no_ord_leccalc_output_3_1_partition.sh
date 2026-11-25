@@ -95,7 +95,7 @@ exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 
 aalpy -Kil_S3_summary_palt -c output/il_S3_alct.csv -l 0.95 -a output/il_S3_palt.csv & lpid1=$!
-aalpy -Kil_S3_summary_altmeanonly -a output/il_S3_altmeanonly.csv & lpid2=$!
+aalpy -Kil_S3_summary_altmeanonly -M -a output/il_S3_altmeanonly.csv & lpid2=$!
 exec_wait $lpid1 $lpid2
 
 rm -R -f work/*

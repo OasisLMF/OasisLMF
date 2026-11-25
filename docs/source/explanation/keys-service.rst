@@ -292,6 +292,25 @@ class otherwise this will try and run and the ``build_simple_add`` function will
 that we have signposted our ``["example"]`` column name in the ``"columns"`` field. This is to ensure that our ``example`` 
 field is not wiped at the end of the process.
 
+Every column listed in a step's ``"columns"`` is required: the lookup fails with ``missing columns ... for step ...`` if
+the location file doesn't have it. For a column that is optional in OED (``Latitude``/``Longitude``, for example), list
+it in ``"optional_columns"`` instead. It is kept if present, and a missing one doesn't fail the step, so the step must
+cope with it being absent (for instance a ``prepare`` step giving it a ``default``):
+
+.. code-block:: JSON
+
+   "coordinates": {
+       "type": "prepare",
+       "optional_columns": ["latitude", "longitude"],
+       "parameters": {"latitude": {"default": null}, "longitude": {"default": null}}
+   }
+
+A ``geog_lookup`` step treats the ``GeogScheme{N}``/``GeogName{N}`` slots it scans as optional automatically.
+
+Column names are matched to the location file ignoring case, but each column is passed to the steps under a single
+spelling, so every step must name it the same way in ``columns`` and ``optional_columns`` (e.g. not ``Latitude`` in
+one step and ``latitude`` in another). The lookup raises an error if they differ.
+
 |
 
 .. _built_in_functions_keys:
@@ -449,6 +468,10 @@ Function Factory to associate a location to a geometry (e.g. ``area_peril``) bas
 ``nearest_neighbor_max_distance``: option to look for the nearest neighboring geometry, up to this distance away (in metres, as a Euclidean distance), if no containing geometry is found.
    * We use: https://automating-gis-processes.github.io/site/notebooks/L3/nearest-neighbor-faster.html
    * But alternatives can be found here: https://gis.stackexchange.com/questions/222315/geopandas-find-nearest-point-in-other-dataframe
+
+A location falling in several overlapping geometries gets one row per geometry. For the sections of a dynamic
+footprint that is the expected form: the keys rows of an item that differ only in ``section_id`` are combined when the
+GUL inputs are built (see :doc:`dynamic-footprint`).
 
 .. note::
    ``nearest_neighbor_min_distance`` and ``area_peril_read_params`` are deprecated aliases for

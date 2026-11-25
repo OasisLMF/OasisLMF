@@ -1,3 +1,4 @@
+import importlib
 import json
 import os
 import re
@@ -7,9 +8,12 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
+import pytest
+
 from oasislmf.model_execution.bash import (bash_params, bash_wrapper,
                                            create_bash_analysis,
                                            create_bash_outputs, genbash)
+from oasislmf.pytools.getmodel.common import SECTION_MERGE_DEFAULT
 from oasislmf.utils import diff
 
 TEST_DIRECTORY = os.path.dirname(__file__)
@@ -388,3 +392,48 @@ class Genbash_summarypy_default(GenbashBase):
     def test_gul_summarycalc_no_low_memory_flag(self):
         self.genbash("gul_summarycalc_1_output", 1)
         self.check("gul_summarycalc_1_output_1_partition")
+
+
+# ---------------------------------------------------------------------------
+# dynamic footprint section merge: reaches every kernel that loads the footprint
+# ---------------------------------------------------------------------------
+
+def _script(tmp_path, **genbash_kwargs):
+    with open(os.path.join(GenbashBase.KPARSE_INPUT_FOLDER, 'gul_ord_ept_1_output.json'), encoding='utf-8') as file:
+        analysis_settings = json.load(file)['analysis_settings']
+    filename = str(tmp_path / 'run_kparse.sh')
+    genbash(2, analysis_settings, filename=filename, **genbash_kwargs)
+    with open(filename, encoding='utf-8') as script:
+        return script.read()
+
+
+def _kernel_lines(script, kernel):
+    """Lines that launch `kernel`, leaving out comments and the proc_list of every kernel name."""
+    return [line for line in script.splitlines()
+            if re.search(rf'\b{kernel}\b', line) and not line.lstrip().startswith('#') and 'proc_list=' not in line]
+
+
+def test_section_merge_reaches_gulmc_and_the_footprint_server(tmp_path):
+    script = _script(tmp_path, section_merge='sum', gulmc=True, model_py_server=True)
+    launches = _kernel_lines(script, 'gulmc') + _kernel_lines(script, 'servedata')
+    assert len(launches) == 3
+    assert all('--section-merge sum' in line for line in launches)
+
+
+def test_default_section_merge_is_left_to_the_kernels(tmp_path):
+    """The kernels default to the same rule, so the default writes no flag and scripts are unchanged."""
+    default_script = _script(tmp_path, gulmc=True, model_py_server=True, fifo_tmp_dir=False)
+    assert '--section-merge' not in default_script
+    assert _script(tmp_path, section_merge=SECTION_MERGE_DEFAULT, gulmc=True, model_py_server=True,
+                   fifo_tmp_dir=False) == default_script
+    # None, from a direct caller of the bash functions, is the default too, not "--section-merge None"
+    assert _script(tmp_path, section_merge=None, gulmc=True, model_py_server=True,
+                   fifo_tmp_dir=False) == default_script
+
+
+def test_gulmc_accepts_the_section_merge_flag():
+    parser = importlib.import_module('oasislmf.pytools.gulmc.cli').parser
+    assert parser.parse_args(['--section-merge', 'sum']).section_merge == 'sum'
+    assert parser.parse_args([]).section_merge == SECTION_MERGE_DEFAULT
+    with pytest.raises(SystemExit):
+        parser.parse_args(['--section-merge', 'maximum'])
