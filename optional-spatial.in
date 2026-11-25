@@ -3,4 +3,6 @@ geopandas
 scikit-learn
 rtree>=0.8.3
 h3>=4
+matplotlib
+pyproj
 rasterio>=1.3
