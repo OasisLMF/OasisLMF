@@ -125,6 +125,7 @@ ORD_ALT_MEANONLY_OUTPUT_SWITCHES = {
     "alt_meanonly": {
         'executable': 'aalpy',
         'subfolder_flag': '-K',
+        'meanonly_flag': '-M',
         'csv_flag': '-a',
         'skip_header_flag': '-H',
     }
@@ -518,7 +519,8 @@ def do_post_wait_processing(
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
                 aal_executable = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["executable"]
                 aal_subfolder_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["subfolder_flag"]
-                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly"
+                aal_meanonly_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["meanonly_flag"]
+                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly {aal_meanonly_flag}"
                 altmeanonly_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_altmeanonly"
 
                 outfile_ext = 'csv'
