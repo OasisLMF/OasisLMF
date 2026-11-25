@@ -39,6 +39,8 @@ from oasislmf.pytools.common.id_index import (
     get_idx as id_index_get_idx,
     NOT_FOUND as ID_INDEX_NOT_FOUND,
 )
+from oasislmf.pytools.common.blended_areaperil import build_blended_areaperils
+from oasislmf.pytools.common.damage_cdf import add_cdf_row, add_no_loss_mass, convolve_damage_cdf, pdf_to_cdf
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (
     Index_type, zvulnerability_filename, zvulnerability_index_filename,
@@ -60,6 +62,12 @@ buff_int_size = buff_size // oasis_int_size
 areaperil_int_relative_size = areaperil_int_size // oasis_int_size
 oasis_float_relative_size = oasis_float_size // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
+
+# What reads an (areaperil, vulnerability) pair's cdf: an item using that areaperil directly, the
+# blended areaperils whose placements fall on it, or both. A pair only a blend reads is computed but
+# not streamed: its cdf is kept for the event and mixed into the blended areaperil's.
+PAIR_DIRECT = np.int8(1)
+PAIR_FEEDS_BLEND = np.int8(2)
 
 VulnerabilityIndex = nb.from_dtype(VulnerabilityIndex_dtype)
 VulnerabilityRow = nb.from_dtype(VulnerabilityRow_dtype)
@@ -167,18 +175,20 @@ def load_items(items):
     return vuln_table, vuln_map_keys, unique_areaperil_ids, areaperil_to_vulns_idx_array, areaperil_to_vulns
 
 
-def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
+def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None, blend=None):
     """Loads the items from the items file.
 
     Args:
         input_path (str): the path pointing to the file
         ignore_file_type (set(str)): file extension to ignore when loading
         valid_area_peril_id (np.ndarray): array of area_peril_id to include (if None, all are included)
+        blend (BlendTable, optional): the model's blend table, or None when it has none.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]: vuln_map
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]: vuln_map
             (packed hashmap), vuln_map_keys, areaperil_id_ind (id_index),
-            areaperil_to_vulns_idx_array, areaperil_to_vulns, unique_areaperil_ids
+            areaperil_to_vulns_idx_array, areaperil_to_vulns, unique_areaperil_ids, and the blended
+            cdf structures (see ``expand_blended_items``)
     """
     input_files = set(os.listdir(input_path))
     if "items.bin" in input_files and "bin" not in ignore_file_type:
@@ -193,13 +203,115 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
     if valid_area_peril_id is not None:
         items = items[np.isin(items['areaperil_id'], valid_area_peril_id)]
 
+    items, direct_items, blended_items, blended = expand_blended_items(items, blend)
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
 
     vuln_table, vuln_map_keys, unique_areaperil_ids, areaperil_to_vulns_idx_array, areaperil_to_vulns = load_items(items)
 
     areaperil_id_ind = id_index_build(unique_areaperil_ids)
+    blended_cdfs = link_blended_cdfs(direct_items, blended_items, blended, unique_areaperil_ids,
+                                     areaperil_to_vulns_idx_array, areaperil_to_vulns)
 
-    return vuln_table, vuln_map_keys, areaperil_id_ind, areaperil_to_vulns_idx_array, areaperil_to_vulns, unique_areaperil_ids
+    return (vuln_table, vuln_map_keys, areaperil_id_ind, areaperil_to_vulns_idx_array, areaperil_to_vulns,
+            unique_areaperil_ids, blended_cdfs)
+
+
+def expand_blended_items(items, blend):
+    """Replace the blended items by the (areaperil, vulnerability) pairs their blended areaperils read.
+
+    gulpy reads one cdf per (areaperil, vulnerability) record, so a blended item gets the cdf of its
+    blended areaperil: the mixture of its areaperils' cdfs, built here from the footprint like any
+    other. That needs each of those areaperils' cdfs, so the pairs are added to the items getmodel
+    computes for, alongside the items that use an areaperil directly. Items sharing a (blended
+    areaperil, vulnerability) share its cdf, so they are expanded once.
+
+    Returns:
+        tuple: the items to compute for (direct items, plus one row per blended pair; only
+        'areaperil_id' and 'vulnerability_id' are meaningful on the added rows), the direct items,
+        one blended item per (blended areaperil, vulnerability), and the blended areaperil arrays
+        from ``build_blended_areaperils``; (items, items, None, None) when nothing is blended.
+    """
+    if blend is None:
+        return items, items, None, None
+    is_blended = np.isin(items['areaperil_id'], blend.table['blended_areaperil_id'])
+    if not is_blended.any():
+        return items, items, None, None
+    blended_items = items[is_blended]
+    _, first = np.unique(blended_items[['areaperil_id', 'vulnerability_id']], return_index=True)
+    blended_items = blended_items[np.sort(first)]
+    blended = build_blended_areaperils(blended_items, blend)
+    items_blended_idx, ja_offsets, ja_areaperil_ids = blended[0], blended[1], blended[2]
+    k = (ja_offsets[items_blended_idx + 1] - ja_offsets[items_blended_idx]).astype(np.int64)
+    pair_items = np.zeros(int(k.sum()), dtype=items.dtype)
+    owner = np.repeat(np.arange(blended_items.shape[0]), k)
+    j = np.arange(pair_items.shape[0]) - np.repeat(np.cumsum(k) - k, k)
+    pair_items['areaperil_id'] = ja_areaperil_ids[ja_offsets[items_blended_idx[owner]] + j]
+    pair_items['vulnerability_id'] = blended_items['vulnerability_id'][owner]
+    logger.info(f"blended areaperils: {blended_items.shape[0]} (blended areaperil, vulnerability) read {int(k.sum())} "
+                "(areaperil, vulnerability) pairs")
+    return np.concatenate([items[~is_blended], pair_items]), items[~is_blended], blended_items, blended
+
+
+def link_blended_cdfs(direct_items, blended_items, blended, unique_areaperil_ids, areaperil_to_vulns_idx_array, areaperil_to_vulns):
+    """Index the blended cdfs getmodel streams against the (areaperil, vulnerability) pairs it computes.
+
+    One blended cdf is streamed per (blended areaperil, vulnerability) its items use, mixed from
+    the cdfs of that blended areaperil's areaperils for the same vulnerability.
+
+    Returns:
+        dict: ``pair_use`` (per pair: PAIR_DIRECT and/or PAIR_FEEDS_BLEND); per blended cdf its
+        ``blended_cdf_areaperil_ids`` and ``blended_cdf_vuln_ids`` (raw ids, converted to dense
+        indices with the others), with ``blended_cdf_ja_offsets`` / ``_ja_pair_idxs`` /
+        ``_ja_probabilities`` listing the pairs it mixes; and ``pair_to_blended_cdf_ja_offsets`` /
+        ``_ja_idxs``, the blended cdfs each pair feeds. A blended cdf with no pair (all its
+        placements uncovered) is never streamed, so its items lose nothing.
+    """
+    n_pairs = areaperil_to_vulns.shape[0]
+    pair_areaperil_ids = np.repeat(unique_areaperil_ids,
+                                   areaperil_to_vulns_idx_array['end'] - areaperil_to_vulns_idx_array['start'])
+    pairs = pd.DataFrame({'areaperil_id': pair_areaperil_ids, 'vulnerability_id': areaperil_to_vulns,
+                          'pair_idx': np.arange(n_pairs)})
+    pair_use = np.zeros(n_pairs, dtype=np.int8)
+    empty_int = np.zeros(0, dtype=np.int64)
+    if blended_items is None:
+        pair_use[:] = PAIR_DIRECT
+        return {'pair_use': pair_use, 'blended_cdf_areaperil_ids': np.zeros(0, dtype=areaperil_int),
+                'blended_cdf_vuln_ids': np.zeros(0, dtype=np.int32), 'blended_cdf_ja_offsets': np.zeros(1, dtype=np.int64),
+                'blended_cdf_ja_pair_idxs': empty_int, 'blended_cdf_ja_probabilities': np.zeros(0, dtype=np.float64),
+                'pair_to_blended_cdf_ja_offsets': np.zeros(n_pairs + 1, dtype=np.int64), 'pair_to_blended_cdf_ja_idxs': empty_int}
+
+    direct = pd.DataFrame({'areaperil_id': direct_items['areaperil_id'], 'vulnerability_id': direct_items['vulnerability_id']})
+    pair_use[pairs.merge(direct.drop_duplicates(), on=['areaperil_id', 'vulnerability_id'])['pair_idx'].to_numpy()] |= PAIR_DIRECT
+
+    items_blended_idx, ja_offsets, ja_areaperil_ids, ja_probabilities = blended[0], blended[1], blended[2], blended[3]
+    # one blended cdf per blended item: expand_blended_items keeps one per (blended areaperil, vulnerability)
+    outputs = pd.DataFrame({'blended_idx': items_blended_idx, 'areaperil_id': blended_items['areaperil_id'],
+                            'vulnerability_id': blended_items['vulnerability_id']}).sort_values(
+        ['areaperil_id', 'vulnerability_id']).reset_index(drop=True)
+    output_blended_idx = outputs['blended_idx'].to_numpy()
+    k = (ja_offsets[output_blended_idx + 1] - ja_offsets[output_blended_idx]).astype(np.int64)
+    blended_cdf_ja_offsets = np.zeros(outputs.shape[0] + 1, dtype=np.int64)
+    np.cumsum(k, out=blended_cdf_ja_offsets[1:])
+    owner = np.repeat(np.arange(outputs.shape[0]), k)
+    j = np.arange(int(k.sum())) - blended_cdf_ja_offsets[owner]
+    flat = ja_offsets[output_blended_idx[owner]] + j
+    components = pd.DataFrame({'areaperil_id': ja_areaperil_ids[flat],
+                               'vulnerability_id': outputs['vulnerability_id'].to_numpy()[owner]})
+    blended_cdf_ja_pair_idxs = components.merge(pairs, on=['areaperil_id', 'vulnerability_id'], how='left')['pair_idx'].to_numpy()
+    pair_use[blended_cdf_ja_pair_idxs] |= PAIR_FEEDS_BLEND
+
+    # the reverse: the blended cdfs each pair feeds, so an event only mixes the ones it touched
+    order = np.argsort(blended_cdf_ja_pair_idxs, kind='stable')
+    pair_to_blended_cdf_ja_offsets = np.zeros(n_pairs + 1, dtype=np.int64)
+    np.cumsum(np.bincount(blended_cdf_ja_pair_idxs, minlength=n_pairs), out=pair_to_blended_cdf_ja_offsets[1:])
+    return {'pair_use': pair_use,
+            'blended_cdf_areaperil_ids': outputs['areaperil_id'].to_numpy().astype(areaperil_int),
+            'blended_cdf_vuln_ids': outputs['vulnerability_id'].to_numpy().astype(np.int32),
+            'blended_cdf_ja_offsets': blended_cdf_ja_offsets,
+            'blended_cdf_ja_pair_idxs': blended_cdf_ja_pair_idxs.astype(np.int64),
+            'blended_cdf_ja_probabilities': ja_probabilities[flat].astype(np.float64),
+            'pair_to_blended_cdf_ja_offsets': pair_to_blended_cdf_ja_offsets,
+            'pair_to_blended_cdf_ja_idxs': owner[order].astype(np.int64)}
 
 
 def get_intensity_bin_dict(input_path):
@@ -809,167 +921,160 @@ def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
         raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
 
-@nb.njit(cache=True, fastmath=True)
-def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
-    """Calculate the probability of an event happening and then causing damage.
-    Note: vulns is a 1-d array containing 1 damage bin of the damage probability distribution as a
-    function of hazard intensity.
+@nb.njit(cache=True)
+def write_cdf_record(int32_mv, cursor, event_id, areaperil_id, vulnerability_id, cdf, n_bins, mean_damage_bins):
+    """Write one cdf record and return the cursor (in int32 words) just past it.
 
-    Args:
-        p (float): the probability to be updated
-        intensities_min (int): minimum intensity bin id
-        intensities_max (int): maximum intensity bin id
-        vulns (List[float]): slice of damage probability distribution given hazard intensity
-        intensities (List[float]): intensity probability distribution
-
-    Returns:
-        float: the updated probability
-    """
-    i = intensities_min
-    while i < intensities_max:
-        p += vulns[i] * intensities[i]
-        i += 1
-    return p
-
-
-@nb.njit(cache=True, fastmath=True)
-def do_result(vulns_id, vuln_array, mean_damage_bins,
-              int32_mv, num_damage_bins,
-              intensities_min, intensities_max, intensities,
-              event_id, areaperil_id, vuln_i, cursor):
-    """Calculate the result concerning an event ID.
-
-    Writes one cdf record into the output buffer as
-    event_id, areaperil_id, vulnerability_id, number of damage bins, then a (prob_to, bin_mean)
-    pair per damage bin. Bins stop being written once the cumulative probability reaches 1.
-
-    Args:
-        vulns_id (List[int]): list of vulnerability IDs
-        vuln_array (List[List[list]]): list of vulnerabilities and their data
-        mean_damage_bins (List[float]): the mean of each damage bin (len(mean_damage_bins) == num_damage_bins)
-        int32_mv (np.ndarray[int32]): int32 view of the output buffer the record is written into
-        num_damage_bins (int): number of damage bins in the data
-        intensities_min (int): minimum intensity bin id
-        intensities_max (int): maximum intensity bin id
-        intensities (List[float]): intensity probability distribution
-        event_id (int): the event ID that concerns the result being calculated
-        areaperil_id (List[int]): the areaperil ID that concerns the result being calculated
-        vuln_i (int): the index concerning the vulnerability inside the vuln_array
-        cursor (int): index in int32_mv (in int32 words) where the record is written
-
-    Returns:
-        int: the cursor position (in int32 words) just past the record written
+    The record is event_id, areaperil_id, vulnerability_id, number of damage bins, then a
+    (prob_to, bin_mean) pair per damage bin. ``cdf`` may be float64: it is written as oasis_float.
     """
     int32_mv[cursor], cursor = event_id, cursor + 1
     int32_mv[cursor:cursor + areaperil_int_relative_size] = areaperil_id.view(oasis_int)
     cursor += areaperil_int_relative_size
-    int32_mv[cursor], cursor = vulns_id[vuln_i], cursor + 1
-
-    cur_vuln_mat = vuln_array[vuln_i]
-    p = 0
-    cursor_start = cursor
-    cursor += 1
-    oasis_float_mv = int32_mv[cursor: cursor + num_damage_bins * results_relative_size].view(oasis_float)
-    result_cursor = 0
-    damage_bin_i = 0
-
-    while damage_bin_i < num_damage_bins:
-        p = damage_bin_prob(p, intensities_min, intensities_max, cur_vuln_mat[damage_bin_i], intensities)
-        oasis_float_mv[result_cursor], result_cursor = p, result_cursor + 1
-        oasis_float_mv[result_cursor], result_cursor = mean_damage_bins[damage_bin_i], result_cursor + 1
-        damage_bin_i += 1
-        if p >= 0.999999940:
-            break
-
-    int32_mv[cursor_start] = damage_bin_i
-    return cursor + (result_cursor * oasis_float_relative_size)
+    int32_mv[cursor], cursor = vulnerability_id, cursor + 1
+    int32_mv[cursor], cursor = n_bins, cursor + 1
+    oasis_float_mv = int32_mv[cursor: cursor + n_bins * results_relative_size].view(oasis_float)
+    for damage_bin_i in range(n_bins):
+        oasis_float_mv[2 * damage_bin_i] = cdf[damage_bin_i]
+        oasis_float_mv[2 * damage_bin_i + 1] = mean_damage_bins[damage_bin_i]
+    return cursor + n_bins * results_relative_size
 
 
-@nb.njit(cache=True)
-def doCdf(event_id,
-          num_intensity_bins, footprint,
+@nb.njit(cache=True, fastmath=True)
+def doCdf(event_id, footprint,
           areaperil_id_ind, areaperil_to_vulns_idx_array, areaperil_to_vulns,
-          vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
-          int32_mv, max_result_relative_size):
-    """Calculates the cumulative distribution function (cdf) for an event ID.
+          vuln_cdf, vuln_cdf_lengths, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
+          vulns_id, mean_damage_bins, int32_mv, max_result_relative_size,
+          pair_use, pair_kept_row, blended_cdf_areaperil_ids, blended_cdf_vuln_idxs, blended_cdf_ja_offsets,
+          blended_cdf_ja_pair_idxs, blended_cdf_ja_probabilities,
+          pair_to_blended_cdf_ja_offsets, pair_to_blended_cdf_ja_idxs,
+          pair_tag, blended_cdf_tag, event_tag, kept_cdfs, kept_lengths, touched):
+    """Stream the effective damage cdf of every (areaperil, vulnerability) pair an event reaches.
+
+    A pair's cdf is its vulnerability's damage cdfs weighted by the areaperil's hazard, computed as
+    gulmc computes it (``oasislmf.pytools.common.damage_cdf``), so gulpy samples what gulmc samples
+    under effective damageability. A blended areaperil's cdf is its live areaperils' cdfs mixed by
+    probability, the rest of the mass on damage bin 0; it is streamed after the event's other
+    records, in the order its pairs were met: gulpy matches records by (areaperil, vulnerability),
+    not by position.
 
     Args:
-        event_id (int): the event ID the the CDF is being calculated to.
-        num_intensity_bins (int): the number of intensity bins for the CDF
-        footprint (List[Tuple[int, int, float]]): information about the footprint with event_id, areaperil_id,
-            probability
-        areaperil_id_ind (np.array): id_index structure mapping areaperil_id to dense index
-        areaperil_to_vulns_idx_array (List[Tuple[int, int]]): the index where the areaperil ID starts and finishes
-        areaperil_to_vulns (List[int]): maps the areaperil ID to the vulnerability ID
-        vuln_array (np.ndarray[oasis_float]): damage probabilities of shape
-            (n_vulnerabilities, num_damage_bins, num_intensity_bins)
-        vulns_id (List[int]): list of vulnerability IDs
-        num_damage_bins (int): number of damage bins in the data
-        mean_damage_bins (List[float]): the mean of each damage bin (len(mean_damage_bins) == num_damage_bins)
-        int32_mv (np.ndarray[int32]): int32 view of the output buffer the cdf records are written into
-        max_result_relative_size (int): the maximum result size
+        event_id (int): the event the cdfs are for.
+        footprint (np.ndarray): the event's footprint records, grouped by areaperil_id.
+        areaperil_id_ind (np.ndarray): id_index structure mapping areaperil_id to dense index.
+        areaperil_to_vulns_idx_array (np.ndarray[Index_type]): per areaperil, its run of pairs.
+        areaperil_to_vulns (np.ndarray[int32]): per pair, its dense vulnerability index.
+        vuln_cdf (np.ndarray[oasis_float]): damage cdf table, [vulnerability, intensity bin, damage bin].
+        vuln_cdf_lengths (np.ndarray[int32]): length of each row of ``vuln_cdf``.
+        vuln_member_ja_offsets (np.ndarray[oasis_int]): per vulnerability, its run of members.
+        vuln_member_ja_rows (np.ndarray[int32]): the ``vuln_cdf`` row of each member.
+        vuln_member_ja_weights (np.ndarray[float64]): the weight of each member.
+        vulns_id (np.ndarray[int32]): vulnerability id per dense index.
+        mean_damage_bins (np.ndarray[oasis_float]): the mean of each damage bin.
+        int32_mv (np.ndarray[int32]): int32 view of the output buffer the records are written into.
+        max_result_relative_size (int): the largest record, in int32 words.
+        pair_use (np.ndarray[int8]): per pair, PAIR_DIRECT when an item uses it directly (streamed),
+            PAIR_FEEDS_BLEND when a blended areaperil reads it (kept for mixing), or both.
+        pair_kept_row (np.ndarray[int64]): per pair feeding a blend, its row of ``kept_cdfs``.
+        blended_cdf_areaperil_ids (np.ndarray[areaperil_int]): per blended cdf, its blended id.
+        blended_cdf_vuln_idxs (np.ndarray[int32]): per blended cdf, its dense vulnerability index.
+        blended_cdf_ja_offsets (np.ndarray[int64]): per blended cdf, its run of pairs.
+        blended_cdf_ja_pair_idxs (np.ndarray[int64]): the pairs each blended cdf mixes.
+        blended_cdf_ja_probabilities (np.ndarray[float64]): the probability of each of those pairs.
+        pair_to_blended_cdf_ja_offsets (np.ndarray[int64]): per pair, its run of blended cdfs.
+        pair_to_blended_cdf_ja_idxs (np.ndarray[int64]): the blended cdfs each pair feeds.
+        pair_tag (np.ndarray[int64]): per pair, the event_tag its kept cdf was computed for.
+        blended_cdf_tag (np.ndarray[int64]): per blended cdf, the event_tag it was last touched in.
+        event_tag (int): distinct for every event, so the tags need no reset.
+        kept_cdfs (np.ndarray[oasis_float]): per pair feeding a blend, its cdf this event.
+        kept_lengths (np.ndarray[int32]): the length of each kept cdf.
+        touched (np.ndarray[int64]): buffer for the blended cdfs the event touches.
 
     Yields:
         int: the number of bytes written into the buffer, emitted whenever the buffer is full and
             once more at the end of the event (0 when the event produced no result)
     """
-    if not footprint.shape[0]:
-        return 0
-
-    intensities_min = num_intensity_bins
-    intensities_max = 0
-    intensities = np.zeros(num_intensity_bins, dtype=oasis_float)
-
+    n_records = footprint.shape[0]
+    if n_records == 0:
+        return
+    num_damage_bins = vuln_cdf.shape[2]
+    num_intensity_bins = vuln_cdf.shape[1]
+    haz_bin_ids = np.empty(num_intensity_bins, dtype=np.int32)
+    haz_probs = np.empty(num_intensity_bins, dtype=oasis_float)
+    haz_cdf = np.empty(num_intensity_bins, dtype=oasis_float)
+    cdf_acc = np.empty(num_damage_bins, dtype=np.float64)
     areaperil_id = np.zeros(1, dtype=areaperil_int)
-    has_vuln = False
     cursor = 0
+    n_touched = 0
 
-    for footprint_i in range(footprint.shape[0]):
-        event_row = footprint[footprint_i]
-        if areaperil_id[0] != event_row['areaperil_id']:
-            if has_vuln and intensities_min <= intensities_max:
-                areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[id_index_get_idx(areaperil_id_ind, areaperil_id[0])]
-                intensities_max += 1
-                for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
-                    vuln_i = areaperil_to_vulns[vuln_idx]
-                    if cursor + max_result_relative_size > buff_int_size:
-                        yield cursor * oasis_int_size
-                        cursor = 0
+    record_i = 0
+    while record_i < n_records:
+        areaperil_id[0] = footprint[record_i]['areaperil_id']
+        run_start = record_i
+        while record_i < n_records and footprint[record_i]['areaperil_id'] == areaperil_id[0]:
+            record_i += 1
+        areaperil_idx = id_index_get_idx(areaperil_id_ind, areaperil_id[0])
+        if areaperil_idx == ID_INDEX_NOT_FOUND:
+            continue
 
-                    cursor = do_result(vulns_id, vuln_array, mean_damage_bins,
-                                       int32_mv, num_damage_bins,
-                                       intensities_min, intensities_max, intensities,
-                                       event_id, areaperil_id, vuln_i, cursor)
+        # the areaperil's hazard, cut where its cdf reaches 1, as gulmc reads it
+        has_hazard = False
+        for haz_i in range(record_i - run_start):
+            haz_bin_ids[haz_i] = footprint[run_start + haz_i]['intensity_bin_id']
+            haz_probs[haz_i] = footprint[run_start + haz_i]['probability']
+            has_hazard |= haz_probs[haz_i] > 0
+        if not has_hazard:
+            continue
+        n_haz = pdf_to_cdf(haz_probs, record_i - run_start, haz_cdf)
 
-            areaperil_id[0] = event_row['areaperil_id']
-            has_vuln = id_index_get_idx(areaperil_id_ind, areaperil_id[0]) != ID_INDEX_NOT_FOUND
+        pairs = areaperil_to_vulns_idx_array[areaperil_idx]
+        for pair_idx in range(pairs['start'], pairs['end']):
+            vuln_i = areaperil_to_vulns[pair_idx]
+            n_bins = convolve_damage_cdf(cdf_acc, vuln_cdf, vuln_cdf_lengths, vuln_member_ja_offsets, vuln_member_ja_rows,
+                                         vuln_member_ja_weights, vuln_i, haz_bin_ids, haz_probs, n_haz)
+            if pair_use[pair_idx] & PAIR_FEEDS_BLEND:
+                kept_row = pair_kept_row[pair_idx]
+                for damage_bin_i in range(n_bins):
+                    kept_cdfs[kept_row, damage_bin_i] = cdf_acc[damage_bin_i]
+                kept_lengths[kept_row] = n_bins
+                pair_tag[pair_idx] = event_tag
+                for pos in range(pair_to_blended_cdf_ja_offsets[pair_idx], pair_to_blended_cdf_ja_offsets[pair_idx + 1]):
+                    blended_cdf_idx = pair_to_blended_cdf_ja_idxs[pos]
+                    if blended_cdf_tag[blended_cdf_idx] != event_tag:
+                        blended_cdf_tag[blended_cdf_idx] = event_tag
+                        touched[n_touched] = blended_cdf_idx
+                        n_touched += 1
+            if pair_use[pair_idx] & PAIR_DIRECT:
+                if cursor + max_result_relative_size > buff_int_size:
+                    yield cursor * oasis_int_size
+                    cursor = 0
+                cursor = write_cdf_record(int32_mv, cursor, event_id, areaperil_id, vulns_id[vuln_i],
+                                          cdf_acc, n_bins, mean_damage_bins)
 
-            if has_vuln:
-                intensities[intensities_min: intensities_max] = 0
-                intensities_min = num_intensity_bins
-                intensities_max = 0
-        if has_vuln:
-            if event_row['probability'] > 0:
-                intensity_bin_i = event_row['intensity_bin_id'] - 1
-                intensities[intensity_bin_i] = event_row['probability']
-                if intensity_bin_i > intensities_max:
-                    intensities_max = intensity_bin_i
-                if intensity_bin_i < intensities_min:
-                    intensities_min = intensity_bin_i
-
-    if has_vuln and intensities_min <= intensities_max:
-        areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[id_index_get_idx(areaperil_id_ind, areaperil_id[0])]
-        intensities_max += 1
-        for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
-            vuln_i = areaperil_to_vulns[vuln_idx]
-            if cursor + max_result_relative_size > buff_int_size:
-                yield cursor * oasis_int_size
-                cursor = 0
-
-            cursor = do_result(vulns_id, vuln_array, mean_damage_bins,
-                               int32_mv, num_damage_bins,
-                               intensities_min, intensities_max, intensities,
-                               event_id, areaperil_id, vuln_i, cursor)
+    # each blended cdf this event touched, mixed from its live pairs' kept cdfs as gulmc mixes a
+    # blended mixed cdf group's
+    for touched_i in range(n_touched):
+        blended_cdf_idx = touched[touched_i]
+        for damage_bin_i in range(num_damage_bins):
+            cdf_acc[damage_bin_i] = 0.
+        live_probability = 0.
+        n_mixed = 0
+        for pos in range(blended_cdf_ja_offsets[blended_cdf_idx], blended_cdf_ja_offsets[blended_cdf_idx + 1]):
+            pair_idx = blended_cdf_ja_pair_idxs[pos]
+            if pair_tag[pair_idx] != event_tag:
+                continue
+            kept_row = pair_kept_row[pair_idx]
+            probability = blended_cdf_ja_probabilities[pos]
+            n_mixed = max(n_mixed, kept_lengths[kept_row])
+            live_probability += probability
+            add_cdf_row(cdf_acc, probability, kept_cdfs, kept_row, kept_lengths[kept_row], num_damage_bins)
+        add_no_loss_mass(cdf_acc, live_probability, n_mixed)
+        if cursor + max_result_relative_size > buff_int_size:
+            yield cursor * oasis_int_size
+            cursor = 0
+        areaperil_id[0] = blended_cdf_areaperil_ids[blended_cdf_idx]
+        cursor = write_cdf_record(int32_mv, cursor, event_id, areaperil_id, vulns_id[blended_cdf_vuln_idxs[blended_cdf_idx]],
+                                  cdf_acc, n_mixed, mean_damage_bins)
 
     yield cursor * oasis_int_size
 
@@ -1052,7 +1157,8 @@ def run(
             logger.info("building getmodel structures from input files")
             structures = build_structures(run_dir, ignore_file_type, peril_filter, df_engine)
 
-        vuln_array = structures['vuln_array']
+        vuln_cdf = structures['vuln_cdf']
+        vuln_cdf_lengths = structures['vuln_cdf_lengths']
         vulns_id = structures['vulns_id']
         areaperil_id_ind = structures['areaperil_id_ind']
         areaperil_to_vulns_idx_array = structures['areaperil_to_vulns_idx_array']
@@ -1060,7 +1166,30 @@ def run(
         unique_areaperil_ids = structures['unique_areaperil_ids']
         mean_damage_bins = structures['mean_damage_bins']
         num_damage_bins = structures['num_damage_bins']
-        num_intensity_bins = structures['num_intensity_bins']
+        pair_use = structures['pair_use']
+        blended_cdf_areaperil_ids = structures['blended_cdf_areaperil_ids']
+        blended_cdf_vuln_idxs = structures['blended_cdf_vuln_idxs']
+        blended_cdf_ja_offsets = structures['blended_cdf_ja_offsets']
+        blended_cdf_ja_pair_idxs = structures['blended_cdf_ja_pair_idxs']
+        blended_cdf_ja_probabilities = structures['blended_cdf_ja_probabilities']
+        pair_to_blended_cdf_ja_offsets = structures['pair_to_blended_cdf_ja_offsets']
+        pair_to_blended_cdf_ja_idxs = structures['pair_to_blended_cdf_ja_idxs']
+        # every vulnerability is read as a member block of itself, weight 1, as gulmc reads an
+        # ordinary one
+        n_vulns = vuln_cdf.shape[0]
+        vuln_member_ja_offsets = np.arange(n_vulns + 1, dtype=oasis_int)
+        vuln_member_ja_rows = np.arange(n_vulns, dtype=np.int32)
+        vuln_member_ja_weights = np.ones(n_vulns, dtype=np.float64)
+        # an event's cdf of each pair a blended areaperil reads, and the blended cdfs it touched
+        feeds_blend = (pair_use & PAIR_FEEDS_BLEND) != 0
+        pair_kept_row = np.cumsum(feeds_blend) - 1
+        kept_cdfs = np.empty((int(feeds_blend.sum()), num_damage_bins), dtype=oasis_float)
+        kept_lengths = np.zeros(kept_cdfs.shape[0], dtype=np.int32)
+        touched = np.empty(blended_cdf_areaperil_ids.shape[0], dtype=np.int64)
+        # per pair and per blended cdf, the event they were last used in; tagged, so never reset
+        pair_tag = np.full(pair_use.shape[0], -1, dtype=np.int64)
+        blended_cdf_tag = np.full(blended_cdf_areaperil_ids.shape[0], -1, dtype=np.int64)
+        event_tag = 0
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(
@@ -1097,11 +1226,15 @@ def run(
             if event_footprint is not None:
                 # compute effective damageability probability distribution
                 # stream out: event_id, areaperil_id, number of damage bins, effecive damageability cdf bins (bin_mean and prob_to)
-                for cursor_bytes in doCdf(event_id,
-                                          num_intensity_bins, event_footprint,
+                event_tag += 1
+                for cursor_bytes in doCdf(event_id, event_footprint,
                                           areaperil_id_ind, areaperil_to_vulns_idx_array, areaperil_to_vulns,
-                                          vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
-                                          int32_mv, max_result_relative_size):
+                                          vuln_cdf, vuln_cdf_lengths, vuln_member_ja_offsets, vuln_member_ja_rows,
+                                          vuln_member_ja_weights, vulns_id, mean_damage_bins, int32_mv, max_result_relative_size,
+                                          pair_use, pair_kept_row, blended_cdf_areaperil_ids, blended_cdf_vuln_idxs,
+                                          blended_cdf_ja_offsets, blended_cdf_ja_pair_idxs, blended_cdf_ja_probabilities,
+                                          pair_to_blended_cdf_ja_offsets, pair_to_blended_cdf_ja_idxs,
+                                          pair_tag, blended_cdf_tag, event_tag, kept_cdfs, kept_lengths, touched):
 
                     if cursor_bytes:
                         stream_out.write(mv[:cursor_bytes])

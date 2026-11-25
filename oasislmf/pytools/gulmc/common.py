@@ -20,13 +20,13 @@ items_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
 
 items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('item_idx', oasis_int),
-                                             ('haz_arr_i', oasis_int),
+                                             # the hazard row and event return period are per
+                                             # group areaperil, not per item: see
+                                             # mixed_cdf_group_areaperil_haz_arr_i and friends
                                              ('rng_index', oasis_int),
                                              ('hazard_rng_index', oasis_int),
                                              ('intensity_adjustment', oasis_int),
                                              ('return_period', oasis_int),
-                                             ('event_rp', oasis_int),
-                                             ('eff_cdf_id', oasis_int),
                                              # signed: -1 means no source item, so this item is
                                              # independent even inside a dependent coverage
                                              ('source_item_j', np.int32),
@@ -125,7 +125,7 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     # flushing part-way through one is safe.
     ('item_j', oasis_int),
     ('building_b', oasis_int),
-    ('cdf_cache_ctr', np.int64),
+    ('mixed_cdf_cache_ctr', np.int64),
     ('max_bytes_per_item', np.int64),
     ('Ndamage_bins_max', oasis_int),
     ('sample_size', oasis_int),

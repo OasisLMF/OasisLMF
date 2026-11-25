@@ -16,7 +16,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import FootprintHeader
 from oasislmf.pytools.getmodel.footprint import SHARED_MANIFEST, Footprint
 from oasislmf.pytools.gulmc.items import get_dynamic_footprint_adjustments
-from oasislmf.pytools.gulmc.manager import run as run_gulmc
+from oasislmf.pytools.gulmc.manager import mixed_cdf_cache_slots, run as run_gulmc
 from oasislmf.pytools.gulmc.structure import create_gulmc_structure, dynamic_footprint_path
 from oasislmf.pytools.utils import assert_allclose
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
@@ -658,7 +658,22 @@ def test_dynamic_footprint_structures_build_from_a_relative_run_directory(tmp_pa
     make_dynamic_test_model(tmp_path / 'run')
     monkeypatch.chdir(tmp_path)
     structures = build_structures('run', set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
-    assert len(structures['vuln_array'])
+    assert len(structures['vuln_cdf'])
+
+
+@pytest.mark.parametrize("n_mixed_cdf_groups, budget_slots, expected", [
+    # fits: one slot per group, rounded up to a power of two, whatever the budget left over
+    (440, 1 << 22, 1 << 9),
+    (1, 1 << 22, 1),
+    (0, 1 << 22, 1),
+    # too big: rounded down to fit the budget
+    (100_000, 1 << 16, 1 << 16),
+    (100_000, 100_000, 1 << 16),
+    # a single slot still works, it only recomputes more
+    (10, 0, 1),
+])
+def test_mixed_cdf_cache_holds_one_event_within_the_budget(n_mixed_cdf_groups, budget_slots, expected):
+    assert mixed_cdf_cache_slots(n_mixed_cdf_groups, budget_slots) == expected
 
 
 def test_dynamic_footprint_structures_load_no_sections_unless_saved(tmp_path, footprint_reads):

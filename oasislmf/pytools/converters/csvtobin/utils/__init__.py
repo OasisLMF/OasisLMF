@@ -1,6 +1,7 @@
 __all__ = [
     "amplifications_tobin",
     "amplifications_write_bin",
+    "blended_areaperil_tobin",
     "complex_items_tobin",
     "complex_items_write_bin",
     "coverages_tobin",
@@ -18,6 +19,7 @@ __all__ = [
 ]
 
 from .amplifications import amplifications_tobin, amplifications_write_bin
+from .blended_areaperil import blended_areaperil_tobin
 from .complex_items import complex_items_tobin, complex_items_write_bin
 from .common import df_to_ndarray
 from .coverages import coverages_tobin

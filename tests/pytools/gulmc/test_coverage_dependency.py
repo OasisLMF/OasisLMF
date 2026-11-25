@@ -194,6 +194,11 @@ def test_align_conditional_damage_axis_rejects_oversized_vulnerability_axis():
 # --------------------------------------------------------------------------------------
 # dense vuln index -> conditional row mapping
 # --------------------------------------------------------------------------------------
+def _is_aggregate(items):
+    """The per-item aggregate flag, which the engine reads off the item areaperils."""
+    return items['areaperil_agg_vuln_idx'] >= 0
+
+
 def _items_for_cond_idx(rows):
     """rows: (vulnerability_id, vulnerability_idx, areaperil_agg_vuln_idx)."""
     return np.array(rows, dtype=[('vulnerability_id', 'i4'), ('vulnerability_idx', 'i4'),
@@ -203,7 +208,7 @@ def _items_for_cond_idx(rows):
 def test_build_vuln_idx_to_cond_idx_maps_conditional_vulns():
     from oasislmf.pytools.gulmc.structure import build_vuln_idx_to_cond_idx
     items = _items_for_cond_idx([(50, 0, -1), (101, 1, -1), (102, 2, -1)])
-    got = build_vuln_idx_to_cond_idx(items, np.array([101, 102], dtype=np.int32), n_vulns=3)
+    got = build_vuln_idx_to_cond_idx(items, _is_aggregate(items), np.array([101, 102], dtype=np.int32), n_vulns=3)
     assert got.tolist() == [-1, 0, 1]
 
 
@@ -214,14 +219,14 @@ def test_build_vuln_idx_to_cond_idx_ignores_aggregate_items():
     from oasislmf.pytools.gulmc.structure import build_vuln_idx_to_cond_idx
     # the aggregate item's id collides with conditional id 101; its vulnerability_idx is unset (0)
     items = _items_for_cond_idx([(101, 0, 7), (50, 0, -1), (102, 1, -1)])
-    got = build_vuln_idx_to_cond_idx(items, np.array([101, 102], dtype=np.int32), n_vulns=2)
+    got = build_vuln_idx_to_cond_idx(items, _is_aggregate(items), np.array([101, 102], dtype=np.int32), n_vulns=2)
     assert got.tolist() == [-1, 1], "dense index 0 belongs to normal vuln 50, not to the aggregate"
 
 
 def test_build_vuln_idx_to_cond_idx_no_conditional_vulns():
     from oasislmf.pytools.gulmc.structure import build_vuln_idx_to_cond_idx
     items = _items_for_cond_idx([(50, 0, -1)])
-    got = build_vuln_idx_to_cond_idx(items, np.zeros(0, dtype=np.int32), n_vulns=2)
+    got = build_vuln_idx_to_cond_idx(items, _is_aggregate(items), np.zeros(0, dtype=np.int32), n_vulns=2)
     assert got.tolist() == [-1, -1]
 
 
@@ -247,7 +252,8 @@ def _dependency_arrays():
 
 def test_validate_coverage_dependency_accepts_valid_setup():
     from oasislmf.pytools.gulmc.manager import validate_coverage_dependency
-    validate_coverage_dependency(*_dependency_arrays())  # must not raise
+    items, v2c = _dependency_arrays()
+    validate_coverage_dependency(items, _is_aggregate(items), v2c)  # must not raise
 
 
 def test_validate_rejects_aggregate_dependent():
@@ -255,7 +261,7 @@ def test_validate_rejects_aggregate_dependent():
     items, v2c = _dependency_arrays()
     items['areaperil_agg_vuln_idx'][1] = 0  # dependent uses an aggregate vulnerability
     with pytest.raises(OasisException):
-        validate_coverage_dependency(items, v2c)
+        validate_coverage_dependency(items, _is_aggregate(items), v2c)
 
 
 def test_validate_rejects_dependent_without_conditional_vuln():
@@ -263,7 +269,7 @@ def test_validate_rejects_dependent_without_conditional_vuln():
     items, v2c = _dependency_arrays()
     v2c[1] = -1  # dependent's vuln is not in the conditional file
     with pytest.raises(OasisException):
-        validate_coverage_dependency(items, v2c)
+        validate_coverage_dependency(items, _is_aggregate(items), v2c)
 
 
 def test_validate_rejects_unpaired_item_with_conditional_vuln():
@@ -274,7 +280,7 @@ def test_validate_rejects_unpaired_item_with_conditional_vuln():
     items, v2c = _dependency_arrays()
     items['source_item_id'][1] = 0  # item 2 found no source but still carries a conditional vuln
     with pytest.raises(OasisException, match="no source item"):
-        validate_coverage_dependency(items, v2c)
+        validate_coverage_dependency(items, _is_aggregate(items), v2c)
 
 
 def test_validate_accepts_unpaired_item_with_hazard_indexed_vuln():
@@ -285,7 +291,7 @@ def test_validate_accepts_unpaired_item_with_hazard_indexed_vuln():
     items, v2c = _dependency_arrays()
     items['source_item_id'][1] = 0   # no source ...
     v2c[1] = -1                      # ... and its vulnerability is hazard-indexed
-    validate_coverage_dependency(items, v2c)  # must not raise
+    validate_coverage_dependency(items, _is_aggregate(items), v2c)  # must not raise
 
 
 # --------------------------------------------------------------------------------------
@@ -1045,9 +1051,10 @@ def test_conditional_dependency_eff_dam_marginal():
 
 
 def test_conditional_convolution_reference():
-    """The conditional eff-dam kernel reuses `calc_eff_damage_cdf(dependent_vuln, source_pmf)`.
+    """A dependent's effective damage cdf is its conditional curves weighted by its source's damage pmf.
     Lock that convolution against a hand-computed reference (the walked-through example)."""
-    from oasislmf.pytools.gulmc.manager import calc_eff_damage_cdf
+    from oasislmf.pytools.common.damage_cdf import convolve_damage_cdf
+    from oasislmf.pytools.common.damage_cdf import build_cdf_table
 
     # source damage pmf and a dependent conditional vuln (rows = source damage bin, cols = dep bin)
     source_pmf = np.array([0.10, 0.20, 0.30, 0.20, 0.10, 0.10], dtype='f8')
@@ -1059,8 +1066,12 @@ def test_conditional_convolution_reference():
         [0.0, 0.0, 0.1, 0.2, 0.5, 0.2],
         [0.0, 0.0, 0.0, 0.0, 0.1, 0.9],
     ], dtype='f8')
-    eff_cdf = np.zeros(dependent_vuln.shape[1], dtype='f8')
-    eff_cdf = eff_cdf[:calc_eff_damage_cdf(dependent_vuln, source_pmf, source_pmf.shape[0], eff_cdf)]
+    # the conditional array is indexed [cond, dependent damage bin, source damage bin]
+    cond_cdf, cond_cdf_lengths = build_cdf_table(np.ascontiguousarray(dependent_vuln.T[None, :, :]))
+    acc = np.zeros(dependent_vuln.shape[1], dtype='f8')
+    n_bins = convolve_damage_cdf(acc, cond_cdf, cond_cdf_lengths, np.array([0, 1]), np.array([0], dtype=np.int32), np.ones(1),
+                                 0, np.arange(1, 7, dtype=np.int32), source_pmf, 6)
+    eff_cdf = acc[:n_bins]
     eff_pmf = np.diff(np.concatenate(([0.0], eff_cdf)))
     np.testing.assert_allclose(eff_pmf, [0.18, 0.19, 0.21, 0.16, 0.13, 0.13], atol=1e-9)
 

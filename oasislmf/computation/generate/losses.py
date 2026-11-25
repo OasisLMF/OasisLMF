@@ -466,6 +466,7 @@ class GenerateLossesDir(GenerateLossesBase):
                 peril_filter=self._get_peril_filter(self.settings),
                 dynamic_footprint=self.dynamic_footprint,
                 model_df_engine=model_df_engine,
+                sample_size=self.settings['number_of_samples'],
             )
 
         if not gulmc and not model_custom_gulcalc:
