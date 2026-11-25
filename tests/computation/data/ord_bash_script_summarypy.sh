@@ -255,13 +255,13 @@ exec_wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10
 
 
 ( aalpy --socket-server='10006' -Kri_S1_summary_palt -E parquet -a output/ri_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid1=$!
-( aalpy --socket-server='10006' -Kri_S1_summary_altmeanonly -E parquet -a output/ri_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid2=$!
+( aalpy --socket-server='10006' -Kri_S1_summary_altmeanonly -M -E parquet -a output/ri_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid2=$!
 ( lecpy --socket-server='10006'  -Kri_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/ri_S1_ept.parquet -o output/ri_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid3=$!
 ( aalpy --socket-server='10006' -Kil_S1_summary_palt -E parquet -a output/il_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid4=$!
-( aalpy --socket-server='10006' -Kil_S1_summary_altmeanonly -E parquet -a output/il_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid5=$!
+( aalpy --socket-server='10006' -Kil_S1_summary_altmeanonly -M -E parquet -a output/il_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid5=$!
 ( lecpy --socket-server='10006'  -Kil_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/il_S1_ept.parquet -o output/il_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid6=$!
 ( aalpy --socket-server='10006' -Kgul_S1_summary_palt -E parquet -a output/gul_S1_palt.parquet ) 2>> $LOG_DIR/stderror.err & lpid7=$!
-( aalpy --socket-server='10006' -Kgul_S1_summary_altmeanonly -E parquet -a output/gul_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid8=$!
+( aalpy --socket-server='10006' -Kgul_S1_summary_altmeanonly -M -E parquet -a output/gul_S1_altmeanonly.parquet ) 2>> $LOG_DIR/stderror.err & lpid8=$!
 ( lecpy --socket-server='10006'  -Kgul_S1_summaryleccalc -F -f -S -s -M -m -W -w -E parquet -O output/gul_S1_ept.parquet -o output/gul_S1_psept.parquet ) 2>> $LOG_DIR/stderror.err & lpid9=$!
 exec_wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6 $lpid7 $lpid8 $lpid9
 
