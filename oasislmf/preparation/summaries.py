@@ -488,24 +488,23 @@ def get_ri_inuring_priority_output_levels(run_dir):
 def prepare_reins_output_map_summary(run_dir):
     """Prepare a summary json representing the mapping between the RI output level and the OED Inuring Priority and risk level.
 
+    Every RI level is listed: ``ri`` outputs use the last level of each inuring priority, while
+    ``rl`` outputs can use every level of a priority.
+
     Args:
-        run_dir (str): Directory containing ``ri_inuring_priority_output_levels.json`` and `ri_layers.json`.
+        run_dir (str): Directory containing `ri_layers.json`.
 
     Returns:
         dict: mapping ``{ IP{output_level}: {'inuring_priority': {inuring_priority}, 'risk_level': {risk_level} } }
     """
     reins_layers = get_ri_settings(run_dir)
-    reins_output_map = get_ri_inuring_priority_output_levels(run_dir)
 
     output_keys = ['inuring_priority', 'risk_level']
 
-    reins_map_summary = {f'IP{level}': {} for level in reins_output_map.values()}
-
-    for ip, level in reins_output_map.items():
-        for k in output_keys:
-            reins_map_summary[f'IP{level}'][k] = reins_layers[str(level)][k]
-
-    return reins_map_summary
+    return {
+        f'IP{level}': {k: reins_layers[str(level)][k] for k in output_keys}
+        for level in sorted(int(x) for x in reins_layers)
+    }
 
 
 def get_ri_summaryxref_dirs(input_dir, analysis_settings, all_layers=False):

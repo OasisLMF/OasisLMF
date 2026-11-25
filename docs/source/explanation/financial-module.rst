@@ -652,9 +652,16 @@ A model run can report two reinsurance perspectives, each set in the analysis se
 
 ``ri_inuring_priorities`` and ``rl_inuring_priorities`` list OED ``InuringPriority`` values to
 also report on their own, as ``ri_IP{level}_*`` and ``rl_IP{level}_*`` files, where ``{level}``
-is the iteration (``RI_{level}``) that ends that priority. ``reins_output_levels_summary.json``
-in the output folder maps each ``IP{level}`` back to its inuring priority and risk level. See
+is an iteration (``RI_{level}``). ``reins_output_levels_summary.json`` in the output folder maps
+each ``IP{level}`` back to its inuring priority and risk level. See
 :doc:`../reference/kernel/CoreComponents` for the components.
+
+An inuring priority whose contracts are at different risk levels (for example a ``LOC`` and an
+``ACC`` treaty, both at ``InuringPriority`` 1) runs over several iterations, one per risk level:
+
+* ``ri`` reports the last of them, ``ri_IP{level}``, as each iteration's net feeds the next.
+* ``rl`` reports each of them, one ``rl_IP{level}`` per iteration, as each iteration's
+  reinsurer's loss covers only its own contracts.
 
 .. note::
    When an iteration has several layers (several contracts at one inuring priority and risk

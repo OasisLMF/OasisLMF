@@ -650,11 +650,15 @@ Where each of perspective, summary level, output type and file extension are spe
 **Inuring priority outputs**: for reinsurance, results can also be requested for intermediate
 inuring priorities with ``ri_inuring_priorities`` and ``rl_inuring_priorities``. These are
 named with an ``IP{level}`` prefix after the perspective, for example ``ri_IP1_S1_elt.csv`` or
-``rl_IP2_S1_palt.csv``, where ``{level}`` is the reinsurance layer (``RI_{level}``) that ends
-that inuring priority. ``reins_output_levels_summary.json`` in the output folder maps each
-``IP{level}`` to its OED ``InuringPriority`` and ``RiskLevel``. The files without a prefix,
+``rl_IP2_S1_palt.csv``, where ``{level}`` is the reinsurance layer (``RI_{level}``).
+``reins_output_levels_summary.json`` in the output folder maps each ``IP{level}`` to its OED
+``InuringPriority`` and ``RiskLevel``. The files without a prefix,
 ``ri_S1_*`` and ``rl_S1_*``, are the results for the whole reinsurance programme. See
 :doc:`../../explanation/financial-module`.
+
+When an inuring priority runs over several layers, for example treaties at both ``LOC`` and
+``ACC`` risk level, ``ri_IP{level}`` is written for its last layer and ``rl_IP{level}`` for each
+of its layers.
 
 .. versionchanged:: NEXT
    ``rl`` results are the reinsurer's loss over all inuring priorities, set by ``rl_summaries``,

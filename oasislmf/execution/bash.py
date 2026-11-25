@@ -1307,6 +1307,11 @@ def get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
     (passed through ``rlcombine`` as ``rl_IP{i}_S{j}``) followed by the final
     combined output (``rl_S{j}``), which has an empty ``'text'`` prefix.
 
+    Each pass-through level is a single RI layer. ``bash_params`` converts an
+    OED inuring priority in ``rl_inuring_priorities`` to every layer of that
+    priority (for example LOC and ACC treaties at the same priority), so each
+    layer is written on its own.
+
     Args:
         analysis_settings (dict): The full analysis settings dictionary.
         num_reinsurance_iterations (int): Total number of reinsurance
@@ -2050,6 +2055,29 @@ def get_pla_cmd(pla, secondary_factor, uniform_factor):
     return pla_cmd
 
 
+def get_inuring_priority_levels(ip_to_level):
+    """Expand the inuring priority to output level mapping into every RI level of each priority.
+
+    RI levels are numbered in inuring priority order, so the levels of a priority are the ones
+    after the last level of the previous priority, up to and including its own last level. A
+    priority with contracts at several risk levels (for example LOC and ACC) has several levels.
+
+    Args:
+        ip_to_level (dict): ``{inuring_priority: last_level}``, as in
+            ``ri_inuring_priority_output_levels.json``.
+
+    Returns:
+        dict: ``{inuring_priority: [level, ...]}`` with levels in ascending order.
+    """
+    ip_to_levels = {}
+    previous_level = 0
+    for ip in sorted(ip_to_level):
+        last_level = ip_to_level[ip]
+        ip_to_levels[ip] = list(range(previous_level + 1, last_level + 1))
+        previous_level = last_level
+    return ip_to_levels
+
+
 def get_valid_inuring_priorities(ip_to_level, request_ip, runtype):
     request_ip = [int(p) for p in request_ip]
     valid_ip = [p for p in request_ip if p in ip_to_level]
@@ -2204,12 +2232,15 @@ def bash_params(
                     ],
                 }
 
+            # rl outputs every RI level of a priority, each on its own, as the reinsurer's loss of
+            # a level only covers that level's contracts.
             if analysis_settings.get('rl_inuring_priorities'):
                 valid_ips = get_valid_inuring_priorities(_ip_to_level, analysis_settings['rl_inuring_priorities'], 'rl')
+                _ip_to_levels = get_inuring_priority_levels(_ip_to_level)
                 analysis_settings = {
                     **analysis_settings,
                     'rl_inuring_priorities': [
-                        _ip_to_level[int(p)] for p in valid_ips
+                        level for p in valid_ips for level in _ip_to_levels[int(p)]
                     ],
                 }
 

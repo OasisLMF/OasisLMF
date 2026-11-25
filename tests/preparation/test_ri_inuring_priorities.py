@@ -16,6 +16,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, call, patch
 
 from oasislmf.computation.generate.files import compute_ri_inuring_priority_output_levels
+from oasislmf.execution.bash import get_inuring_priority_levels
 from oasislmf.preparation.summaries import get_ri_inuring_priority_output_levels
 from oasislmf.utils.exceptions import OasisException
 
@@ -124,6 +125,20 @@ class TestInuringPriorityMappingComputation(TestCase):
 # ---------------------------------------------------------------------------
 # Tests: generate_summaryxref_files() RI section
 # ---------------------------------------------------------------------------
+
+class TestGetInuringPriorityLevels(TestCase):
+    """get_inuring_priority_levels() expands {priority: last_level} into every level of each priority."""
+
+    def test_one_level_per_priority(self):
+        self.assertEqual(get_inuring_priority_levels({1: 1, 2: 2}), {1: [1], 2: [2]})
+
+    def test_priorities_over_several_levels(self):
+        self.assertEqual(get_inuring_priority_levels({1: 2, 2: 3, 3: 5}), {1: [1, 2], 2: [3], 3: [4, 5]})
+
+    def test_gap_in_priorities(self):
+        """A priority with no contracts has no levels, so the next priority starts after the previous one's."""
+        self.assertEqual(get_inuring_priority_levels({3: 2, 1: 1}), {1: [1], 3: [2]})
+
 
 class TestGenerateSummaryxrefRI(TestCase):
     """Unit-test the RI branch of generate_summaryxref_files().
@@ -279,6 +294,20 @@ class TestGenerateSummaryxrefRI(TestCase):
             for key in expected_mapping_file.keys():
                 self.assertEqual(expected_mapping_file[key], loaded[key])
 
+    def test_mapping_file_lists_every_ri_layer(self):
+        """Every RI layer gets an entry, including the earlier layers of a priority with several risk levels."""
+        with tempfile.TemporaryDirectory() as d:
+            self._setup_run_dir(d, [(1, 'LOC'), (1, 'ACC'), (2, 'SEL')])
+
+            self._call_summaryxref(d, self._analysis_settings())
+
+            loaded = _read_json(os.path.join(d, 'output', 'reins_output_levels_summary.json'))
+            self.assertEqual(loaded, {
+                'IP1': {'inuring_priority': 1, 'risk_level': 'LOC'},
+                'IP2': {'inuring_priority': 1, 'risk_level': 'ACC'},
+                'IP3': {'inuring_priority': 2, 'risk_level': 'SEL'},
+            })
+
     def test_rl_mode_writes_all_ri_layers(self):
         """When rl_summaries is requested, the xref is written to every RI layer directory."""
         with tempfile.TemporaryDirectory() as d:
@@ -411,6 +440,18 @@ class TestBashParamsInuringPriorityConversion(TestCase):
             result = self._call_bash_params(d, settings)
             # 99 is not in the mapping so it is dropped; 1 → 2
             self.assertEqual(result['analysis_settings']['ri_inuring_priorities'], [2])
+
+    def test_rl_priority_converted_to_all_its_levels(self):
+        """An rl priority over several RI levels passes every level through; ri keeps the last one."""
+        mapping = {1: 2, 2: 3}
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, 'input'))
+            _write_json(os.path.join(d, 'input', 'ri_inuring_priority_output_levels.json'), mapping)
+
+            settings = {**self._make_analysis_settings([1]), 'rl_inuring_priorities': [1, 2]}
+            result = self._call_bash_params(d, settings)
+            self.assertEqual(result['analysis_settings']['ri_inuring_priorities'], [2])
+            self.assertEqual(result['analysis_settings']['rl_inuring_priorities'], [1, 2, 3])
 
     def test_out_of_range_and_duplicate_levels_dropped(self):
         """Without the mapping file, levels outside 1..num_reinsurance_iterations and duplicates are dropped with a warning."""
