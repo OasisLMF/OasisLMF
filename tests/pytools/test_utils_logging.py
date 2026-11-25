@@ -105,7 +105,14 @@ def test_no_handler_is_left_on_py_warnings():
     assert warnings_logger.handlers == handlers_before
 
 
-def test_capture_warnings_is_restored():
+def test_capture_warnings_is_restored(monkeypatch):
+    """A host that had captureWarnings on must still have it on after an engine run.
+
+    Importing oasislmf.pytools.gulmc.cli calls captureWarnings(True); under an earlier test's
+    catch_warnings that leaves logging._warnings_showwarning set after showwarning is put back,
+    which turns the captureWarnings(True) below into a no-op. Clear it so the test starts clean.
+    """
+    monkeypatch.setattr(logging, '_warnings_showwarning', None)
     logging.captureWarnings(True)
     try:
         _run_decorated()
