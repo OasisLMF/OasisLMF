@@ -103,11 +103,11 @@ def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, exp
                 state['summary_id'] = 0
                 continue
             if pair_sidx < 0 and pair_sidx not in SPECIAL_IDX_PER_PAIR:
-                raise ValueError('rlcombine: unexpected sidx found', pair_sidx)
+                raise ValueError('rlcombine: unexpected sidx found')
             if pair_sidx > len_sample:
-                raise ValueError('rlcombine: sample sidx above len_sample', pair_sidx)
+                raise ValueError('rlcombine: sample sidx above len_sample')
             if state['n_pairs'] - offsets[state['n_records'] - 1] == len_sample + len(SPECIAL_IDX_PER_PAIR):
-                raise ValueError('rlcombine: summary_id outside 1 .. max_summary_id', summary_id)
+                raise ValueError('rlcombine: more (sidx, loss) pairs in a record than allowed')
             sidx[state['n_pairs']] = pair_sidx
             loss[state['n_pairs']] = pair_loss
             state['n_pairs'] += 1
@@ -135,7 +135,7 @@ def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, exp
                 return cursor, event_id, 0, 1
 
             if summary_id < 1 or summary_id > summary_ids.shape[0]:
-                raise ValueError(f'rlcombine: summary_id {summary_id} outside 1 .. max_summary_id')
+                raise ValueError('rlcombine: summary_id found outside 1 .. max_summary_id')
             if state['n_records'] == summary_ids.shape[0]:
                 raise ValueError('rlcombine: more records in an event than max_summary_id')
             summary_ids[state['n_records']] = summary_id

@@ -62,12 +62,12 @@ def test_read_events_larger_than_pipe_capacity(tmp_path):
 @pytest.mark.parametrize('events, sentinel, match', [
     pytest.param([(1, [(1, 1, [(1, 1.0)])]), (2, [(1, 1, [(1, 1.0)])])], False, 'event not closed by an S0',
                  id='no S0 before the next event'),
-    pytest.param([(1, [(11, 1, [])])], True, 'summary_id 11 outside', id='summary_id above max_summary_id'),
-    pytest.param([(1, [(1, 1, [(1, 1.0)] * 6)])], True, 'more .sidx, loss. pairs in a record',
+    pytest.param([(1, [(11, 1, [])])], True, 'summary_id found outside', id='summary_id above max_summary_id'),
+    pytest.param([(1, [(1, 1, [(1, 1.0)] * 6)])], True, 'pairs in a record than allowed',
                  id='more pairs than samples and special sidx'),
-    pytest.param([(1, [(1, 1, [(-4, 1.0)])])], True, 'unexpected sidx -4', id='sidx -4 not written for rl'),
-    pytest.param([(1, [(1, 1, [(-2, 1.0)])])], True, 'unexpected sidx -2', id='sidx -2 never written'),
-    pytest.param([(1, [(1, 1, [(4, 1.0)])])], True, 'sample sidx 4 above len_sample', id='sample sidx above len_sample'),
+    pytest.param([(1, [(1, 1, [(-4, 1.0)])])], True, 'unexpected sidx', id='sidx -4 not written for rl'),
+    pytest.param([(1, [(1, 1, [(-2, 1.0)])])], True, 'unexpected sidx', id='sidx -2 never written'),
+    pytest.param([(1, [(1, 1, [(4, 1.0)])])], True, 'sample sidx above len_sample', id='sample sidx above len_sample'),
     pytest.param([(1, [(1, 1, [(-5, 1.0)])] * 11)], True, 'more records in an event than max_summary_id',
                  id='more records than max_summary_id'),
 ])
