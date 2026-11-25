@@ -1,3 +1,5 @@
+import re
+import sys
 from collections import OrderedDict
 from pathlib import Path
 
@@ -8,6 +10,8 @@ import pytest
 
 from oasislmf.lookup.builtin import (
     Lookup,
+    geotiff_read_plan,
+    geotiff_value_dtype,
     PerilCoveredDeterministicLookup,
     create_lat_lon_id_functions,
     get_step,
@@ -313,6 +317,100 @@ def test_build_prepare_min_max_clamp(preparations, values, expected):
     assert result["my_col"].tolist() == expected
 
 
+@pytest.mark.parametrize("preparations, values, expected", [
+    ({"strip": True}, ["  ab ", "cd", None], ["ab", "cd", None]),
+    ({"upper": True}, ["Ab", "cd", None], ["AB", "CD", None]),
+    ({"lower": True}, ["Ab", "CD", None], ["ab", "cd", None]),
+    ({"strip": True, "upper": True}, [" sw1a 1aa ", "Sw1A1aa"], ["SW1A 1AA", "SW1A1AA"]),
+    ({"upper": True}, ["ab", 12, None], ["AB", 12, None]),   # non-text values in an object column are kept
+    ({"strip": True, "type": "int64"}, [" 1", "2 "], [1, 2]),  # strip runs before type
+])
+def test_build_prepare_text_normalisation(preparations, values, expected):
+    prepare = Lookup(config={}).build_prepare(my_col=preparations)
+    result = prepare(pd.DataFrame({"my_col": values}, dtype=object))
+    assert [None if pd.isna(v) else v for v in result["my_col"]] == expected
+
+
+def test_build_prepare_text_normalisation_string_dtype_and_numeric():
+    prepare = Lookup(config={}).build_prepare(s={"strip": True, "upper": True}, n={"upper": True})
+    df = pd.DataFrame({"s": pd.array([" ab", None], dtype="string"), "n": [1, 2]})
+    result = prepare(df)
+    assert result["s"].tolist()[0] == "AB" and pd.isna(result["s"].tolist()[1])
+    assert result["n"].tolist() == [1, 2]
+
+
+@pytest.mark.parametrize("preparations, values, expected", [
+    ({"strip": True, "upper": True}, [" ab", "cd ", None, "ab"], ["AB", "CD", None, "AB"]),
+    # categories that collide once normalised ('ab' / ' AB') are merged
+    ({"strip": True, "upper": True}, ["ab", " AB", "cd", None], ["AB", "AB", "CD", None]),
+    ({"lower": True}, ["Ab", 1, None], ["ab", 1, None]),  # non-text categories are kept
+])
+def test_build_prepare_text_normalisation_category_dtype(preparations, values, expected):
+    """OED string fields reach the lookup as ``category`` (ods_tools default_string_dtype)."""
+    prepare = Lookup(config={}).build_prepare(my_col=preparations)
+    result = prepare(pd.DataFrame({"my_col": pd.Series(values, dtype="category")}))
+    assert isinstance(result["my_col"].dtype, pd.CategoricalDtype)
+    assert [None if pd.isna(v) else v for v in result["my_col"]] == expected
+
+
+def test_build_prepare_rename_and_drop():
+    prepare = Lookup(config={}).build_prepare(
+        tmp_id={"rename": "area_peril_id"},
+        unused={"drop": True},
+        not_there={"drop": True},  # dropping a missing column is fine
+    )
+    df = pd.DataFrame({"loc_id": [1, 2], "tmp_id": [5, 6], "area_peril_id": [0, 0], "unused": ["x", "y"]})
+    result = prepare(df)
+    assert list(result.columns) == ["loc_id", "area_peril_id"]
+    assert result["area_peril_id"].tolist() == [5, 6]  # the existing column is replaced
+
+
+def test_build_prepare_rename_then_prepare_new_name():
+    prepare = Lookup(config={}).build_prepare(PostCode={"rename": "postalcode"}, postalcode={"upper": True})
+    result = prepare(pd.DataFrame({"PostCode": ["ab1"]}))
+    assert result.to_dict("list") == {"postalcode": ["AB1"]}
+
+
+@pytest.mark.parametrize("kwargs, match", [
+    ({"c": {"uper": True}}, "unknown option"),
+    ({"c": {"upper": True, "lower": True}}, "both 'upper' and 'lower'"),
+    ({"c": {"rename": ""}}, "non-empty column name"),
+    ({"c": "upper"}, "must be a dict"),
+])
+def test_build_prepare_invalid_config(kwargs, match):
+    with pytest.raises(OasisException, match=match):
+        Lookup(config={}).build_prepare(**kwargs)
+
+
+def test_build_prepare_missing_column_message():
+    prepare = Lookup(config={}).build_prepare(postalcode={"upper": True})
+    with pytest.raises(OasisException, match="'postalcode' is missing"):
+        prepare(pd.DataFrame({"loc_id": [1]}))
+
+
+def test_prepare_upper_strip_lets_merge_match_mixed_case(tmp_path):
+    """Issue #2284 item 1: normalising a column with prepare lets merge match it against an upper-case table."""
+    table = tmp_path / "postcode_areaperil.csv"
+    pd.DataFrame({"postalcode": ["AB1", "CD2"], "area_peril_id": [11, 22]}).to_csv(table, index=False)
+    config = {
+        "strategy": ["normalise", "areaperil", "pivot"],
+        "step_definition": {
+            "normalise": {"type": "prepare", "columns": ["postalcode"],
+                          "parameters": {"postalcode": {"strip": True, "upper": True}}},
+            "areaperil": {"type": "merge", "columns": ["postalcode"],
+                          "parameters": {"file_path": str(table), "id_columns": ["area_peril_id"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1, 2, 3],
+                              "PostalCode": pd.Series([" ab1", "Cd2 ", "zz9"], dtype="category")})
+    keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
+    assert keys.loc[1, "area_peril_id"] == 11
+    assert keys.loc[2, "area_peril_id"] == 22
+    assert keys.loc[3, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
+
+
 def test_split_loc_perils_covered_marks_not_modelled():
     """A location whose perils are outside the model's scope is flagged 'not modelled'
     (not 'not at risk' — we don't know whether an unmodelled peril is a risk or not). The
@@ -428,68 +526,298 @@ def test_build_set_status_rejects_unknown_status_value():
         fct(locations)
 
 
-class _FakeGeoTiffDataset:
-    """Minimal stand-in for a gdal dataset so build_geotiff can be tested without gdal."""
-
-    def __init__(self, array, geotransform):
-        self._array = array
-        self._geotransform = geotransform
-        self.RasterCount = array.shape[2]
-
-    def GetGeoTransform(self):
-        return self._geotransform
-
-    def GetVirtualMemArray(self):
-        return self._array
+def _affine(*args):
+    """An affine transform, skipping the test when rasterio (which provides affine) is not installed."""
+    pytest.importorskip("rasterio")
+    from rasterio.transform import Affine
+    return Affine(*args)
 
 
-class _FakeGdal:
-    GA_ReadOnly = 0
-
-    def __init__(self, dataset, inv_gt):
-        self._dataset = dataset
-        self._inv_gt = inv_gt
-
-    def Open(self, path, mode):
-        return self._dataset
-
-    def InvGeoTransform(self, geotransform):
-        return self._inv_gt
+def _write_geotiff(path, data, transform, nodata=None, crs="EPSG:4326", **profile):
+    """Write ``data`` (band, row, col) to a GeoTIFF at ``path`` with the given affine transform and nodata value."""
+    rasterio = pytest.importorskip("rasterio")
+    with rasterio.open(path, "w", driver="GTiff", height=data.shape[1], width=data.shape[2], count=data.shape[0],
+                       dtype=data.dtype, transform=transform, crs=crs, nodata=nodata, **profile) as dst:
+        dst.write(data)
+    return path
 
 
-def test_build_geotiff_out_of_range_uses_correct_default_per_column(monkeypatch):
-    """Out-of-raster locations must get each column's OWN default. The defaults
-    array is read by band column order, so it must be written that way too — the
-    bug wrote it by band id, swapping defaults across columns."""
-    # 1x1 raster, 3 bands with values 100/200/300 at the single pixel.
-    raster = np.array([[[100, 200, 300]]], dtype="int64")
-    # Identity inverse geo-transform: px = int(lon + 0.5), py = int(lat + 0.5).
-    inv_gt = np.array([0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
-    fake_gdal = _FakeGdal(_FakeGeoTiffDataset(raster, (0, 1, 0, 0, 0, 1)), inv_gt)
-    monkeypatch.setattr("oasislmf.lookup.builtin.gdal", fake_gdal)
+def _multi_band_geotiff(tmp_path):
+    """3 bands of 2 rows x 3 cols, 1-degree pixels with the top-left corner at (lon -10, lat 50), north up.
 
-    # Columns map to bands in a permuted order so a wrong index is detectable.
+    Pixel (row, col) of band b holds b * 100 + row * 10 + col, so every value names its band and pixel.
+    """
+    bands, rows, cols = np.meshgrid(np.arange(1, 4), np.arange(2), np.arange(3), indexing="ij")
+    data = (bands * 100 + rows * 10 + cols).astype("int32")
+    return _write_geotiff(tmp_path / "multi.tif", data, _affine(1.0, 0.0, -10.0, 0.0, -1.0, 50.0))
+
+
+def test_build_geotiff_reads_each_column_from_its_band(tmp_path):
+    """Each column reads its own band (permuted ids) on a real multi-band file, and out-of-range
+    locations get each column's own default."""
     band_info = OrderedDict([
-        ("a", {"id": 3, "default": -11}),   # band index 2 -> 300
-        ("b", {"id": 1, "default": -22}),   # band index 0 -> 100
-        ("c", {"id": 2, "default": -33}),   # band index 1 -> 200
+        ("a", {"id": 3, "default": -11}),
+        ("b", {"id": 1, "default": -22}),
+        ("c", {"id": 2, "default": -33}),
     ])
-    geotiff_lookup = Lookup(config={}).build_geotiff(file_path="dummy.tif", band_info=band_info)
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)), band_info=band_info)
 
     locations = pd.DataFrame({
-        "longitude": [0.0, 99.0],   # row 0 in-range, row 1 out-of-range
-        "latitude": [0.0, 99.0],
+        "longitude": [-7.5, 20.0],  # col 2 / outside
+        "latitude": [48.5, 0.0],    # row 1 / outside
     })
     result = geotiff_lookup(locations)
 
-    # In-range: each column reads its own band.
-    assert result.loc[0, "a"] == 300
-    assert result.loc[0, "b"] == 100
-    assert result.loc[0, "c"] == 200
-    # Out-of-range: each column gets its own default (the bug swapped these).
-    assert result.loc[1, "a"] == -11
-    assert result.loc[1, "b"] == -22
-    assert result.loc[1, "c"] == -33
+    assert result[["a", "b", "c"]].values.tolist() == [[312, 112, 212], [-11, -22, -33]]
+
+
+@pytest.mark.parametrize("lon, lat, expected", [
+    (-9.9, 49.9, 100),    # just inside the top-left corner
+    (-9.3, 49.3, 100),    # 0.7 of a pixel in: still pixel (0, 0)
+    (-8.5, 49.5, 101),    # centre of pixel (0, 1)
+    (-7.01, 48.01, 112),  # just inside the bottom-right corner
+    (-10.3, 49.5, -1),    # 0.3 of a pixel west of the raster
+    (-9.5, 50.3, -1),     # 0.3 of a pixel north of the raster
+    (-6.9, 49.5, -1),     # just east of the raster
+    (np.nan, 49.5, -1),   # missing coordinates
+    (-9.5, np.inf, -1),
+])
+def test_build_geotiff_assigns_the_pixel_containing_each_location(tmp_path, lon, lat, expected):
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
+                                                     band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [lon], "latitude": [lat]}))
+
+    assert result["value"].tolist() == [expected]
+
+
+@pytest.mark.parametrize("band_dtypes, defaults, expected", [
+    (["uint8"], [0], "uint8"),           # fits: dtype unchanged
+    (["int16"], [0.0], "int16"),         # integral float fits an integer band
+    (["uint8"], [-1], "int16"),          # negative default on an unsigned band
+    (["int16"], [np.nan], "float32"),    # NaN default on an integer band
+    (["int16"], [1.5], "float32"),       # fractional default on an integer band
+    (["uint8"], [1000], "uint16"),       # default above the band's range
+    (["float32"], [np.nan], "float32"),  # NaN already fits a float band
+    (["uint8", "int16"], [0, 0], "int16"),
+])
+def test_geotiff_value_dtype(band_dtypes, defaults, expected):
+    defaults = {f"col_{i}": default for i, default in enumerate(defaults)}
+    assert geotiff_value_dtype(band_dtypes, defaults) == np.dtype(expected)
+
+
+@pytest.mark.parametrize("default", ["none", None, 2 ** 70])
+def test_geotiff_value_dtype_rejects_defaults_that_are_not_numbers(default):
+    with pytest.raises(OasisException, match="geotiff band flood_depth has default"):
+        geotiff_value_dtype(["float32"], {"flood_depth": default})
+
+
+def test_build_geotiff_default_outside_band_dtype_widens_column(tmp_path):
+    """A -1 default on a uint8 band used to raise OverflowError; the column now widens to hold it."""
+    data = np.array([[[7, 255]]], dtype="uint8")
+    path = _write_geotiff(tmp_path / "uint8.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0))
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5, 5.0], "latitude": [0.5, 0.5, 0.5]}))
+
+    assert result["value"].dtype == np.dtype("int16")
+    assert result["value"].tolist() == [7, 255, -1]
+
+
+def test_build_geotiff_accepts_nullable_coordinates(tmp_path):
+    """pd.NA in nullable Float64 coordinates is treated as missing and gets the default."""
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
+                                                     band_info={"value": {"id": 1, "default": -1}})
+    locations = pd.DataFrame({
+        "longitude": pd.array([-9.5, pd.NA, -8.5], dtype="Float64"),
+        "latitude": pd.array([49.5, 49.5, pd.NA], dtype="Float64"),
+    })
+
+    result = geotiff_lookup(locations)
+
+    assert result["value"].tolist() == [100, -1, -1]
+
+
+def test_build_geotiff_budget_bounded_reads_match_single_read(tmp_path, monkeypatch):
+    """Reads split to fit a tiny GEOTIFF_READ_BUDGET_BYTES give the same values as one read."""
+    rng = np.random.default_rng(0)
+    data = rng.integers(0, 1000, size=(2, 50, 40)).astype("int16")
+    path = _write_geotiff(tmp_path / "big.tif", data, _affine(0.1, 0.0, 0.0, 0.0, -0.1, 5.0))
+    band_info = {"first": {"id": 1, "default": -1}, "second": {"id": 2, "default": -2}}
+    locations = pd.DataFrame({
+        "longitude": rng.uniform(-0.5, 4.5, size=500),
+        "latitude": rng.uniform(-0.5, 5.5, size=500),
+    })
+
+    single = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)(locations.copy())
+    # 2 int16 bands cost 12 bytes per pixel (value, value before conversion, two masks): allow 30 pixels per read,
+    # less than one 40-column row, so the file's single block is split along both axes
+    monkeypatch.setattr("oasislmf.lookup.builtin.GEOTIFF_READ_BUDGET_BYTES", 30 * 12)
+    strips = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)(locations.copy())
+
+    pd.testing.assert_frame_equal(single, strips)
+    # and both match indexing the raster directly
+    col = np.floor(locations["longitude"].to_numpy() / 0.1)
+    row = np.floor((5.0 - locations["latitude"].to_numpy()) / 0.1)
+    inside = (col >= 0) & (col < 40) & (row >= 0) & (row < 50)
+    expected = np.where(inside, data[0, row.clip(0, 49).astype(int), col.clip(0, 39).astype(int)], -1)
+    assert single["first"].tolist() == expected.tolist()
+
+
+@pytest.mark.parametrize("dtype, nodata", [("int16", -9999), ("float32", np.nan), ("float32", -3.4e38)])
+def test_build_geotiff_replaces_nodata_with_band_default(tmp_path, dtype, nodata):
+    """Pixels holding the raster's nodata value take the column's default; other pixels keep their value,
+    and a value equal to another column's default is not mistaken for nodata."""
+    # 1 band, 1 row, 3 cols: valid, nodata, valid
+    data = np.array([[[7, nodata, 9]]], dtype=dtype)
+    path = _write_geotiff(tmp_path / "nodata.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0), nodata=nodata)
+    band_info = OrderedDict([("first", {"id": 1, "default": -1}), ("again", {"id": 1, "default": -2})])
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5, 2.5, 5.0], "latitude": [0.5] * 4}))
+
+    assert result["first"].tolist() == [7, -1, 9, -1]
+    assert result["again"].tolist() == [7, -2, 9, -2]
+
+
+def test_build_geotiff_without_nodata_keeps_every_value(tmp_path):
+    """A raster with no nodata value has no invalid pixels, even ones holding a typical nodata number."""
+    data = np.array([[[7, -9999]]], dtype="int16")
+    path = _write_geotiff(tmp_path / "no_nodata.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0))
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5], "latitude": [0.5, 0.5]}))
+
+    assert result["value"].tolist() == [7, -9999]
+
+
+def _plan_reads(rows, cols, block_shape=(16, 16), bytes_per_pixel=1, height=64, width=64, budget=10 ** 6):
+    """geotiff_read_plan as ((row_off, col_off, height, width), sorted locations) per read, for readable asserts."""
+    pytest.importorskip("rasterio")
+    rows, cols = np.array(rows), np.array(cols)
+    order, reads = geotiff_read_plan(rows, cols, block_shape, bytes_per_pixel, height, width, budget)
+    return [((w.row_off, w.col_off, w.height, w.width), list(zip(rows[order][s:e].tolist(), cols[order][s:e].tolist())))
+            for s, e, w in reads]
+
+
+def test_geotiff_read_plan_merges_adjacent_blocks_and_skips_gaps():
+    # blocks (0, 0) and (0, 1) are adjacent, (0, 3) is past a gap, (2, 2) is in another block row
+    reads = _plan_reads(rows=[40, 3, 5, 1], cols=[40, 20, 1, 50])
+    assert reads == [
+        ((0, 0, 16, 32), [(5, 1), (3, 20)]),
+        ((0, 48, 16, 16), [(1, 50)]),
+        ((32, 32, 16, 16), [(40, 40)]),
+    ]
+
+
+def test_geotiff_read_plan_splits_runs_to_fit_the_budget():
+    # four adjacent blocks of 16 x 16 pixels at 1 byte each, with room for two blocks per read
+    reads = _plan_reads(rows=[0, 0, 0, 0], cols=[0, 16, 32, 48], budget=2 * 256)
+    assert [window for window, _ in reads] == [(0, 0, 16, 32), (0, 32, 16, 32)]
+
+
+def test_geotiff_read_plan_splits_a_block_larger_than_the_budget():
+    # a file stored as one 64 x 64 block, with room for 100 pixels per read: tiles shrink to single 64-pixel rows
+    reads = _plan_reads(rows=[0, 63], cols=[0, 63], block_shape=(64, 64), budget=100)
+    assert [window for window, _ in reads] == [(0, 0, 1, 64), (63, 0, 1, 64)]
+    # and a single row too wide for the budget is cut into columns
+    reads = _plan_reads(rows=[0, 0], cols=[0, 63], block_shape=(1, 64), budget=10)
+    assert [window for window, _ in reads] == [(0, 0, 1, 10), (0, 60, 1, 4)]
+
+
+def test_geotiff_read_plan_without_locations_reads_nothing():
+    assert _plan_reads(rows=[], cols=[]) == []
+
+
+def test_geotiff_read_plan_clips_edge_blocks_to_the_raster():
+    reads = _plan_reads(rows=[59], cols=[59], height=60, width=60)
+    assert reads == [((48, 48, 12, 12), [(59, 59)])]
+
+
+def test_build_geotiff_reads_only_the_blocks_holding_locations(tmp_path, monkeypatch):
+    """On a tiled raster each read covers whole blocks that hold locations, never the blocks between them."""
+    rasterio = pytest.importorskip("rasterio")
+    data = np.arange(64 * 64, dtype="int32").reshape(1, 64, 64)
+    path = _write_geotiff(tmp_path / "tiled.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 64.0),
+                          tiled=True, blockxsize=16, blockysize=16)
+    windows = []
+    real_read = rasterio.io.DatasetReader.read
+
+    def spy_read(self, *args, **kwargs):
+        windows.append(kwargs["window"])
+        return real_read(self, *args, **kwargs)
+
+    monkeypatch.setattr(rasterio.io.DatasetReader, "read", spy_read)
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+    # pixel (row, col) is at lon = col + 0.5, lat = 64 - row - 0.5; pixels in two far-apart blocks
+    rows, cols = np.array([2, 60, 5]), np.array([3, 61, 9])
+    result = geotiff_lookup(pd.DataFrame({"longitude": cols + 0.5, "latitude": 64 - rows - 0.5}))
+
+    assert result["value"].tolist() == (rows * 64 + cols).tolist()
+    assert sorted((w.row_off, w.col_off, w.height, w.width) for w in windows) == [(0, 0, 16, 16), (48, 48, 16, 16)]
+
+
+def test_build_geotiff_rejects_projected_crs(tmp_path):
+    """A raster in metres (Web Mercator) cannot be indexed by longitude/latitude, so it is rejected at build time."""
+    data = np.zeros((1, 2, 2), dtype="int16")
+    path = _write_geotiff(tmp_path / "mercator.tif", data, _affine(1000.0, 0.0, 0.0, 0.0, -1000.0, 2000.0),
+                          crs="EPSG:3857")
+
+    with pytest.raises(OasisException, match="projected CRS EPSG:3857"):
+        Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+
+@pytest.mark.parametrize("crs", ["EPSG:4269", None])  # geographic NAD83, and no CRS at all
+def test_build_geotiff_accepts_geographic_or_missing_crs(tmp_path, crs):
+    data = np.array([[[7]]], dtype="int16")
+    path = _write_geotiff(tmp_path / "geographic.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0), crs=crs)
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5], "latitude": [0.5]}))
+
+    assert result["value"].tolist() == [7]
+
+
+def test_build_geotiff_rejects_band_id_outside_file(tmp_path):
+    with pytest.raises(OasisException, match=r"outside of \[1-3\]"):
+        Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
+                                        band_info={"value": {"id": 4, "default": -1}})
+
+
+@pytest.fixture
+def builtin_without_spatial_packages(monkeypatch):
+    """A fresh copy of the builtin module imported with the spatial packages blocked.
+
+    The copy runs in this process, so coverage counts its import fallbacks; the real module is left untouched.
+    """
+    import importlib.util
+    from oasislmf.lookup import builtin
+
+    for name in ("shapely", "shapely.geometry", "geopandas", "sklearn", "sklearn.neighbors",
+                 "rasterio", "rasterio.windows"):
+        monkeypatch.setitem(sys.modules, name, None)  # makes any import of it raise ImportError
+    spec = importlib.util.spec_from_file_location("builtin_without_spatial_packages", builtin.__file__)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_builtin_imports_without_spatial_packages(builtin_without_spatial_packages):
+    """Without the spatial packages the module still imports and every spatial name is None."""
+    module = builtin_without_spatial_packages
+    assert module.Point is None and module.gpd is None and module.BallTree is None
+    assert module.rasterio is None and module.Window is None
+
+
+@pytest.mark.parametrize("build_method, kwargs", [
+    ("build_rtree", {"file_path": "unused.parquet", "file_type": "parquet", "id_columns": []}),
+    ("build_geotiff", {"file_path": "unused.tif", "band_info": {"value": {"id": 1, "default": -1}}}),
+])
+def test_spatial_lookups_without_spatial_packages_point_at_extra(builtin_without_spatial_packages, build_method, kwargs):
+    lookup = builtin_without_spatial_packages.Lookup(config={})
+
+    with pytest.raises(OasisException, match=re.escape("oasislmf[spatial]")):
+        getattr(lookup, build_method)(**kwargs)
 
 
 # --- geog_lookup (GeogScheme/GeogName resolution) -----------------------------
@@ -899,3 +1227,96 @@ def test_combine_and_raises_when_child_columns_are_missing():
     locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no AutoCode
     with pytest.raises(OasisException, match="by_autocode"):
         AutoLookup(config=config).process_locations(locations)
+
+
+# --- transform_coordinates (#2284 item 5) -------------------------------------
+
+
+def _bng_locations():
+    return pd.DataFrame({
+        "loc_id": [1, 2, 3, 4],
+        "latitude": [51.5072, None, -33.87, 55.9533],      # London, missing, Sydney, Edinburgh
+        "longitude": [-0.1276, -0.1, 151.21, -3.1883],
+    })
+
+
+def test_transform_coordinates_to_british_national_grid():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
+    result = fct(_bng_locations())
+    # PROJ uses the OSTN15 grid when it is installed (x = 530041.5) and a Helmert fallback
+    # otherwise (x = 530043.2), so allow a few metres either way
+    assert result["x"].iloc[0] == pytest.approx(530042, abs=5)
+    assert result["y"].iloc[0] == pytest.approx(180358, abs=5)
+    assert result["x"].iloc[3] == pytest.approx(326000, abs=1000)
+    assert result[["x", "y"]].iloc[[1, 2]].isna().all().all()  # missing input, and Sydney is outside GB
+
+
+def test_transform_coordinates_without_area_check_and_custom_columns():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(
+        target_crs=27700, x_column="easting", y_column="northing", area_of_use_only=False)
+    result = fct(_bng_locations())
+    assert result["easting"].notna().tolist() == [True, False, True, True]  # Sydney projected, however meaningless
+
+
+def test_transform_coordinates_area_crossing_antimeridian():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:3832")  # PDC Mercator, 98.69E..68W
+    result = fct(pd.DataFrame({"latitude": [-17.7, -17.7, 51.5], "longitude": [178.0, -150.0, 0.0]}))
+    assert result["x"].notna().tolist() == [True, True, False]
+
+
+def test_transform_coordinates_failure_messages():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
+    locations = _bng_locations()
+    locations["message"] = ["", "", "", "already set"]
+    result = fct(locations)
+    assert result["message"].tolist() == [
+        "",
+        "transform_coordinates failure: missing latitude or longitude",
+        "transform_coordinates failure: outside the area of use of EPSG:27700",
+        "already set",  # an earlier step's message is kept
+    ]
+
+
+def test_transform_coordinates_area_of_use_ignored_is_logged(caplog):
+    pytest.importorskip("pyproj")
+    with caplog.at_level("INFO", logger="oasislmf.lookup.builtin"):
+        Lookup(config={}).build_transform_coordinates(target_crs="EPSG:4326", source_crs="EPSG:27700")
+    assert "area_of_use_only ignored, source CRS EPSG:27700 is not geographic" in caplog.text
+
+
+def test_transform_coordinates_errors():
+    pytest.importorskip("pyproj")
+    with pytest.raises(OasisException, match="invalid CRS"):
+        Lookup(config={}).build_transform_coordinates(target_crs="EPSG:not-a-crs")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
+    with pytest.raises(OasisException, match="'latitude' is not in the locations"):
+        fct(pd.DataFrame({"lat": [51.5], "longitude": [0.0]}))
+
+
+def test_transform_coordinates_then_interval_to_index_end_to_end(tmp_path):
+    """Issue #2284 item 5: project to a CRS, then index a regular grid in it with interval_to_index."""
+    pytest.importorskip("pyproj")
+    edges = [500000, 510000, 520000, 530000, 540000]  # 10 km columns of a BNG grid
+    config = {
+        "strategy": ["project", "column", "areaperil", "pivot"],
+        "step_definition": {
+            "project": {"type": "transform_coordinates", "columns": ["latitude", "longitude"],
+                        "parameters": {"target_crs": "EPSG:27700"}},
+            "column": {"type": "interval_to_index",
+                       "parameters": {"value_column_name": "x", "sorted_array": edges,
+                                      "index_column_name": "area_peril_id"}},
+            "areaperil": {"type": "prepare", "parameters": {"area_peril_id": {"default": -1}}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "ORF", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1, 2], "Latitude": [51.5072, -33.87], "Longitude": [-0.1276, 151.21]})
+    keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
+    assert (keys.loc[1, "status"], keys.loc[1, "area_peril_id"]) == ("success", 4)  # x ~ 530042
+    assert keys.loc[2, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
+    assert keys.loc[2, "message"] == ("area_peril_id has an unknown id: "
+                                      "transform_coordinates failure: outside the area of use of EPSG:27700")

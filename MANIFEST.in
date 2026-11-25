@@ -3,7 +3,9 @@ include LICENSE
 include CHANGELOG.rst
 include setup.cfg
 include requirements-package.in
-include optional-package.in
+include optional-currency.in
+include optional-spatial.in
+include optional-plot.in
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-include oasislmf/_data *
