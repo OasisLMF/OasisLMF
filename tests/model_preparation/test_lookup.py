@@ -12,7 +12,7 @@ import pandas as pd
 from hypothesis import HealthCheck, given, settings
 from hypothesis.strategies import just, sampled_from, text
 
-from oasislmf.lookup.factory import BasicKeyServer, KeyServerFactory
+from oasislmf.lookup.factory import BasicKeyServer, KeyServerFactory, _split_locations
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
 
@@ -317,6 +317,64 @@ class OasisLookupFactoryWriteJsonFiles(TestCase):
 
             self.assertEqual(nonsuccesses_count, len(nonsuccesses))
             self.assertEqual(written_nonsuccesses, nonsuccesses)
+
+
+class SplitLocations(TestCase):
+    def test_chunks_only_hold_their_own_categories(self):
+        # a slice keeps a categorical's full category list, which every chunk pickled to a lookup
+        # worker would then carry (OasisLMF/OasisPlatform#1508)
+        loc_df = pd.DataFrame({
+            'loc_id': [1, 2, 3, 4],
+            'LocNumber': pd.Categorical(['a', 'b', 'c', 'd']),
+            'PostalCode': pd.Categorical(['x', None, 'y', 'x']),
+            'BuildingTIV': [1., 2., 3., 4.],
+        })
+
+        chunks = list(_split_locations(loc_df, 2))
+
+        self.assertEqual(chunks[0]['LocNumber'].cat.categories.to_list(), ['a', 'b'])
+        self.assertEqual(chunks[1]['LocNumber'].cat.categories.to_list(), ['c', 'd'])
+        self.assertEqual(chunks[0]['PostalCode'].cat.categories.to_list(), ['x'])
+        pd.testing.assert_frame_equal(pd.concat(chunks).astype(loc_df.dtypes.to_dict()), loc_df)
+        self.assertEqual(len(loc_df['LocNumber'].cat.categories), 4)  # the source frame is untouched
+
+
+class ParquetKeysFile(TestCase):
+    """The writer fixes its schema from the first result chunk; later chunks must cast to it."""
+
+    @staticmethod
+    def _result(start, message):
+        return pd.DataFrame({'loc_id': range(start, start + len(message)), 'peril_id': 'WTC', 'coverage_type': 1,
+                             'area_peril_id': 1, 'vulnerability_id': 1, 'status': OASIS_KEYS_STATUS['success']['id'],
+                             'message': message})
+
+    def _write(self, results):
+        with TemporaryDirectory() as d:
+            keys_fp = os.path.join(d, 'keys.parquet')
+            BasicKeyServer({'builtin_lookup_type': 'peril_covered_deterministic'}).write_keys_file(
+                results, successes_fp=keys_fp, errors_fp=os.path.join(d, 'keys-errors.parquet'),
+                output_format='parquet', keys_success_msg=True)
+            written = pd.read_parquet(keys_fp)
+        n = sum(len(r) for r in results)
+        self.assertEqual(written['LocID'].tolist(), list(range(1, n + 1)))
+        self.assertEqual([None if pd.isna(m) else m for m in written['Message']],
+                         [None if pd.isna(m) else m for r in results for m in r['message']])
+
+    def test_result_chunks_with_different_category_counts(self):
+        # pyarrow sizes a categorical's indices from its category count (int8 up to 127)
+        self._write([self._result(1, pd.Categorical([f'm{i % 50}' for i in range(300)])),
+                     self._result(301, pd.Categorical([f'm{i % 200}' for i in range(300)]))])
+
+    def test_all_null_first_chunk(self):
+        # an all-null column, or on pandas 2 a categorical with no categories left after the location
+        # split, has the null type, which a later chunk's strings cannot be cast to
+        all_null = {
+            'categorical': pd.Categorical([None] * 10, categories=['a']).remove_unused_categories(),
+            'plain': pd.Series([None] * 10, dtype=object),
+        }
+        for name, message in all_null.items():
+            with self.subTest(name):
+                self._write([self._result(1, message), self._result(11, pd.Categorical(['a'] * 10))])
 
 
 class GenerateKeysWithBuiltinLookup(TestCase):

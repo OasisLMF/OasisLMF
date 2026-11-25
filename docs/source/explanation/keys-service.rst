@@ -636,6 +636,44 @@ dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupa
 
 |
 
+* **transform_coordinates**
+
+Projects the locations' latitude/longitude into another coordinate reference system and writes the result to new
+``x``/``y`` columns, so a following step can index a grid defined in that CRS (for example one ``interval_to_index``
+step per axis). Needs ``pyproj``, installed with ``pip install oasislmf[extra]``.
+
+``target_crs``: the CRS to project to, in any form ``pyproj.CRS`` accepts (``"EPSG:27700"``, ``27700``, a PROJ string or
+WKT).
+
+``source_crs`` (optional): the CRS of the latitude/longitude columns. Defaults to ``"EPSG:4326"`` (WGS 84).
+
+``x_column``, ``y_column`` (optional): the output columns. Default to ``x`` and ``y``. ``x`` is always the
+longitude-like axis (easting), whatever the CRS's own axis order.
+
+``latitude_column``, ``longitude_column`` (optional): the input columns. Default to ``latitude`` and ``longitude``.
+
+``area_of_use_only`` (optional, default ``true``): pyproj projects points far outside a CRS's area of use without
+complaint, so by default locations outside the target CRS's published area of use get NaN in both columns. Locations
+with a null latitude or longitude, or that can't be projected, always get NaN.
+The step writes the reason to the location's ``message`` (e.g. ``transform_coordinates failure: outside the area of
+use of EPSG:27700``), which is reported in the keys errors file if no id can then be found.
+
+.. versionadded:: NEXT
+
+.. code-block:: JSON
+
+   "project": {
+       "type": "transform_coordinates",
+       "columns": ["latitude", "longitude"],
+       "parameters": {"target_crs": "EPSG:27700"}
+   },
+   "grid_x": {
+       "type": "interval_to_index",
+       "parameters": {"value_column_name": "x", "sorted_array": "%%KEYS_DATA_PATH%%/x_edges.csv"}
+   }
+
+|
+
 * **simple_pivot**
 
 Allow pivoting of columns of the locations dataframe into multiple rows.

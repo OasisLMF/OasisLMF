@@ -31,9 +31,42 @@ from .builtin import Lookup as NewLookup
 
 
 def _split_locations(loc_df, part_count):
-    """Yield part_count chunks of loc_df, split by unique 'loc_id' values."""
+    """Yield part_count chunks of loc_df, split by unique 'loc_id' values.
+
+    A slice of a categorical column keeps the full category list, so each chunk drops its unused
+    categories. Otherwise every chunk pickled to a worker carries the whole portfolio's values of a
+    column such as a unique LocNumber.
+    """
     loc_ids_parts = np.array_split(np.unique(loc_df['loc_id']), part_count)
-    return (loc_df[loc_df['loc_id'].isin(loc_ids_parts[i])] for i in range(part_count))
+    category_cols = loc_df.select_dtypes('category').columns
+    for loc_ids in loc_ids_parts:
+        # the masked slice is already new data; the shallow copy only avoids pandas 2's SettingWithCopyWarning
+        chunk_df = loc_df[loc_df['loc_id'].isin(loc_ids)].copy(deep=False)
+        for col in category_cols:
+            chunk_df[col] = chunk_df[col].cat.remove_unused_categories()
+        yield chunk_df
+
+
+def _keys_table(df):
+    """Arrow table of df, typed so that any result chunk can be cast to the first chunk's schema.
+
+    The parquet writer fixes its schema from the first chunk and casts the later ones to it. Two
+    arrow types depend on the chunk's own data and would break that cast:
+
+    - a categorical's indices are sized from its category count (int8 up to 127): widened to int32;
+    - an all-null column, or on pandas 2 a categorical with no categories, has the null type, which
+      nothing casts to: written as string. An all-null keys column is text (e.g. message); an all-NaN
+      numeric column is float, not null.
+    """
+    def chunk_independent(arrow_type):
+        if pa.types.is_dictionary(arrow_type):
+            return pa.dictionary(pa.int32(), chunk_independent(arrow_type.value_type), arrow_type.ordered)
+        return pa.string() if pa.types.is_null(arrow_type) else arrow_type
+
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    schema = pa.schema([field.with_type(chunk_independent(field.type)) for field in table.schema],
+                       metadata=table.schema.metadata)
+    return table if schema.equals(table.schema) else table.cast(schema)
 
 
 class KeyServerFactory(object):
@@ -422,14 +455,14 @@ class BasicKeyServer:
                     if successes_count == 0:
                         success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
                         selected_df = success_df[success_heading_row.keys()].rename(columns=success_heading_row)
-                        successes_table = pa.Table.from_pandas(selected_df, preserve_index=False)
+                        successes_table = _keys_table(selected_df)
                         successes_writer = stack.enter_context(
                             pq.ParquetWriter(successes_fp, schema=successes_table.schema))
                         successes_writer.write_table(successes_table)
                         successes_count += success_df.shape[0]
                     else:
                         selected_df = success_df[success_heading_row.keys()].rename(columns=success_heading_row)
-                        successes_table = pa.Table.from_pandas(selected_df, preserve_index=False)
+                        successes_table = _keys_table(selected_df)
                         # Cast to match schema if needed
                         if not successes_table.schema.equals(successes_writer.schema):
                             successes_table = successes_table.cast(successes_writer.schema)
@@ -441,9 +474,8 @@ class BasicKeyServer:
                     if not errors_df.empty:
                         if 'message' not in errors_df.columns:
                             errors_df['message'] = ""
-                        errors_table = pa.Table.from_pandas(
-                            errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row),
-                            preserve_index=False)
+                        errors_table = _keys_table(
+                            errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row))
                         if error_count == 0:
                             errors_writer = stack.enter_context(pq.ParquetWriter(errors_fp, schema=errors_table.schema))
                         else:
