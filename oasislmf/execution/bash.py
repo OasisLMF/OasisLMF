@@ -2360,6 +2360,11 @@ def bash_params(
     bash_params['need_summary_fifo_for_gul'] = bash_params['gul_output'] and (
         bash_params['il_output'] or bash_params['ri_output'] or bash_params['rl_output']
     )
+
+    # rl (reinsurer's loss) has no fully correlated output yet, see #2311
+    if bash_params['full_correlation'] and bash_params['rl_output']:
+        logger.warning('full_correlation outputs are not produced for rl_output (reinsurer\'s loss)')
+
     bash_params['exposure_df_engine'] = exposure_df_engine
     bash_params['model_df_engine'] = model_df_engine
     bash_params['dynamic_footprint'] = dynamic_footprint
@@ -2698,7 +2703,7 @@ def create_bash_analysis(
                     consumer_prefix=inuring_priority['text'],
                     summarypy_low_memory=summarypy_low_memory,
                 )
-        if rl_output:
+        if rl_output and fifo_dir != fifo_full_correlation_dir:  # rl has no fully correlated output
             for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
                                                                        perspective='rl', all_layers=True):
                 fifo_list += do_fifos_exec(
@@ -2737,7 +2742,7 @@ def create_bash_analysis(
     # before writers start producing data.
     compute_outputs = []
     for (_fifo_dir, _work_dir) in dirs:
-        if rl_output:
+        if rl_output and _fifo_dir != fifo_full_correlation_dir:  # rl has no fully correlated output
             rl_computes = {
                 'loss_type': 'reinsurance gross',
                 'compute_fun': rl,
@@ -2873,10 +2878,10 @@ def create_bash_analysis(
             getmodel_args['item_output'] = '{} | tee {}'.format(getmodel_args['item_output'], gul_fifo_name)
         _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cmd)
 
-        # gulcalc output file for fully correlated output
-        if full_correlation:
+        # gulcalc output file for fully correlated output (rl has no fully correlated output, see #2311)
+        if full_correlation and (gul_output or il_output or ri_output):
             fc_gul_fifo_name = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
-            if need_summary_fifo_for_gul:  # need both stream for summary and tream for il
+            if gul_output and (il_output or ri_output):  # need both stream for summary and tream for il
                 getmodel_args['correlated_output'] = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
                                                                    consumer=RUNTYPE_FULL_CORRELATION)
                 if num_lb:
@@ -2967,7 +2972,8 @@ def create_bash_analysis(
                 process_id = i + 1
             #######################################################
 
-            if ri_output or rl_output:
+            rl_stream = rl_output and fifo_dir != fifo_full_correlation_dir  # rl has no fully correlated output
+            if ri_output or rl_stream:
                 ri_inuring_priorities = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)
                 if fifo_dir == fifo_full_correlation_dir:
                     # fully correlated outputs are only produced for the final inuring priority
@@ -2988,7 +2994,7 @@ def create_bash_analysis(
                     process_counter=process_counter,
                     ri_inuring_priorities={ip['level']: ip['text'] for ip in ri_inuring_priorities if ip['level'] and ri_output},
                     rl_inuring_priorities={ip['level']: ip['text'] for ip in get_reinsurance_inuring_priorities(
-                        analysis_settings, num_reinsurance_iterations, perspective='rl', all_layers=True) if rl_output}
+                        analysis_settings, num_reinsurance_iterations, perspective='rl', all_layers=True) if rl_stream}
                 )
                 print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None),
                                                         kwargs.get("socket_server_port")))

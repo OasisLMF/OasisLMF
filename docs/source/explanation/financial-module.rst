@@ -663,6 +663,10 @@ An inuring priority whose contracts are at different risk levels (for example a 
 * ``rl`` reports each of them, one ``rl_IP{level}`` per iteration, as each iteration's
   reinsurer's loss covers only its own contracts.
 
+With ``full_correlation``, the fully correlated outputs in ``output/full_correlation/`` include
+``ri`` for the final inuring priority only, and no ``rl``
+(`#2311 <https://github.com/OasisLMF/OasisLMF/issues/2311>`_).
+
 .. note::
    When an iteration has several layers (several contracts at one inuring priority and risk
    level), only the top layer's loss reaches the ``rl`` stream
