@@ -307,6 +307,10 @@ cope with it being absent (for instance a ``prepare`` step giving it a ``default
 
 A ``geog_lookup`` step treats the ``GeogScheme{N}``/``GeogName{N}`` slots it scans as optional automatically.
 
+Column names are matched to the location file ignoring case, but each column is passed to the steps under a single
+spelling, so every step must name it the same way in ``columns`` and ``optional_columns`` (e.g. not ``Latitude`` in
+one step and ``latitude`` in another). The lookup raises an error if they differ.
+
 |
 
 .. _built_in_functions_keys:

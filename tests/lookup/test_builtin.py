@@ -669,6 +669,50 @@ def test_optional_columns_kept_if_present_and_not_required(has_coordinates):
     assert seen["lat"] == ([51.5] if has_coordinates else [-999])
 
 
+def _two_step_config(columns_a, columns_b, key_a="columns", key_b="columns"):
+    return {
+        "strategy": ["a", "b", "pivot"],
+        "step_definition": {
+            "a": {"type": "prepare", key_a: columns_a, "parameters": {}},
+            "b": {"type": "prepare", key_b: columns_b, "parameters": {}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+
+
+@pytest.mark.parametrize("key_a, key_b", [
+    ("optional_columns", "optional_columns"),
+    ("columns", "columns"),
+    ("columns", "optional_columns"),
+])
+def test_column_named_with_different_capitalisation_raises(key_a, key_b):
+    """Each column is kept under one spelling, so steps must agree on it (review of #2322)."""
+    config = _two_step_config(["Latitude"], ["latitude"], key_a, key_b)
+    locations = pd.DataFrame({"loc_id": [1], "LATITUDE": [51.5]})
+    with pytest.raises(OasisException, match=r"different capitalisation: 'Latitude' in \['a'\], 'latitude' in \['b'\]"):
+        Lookup(config=config).process_locations(locations)
+
+
+def test_column_named_with_same_spelling_in_several_steps():
+    config = _two_step_config(["Latitude"], ["Latitude"], "columns", "optional_columns")
+    locations = pd.DataFrame({"loc_id": [1], "LATITUDE": [51.5]})
+    assert Lookup(config=config).useful_columns() == {"loc_id", "Latitude"}
+    Lookup(config=config).process_locations(locations)
+
+
+def test_geog_lookup_slot_takes_spelling_of_optional_column(tmp_path):
+    """The automatic geog_lookup slots never clash: they take the spelling another step lists."""
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({"w3w": ["a.b.c"], "area_peril_id": [101]}).to_csv(table, index=False)
+    config = _geog_process_locations_config(table)
+    config["step_definition"]["areaperil"]["optional_columns"] = ["GeogName1"]
+    locations = pd.DataFrame({"loc_id": [1], "geogscheme1": ["W3W"], "GEOGNAME1": ["a.b.c"]})
+    assert "GeogName1" in Lookup(config=config).useful_columns()
+    keys = Lookup(config=config).process_locations(locations)
+    assert keys["area_peril_id"].tolist() == [101]
+
+
 def test_step_optional_columns():
     assert Lookup.step_optional_columns({"type": "merge"}) == []
     assert Lookup.step_optional_columns({"type": "merge", "optional_columns": "latitude"}) == ["latitude"]

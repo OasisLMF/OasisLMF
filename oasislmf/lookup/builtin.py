@@ -56,6 +56,7 @@ from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 
 logger = logging.getLogger(__name__)
 
+GEOG_LOOKUP_DEFAULT_SLOTS = 30  # GeogScheme{N}/GeogName{N} pairs a geog_lookup step scans by default
 OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
 
 
@@ -411,16 +412,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
-        useful_cols = set(['loc_id'])
-        for step_config in self.config['step_definition'].values():
-            useful_cols.update(step_config.get("columns", []))
-        # an optional column already named by some step's 'columns' keeps that spelling
-        known_lower = {col.lower() for col in useful_cols}
-        for step_config in self.config['step_definition'].values():
-            for col in self.step_optional_columns(step_config):
-                if col.lower() not in known_lower:
-                    useful_cols.add(col)
-                    known_lower.add(col.lower())
+        useful_cols = self.useful_columns()
 
         useful_cols_map = {lower_case_column_map[useful_col.lower()]: useful_col
                            for useful_col in useful_cols
@@ -473,8 +465,36 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         return locations
 
+    def useful_columns(self):
+        """The location columns kept for the steps, each under the one spelling the steps use.
+
+        A column is kept under a single name, so two steps naming it with different capitalisation
+        (in ``columns`` or ``optional_columns``) can't both find it: raise rather than let one of
+        them fail with a KeyError. The ``geog_lookup`` slots are matched ignoring case, so they take
+        whatever spelling a step lists and never clash.
+        """
+        spellings = {'loc_id': {'loc_id': ['(always kept)']}}  # lower -> spelling -> steps naming it
+        for step_name, step_config in self.config['step_definition'].items():
+            for col in list(step_config.get("columns", [])) + self.step_optional_columns(step_config, geog_slots=False):
+                spellings.setdefault(col.lower(), {}).setdefault(col, []).append(step_name)
+        clashes = {lower: steps for lower, steps in spellings.items() if len(steps) > 1}
+        if clashes:
+            details = "; ".join(
+                ", ".join(f"'{spelling}' in {sorted(set(names))}" for spelling, names in steps.items())
+                for steps in clashes.values())
+            raise OasisException(
+                f"Lookup config names the same location column with different capitalisation: {details}. "
+                f"Use one spelling in every step's 'columns' and 'optional_columns'")
+        useful_cols = {next(iter(steps)) for steps in spellings.values()}
+        for step_config in self.config['step_definition'].values():
+            for col in self.step_optional_columns(step_config):
+                if col.lower() not in spellings:
+                    useful_cols.add(col)
+                    spellings[col.lower()] = {col: []}
+        return useful_cols
+
     @staticmethod
-    def step_optional_columns(step_config):
+    def step_optional_columns(step_config, geog_slots=True):
         """Columns a step uses if the location file has them, without requiring them.
 
         These are kept through the column filter in ``process_locations`` but, unlike ``columns``,
@@ -485,8 +505,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if isinstance(optional_columns, str):
             optional_columns = [optional_columns]
         optional_columns = list(optional_columns)
-        if step_config.get("type") == "geog_lookup":
-            slots = step_config.get("parameters", {}).get("slots", 30)
+        if geog_slots and step_config.get("type") == "geog_lookup":
+            slots = step_config.get("parameters", {}).get("slots", GEOG_LOOKUP_DEFAULT_SLOTS)
             for n in range(1, slots + 1):
                 optional_columns += [f"geogscheme{n}", f"geogname{n}"]
         return optional_columns
@@ -1266,7 +1286,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return self.set_id_columns(locations, id_columns)
         return merge
 
-    def build_geog_lookup(self, geog_scheme, output_column, slots=30,
+    def build_geog_lookup(self, geog_scheme, output_column, slots=GEOG_LOOKUP_DEFAULT_SLOTS,
                           case_insensitive=True, on_missing='null'):
         """Resolve an OED scheme-tagged value into a single column so it can be joined on.
 
