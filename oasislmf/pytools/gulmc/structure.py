@@ -600,11 +600,13 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
 
     # --- footprint (temporary open to get num_intensity_bins) ------------------
     # FootprintParquetDynamic.__enter__ reads input/sections.csv and input/keys.csv
-    # via relative paths, so cwd must be the run directory.
+    # via relative paths, so cwd must be the run directory. Lazy: a dynamic footprint's sections
+    # are only loaded if save_shared needs them, as the gulmc process that builds its own
+    # structures loads them again when it opens the footprint to run.
     logger.debug('import footprint')
     with setcwd(run_dir), Footprint.load(model_storage, ignore_file_type,
                                          df_engine=model_df_engine,
-                                         areaperil_ids=item_map_ja_areaperil_ids) as footprint_obj:
+                                         areaperil_ids=item_map_ja_areaperil_ids, lazy=True) as footprint_obj:
         num_intensity_bins = footprint_obj.num_intensity_bins
         if dynamic_footprint_dir is not None and isinstance(footprint_obj, FootprintParquetDynamic):
             if footprint_obj.save_shared(dynamic_footprint_dir):
