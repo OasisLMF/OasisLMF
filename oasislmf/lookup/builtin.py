@@ -271,7 +271,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
         perils = expand_perils_covered(locations, peril_covered_column, peril_groups_df)
-        keys_df = pd.DataFrame({'loc_id': locations['loc_id'].to_numpy()[perils['row'].to_numpy()],
+        keys_df = pd.DataFrame({'loc_id': locations['loc_id'].array.take(perils['row'].to_numpy()),
                                 'peril_id': perils['peril_id'].array})
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
@@ -727,18 +727,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
             perils = expand_perils_covered(locations, perils_covered_column, peril_groups_df)
             if model_perils_covered:
-                # only the rows kept below are copied with every location column
-                perils = perils[perils['peril_id'].isin(model_perils_covered)]
+                # only the rows kept below are copied with every location column; sorted on peril_id as before
+                perils = perils[perils['peril_id'].isin(pd.Series(model_perils_covered))]
+                perils = perils.take(np.argsort(perils['peril_id'].to_numpy(), kind='stable'))
             peril_locations = locations.iloc[perils['row'].to_numpy()].reset_index(drop=True)
             peril_locations['peril_group_id'] = perils['peril_group_id'].array
             peril_locations['peril_id'] = perils['peril_id'].array
 
-            if model_perils_covered:
-                df_model_perils_covered = pd.Series(model_perils_covered)
-                df_model_perils_covered.name = 'model_perils_covered'
-                peril_locations = peril_locations.merge(df_model_perils_covered,
-                                                        left_on='peril_id', right_on='model_perils_covered',
-                                                        sort=True)
             not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])].copy()
             if not not_covered_location.empty:
                 not_covered_location['status'] = OASIS_KEYS_STATUS[not_covered_status]['id']

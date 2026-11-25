@@ -425,6 +425,7 @@ def test_split_loc_perils_covered_keeps_location_rows_that_share_a_loc_id():
     assert result[["loc_id", "BuildingTIV", "peril_id"]].values.tolist() == [
         [1, 10., "ORF"], [2, 30., "ORF"], [1, 10., "OSF"], [1, 20., "WTC"]]  # sorted on peril_id by the model filter
     assert result.index.tolist() == list(range(4))
+    assert list(result.columns) == ["loc_id", "BuildingTIV", "LocPerilsCovered", "peril_group_id", "peril_id"]
     assert list(locations.columns) == ["loc_id", "BuildingTIV", "LocPerilsCovered"]
 
 
@@ -443,6 +444,17 @@ def test_peril_covered_deterministic_lookup_keeps_location_rows_that_share_a_loc
 
     # loc 1: two distinct rows, one key each; loc 2: identical rows, WW1 = {WTC, WEC, WSS} given once
     assert keys_df[["loc_id", "peril_id"]].values.tolist() == [[1, "WTC"], [1, "WTC"], [2, "WEC"], [2, "WSS"], [2, "WTC"]]
+
+
+def test_split_loc_perils_covered_accepts_a_single_peril_as_a_string():
+    """A lookup config can give model_perils_covered as one code rather than a list."""
+    locations = pd.DataFrame({"loc_id": [1, 2], "LocPerilsCovered": ["WTC", "QEQ"]})
+
+    from_string = Lookup(config={}).build_split_loc_perils_covered("WTC")(locations)
+    from_list = Lookup(config={}).build_split_loc_perils_covered(["WTC"])(locations)
+
+    pd.testing.assert_frame_equal(from_string, from_list)
+    assert from_list[["loc_id", "peril_id"]].values.tolist() == [[1, "WTC"], [2, np.nan]]
 
 
 def test_split_loc_perils_covered_rejects_unknown_not_covered_status():
