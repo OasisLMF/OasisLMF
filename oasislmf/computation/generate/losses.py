@@ -58,7 +58,7 @@ from ...utils.inputs import str2bool
 from ...utils.path import setcwd
 from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
-from ...utils.ping import oasis_ping
+from ...utils.ping import oasis_ping, platform_progress_configured
 
 
 IL_RULE_0_UNDER_RI = (
@@ -196,6 +196,21 @@ class GenerateLossesBase(ComputationStep):
     def _is_run_settings_stored(self, target_dir):
         """Checks if analysis settings file is under target_dir path"""
         return os.path.isfile(os.path.join(target_dir, 'analysis_settings.json'))
+
+    def _load_stored_run_settings(self, model_run_fp):
+        """Use the run settings stored by `GenerateLossesDir`, or run it if they aren't stored yet.
+
+        The chunked workflow runs `GenerateLossesDir` once and each chunk / output step separately.
+        Those steps rebuild `self.settings` from the original settings files, so they must take the
+        stored ones to see the updates made while preparing the run directory (e.g. `number_of_samples`
+        set from `model_default_samples`, outputs disabled for missing IL/RI inputs).
+        """
+        output_dir = os.path.join(model_run_fp, 'output')
+        if self._is_run_settings_stored(output_dir):
+            with io.open(os.path.join(output_dir, 'analysis_settings.json'), 'r', encoding='utf-8') as f:
+                self.settings = json.load(f)
+        else:
+            GenerateLossesDir.run(self)
 
     def _get_num_ri_layers(self, analysis_settings, model_run_fp):
         """Find the number of Reinsurance layers based on `'ri_layers.json'`, returns pos int()"""
@@ -557,11 +572,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         GenerateLossesDir._check_ktool_rules(self)
         GenerateLossesDir._check_packed_inputs_can_be_run(self, self.settings)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-
-        # distributed worker will pass in run settings as JSON, if not given load settings
-        # and re-load input dir.
-        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
-            GenerateLossesDir.run(self)
+        self._load_stored_run_settings(model_run_fp)
 
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
@@ -655,8 +666,7 @@ class GenerateLossesOutput(GenerateLossesDir):
 
     def run(self):
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
-            GenerateLossesDir.run(self)
+        self._load_stored_run_settings(model_run_fp)
 
         model_runner_module, _ = self._get_model_runner()
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
@@ -680,6 +690,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             model_run_dir=model_run_fp,
         )
         bash_params['resource_monitor_interval'] = self.resource_monitor_interval
+        bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
         bash_params['disable_resource_report'] = self.disable_resource_report
         with setcwd(model_run_fp):
             try:
@@ -789,9 +800,7 @@ class GenerateLosses(GenerateLossesDir):
         with setcwd(model_run_fp):
             socket_server_size = None
             socket_server_port = None
-            has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
-            has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
-            if 'analysis_pk' in self.kwargs and not (has_websocket or has_http):
+            if 'analysis_pk' in self.kwargs and not platform_progress_configured():
                 self.logger.info("Set `OASIS_WEBSOCKET_URL`/`OASIS_WEBSOCKET_PORT` or `OASIS_ANALYSIS_STATUS_URL` "
                                  "environment variables for run progress updates")
             elif 'analysis_pk' in self.kwargs:
