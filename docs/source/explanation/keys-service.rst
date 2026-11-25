@@ -426,13 +426,32 @@ is left untouched. Rows where this column is empty keep whatever message was alr
 
 * **prepare**
 
-Prepare the dataframe by setting default, min and max values and type.
-
-Support several simple DataFrame preparation:
+Prepare the dataframe column by column. Each parameter key is a column name and its value a dict of preparations,
+applied in this order:
    * default: create the column if missing and replace the nan value with the default value
+   * strip: (``true``) remove leading and trailing whitespace from text values
+   * upper: (``true``) upper-case text values
+   * lower: (``true``) lower-case text values (cannot be combined with ``upper``)
    * max: truncate the values in a column to the specified max
    * min: truncate the values in a column to the specified min
    * type: convert the type of the column to the specified numpy dtype
+   * rename: rename the column to this name. An existing column with that name is replaced.
+   * drop: (``true``) remove the column. A missing column is ignored.
+
+``strip``, ``upper`` and ``lower`` only change string values; null and non-text values are left as they are. ``merge``
+matches values exactly, so use them to normalise a column before joining on it. Columns are processed in the order
+they are listed, so a later entry sees the result of an earlier ``rename``. An unknown option raises an error.
+
+.. code-block:: JSON
+
+   "normalise": {
+       "type": "prepare",
+       "columns": ["postalcode", "intermediate_id"],
+       "parameters": {
+           "postalcode": {"strip": true, "upper": true},
+           "intermediate_id": {"rename": "area_peril_id"}
+       }
+   }
 
 .. note::
    We use the string representation of numpy dtype available at
@@ -443,6 +462,9 @@ Support several simple DataFrame preparation:
 * **rtree**
 
 Function Factory to associate a location to a geometry (e.g. ``area_peril``) based on the rtree method.
+
+.. note::
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 .. note::
    !!!
@@ -525,10 +547,17 @@ Build a lookup function that assigns geotiff band values to each location from i
 
 ``band_info``: a dict where keys are the assigned column names, and values are dicts with:
    * ``id``: the id of the band in the tiff file
-   * ``default``: the value for locations outside of the geotiff's range
+   * ``default``: the value for pixels the geotiff marks as nodata, and for locations outside of the geotiff's
+     range or with missing coordinates. If the band's type cannot hold it (e.g. ``-1`` for a ``uint8`` band, or
+     ``NaN`` for an integer band), the column's type is widened to one that can.
+
+Each location takes the values of the pixel that contains it. The geotiff must use a geographic CRS such as
+EPSG:4326, or have no CRS, in which case its coordinates are taken as longitude/latitude; a projected CRS is
+rejected. The file is read with ``rasterio``, which only loads the requested bands of the raster blocks holding
+locations, so large rasters do not need to fit in memory.
 
 .. note::
-   Requires ``gdal`` to be installed, see the error message raised at build time for installation instructions.
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 |
 
@@ -563,7 +592,7 @@ Config example::
    }
 
 .. note::
-   Requires the ``h3`` package to be installed (``pip install h3>=4``).
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 |
 

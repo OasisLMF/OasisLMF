@@ -642,8 +642,8 @@ def test_dynamic_footprint_incomplete_save_is_not_used(tmp_path, monkeypatch):
 
     (Path(shared_dir) / SHARED_MANIFEST).unlink()
     with Footprint.load(storage, shared_dir=shared_dir) as footprint:
-        assert footprint.shared_hazard is None and footprint.df_hazard_case is not None
         np.testing.assert_array_equal(footprint.get_event(1), shared_event)
+        assert footprint.shared_hazard is None and footprint.df_hazard_case is not None
 
 
 def test_dynamic_footprint_structures_build_from_a_relative_run_directory(tmp_path, monkeypatch):
@@ -659,3 +659,19 @@ def test_dynamic_footprint_structures_build_from_a_relative_run_directory(tmp_pa
     monkeypatch.chdir(tmp_path)
     structures = build_structures('run', set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
     assert len(structures['vuln_array'])
+
+
+def test_dynamic_footprint_structures_load_no_sections_unless_saved(tmp_path, footprint_reads):
+    """A gulmc process building its own structures loads the footprint's sections once, to run.
+
+    The structure build only needs num_intensity_bins from the footprint; it loads the sections
+    only to save them for the processes to share (create_gulmc_structure).
+    """
+    from oasislmf.pytools.gulmc.structure import build_structures
+
+    make_dynamic_test_model(tmp_path / 'run')
+    build_structures(str(tmp_path / 'run'), set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
+    assert footprint_reads == []
+
+    create_gulmc_structure(str(tmp_path / 'run'), set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
+    assert footprint_reads

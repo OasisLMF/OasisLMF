@@ -60,10 +60,10 @@ source oasis-env/bin/activate
 pip install oasislmf
 ```
 
-### Install with optional geospatial extras
+### Install with optional spatial packages
 
 ```bash
-pip install oasislmf[extra]
+pip install "oasislmf[spatial]"
 ```
 
 ### Install from source (development)
@@ -175,11 +175,11 @@ older macOS version, upgrade your OS or use Rosetta 2 emulation.
 
 ### rtree / libspatialindex not found
 
-This only affects the `[extra]` optional dependencies:
+This only affects the `[spatial]` optional dependencies:
 
 ```bash
 brew install spatialindex
-pip install oasislmf[extra]
+pip install "oasislmf[spatial]"
 ```
 
 ### Multiprocessing errors

@@ -9,7 +9,7 @@ def _remap_sidx(sidx):
         return 1
     if sidx >= 1:
         return sidx + 1
-    raise ValueError(f"Invalid sidx value: {sidx}")
+    raise ValueError("Invalid sidx value:", sidx)
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
@@ -31,7 +31,7 @@ def _inverse_remap_sidx(remapped_sidx):
         return -3
     if remapped_sidx >= 2:
         return remapped_sidx - 1
-    raise ValueError(f"Invalid remapped_sidx value: {remapped_sidx}")
+    raise ValueError("Invalid remapped_sidx value:", remapped_sidx)
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
