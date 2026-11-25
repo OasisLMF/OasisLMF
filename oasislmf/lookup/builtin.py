@@ -251,7 +251,11 @@ def expand_perils_covered(locations, perils_covered_column, peril_groups_df):
     rows = np.flatnonzero(~locations.duplicated().to_numpy())
     codes = pd.Series(locations[perils_covered_column].iloc[rows].astype(str).str.split(';').to_numpy(), index=rows).explode()
     perils = pd.DataFrame({'row': codes.index.to_numpy(),
+                           'pos': np.arange(len(codes)),
                            'peril_group_id': codes.astype(peril_groups_df['peril_group_id'].dtype).array}).merge(peril_groups_df)
+    # pandas < 2.2 does not keep the left row order in an inner merge (GH 54611), so restore the listed
+    # order before keeping the first code per peril; pos increases across rows, so it alone is enough
+    perils = perils.take(np.argsort(perils['pos'].to_numpy(), kind='stable')).drop(columns='pos')
     return perils.drop_duplicates(subset=['row', 'peril_id'], ignore_index=True)
 
 

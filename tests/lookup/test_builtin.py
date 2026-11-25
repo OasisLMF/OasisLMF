@@ -338,6 +338,14 @@ def test_split_loc_perils_covered_two_groups_containing_a_peril_give_it_once():
     assert result[["loc_id", "peril_id", "peril_group_id"]].values.tolist() == [[1, "XHL", "XX1"]]
 
 
+def test_split_loc_perils_covered_first_listed_group_wins_per_location():
+    """XX1 and AA1 both contain XHL; each location keeps the group it lists first."""
+    fct = Lookup(config={}).build_split_loc_perils_covered(["XHL"])
+    result = fct(pd.DataFrame({"loc_id": [1, 2], "LocPerilsCovered": ["XX1;AA1", "AA1;XX1"]}))
+
+    assert sorted(result[["loc_id", "peril_group_id"]].values.tolist()) == [[1, "XX1"], [2, "AA1"]]
+
+
 def test_split_loc_perils_covered_keeps_location_rows_that_share_a_loc_id():
     """Rows sharing a loc_id but differing elsewhere keep their own perils; identical rows give them once,
     whatever the index."""
