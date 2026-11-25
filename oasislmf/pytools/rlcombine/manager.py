@@ -472,7 +472,7 @@ def run(summary_files_in, output_summary_file, static_paths, low_memory, interme
         output_pipe = stack.enter_context(open(output_summary_file, 'wb'))
         idx_file_cursors[-1] += output_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
         idx_file_cursors[-1] += output_pipe.write(len_sample.tobytes())
-        idx_file_cursors[-1] += output_pipe.write(summary_id_dtype.type(summary_set_id).tobytes())
+        idx_file_cursors[-1] += output_pipe.write(summaryset_id_dtype.type(summary_set_id).tobytes())
 
         # prepare the intermediate outputs
         intermediate_pipes = {i: stack.enter_context(open(intermediate_path, 'wb')) for i, intermediate_path in intermediate_outputs.items()}
